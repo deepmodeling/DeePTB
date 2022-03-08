@@ -1,7 +1,22 @@
 # DeepNEGF
-
 Deep learning on quantum transport simulations with NEGF method.
+## dependency:
+using pip to install all the dependencies.
 
+- numpy
+- scipy
+- spglib
+- matplotlib
+- ase
+- multiprocessing
+- torch
+- torchsort
+
+
+## installation
+```export PYTHONPATH=$PYTHONPATH:/your/path/to/nnsktb```
+
+## usage:
 ## Getting started
 
 To make it easy for you to get started with GitLab, here's a list of recommended next steps.
