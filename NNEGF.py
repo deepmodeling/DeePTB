@@ -12,17 +12,17 @@ from negf.SurfaceGF import SurfGF
 from negf.NEGFHamilton import NEGFHamiltonian, Device_Hamils, Contact_Hamils
 from negf.NEGF import NEGFcal
 
-def main():
+def deepnegf(args:argparse.Namespace):
     # command line. 
-    parser = argparse.ArgumentParser(description="Parameters.")  
-    parser.add_argument('-i', '--input_file', type=str,
-                        default='inputnn.json', help='json file for inputs, default inputnn.json')
-    parser.add_argument('-s', '--struct', type=str, default='struct.xyz',
-                        help='struct file name default struct.xyz')
-    parser.add_argument('-fmt', '--format', type=str, default='xyz',
-                        help='struct file format default xyz')
+    #parser = argparse.ArgumentParser(description="Parameters.")  
+    #parser.add_argument('-i', '--input_file', type=str,
+    #                    default='inputnn.json', help='json file for inputs, default inputnn.json')
+    #parser.add_argument('-s', '--struct', type=str, default='struct.xyz',
+    #                    help='struct file name default struct.xyz')
+    #parser.add_argument('-fmt', '--format', type=str, default='xyz',
+    #                    help='struct file format default xyz')
 
-    args = parser.parse_args()
+    #args = parser.parse_args()
 
     input_file = args.input_file
     fp = open(input_file)
@@ -43,5 +43,5 @@ def main():
     negfcal.Cal_NEGF()
 
 
-if __name__ == "__main__":
-    main()
+#if __name__ == "__main__":
+#    deepnegf()

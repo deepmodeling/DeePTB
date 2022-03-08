@@ -9,18 +9,19 @@ from nnet.Model import Model
 
 from shutil import copyfile
 
-def main():
+def deepTB(args:argparse.Namespace):
     # command line.
-    parser = argparse.ArgumentParser(
-        description="Parameters.")   
-    parser.add_argument('-i', '--input_file', type=str,
-                        default='input.json', help='json file for inputs, default inputnn.json')
-    parser.add_argument('-m', '--mode', type=str, default='train',
-                        help='[tr]ain or [ts]test or [pr]edict.')
-    parser.add_argument('-r', '--run_status', type=str, default='from_scratch',
-                        help='run job [f]rom_scratch (default) or [r]estart.')
+    # parser = argparse.ArgumentParser(
+    #    description="Parameters.")   
+    # parser.add_argument('-i', '--input_file', type=str,
+    #                     default='input.json', help='json file for inputs, default inputnn.json')
+    # parser.add_argument('-m', '--mode', type=str, default='train',
+    #                    help='[tr]ain or [ts]test or [pr]edict.')
+    # parser.add_argument('-r', '--run_status', type=str, default='from_scratch',
+    #                    help='run job [f]rom_scratch (default) or [r]estart.')
 
-    args = parser.parse_args()
+    # args = parser.parse_args()
+
     if bool(re.match('tr',args.mode)):
         mode = 'train'
     elif bool(re.match('pr',args.mode)):
@@ -71,5 +72,5 @@ def main():
 
 
 
-if __name__ == "__main__":
-    main()
+#if __name__ == "__main__":
+#    main()
