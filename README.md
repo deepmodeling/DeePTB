@@ -14,7 +14,7 @@ using pip to install all the dependencies.
 
 
 ## installation
-```export PYTHONPATH=$PYTHONPATH:/your/path/to/nnsktb```
+```export PYTHONPATH=$PYTHONPATH:/your/path/to/deepnegf```
 
 ## usage:
 ## Getting started
