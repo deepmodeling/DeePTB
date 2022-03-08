@@ -1,9 +1,9 @@
 import time
 import argparse
 
-from sktb.Parameters import Paras
-from sktb.NEGF import NEGFCal
-from sktb.ElectronBase import Electron
+from dpnegf.sktb.Parameters import Paras
+from dpnegf.sktb.NEGF import NEGFCal
+from dpnegf.sktb.ElectronBase import Electron
 
 def main():
     # interact command line.

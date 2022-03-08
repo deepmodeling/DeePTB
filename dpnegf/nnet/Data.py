@@ -6,7 +6,7 @@ from ase import Atoms
 from ase.io import read, iread, write
 from ase.io.trajectory import Trajectory
 
-from sktb.StructData import StructBuild
+from dpnegf.sktb.StructData import StructBuild
 
 class DataLoad(object):
     def __init__(self,paras) -> None:

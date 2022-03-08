@@ -1,10 +1,10 @@
 
 import numpy as np
 
-from sktb.SlaterKosterPara import SlaterKosterInt
-from sktb.RotateSK import RotateHS
-from sktb.StructData import StructBuild, BondListBuild
-from sktb.StructData import StructNEGFBuild
+from dpnegf.sktb.SlaterKosterPara import SlaterKosterInt
+from dpnegf.sktb.RotateSK import RotateHS
+from dpnegf.sktb.StructData import StructBuild, BondListBuild
+from dpnegf.sktb.StructData import StructNEGFBuild
 
 class BuildHSreal(RotateHS):
     """ build hamiltonian and overlap matrix  in real space.

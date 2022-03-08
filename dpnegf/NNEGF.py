@@ -4,13 +4,12 @@ import ase
 import ase.io
 import argparse
 
-from Parameters import Paras
-from nnet.Model import Model
-
-from negf.NEGFStruct import StructNEGFBuild
-from negf.SurfaceGF import SurfGF
-from negf.NEGFHamilton import NEGFHamiltonian, Device_Hamils, Contact_Hamils
-from negf.NEGF import NEGFcal
+from dpnegf.Parameters import Paras
+from dpnegf.nnet.Model import Model
+from dpnegf.negf.NEGFStruct import StructNEGFBuild
+from dpnegf.negf.SurfaceGF import SurfGF
+from dpnegf.negf.NEGFHamilton import NEGFHamiltonian, Device_Hamils, Contact_Hamils
+from dpnegf.negf.NEGF import NEGFcal
 
 def deepnegf(args:argparse.Namespace):
     # command line. 

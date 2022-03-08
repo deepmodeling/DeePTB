@@ -1,5 +1,5 @@
 import numpy as np
-from negf.SurfaceGF import SurfGF
+from dpnegf.negf.SurfaceGF import SurfGF
 class Trans(object):
     """ To calculate the Transmission coefficient at 0-bias. 
 

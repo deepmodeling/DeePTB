@@ -1,13 +1,13 @@
 import os
 import re
 import argparse
+from shutil import copyfile
 
 #from nnet.ParametersNN import Paras
-from Parameters import Paras
+from dpnegf.Parameters import Paras
+from dpnegf.nnet.Model import Model
 
-from nnet.Model import Model
 
-from shutil import copyfile
 
 def deepTB(args:argparse.Namespace):
     # command line.
