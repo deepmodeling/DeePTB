@@ -6,9 +6,9 @@ from multiprocessing import Pool
 import scipy.linalg as scl
 import matplotlib.pyplot as plt
 
-from sktb.BuildHS import DeviceHS
-from sktb.GreenFunctions import SurfGF, SelfEnergy, NEGFTrans
-from sktb.ElectronBase import Electron
+from dpnegf.sktb.BuildHS import DeviceHS
+from dpnegf.sktb.GreenFunctions import SurfGF, SelfEnergy, NEGFTrans
+from dpnegf.sktb.ElectronBase import Electron
 
 
 class NEGFCal(DeviceHS,NEGFTrans):

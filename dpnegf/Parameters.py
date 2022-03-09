@@ -1,13 +1,10 @@
+# -*- coding: utf-8 -*-
 import re, sys
 import json
 
 class Paras(object):
-    """ a class store all the input parameters.
-    
-    Attributes
-    ----------
-    
-
+    """ 
+    a class store all the input parameters.
     """
     def __init__(self, file):
         """  initial the input json and check the input file.
