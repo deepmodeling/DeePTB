@@ -21,15 +21,23 @@ def main():
         help='train NN to get the TB hamiltonians with labeled data.')
     paras_tbtrain.add_argument("-r", "--restart", type=str, default = None,
         help='training the model initialed with checkpoint.')
+    paras_tbtrain.add_argument('-i', '--input_file', type=str,
+        default='input.json', help='json file for inputs, default inputnn.json')
 
     paras_test = subparsers.add_parser("test", 
         help='test the trained NN. using the unseen labeled data.')
-    
-    #paras_pred = subparsers.add_parser("predict", 
+    paras_test.add_argument('-i', '--input_file', type=str,
+        default='input.json', help='json file for inputs, default inputnn.json')
+
+    # paras_pred = subparsers.add_parser("predict", 
     #    help='using the trained NN to make prediction for unlabeled data.')
+    # paras_test.add_argument('-i', '--input_file', type=str,
+    #    default='input.json', help='json file for inputs, default inputnn.json')
     
     paras_negf = subparsers.add_parser("negf", 
         help='Perform NEGF simulations with NN-baed TB Hamiltonians.')
+    paras_negf.add_argument('-i', '--input_file', type=str,
+        default='input.json', help='json file for inputs, default inputnn.json')
     paras_negf.add_argument('-s', '--struct', type=str, default='struct.xyz',
         help='struct file name default struct.xyz')
     paras_negf.add_argument('-fmt', '--format', type=str, default='xyz',
