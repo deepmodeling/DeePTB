@@ -1,13 +1,14 @@
 import numpy as np
 import torch  as th
 import warnings
-from sktb.StructData import BondListBuild
-from sktb.SlaterKosterPara import SlaterKosterInt
-from sktb.RotateSK import RotateHS
-
-from nnet.Data import EnvBuild, DataLoad
-from nnet.NetWorks import BuildNN,Index_Mapings
 import torchsort
+
+from dpnegf.sktb.StructData import BondListBuild
+from dpnegf.sktb.SlaterKosterPara import SlaterKosterInt
+from dpnegf.sktb.RotateSK import RotateHS
+from dpnegf.nnet.Data import EnvBuild, DataLoad
+from dpnegf.nnet.NetWorks import BuildNN,Index_Mapings
+
 #from softsort.pytorch_ops import soft_sort
 
 class Model(object):

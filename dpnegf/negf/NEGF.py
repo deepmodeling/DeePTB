@@ -1,11 +1,8 @@
 import time
 from scipy.linalg.decomp import eig
-import spglib
 import numpy as np
 from multiprocessing import Pool
-import scipy.linalg as scl
-import matplotlib.pyplot as plt
-from negf.SurfaceGF import SurfGF
+from dpnegf.negf.SurfaceGF import SurfGF
 
 #from sktb.BuildHS import DeviceHS
 #from sktb.GreenFunctions import SurfGF, SelfEnergy, NEGFTrans
