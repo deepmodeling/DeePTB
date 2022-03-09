@@ -2,19 +2,19 @@
 Deep learning on quantum transport simulations with NEGF method.
 ## dependency:
 using pip to install all the dependencies.
-
+- python >= 3.8
 - numpy
 - scipy
 - spglib
 - matplotlib
 - ase
-- multiprocessing
 - torch
 - torchsort
 
 
 ## installation
-```export PYTHONPATH=$PYTHONPATH:/your/path/to/deepnegf```
+```python setup.py install```
+
 
 ## usage:
 ## Getting started
