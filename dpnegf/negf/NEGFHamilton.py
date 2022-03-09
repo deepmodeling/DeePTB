@@ -1,9 +1,8 @@
 import numpy as np
-import ase.io
 import ase
 
-from negf.NEGFStruct import StructNEGFBuild
-from nnet.Model import Model
+from dpnegf.negf.NEGFStruct import StructNEGFBuild
+from dpnegf.nnet.Model import Model
 # from negf.RegionHamil import Device_Hamils, Contact_Hamils
 
 class NEGFHamiltonian(object):

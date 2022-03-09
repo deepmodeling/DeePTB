@@ -1,5 +1,5 @@
 import numpy as np
-from negf.SurfaceGF import SurfGF
+from dpnegf.negf.SurfaceGF import SurfGF
 
 class SelfEnergy(object):
     def __init__(self,Hsc, Ssc, bondsc, orbss, orbsc):
