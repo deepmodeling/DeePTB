@@ -81,13 +81,13 @@ def dpTBtrain(args:argparse.Namespace):
 
     # args = parser.parse_args()
 
-    paras.istrain = True
-    paras.istest = False
-    paras.ispredict = False
-
     input_file = args.input_file
     fp = open(input_file)
     paras = Paras(fp)
+    
+    paras.istrain = True
+    paras.istest = False
+    paras.ispredict = False
 
 
     if args.restart:
@@ -107,13 +107,15 @@ def dpTBtrain(args:argparse.Namespace):
 
 def dpTBtest(args:argparse.Namespace):
 
-    paras.istrain = False
-    paras.istest = True
-    paras.ispredict = False
+
 
     input_file = args.input_file
     fp = open(input_file)
     paras = Paras(fp)
+    
+    paras.istrain = False
+    paras.istest = True
+    paras.ispredict = False
 
     mdl = Model(paras)
     mdl.test()
