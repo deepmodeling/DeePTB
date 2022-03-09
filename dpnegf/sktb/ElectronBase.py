@@ -3,9 +3,9 @@ import scipy.linalg as scl
 import spglib
 import matplotlib.pyplot as plt
 
-from sktb.StructData import StructBuild,BondListBuild
-from sktb.SlaterKosterPara import SlaterKosterInt
-from sktb.BuildHS import BuildHSreal
+from dpnegf.sktb.StructData import StructBuild,BondListBuild
+from dpnegf.sktb.SlaterKosterPara import SlaterKosterInt
+from dpnegf.sktb.BuildHS import BuildHSreal
 
 class Electron(BuildHSreal):
     def __init__(self,paras):

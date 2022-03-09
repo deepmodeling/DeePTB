@@ -1,7 +1,8 @@
 import numpy as np
 import ase 
-from sktb.StructData import StructBuild
 from ase import Atoms
+
+from dpnegf.sktb.StructData import StructBuild
 
 class StructNEGFBuild(StructBuild):
     """ Define the structure for negf calculations. 
