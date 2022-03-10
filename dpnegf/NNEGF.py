@@ -4,7 +4,7 @@ import ase
 import ase.io
 import argparse
 
-from dpnegf.Parameters import Paras2  as Paras
+from dpnegf.Parameters import Paras
 from dpnegf.nnet.Model import Model
 from dpnegf.negf.NEGFStruct import StructNEGFBuild
 from dpnegf.negf.SurfaceGF import SurfGF

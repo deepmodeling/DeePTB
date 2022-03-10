@@ -4,7 +4,7 @@ import argparse
 from shutil import copyfile
 
 #from nnet.ParametersNN import Paras
-from dpnegf.Parameters import Paras2 as Paras
+from dpnegf.Parameters import Paras
 from dpnegf.nnet.Model import Model
 
 
