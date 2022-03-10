@@ -93,7 +93,9 @@ def  band_plot(args:argparse.Namespace):
     np.save('band_structure.npy',{'xlist':xlist,'eigenvalues':eigksnp,'Efermi':EF,'high_sym_kpoints':high_sym_kpoints,'labels':labels})
 
     
-    plotcode=[["band_structure = np.load('band_structure.npy',allow_pickle=True).tolist()"],
+    plotcode=[["import numpy as np"],
+    ["import matplotlib.pyplot as plt"],
+    ["band_structure = np.load('band_structure.npy',allow_pickle=True).tolist()"],
     ["plt.switch_backend('agg')           "],
     ["plt.figure(figsize=(5,5),dpi=200)"],
     ["for i in range(band_structure['eigenvalues'].shape[1]):"],
