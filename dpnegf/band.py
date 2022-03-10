@@ -1,3 +1,4 @@
+import sys
 import ase
 import ase.io
 import argparse
@@ -22,7 +23,14 @@ def  band_plot(args:argparse.Namespace):
     mdl = Model(paras)
     mdl.loadmodel()
 
-    strase = ase.io.read(paras.struct,format=paras.format)
+    if args.struct:
+        strase = ase.io.read(args.struct,format=args.format)
+    elif hasattr(paras,'struct') and hasattr(paras,'format'): 
+        strase = ase.io.read(paras.struct,format=paras.format)
+    else:
+        print('please set the stucture and format tag.')
+        sys.exit()
+        
     mdl.structinput(strase)
     mdl.nnhoppings()
     mdl.SKhoppings()
@@ -82,4 +90,4 @@ def  band_plot(args:argparse.Namespace):
     plt.yticks(fontsize=12)
     plt.xticks(high_sym_kpoints,labels,fontsize=12)
     plt.savefig('./band.png',dpi=100)
-    plt.show()
+    #plt.show()

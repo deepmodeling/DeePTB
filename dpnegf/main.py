@@ -4,6 +4,7 @@
 import argparse
 from dpnegf.NNSKTB import deepTB, dpTBtrain, dpTBtest
 from dpnegf.NNEGF import deepnegf
+from dpnegf.band import band_plot
 
 __author__ = "Q. Gu, et al."
 __copyright__ = "Q. Gu & AISI"
@@ -36,6 +37,12 @@ def main():
 
     paras_plotband = subparsers.add_parser("band", 
         help='Perform NEGF simulations with NN-baed TB Hamiltonians.')
+    paras_plotband.add_argument('-i', '--input_file', type=str,
+        default='input.json', help='json file for inputs, default inputnn.json')
+    paras_plotband.add_argument('--struct', type=str, default=None, 
+        help='the struct to calculate band.') 
+    paras_plotband.add_argument('--format', type=str, default='vasp', 
+        help='the format of struct to calculate band. default vasp.') 
     paras_plotband.add_argument('--nn_off', type=str, default=None, 
         help='turn off nn correction, only use sktb as Hamiltion, default None, means use NN corrected TB.')  
 
@@ -59,6 +66,8 @@ def main():
         dpTBtest(args)
     elif args.command=='negf':
         deepnegf(args)
+    elif args.command=='band':
+        band_plot(args)
         
     
 if __name__ == "__main__":
