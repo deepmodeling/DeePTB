@@ -69,20 +69,22 @@ class Model(object):
         self.ProjAnglrM = self.envbuild.ProjAnglrM      # the angular momentum to project.
         self.AnglrMID = self.bondbuild.AnglrMID 
 
-        self.use_E_win = paras.use_E_win
-        self.use_I_win = paras.use_I_win
-        self.band_min = paras.band_min
+        if self.istrain or self.istest or self.ispredict:
+            self.use_E_win = paras.use_E_win
+            self.use_I_win = paras.use_I_win
+            self.band_min = paras.band_min
 
-        if self.use_E_win:
-            self.energy_max = paras.energy_max
-            # self.use_E_win
-        elif self.use_I_win:
-            # band index window
-            self.band_max = paras.band_max
-            # turn off the tag for reference struct training.
-            self.withref = False
-        else:
-            print('error in define a window for trainng eigenvalues ')
+            if self.use_E_win:
+                self.energy_max = paras.energy_max
+                # self.use_E_win
+            elif self.use_I_win:
+                # band index window
+                self.band_max = paras.band_max
+                # turn off the tag for reference struct training.
+                self.withref = False
+            else:
+                print('error in define a window for trainng eigenvalues ')
+                
         # self.band_window = paras.band_window
         # self.val_window = paras.val_window
         # assert (self.band_window[0] == self.val_window[0] and self.band_window[0] >= self.val_window[0])
