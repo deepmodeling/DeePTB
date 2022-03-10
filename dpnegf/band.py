@@ -30,7 +30,7 @@ def  band_plot(args:argparse.Namespace):
     else:
         print('please set the stucture and format tag.')
         sys.exit()
-        
+
     mdl.structinput(strase)
     mdl.nnhoppings()
     mdl.SKhoppings()
@@ -82,7 +82,7 @@ def  band_plot(args:argparse.Namespace):
         plt.axvline(ii,color='gray',lw=1,ls='--')
 
     plt.axhline(0,ls='-.',c='gray')
-    plt.legend(loc=1,framealpha=1)
+    #plt.legend(loc=1,framealpha=1)
     plt.tick_params(direction='in')
     plt.ylim(emin,emax)
     plt.xlim(xlist.min(),xlist.max())
@@ -90,4 +90,27 @@ def  band_plot(args:argparse.Namespace):
     plt.yticks(fontsize=12)
     plt.xticks(high_sym_kpoints,labels,fontsize=12)
     plt.savefig('./band.png',dpi=100)
-    #plt.show()
+    np.save('band_structure.npy',{'xlist':xlist,'eigenvalues':eigksnp,'Efermi':EF,'high_sym_kpoints':high_sym_kpoints,'labels':labels})
+
+    
+    plotcode=[["band_structure = np.load('band_structure.npy',allow_pickle=True).tolist()"],
+    ["plt.switch_backend('agg')           "],
+    ["plt.figure(figsize=(5,5),dpi=200)"],
+    ["for i in range(band_structure['eigenvalues'].shape[1]):"],
+    ["    plt.plot(band_structure[xlist], band_structure['eigenvalues'][:,i] - band_structure['Efermi'],'r-',lw=1)"],
+    ["for ii in band_structure['high_sym_kpoints']:"],
+    ["    plt.axvline(ii,color='gray',lw=1,ls='--')"],
+    ["plt.axhline(0,ls='-.',c='gray')"],
+    ["#plt.legend(loc=1,framealpha=1)"],
+    ["plt.tick_params(direction='in')"],
+    ["plt.ylim(emin,emax)"],
+    ["plt.xlim(xlist.min(),xlist.max())"],
+    ["plt.ylabel('E - EF (eV)',fontsize=12)"],
+    ["plt.yticks(fontsize=12)"],
+    ["plt.xticks(band_structure['high_sym_kpoints'],band_structure['labels'],fontsize=12)"],
+    ["plt.savefig('./band.png',dpi=100)"]]
+    
+    f=open('showband.py','w')
+    for iraw in plotcode:
+        print(iraw[o],file=f)
+ 
