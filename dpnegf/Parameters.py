@@ -268,6 +268,7 @@ class Paras(object):
         self.band_range=None
         self.nkpoints = 120
         self.correction_mode = 1
+        self.active_func ='tanh'
 
         no_default_keys = ['AtomType',
                                 'ProjAtomType',
