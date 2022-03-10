@@ -112,5 +112,5 @@ def  band_plot(args:argparse.Namespace):
     
     f=open('showband.py','w')
     for iraw in plotcode:
-        print(iraw[o],file=f)
+        print(iraw[iraw],file=f)
  
