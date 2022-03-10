@@ -25,7 +25,7 @@ def deepnegf(args:argparse.Namespace):
 
     input_file = args.input_file
     fp = open(input_file)
-    paras = Paras(fp)
+    paras = Paras(fp,args.command, args.nn_off)
 
     structfile = args.struct
     structfmt = args.format
