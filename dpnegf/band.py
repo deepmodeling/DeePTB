@@ -110,7 +110,7 @@ def  band_plot(args:argparse.Namespace):
     ["plt.ylabel('E - EF (eV)',fontsize=12)"],
     ["plt.yticks(fontsize=12)"],
     ["plt.xticks(band_structure['high_sym_kpoints'],band_structure['labels'],fontsize=12)"],
-    ["plt.savefig('./band.png',dpi=100)"]]
+    ["plt.savefig('./band_plot.png',dpi=100)"]]
     
     f=open('showband.py','w')
     for iraw in plotcode:
