@@ -233,6 +233,63 @@ class Paras(object):
             if not re.match('_', ikey):
                 exec ('self.' + ikey + '= self.input_json[ikey]')
 
+    def bandparas(self):
+        """ initial default parameters and user define parameters for NNTB .
+
+        Attributes
+        ----------
+        SpinDeg: the spin degeneracy of the band structure.
+        read_checkpoint: the checkpoint name.
+        nkpoints : total kpoints in the band kpath.
+        band_range: energy range of band plot. default os None, and will be set to max and min of band.
+        # no default keys:
+        AtomType: atoms types in the whole structure. 
+        ProjAtomType: the atoms which inclued in TB orbitals.
+        ProjAnglrM: each ProjAtomType, the angular momentum used in TB.
+        ValElec: number of valence electrons for each ProjAtomType.
+        CutOff: cutoff for band.
+        EnvCutOff: cutoff for local environment.
+        NumEnv: the number of atoms inclued in local environment.
+        Envnet: env embedding network.
+        Envout: out2 of env embedding network.
+        Bondnet: bond network
+        onsite_net: on energy network.
+        """
+        # 1 h_sk(1+nn) 2: hsk + nn.
+        self.SpinDeg = 2
+        self.read_checkpoint = './checkpoint.pl'
+        self.struct ='struct.vasp'
+        self.format = 'vasp'
+        self.band_range=None
+        self.nkpoints = 120
+
+        no_default_keys = ['AtomType',
+                                'ProjAtomType',
+                                'ProjAnglrM',
+                                'ValElec',
+                                'CutOff',
+                                'EnvCutOff',
+                                'NumEnv',
+                                'Envnet',
+                                'Envout',
+                                'Bondnet',
+                                'onsite_net',
+                                'HighSymKps',
+                                'KPATH']
+
+        # check all the no default keys in input json file :
+
+        for ikey in no_default_keys:
+            if not ikey in self.input_json.keys():
+                print('input json file must have ' + ikey)
+                sys.exit()
+        
+        # read all the default keys in inpus json.
+        for ikey in self.input_json.keys():
+            # skip the key starting with '_' wich is comment.
+            if not re.match('_', ikey):
+                exec ('self.' + ikey + '= self.input_json[ikey]')
+
     def SKtbparas(self):
         """ initial default parameters e and user define parameters for sktb band structure calculations.
         

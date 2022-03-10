@@ -33,6 +33,12 @@ def main():
     #    help='using the trained NN to make prediction for unlabeled data.')
     # paras_test.add_argument('-i', '--input_file', type=str,
     #    default='input.json', help='json file for inputs, default inputnn.json')
+
+    paras_plotband = subparsers.add_parser("band", 
+        help='Perform NEGF simulations with NN-baed TB Hamiltonians.')
+    paras_plotband.add_argument('--nn_off', type=str, default=None, 
+        help='turn off nn correction, only use sktb as Hamiltion, default None, means use NN corrected TB.')  
+
     
     paras_negf = subparsers.add_parser("negf", 
         help='Perform NEGF simulations with NN-baed TB Hamiltonians.')
