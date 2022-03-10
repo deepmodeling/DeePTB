@@ -39,6 +39,8 @@ class Paras(object):
                 self.sktbnegfparas()
             else:
                 self.nntbnegfparas()
+        elif command == 'band':
+            self.bandparas()
             
 
     def SKfileparas(self):
