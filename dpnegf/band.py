@@ -33,7 +33,7 @@ def  band_plot(args:argparse.Namespace):
     special_kp = lat.get_special_points()
     #spmap['M'] = np.array([0.5,0.5,1])
     for ikey in paras.HighSymKps.keys():
-        special_kp[ikey] = paras.HighSymKps[ikey]
+        special_kp[ikey] = np.array(paras.HighSymKps[ikey])
 
     kpath=strase.cell.bandpath(paras.KPATH, npoints=paras.nkpoints)
     xlist, high_sym_kpoints, labels = kpath.get_linear_kpoint_axis()

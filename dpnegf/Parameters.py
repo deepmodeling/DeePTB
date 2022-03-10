@@ -256,12 +256,16 @@ class Paras(object):
         onsite_net: on energy network.
         """
         # 1 h_sk(1+nn) 2: hsk + nn.
+        self.istrain = False
+        self.istest  = False
+        self.ispredict = False
         self.SpinDeg = 2
         self.read_checkpoint = './checkpoint.pl'
         self.struct ='struct.vasp'
         self.format = 'vasp'
         self.band_range=None
         self.nkpoints = 120
+        self.correction_mode = 1
 
         no_default_keys = ['AtomType',
                                 'ProjAtomType',
