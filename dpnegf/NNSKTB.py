@@ -83,7 +83,7 @@ def dpTBtrain(args:argparse.Namespace):
 
     input_file = args.input_file
     fp = open(input_file)
-    paras = Paras(fp,args)
+    paras = Paras(fp,args.command)
     
     paras.istrain = True
     paras.istest = False
@@ -111,7 +111,7 @@ def dpTBtest(args:argparse.Namespace):
 
     input_file = args.input_file
     fp = open(input_file)
-    paras = Paras(fp,args)
+    paras = Paras(fp,args.command)
     
     paras.istrain = False
     paras.istest = True

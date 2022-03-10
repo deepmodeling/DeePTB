@@ -42,8 +42,8 @@ def main():
         help='struct file name default struct.xyz')
     paras_negf.add_argument('-fmt', '--format', type=str, default='xyz',
         help='struct file format default xyz')
-    paras_negf.add_argument('--use_sktb', type=str, default=None, 
-        help='use sktb as Hamiltion, default None, means use NN corrected TB.')  
+    paras_negf.add_argument('--nn_off', type=str, default=None, 
+        help='turn off nn correction, only use sktb as Hamiltion, default None, means use NN corrected TB.')  
 
     args = parser.parse_args()
 

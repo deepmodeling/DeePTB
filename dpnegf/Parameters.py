@@ -252,7 +252,7 @@ class Paras2(object):
     """ 
     a class store all the input parameters.
     """
-    def __init__(self, file, args:argparse.Namespace):
+    def __init__(self, file, command:str='train', nn_off:str=None):
         """  initial the input json and check the input file.
 
         Parameters
@@ -263,13 +263,25 @@ class Paras2(object):
 
         self.input_json = json.load(file)
         self.GUI = False
+
+        if nn_off == None:
+            nn_off_tag = False
+        elif nn_off.lower() in ['n','f','no','false']:
+            nn_off_tag = False
+        elif nn_off.lower() in ['y','yes','t','true']:
+            nn_off_tag = True
+        else:
+            print('nn_off should be yes y true t or no n false f.')
+            print('We didnot recognize the nn_off tag, set it to defalt value: False.')
+            nn_off_tag = False
+
         self.SKfileparas()
-        if args.command == 'train':
+        if command == 'train':
             self.trainparas()
-        elif args.command == 'test':
+        elif command == 'test':
             self.testparas()
-        elif args.command == 'negf':
-            if args.use_sktb  and args.use_sktb != 'no' and args.use_sktb != 'false' and args.use_sktb != 'False':
+        elif command == 'negf':
+            if nn_off_tag:
                 self.sktbnegfparas()
             else:
                 self.nntbnegfparas()
