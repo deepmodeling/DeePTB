@@ -23,12 +23,12 @@ def main():
     paras_tbtrain.add_argument("-r", "--restart", type=str, default = None,
         help='training the model initialed with checkpoint.')
     paras_tbtrain.add_argument('-i', '--input_file', type=str,
-        default='input.json', help='json file for inputs, default inputnn.json')
+        default='input.json', help='json file for inputs, default input.json')
 
     paras_test = subparsers.add_parser("test", 
         help='test the trained NN. using the unseen labeled data.')
     paras_test.add_argument('-i', '--input_file', type=str,
-        default='input.json', help='json file for inputs, default inputnn.json')
+        default='input.json', help='json file for inputs, default input.json')
 
     # paras_pred = subparsers.add_parser("predict", 
     #    help='using the trained NN to make prediction for unlabeled data.')
@@ -38,7 +38,7 @@ def main():
     paras_plotband = subparsers.add_parser("band", 
         help='Perform NEGF simulations with NN-baed TB Hamiltonians.')
     paras_plotband.add_argument('-i', '--input_file', type=str,
-        default='input.json', help='json file for inputs, default inputnn.json')
+        default='input.json', help='json file for inputs, default input.json')
     paras_plotband.add_argument('--struct', type=str, default=None, 
         help='the struct to calculate band.') 
     paras_plotband.add_argument('--format', type=str, default='vasp', 
@@ -50,7 +50,7 @@ def main():
     paras_negf = subparsers.add_parser("negf", 
         help='Perform NEGF simulations with NN-baed TB Hamiltonians.')
     paras_negf.add_argument('-i', '--input_file', type=str,
-        default='input.json', help='json file for inputs, default inputnn.json')
+        default='input.json', help='json file for inputs, default input.json')
     paras_negf.add_argument('-s', '--struct', type=str, default='struct.xyz',
         help='struct file name default struct.xyz')
     paras_negf.add_argument('-fmt', '--format', type=str, default='xyz',
