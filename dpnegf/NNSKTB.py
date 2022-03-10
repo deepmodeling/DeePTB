@@ -4,7 +4,7 @@ import argparse
 from shutil import copyfile
 
 #from nnet.ParametersNN import Paras
-from dpnegf.Parameters import Paras
+from dpnegf.Parameters import Paras2 as Paras
 from dpnegf.nnet.Model import Model
 
 
@@ -83,7 +83,7 @@ def dpTBtrain(args:argparse.Namespace):
 
     input_file = args.input_file
     fp = open(input_file)
-    paras = Paras(fp)
+    paras = Paras(fp,args)
     
     paras.istrain = True
     paras.istest = False
@@ -111,7 +111,7 @@ def dpTBtest(args:argparse.Namespace):
 
     input_file = args.input_file
     fp = open(input_file)
-    paras = Paras(fp)
+    paras = Paras(fp,args)
     
     paras.istrain = False
     paras.istest = True

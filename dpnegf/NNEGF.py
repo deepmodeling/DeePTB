@@ -4,7 +4,7 @@ import ase
 import ase.io
 import argparse
 
-from dpnegf.Parameters import Paras
+from dpnegf.Parameters import Paras2  as Paras
 from dpnegf.nnet.Model import Model
 from dpnegf.negf.NEGFStruct import StructNEGFBuild
 from dpnegf.negf.SurfaceGF import SurfGF
@@ -25,7 +25,7 @@ def deepnegf(args:argparse.Namespace):
 
     input_file = args.input_file
     fp = open(input_file)
-    paras = Paras(fp)
+    paras = Paras(fp,args)
 
     structfile = args.struct
     structfmt = args.format
