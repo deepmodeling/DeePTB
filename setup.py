@@ -28,7 +28,7 @@ def setup(scm=None):
         url="https://gitlab.com/deeptransport/deepnegf",
         python_requires=">=3.8",
         packages=packages,
-        keywords='AlgorithmEngineering',
+        keywords='DeepLearningNEGF',
         install_requires=install_requires,
         entry_points={'console_scripts': ['dpnegf= dpnegf.main:main']}
     )

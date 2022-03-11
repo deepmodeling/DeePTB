@@ -7,12 +7,12 @@ from dpnegf.nnet.Model import Model
 
 class NEGFHamiltonian(object):
 
-    def __init__(self,paras, StructAse):
+    def __init__(self,paras, StructAse, conttol = 1e-6):
         self.paras = paras
         self.TBmodel = paras.TBmodel
 
         self.ngstr = StructNEGFBuild(paras,StructAse)
-        self.ngstr.BuildRegions()
+        self.ngstr.BuildRegions(conttol)
         self.mdl = Model(paras)
         self.mdl.structinput(self.ngstr.GeoStruct)
         self.kmesh = paras.kmesh
