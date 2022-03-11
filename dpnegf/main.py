@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import io, os, sys
 
 import argparse
 from dpnegf.NNSKTB import deepTB, dpTBtrain, dpTBtest
 from dpnegf.NNEGF import deepnegf
 from dpnegf.band import band_plot
+
+try:
+    # Python 3, open as binary, then wrap in a TextIOWrapper
+    unbuffered = io.TextIOWrapper(open(sys.stdout.fileno(), 'wb', 0), write_through=True)
+except TypeError:
+    # Python 2
+    unbuffered = os.fdopen(sys.stdout.fileno(), 'w', 0)
+    
+sys.stdout = unbuffered
 
 __author__ = "Q. Gu, et al."
 __copyright__ = "Q. Gu & AISI"
@@ -13,7 +23,7 @@ __status__ = "developing"
 def main():
     parser = argparse.ArgumentParser(
         description="DeepNEGF: A deep learning package for quantum transport simulations with"
-        " non-equilibrium Green's function (NEGF) approach."
+        " non-equilibrium Green's function (NEGF) approach. Type 'dpnegf subcommand -h' for instructions."
     ) 
 
     subparsers = parser.add_subparsers(title="valid subcommands", dest="command")
@@ -55,6 +65,8 @@ def main():
         help='struct file name default struct.xyz')
     paras_negf.add_argument('-fmt', '--format', type=str, default='xyz',
         help='struct file format default xyz')
+    paras_negf.add_argument('--use_ase', type=str, default=None, 
+        help='call ase transport API.')  
     paras_negf.add_argument('--nn_off', type=str, default=None, 
         help='turn off nn correction, only use sktb as Hamiltion, default None, means use NN corrected TB.')  
 

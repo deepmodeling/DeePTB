@@ -354,12 +354,15 @@ class Paras(object):
         
 
         self.kmesh = [1,1,1]
+        self.nkfermi = 2
         self.eta = 0.001
         self.max_iteration = 100
         self.epsilon = 1.0E-6
         self.Emin = -1
         self.Emax = 1
-        self.NumE = 100
+        self.NumE = 101
+        self.BiasV = [-1,1]
+        self.NumV = 101
         self.use_E_win = True
         # w.r.t Fermi level.
         self.energy_max = 1.0

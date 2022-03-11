@@ -31,7 +31,7 @@ class StructNEGFBuild(StructBuild):
         self.PrinLayNunit = paras.PrinLayNunit
         self.ContactsNames = [item.lower() for item in self.Contacts]
     
-    def BuildRegions(self):
+    def BuildRegions(self,tolerance=1e-6):
         """ build every regions to ase stucture object.
         
         Attributes
@@ -46,7 +46,7 @@ class StructNEGFBuild(StructBuild):
         self.ContactStruct   = {}
         self.ContactsExtSign = {}
         for itag in self.Contacts:
-            ExtDirection, Rsign, ContactStruct = self.BuildContact(tag = itag)
+            ExtDirection, Rsign, ContactStruct = self.BuildContact(tag = itag,tolerance=tolerance)
             self.ContactsExtSign[itag] = Rsign
             self.ContactStruct[itag] = ContactStruct
             self.ExtDirect[itag] = ExtDirection
@@ -80,7 +80,7 @@ class StructNEGFBuild(StructBuild):
         print('#'+'-'*60)
 
 
-    def BuildContact(self,tag='Source'):
+    def BuildContact(self,tag='Source',tolerance=1e-06):
         """ build contact ase structs for gaven tag source or drain or else defined in ContactsNames.
 
         Parameters
@@ -110,12 +110,12 @@ class StructNEGFBuild(StructBuild):
 
         diffv = unitlayer2 - unitlayer1
         # diffv[0] :  pos[0] + R - pos[0] 
-        assert(np.isclose(diffv[:],diffv[0],atol=1e-06).all())
+        assert(np.isclose(diffv[:],diffv[0],atol=tolerance).all())
         """
         To get the transport direction: ExtendDirect. the transport direction is the direction contact extends to  infinity.
         this only works for the rectangle lattice cell, which is most cases in NEGF calculations.
         """
-        ExtendDirect = [not item for item in np.isclose(diffv[0],0,atol=1e-06)]
+        ExtendDirect = [not item for item in np.isclose(diffv[0],0,atol=tolerance)]
         assert(np.sum(ExtendDirect)==1)
         ExtendDirectInd = np.array([0,1,2])[ExtendDirect][0]
 
