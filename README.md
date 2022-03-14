@@ -1,7 +1,6 @@
 # DeepNEGF
 Deep learning on quantum transport simulations with NEGF method.
 ## dependency:
-using pip to install all the dependencies.
 - python >= 3.8
 - numpy
 - scipy
@@ -12,14 +11,30 @@ using pip to install all the dependencies.
 - torchsort
 
 
-## installation
-```python setup.py install```
+## **installation**
+1. install torch following the instruction in : [PyTorch: Get Started](https://pytorch.org/get-started/locally)
+
+
+2.  ```python setup.py install```
 
 
 ## usage:
 To be added.
 
-__________________________________________________________________________________________________________________________________________
+1. **Traing TB Hamiltonian.**
+
+2. **the NEGF calculations.**
+
+    2.1. **Device structure**
+
+    2.2. **input**
+
+3. **Transport calculations.**
+---
+
+
+## the rest are Templete from gitlab.
+
 ## Getting started
 
 To make it easy for you to get started with GitLab, here's a list of recommended next steps.
