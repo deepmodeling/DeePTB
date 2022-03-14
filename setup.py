@@ -7,12 +7,12 @@ today = datetime.date.today().strftime("%b-%d-%Y")
 with open(path.join('dpnegf', '_date.py'), 'w') as fp :
     fp.write('date = \'%s\'' % today)
 
+# "torch" is not included here!
 install_requires=["numpy",
                   "scipy",
                   "spglib",
                   "matplotlib",
                   "ase",
-                  "torch",
                   "torchsort"]
 
 def setup(scm=None):
