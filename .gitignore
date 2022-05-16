@@ -4,12 +4,15 @@ dpnegf/sktb/__pycache__/
 dpnegf/negf/__pycache__/
 dpnegf/softsort/__pycache__/
 dpnegf/__pycache__/
+# examples processed data  and checkpoint.
+*.npy
+*.traj
+checkpoint.pl
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 .vscode
-
 # C extensions
 *.so
 
