@@ -125,6 +125,7 @@ class Paras(object):
         self.use_E_win = True
         # w.r.t Fermi level.
         self.energy_max = 1.0
+        self.energy_min = -100
         self.use_I_win = False
         self.band_max = 1
         self.band_min = 0
@@ -206,6 +207,7 @@ class Paras(object):
         self.use_E_win = True
         # w.r.t Fermi level.
         self.energy_max = 1.0
+        self.energy_min = -100
         self.use_I_win = False
         self.band_max = 1
         self.band_min = 0
@@ -366,6 +368,7 @@ class Paras(object):
         self.use_E_win = True
         # w.r.t Fermi level.
         self.energy_max = 1.0
+        self.energy_min = -100
         self.use_I_win = False
         self.band_max = 1
         self.band_min = 0
@@ -441,6 +444,7 @@ class Paras(object):
         self.use_E_win = True
         # w.r.t Fermi level.
         self.energy_max = 1.0
+        self.energy_min = -100
         self.use_I_win = False
         self.band_max = 1
         self.band_min = 0

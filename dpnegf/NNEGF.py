@@ -66,7 +66,7 @@ def deepnegf(args:argparse.Namespace):
 
     _,scatterase = negfH.ngstr.BuildDevice(tag='Scatter')
     scatterase.cell = latticecell
-    scatterase.pbc = [False, False, False]
+    #scatterase.pbc = [False, False, False]
     scatterase.pbc[axistrans]=True
     
     mdl = Model(paras)

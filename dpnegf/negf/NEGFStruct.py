@@ -101,7 +101,7 @@ class StructNEGFBuild(StructBuild):
         Atomrange = np.asarray(self.ContactsRegions[contname],dtype=int) - 1
         NatomsCont = (Atomrange[1] - Atomrange[0] + 1)
         NatomsContLayer = NatomsCont//2
-        assert(NatomsContLayer%2 ==0)
+        assert NatomsCont%2 ==0, 'Error, number of atoms in ContactsRegions should be even.'
         postions = self.Struct.positions[Atomrange[0]:Atomrange[1]+1]
         unitlayer1 = postions[0 : NatomsContLayer]
         unitlayer2 = postions[NatomsContLayer: NatomsContLayer*2]

@@ -69,29 +69,23 @@ class Model(object):
         self.ProjAnglrM = self.envbuild.ProjAnglrM      # the angular momentum to project.
         self.AnglrMID = self.bondbuild.AnglrMID 
 
-        if self.istrain or self.istest or self.ispredict:
+        if self.istrain or self.istest:
             self.use_E_win = paras.use_E_win
             self.use_I_win = paras.use_I_win
-            self.band_min = paras.band_min
-
+    
             if self.use_E_win:
                 self.energy_max = paras.energy_max
+                self.energy_min = paras.energy_min
                 # self.use_E_win
             elif self.use_I_win:
                 # band index window
                 self.band_max = paras.band_max
+                self.band_min = paras.band_min
                 # turn off the tag for reference struct training.
                 self.withref = False
             else:
                 print('error in define a window for trainng eigenvalues ')
                 
-        # self.band_window = paras.band_window
-        # self.val_window = paras.val_window
-        # assert (self.band_window[0] == self.val_window[0] and self.band_window[0] >= self.val_window[0])
-        # self.cond_window = [self.val_window[1], self.band_window[1]]
-        # self.val_cond_ratio = paras.val_cond_ratio
-
-
         # define and build neural networks.
         self.buildNN  = BuildNN(envtype= self.AtomType, bondtype = self.ProjAtomType, proj_anglr_m = self.ProjAnglrM) 
         self.IndMap = Index_Mapings(envtype= self.AtomType, bondtype = self.ProjAtomType, proj_anglr_m = self.ProjAnglrM)
@@ -102,47 +96,53 @@ class Model(object):
         self.bond_neurons = [self.env_out * self.env_neurons[-1]+1] + paras.Bondnet
         # env(Li + Li)
         self.onsite_neurons = [self.env_out * self.env_neurons[-1]] + paras.onsite_net
-        
-        
-        # load paras for train process.
+
         if self.istrain:
-            self.num_epoch = paras.num_epoch
-            self.batch_size = paras.batch_size
-            self.valid_size = paras.valid_size
-            self.start_learning_rate = paras.start_learning_rate
-            self.decay_rate = paras.decay_rate
-            self.decay_step = paras.decay_step
-            self.trainmode = paras.trainmode
-            self.savemodel = paras.savemodel
-            self.display_epoch = paras.display_epoch
-            self.sort_strength = paras.sort_strength
-            self.sort_decay_alpha = np.log(self.sort_strength[1]/self.sort_strength[0])/self.num_epoch
-            self.corr_strength = paras.corr_strength
-            self.corr_decay_alpha = np.log(self.corr_strength[1]/self.corr_strength[0])/self.num_epoch
-            
-            
-            self.withref = paras.withref
-            if self.withref:
-                self.refdir  = paras.refdir
-                self.ref_ratio = paras.ref_ratio
-            
-            if self.trainmode.lower() == 'from_scratch':
-                self.restart = False
-            elif self.trainmode.lower() == 'restart':
-                self.restart = True
-                self.read_checkpoint = paras.read_checkpoint
-            else:
-                self.restart = False
-
-            if self.savemodel:
-                self.save_epoch = paras.save_epoch
-                self.save_checkpoint = paras.save_checkpoint
-
-        if self.istest or self.ispredict:
-            self.batch_size = paras.batch_size
-            self.restart = True
-        self.read_checkpoint = paras.read_checkpoint
+            self.train_paras()
+        elif self.istest or self.ispredict:
+            self.predic_test_paras()
     
+    def train_paras(self):
+        # load paras for train process.
+        paras = self.paras
+        self.num_epoch = paras.num_epoch
+        self.batch_size = paras.batch_size
+        self.valid_size = paras.valid_size
+        self.start_learning_rate = paras.start_learning_rate
+        self.decay_rate = paras.decay_rate
+        self.decay_step = paras.decay_step
+        self.trainmode = paras.trainmode
+        self.savemodel = paras.savemodel
+        self.display_epoch = paras.display_epoch
+        self.sort_strength = paras.sort_strength
+        self.sort_decay_alpha = np.log(self.sort_strength[1]/self.sort_strength[0])/self.num_epoch
+        self.corr_strength = paras.corr_strength
+        self.corr_decay_alpha = np.log(self.corr_strength[1]/self.corr_strength[0])/self.num_epoch
+        
+        
+        self.withref = paras.withref
+        if self.withref:
+            self.refdir  = paras.refdir
+            self.ref_ratio = paras.ref_ratio
+        
+        if self.trainmode.lower() == 'from_scratch':
+            self.restart = False
+        elif self.trainmode.lower() == 'restart':
+            self.restart = True
+            self.read_checkpoint = paras.read_checkpoint
+        else:
+            self.restart = False
+
+        if self.savemodel:
+            self.save_epoch = paras.save_epoch
+            self.save_checkpoint = paras.save_checkpoint
+
+    def predic_test_paras(self):
+        paras = self.paras
+        self.batch_size = paras.batch_size
+        self.restart = True
+        self.read_checkpoint = paras.read_checkpoint
+
 
     def train(self):
         
@@ -196,6 +196,7 @@ class Model(object):
             trklist = self.dataload.setkpoints[set_id]
             nkps = len(trklist)
             nbandw_batch = []
+            nband_outmin_batch = []
             current_corr_strength = self.corr_strength[0] * np.exp(self.corr_decay_alpha * epoch_used)
 
             for istr in range(self.batch_size):
@@ -241,13 +242,12 @@ class Model(object):
                 eigks = eigks[:,0:up_nband]
 
                 if self.use_E_win: 
-                    out_index = label_eigs > self.energy_max
-                    in_index = label_eigs < self.energy_max
-                    in_num_kband = int(th.sum(in_index).numpy())
-                    nbandwistr = int(np.ceil(in_num_kband/nkps))
-                    nbandw_batch.append(nbandwistr)
-                    # to remove the difference b.w. predicted eigs and labels. since the out window eigs is not considered for training.  d
-                    eigks[out_index] = label_eigs[out_index]    
+                    max_out_index, max_ind, min_out_index, min_ind = self.energywindow(nkps=nkps, 
+                            Emax=self.energy_max, Emin=self.energy_min, label=label_eigs)
+                    eigks[max_out_index] = label_eigs[max_out_index]
+                    eigks[min_out_index] = label_eigs[min_out_index]
+                    nbandw_batch.append(max_ind)
+                    nband_outmin_batch.append(min_ind)
                 
                 eig_batch[istr] = eigks
             
@@ -255,14 +255,15 @@ class Model(object):
             if self.use_E_win: 
                 # determine the band window for different traing data sets with different system size.
                 band_max = np.min(nbandw_batch)
+                band_min = np.max(nband_outmin_batch)
             elif self.use_I_win:
                 band_max = self.band_max
+                band_min = self.band_min
             else:
                  print('error in define a window for trainng eigenvalues ')
             assert up_nband >= band_max
-            band_min = self.band_min
-            nbandw = band_max - band_min
             
+            nbandw = band_max - band_min
             trewindow = th.reshape(treigs_tensor[:,:,band_min:band_max],[-1,nbandw])
             nnewindow = th.reshape(eig_batch[:,:,band_min:band_max],[-1,nbandw])
             
@@ -327,19 +328,20 @@ class Model(object):
                 pfeig_tensor -=  rfCoarseEfermi
 
                 label_eigs = pfeig_tensor[:,0:up_nband]
-                out_index = label_eigs > self.energy_max
-                in_index = label_eigs < self.energy_max
-                in_num_kband = int(th.sum(in_index).numpy())
-                band_max = int(np.ceil(in_num_kband/nkps))
 
                 # Cal Fermi level (coarse, no need to be too much accurate) and band w.r.t. Fermi level:
                 esort,sort_index = th.sort(th.reshape(eig_perf,[-1]))
                 CoarseEfermi = (esort[NumKValbands]  + esort[NumKValbands-1])/2.0
                 eig_perf -= CoarseEfermi
                 eig_perf = eig_perf[:,0:up_nband]
-                eig_perf[out_index] = label_eigs[out_index]   
 
-                band_min = self.band_min
+                max_out_index, max_ind, min_out_index, min_ind = self.energywindow(nkps=nkps,
+                    Emax=self.energy_max, Emin=self.energy_min, label=label_eigs)
+                eig_perf[max_out_index] = label_eigs[max_out_index]
+                eig_perf[min_out_index] = label_eigs[min_out_index]
+                band_max = max_ind
+                band_min = min_ind
+
                 nbandw = band_max - band_min
 
                 rfewindow = th.reshape(pfeig_tensor[:,band_min:band_max],[-1,nbandw])
@@ -384,6 +386,7 @@ class Model(object):
                 vldeigs_tensor = th.from_numpy(valid_eigs).float()
                 nkps = len(valid_klist)
                 nbandw_batch = []
+                nband_outmin_batch = []
                 for istr in range(self.valid_size):
                     self.structinput(valid_aseStructs[istr])
                     norbs = np.sum(self.AtomNOrbs)
@@ -420,24 +423,25 @@ class Model(object):
                     vldeigs_tensor[istr] -=  vlCoarseEfermi
 
                     label_eigs = vldeigs_tensor[istr,:,0:up_nband]
-                    if self.use_E_win: 
-                        out_index = label_eigs > self.energy_max
-                        in_index  = label_eigs < self.energy_max
-                        in_num_kband = int(th.sum(in_index).numpy())
-                        nbandwistr = int(np.ceil(in_num_kband/nkps))
-                        nbandw_batch.append(nbandwistr)
-                        eigks[out_index] = label_eigs[out_index]   
+                    if self.use_E_win:  
+                        max_out_index, max_ind, min_out_index, min_ind = self.energywindow(nkps=nkps, 
+                            Emax=self.energy_max, Emin=self.energy_min, label=label_eigs)
+                        eigks[max_out_index] = label_eigs[max_out_index]
+                        eigks[min_out_index] = label_eigs[min_out_index]
+                        nbandw_batch.append(max_ind)
+                        nband_outmin_batch.append(min_ind)
 
                     eig_batch[istr] = eigks
                 if self.use_E_win: 
                     band_max = np.min(nbandw_batch)
+                    band_min = np.max(nband_outmin_batch)
                 elif self.use_I_win:
                     band_max = self.band_max
+                    band_min = self.band_min
                 else:
                     print('error in define a window for trainng eigenvalues ')
                 assert up_nband >= band_max
                 # for validation, do not use soft sort.
-                band_min = self.band_min
                 nbandw = band_max - band_min
                 valid_err = criterion(vldeigs_tensor[:,:,band_min:band_max], eig_batch[:,:,band_min:band_max])
 
@@ -472,7 +476,7 @@ class Model(object):
         self.onsite_index_map = self.buildNN.onsite_index_map
         self.onsite_num = self.buildNN.onsite_num
 
-        read_cp = th.load(self.read_checkpoint)
+        read_cp = th.load(self.paras.read_checkpoint)
         for ikey in self.envnets.keys():
             self.envnets[ikey].load_state_dict(read_cp['env-'+ikey])
         for ikey in self.bondnets.keys():
@@ -510,6 +514,7 @@ class Model(object):
         nkps = len(tskpoints)
         numsnaps = len(ts_aseStructs)
         nbandw_batch = []
+        nband_outmin_batch=[]
         for istr in range(numsnaps):
             self.structinput(ts_aseStructs[istr])
             norbs = np.sum(self.AtomNOrbs)
@@ -550,12 +555,12 @@ class Model(object):
             eigks_upband = eigks[:,0:up_nband]
 
             if self.use_E_win:
-                out_index = label_eigs > self.energy_max
-                in_index = label_eigs < self.energy_max
-                in_num_kband = int(th.sum(in_index).numpy())
-                nbandwistr = int(np.ceil(in_num_kband/nkps))
-                nbandw_batch.append(nbandwistr)
-                eigks_upband[out_index] = label_eigs[out_index] 
+                max_out_index, max_ind, min_out_index, min_ind = self.energywindow(nkps=nkps, 
+                            Emax=self.energy_max, Emin=self.energy_min, label=label_eigs)
+                eigks_upband[max_out_index] = label_eigs[max_out_index]
+                eigks_upband[min_out_index] = label_eigs[min_out_index]
+                nbandw_batch.append(max_ind)
+                nband_outmin_batch.append(min_ind)
 
             eig_batch[istr] = eigks_upband
 
@@ -567,11 +572,12 @@ class Model(object):
                 
                 if self.use_E_win: 
                     band_max = np.min(np.asarray(nbandw_batch)[ist:ied])
+                    band_min = np.max(np.asarray(nband_outmin_batch)[ist:ied])
                 elif self.use_I_win:
                     band_max = self.band_max
+                    band_min = self.band_min
                 
                 assert up_nband >= band_max
-                band_min = self.band_min
                 nbandw = band_max - band_min
 
                 tsewindow = th.reshape(tseigs_tensor[ist:ied,:,band_min:band_max],[-1,nbandw])
@@ -585,10 +591,11 @@ class Model(object):
 
         if self.use_E_win: 
             band_max = np.min(nbandw_batch)
+            band_min = np.max(nband_outmin_batch)
         elif self.use_I_win:
             band_max = self.band_max - 0
+            band_min = self.band_min
         assert up_nband >= band_max
-        band_min = self.band_min
         nbandw = band_max - band_min
 
         tsewindow = th.reshape(tseigs_tensor[:,:,band_min:band_max],[-1,nbandw])
@@ -733,23 +740,13 @@ class Model(object):
             """
             
             if iatype == jatype:
-                # HKinterp12 = SKIntIns.IntpSK(itype=iatype,jtype=jatype,dist=dist)
                 # view, the same addr. in mem.
                 HKinterp21 = HKinterp12
             else:
-                # HKinterp12 = SKIntIns.IntpSK(itype=iatype,jtype=jatype,dist=dist)
                 HKinterp21 = self.SKIntIns.IntpSK(itype=jatype,jtype=iatype,dist=dist)
                 
-            # hoppings = {}
-            # overlaps = {}
             num_hops = self.bond_num_hops[iatypesbl + jatypesbl]
-
-            #if iatype <= jatype:
-            #    bondname = iatypesbl+jatypesbl
-            #else:
-            #    bondname = jatypesbl+iatypesbl
             bondname = iatypesbl+jatypesbl
-
             hoppings = np.zeros([num_hops])
             overlaps = np.zeros([num_hops])
 
@@ -767,15 +764,12 @@ class Model(object):
                     else:
                         Hvaltmp = HKinterp21[self.SKAnglrMHSID[ish+jsh]]
                         Svaltmp = HKinterp21[self.SKAnglrMHSID[ish+jsh] + self.NumHvals]
-                    # print('aAAAAAA')
                     # print(iatype, jatype, self.ProjAnglrM,ish,jsh)
                     # print(bondname, self.bond_index_map[bondname])
                     indx = self.bond_index_map[bondname][ish+jsh]
                     hoppings[indx] = Hvaltmp
                     overlaps[indx] = Svaltmp
             
-            # self.skhoppings.append(hoppings)
-            # self.skoverlaps.append(overlaps)    
             self.skhoppings.append(th.from_numpy(hoppings).float())
             self.skoverlaps.append(th.from_numpy(overlaps).float())   
 
@@ -869,11 +863,6 @@ class Model(object):
             Hamilblock = th.zeros([self.AtomTypeNOrbs[iatype], self.AtomTypeNOrbs[jatype]])
             Soverblock = th.zeros([self.AtomTypeNOrbs[iatype], self.AtomTypeNOrbs[jatype]])
 
-            
-            #if iatype <= jatype:
-            #    bondname = iatypesbl+jatypesbl
-            #else:
-            #    bondname = jatypesbl+iatypesbl
             bondatomtype = iatypesbl+jatypesbl
             
             ist = 0
@@ -916,7 +905,7 @@ class Model(object):
             hij_all : all the Hblocks and Sblocks.
             bond : all the bond [i j Rx Ry Rz]. 
             kpath : kpoints lists.
-            num_orbs ：a list of the total orbitals on each atom. eg. atom with s and p orbitals : 4.
+            num_orbs: a list of the total orbitals on each atom. eg. atom with s and p orbitals : 4.
 
         return:
             H(k) or S(k) depending on the hij_all = Hblocks or Sblocks.
@@ -964,37 +953,13 @@ class Model(object):
                                     kpath=kpoints, num_orbs = self.AtomNOrbs,TRsymm=TRsymm)
         skmat =  self.Hamilreal2K(hij_all = self.BondSBlock,bond = self.allBonds, 
                                     kpath=kpoints, num_orbs = self.AtomNOrbs,TRsymm=TRsymm)
-        
-        # eig=[]
-        # for i in range(len(kpoints)):
-        #    chklowt = th.linalg.cholesky(skmat[i])
-        #    chklowtinv = th.linalg.inv(chklowt)
-            #The eigenvalues  in eig_k are returned in ascending order.
-        #    eig_k = th.linalg.eigvalsh(chklowtinv @ hkmat[i] @chklowtinv.T.conj())
-            #eig_k,eig_vec= th.linalg.eigvalsh(hkmat[i],skmat[i])
-        #    eig.append(eig_k * 13.605662285137 * 2)
-        
+                
         chklowt = th.linalg.cholesky(skmat)
         chklowtinv = th.linalg.inv(chklowt)
         Heff = (chklowtinv @ hkmat @ th.transpose(chklowtinv,dim0=1,dim1=2).conj())
         eigks = th.linalg.eigvalsh(Heff) * 13.605662285137 * 2
 
         return eigks
-
-
-    def EigCoding(self,eig,eig_hat):
-        """ encoding eigenvalues."""
-        # not used now.
-        batch_size, nkp, nband = eig.shape
-        Emin, Emax = self.energy_min, self.energy_max
-        #sigma = (Emax - Emin)/nband
-        sigma = (Emax - Emin)/64
-        # x0 = th.linspace(Emin,Emax,nband)
-        gs_inx = th.reshape(eig,[batch_size, nkp, 1, nband]) -  th.reshape(eig_hat,[batch_size, nkp,nband,1])
-        gs_nn = th.exp((-1*gs_inx**2)/(2*sigma**2))
-        filt_eig = th.sum(th.reshape(eig,[batch_size, nkp, 1, nband]) * gs_nn,axis=3)
-        gscoff =  th.sum(gs_nn,axis=3)
-        return filt_eig, gscoff
         
 
     def EnvCoding(self,ibond):
@@ -1034,4 +999,18 @@ class Model(object):
         emdenvib = th.reshape(emdenvib,[1,-1])
         return emdenvib
 
+    def energywindow(self,nkps,Emax,Emin,label):
+        """
+        get energy window index, by given energy window value.
+        """
+        max_out_index = label > Emax
+        in_index = label < Emax
+        max_ind_kband = int(th.sum(in_index).numpy())
+        max_ind = int(np.ceil(max_ind_kband/nkps))
+
+        min_out_index = label < Emin
+        min_ind_kband = int(th.sum(min_out_index).numpy())
+        min_ind = int(np.floor(min_ind_kband/nkps))
+
+        return max_out_index, max_ind, min_out_index, min_ind
 
