@@ -116,6 +116,8 @@ class NEGFCal(DeviceHS,NEGFTrans):
             
     def CalContDOS(self,tag='Source'):
         assert(tag.lower() in self.ContactsNames)
+        contind = self.ContactsNames.index(tag.lower())
+        tag = self.Contacts[contind]
         # spglib.get_spacegroup(self.ContactStruct['Source'], symprec=1e-5)
         mesh = self.DOSKMesh[tag]
         crycell = self.ContactStruct[tag]
@@ -184,6 +186,8 @@ class NEGFCal(DeviceHS,NEGFTrans):
     
     def CalContBand(self,tag ='Source'):
         assert(tag.lower() in self.ContactsNames)
+        contind = self.ContactsNames.index(tag.lower())
+        tag = self.Contacts[contind]
         H11, H12, S11, S12, bond11, bond12, AtomNorbs = \
                                 self.GenContHamilReal(tag=tag)
         #self.HamilContReal(H00r=H11, H01r=H12, S00r=S11, S01r=S12, \
@@ -229,6 +233,8 @@ class NEGFCal(DeviceHS,NEGFTrans):
         
     def CalSurfGF(self,tag='Source'): 
         assert(tag.lower() in self.ContactsNames)
+        contind = self.ContactsNames.index(tag.lower())
+        tag = self.Contacts[contind]
 
         H11, H12, S11, S12, bond11, bond12, AtomNorbs = \
                                         self.GenContHamilReal(tag=tag)
@@ -264,6 +270,8 @@ class NEGFCal(DeviceHS,NEGFTrans):
 
     def CalSelfE(self,tag='Source'):
         assert(tag.lower() in self.ContactsNames)
+        contind = self.ContactsNames.index(tag.lower())
+        tag = self.Contacts[contind]
         Hsc, Ssc, bondsc, AtomNorbsS, AtomNorbsC = \
                             self.GenScatterHamilReal(tag=tag)
 

@@ -184,6 +184,9 @@ class DeviceHS(StructNEGFBuild):
             tag: "Source" or "Drain" indicate  contact
         """
         assert(tag.lower() in self.ContactsNames)
+        contind = self.ContactsNames.index(tag.lower())
+        tag = self.Contacts[contind]
+
         H11ind, H12ind, bond11, bond12, AtomNorbs = self.GetContactHSparas(tag)
         H11 = np.array(self.HSreal.BondHBlock,dtype=object)[H11ind]  * 13.605662285137 *2
         H12 = np.array(self.HSreal.BondHBlock,dtype=object)[H12ind]  * 13.605662285137 *2
@@ -194,6 +197,8 @@ class DeviceHS(StructNEGFBuild):
 
     def GenScatterHamilReal(self,tag='Source'):
         assert(tag.lower() in self.ContactsNames)
+        contind = self.ContactsNames.index(tag.lower())
+        tag = self.Contacts[contind]
         Hscind, bondsc,AtomNorbsS, AtomNorbsC= self.GetScatterHSparas(tag)
         Hsc = np.array(self.HSreal.BondHBlock,dtype=object)[Hscind]  * 13.605662285137 *2
         Ssc = np.array(self.HSreal.BondSBlock,dtype=object)[Hscind]
@@ -207,6 +212,8 @@ class DeviceHS(StructNEGFBuild):
 
     def GetContactHSparas(self,tag = 'Source'):
         assert(tag.lower() in self.ContactsNames)
+        contind = self.ContactsNames.index(tag.lower())
+        tag = self.Contacts[contind]
         if not hasattr(self,'RegionRanges'):
             self.GetRegionsRanges()
         # for iteration surface green method, h11 h12. see  [Sancho, MP Lopez, et al. 1985].  
@@ -235,6 +242,8 @@ class DeviceHS(StructNEGFBuild):
 
     def GetScatterHSparas(self,tag = 'Source'):
         assert(tag.lower() in self.ContactsNames)
+        contind = self.ContactsNames.index(tag.lower())
+        tag = self.Contacts[contind]
         if not hasattr(self,'RegionRanges'):
             self.GetRegionsRanges()
         devsatoms = self.RegionRanges['Device']

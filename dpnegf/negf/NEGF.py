@@ -1,5 +1,6 @@
 import time
 from scipy.linalg.decomp import eig
+from scipy.constants import Boltzmann as kB
 import numpy as np
 from multiprocessing import Pool
 from dpnegf.negf.SurfaceGF import SurfGF
@@ -8,31 +9,15 @@ from dpnegf.negf.SurfaceGF import SurfGF
 #from sktb.GreenFunctions import SurfGF, SelfEnergy, NEGFTrans
 #from sktb.ElectronBase import Electron
 
+# The class is used to calculate the surface green's function, self energy, and then the transmission
 class NEGFcal(object):
     """calcuate Contact surface green's function, transport self energy, and then NEGF Transmission
 
-    Input
-    -----
-    Processors: num of prcessors.
-    save tags: SaveSurface, SaveSelfEnergy, SaveTrans
-
-    eta: the imaginary part in both surface GF and self energy
-    max_iteration: iteration number
-    epsilon: convergence criterion.
-
-    Attributes
-    Scat_Hamiltons: function to input the hamiltonian of scatter region and interaction b/w scatter  and contact.
-    Cont_Hamiltons: function to input the two principal layer hamiltonians:  H00 H01.
-    Cal_Transmission: function to calculate the transmission.
-    Cal_SurfGF: function to calculate surface GF.
-    Cal_SelfEnergy: function to calculate self energy.
-    """
+    Args:
+        object (object): _description_
+    """    
     def __init__(self,paras):
         self.Processors = paras.Processors
-        self.SaveSurface = paras.SaveSurface
-        self.SaveSelfEnergy = paras.SaveSelfEnergy
-        self.CalTrans = paras.CalTrans
-
         self.Contacts = paras.Contacts
         # self.ContactsNames = paras.ContactsNames
         self.ContactsNames = [item.lower() for item in self.Contacts]
@@ -44,19 +29,24 @@ class NEGFcal(object):
         self.Emin = paras.Emin
         self.Emax = paras.Emax
         self.NumE = paras.NumE
+        self.energies =  np.linspace(self.Emin,self.Emax,self.NumE)
+        self.updata_e = False
+        self.bias = np.linspace(paras.BiasV[0],paras.BiasV[1],paras.NumV)
 
         self.CalDeviceDOS = paras.CalDeviceDOS
         self.CalDevicePDOS = paras.CalDevicePDOS
 
 
     def Scat_Hamiltons(self,HamilDict,Efermi=0):
-        """  input the hamiltonian of scatter region.
+        """input the hamiltonian of scatter region.
+
+        The function `Scat_Hamiltons` takes a dictionary object `HamilDict` as input, and stores the
+        Hamiltonian and overlap matrices in the `Hss` and `Sss` attributes of the `Scat_Region` object
         
-        Input
-        ------
-        HamilDict: dictionary object contains the hamiltonian for each key.
-        """
-        # The shape of H should be [nk, norb1, norb2]
+        Args:       
+            HamilDict (dict[str,np.array]): dictionary object contains the hamiltonian and overlap with shape [nk, norb, norb].
+            Efermi (int, optional): Fermi energy, defaults to 0.
+        """        
         self.Hss = HamilDict['Hss']
         self.scat_klist = HamilDict['klist']
 
@@ -69,13 +59,17 @@ class NEGFcal(object):
         self.Hss -= Efermi * self.Sss
 
     def Scat_Cont_Hamiltons(self,HamilDict,Efermi=0):
-        """  input the hamiltonian of interaction b/w scatter  and contact.
+        """input the hamiltonian of interaction b/w scatter  and contact.
         
-        Input
-        ------
-        HamilDict: dictionary object contains the hamiltonian for each key.
-        """
-        
+        The function `Scat_Cont_Hamiltons` takes a dictionary object `HamilDict` as input, and stores the dictionary of contacts.
+        "source","drain" as keys,etc. for each HamilDict[key], it stores the hamiltonian and overlap matrices in the `Hsc` and
+        `Ssc` attributes of the `Scat_Region` and `Cont_Region` coupling.
+
+        Args:
+            HamilDict (dict[str, dict[str,np.array]]): dictionary object contains the dictionary of 
+                    the hamiltonian and overlap with shape [nk, norb1, norb2] for each key.
+            Efermi (int, optional): Fermi energy, defaults to 0.
+        """        
         self.Hsc = {}
         self.Ssc = {}
         for itag in self.Contacts:
@@ -90,12 +84,17 @@ class NEGFcal(object):
             else:
                 self.Hsc[itag] -= Efermi * self.Ssc[itag]
 
-    def Cont_Hamiltons(self,HamilDict,Efermi=0):
-        """  input the hamiltonian contact.
+    def Cont_Hamiltons(self,HamilDict,Efermi=0):   
+        """input the hamiltonian contact.
         
-        Input
-        ------
-        HamilDict: dictionary object contains the hamiltonian for each key.
+        The function `Cont_Hamiltons` takes in a dictionary of Hamiltonians and overlaps for each contact, "source","drain" as keys,etc.
+        for each HamilDict[key], it and stores them in the `H00`, `H01`, `S00`, and `S01` attributes, which are the hamiltonian and overlap 
+        of the principal layer H00 (S00), and coupling between two layers H01 (S01).
+        
+        Args:
+            HamilDict (dict[str,dict[str,np.array]]): dictionary object contains the dictionary of hamiltonian and overlap 
+                    for each key. the hamiltonian and overlap with shape [nk, norb1, norb1]. 
+            Efermi (int, optional): Fermi energy, defaults to 0 (optional)
         """
         # The shape of H should be [nk, norb1, norb2]
         self.H00 = {}
@@ -128,139 +127,43 @@ class NEGFcal(object):
 
         # self.BZkpoints = SurfGF.MPSampling(size = paras.kmesh)
 
-
-    def Cal_NEGF(self):
-
-        self.ContGF = {}
-        Elist = np.linspace(self.Emin,self.Emax,self.NumE)
-        tst  = time.time()
-        for itag in self.Contacts:
-            bulkGF, topsurfGF, botsurfGF = self.Cal_SurfGF(Emin=self.Emin, Emax=self.Emax, tag=itag)
-            ted =  time.time()
-            print("# " + itag + " surface GF : %12.2f sec."  %(ted-tst))
-            tst = ted
-            self.ContGF[itag] = {'Bulk':bulkGF,'Surf':topsurfGF}
+    def get_cont_greens(self,E=None,tag='Source'):
+        """
+        The function `get_cont_greens` calculates the contacts' surface Green's function for a given energy and contact
         
-        if self.SaveSurface:
-            savesurf = {}
-            savesurf['Elist'] = Elist
-            for itag in self.Contacts:
-                BulkSpectralFunc = np.trace(self.ContGF[itag]['Bulk'], axis1=2, axis2=3)
-                SurfSpectralFunc = np.trace(self.ContGF[itag]['Surf'], axis1=2, axis2=3)
-
-                BulkSpectralFunc = -1*BulkSpectralFunc.imag / np.pi
-                SurfSpectralFunc = -1*SurfSpectralFunc.imag / np.pi
-                savesurf[itag] = {'Bulk':BulkSpectralFunc,'Surf':SurfSpectralFunc}
-            np.save('SurfaceGF.npy',savesurf)
-        print('# Finish surface green function calculations.')
-
-        self.SelfEs = []
-        for itag in self.Contacts:
-            SelfEs = self.Cal_SelfEnergy(Emin=self.Emin, Emax=self.Emax, tag=itag)
-            self.SelfEs.append(SelfEs)
-        self.SelfEs =np.asarray(self.SelfEs)
-        print ('# Finish Self Energy calculations.')
-
-
-        self.GS = self.Cal_Gs(Emin=self.Emin, Emax=self.Emax)
-        print('# Finish Green Functions Calculations.')
-
-        # add save:
-        np.save('GS',self.GS)
-        np.save('SelfE',self.SelfEs)
-        np.save('Hss',self.Hss)
-        np.save('Sss',self.Sss)
-
-        # Device density of states Tr{GS*S}
-        if self.CalDeviceDOS:
-            dos_device = []
-            if self.CalDevicePDOS:
-                pdos_device = []
-            for ik in range(len(self.scat_klist)):
-                dos_device_e = []
-                if self.CalDevicePDOS:
-                    pdos_device_e = []
-                for ie in range(self.NumE):
-                    GretardS = np.dot(self.GS[ik,ie],self.Sss[ik]) 
-                    dos_tmp = -1 * np.trace(GretardS.imag)/np.pi
-                    dos_device_e.append(dos_tmp)
-                    
-                    if self.CalDevicePDOS:
-                        SGretardS = np.dot(self.Sss[ik],GretardS)
-                        pdos_tmp = -(SGretardS.diagonal() / self.Sss[ik].diagonal()).imag / np.pi
-                        pdos_device_e.append(pdos_tmp)
-                dos_device.append(dos_device_e)
-                if self.CalDevicePDOS:
-                    pdos_device.append(pdos_device_e)
-
-            self.dos = np.asarray(dos_device)
-            np.save('DeviceDOS.npy',{'Energy':Elist,'DOS':self.dos})
-            print('# Finish DeviceDOS.')
-            if self.CalDevicePDOS:
-                self.pdos = np.asarray(pdos_device)
-                np.save('DevicePDOS.npy',{'Energy':Elist,'PDOS':self.pdos})
-                print('# Finish DevicePDOS.')
-
-        """
-        if self.CalDevicePDOS:
-            pdos_device= []
-            for ik in range(len(self.scat_klist)):
-                dos_device_e =[]
-                for ie in range(self.NumE):
-                    GretardS = np.dot(self.GS[ik,ie],self.Sss[ik])                    
-                    SGretardS = np.dot(self.Sss[ik],GretardS)
-                    dos_tmp = -(SGretardS.diagonal() / self.Sss[ik].diagonal()).imag / np.pi
-                    dos_device_e.append(dos_tmp)
-                pdos_device.append(dos_device_e)
-            pdos_device = np.asarray(pdos_device)
-            np.save('DevicePDOS.npy',{'Energy':Elist,'DOS':pdos_device})
-            print('# Finish Transimission calculations.')
+        :param E: the energy list
+        :param tag: the name of the contact, defaults to source (optional)
         """
 
-        if self.CalTrans:
-            self.trans = self.Cal_Trans()
-            np.save('Transmission.npy',{'Energy':Elist,'Trans':self.trans})
-            print('# Finish Transimission calculations.')
-
-
-        #with Pool(processes=self.Processors) as pool:
-        #    poolresults = pool.map(self.trans.GFScatterEne, self.surf.Elist)
-        #self.GS = np.asarray(poolresults)
-    
-    
-    def Cal_SurfGF(self,
-                    Emin,
-                    Emax,
-                    EF=0.0,
-                    tag='Source'): 
-        """ calculate surface green's function. G(k,w) k is k-kpoint, w is energy.
-        
-        Input
-        ----- 
-        Emin: the minimum of energy
-        Emax: the maximum of energy
-        tag: the contact to be calculated
-
-        Return 
-        ------ 
-        bulkGF: bulk
-        topsurfGF: top surface 
-        botsurfGF: bottom surface
-        """
         assert(tag.lower() in self.ContactsNames)
-        #tstat = time.time()
-        Elist = np.linspace(Emin,Emax,self.NumE) - EF
+        contind = self.ContactsNames.index(tag.lower())
+        tag = self.Contacts[contind]
 
+        if E is None:
+            E = self.energies.copy()
+        else:
+            E = np.asarray(E)
+            self.energies = E
+            self.NumE = len(E)
+                    
+        # checking if the attributes bulkGF, topsurfGF, and botsurfGF exist. If they do not
+        # exist, then they are created.
+        if not hasattr(self,'bulkGF'):
+            self.bulkGF = {}
+        if not hasattr(self,'topsurfGF'):
+            self.topsurfGF = {}
+        if not hasattr(self,'botsurfGF'):
+            self.botsurfGF = {}
+
+        
         bulkGF=[]
         topsurfGF=[]
         botsurfGF=[]
         for ik in range(len(self.cont_klist)):
-            self.H00ik = self.H00[tag][ik]
-            self.H01ik = self.H01[tag][ik]
-            self.S00ik = self.S00[tag][ik]
-            self.S01ik = self.S01[tag][ik]
+            self.ik = ik
+            self.cal_tag = tag
             with Pool(processes=self.Processors) as pool:
-                poolresults = pool.map(self.Surface_GF_E, Elist)
+                poolresults = pool.map(self._get_surf_greens_e, E)
 
             poolresults = np.asarray(poolresults)
             bulkGFik = poolresults[:,0]
@@ -271,163 +174,272 @@ class NEGFcal(object):
             topsurfGF.append(topsurfGFik)
             botsurfGF.append(botsurfGFik)
 
-        bulkGF = np.array(bulkGF)
-        topsurfGF = np.array(topsurfGF)
-        botsurfGF = np.array(botsurfGF)
+        self.bulkGF[tag] = np.array(bulkGF)
+        self.topsurfGF[tag] = np.array(topsurfGF)
+        self.botsurfGF[tag] = np.array(botsurfGF)
+        self.updata_e = False
 
-        # bulkGF = []
-        # topsurfGF = []
-        # botsurfGF = []
-        # for ie in range(self.NumE):
-        #     Ene = self.Elist[ie]
-        #     res = self.SurfGFE(Ene)
-        #     bulkGF.append(res[0])
-        #     topsurfGF.append(res[1])
-        #     botsurfGF.append(res[2])
-        # bulkGF = np.asarray(bulkGF)
-        # topsurfGF = np.asarray(topsurfGF)
-        # botsurfGF = np.asarray(botsurfGF)
-        # # poolresults = np.asarray(poolresults)
-        # #bulkGF = poolresults[:,0]
-        # topsurfGF = poolresults[:,1]
-        # botsurfGF = poolresults[:,2]
-        return bulkGF, topsurfGF, botsurfGF
+    def _get_surf_greens_e(self,energy):
+        """This function calculates the surface Green's function for a given energy
 
-    def Surface_GF_E(self,E):
-        Ene = E
+        Args:
+            energy (float): energy
+
+        Returns:
+            np.array([bulkgf, surfgf_top, surfgf_bot]) : The Green's function for the bulk, top surface, and bottom surface.
+        """ 
+        # define the self.ik and self.cal_tag first, before call this function.
+        H00ik = self.H00[self.cal_tag][self.ik]
+        H01ik = self.H01[self.cal_tag][self.ik]
+        S00ik = self.S00[self.cal_tag][self.ik]
+        S01ik = self.S01[self.cal_tag][self.ik]
+
         bulkgf, surfgf_top, surfgf_bot = \
-                    SurfGF.iterationGF(self.H00ik, self.H01ik, self.S00ik,self.S01ik, Ene,\
+                    SurfGF.iterationGF(H00ik, H01ik, S00ik, S01ik, energy,\
                         self.eta, self.max_iteration, self.epsilon)
         
         return np.asarray([bulkgf, surfgf_top, surfgf_bot])
 
-    
-    def Cal_SelfEnergy(self,
-                        Emin,
-                        Emax,
-                        EF=0.0,
-                        tag='Source'):
-        """ ccalculate  self energy. Sigma(k, w).
-        
-        Input
-        -----
-        Emin: the minimum of energy
-        Emax: the maximum of energy
-        tag: the contact to be calculated
 
-        Return 
-        ------ 
-        SigmaKE: Sigma(k, w).
-        """
+    def get_selfenergies(self, energies=None, tag='Source'):
+        """This function calculates the self energy of the system
+
+        Args:
+            E (list, optional): the energy at which to calculate the self-energy. Defaults to None.
+            tag (str, optional): the contact to be calculated, defaults to source.
+
+        Returns:
+            self.SigmaKE (np.array) : Sigma(k, w). 
+        """        
         assert(tag.lower() in self.ContactsNames)
+        contind = self.ContactsNames.index(tag.lower())
+        tag = self.Contacts[contind]
+
+        if energies is None:
+            energies = self.energies.copy()
+        else:
+            energies = np.asarray(energies)
+            self.energies = energies
+            self.NumE = len(energies)
+            self.updata_e = True
+
         if not ((self.scat_klist - self.cont_klist)<1.0E-6).all():
             raise ValueError('The k list in scatter and contact must be the same.')
-        
-        Elist = np.linspace(Emin,Emax,self.NumE) - EF
-        
+
+        # if (not self.updata_e) 
+        # if (not self.updata_e) and hasattr(self,'selfE') and tag in self.selfE.keys():
+        #    print('The surface green function is already calculated.')
+        #    return 0
+
+        if not hasattr(self,'selfenergy'):
+            self.selfenergy = {}
+
         SigmaKE = []
         for ik in range(len(self.scat_klist)):
-            # self.Hssik = self.Hss[ik]
-            self.Hscik = self.Hsc[tag][ik]
-            # self.Sssik = self.Sss[ik]
-            self.Sscik = self.Ssc[tag][ik]
-            
-
+            self.ik = ik
+            self.cal_tag = tag
             #self.SurfG00(self.ContGF[tag]['Surf'])
             # self.pot = self.ContactsPot[tag]
 
-            #with Pool(processes=self.Processors) as pool:
-            #    poolresults = pool.map(self.selfene.SelfEne, self.surf.Elist)
-            #SigmaE = np.asarray(poolresults)
-            
-            SigmaE = []
-            for ie in range(self.NumE):
-                Ene = Elist[ie]
-                self.G00ikE = self.ContGF[tag]['Surf'][ik,ie]
-                res = self.SelfEnergy_E(Ene)
-                SigmaE.append(res)
-            SigmaKE.append(SigmaE)
-
-        SigmaKE = np.asarray(SigmaKE)
-
-        return SigmaKE
-
-    def SelfEnergy_E(self,E):
-        G00 = self.G00ikE
-        E_eta = E + 1.0j*self.eta
-        Vint  = E_eta * self.Sscik - self.Hscik
+            with Pool(processes=self.Processors) as pool:
+                poolresults = pool.map(self._get_selfenergy_e, energies)
+            SigmaKE.append(np.asarray(poolresults))
+        
+        self.selfenergy[tag] = np.asarray(SigmaKE)
+        
+    
+    def _get_selfenergy_e(self,energy):
+        Hscik = self.Hsc[self.cal_tag][self.ik]
+        Sscik = self.Ssc[self.cal_tag][self.ik]
+        if (not self.updata_e) and hasattr(self,'topsurfGF') and self.cal_tag in self.topsurfGF.keys():
+            assert np.round(energy,6) in np.around(self.energies,6), "for not updata the energies, the E must in the self.energies"
+            ind = np.where(np.around(self.energies,6) == np.round(energy,6))[0][0]
+            G00 = self.topsurfGF[self.cal_tag][self.ik,ind]
+        else:
+            [bulkgf, G00, surfgf_bot] = self._get_surf_greens_e(energy)
+        
+        E_eta = energy + 1.0j*self.eta
+        Vint  = E_eta * Sscik - Hscik
         Vint_ct = np.transpose(np.conjugate(Vint))
         Sigma_p =  np.dot(Vint,G00)
         Sigma_E =  np.dot(Sigma_p,Vint_ct)
         return Sigma_E
 
-
-    def Cal_Gs(self,
-                Emin,
-                Emax,
-                EF=0.0):
-        Elist = np.linspace(Emin,Emax,self.NumE) - EF
-
-        GsKE=[]
-        for ik in range(len(self.scat_klist)):
-            self.Hssik = self.Hss[ik]
-            self.Sssik = self.Sss[ik]
-
-            GsE=[]
-            for ie in range(self.NumE):
-                Ene = Elist[ie]
-                self.SelfE_k_E =  self.SelfEs[:,ik,ie]
-                gse = self.GS_E(Ene)
-                GsE.append(gse)
-            GsKE.append(GsE)
-
-        GsKE = np.asarray(GsKE)
-        return GsKE
-
-
-    def GS_E (self,E):
-        E_eta = E + 1.0j * self.eta
-        # self.SelfE(:,ik,ie)
-        gsH = E_eta * self.Sssik -self.Hssik - np.sum(self.SelfE_k_E[:],axis=0)
-        Gs_E = np.linalg.inv(gsH)
-        return Gs_E
-
-
-    def Cal_Trans(self):
-        trans = []
-        trans = []
-        for ik in range(len(self.scat_klist)):
-            trans_E = []
-            for ie in range(self.NumE):
-                self.GS_ikE = self.GS[ik,ie,:]
-                self.SelfEs_ikE = self.SelfEs[:,ik,ie]
-                trans_ikE = self.Trans_E()
-                trans_E.append(trans_ikE)
-            trans.append(trans_E)
-        trans = np.asarray(trans)
-
-        return trans
+    def get_scatt_greens(self, energies=None):
+        if energies is None:
+            energies = self.energies.copy()
+        else:
+            energies = np.asarray(energies)
+            self.energies = energies
+            self.NumE = len(energies)
+            self.updata_e = True
         
+        if  not hasattr(self,'selfenergy'):
+            self.selfenergy={}
 
-    def Trans_E(self):
-        gs = self.GS_ikE
-        SelfEs = self.SelfEs_ikE
-        num_cont = len(SelfEs)
-        gsct = np.transpose(np.conjugate(gs))
-        Gamma = []
-        for ii in range(num_cont):
-            broden = 1.0j * (SelfEs[ii] - np.transpose(np.conjugate(SelfEs[ii])))
-            Gamma.append(broden)
-        Gamma = np.asarray(Gamma)
+        scatt_gf = []
+        sigmaek ={}
+        for itag in self.Contacts:
+            sigmaek[itag]=[]
+        for ik in range(len(self.scat_klist)):
+            #self.Hssik = self.Hss[ik]
+            #self.Sssik = self.Sss[ik]
+            self.ik = ik
+
+            with Pool(processes=self.Processors) as pool:
+                poolresults = pool.map(self._get_scatt_greens_e, energies)
+
+            scatt_gf.append(np.asarray([arr[0] for arr in  poolresults]))
+            for itag in self.Contacts:
+                sigmaek[itag].append(np.asarray([arr[1][itag] for arr in  poolresults]))
+
+        self.scatt_gf = np.asarray(scatt_gf)
+        for itag in self.Contacts:
+            self.selfenergy[itag] = np.asarray(sigmaek[itag])
+
+
+    def _get_scatt_greens_e (self,energy):
+        Hssik = self.Hss[self.ik]
+        Sssik = self.Sss[self.ik]
+        E_eta = energy + 1.0j * self.eta
+        self_energy_sum = 0.0 
+        self_energy_tag = {}
+        for tag in self.Contacts:
+            if (not self.updata_e) and hasattr(self,'selfenergy') and tag in self.selfenergy.keys():
+                assert np.round(energy,6) in np.around(self.energies,6), "for not updata the energies, the E must in the self.energies"
+                ind = np.where(np.around(self.energies,6) == np.round(energy,6))[0][0]
+                self_energy = self.selfenergy[tag][self.ik,ind]
+                self_energy_tag[tag] = self_energy
+            else:
+                self.cal_tag = tag
+                self_energy = self._get_selfenergy_e(energy)
+                self_energy_tag[tag] = self_energy
+            self_energy_sum += self_energy
+
+        gsH = E_eta * Sssik - Hssik - self_energy_sum
+        scatt_gf_e = np.linalg.inv(gsH)
+        return [scatt_gf_e, self_energy_tag]
+    
+    def get_transmission(self, energies=None, tag1='Source', tag2='Drain'):
+        """This function calculates the transmission of the system
+
+        Args:
+            energies (list, optional): the energy at which to calculate the transmission. Defaults to None.
+        """
+        assert(tag1.lower() in self.ContactsNames)
+        assert(tag2.lower() in self.ContactsNames)
+        contind = self.ContactsNames.index(tag1.lower())
+        tag1 = self.Contacts[contind]
+        contind = self.ContactsNames.index(tag2.lower())
+        tag2 = self.Contacts[contind]
+
+        if energies is None:
+            energies = self.energies.copy()
         
-        trans_E = []
-        for ii in range(num_cont):
-            gsG = np.dot(gs,Gamma[ii])
-            gsGgs = np.dot(gsG,gsct)
-            for jj in range(num_cont):
-                gsGgsG = np.dot(gsGgs,Gamma[jj])
+        else:
+            energies = np.asarray(energies)
+            self.energies = energies
+            self.NumE = len(energies)
+            self.updata_e = True
+        
+        self.transmission  = {}
+        transmission = []
+        for ik in range(len(self.scat_klist)):
+            self.ik = ik
+            self.tag1 = tag1
+            self.tag2 = tag2
+            with Pool(processes=self.Processors) as pool:
+                poolresults = pool.map(self._get_transmission_e, energies)
+            transmission.append(poolresults)
+        # index 0  means the k index 0.
+        # For negf device, most cases k mesh being the gamma point is enough.
+        self.transmission[tag1 + 'to' + tag2] = np.asarray(transmission)[0]
+
+
+    def _get_transmission_e(self,energy):
+        if (not self.updata_e) and hasattr(self,'scatt_gf'):
+            assert np.round(energy,6) in np.around(self.energies,6), "for not updata the energies, the E must in the self.energies"
+            ind = np.where(np.around(self.energies,6) == np.round(energy,6))[0][0]
+            scatt_gf_e = self.scatt_gf[self.ik,ind]
+            selfenergy_e = {}
+            for tag in self.Contacts:
+                assert hasattr(self,'selfenergy') and tag in self.selfenergy.keys(), 'if hasattr scatt_gf, mush also hasattr selfenergy '
+                selfenergy_e[tag] = self.selfenergy[tag][self.ik,ind]
+
+        else:
+            [scatt_gf_e, selfenergy_e] = self._get_scatt_greens_e(energy)
+        
+        num_cont = len(self.Contacts)
+
+        trans_e = []
+        #for ii in range(num_cont):
+        #tag = self.Contacts[ii]
+        broaden = 1.0j * (selfenergy_e[self.tag1] - selfenergy_e[self.tag1].T.conj())
+        gsG = np.dot(scatt_gf_e,broaden)
+        gsGgs = np.dot(gsG, scatt_gf_e.T.conj())
+        #for jj in range(num_cont):
+        #tag2 = self.Contacts[jj]
+        broaden = 1.0j * (selfenergy_e[self.tag2] - selfenergy_e[self.tag2].T.conj())
+        gsGgsG = np.dot(gsGgs,broaden)
+        #trans_e.append(np.trace(gsGgsG))
+        trans_e = np.trace(gsGgsG)
+
+        return trans_e
+
+
+    def get_current(self, bias=None,  T=0., energies=None, transmission=None, tag1 = 'Source', tag2='Drain'):
+        assert(tag1.lower() in self.ContactsNames)
+        assert(tag2.lower() in self.ContactsNames)
+        # Getting the transmission of the two tags.
+        contind = self.ContactsNames.index(tag1.lower())
+        tag1 = self.Contacts[contind]
+        contind = self.ContactsNames.index(tag2.lower())
+        tag2 = self.Contacts[contind]
+        tag = tag1 + 'to' + tag2
+
+        if bias is None:
+            bias = self.bias.copy()
+        else:
+            bias = np.asarray(bias)
+            self.bias = bias
+
+        if energies is None:
+            energies = self.energies.copy()
+            if transmission is None:
+                if hasattr(self,'transmission') and tag in self.transmission.keys():
+                    transmission = self.transmission[tag].copy()
+                else:
+                    self.get_transmission(tag1=tag1, tag2=tag2)
+                    transmission = self.transmission[tag].copy()                
                 
-                trans_tmp = np.trace(gsGgsG)
-                trans_E.append(trans_tmp)
-        trans_E = np.asarray(trans_E)
-        return trans_E
+        else:
+            energies = np.asarray(energies)
+            self.energies = energies.copy()
+            self.NumE = len(energies)
+            self.updata_e = True
+            self.get_transmission(energies, tag1, tag2)
+            transmission = self.transmission[tag].copy()
+
+        
+        bias = bias[np.newaxis]
+        energies = energies[:, np.newaxis]
+        transmission = transmission[:, np.newaxis]
+        f1 = self.fermidist(energies - bias/2., kB * T)
+        f2 = self.fermidist(energies + bias/2., kB * T)
+        self.current = np.trapz((f1 - f2) * transmission, x=energies, axis=0)
+
+
+    def fermidist(self, energies, kT):
+        """
+        It returns the Fermi-Dirac distribution for a given set of energies and temperature.
+        
+        :param energies: a list of energies
+        :param kT: the temperature in units of energy. (kT = kB * T, kB is Boltzmann constant)
+        :return: The Fermi-Dirac distribution.
+        """
+        # the Fermi-Dirac distribution.
+        assert kT >= 0., "Temperature must be positive!"
+        if kT==0:
+            return np.asfarray(energies <=0)
+        else:
+            return 1. / (1. + np.exp(energies / kT))

@@ -92,7 +92,7 @@ class Paras(object):
         onsite_net: on energy network.
         energy_window: energy_window for training.
         """
-
+        self.TBmodel = 'nntb'
         self.istrain = True
         self.istest = False
         self.ispredict = False
@@ -187,7 +187,7 @@ class Paras(object):
         onsite_net: on energy network.
         energy_window: energy_window for training.
         """
-
+        self.TBmodel = 'nntb'
         self.istrain = False
         self.istest = True
         self.ispredict = False
@@ -260,6 +260,7 @@ class Paras(object):
         onsite_net: on energy network.
         """
         # 1 h_sk(1+nn) 2: hsk + nn.
+        self.TBmodel = 'nntb'
         self.istrain = False
         self.istest  = False
         self.ispredict = False
@@ -351,9 +352,7 @@ class Paras(object):
         self.SaveSurface = False
         self.SaveSelfEnergy = False
         self.CalDeviceDOS = False
-        self.CalDevicePDOS = False
-        self.CalTrans = False
-        
+        self.CalDevicePDOS = False        
 
         self.kmesh = [1,1,1]
         self.nkfermi = 2
@@ -365,13 +364,6 @@ class Paras(object):
         self.NumE = 101
         self.BiasV = [-1,1]
         self.NumV = 101
-        self.use_E_win = True
-        # w.r.t Fermi level.
-        self.energy_max = 1.0
-        self.energy_min = -100
-        self.use_I_win = False
-        self.band_max = 1
-        self.band_min = 0
         self.DeviceFermi = 0
         self.ContactFermi = 0
 
@@ -423,31 +415,24 @@ class Paras(object):
         self.ispredict = False
         self.correction_mode = 1
         self.SpinDeg = 2
-        self.read_checkpoint = './checkpoint.pl'
-        self.active_func = "tanh"
 
         self.Processors = 1
         self.SaveSurface = False
         self.SaveSelfEnergy = False
         self.CalDeviceDOS = False
         self.CalDevicePDOS = False
-        self.CalTrans = False
         
 
         self.kmesh = [1,1,1]
+        self.nkfermi = 2
         self.eta = 0.001
         self.max_iteration = 100
         self.epsilon = 1.0E-6
         self.Emin = -1
         self.Emax = 1
-        self.NumE = 100
-        self.use_E_win = True
-        # w.r.t Fermi level.
-        self.energy_max = 1.0
-        self.energy_min = -100
-        self.use_I_win = False
-        self.band_max = 1
-        self.band_min = 0
+        self.NumE = 101
+        self.BiasV = [-1,1]
+        self.NumV = 101
         self.DeviceFermi = 0
         self.ContactFermi = 0
 
@@ -456,12 +441,6 @@ class Paras(object):
                         'ProjAnglrM',
                         'ValElec',
                         'CutOff',
-                        'EnvCutOff',
-                        'NumEnv',
-                        'Envnet',
-                        'Envout',
-                        'Bondnet',
-                        'onsite_net',
                         'DeviceRegion',
                         'Contacts',
                         'ContactsRegions',

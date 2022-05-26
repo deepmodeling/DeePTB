@@ -78,6 +78,9 @@ class Device_Hamils(object):
         """
 
         assert(tag.lower() in self.ContactsNames)
+        contind = self.ContactsNames.index(tag.lower())
+        tag = self.Contacts[contind]
+
         Scatter_Rg = self.RegionRanges['Device']
         PL1Rg  = self.RegionRanges[tag][0]  
         Hamil_Scat_Cont_Index = self.Get_Block_Ind(self.ibond, self.jbond, Scatter_Rg, PL1Rg)
@@ -286,7 +289,9 @@ class Contact_Hamils(object):
         Bond01: bonds list for 01 Block
         AtomNOrbs: number of orbitals on each atom in contact.
         """
-        assert contag in self.Contacts
+        assert(contag.lower() in self.ContactsNames)
+        contind = self.ContactsNames.index(contag.lower())
+        contag = self.Contacts[contind]
 
         # self.struct = self.ContactStruct[contag]
         ExtSign = self.ContactsExtSign[contag]

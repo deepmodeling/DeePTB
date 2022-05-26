@@ -35,7 +35,11 @@ class Model(object):
         onsite_neurons: hyper paras of neural network for onsite energies prediction.
     """
     def __init__(self,paras):
-        # S-K files parameters
+        """initialize the model.
+
+        Args:
+            paras (class Paras): the parameters for the model.
+        """
         self.SKAnglrMHSID = {'dd':np.array([0,1,2]), 
                      'dp':np.array([3,4]), 'pd':np.array([3,4]), 
                      'pp':np.array([5,6]), 
@@ -43,7 +47,7 @@ class Model(object):
                      'ps':np.array([8]),   'sp':np.array([8]),
                      'ss':np.array([9])}
         self.au2Ang = 0.529177249 
-        self.envbuild = EnvBuild(paras)
+        
         self.bondbuild = BondListBuild(paras) 
         self.dataload = DataLoad(paras)
         
@@ -64,9 +68,9 @@ class Model(object):
             warnings.warn("correction mode setting error. I set it to default 1")
         
         self.SpinDeg = paras.SpinDeg
-        self.AtomType  = self.envbuild.AtomType        # atom types in the full struct.
-        self.ProjAtomType = self.envbuild.ProjAtomType      # atom  types to be projected.
-        self.ProjAnglrM = self.envbuild.ProjAnglrM      # the angular momentum to project.
+        self.AtomType  = self.bondbuild.AtomType        # atom types in the full struct.
+        self.ProjAtomType = self.bondbuild.ProjAtomType      # atom  types to be projected.
+        self.ProjAnglrM = self.bondbuild.ProjAnglrM      # the angular momentum to project.
         self.AnglrMID = self.bondbuild.AnglrMID 
 
         if self.istrain or self.istest:
@@ -85,17 +89,23 @@ class Model(object):
                 self.withref = False
             else:
                 print('error in define a window for trainng eigenvalues ')
-                
-        # define and build neural networks.
-        self.buildNN  = BuildNN(envtype= self.AtomType, bondtype = self.ProjAtomType, proj_anglr_m = self.ProjAnglrM) 
+        
         self.IndMap = Index_Mapings(envtype= self.AtomType, bondtype = self.ProjAtomType, proj_anglr_m = self.ProjAnglrM)
-        self.active_func = paras.active_func
-        self.env_neurons = [1] + paras.Envnet
-        self.env_out = paras.Envout
-        # rij + env(Li + Lj)
-        self.bond_neurons = [self.env_out * self.env_neurons[-1]+1] + paras.Bondnet
-        # env(Li + Li)
-        self.onsite_neurons = [self.env_out * self.env_neurons[-1]] + paras.onsite_net
+        
+        if self.istrain or self.istest:
+            assert paras.TBmodel.lower() == 'nntb', 'For train and test the TBmodel tag should be nntb'
+
+        if paras.TBmodel.lower() == 'nntb':  
+            self.envbuild = EnvBuild(paras)
+            # define and build neural networks.
+            self.buildNN  = BuildNN(envtype= self.AtomType, bondtype = self.ProjAtomType, proj_anglr_m = self.ProjAnglrM) 
+            self.active_func = paras.active_func
+            self.env_neurons = [1] + paras.Envnet
+            self.env_out = paras.Envout
+            # rij + env(Li + Lj)
+            self.bond_neurons = [self.env_out * self.env_neurons[-1]+1] + paras.Bondnet
+            # env(Li + Li)
+            self.onsite_neurons = [self.env_out * self.env_neurons[-1]] + paras.onsite_net
 
         if self.istrain:
             self.train_paras()
@@ -103,6 +113,8 @@ class Model(object):
             self.predic_test_paras()
     
     def train_paras(self):
+        """train parameters.
+        """
         # load paras for train process.
         paras = self.paras
         self.num_epoch = paras.num_epoch
@@ -145,6 +157,8 @@ class Model(object):
 
 
     def train(self):
+        """train the model.
+        """
         
         self.envnets = self.buildNN.BuildEnvNN(env_neurons=self.env_neurons,
                             afunc= self.active_func)
@@ -611,15 +625,16 @@ class Model(object):
         # initialize the env and bond class for given struct.
         self.bondbuild.BondStuct(struct)
         self.bondbuild.GetBonds(TRsymm=TRsymm)
-        self.envbuild.IniUsingAse(struct)
-        self.envbuild.Projection()
+        if self.paras.TBmodel.lower() == 'nntb': 
+            self.envbuild.IniUsingAse(struct)
+            self.envbuild.Projection()
+            self.envtype = self.envbuild.Uniqsybl
+            self.envtypeid = self.envbuild.TypeID
 
         self.Bonds = self.bondbuild.Bonds
         self.BondsOnSite = self.bondbuild.BondsOnSite
         self.bondtype = self.bondbuild.Uniqsybl
-        self.envtype = self.envbuild.Uniqsybl
         self.bondtypeid = self.bondbuild.TypeID
-        self.envtypeid = self.envbuild.TypeID
         self.AtomNOrbs = self.bondbuild.AtomNOrbs 
         self.AtomTypeNOrbs = self.bondbuild.AtomTypeNOrbs
 
@@ -775,9 +790,11 @@ class Model(object):
 
     def SKcorrection(self,corr_strength=1):
         """Add the nn correction to SK parameters hoppings and onsite Es.
-        
+
+        Args:
+            corr_strength (int, optional): correction strength for correction mode 2, Defaults to 1.
         Note: the overlaps are fixed on changed of SK parameters.
-        """
+        """        
         self.onsiteEs_corr = []
         self.onsiteSs_corr = []
         for ib in range(len(self.BondsOnSite)):
@@ -819,12 +836,14 @@ class Model(object):
 
     
     def HSmat(self, hoppings, overlaps, onsiteEs, onsiteSs):
-        """using the sk format hoppings, overlaps and onsiteEs Ss, to build H-Hamiltonian and S-overlap matrix.
-        
+        """using the hoppings, overlaps and onsiteEs Ss, to build H-Hamiltonian and S-overlap matrix.
+
         Args:
-            hoppings,overlaps, onsiteEs, onsiteSs:
-                the TB parameters to get in SK format, (sk or nn+sk).
-        """
+            hoppings (list): hoppings of the H matrix of each bond stored in list.
+            overlaps (list): overlaps of the S matrix of each bond stored in list.
+            onsiteEs (list): onsite energies of the H matrix of each site stored in list.
+            onsiteSs (list): onsite overlaps of the S matrix of each site stored in list.
+        """        
         self.BondSBlock = []
         self.BondHBlock = []
         for ib in range(len(self.BondsOnSite)):
@@ -899,17 +918,18 @@ class Model(object):
         self.allBonds = np.concatenate([self.BondsOnSite,self.Bonds],axis=0)
 
     def Hamilreal2K(self, hij_all, bond, kpath, num_orbs,TRsymm=True):
-        """ transfer H(r) to H(k).
+        """transfer H(r) to H(k).
 
         Args:
-            hij_all : all the Hblocks and Sblocks.
-            bond : all the bond [i j Rx Ry Rz]. 
-            kpath : kpoints lists.
-            num_orbs: a list of the total orbitals on each atom. eg. atom with s and p orbitals : 4.
+            hij_all (list): Hij matrix of all bonds stored in list.
+            bond (np.array): bond list. [..., [i,j,Rx,Ry,Rz], ...]
+            kpath (np.array): kpoints, [...,[kx,ky,kz],...]
+            num_orbs (np.array): [..., n_orb, ...], a list of the total orbitals on each atom. eg. atom with s and p orbitals : n_orb = 4.
+            TRsymm (bool, optional): turn on the TRsymm or not . Defaults to True.
 
-        return:
+        Returns:
             H(k) or S(k) depending on the hij_all = Hblocks or Sblocks.
-        """
+        """        
         total_orbs = np.sum(num_orbs)
         Hk= th.zeros([len(kpath), total_orbs, total_orbs], dtype = th.complex64)
         for ik in range(len(kpath)):
@@ -924,9 +944,14 @@ class Model(object):
                 ied = int(np.sum(num_orbs[0:i+1]))
                 jst = int(np.sum(num_orbs[0:j]))
                 jed = int(np.sum(num_orbs[0:j+1]))
-                if ib < len(num_orbs):
-                    # len(num_orbs)= numatoms.
-                    # the first numatoms are onsite energies.
+                if ib < len(num_orbs): 
+                    """
+                    len(num_orbs)= numatoms. the first numatoms are onsite energies.
+                    if turn on TRsymm when generating the bond list <i,j>. only i>= or <= j are included. 
+                    if turn off TRsymm when generating the bond list <i,j>. all the i j are included.
+                    for case 1, H = H+H^\dagger to get the full matrix, the the onsite one is doubled.
+                    for case 2. no need to do H = H+H^\dagger. since the matrix is already full.
+                    """
                     if TRsymm:
                         hk[ist:ied,jst:jed] += 0.5 * hij_all[ib] * np.exp(-1j * 2 * np.pi* np.dot(k,R)) 
                     else:
@@ -935,9 +960,6 @@ class Model(object):
                     hk[ist:ied,jst:jed] += hij_all[ib] * np.exp(-1j * 2 * np.pi* np.dot(k,R)) 
             if TRsymm:
                 hk = hk + hk.T.conj()
-
-            #for i in range(total_orbs):
-            #    hk[i,i] = hk[i,i] * 0.5
             Hk[ik] = hk
         return Hk
 
@@ -957,6 +979,7 @@ class Model(object):
         chklowt = th.linalg.cholesky(skmat)
         chklowtinv = th.linalg.inv(chklowt)
         Heff = (chklowtinv @ hkmat @ th.transpose(chklowtinv,dim0=1,dim1=2).conj())
+        # the factor 13.605662285137 * 2 from Hartree to eV.
         eigks = th.linalg.eigvalsh(Heff) * 13.605662285137 * 2
 
         return eigks
@@ -964,15 +987,14 @@ class Model(object):
 
     def EnvCoding(self,ibond):
         """local environment coding to ensure symmetries, translation, rotation, permutation.
-        
+
         Args:
-            ibond: bond information obtained in BondBuild Class. 
-                    [i,j,Rx,Ry,Rz]. ij refers the index of center of orbitals, 
-                    R is the lattace vector in fractional coor. (Rx,Ry,Rz are integers.)\
-        
-        return:
+            ibond (list): bond information obtained in BondBuild Class. [i,j,Rx,Ry,Rz].
+                         ij refers the index of center of orbitals,  R is the lattace vector in fractional coor. 
+
+        Returns:
             local environment corresponding to the ibond.
-        """
+        """        
         envib = self.envbuild.iBondEnv(ibond)
         envib_tensor = th.from_numpy(envib).float()
         ist=0
@@ -1000,9 +1022,20 @@ class Model(object):
         return emdenvib
 
     def energywindow(self,nkps,Emax,Emin,label):
-        """
-        get energy window index, by given energy window value.
-        """
+        """get energy window index, by given energy window value.
+
+        Args:
+            nkps (int): num of kpoints
+            Emax (float): maxmum for energy window.
+            Emin (float): minimum for energy window.
+            label (float): train label vector.
+
+        Returns:
+            max_out_index (int) : index for maxmum energy index.
+            max_ind (int) : max band index.
+            min_out_index (int) : index for minimum energy index.
+            min_ind (int) : min band index.
+        """        
         max_out_index = label > Emax
         in_index = label < Emax
         max_ind_kband = int(th.sum(in_index).numpy())
