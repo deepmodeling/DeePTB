@@ -14,36 +14,34 @@ from dpnegf.negf.NEGF import NEGFcal
 
 from ase.transport.calculators import TransportCalculator
 
-def deepnegf(args:argparse.Namespace):
-    """
-    Perform NEGF simulations with NN-baed TB Hamiltonians.
+def deepnegf(args:argparse.Namespace):   
+    """Perform NEGF simulations with NN-baed TB Hamiltonians.
 
-    input: 
-    ----- 
-    args:argparse.Namespace
+    Args:
+        args (argparse.Namespace): command line paras.
 
-    output:
-    ------
-    Transmission coefficient.
-    Current.
+    Output:
+        Transmission coefficient.
+        Current.
 
-    return:
-    ------- 
-    None
+    Return:
+        None
     """
     time_start = time.time() 
 
     input_file = args.input_file
     fp = open(input_file)
     paras = Paras(fp,args.command, args.nn_off)
+    if args.nn_off:
+        paras.TBmodel = 'sktb'
+    else:
+        paras.TBmodel = 'nntb'
 
     structfile = args.struct
     structfmt = args.format
 
     structase = ase.io.read(structfile,format=structfmt)
-    #negfH = NEGFHamiltonian(paras,structase)
     negfH = NEGFHamiltonian(paras,structase,conttol=1e-3)
-
 
     # calculate fermi level.
     natomcont = negfH.ngstr.GeoRegions['Source'][1]-negfH.ngstr.GeoRegions['Source'][0] + 1
@@ -70,15 +68,17 @@ def deepnegf(args:argparse.Namespace):
     scatterase.pbc[axistrans]=True
     
     mdl = Model(paras)
-    mdl.loadmodel()
-
     mdl.structinput(scatterase)
-    mdl.nnhoppings()
-    mdl.SKhoppings()
+    
+
     if args.nn_off:
+        mdl.SKhoppings()
         mdl.HSmat(hoppings = mdl.skhoppings, overlaps = mdl.skoverlaps , 
               onsiteEs = mdl.onsiteEs, onsiteSs = mdl.onsiteSs)
     else:
+        mdl.loadmodel()
+        mdl.nnhoppings()
+        mdl.SKhoppings()
         mdl.SKcorrection()
         mdl.HSmat(hoppings = mdl.hoppings_corr, overlaps = mdl.overlaps_corr ,  
               onsiteEs = mdl.onsiteEs_corr, onsiteSs = mdl.onsiteSs_corr)
@@ -106,12 +106,7 @@ def deepnegf(args:argparse.Namespace):
     negfcal = NEGFcal(paras)    
     
     NNEF = EF
-    #negfcal.Emin = -5
-    #negfcal.Emax =  5
-    #negfcal.NumE =  1000
 
-
-    
     if not args.use_ase:
         paras.DeviceFermi = EF
         paras.ContactFermi = EF
@@ -121,14 +116,16 @@ def deepnegf(args:argparse.Namespace):
         time_measure = time.time() 
         print('Timing Region Hamiltonian : %16.3f s' %(time_measure-time_start))
 
-        negfcal.Cal_NEGF()
-        
+        negfcal.get_current()
+        np.save('transmission',{'E':negfcal.energies,'T':negfcal.transmission})
+        np.save('current',{'bias':negfcal.bias,'current':negfcal.current})
+
         time_measure = time.time() 
-        print('Timing Transmission : %16.3f s' %(time_measure-time_start))
+        print('Timing current and transmission: %16.3f s' %(time_measure-time_start))
         print('Done!')
 
     else:
-        print('Calculate Transmission use ase api.')
+        print('Calculate negf use ase api.')
         negfcal.Scat_Hamiltons(HamilDict = ScatDict)
         negfcal.Scat_Cont_Hamiltons(HamilDict = ScatContDict)
         negfcal.Cont_Hamiltons(HamilDict = ContDict)
@@ -198,9 +195,6 @@ def deepnegf(args:argparse.Namespace):
         time_measure = time.time() 
         print('Timing Current : %16.3f s' %(time_measure-time_start))
         print('Done!')
-
-
-
 
 
 #if __name__ == "__main__":
