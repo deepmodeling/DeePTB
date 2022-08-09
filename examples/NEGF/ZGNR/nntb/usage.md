@@ -1,7 +1,7 @@
 ## Usage 
 1. run NEGF calculation:
 ```shell
-$ dpnegf negf -i input.json --struct struct.xyz -fmt xyz
+$ dptb negf -i input.json --struct struct.xyz -fmt xyz
 ```
 **Note**: here i used the  multiprocessing to accelerate the calculation. 
      but in order to avoid the competition between the openmp and multiprocessing, 
@@ -9,7 +9,7 @@ $ dpnegf negf -i input.json --struct struct.xyz -fmt xyz
 
 or use the `ase api` to calculate NEGF
 ```shell
-$ dpnegf negf -i input.json --struct struct.xyz -fmt xyz --use_ase true
+$ dptb negf -i input.json --struct struct.xyz -fmt xyz --use_ase true
 ```
 
 1. plot  transmission coefficient  T(E) and current  I-V curve.

@@ -6,11 +6,11 @@
 2. Train TB model.
     ```shell
     $ cd train
-    $ dpnegf train  
+    $ dptb train  
     ```
     for from scratch case, while for restart.
     ```shell
-    $ dpnegf train  -r  restart
+    $ dptb train  -r  restart
     ```
 3. Check TB with DFT band structure.
     ```shell

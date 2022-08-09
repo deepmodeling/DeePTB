@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 import ase.visualize
 import matplotlib as mpl
 mpl.rcParams['pdf.fonttype'] = 42
-from dpnegf.Parameters import Paras
-from dpnegf.nnet.Model import Model
+from dptb.Parameters import Paras
+from dptb.nnet import Model
 import pickle as pickle
 
 
@@ -122,7 +122,7 @@ def plot_band():
 
     for i in range(eigksnp.shape[1]):
         plt.plot(xlist, eigksnp[:,i] - EF,'r-',lw=1)
-    plt.plot(xlist, eigksnp[:,0] - EF ,'r-',lw=1,label='dpnegf')
+    plt.plot(xlist, eigksnp[:,0] - EF ,'r-',lw=1,label='dptb')
 
 
     for ii in high_sym_kpoints:
