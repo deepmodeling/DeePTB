@@ -1,0 +1,1 @@
+# define the function for output all the hoppongs for given i,j.
