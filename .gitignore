@@ -1,10 +1,12 @@
-test.ipynb
-dpnegf/nnet/__pycache__/
-dpnegf/sktb/__pycache__/
-dpnegf/negf/__pycache__/
-dpnegf/softsort/__pycache__/
-dpnegf/__pycache__/
+test*.ipynb
+dptb/nnet/__pycache__/
+dptb/sktb/__pycache__/
+dptb/negf/__pycache__/
+dptb/softsort/__pycache__/
+dptb/__pycache__/
 # examples processed data  and checkpoint.
+*.pth
+*log*
 *.npy
 *.traj
 checkpoint.pl
@@ -36,6 +38,10 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# pycharm dir
+.idea
+.pytest_cache
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -139,3 +145,4 @@ dmypy.json
 .pyre/
 _date.py
 _version.py
+/.idea/

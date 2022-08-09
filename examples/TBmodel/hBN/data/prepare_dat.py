@@ -8,7 +8,7 @@ from ase.io.trajectory import Trajectory
 
 def read2bin():
     parser = argparse.ArgumentParser(
-        description="read2bin: read data to binary file format for deepnegf code."
+        description="read2bin: read data to binary file format for deepTB code."
     )
     parser.add_argument("-in","--in_dir",type=str, default="./", help="dir path of data file, default is ./")
     parser.add_argument("-ef","--eig_file",type=str, default="eigenvalues.dat", help="eigenvalues file name, default is eigenvalues.dat")

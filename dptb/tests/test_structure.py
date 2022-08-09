@@ -1,0 +1,99 @@
+import pytest
+import ase
+from ase.build import graphene_nanoribbon
+import ase.neighborlist
+import os
+import sys
+import logging
+import numpy as np
+from dptb.structure.structure import BaseStruct
+from dptb.utils.tools import get_uniq_symbol
+from dptb.utils.constants import anglrMId, atomic_num_dict
+
+@pytest.fixture(scope='session', autouse=True)
+def root_directory(request):
+        return str(request.config.rootdir)
+
+class param:
+    def __init__(self, AtomType, ProjAtomType, ProjAnglrM, CutOff, ValElec):
+        self.AtomType = AtomType
+        self.ProjAtomType = ProjAtomType
+        self.ProjAnglrM = ProjAnglrM
+        self.CutOff = CutOff
+        self.ValElec = ValElec
+
+def generate_system():
+    atoms = graphene_nanoribbon(1.5, 1, type='armchair', saturated=True)
+    basestruct = BaseStruct(atom=atoms, format='ase', cutoff=1.5, proj_atom_anglr_m={'C':['s','p'], 'H':['s']},proj_atom_neles={'C':4, 'H':1})
+    return basestruct
+
+
+def test_BaseStruct(root_directory):
+    filename = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
+    proj_atom_anglr_m = {"N":["s","p"],"B":["s","p"]}
+    proj_atom_neles = {"N":5,"B":3}
+    CutOff = 4
+    onsitelist = np.array([[7, 0, 7, 0, 0, 0, 0],
+       [5, 1, 5, 1, 0, 0, 0]])
+    bondlist = np.array([[ 7,  0,  5,  1, -2,  0,  0],
+       [ 7,  0,  7,  0, -1,  0,  0],
+       [ 7,  0,  5,  1, -1,  0,  0],
+       [ 7,  0,  5,  1,  1,  0,  0],
+       [ 7,  0,  5,  1, -1,  1,  0],
+       [ 7,  0,  7,  0,  0,  1,  0],
+       [ 7,  0,  5,  1,  0,  1,  0],
+       [ 7,  0,  7,  0,  1,  1,  0],
+       [ 7,  0,  5,  1,  1,  1,  0],
+       [ 7,  0,  5,  1,  0,  2,  0],
+       [ 7,  0,  5,  1,  1,  2,  0],
+       [ 7,  0,  5,  1,  0,  0,  0],
+       [ 7,  0,  5,  1, -1, -1,  0],
+       [ 7,  0,  5,  1, -2, -1,  0],
+       [ 7,  0,  5,  1,  0, -1,  0],
+       [ 5,  1,  5,  1,  1,  1,  0],
+       [ 5,  1,  5,  1,  0, -1,  0],
+       [ 5,  1,  5,  1, -1,  0,  0]])
+    
+    bond_dist_vec = np.array([[ 3.8249233e+00, -9.8198050e-01, -1.8898225e-01,  0.0000000e+00],
+       [ 2.5039999e+00, -1.0000000e+00,  0.0000000e+00,  0.0000000e+00],
+       [ 1.4456851e+00, -8.6602539e-01, -5.0000000e-01,  0.0000000e+00],
+       [ 3.8249230e+00,  9.8198050e-01, -1.8898226e-01,  0.0000000e+00],
+       [ 2.8913701e+00, -8.6602545e-01,  4.9999997e-01,  0.0000000e+00],
+       [ 2.5039999e+00, -5.0000000e-01,  8.6602539e-01,  0.0000000e+00],
+       [ 1.4456849e+00, -5.0252535e-08,  1.0000000e+00,  0.0000000e+00],
+       [ 2.5039999e+00,  5.0000000e-01,  8.6602539e-01,  0.0000000e+00],
+       [ 2.8913701e+00,  8.6602539e-01,  5.0000000e-01,  0.0000000e+00],
+       [ 3.8249230e+00, -3.2732686e-01,  9.4491118e-01,  0.0000000e+00],
+       [ 3.8249230e+00,  3.2732683e-01,  9.4491118e-01,  0.0000000e+00],
+       [ 1.4456850e+00,  8.6602539e-01, -5.0000006e-01,  0.0000000e+00],
+       [ 2.8913701e+00, -2.5091678e-08, -1.0000000e+00,  0.0000000e+00],
+       [ 3.8249233e+00, -6.5465367e-01, -7.5592893e-01,  0.0000000e+00],
+       [ 3.8249230e+00,  6.5465367e-01, -7.5592899e-01,  0.0000000e+00],
+       [ 2.5039999e+00,  5.0000000e-01,  8.6602539e-01,  0.0000000e+00],
+       [ 2.5039999e+00,  5.0000000e-01, -8.6602539e-01,  0.0000000e+00],
+       [ 2.5039999e+00, -1.0000000e+00,  0.0000000e+00,  0.0000000e+00]],
+      dtype=np.float32)
+    struct = BaseStruct(atom=filename,format='vasp',
+        cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles)
+    assert struct.proj_atom_anglr_m == proj_atom_anglr_m
+    assert struct.atom_type == ['N','B']
+    assert struct.proj_atom_type == ['N','B']
+    assert struct.proj_atom_type_norbs == {'N':4,'B':4}
+    assert (struct.proj_atom_symbols == ['N','B'])
+    assert (struct.atom_symbols == ['N','B']).all()
+    assert (struct.bonds[:,0:7].astype(int) == bondlist).all()
+    assert (np.abs(struct.bonds[:,7:11].astype(np.float32)-bond_dist_vec) < 1e-6).all()
+    assert (struct.bonds_onsite == onsitelist).all()
+
+    bond_index_map = {'N-N': {'ss': [0], 'sp': [1], 'ps': [1], 'pp': [2, 3]},
+                      'N-B': {'ss': [0], 'sp': [1], 'ps': [2], 'pp': [3, 4]},
+                      'B-N': {'ss': [0], 'sp': [2], 'ps': [1], 'pp': [3, 4]},
+                      'B-B': {'ss': [0], 'sp': [1], 'ps': [1], 'pp': [2, 3]}}
+    bond_num_hops = {'N-N': 4, 'N-B': 5, 'B-N': 5, 'B-B': 4}
+    onsite_index_map = {'N': {'s': [0], 'p': [1]}, 'B': {'s': [0], 'p': [1]}}
+    onsite_num = {'N': 2, 'B': 2}
+
+    assert struct.bond_index_map == bond_index_map
+    assert struct.bond_num_hops == bond_num_hops
+    assert struct.onsite_index_map == onsite_index_map
+    assert struct.onsite_num == onsite_num

@@ -23,7 +23,7 @@ Deep learning on quantum transport simulations with NEGF method.
 - matplotlib
 - ase
 - torch
-- torchsort
+- torchsort==0.1.7
 
 
 ## **installation**
