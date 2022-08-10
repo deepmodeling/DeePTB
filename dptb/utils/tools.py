@@ -339,6 +339,103 @@ class Index_Mapings(object):
 
         return onsite_index_map, onsite_num
 
+class Index_Mapings_new(object):
+    def __init__(self,envtype=None, bondtype=None,proj_atom_anglr_m=None):
+        self.AnglrMID = anglrMId
+        if envtype is not None and bondtype is not None and proj_atom_anglr_m is not None:
+            self.update(envtype=envtype, bondtype=bondtype, 
+                                proj_atom_anglr_m = proj_atom_anglr_m)
+
+    def update(self,envtype, bondtype,proj_atom_anglr_m):
+        # bond and env type can get from stuct class.
+        self.envtype = envtype
+        self.bondtype = bondtype
+        # projected angular momentum. get from struct class.
+        self.ProjAnglrM = proj_atom_anglr_m
+
+    def Bond_Ind_Mapings(self):
+        bond_index_map = {}
+        bond_num_hops = {}
+        for it in range(len(self.bondtype)):
+            for jt in range(len(self.bondtype)):
+                itype = self.bondtype[it]
+                jtype = self.bondtype[jt]
+                orbdict = {}
+                ist = 0
+                numhops = 0
+                for ish in self.ProjAnglrM[itype]:
+                    for jsh in self.ProjAnglrM[jtype]:
+                        ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
+                        jshsymbol = ''.join(re.findall(r'[A-Za-z]',jsh))
+                        ishid = self.AnglrMID[ishsymbol]
+                        jshid = self.AnglrMID[jshsymbol]
+                        if it == jt:
+                            if  jsh + ish in orbdict.keys():
+                                orbdict[ish + jsh] = orbdict[jsh + ish]
+                                continue
+                            else:
+                                numhops += min(ishid, jshid) + 1
+                                orbdict[ish + jsh] = np.arange(ist, ist + min(ishid, jshid) + 1).tolist()
+
+                        elif it < jt:
+                            numhops += min(ishid, jshid) + 1
+                            orbdict[ish + jsh] = np.arange(ist, ist + min(ishid, jshid) + 1).tolist()
+                        else:
+                            numhops += min(ishid, jshid) + 1
+                            orbdict[ish + jsh] = bond_index_map[jtype + '-' + itype][jsh + ish]
+                            continue
+
+                        # orbdict[ish+jsh] = paralist
+                        ist += min(ishid, jshid) + 1
+                        # print (itype, jtype, ish+jsh, ishid, jshid,paralist)
+                bond_index_map[itype + '-' + jtype] = orbdict
+                bond_num_hops[itype + '-' + jtype] = numhops
+
+        for key in bond_index_map.keys():
+            print('# ' + key + ':', bond_num_hops[key], ' independent hoppings')
+            print('## ', end='')
+            ic = 1
+            for key2 in bond_index_map[key]:
+
+                print('' + key2 + ':', bond_index_map[key][key2], '   ', end='')
+                if ic % 6 == 0:
+                    print('\n## ', end='')
+                ic += 1
+            print()
+
+        return bond_index_map, bond_num_hops
+    
+    def Onsite_Ind_Mapings(self):
+        onsite_index_map = {}
+        onsite_num = {}
+        for it in range(len(self.bondtype)):
+            itype = self.bondtype[it]
+            orbdict = {}
+            ist = 0
+            numhops = 0
+            for ish in self.ProjAnglrM[itype]:
+                ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
+                ishid = self.AnglrMID[ishsymbol]
+                orbdict[ish] = [ist]
+                ist += 1
+                numhops += 1
+            onsite_index_map[itype] = orbdict
+            onsite_num[itype] = numhops
+
+        for key in onsite_index_map.keys():
+            print('# ' + key + ':', onsite_index_map[key], ' independent onsite Es')
+            print('## ', end='')
+            ic = 1
+            for key2 in onsite_index_map[key]:
+
+                print('' + key2 + ':', onsite_index_map[key][key2], '   ', end='')
+                if ic % 6 == 0:
+                    print('\n## ', end='')
+                ic += 1
+            print()
+
+        return onsite_index_map, onsite_num
+
 def nnsk_correction(nn_onsiteEs, nn_hoppings, sk_onsiteEs, sk_hoppings, sk_onsiteSs, sk_overlaps):
     """Add the nn correction to SK parameters hoppings and onsite Es.
     Args:
