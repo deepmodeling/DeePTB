@@ -250,7 +250,7 @@ class Index_Mapings(object):
     def __init__(self,envtype=None, bondtype=None,proj_atom_anglr_m=None):
         self.AnglrMID = anglrMId
         if envtype is not None and bondtype is not None and proj_atom_anglr_m is not None:
-            self.updata(envtype=envtype, bondtype=bondtype, 
+            self.update(envtype=envtype, bondtype=bondtype, 
                                 proj_atom_anglr_m = proj_atom_anglr_m)
 
     def update(self,envtype, bondtype,proj_atom_anglr_m):
