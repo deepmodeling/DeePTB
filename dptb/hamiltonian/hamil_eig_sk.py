@@ -1,11 +1,9 @@
 import torch as th
 import numpy as np
-import torch.linalg
-from scipy.linalg import eigvalsh
 import logging
+import re
 from dptb.hamiltonian.transform_sk import RotationSK
 from dptb.utils.constants import anglrMId
-from dptb.utils.tools import Index_Mapings
 
 ''' Over use of different index system cause the symbols and type and index kind of object need to be recalculated in different 
 Class, this makes entanglement of classes difficult. Need to design an consistent index system to resolve.'''
@@ -87,7 +85,8 @@ class HamilEig(RotationSK):
 
             ist = 0
             for ish in self.__struct__.proj_atom_anglr_m[iatype]:     # ['s','p',..]
-                shidi = anglrMId[ish]          # 0,1,2,...
+                ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
+                shidi = anglrMId[ishsymbol]          # 0,1,2,...
                 norbi = 2*shidi + 1 
                 indx = self.__struct__.onsite_index_map[iatype][ish]
                 if self.dtype == 'tensor':
@@ -129,34 +128,36 @@ class HamilEig(RotationSK):
             
             ist = 0
             for ish in self.__struct__.proj_atom_anglr_m[iatype]:
-                shidi = anglrMId[ish]
+                ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
+                shidi = anglrMId[ishsymbol]
                 norbi = 2*shidi+1
                 
                 jst = 0
                 for jsh in self.__struct__.proj_atom_anglr_m[jatype]:
-                    shidj = anglrMId[jsh]
+                    jshsymbol = ''.join(re.findall(r'[A-Za-z]',jsh))
+                    shidj = anglrMId[jshsymbol]
                     norbj = 2 * shidj + 1   
 
                     idx = self.__struct__.bond_index_map[bondatomtype][ish+jsh]
                     if shidi < shidj:
-                        tmpH = self.rot_HS(Htype=ish+jsh, Hvalue=self.hoppings[ib][idx], Angvec=direction_vec)
+                        tmpH = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.hoppings[ib][idx], Angvec=direction_vec)
                         # Hamilblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpH,dim0=0,dim1=1)
                         if self.dtype == 'tensor':
                             sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * th.transpose(tmpH,dim0=0,dim1=1)
                         else:
                             sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * np.transpose(tmpH,(1,0))
                         if not self.use_orthogonal_basis:
-                            tmpS = self.rot_HS(Htype=ish+jsh, Hvalue=self.overlaps[ib][idx], Angvec=direction_vec)
+                            tmpS = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.overlaps[ib][idx], Angvec=direction_vec)
                         # Soverblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpS,dim0=0,dim1=1)
                             if self.dtype == 'tensor':
                                 sub_over_block[ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * th.transpose(tmpS,dim0=0,dim1=1)
                             else:
                                 sub_over_block[ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * np.transpose(tmpS,(1,0))
                     else:
-                        tmpH = self.rot_HS(Htype=jsh+ish, Hvalue=self.hoppings[ib][idx], Angvec=direction_vec)
+                        tmpH = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue=self.hoppings[ib][idx], Angvec=direction_vec)
                         sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = tmpH
                         if not self.use_orthogonal_basis:
-                            tmpS = self.rot_HS(Htype=jsh+ish, Hvalue = self.overlaps[ib][idx], Angvec = direction_vec)
+                            tmpS = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue = self.overlaps[ib][idx], Angvec = direction_vec)
                             sub_over_block[ist:ist+norbi, jst:jst+norbj] = tmpS
                 
                     jst = jst + norbj 

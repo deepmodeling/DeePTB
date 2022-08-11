@@ -97,3 +97,89 @@ def test_BaseStruct(root_directory):
     assert struct.bond_num_hops == bond_num_hops
     assert struct.onsite_index_map == onsite_index_map
     assert struct.onsite_num == onsite_num
+
+
+def test_Struct_IndMap_case1(root_directory):
+    filename = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
+    proj_atom_anglr_m = {"N":["s","p"],"B":["s","p"]}
+    proj_atom_neles = {"N":5,"B":3}
+    CutOff = 4
+    struct = BaseStruct(atom=filename,format='vasp',
+        cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles)
+    assert struct.proj_atom_anglr_m == proj_atom_anglr_m
+    assert struct.atom_type == ['N','B']
+    assert struct.proj_atom_type == ['N','B']
+    assert struct.proj_atom_type_norbs == {'N':4,'B':4}
+    assert (struct.proj_atom_symbols == ['N','B'])
+    assert (struct.atom_symbols == ['N','B']).all()
+
+    bond_index_map = {'N-N': {'ss': [0], 'sp': [1], 'ps': [1], 'pp': [2, 3]},
+                      'N-B': {'ss': [0], 'sp': [1], 'ps': [2], 'pp': [3, 4]},
+                      'B-N': {'ss': [0], 'sp': [2], 'ps': [1], 'pp': [3, 4]},
+                      'B-B': {'ss': [0], 'sp': [1], 'ps': [1], 'pp': [2, 3]}}
+    bond_num_hops = {'N-N': 4, 'N-B': 5, 'B-N': 5, 'B-B': 4}
+    onsite_index_map = {'N': {'s': [0], 'p': [1]}, 'B': {'s': [0], 'p': [1]}}
+    onsite_num = {'N': 2, 'B': 2}
+
+    assert struct.bond_index_map == bond_index_map
+    assert struct.bond_num_hops == bond_num_hops
+    assert struct.onsite_index_map == onsite_index_map
+    assert struct.onsite_num == onsite_num
+
+def test_Struct_IndMap_case2(root_directory):
+    filename = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
+    proj_atom_anglr_m = {"N":["2s","2p"],"B":["2s","2p"]}
+    proj_atom_neles = {"N":5,"B":3}
+    CutOff = 4
+    struct = BaseStruct(atom=filename,format='vasp',
+        cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles)
+    assert struct.proj_atom_anglr_m == proj_atom_anglr_m
+    assert struct.atom_type == ['N','B']
+    assert struct.proj_atom_type == ['N','B']
+    assert struct.proj_atom_type_norbs == {'N':4,'B':4}
+    assert (struct.proj_atom_symbols == ['N','B'])
+    assert (struct.atom_symbols == ['N','B']).all()
+
+
+    bond_index_map = {'N-N': {'2s2s': [0], '2s2p': [1], '2p2s': [1], '2p2p': [2, 3]},
+                      'N-B': {'2s2s': [0], '2s2p': [1], '2p2s': [2], '2p2p': [3, 4]},
+                      'B-N': {'2s2s': [0], '2s2p': [2], '2p2s': [1], '2p2p': [3, 4]},
+                      'B-B': {'2s2s': [0], '2s2p': [1], '2p2s': [1], '2p2p': [2, 3]}}
+
+    bond_num_hops = {'N-N': 4, 'N-B': 5, 'B-N': 5, 'B-B': 4}
+    onsite_index_map = {'N': {'2s': [0], '2p': [1]}, 'B': {'2s': [0], '2p': [1]}}
+    onsite_num = {'N': 2, 'B': 2}
+
+    assert struct.bond_index_map == bond_index_map
+    assert struct.bond_num_hops == bond_num_hops
+    assert struct.onsite_index_map == onsite_index_map
+    assert struct.onsite_num == onsite_num
+
+def test_Struct_IndMap_case3(root_directory):
+    filename = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
+    proj_atom_anglr_m = {"N":["2s","2p",'s*'],"B":["2s","2p"]}
+    proj_atom_neles = {"N":5,"B":3}
+    CutOff = 4
+    struct = BaseStruct(atom=filename,format='vasp',
+        cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles)
+    assert struct.proj_atom_anglr_m == proj_atom_anglr_m
+    assert struct.atom_type == ['N','B']
+    assert struct.proj_atom_type == ['N','B']
+    assert struct.proj_atom_type_norbs == {'N':5,'B':4}
+    assert (struct.proj_atom_symbols == ['N','B'])
+    assert (struct.atom_symbols == ['N','B']).all()
+
+
+    bond_index_map = {'N-N': {'2s2s': [0], '2s2p': [1], '2ss*': [2], '2p2s': [1],    '2p2p': [3, 4], '2ps*': [5], 's*2s': [2], 's*2p': [5], 's*s*': [6]},
+                      'N-B': {'2s2s': [0], '2s2p': [1], '2p2s': [2], '2p2p': [3, 4], 's*2s': [5],    's*2p': [6]},
+                      'B-N': {'2s2s': [0], '2s2p': [2], '2ss*': [5], '2p2s': [1],    '2p2p': [3, 4], '2ps*': [6]},
+                      'B-B': {'2s2s': [0], '2s2p': [1], '2p2s': [1], '2p2p': [2, 3]}}
+
+    bond_num_hops =  {'N-N': 7, 'N-B': 7, 'B-N': 7, 'B-B': 4}
+    onsite_index_map = {'N': {'2s': [0], '2p': [1], 's*': [2]}, 'B': {'2s': [0], '2p': [1]}}
+    onsite_num = {'N': 3, 'B': 2}
+
+    assert struct.bond_index_map == bond_index_map
+    assert struct.bond_num_hops == bond_num_hops
+    assert struct.onsite_index_map == onsite_index_map
+    assert struct.onsite_num == onsite_num
