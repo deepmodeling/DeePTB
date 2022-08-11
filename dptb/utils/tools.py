@@ -250,7 +250,7 @@ class Index_Mapings(object):
     def __init__(self,envtype=None, bondtype=None,proj_atom_anglr_m=None):
         self.AnglrMID = anglrMId
         if envtype is not None and bondtype is not None and proj_atom_anglr_m is not None:
-            self.updata(envtype=envtype, bondtype=bondtype, 
+            self.update(envtype=envtype, bondtype=bondtype, 
                                 proj_atom_anglr_m = proj_atom_anglr_m)
 
     def update(self,envtype, bondtype,proj_atom_anglr_m):
@@ -272,10 +272,12 @@ class Index_Mapings(object):
                 numhops = 0
                 for ish in self.ProjAnglrM[itype]:
                     for jsh in self.ProjAnglrM[jtype]:
-                        ishid = self.AnglrMID[ish]
-                        jshid = self.AnglrMID[jsh]
+                        ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
+                        jshsymbol = ''.join(re.findall(r'[A-Za-z]',jsh))
+                        ishid = self.AnglrMID[ishsymbol]
+                        jshid = self.AnglrMID[jshsymbol]
                         if it == jt:
-                            if ishid > jshid:
+                            if  jsh + ish in orbdict.keys():
                                 orbdict[ish + jsh] = orbdict[jsh + ish]
                                 continue
                             else:
@@ -288,6 +290,7 @@ class Index_Mapings(object):
                         else:
                             numhops += min(ishid, jshid) + 1
                             orbdict[ish + jsh] = bond_index_map[jtype + '-' + itype][jsh + ish]
+                            continue
 
                         # orbdict[ish+jsh] = paralist
                         ist += min(ishid, jshid) + 1
@@ -308,7 +311,7 @@ class Index_Mapings(object):
             print()
 
         return bond_index_map, bond_num_hops
-
+    
     def Onsite_Ind_Mapings(self):
         onsite_index_map = {}
         onsite_num = {}
@@ -318,7 +321,8 @@ class Index_Mapings(object):
             ist = 0
             numhops = 0
             for ish in self.ProjAnglrM[itype]:
-                ishid = self.AnglrMID[ish]
+                ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
+                ishid = self.AnglrMID[ishsymbol]
                 orbdict[ish] = [ist]
                 ist += 1
                 numhops += 1

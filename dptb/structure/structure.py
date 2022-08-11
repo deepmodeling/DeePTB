@@ -4,10 +4,11 @@ import logging
 import ase.neighborlist
 from ase import Atoms
 import numpy  as np
+import re
 from itertools import accumulate
 import ase.io
 from dptb.utils.constants import anglrMId,atomic_num_dict
-from dptb.utils.tools import get_uniq_symbol, sortarr, env_smoth, Index_Mapings
+from dptb.utils.tools import get_uniq_symbol, env_smoth, Index_Mapings
 from dptb.structure.abstract_stracture import AbstractStructure
 
 class BaseStruct(AbstractStructure):
@@ -113,7 +114,8 @@ class BaseStruct(AbstractStructure):
         for ii in self.proj_atom_type:
             self.proj_atom_type_norbs[ii] = 0
             for iorb in proj_atom_anglr_m[ii]:
-                self.proj_atom_type_norbs[ii] += int(1 + 2 * anglrMId[iorb])
+                ishsymbol = ''.join(re.findall(r'[A-Za-z]',iorb))
+                self.proj_atom_type_norbs[ii] += int(1 + 2 * anglrMId[ishsymbol])
 
         # projind = []
         self.projatoms = np.array([False] * len(self.struct.get_chemical_symbols()))

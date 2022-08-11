@@ -1,12 +1,5 @@
-import os
-import re
-import ase
-import ase.atom
 import numpy as  np
-from scipy.interpolate import interp1d
-from torch import ParameterDict
-from dptb.utils.tools import get_uniq_symbol
-from dptb.utils.constants import anglrMId,NumHvals
+from dptb.utils.constants import NumHvals
 from dptb.sktb.skParam import sk_init, read_skfiles, interp_sk_gridvalues
 
 class SKIntegrals(object):
