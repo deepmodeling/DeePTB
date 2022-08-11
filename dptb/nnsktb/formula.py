@@ -1,47 +1,39 @@
 # define the integrals formula.
-from atexit import register
 import numpy as np
 import torch as th
 
+class SKFormula(object):
 
-def skformula(**kwargs):
-    '''This is a wrap function for a self-defined formula of sk integrals. one can easily modify it into whatever form they want.
-    
-    Returns
-    -------
-        The function varTang is being returned.
-    
-    '''
-    return varTang(**kwargs)
+    def __init__(self,mode='varTang96') -> None: 
+        # one can modify this by add his own formula with the name mode to deifine num of pars.
+        if mode == 'varTang96':
+            self.num_paras = 4
+        else:
+            raise ValueError('No such formula')
 
-    
-def varTang(alpha1 ,alpha2, alpha3, alpha4, rij, **kwargs):
-    '''> This function calculates the value of the variational form of Tang et al 1996. without the
-    environment dependent
+    def skhij(self, mode='varTang96', **kwargs):
+        '''This is a wrap function for a self-defined formula of sk integrals. one can easily modify it into whatever form they want.
+        
+        Returns
+        -------
+            The function defined by mode is called to cal skhij and returned.
+        
+        '''
 
-            $$ h(rij) = \alpha_1 * (rij)^(-\alpha_2) * exp(-\alpha_3 * (rij)^(\alpha_4))$$
-    
-    Parameters
-    ----------
-    alpha1
-        fitting parameter unit eV. the sk integral at  r = 0. (just a value doesnot meaning anything, since the bond length =0 is non-physical)
-    alpha2
-        fitting parameter unitless.
-    alpha3
-        fitting parameter unitless.
-    alpha4
-        fitting parameter unitless.
-    rij
-        distance between two atoms
-    
-    Returns
-    -------
-        hij, the sk intgral.
-    
-    '''
-    
-    hij = alpha1 * (rij**(-alpha2)) * th.exp(-alpha3 * (rij**alpha4))
-    
-    return hij
+        if mode == 'varTang96':
+            return self.varTang96(**kwargs)
+        else:
+            raise ValueError('No such formula')
 
+
+    def varTang96(self, alpha1, alpha2, alpha3, alpha4, rij, **kwargs):
+        '''> This function calculates the value of the variational form of Tang et al 1996. without the
+        environment dependent
+
+                $$ h(rij) = \alpha_1 * (rij)^(-\alpha_2) * exp(-\alpha_3 * (rij)^(\alpha_4))$$
+        '''
+
+        hij = alpha1 * (rij**(-alpha2)) * th.exp(-alpha3 * (rij**alpha4))
+
+        return hij    
 
