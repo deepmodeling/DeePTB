@@ -1,9 +1,7 @@
 import torch  as th
 import numpy as np
+import re
 from dptb.utils.constants import SKAnglrMHSID, au2Ang, anglrMId, NumHvals
-from dptb.utils.tools import Index_Mapings
-from dptb.sktb.skIntegrals import SKIntegrals
-
 
 class SKHSLists(object):
     """ This module is to build the Hamiltonian from the SK-type bond integral.
@@ -45,7 +43,8 @@ class SKHSLists(object):
             siteE = np.zeros([num_onsite])
             siteS = np.zeros([num_onsite])
             for ish in self.__struct__.proj_atom_anglr_m[iatype]:  # ['s','p',..]
-                shidi = anglrMId[ish]  # 0,1,2,...
+                ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
+                shidi = anglrMId[ishsymbol]  # 0,1,2,...
                 indx = self.__struct__.onsite_index_map[iatype][ish]
                 siteE[indx] = self.SKInt.SiteE[iatype][shidi]
                 siteS[indx] = 1.0
@@ -89,19 +88,21 @@ class SKHSLists(object):
             overlaps = np.zeros([num_hops])
 
             for ish in self.__struct__.proj_atom_anglr_m[iatype]:
-                shidi = anglrMId[ish]
+                ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
+                shidi = anglrMId[ishsymbol]
                 # norbi = 2*shidi+1
 
                 for jsh in self.__struct__.proj_atom_anglr_m[jatype]:
-                    shidj = anglrMId[jsh]
+                    jshsymbol = ''.join(re.findall(r'[A-Za-z]',jsh))
+                    shidj = anglrMId[jshsymbol]
                     # norbj = 2 * shidj + 1
 
                     if shidi < shidj:
-                        Hvaltmp = HKinterp12[SKAnglrMHSID[ish + jsh]]
-                        Svaltmp = HKinterp12[SKAnglrMHSID[ish + jsh] + NumHvals]
+                        Hvaltmp = HKinterp12[SKAnglrMHSID[ishsymbol + jshsymbol]]
+                        Svaltmp = HKinterp12[SKAnglrMHSID[ishsymbol + jshsymbol] + NumHvals]
                     else:
-                        Hvaltmp = HKinterp21[SKAnglrMHSID[ish + jsh]]
-                        Svaltmp = HKinterp21[SKAnglrMHSID[ish + jsh] + NumHvals]
+                        Hvaltmp = HKinterp21[SKAnglrMHSID[ishsymbol + jshsymbol]]
+                        Svaltmp = HKinterp21[SKAnglrMHSID[ishsymbol + jshsymbol] + NumHvals]
                     # print(iatype, jatype, self.ProjAnglrM,ish,jsh)
                     # print(bondname, self.__struct__.bond_index_map[bondname])
                     indx = self.__struct__.bond_index_map[bondname][ish + jsh]
