@@ -138,7 +138,7 @@ class HamilEig(RotationSK):
                     shidj = anglrMId[jshsymbol]
                     norbj = 2 * shidj + 1   
 
-                    idx = self.__struct__.bond_index_map[bondatomtype][ish+jsh]
+                    idx = self.__struct__.bond_index_map[bondatomtype][ish+'-'+jsh]
                     if shidi < shidj:
                         tmpH = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.hoppings[ib][idx], Angvec=direction_vec)
                         # Hamilblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpH,dim0=0,dim1=1)
