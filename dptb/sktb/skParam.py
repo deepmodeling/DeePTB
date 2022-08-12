@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as  np
 from scipy.interpolate import interp1d
 from dptb.utils.tools import get_uniq_symbol, format_readline
@@ -47,7 +48,7 @@ def sk_init(proj_atom_anglr_m, sk_file_path, **kwargs):
             filename = sk_file_path + '/' + itype + skparas["separator"] + jtype + skparas["suffix"]
             if not os.path.exists(filename):
                 print('Didn\'t find the skfile: ' + filename)
-                exit()
+                sys.exit()
             skfiles[itype+ '-' +jtype] = filename
 
     # proj_type_norbs = {}
