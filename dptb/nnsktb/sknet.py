@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class SKNet(nn.Module):
-    def __init__(self, skint_config, nout, interneural=None):
+    def __init__(self, skint_types, nout, interneural=None):
         ''' define the nn.parameters for fittig sktb.
 
         Paras 
@@ -12,10 +12,7 @@ class SKNet(nn.Module):
         '''
         super(SKNet, self).__init__()
         self.interneural = interneural
-        self.skint_types=[]
-        for ibondtype in skint_config:
-            for isktype in skint_config[ibondtype]:
-                self.skint_types.append(ibondtype+ '-' + isktype)
+        self.skint_types = skint_types
         self.num_skint_types = len(self.skint_types)
 
         if interneural is None:
