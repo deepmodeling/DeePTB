@@ -161,9 +161,17 @@ class NNTB(object):
         for bondtype in batch_bond_sort:
             dcp = torch.stack(batch_bond_sort[bondtype])
             # missing generate input tp hopping net
-            hopping = self.tb_net(dcp, flag=bondtype, mode='hopping')
+            # bond type for input flag to tb_net should be sorted.
+            iatomtype, jatomtype = bondtype.split('-')[0], bondtype.split('-')[1]
+            iatomnum, jatomnum = atomic_num_dict[iatomtype], atomic_num_dict[jatomtype]
+            if iatomnum < jatomnum:
+                bondflag = f'{jatomtype}-{iatomtype}'
+            else: 
+                bondflag = f'{iatomtype}-{jatomtype}'
+
+            hopping = self.tb_net(dcp, flag=bondflag, mode='hopping')
             batch_bond_sort[bondtype] = hopping
-            #  {bondtype: [f, itype, i, jtype,j,R, |rij|, rij_hat,hopping]}
+                #  {bondtype: [f, itype, i, jtype,j,R, |rij|, rij_hat,hopping]}
         #batch_bond_sort = torch.cat(list(batch_bond_sort.values()), dim=0)
         batch_bond_hoppings, batch_hoppings = {}, {}
         for ibt in list(batch_bond_sort.values()):

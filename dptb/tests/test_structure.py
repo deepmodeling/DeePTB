@@ -85,10 +85,10 @@ def test_BaseStruct(root_directory):
     assert (np.abs(struct.bonds[:,7:11].astype(np.float32)-bond_dist_vec) < 1e-6).all()
     assert (struct.bonds_onsite == onsitelist).all()
 
-    bond_index_map = {'N-N': {'ss': [0], 'sp': [1], 'ps': [1], 'pp': [2, 3]},
-                      'N-B': {'ss': [0], 'sp': [1], 'ps': [2], 'pp': [3, 4]},
-                      'B-N': {'ss': [0], 'sp': [2], 'ps': [1], 'pp': [3, 4]},
-                      'B-B': {'ss': [0], 'sp': [1], 'ps': [1], 'pp': [2, 3]}}
+    bond_index_map = {'N-N': {'s-s': [0], 's-p': [1], 'p-s': [1], 'p-p': [2, 3]},
+                      'N-B': {'s-s': [0], 's-p': [1], 'p-s': [2], 'p-p': [3, 4]},
+                      'B-N': {'s-s': [0], 's-p': [2], 'p-s': [1], 'p-p': [3, 4]},
+                      'B-B': {'s-s': [0], 's-p': [1], 'p-s': [1], 'p-p': [2, 3]}}
     bond_num_hops = {'N-N': 4, 'N-B': 5, 'B-N': 5, 'B-B': 4}
     onsite_index_map = {'N': {'s': [0], 'p': [1]}, 'B': {'s': [0], 'p': [1]}}
     onsite_num = {'N': 2, 'B': 2}
@@ -113,10 +113,10 @@ def test_Struct_IndMap_case1(root_directory):
     assert (struct.proj_atom_symbols == ['N','B'])
     assert (struct.atom_symbols == ['N','B']).all()
 
-    bond_index_map = {'N-N': {'ss': [0], 'sp': [1], 'ps': [1], 'pp': [2, 3]},
-                      'N-B': {'ss': [0], 'sp': [1], 'ps': [2], 'pp': [3, 4]},
-                      'B-N': {'ss': [0], 'sp': [2], 'ps': [1], 'pp': [3, 4]},
-                      'B-B': {'ss': [0], 'sp': [1], 'ps': [1], 'pp': [2, 3]}}
+    bond_index_map = {'N-N': {'s-s': [0], 's-p': [1], 'p-s': [1], 'p-p': [2, 3]},
+                      'N-B': {'s-s': [0], 's-p': [1], 'p-s': [2], 'p-p': [3, 4]},
+                      'B-N': {'s-s': [0], 's-p': [2], 'p-s': [1], 'p-p': [3, 4]},
+                      'B-B': {'s-s': [0], 's-p': [1], 'p-s': [1], 'p-p': [2, 3]}}
     bond_num_hops = {'N-N': 4, 'N-B': 5, 'B-N': 5, 'B-B': 4}
     onsite_index_map = {'N': {'s': [0], 'p': [1]}, 'B': {'s': [0], 'p': [1]}}
     onsite_num = {'N': 2, 'B': 2}
@@ -141,10 +141,10 @@ def test_Struct_IndMap_case2(root_directory):
     assert (struct.atom_symbols == ['N','B']).all()
 
 
-    bond_index_map = {'N-N': {'2s2s': [0], '2s2p': [1], '2p2s': [1], '2p2p': [2, 3]},
-                      'N-B': {'2s2s': [0], '2s2p': [1], '2p2s': [2], '2p2p': [3, 4]},
-                      'B-N': {'2s2s': [0], '2s2p': [2], '2p2s': [1], '2p2p': [3, 4]},
-                      'B-B': {'2s2s': [0], '2s2p': [1], '2p2s': [1], '2p2p': [2, 3]}}
+    bond_index_map = {'N-N': {'2s-2s': [0], '2s-2p': [1], '2p-2s': [1], '2p-2p': [2, 3]},
+                      'N-B': {'2s-2s': [0], '2s-2p': [1], '2p-2s': [2], '2p-2p': [3, 4]},
+                      'B-N': {'2s-2s': [0], '2s-2p': [2], '2p-2s': [1], '2p-2p': [3, 4]},
+                      'B-B': {'2s-2s': [0], '2s-2p': [1], '2p-2s': [1], '2p-2p': [2, 3]}}
 
     bond_num_hops = {'N-N': 4, 'N-B': 5, 'B-N': 5, 'B-B': 4}
     onsite_index_map = {'N': {'2s': [0], '2p': [1]}, 'B': {'2s': [0], '2p': [1]}}
@@ -170,10 +170,10 @@ def test_Struct_IndMap_case3(root_directory):
     assert (struct.atom_symbols == ['N','B']).all()
 
 
-    bond_index_map = {'N-N': {'2s2s': [0], '2s2p': [1], '2ss*': [2], '2p2s': [1],    '2p2p': [3, 4], '2ps*': [5], 's*2s': [2], 's*2p': [5], 's*s*': [6]},
-                      'N-B': {'2s2s': [0], '2s2p': [1], '2p2s': [2], '2p2p': [3, 4], 's*2s': [5],    's*2p': [6]},
-                      'B-N': {'2s2s': [0], '2s2p': [2], '2ss*': [5], '2p2s': [1],    '2p2p': [3, 4], '2ps*': [6]},
-                      'B-B': {'2s2s': [0], '2s2p': [1], '2p2s': [1], '2p2p': [2, 3]}}
+    bond_index_map = {'N-N': {'2s-2s': [0], '2s-2p': [1], '2s-s*': [2], '2p-2s': [1],    '2p-2p': [3, 4], '2p-s*': [5], 's*-2s': [2], 's*-2p': [5], 's*-s*': [6]},
+                      'N-B': {'2s-2s': [0], '2s-2p': [1], '2p-2s': [2], '2p-2p': [3, 4], 's*-2s': [5],    's*-2p': [6]},
+                      'B-N': {'2s-2s': [0], '2s-2p': [2], '2s-s*': [5], '2p-2s': [1],    '2p-2p': [3, 4], '2p-s*': [6]},
+                      'B-B': {'2s-2s': [0], '2s-2p': [1], '2p-2s': [1], '2p-2p': [2, 3]}}
 
     bond_num_hops =  {'N-N': 7, 'N-B': 7, 'B-N': 7, 'B-B': 4}
     onsite_index_map = {'N': {'2s': [0], '2p': [1], 's*': [2]}, 'B': {'2s': [0], '2p': [1]}}
