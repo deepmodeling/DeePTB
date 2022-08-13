@@ -105,7 +105,7 @@ class SKHSLists(object):
                         Svaltmp = HKinterp21[SKAnglrMHSID[ishsymbol + jshsymbol] + NumHvals]
                     # print(iatype, jatype, self.ProjAnglrM,ish,jsh)
                     # print(bondname, self.__struct__.bond_index_map[bondname])
-                    indx = self.__struct__.bond_index_map[bondname][ish + jsh]
+                    indx = self.__struct__.bond_index_map[bondname][ish +'-'+ jsh]
                     hoppings[indx] = Hvaltmp
                     overlaps[indx] = Svaltmp
             if self.dtype == 'tensor':

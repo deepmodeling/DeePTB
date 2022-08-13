@@ -2,6 +2,7 @@ import numpy as np
 import ase
 
 anglrMId = {'s':0,'p':1,'d':2,'f':3}
+SKBondType = {0:'sigma',1:'pi',2:'delta'}
 au2Ang = 0.529177249
 # bond integral index in DFTB sk files. specific.
 SKAnglrMHSID = {'dd':np.array([0,1,2]),

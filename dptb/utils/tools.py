@@ -277,19 +277,19 @@ class Index_Mapings(object):
                         ishid = self.AnglrMID[ishsymbol]
                         jshid = self.AnglrMID[jshsymbol]
                         if it == jt:
-                            if  jsh + ish in orbdict.keys():
-                                orbdict[ish + jsh] = orbdict[jsh + ish]
+                            if  jsh + '-' + ish in orbdict.keys():
+                                orbdict[ish + '-' + jsh] = orbdict[jsh + '-' + ish]
                                 continue
                             else:
                                 numhops += min(ishid, jshid) + 1
-                                orbdict[ish + jsh] = np.arange(ist, ist + min(ishid, jshid) + 1).tolist()
+                                orbdict[ish + '-' + jsh] = np.arange(ist, ist + min(ishid, jshid) + 1).tolist()
 
                         elif it < jt:
                             numhops += min(ishid, jshid) + 1
-                            orbdict[ish + jsh] = np.arange(ist, ist + min(ishid, jshid) + 1).tolist()
+                            orbdict[ish + '-' + jsh] = np.arange(ist, ist + min(ishid, jshid) + 1).tolist()
                         else:
                             numhops += min(ishid, jshid) + 1
-                            orbdict[ish + jsh] = bond_index_map[jtype + '-' + itype][jsh + ish]
+                            orbdict[ish + '-' + jsh] = bond_index_map[jtype + '-' + itype][jsh +'-'+ ish]
                             continue
 
                         # orbdict[ish+jsh] = paralist
