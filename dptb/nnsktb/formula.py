@@ -1,8 +1,24 @@
 # define the integrals formula.
-import numpy as np
 import torch as th
+from abc import ABC, abstractmethod
 
-class SKFormula(object):
+class BaseSK(ABC):
+    def __init__(self) -> None:
+        pass
+
+    @abstractmethod
+    def skhij(self, **kwargs):
+        '''This is a wrap function for a self-defined formula of sk integrals. one can easily modify it into whatever form they want.
+        
+        Returns
+        -------
+            The function defined by mode is called to cal skhij and returned.
+        
+        '''
+        pass
+
+
+class SKFormula(BaseSK):
 
     def __init__(self,mode='varTang96') -> None: 
         # one can modify this by add his own formula with the name mode to deifine num of pars.
@@ -10,6 +26,7 @@ class SKFormula(object):
             self.num_paras = 4
         else:
             raise ValueError('No such formula')
+        
 
     def skhij(self, mode='varTang96', **kwargs):
         '''This is a wrap function for a self-defined formula of sk integrals. one can easily modify it into whatever form they want.
