@@ -43,13 +43,13 @@ class SKFormula(BaseSK):
             raise ValueError('No such formula')
 
 
-    def varTang96(self, alpha1, alpha2, alpha3, alpha4, rij, **kwargs):
+    def varTang96(self, paraArray, rij, **kwargs):
         '''> This function calculates the value of the variational form of Tang et al 1996. without the
         environment dependent
 
                 $$ h(rij) = \alpha_1 * (rij)^(-\alpha_2) * exp(-\alpha_3 * (rij)^(\alpha_4))$$
         '''
-
+        alpha1, alpha2, alpha3, alpha4 = paraArray[0:4]
         hij = alpha1 * (rij**(-alpha2)) * th.exp(-alpha3 * (rij**alpha4))
 
         return hij    
