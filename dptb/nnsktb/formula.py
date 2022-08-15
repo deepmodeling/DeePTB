@@ -19,7 +19,7 @@ class BaseSK(ABC):
 
 class SKFormula(BaseSK):
 
-    def __init__(self,mode='varTang96') -> None:
+    def __init__(self, mode='varTang96') -> None:
         super(SKFormula, self).__init__()
         # one can modify this by add his own formula with the name mode to deifine num of pars.
         if mode == 'varTang96':
@@ -44,7 +44,7 @@ class SKFormula(BaseSK):
             raise ValueError('No such formula')
 
 
-    def varTang96(self, paraArray, rij, **kwargs):
+    def varTang96(self, rij, paraArray, **kwargs):
         """> This function calculates the value of the variational form of Tang et al 1996. without the
         environment dependent
 
