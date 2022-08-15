@@ -58,6 +58,24 @@ def all_skint_types(bond_index_map):
     for ii in np.unique(list(all_skint_types_dict.values())):
         assert ii in reducted_skint_types
     
-    return all_skint_types_dict, reducted_skint_types
+    # arrange as bond_index_map
+    sk_bond_ind_dict = {}
+
+    for ibm  in bond_index_map:
+        uniq_bond_indeces = np.unique(np.concatenate(list(bond_index_map[ibm].values())))
+        num_indepd_sks = len(uniq_bond_indeces)
+
+        sk_bond_ind_dict[ibm]  = ['']*num_indepd_sks
+        ia, ja = ibm.split('-')  
+
+        for isk in bond_index_map[ibm].keys():  
+            iorb, jorb = isk.split('-') 
+            for iisk in range(len(bond_index_map[ibm][isk])): 
+                iskint_type = f'{ia}-{ja}-{iorb}-{jorb}-{iisk}'
+                sk_bond_ind_dict[ibm][ bond_index_map[ibm][isk][iisk] ] = all_skint_types_dict[iskint_type]
+
+            
+
+    return all_skint_types_dict, reducted_skint_types, sk_bond_ind_dict
 
 
