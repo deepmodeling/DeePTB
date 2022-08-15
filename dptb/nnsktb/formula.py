@@ -7,7 +7,7 @@ class BaseSK(ABC):
         pass
 
     @abstractmethod
-    def skhij(self, **kwargs):
+    def skhij(self, rij, **kwargs):
         '''This is a wrap function for a self-defined formula of sk integrals. one can easily modify it into whatever form they want.
         
         Returns
@@ -17,35 +17,10 @@ class BaseSK(ABC):
         '''
         pass
 
-    def skhij(self, mode='varTang96', **kwargs):
-        '''This is a wrap function for a self-defined formula of sk integrals. one can easily modify it into whatever form they want.
-        
-        Returns
-        -------
-            The function defined by mode is called to cal skhij and returned.
-        
-        '''
-
-        if mode == 'varTang96':
-            return self.varTang96(**kwargs)
-        else:
-            raise ValueError('No such formula')
-
-
-    def varTang96(self, alpha1, alpha2, alpha3, alpha4, rij, **kwargs):
-        '''> This function calculates the value of the variational form of Tang et al 1996. without the
-        environment dependent
-
-                $$ h(rij) = \alpha_1 * (rij)^(-\alpha_2) * exp(-\alpha_3 * (rij)^(\alpha_4))$$
-        '''
-
-        hij = alpha1 * (rij**(-alpha2)) * th.exp(-alpha3 * (rij**alpha4))
-
-        return hij    
-
 class SKFormula(BaseSK):
 
-    def __init__(self,mode='varTang96') -> None: 
+    def __init__(self,mode='varTang96') -> None:
+        super(SKFormula, self).__init__()
         # one can modify this by add his own formula with the name mode to deifine num of pars.
         if mode == 'varTang96':
             self.mode = mode
@@ -54,7 +29,7 @@ class SKFormula(BaseSK):
             raise ValueError('No such formula')
         
 
-    def skhij(self, **kwargs):
+    def skhij(self, rij, **kwargs):
         '''This is a wrap function for a self-defined formula of sk integrals. one can easily modify it into whatever form they want.
         
         Returns
@@ -64,7 +39,7 @@ class SKFormula(BaseSK):
         '''
 
         if self.mode == 'varTang96':
-            return self.varTang96(**kwargs)
+            return self.varTang96(rij=rij, **kwargs)
         else:
             raise ValueError('No such formula')
 
