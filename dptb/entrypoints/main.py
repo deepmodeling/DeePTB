@@ -65,7 +65,9 @@ def main_parser() -> argparse.ArgumentParser:
     )
 
     parser_train.add_argument(
-        "INPUT", help="the input parameter file in json or yaml format"
+        "INPUT", help="the input parameter file in json or yaml format",
+        type=str,
+        default=None
     )
     parser_train.add_argument(
         "-i",
@@ -81,6 +83,15 @@ def main_parser() -> argparse.ArgumentParser:
         default=None,
         help="Restart the training from the provided checkpoint.",
     )
+
+    parser_train.add_argument(
+        "-f",
+        "--init-frz-model",
+        type=str,
+        default=None,
+        help="Initialize the training from the frozen model.",
+    )
+
     parser_train.add_argument(
         "-o",
         "--output",

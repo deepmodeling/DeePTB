@@ -4,11 +4,35 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from dptb.utils.constants import atomic_num_dict, anglrMId
-from typing import Union, Dict, Any
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+)
 import json
 from pathlib import Path
 import yaml
 import torch.optim as optim
+import logging
+
+log = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    _DICT_VAL = TypeVar("_DICT_VAL")
+    _OBJ = TypeVar("_OBJ")
+    try:
+        from typing import Literal  # python >3.6
+    except ImportError:
+        from typing_extensions import Literal  # type: ignore
+    _ACTIVATION = Literal["relu", "relu6", "softplus", "sigmoid", "tanh", "gelu", "gelu_tf"]
+    _PRECISION = Literal["default", "float16", "float32", "float64"]
+
 
 def get_optimizer(opt_type: str, model_param, lr: float, **options: dict):
     if opt_type == 'Adam':
@@ -31,6 +55,30 @@ def get_lr_scheduler(sch_type: str, optimizer: optim.Optimizer, **sch_options):
 
     return schedular
 
+def j_must_have(
+    jdata: Dict[str, "_DICT_VAL"], key: str, deprecated_key: List[str] = []
+) -> "_DICT_VAL":
+    """Assert that supplied dictionary conaines specified key.
+
+    Returns
+    -------
+    _DICT_VAL
+        value that was store unde supplied key
+
+    Raises
+    ------
+    RuntimeError
+        if the key is not present
+    """
+    if key not in jdata.keys():
+        for ii in deprecated_key:
+            if ii in jdata.keys():
+                log.warning(f"the key {ii} is deprecated, please use {key} instead")
+                return jdata[ii]
+        else:
+            raise RuntimeError(f"json database must provide key {key}")
+    else:
+        return jdata[key]
 
 def _get_activation_fn(activation):
     if activation == "relu":
