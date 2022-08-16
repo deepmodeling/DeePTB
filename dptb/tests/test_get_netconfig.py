@@ -1,4 +1,4 @@
-from dptb.dataprocess.datareader import read_train_data
+from dptb.dataprocess.datareader import read_data
 import numpy as np
 import pytest
 from dptb.utils.tools import get_env_neuron_config, get_bond_neuron_config, get_onsite_neuron_config
