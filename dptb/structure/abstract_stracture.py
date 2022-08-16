@@ -6,7 +6,7 @@ class AbstractStructure(with_metaclass(ABCMeta, object)):
     '''This class is an abstraction class for all instances
     that requires a atomic structure, such as TBHamiltonian'''
 
-    def __int__(self):
+    def __init__(self):
         self.bondlist = None
         self.struct = None
 

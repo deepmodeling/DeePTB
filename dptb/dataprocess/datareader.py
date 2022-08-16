@@ -4,7 +4,7 @@ import numpy as np
 from ase.io.trajectory import Trajectory
 from dptb.structure.structure import BaseStruct
 
-def read_train_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, time_symm=True, **kwargs):
+def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, time_symm=True, **kwargs):
     """根据文件路径和prefix的读取文件夹下的数据文件,并存储为神经网络模型的输入格式数据
     """
     filenames  = {

@@ -1,4 +1,4 @@
-from dptb.dataprocess.datareader import read_train_data
+from dptb.dataprocess.datareader import read_data
 import numpy as np
 import pytest
 from ase.io import read
@@ -36,7 +36,7 @@ def test_read_data(root_directory):
     proj_atom_anglr_m = {"N":["s","p"],"B":["s","p"]}
     proj_atom_neles =  {"N":5,"B":3}
 
-    struct_list_sets, kpoints_sets, eigens_sets = read_train_data(filepath, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles)
+    struct_list_sets, kpoints_sets, eigens_sets = read_data(filepath, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles)
 
     assert len(struct_list_sets) == len(kpoints_sets) == len(eigens_sets) == 1
     assert len(struct_list_sets[0]) == 1
