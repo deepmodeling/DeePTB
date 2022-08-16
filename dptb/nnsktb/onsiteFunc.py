@@ -1,9 +1,8 @@
 import torch as th
 from dptb.utils.constants import atomic_num_dict_r
-import os
-# define the function for output all the onsites Es for given i.
+from dptb.nnsktb.onsiteDB import onsite_energy_database
 
-onsite_path = ""
+# define the function for output all the onsites Es for given i.
 
 def loadOnsite(onsite_map: dict):
     """ load the onsite energies from the database, according to the onsite_map:dict
@@ -18,12 +17,10 @@ def loadOnsite(onsite_map: dict):
     atoms_types = list(onsite_map.keys())
     onsite_db = {}
     for ia in atoms_types:
-        # ToDo: define load_onstie_atom
-        # call: database_data = load_onstie_atom()
-        onsite_file = th.load(f=os.path.join(onsite_path, ia+".pth"))
+        orb_energies = onsite_energy_database[ia]
         onsite_db[ia] = th.zeros(len(onsite_map[ia]))
         for isk in onsite_map[ia].keys():
-            onsite_db[ia][onsite_map[ia][isk]] = onsite_file[ia+"-"+isk]["e"]
+            onsite_db[ia][onsite_map[ia][isk]] = orb_energies[isk]
 
     return onsite_db
 
@@ -40,7 +37,7 @@ def onsiteFunc(bonds_onsite, onsite_db):
     """
     onsite_energies = []
     for i in range(len(bonds_onsite)):
-        ia = atomic_num_dict_r(int(bonds_onsite[i][0]))
+        ia = atomic_num_dict_r[int(bonds_onsite[i][0])]
         onsite_energies.append(onsite_db[ia])
 
     return onsite_energies
