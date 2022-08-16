@@ -7,58 +7,45 @@ from dptb.sktb.skIntegrals import SKIntegrals
 from dptb.sktb.struct_skhs import SKHSLists
 from dptb.hamiltonian.hamil_eig_sk import HamilEig
 from dptb.dataprocess.processor import Processor
-from dptb.dataprocess.datareader import read_train_data
-from dptb.utils.tools import get_optimizer
+from dptb.dataprocess.datareader import read_data
 from dptb.nnops.loss import loss_type1
-from dptb.utils.tools import get_uniq_symbol,  Index_Mapings, get_lr_scheduler
-from dptb.utils.tools import get_uniq_symbol, get_uniq_bond_type, get_uniq_env_bond_type
-from dptb.utils.tools import get_env_neuron_config, get_bond_neuron_config, get_onsite_neuron_config
-from dptb.utils.tools import nnsk_correction
+from dptb.utils.tools import get_uniq_symbol,  Index_Mapings, \
+    get_lr_scheduler, get_uniq_bond_type, get_uniq_env_bond_type, \
+    get_env_neuron_config, get_bond_neuron_config, get_onsite_neuron_config, \
+    get_optimizer, nnsk_correction, j_must_have
+from dptb.nnops.trainer import Trainer
 
 log = logging.getLogger(__name__)
 
-class Trainer(object):
+class DPTBTrainer(Trainer):
 
-    def __init__(self, train_options, optimizer_options, sch_options, data_options, model_options) -> None:
+    def __init__(self, run_opt, jdata) -> None:
+        super(DPTBTrainer, self).__init__(jdata)
+        self._init_param(jdata)
 
-        # initialize training options
-        self.num_epoch = train_options.get('num_epoch')
-        self.display_epoch = train_options.get('display_epoch')
-        self.dtype = train_options.get('dtype', torch.float32)
-        self.device = train_options.get('device', 'cpu')
-        self.use_reference = train_options.get('use_reference', False)
-        
-        # training data options
-        self.batch_size = data_options.get('batch_size')
-        self.test_batch_size = data_options.get('test_batch_size',self.batch_size)
-        self.ref_batch_size = data_options.get('ref_batch_size', 1)
-
-        # ----------------------------------------------------------------------------------------------------------------------------------------------
-        
-        ''' Here is for plugins.
-            plugins:
-                - iteration: events  after every batch training iteration.  
-                - update: the updates of model paras including networks and optimiser, such as leaning rate, etc. after the batch training. 
-                - batch: events before batch training. 
-                - epoch: events after epoch batch training 
-            The difference b/w iteration and update the parameters, iteration takes in the batch output, loss etc., while  update takes in model itself.
-        '''
-        self.stats = {}  # the status of Trainer.
-        self.plugin_queues = {'iteration': [], 'epoch': [], 'batch': [], 'update': []}
-        self.iteration = 1
-
-        # ----------------------------------------------------------------------------------------------------------------------------------------------
+    def _init_param(self, jdata):
+        train_options = j_must_have(jdata, "train_options")
+        opt_options = j_must_have(jdata, "optimizer_options")
+        sch_options = j_must_have(jdata, "sch_options")
+        data_options = j_must_have(jdata,"data_options")
+        model_options = j_must_have(jdata, "model_options")
 
         self.train_options = train_options
-        self.optmizer_options = optimizer_options
+        self.opt_options = opt_options
         self.sch_options = sch_options
         self.data_options = data_options
         self.model_options = model_options
 
-
+        self.num_epoch = train_options.get('num_epoch')
+        self.display_epoch = train_options.get('display_epoch')
+        self.use_reference = train_options.get('use_reference', False)
 
         # initialize data options
         # ----------------------------------------------------------------------------------------------------------------------------------------------
+        self.batch_size = data_options.get('batch_size')
+        self.test_batch_size = data_options.get('test_batch_size', self.batch_size)
+        self.ref_batch_size = data_options.get('ref_batch_size', 1)
+
         self.sk_file_path = data_options.get('sk_file_path')
         self.bond_cutoff = data_options.get('bond_cutoff')
         self.env_cutoff = data_options.get('env_cutoff')
@@ -80,42 +67,42 @@ class Trainer(object):
             self.ref_data_path = data_options.get('ref_data_path')
             self.ref_data_prefix = data_options.get('ref_data_prefix')
 
-            self.ref_band_min = data_options.get('ref_band_min',0)
-            self.ref_band_max = data_options.get('ref_band_max',None)
-
+            self.ref_band_min = data_options.get('ref_band_min', 0)
+            self.ref_band_max = data_options.get('ref_band_max', None)
 
         # init the dataset
         # -----------------------------------init training set------------------------------------------
-        struct_list_sets, kpoints_sets, eigens_sets = read_train_data(self.train_data_path, self.train_data_prefix,
-                                                                      self.bond_cutoff, self.proj_atom_anglr_m, self.proj_atom_neles,
-                                                                      self.time_symm)        
+        struct_list_sets, kpoints_sets, eigens_sets = read_data(self.train_data_path, self.train_data_prefix,
+                                                                      self.bond_cutoff, self.proj_atom_anglr_m,
+                                                                      self.proj_atom_neles,
+                                                                      self.time_symm)
         self.n_train_sets = len(struct_list_sets)
         assert self.n_train_sets == len(kpoints_sets) == len(eigens_sets)
-        
-        self.train_processor_list =[]
+
+        self.train_processor_list = []
         for i in range(len(struct_list_sets)):
             self.train_processor_list.append(
                 Processor(struct_list_sets[i], batchsize=self.batch_size, env_cutoff=self.env_cutoff,
-                          kpoint=kpoints_sets[i], eigen_list=eigens_sets[i]))
+                          kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype))
 
         # init reference dataset
         # -----------------------------------init reference set------------------------------------------
         if self.use_reference:
-            struct_list_sets, kpoints_sets, eigens_sets = read_train_data(self.ref_data_path, self.ref_data_prefix,
-                                                                          self.bond_cutoff, self.proj_atom_anglr_m, self.proj_atom_neles,
+            struct_list_sets, kpoints_sets, eigens_sets = read_data(self.ref_data_path, self.ref_data_prefix,
+                                                                          self.bond_cutoff, self.proj_atom_anglr_m,
+                                                                          self.proj_atom_neles,
                                                                           self.time_symm)
             self.n_ref_sets = len(struct_list_sets)
             assert self.n_ref_sets == len(kpoints_sets) == len(eigens_sets)
-            self.ref_processor_list =[]
+            self.ref_processor_list = []
             for i in range(len(struct_list_sets)):
                 self.ref_processor_list.append(
                     Processor(struct_list_sets[i], batchsize=self.ref_batch_size, env_cutoff=self.env_cutoff,
-                              kpoint=kpoints_sets[i], eigen_list=eigens_sets[i]))
-
-
+                              kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype))
 
         # --------------------------------init testing set----------------------------------------------
-        struct_list_sets, kpoints_sets, eigens_sets = read_train_data(self.test_data_path, self.test_data_prefix,
+        struct_list_sets, kpoints_sets, eigens_sets = read_data(self.test_data_path,
+                                                                      self.test_data_prefix,
                                                                       self.bond_cutoff, self.proj_atom_anglr_m,
                                                                       self.proj_atom_neles,
                                                                       self.time_symm)
@@ -126,7 +113,7 @@ class Trainer(object):
         for i in range(len(struct_list_sets)):
             self.test_processor_list.append(
                 Processor(struct_list_sets[i], batchsize=self.test_batch_size, env_cutoff=self.env_cutoff,
-                          kpoint=kpoints_sets[i], eigen_list=eigens_sets[i]))
+                          kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype))
 
         # ---------------------------------init index map------------------------------------------------
         # since training and testing set contains same atom type and proj_atom type, we may expect the maps are the same in train and test.
@@ -138,26 +125,26 @@ class Trainer(object):
         self.atom_type = get_uniq_symbol(list(set(atom_type)))
         self.proj_atom_type = get_uniq_symbol(list(set(proj_atom_type)))
         self.IndMap = Index_Mapings()
-        self.IndMap.update(envtype=self.atom_type, bondtype=self.proj_atom_type, proj_atom_anglr_m=self.proj_atom_anglr_m)
+        self.IndMap.update(envtype=self.atom_type, bondtype=self.proj_atom_type,
+                           proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
         self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
         self.bond_type = get_uniq_bond_type(proj_atom_type)
-        env_bond_type = get_uniq_env_bond_type(proj_atom_type, atom_type)
 
         # # ------------------------------------initialize model options----------------------------------
-        self.init_model(mode=train_options.get("mode", "from_scratch"))
+        self._init_model()
 
-        self.skint = SKIntegrals(proj_atom_anglr_m = self.proj_atom_anglr_m, sk_file_path=self.sk_file_path)
-        self.skhslist = SKHSLists(self.skint,dtype='numpy')
+        self.skint = SKIntegrals(proj_atom_anglr_m=self.proj_atom_anglr_m, sk_file_path=self.sk_file_path)
+        self.skhslist = SKHSLists(self.skint, dtype='numpy')
         self.hamileig = HamilEig(dtype='tensor')
 
-        self.optimizer = get_optimizer(model_param=self.nntb.tb_net.parameters(), **optimizer_options)
+        self.optimizer = get_optimizer(model_param=self.model.tb_net.parameters(), **opt_options)
         self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **sch_options)  # add optmizer
-        self.opt_options = optimizer_options
+
 
         self.criterion = torch.nn.MSELoss(reduction='mean')
 
-    def init_model(self, mode):
+    def _init_model(self):
         '''
         initialize the tb net, mode is to decide whether gto training model from scratch or from saved checkpoints
         Parameters
@@ -168,6 +155,8 @@ class Trainer(object):
         Returns
         -------
         '''
+
+        mode = self.train_options.get("mode", "from_scratch")
         if mode is None:
             mode = 'from_scratch'
             log.info(msg="Haven't assign a initializing mode, training from scratch as default.")
@@ -200,10 +189,10 @@ class Trainer(object):
                 env_net_type=self.model_options['env_net_type'],
                 bond_net_type=self.model_options['bond_net_type'],
                 if_batch_normalized=self.model_options['if_batch_normalized'],
-                device=self.train_options.get('device', 'cpu'),
-                dtype=self.train_options.get('dtype', torch.float32)
+                device=self.device,
+                dtype=self.dtype
             )
-            self.nntb = NNTB(**self.model_config)
+            self.model = NNTB(**self.model_config)
         elif mode == "from_model":
             # read configuration from checkpoint path.
             f = torch.load(self.train_options["init_path"])
@@ -213,60 +202,12 @@ class Trainer(object):
                     log.warning(msg="The configure in checkpoint is mismatch with the input configuration {}, init from checkpoint temporarily\n, ".format(kk) +
                                     "but this might cause conflict.")
                     break
-            self.nntb = NNTB(**self.model_config)
-            self.nntb.tb_net.load_state_dict(f['state_dict'])
-            self.nntb.tb_net.eval()
+            self.model = NNTB(**self.model_config)
+            self.model.tb_net.load_state_dict(f['state_dict'])
+            self.model.tb_net.eval()
 
         else:
             raise RuntimeError("init_mode should be from_scratch/from_model/..., not {}".format(mode))
-
-
-
-    def run(self, epochs=1):
-        for q in self.plugin_queues.values():
-            '''对四个事件调用序列进行最小堆排序。'''
-            heapq.heapify(q)
-
-        for i in range(1, epochs + 1):
-            self.train()
-            # run plugins of epoch events.
-            self.call_plugins(queue_name='epoch', time=i)
-            self.lr_scheduler.step() # modify the lr at each epoch (should we add it to pluggins so we could record the lr scheduler process?)
-
-
-    def register_plugin(self, plugin):
-        plugin.register(self)
-        
-        #the trigger interval of plugin, with the form like: [(1, 'iteration'), (1, 'epoch')]
-        intervals = plugin.trigger_interval
-
-        if not isinstance(intervals, list):
-            intervals = [intervals]
-        for duration, unit in intervals:
-            # unit the plugin type.
-            queue = self.plugin_queues[unit] 
-            # Add the plugin events. duration is the trigger interval. len(queue) is the priority levels for the same duration, 
-            # the smaller the higher and is determined by the order of registration.
-            queue.append((duration, len(queue), plugin))
-    
-    def call_plugins(self, queue_name, time, **kwargs):
-        # args should contain: [input, target, output, loss]
-        kwargs.update({"time":time})
-        # time can be iteration or epoch ...
-        queue = self.plugin_queues[queue_name]
-        if len(queue) == 0:
-            return
-        while queue[0][0] <= time:
-            plugin = queue[0][2]
-            # the plugin must have at-least one of the iteration、batch、epoch and update events.
-            getattr(plugin, queue_name)(**kwargs)
-            for trigger in plugin.trigger_interval:
-                if trigger[1] == queue_name:
-                    interval = trigger[0]
-            # 根据插件的事件触发间隔，来更新事件队列里的事件 duration
-            new_item = (time + interval, queue[0][1], plugin)
-            heapq.heappushpop(queue, new_item)
-            '''加入新的事件并弹出最小堆的堆头。最小堆重新排序。'''
 
     def calc(self, batch_bond, batch_env, structs, kpoints):
         '''
@@ -276,7 +217,7 @@ class Trainer(object):
         assert len(kpoints.shape) == 2, "kpoints should have shape of [num_kp, 3]."
 
         batch_bond_hoppings, batch_hoppings, \
-        batch_bond_onsites, batch_onsiteEs = self.nntb.calc(batch_bond, batch_env)
+        batch_bond_onsites, batch_onsiteEs = self.model.calc(batch_bond, batch_env)
 
         # call sktb to get the sktb hoppings and onsites
         eigenvalues_pred = []

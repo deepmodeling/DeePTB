@@ -1,5 +1,6 @@
 import numpy as np
 import ase
+import torch
 
 anglrMId = {'s':0,'p':1,'d':2,'f':3}
 SKBondType = {0:'sigma',1:'pi',2:'delta'}
@@ -17,3 +18,5 @@ atomic_num_dict = ase.atom.atomic_numbers
 atomic_num_dict_r = dict(zip(atomic_num_dict.values(), atomic_num_dict.keys()))
 MaxShells  = 3
 NumHvals   = 10
+
+dtype_dict = {"float32": torch.float32, "float64": torch.float64}

@@ -24,20 +24,22 @@ def loadOnsite(onsite_map: dict):
 
     return onsite_db
 
-def onsiteFunc(bonds_onsite, onsite_db):
+def onsiteFunc(batch_bonds_onsite, onsite_db):
     """ This function is to get the onsite energies for given bonds_onsite.
 
     Parameters:
     -----------
         bonds_onsite: list
-            e.g.:  np.array([[7, 0, 7, 0, 0, 0, 0],
+            e.g.:  dict(f: [[7, 0, 7, 0, 0, 0, 0],
                              [5, 1, 5, 1, 0, 0, 0]])
         onsite_db: dict from function loadOnsite
             e.g.: {'N':tensor[es,ep], 'B': tensor[es,ep]}
     """
-    onsite_energies = []
-    for i in range(len(bonds_onsite)):
-        ia = atomic_num_dict_r[int(bonds_onsite[i][0])]
-        onsite_energies.append(onsite_db[ia])
+    batch_onsiteEs = {}
 
-    return onsite_energies
+    for kf in list(batch_bonds_onsite.keys()):
+        ia_list = map(lambda x: atomic_num_dict_r[int(x)], batch_bonds_onsite[kf][:,0])
+        onsiteEs = map(lambda x: onsite_db[x], ia_list)
+        batch_onsiteEs.update({kf:onsiteEs})
+
+    return batch_onsiteEs
