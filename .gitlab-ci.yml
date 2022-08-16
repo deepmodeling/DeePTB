@@ -8,7 +8,8 @@ build image:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker build -t $CI_REGISTRY_IMAGE .
     - docker push $CI_REGISTRY_IMAGE
-
+  tags:
+    - bohrium
 run test:
   image: $CI_REGISTRY_IMAGE
   rules:
@@ -18,3 +19,6 @@ run test:
     - pip install .
   script:
     - pytest ./dptb/tests
+  tags:
+    - bohrium
+
