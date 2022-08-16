@@ -15,6 +15,7 @@ run test:
   rules:
     - if: $CI_PIPELINE_SOURCE != "schedule"
   before_script:
+    - source $HOME/.bashrc
     - python --version
     - pip install .
   script:
