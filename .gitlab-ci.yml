@@ -18,7 +18,7 @@ run test:
     - /opt/intel/oneapi/intelpython/latest/bin/python  --version
     - /opt/intel/oneapi/intelpython/latest/bin/python setup.py install --user
   script:
-    - pytest ./dptb/tests
+    - /opt/intel/oneapi/intelpython/latest/bin/pytest ./dptb/tests
   tags:
     - bohrium
 
