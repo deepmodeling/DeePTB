@@ -15,9 +15,8 @@ run test:
   rules:
     - if: $CI_PIPELINE_SOURCE != "schedule"
   before_script:
-    - source $HOME/.bashrc
     - /opt/intel/oneapi/intelpython/latest/bin/python  --version
-    - /opt/intel/oneapi/intelpython/latest/bin/python install .
+    - /opt/intel/oneapi/intelpython/latest/bin/python setup.py install
   script:
     - pytest ./dptb/tests
   tags:
