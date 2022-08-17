@@ -21,8 +21,8 @@ def test_loadOnsite():
         loadOnsite(onsite_map)
 
 def test_onsiteFunc():
-    batch_bonds_onsite= {0: np.array([[7, 0, 7, 0, 0, 0, 0],
-                                      [5, 1, 5, 1, 0, 0, 0]])}
+    batch_bonds_onsite= {0: np.array([[0, 7, 0, 7, 0, 0, 0, 0],
+                                      [0, 5, 1, 5, 1, 0, 0, 0]])}
     onsite_map = {'N': {'2s': [0], '2p': [1]}, 'B': {'2s': [0], '2p': [1]}}
     
     onsitedb = loadOnsite(onsite_map)
