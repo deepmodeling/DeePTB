@@ -1,4 +1,5 @@
 from dptb.nnops.train_dptb import DPTBTrainer
+from dptb.nnops.train_nnsk import NNSKTrainer
 from dptb.nnops.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
 from dptb.nnops.train_logger import Logger
 from dptb.nnops.plugins import Saver
@@ -24,6 +25,7 @@ def train(
         output: str,
         log_level: int,
         log_path: Optional[str],
+        train_sk: bool,
         **kwargs
 ):
     run_opt = {
@@ -86,7 +88,10 @@ def train(
         if log_path:
             jdata["train_options"]["log_path"] = str(Path(log_path).absolute())
 
-    trainer = DPTBTrainer(run_opt, jdata)
+    if train_sk:
+        trainer = NNSKTrainer(run_opt, jdata)
+    else:
+        trainer = DPTBTrainer(run_opt, jdata)
 
     # register the plugin in trainer, to tract training info
     trainer.register_plugin(Validationer())

@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 class Trainer(with_metaclass(ABCMeta, object)):
 
     def __init__(self, jdata) -> None:
-        self.dtype = dtype_dict(jdata.get("dtype", "float32"))
+        self.dtype = dtype_dict[jdata.get("dtype", "float32")]
         self.device = jdata.get("device", "cpu")
 
         ''' Here is for plugins.
