@@ -29,11 +29,16 @@ def onsiteFunc(batch_bonds_onsite, onsite_db):
 
     Parameters:
     -----------
-        bonds_onsite: list
+        batch_bonds_onsite: list
             e.g.:  dict(f: [[7, 0, 7, 0, 0, 0, 0],
                              [5, 1, 5, 1, 0, 0, 0]])
         onsite_db: dict from function loadOnsite
             e.g.: {'N':tensor[es,ep], 'B': tensor[es,ep]}
+    
+    Return:
+    ------
+    batch_onsiteEs:
+        dict. {f: [tensor[es,ep], tensor[es,ep]]}
     """
     batch_onsiteEs = {}
 
