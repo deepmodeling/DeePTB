@@ -12,6 +12,32 @@ def all_skint_types(bond_index_map):
     bond_index_map: 
         dict, output of Index_Mapings.Bond_Ind_Mapings()
         e.g.: {'N-N': {'2s-2s': [0]}, 'N-B': {'2s-2p': [0]}, 'B-N': {'2p-2s': [0]}, 'B-B': {'2p-2p': [0, 1]}}
+                for proj_atom_anglr_m={'N':['2s'],'B':['2p']}.
+    Returns:
+    --------
+    all_skint_types_dict: dict
+        All the possible sk integral types. and maps to the reduced one.
+        key is the all the possible sk integral types.
+        value is the reduced one.
+        e.g.:
+            {'N-N-2s-2s-0': 'N-N-2s-2s-0',
+             'N-B-2s-2p-0': 'N-B-2s-2p-0',
+             'B-N-2p-2s-0': 'N-B-2s-2p-0',
+             'B-B-2p-2p-0': 'B-B-2p-2p-0',
+             'B-B-2p-2p-1': 'B-B-2p-2p-1'}
+
+    reducted_skint_types: list
+        The independent/reduced sk integral types.
+        e.g.: ['N-N-2s-2s-0', 'N-B-2s-2p-0', 'B-B-2p-2p-0', 'B-B-2p-2p-1']
+
+    sk_bond_ind_dict: dict
+        the skbond type in the format in bond_index_map. 
+        e.g.:
+            {'N-N': ['N-N-2s-2s-0'],
+             'N-B': ['N-B-2s-2p-0'],
+             'B-N': ['N-B-2s-2p-0'],
+             'B-B': ['B-B-2p-2p-0', 'B-B-2p-2p-1']}
+
     """
 
 
