@@ -32,8 +32,8 @@ def onsiteFunc(batch_bonds_onsite, onsite_db):
     Parameters:
     -----------
         batch_bonds_onsite: list
-            e.g.:  dict(f: [[7, 0, 7, 0, 0, 0, 0],
-                             [5, 1, 5, 1, 0, 0, 0]])
+            e.g.:  dict(f: [[f, 7, 0, 7, 0, 0, 0, 0],
+                             [f, 5, 1, 5, 1, 0, 0, 0]])
         onsite_db: dict from function loadOnsite
             e.g.: {'N':tensor[es,ep], 'B': tensor[es,ep]}
     
@@ -45,7 +45,8 @@ def onsiteFunc(batch_bonds_onsite, onsite_db):
     batch_onsiteEs = {}
 
     for kf in list(batch_bonds_onsite.keys()):
-        ia_list = map(lambda x: atomic_num_dict_r[int(x)], batch_bonds_onsite[kf][:,1])
+        bonds_onsite = batch_bonds_onsite[kf][:,1:]
+        ia_list = map(lambda x: atomic_num_dict_r[int(x)], bonds_onsite[:,0])
         onsiteEs = map(lambda x: onsite_db[x], ia_list)
         batch_onsiteEs.update({kf:list(onsiteEs)})
 
