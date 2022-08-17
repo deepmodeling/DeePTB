@@ -9,7 +9,7 @@ class SKintHops(SKFormula):
     def __init__(self,mode='varTang96') -> None:
         super().__init__(mode='varTang96')
 
-    def get_skhops(self, bonds, coeff_paras: dict, sk_bond_ind: dict):
+    def get_skhops(self, batch_bonds, coeff_paras: dict, sk_bond_ind: dict):
         '''> The function `get_skhops` takes in a list of bonds, a dictionary of Slater-Koster coeffient parameters obtained in sknet fitting,
         and a dictionary of sk_bond_ind obtained in skintType func, and returns a list of Slater-Koster hopping integrals.
         
@@ -29,15 +29,18 @@ class SKintHops(SKFormula):
         
         '''
 
-        hoppings = []
-        for ib in range(len(bonds)):
-            ibond = bonds[ib,0:7].astype(int)
-            rij = bonds[ib,7]
-            ia, ja = atomic_num_dict_r[ibond[0]], atomic_num_dict_r[ibond[2]]           
-            paraArray = th.stack([coeff_paras[isk] for isk in sk_bond_ind[f'{ia}-{ja}']])
+        batch_hoppings = {}
+        for ik in batch_bonds.keys():
+            hoppings = []
+            for ib in range(len(batch_bonds[ik])):
+                ibond = batch_bonds[ik][ib,1:8]
+                rij = batch_bonds[ik][ib,8]
+                ia, ja = atomic_num_dict_r[int(ibond[0])], atomic_num_dict_r[int(ibond[2])]
+                paraArray = th.stack([coeff_paras[isk] for isk in sk_bond_ind[f'{ia}-{ja}']])
 
-            paras = {'paraArray':paraArray,'rij':rij}
-            hij = self.skhij(**paras)
-            hoppings.append(hij)
+                paras = {'paraArray':paraArray,'rij':rij}
+                hij = self.skhij(**paras)
+                hoppings.append(hij)
+            batch_hoppings.update({ik:hoppings})
 
-        return hoppings
+        return batch_hoppings

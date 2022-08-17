@@ -45,7 +45,7 @@ def onsiteFunc(batch_bonds_onsite, onsite_db):
     batch_onsiteEs = {}
 
     for kf in list(batch_bonds_onsite.keys()):
-        ia_list = map(lambda x: atomic_num_dict_r[int(x)], batch_bonds_onsite[kf][:,0])
+        ia_list = map(lambda x: atomic_num_dict_r[int(x)], batch_bonds_onsite[kf][:,1])
         onsiteEs = map(lambda x: onsite_db[x], ia_list)
         batch_onsiteEs.update({kf:list(onsiteEs)})
 

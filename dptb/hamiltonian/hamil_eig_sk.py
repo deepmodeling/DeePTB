@@ -1,3 +1,4 @@
+import torch
 import torch as th
 import numpy as np
 import logging
@@ -245,8 +246,11 @@ class HamilEig(RotationSK):
             kpoints: the k-kpoints used to calculate the eigenvalues.
         Note: must have the BondHBlock and BondSBlock 
         """
-        hkmat =  self.hs_block_R2k(kpoints=kpoints, HorS='H', time_symm=time_symm, dtype=dtype)
-        skmat =  self.hs_block_R2k(kpoints=kpoints, HorS='S', time_symm=time_symm, dtype=dtype)
+        hkmat = self.hs_block_R2k(kpoints=kpoints, HorS='H', time_symm=time_symm, dtype=dtype)
+        if not self.use_orthogonal_basis:
+            skmat =  self.hs_block_R2k(kpoints=kpoints, HorS='S', time_symm=time_symm, dtype=dtype)
+        else:
+            skmat = torch.eye(hkmat.shape[1], dtype=torch.complex64).unsqueeze(0).repeat(hkmat.shape[0], 1, 1)
 
         if self.dtype == 'tensor':
             chklowt = th.linalg.cholesky(skmat)

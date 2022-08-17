@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class SKNet(nn.Module):
-    def __init__(self, skint_types, nout, interneural=None, device='cpu', dtype=torch.float32):
+    def __init__(self, skint_types, nout, interneural=None, device='cpu', dtype=torch.float32, **kwargs):
         ''' define the nn.parameters for fittig sktb.
 
         Paras 
@@ -47,7 +47,7 @@ class SKNet(nn.Module):
         
         self.coeffdict = dict(zip(self.skint_types, out))
 
-        return self.coeffdict 
+        return self.coeffdict
     
     def get_coeff(self, skint_type):
         if not hasattr(self, 'coeffdict'):

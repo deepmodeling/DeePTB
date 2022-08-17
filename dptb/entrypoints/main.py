@@ -85,6 +85,13 @@ def main_parser() -> argparse.ArgumentParser:
     )
 
     parser_train.add_argument(
+        "-sk",
+        "--train-sk",
+        action="store_true",
+        help="Trainging NNSKTB parameters.",
+    )
+
+    parser_train.add_argument(
         "-f",
         "--init-frz-model",
         type=str,
