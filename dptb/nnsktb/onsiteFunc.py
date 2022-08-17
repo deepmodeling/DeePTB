@@ -17,9 +17,11 @@ def loadOnsite(onsite_map: dict):
     atoms_types = list(onsite_map.keys())
     onsite_db = {}
     for ia in atoms_types:
+        assert ia in onsite_energy_database.keys(), f'{ia} is not in the onsite_energy_database. \n see the onsite_energy_database in dptb.nnsktb.onsiteDB.py.'
         orb_energies = onsite_energy_database[ia]
         onsite_db[ia] = th.zeros(len(onsite_map[ia]))
         for isk in onsite_map[ia].keys():
+            assert isk in orb_energies.keys(), f'{isk} is not in the onsite_energy_database for {ia} atom. \n see the onsite_energy_database in dptb.nnsktb.onsiteDB.py.'
             onsite_db[ia][onsite_map[ia][isk]] = orb_energies[isk]
 
     return onsite_db
@@ -29,17 +31,22 @@ def onsiteFunc(batch_bonds_onsite, onsite_db):
 
     Parameters:
     -----------
-        bonds_onsite: list
+        batch_bonds_onsite: list
             e.g.:  dict(f: [[7, 0, 7, 0, 0, 0, 0],
                              [5, 1, 5, 1, 0, 0, 0]])
         onsite_db: dict from function loadOnsite
             e.g.: {'N':tensor[es,ep], 'B': tensor[es,ep]}
+    
+    Return:
+    ------
+    batch_onsiteEs:
+        dict. {f: [tensor[es,ep], tensor[es,ep]]}
     """
     batch_onsiteEs = {}
 
     for kf in list(batch_bonds_onsite.keys()):
         ia_list = map(lambda x: atomic_num_dict_r[int(x)], batch_bonds_onsite[kf][:,0])
         onsiteEs = map(lambda x: onsite_db[x], ia_list)
-        batch_onsiteEs.update({kf:onsiteEs})
+        batch_onsiteEs.update({kf:list(onsiteEs)})
 
     return batch_onsiteEs

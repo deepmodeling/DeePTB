@@ -25,6 +25,14 @@ class SKFormula(BaseSK):
         if mode == 'varTang96':
             self.mode = mode
             self.num_paras = 4
+            assert hasattr(self, 'varTang96')
+        # the mode custom, is for user to define their own formula.
+        # just modify custom to the name of your formula.
+        # and define the funnction self.custom(rij, paraArray, **kwargs)
+        elif mode =='custom':
+            self.mode = mode
+            self.num_paras = None # defined by custom.
+            assert hasattr(self, 'custom')
         else:
             raise ValueError('No such formula')
         
@@ -50,7 +58,8 @@ class SKFormula(BaseSK):
 
                 $$ h(rij) = \alpha_1 * (rij)^(-\alpha_2) * exp(-\alpha_3 * (rij)^(\alpha_4))$$
         """
-
+        if isinstance(paraArray, list):
+            paraArray = th.tensor(paraArray)
         assert len(paraArray.shape) in {2, 1}, 'paraArray should be a 2d tensor or 1d tensor'
         paraArray = paraArray.view(-1, self.num_paras)
         alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1], paraArray[:, 2], paraArray[:, 3]
