@@ -4,6 +4,7 @@ dptb/sktb/__pycache__/
 dptb/negf/__pycache__/
 dptb/softsort/__pycache__/
 dptb/__pycache__/
+.VSCodeCounter
 # examples processed data  and checkpoint.
 *.pth
 *log*
