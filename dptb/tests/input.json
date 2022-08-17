@@ -1,12 +1,12 @@
 {
   "device": "cpu",
   "train_options":{
-    "num_epoch": 5,
+    "num_epoch": 3000,
     "display_epoch": 1,
-    "use_reference":true
+    "use_reference":false
   },
   "optimizer_options": {
-    "lr": 1e-4,
+    "lr": 1e-3,
     "opt_type": "Adam"
   },
   "sch_options": {
@@ -25,7 +25,7 @@
     "ref_data_path": "../examples/TBmodel/hBN/data/",
     "ref_data_prefix": "set",
     "proj_atom_neles": {"N":5,"B":3},
-    "proj_atom_anglr_m": {"N":["s","p"],"B":["s","p"]},
+    "proj_atom_anglr_m": {"N":["2s","2p"],"B":["2s","2p"]},
     "time_symm": true,
 	  "band_min":0,
 	  "band_max":4,

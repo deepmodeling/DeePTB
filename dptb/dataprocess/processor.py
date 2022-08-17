@@ -4,13 +4,14 @@ from typing import List
 from dptb.structure.abstract_stracture import AbstractStructure
 
 class Processor(object):
-    def __init__(self, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, env_cutoff: float, device='cpu', dtype=torch.float32):
+    def __init__(self, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, env_cutoff: float, device='cpu', require_dict=False, dtype=torch.float32):
         super(Processor, self).__init__()
         if isinstance(structure_list, AbstractStructure):
             structure_list = [structure_list]
         self.structure_list = np.array(structure_list, dtype=object)
         self.kpoint = kpoint
         self.eigen_list= np.array(eigen_list, dtype=object)
+        self.require_dict = require_dict
 
         self.n_st = len(self.structure_list)
         self.__struct_idx_unsampled__ = np.random.choice(np.array(list(range(len(self.structure_list)))),
@@ -95,16 +96,32 @@ class Processor(object):
         if len(self.__struct_workspace__) == 0:
             self.__struct_workspace__ = self.structure_list
 
-        batch_bond = []
-        n_stw = len(self.__struct_workspace__)
-        for st in range(n_stw):
-            bond, _ = self.__struct_workspace__[st].cal_bond()
-            bond = np.concatenate([np.ones((bond.shape[0], 1)) * st, bond], axis=1)
-            batch_bond.append(torch.tensor(bond, dtype=self.dtype, device=self.device))
+        if self.require_dict:
+            batch_bond = {}
+            batch_bond_onsite = {}
+            n_stw = len(self.__struct_workspace__)
+            for st in range(n_stw):
+                bond, bond_onsite = self.__struct_workspace__[st].cal_bond()
+                bond = np.concatenate([np.ones((bond.shape[0], 1)) * st, bond], axis=1)
+                bond_onsite = np.concatenate([np.ones((bond_onsite.shape[0], 1)) * st, bond_onsite], axis=1)
+                batch_bond.update({st:torch.tensor(bond, dtype=self.dtype, device=self.device)})
+                batch_bond_onsite.update({st:torch.tensor(bond_onsite, dtype=self.dtype, device=self.device)})
 
-        batch_bond = torch.cat(batch_bond, dim=0)
+        else:
+            batch_bond = []
+            batch_bond_onsite = []
+            n_stw = len(self.__struct_workspace__)
+            for st in range(n_stw):
+                bond, bond_onsite = self.__struct_workspace__[st].cal_bond()
+                bond = np.concatenate([np.ones((bond.shape[0], 1)) * st, bond], axis=1)
+                bond_onsite = np.concatenate([np.ones((bond_onsite.shape[0], 1)) * st, bond_onsite], axis=1)
+                batch_bond.append(torch.tensor(bond, dtype=self.dtype, device=self.device))
+                batch_bond_onsite.append(torch.tensor(bond_onsite, dtype=self.dtype, device=self.device))
 
-        return batch_bond # [f, i_atom_num, i, j_atom_num, j, Rx, Ry, Rz, |rj-ri|, \hat{rij: x, y, z}]
+            batch_bond = torch.cat(batch_bond, dim=0)
+            batch_bond_onsite = torch.cat(batch_bond_onsite, dim=0)
+
+        return batch_bond, batch_bond_onsite # [f, i_atom_num, i, j_atom_num, j, Rx, Ry, Rz, |rj-ri|, \hat{rij: x, y, z}] or dict
 
     @property
     def atom_type(self):
@@ -148,7 +165,8 @@ class Processor(object):
     def __next__(self):
         if self.it < self.n_batch:
             self.shuffle()
-            data = (self.get_bond(), self.get_env(), self.__struct_workspace__,
+            bond, bond_onsite = self.get_bond()
+            data = (bond, bond_onsite, self.get_env(), self.__struct_workspace__,
                     self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float))
             self.it += 1
             return data
