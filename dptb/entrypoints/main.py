@@ -92,10 +92,16 @@ def main_parser() -> argparse.ArgumentParser:
     )
 
     parser_train.add_argument(
+        "-crt",
+        "--use-correction",
+        action="store_true",
+        help="Use nnsktb correction when training dptb",
+    )
+
+    parser_train.add_argument(
         "-f",
-        "--init-frz-model",
-        type=str,
-        default=None,
+        "--freeze",
+        action="store_true",
         help="Initialize the training from the frozen model.",
     )
 
