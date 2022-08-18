@@ -15,15 +15,15 @@ class Saver(Plugin):
         self.best_loss = 1e7
 
     def register(self, trainer):
-        self.checkpoint_path = trainer.train_options["checkpoint_path"]
+        self.checkpoint_path = trainer.run_opt["checkpoint_path"]
         self.trainer = trainer
 
     def iteration(self, **kwargs):
-        self._save("latest_iter")
+        self._save("latest_"+self.trainer.name)
 
     def epoch(self, **kwargs):
         if self.trainer.stats.get('validation_loss').get('last',1e6) < self.best_loss:
-            self._save("best_epoch")
+            self._save("best_"+self.trainer.name)
             self.best_loss = self.trainer.stats['validation_loss'].get('last',1e6)
 
             log.info(msg="checkpoint saved as {}".format("best_epoch"))

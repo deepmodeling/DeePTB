@@ -43,7 +43,7 @@ class SKNet(nn.Module):
         if self.interneural is None:
             out = self.layer
         else:
-            out =  self.layer1 @ self.layer2
+            out =  self.layer1 @ self.layer2 / self.interneural
         
         self.coeffdict = dict(zip(self.skint_types, out))
 
