@@ -47,7 +47,7 @@ class NNSKTrainer(Trainer):
         self.test_batch_size = data_options.get('test_batch_size', self.batch_size)
 
         self.bond_cutoff = data_options.get('bond_cutoff')
-        self.env_cutoff = data_options.get('env_cutoff')
+        # self.env_cutoff = data_options.get('env_cutoff')
         self.train_data_path = data_options.get('train_data_path')
         self.train_data_prefix = data_options.get('train_data_prefix')
         self.test_data_path = data_options.get('test_data_path')
@@ -75,7 +75,7 @@ class NNSKTrainer(Trainer):
         self.train_processor_list = []
         for i in range(len(struct_list_sets)):
             self.train_processor_list.append(
-                Processor(struct_list_sets[i], batchsize=self.batch_size, env_cutoff=self.env_cutoff,
+                Processor(mode='nnsk', structure_list=struct_list_sets[i], batchsize=self.batch_size,
                           kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype, require_dict=True))
         # --------------------------------init testing set----------------------------------------------
         struct_list_sets, kpoints_sets, eigens_sets = read_data(self.test_data_path,
@@ -89,7 +89,7 @@ class NNSKTrainer(Trainer):
         self.test_processor_list = []
         for i in range(len(struct_list_sets)):
             self.test_processor_list.append(
-                Processor(struct_list_sets[i], batchsize=self.test_batch_size, env_cutoff=self.env_cutoff,
+                Processor(mode='nnsk', structure_list=struct_list_sets[i], batchsize=self.test_batch_size, 
                           kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype, require_dict=True))
 
         # ---------------------------------init index map------------------------------------------------
