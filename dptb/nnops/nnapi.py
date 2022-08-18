@@ -42,7 +42,7 @@ class DeePTB(ModelAPI):
         self.nntb.tb_net.load_state_dict(f['state_dict'])
         self.nntb.tb_net.eval()
         skint = SKIntegrals(proj_atom_anglr_m = proj_atom_anglr_m, sk_file_path=sk_file_path)
-        self.skhslist = SKHSLists(skint,dtype='numpy')
+        self.skhslist = SKHSLists(skint,dtype='tensor')
         self.hamileig = HamilEig(dtype='tensor')
         self.if_HR_ready=False
 
@@ -50,8 +50,8 @@ class DeePTB(ModelAPI):
         assert isinstance(structure, BaseStruct)
         self.structure = structure
         self.time_symm = structure.time_symm
-        predict_process = Processor(mode='dptb', structure_list=structure, batchsize=1, kpoint=None, eigen_list=None, env_cutoff=env_cutoff, require_dict=True, device=device, dtype=dtype)
-        bond = predict_process.get_bond()
+        predict_process = Processor(mode='dptb', structure_list=structure, batchsize=1, kpoint=None, eigen_list=None, env_cutoff=env_cutoff, require_dict=False, device=device, dtype=dtype)
+        bond, bond_onsite = predict_process.get_bond()
         env = predict_process.get_env()
         batched_dcp = self.nntb.get_desciptor(env)
         # get hoppings (SK type bond integrals.)    
@@ -61,8 +61,8 @@ class DeePTB(ModelAPI):
 
         # get the sk parameters.
         self.skhslist.update_struct(structure)
-        self.skhslist.get_HS_list(bonds_onsite=np.asarray(batch_bond_onsites[0]),
-                                                bonds_hoppings=np.asarray(batch_bond_hoppings[0]))
+        self.skhslist.get_HS_list(bonds_onsite=np.asarray(batch_bond_onsites[0][:,1:]),
+                                                bonds_hoppings=np.asarray(batch_bond_hoppings[0][:,1:]))
         # combine the nn and sk part for the hamiltonian.
         onsiteEs, hoppings, onsiteSs, overlaps = \
                             nnsk_correction(nn_onsiteEs=batch_onsiteEs[0],
