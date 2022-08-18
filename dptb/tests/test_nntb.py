@@ -1,3 +1,5 @@
+import logging
+
 from dptb.nnet.nntb import NNTB
 import torch as th
 import numpy as np
@@ -168,17 +170,18 @@ class Test_NNTB:
         batched_dcp = self.nntb.get_desciptor(batch_env2)
         batch_bond_hoppings, batch_hoppings = self.nntb.hopping(batched_dcp=batched_dcp, batch_bond=batch_bond)
 
-        assert np.asarray(batch_bond_hoppings[0]).shape == (18,11)
-        assert (np.asarray(batch_bond_hoppings[0])[:,0:7].astype(int)  ==  batch_bond_hops[:,0:7].astype(int)).all()
-        assert (np.fabs(np.asarray(batch_bond_hoppings[0])[:,7:11].astype(float) - batch_bond_hops[:,7:11].astype(float)) < 1e-4).all()
+        assert np.asarray(batch_bond_hoppings[0]).shape == (18,12)
+        assert np.sum(np.asarray(batch_bond_hoppings[0])[:,1:8].astype(int)-batch_bond_hops[:,0:7].astype(int)) < 1e-6
+        assert (np.fabs(np.asarray(batch_bond_hoppings[0])[:,8:12].astype(float) - batch_bond_hops[:,7:11].astype(float)) < 1e-4).all()
         assert list(batch_hoppings.keys()) == [0]
         assert len(batch_hoppings[0]) == 18
 
     def test_onsite(self):
         batched_dcp = self.nntb.get_desciptor(batch_env3)
         batch_bond_onsites, batch_onsiteEs = self.nntb.onsite(batched_dcp=batched_dcp)
-    
-        assert (np.array(batch_bond_onsites[0])  == np.array([[7, 0, 7, 0, 0, 0, 0], [5, 1, 5, 1, 0, 0, 0]])).all()
+
+        assert np.sum(np.array(batch_bond_onsites[0][:,1:8])-np.array([[7, 0, 7, 0, 0, 0, 0], [5, 1, 5, 1, 0, 0, 0]])) < 1e-6
+
         assert list(batch_onsiteEs.keys()) == [0]
 
         assert len(batch_onsiteEs[0]) == 2
