@@ -21,6 +21,8 @@ log = logging.getLogger(__name__)
 class NNSKTrainer(Trainer):
     def __init__(self, run_opt, jdata) -> None:
         super(NNSKTrainer, self).__init__(jdata)
+        self.run_opt = run_opt
+        self.name = "nnsk"
         self._init_param(jdata)
 
     def _init_param(self, jdata):
@@ -122,7 +124,7 @@ class NNSKTrainer(Trainer):
         self.criterion = torch.nn.MSELoss(reduction='mean')
 
     def _init_model(self):
-        mode = self.train_options.get("mode", "from_scratch")
+        mode = self.run_opt.get("mode", None)
         if mode is None:
             mode = 'from_scratch'
             log.info(msg="Haven't assign a initializing mode, training from scratch as default.")
@@ -136,7 +138,7 @@ class NNSKTrainer(Trainer):
         elif mode == "init_model":
             # read configuration from checkpoint path.
             all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(self.bond_index_map)
-            f = torch.load(self.train_options["init_path"])
+            f = torch.load(self.run_opt["init_model"])
             self.model_config = f["model_config"]
             for kk in self.model_config:
                 if self.model_options.get(kk) is not None and self.model_options.get(kk) != self.model_config.get(kk):

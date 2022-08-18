@@ -7,6 +7,10 @@ from dptb.sktb.skIntegrals import SKIntegrals
 from dptb.sktb.struct_skhs import SKHSLists
 from dptb.hamiltonian.hamil_eig_sk import HamilEig
 from dptb.dataprocess.processor import Processor
+from dptb.nnsktb.sknet import SKNet
+from dptb.nnsktb.integralFunc import SKintHops
+from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
+from dptb.nnsktb.skintTypes import all_skint_types
 from dptb.dataprocess.datareader import read_data
 from dptb.nnops.loss import loss_type1
 from dptb.utils.tools import get_uniq_symbol,  Index_Mapings, \
@@ -21,7 +25,10 @@ class DPTBTrainer(Trainer):
 
     def __init__(self, run_opt, jdata) -> None:
         super(DPTBTrainer, self).__init__(jdata)
+        self.name = "dptb"
+        self.run_opt = run_opt
         self._init_param(jdata)
+
 
     def _init_param(self, jdata):
         train_options = j_must_have(jdata, "train_options")
@@ -42,6 +49,7 @@ class DPTBTrainer(Trainer):
 
         # initialize data options
         # ----------------------------------------------------------------------------------------------------------------------------------------------
+        self.require_dict = False
         self.batch_size = data_options.get('batch_size')
         self.test_batch_size = data_options.get('test_batch_size', self.batch_size)
         self.ref_batch_size = data_options.get('ref_batch_size', 1)
@@ -83,7 +91,7 @@ class DPTBTrainer(Trainer):
         for i in range(len(struct_list_sets)):
             self.train_processor_list.append(
                 Processor(struct_list_sets[i], batchsize=self.batch_size, env_cutoff=self.env_cutoff,
-                          kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype))
+                          kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype, require_dict=self.require_dict))
 
         # init reference dataset
         # -----------------------------------init reference set------------------------------------------
@@ -98,7 +106,7 @@ class DPTBTrainer(Trainer):
             for i in range(len(struct_list_sets)):
                 self.ref_processor_list.append(
                     Processor(struct_list_sets[i], batchsize=self.ref_batch_size, env_cutoff=self.env_cutoff,
-                              kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype))
+                              kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype, require_dict=self.require_dict))
 
         # --------------------------------init testing set----------------------------------------------
         struct_list_sets, kpoints_sets, eigens_sets = read_data(self.test_data_path,
@@ -113,7 +121,7 @@ class DPTBTrainer(Trainer):
         for i in range(len(struct_list_sets)):
             self.test_processor_list.append(
                 Processor(struct_list_sets[i], batchsize=self.test_batch_size, env_cutoff=self.env_cutoff,
-                          kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype))
+                          kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype, require_dict=self.require_dict))
 
         # ---------------------------------init index map------------------------------------------------
         # since training and testing set contains same atom type and proj_atom type, we may expect the maps are the same in train and test.
@@ -134,7 +142,7 @@ class DPTBTrainer(Trainer):
         self._init_model()
 
         self.skint = SKIntegrals(proj_atom_anglr_m=self.proj_atom_anglr_m, sk_file_path=self.sk_file_path)
-        self.skhslist = SKHSLists(self.skint, dtype='numpy')
+        self.skhslist = SKHSLists(self.skint, dtype='tensor')
         self.hamileig = HamilEig(dtype='tensor')
 
         self.optimizer = get_optimizer(model_param=self.model.parameters(), **opt_options)
@@ -145,17 +153,19 @@ class DPTBTrainer(Trainer):
 
     def _init_model(self):
         '''
-        initialize the tb net, mode is to decide whether gto training model from scratch or from saved checkpoints
+        initialize the model, the following things need to be taken into account:
+        -1- whether to load model from checkpoint or init model from scratch
+            -1.1- if init from checkpoint, do we need to frozen the parameter ?
+        -2- whether to init nnsktb model for correction
+
         Parameters
         ----------
-        mode: "from_scratch", "from_model"
-                if "from_model", the model parameter should be loaded from checkpoint file;
-                otherwise it should be given as input in the input configuration.
+
         Returns
         -------
         '''
 
-        mode = self.train_options.get("mode", "from_scratch")
+        mode = self.run_opt.get("mode", None)
         if mode is None:
             mode = 'from_scratch'
             log.info(msg="Haven't assign a initializing mode, training from scratch as default.")
@@ -195,7 +205,7 @@ class DPTBTrainer(Trainer):
             self.model = self.nntb.tb_net
         elif mode == "init_model":
             # read configuration from checkpoint path.
-            f = torch.load(self.train_options["init_path"])
+            f = torch.load(self.run_opt["init_model"])
             self.model_config = f["model_config"]
             for kk in self.model_config:
                 if self.model_options.get(kk) is not None and self.model_options.get(kk) != self.model_config.get(kk):
@@ -210,7 +220,27 @@ class DPTBTrainer(Trainer):
         else:
             raise RuntimeError("init_mode should be from_scratch/from_model/..., not {}".format(mode))
 
-    def calc(self, batch_bond, batch_env, structs, kpoints):
+        if self.run_opt["use_correction"]:
+            all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(self.bond_index_map)
+            f = torch.load(self.run_opt["skcheckpoint_path"])
+            self.model_config = f["model_config"]
+            for kk in self.model_config:
+                if self.model_options.get(kk) is not None and self.model_options.get(kk) != self.model_config.get(kk):
+                    log.warning(
+                        msg="The configure in checkpoint is mismatch with the input configuration {}, init from checkpoint temporarily\n, ".format(
+                            kk) +
+                            "but this might cause conflict.")
+                    break
+            self.sknet = SKNet(**self.model_config)
+            self.sknet.load_state_dict(f['state_dict'])
+            self.sknet.eval()
+            for p in self.sknet.parameters():
+                p.requires_grad = False
+            self.hops_fun = SKintHops()
+            self.onsite_fun = onsiteFunc
+            self.onsite_db = loadOnsite(self.onsite_index_map)
+
+    def calc(self, batch_bond, batch_bond_onsite, batch_env, structs, kpoints):
         '''
         conduct one step forward computation, used in train, test and validation.
         '''
@@ -220,21 +250,32 @@ class DPTBTrainer(Trainer):
         batch_bond_hoppings, batch_hoppings, \
         batch_bond_onsites, batch_onsiteEs = self.nntb.calc(batch_bond, batch_env)
 
+        if self.run_opt.get("use_correction", False):
+            coeffdict = self.sknet()
+            sktb_onsiteEs = self.onsite_fun(batch_bond_onsites, self.onsite_db)
+            sktb_hoppings = self.hops_fun.get_skhops(batch_bond_hoppings, coeffdict, self.sk_bond_ind_dict)
+
         # call sktb to get the sktb hoppings and onsites
         eigenvalues_pred = []
         for ii in range(len(structs)):
-            self.skhslist.update_struct(structs[ii])
-            self.skhslist.get_HS_list(bonds_onsite=np.asarray(batch_bond_onsites[ii]),
-                                      bonds_hoppings=np.asarray(batch_bond_hoppings[ii]))
-            onsiteEs, hoppings, onsiteSs, overlaps = \
-                nnsk_correction(nn_onsiteEs=batch_onsiteEs[ii], nn_hoppings=batch_hoppings[ii],
-                                sk_onsiteEs=self.skhslist.onsiteEs, sk_hoppings=self.skhslist.hoppings,
-                                sk_onsiteSs=self.skhslist.onsiteSs, sk_overlaps=self.skhslist.overlaps)
+            if not self.run_opt.get("use_correction", False):
+                self.skhslist.update_struct(structs[ii])
+                self.skhslist.get_HS_list(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
+                                          bonds_hoppings=np.asarray(batch_bond_hoppings[ii][:,1:]))
+                onsiteEs, hoppings, onsiteSs, overlaps = \
+                    nnsk_correction(nn_onsiteEs=batch_onsiteEs[ii], nn_hoppings=batch_hoppings[ii],
+                                    sk_onsiteEs=self.skhslist.onsiteEs, sk_hoppings=self.skhslist.hoppings,
+                                    sk_onsiteSs=self.skhslist.onsiteSs, sk_overlaps=self.skhslist.overlaps)
+            else:
+                onsiteEs, hoppings, onsiteSs, overlaps = \
+                    nnsk_correction(nn_onsiteEs=batch_onsiteEs[ii], nn_hoppings=batch_hoppings[ii],
+                                    sk_onsiteEs=sktb_onsiteEs[ii], sk_hoppings=sktb_hoppings[ii],
+                                    sk_onsiteSs=None, sk_overlaps=None)
             # call hamiltonian block
             self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, overlaps=overlaps,
                                          onsiteSs=onsiteSs)
-            self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii]),
-                                        bonds_hoppings=np.asarray(batch_bond_hoppings[ii]))
+            self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
+                                        bonds_hoppings=np.asarray(batch_bond_hoppings[ii][:,1:]))
             eigenvalues_ii = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.time_symm, dtype='tensor')
             eigenvalues_pred.append(eigenvalues_ii)
         eigenvalues_pred = torch.stack(eigenvalues_pred)
@@ -250,8 +291,8 @@ class DPTBTrainer(Trainer):
             # iter with different structure
             for data in processor:
                 # iter with samples from the same structure
-                batch_bond, _, batch_env, structs, kpoints, eigenvalues = data[0],data[1],data[2], data[3], data[4], data[5]
-                eigenvalues_pred = self.calc(batch_bond, batch_env, structs, kpoints)
+                batch_bond, batch_bond_onsite, batch_env, structs, kpoints, eigenvalues = data[0],data[1],data[2], data[3], data[4], data[5]
+                eigenvalues_pred = self.calc(batch_bond, batch_bond_onsite, batch_env, structs, kpoints)
                 eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
 
                 num_kp = kpoints.shape[0]
@@ -265,7 +306,7 @@ class DPTBTrainer(Trainer):
                         ref_processor = self.ref_processor_list[irefset]
                         for refdata in ref_processor:
                             batch_bond, _, batch_env, structs, kpoints, eigenvalues = refdata[0],refdata[1],refdata[2], refdata[3], refdata[4], refdata[5]
-                            ref_eig_pred = self.calc(batch_bond, batch_env, structs, kpoints)
+                            ref_eig_pred = self.calc(batch_bond, batch_bond_onsite, batch_env, structs, kpoints)
                             ref_eig_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
                             num_kp_ref = kpoints.shape[0]
                             num_el_ref = np.sum(structs[0].proj_atom_neles_per)
@@ -302,8 +343,8 @@ class DPTBTrainer(Trainer):
             total_loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
             for processor in self.test_processor_list:
                 for data in processor:
-                    batch_bond, _, batch_env, structs, kpoints, eigenvalues = data[0],data[1],data[2], data[3], data[4], data[5]
-                    eigenvalues_pred = self.calc(batch_bond, batch_env, structs, kpoints)
+                    batch_bond, batch_bond_onsite, batch_env, structs, kpoints, eigenvalues = data[0],data[1],data[2], data[3], data[4], data[5]
+                    eigenvalues_pred = self.calc(batch_bond, batch_bond_onsite, batch_env, structs, kpoints)
                     eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
 
                     num_kp = kpoints.shape[0]

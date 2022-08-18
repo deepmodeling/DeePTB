@@ -37,6 +37,7 @@
     "axis_neuron": 10,
     "onsite_net_neuron": [128, 128, 256, 256],
     "env_net_neuron": [128, 128, 256, 256],
+    "interneural": 200,
     "bond_net_neuron": [128, 128, 256, 256],
     "onsite_net_activation": "tanh",
     "env_net_activation": "tanh",

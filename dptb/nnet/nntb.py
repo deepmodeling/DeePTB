@@ -179,12 +179,14 @@ class NNTB(object):
             for ib in ibt:
                 f = int(ib[0])
                 if batch_bond_hoppings.get(f) is not None:
-                    batch_bond_hoppings[f].append(ib[1:12].detach().numpy().astype(float))
+                    batch_bond_hoppings[f].append(ib[0:12].detach())
                     batch_hoppings[f].append(ib[12:])
                 else:
-                    batch_bond_hoppings[f] = [ib[1:12].detach().numpy().astype(float)]
+                    batch_bond_hoppings[f] = [ib[0:12].detach()]
                     batch_hoppings[f] = [ib[12:]]
                 # {f:[itype, i, jtype,j,R, |rij|, rij_hat]}, {f:[hopping]}
+        for f in batch_bond_hoppings.keys():
+            batch_bond_hoppings[f] = torch.stack(batch_bond_hoppings[f])
         return batch_bond_hoppings, batch_hoppings
 
 
@@ -230,12 +232,14 @@ class NNTB(object):
                 f = int(ion[0])
                 if batch_onsiteEs.get(f) is not None:
                     batch_onsiteEs[f].append(ion[3:])
-                    batch_bond_onsites[f].append(torch.tensor([ion[2], ion[1], ion[2], ion[1], 0, 0, 0],
-                                                            dtype=self.dtype, device=self.device).numpy().astype(np.int64))
+                    batch_bond_onsites[f].append(torch.tensor([f, ion[2], ion[1], ion[2], ion[1], 0, 0, 0],
+                                                            dtype=self.dtype, device=self.device).int())
                 else:
                     batch_onsiteEs[f] = [ion[3:]]
-                    batch_bond_onsites[f] = [torch.tensor([ion[2], ion[1], ion[2], ion[1], 0, 0, 0],
-                                                        dtype=self.dtype, device=self.device).numpy().astype(np.int64)]
+                    batch_bond_onsites[f] = [torch.tensor([f, ion[2], ion[1], ion[2], ion[1], 0, 0, 0],
+                                                        dtype=self.dtype, device=self.device).int()]
+        for f in batch_bond_onsites.keys():
+            batch_bond_onsites[f] = torch.stack(batch_bond_onsites[f])
         return batch_bond_onsites, batch_onsiteEs
 
     def calc(self, batch_bond, batch_env):
