@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class SKNet(nn.Module):
-    def __init__(self, skint_types, nout, interneural=None, device='cpu', dtype=torch.float32, **kwargs):
+    def __init__(self, skint_types, nout, nhidden=None, device='cpu', dtype=torch.float32, **kwargs):
         ''' define the nn.parameters for fittig sktb.
 
         Paras 
@@ -11,17 +11,17 @@ class SKNet(nn.Module):
             the keys for sk integrals, like, {'N-B':['2s-2p-sigma','2p-2p-pi',...]}
         '''
         super(SKNet, self).__init__()
-        self.interneural = interneural
+        self.nhidden = nhidden
         self.skint_types = skint_types
         self.num_skint_types = len(self.skint_types)
 
-        if interneural is None:
+        if nhidden is None:
             self.layer = torch.nn.Parameter(torch.empty(self.num_skint_types, nout, device=device, dtype=dtype))
             torch.nn.init.normal_(self.layer, mean=0, std=0.5)
         else:
-            assert isinstance(interneural, int)
-            self.layer1 = torch.nn.Parameter(torch.empty(self.num_skint_types, interneural, device=device, dtype=dtype))
-            self.layer2 = torch.nn.Parameter(torch.empty(interneural, nout, device=device, dtype=dtype))
+            assert isinstance(nhidden, int)
+            self.layer1 = torch.nn.Parameter(torch.empty(self.num_skint_types, nhidden, device=device, dtype=dtype))
+            self.layer2 = torch.nn.Parameter(torch.empty(nhidden, nout, device=device, dtype=dtype))
             torch.nn.init.normal_(self.layer1, mean=0, std=0.5)
             torch.nn.init.normal_(self.layer2, mean=0, std=0.5)
         
@@ -40,7 +40,7 @@ class SKNet(nn.Module):
         
         '''
 
-        if self.interneural is None:
+        if self.nhidden is None:
             out = self.layer
         else:
             out =  self.layer1 @ self.layer2
