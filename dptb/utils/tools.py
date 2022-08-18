@@ -295,16 +295,14 @@ def j_loader(filename: Union[str, Path]) -> Dict[str, Any]:
         raise TypeError("config file must be json, or yaml/yml")
 
 class Index_Mapings(object):
-    def __init__(self,envtype=None, bondtype=None,proj_atom_anglr_m=None):
+    def __init__(self, proj_atom_anglr_m=None):
         self.AnglrMID = anglrMId
-        if envtype is not None and bondtype is not None and proj_atom_anglr_m is not None:
-            self.update(envtype=envtype, bondtype=bondtype, 
-                                proj_atom_anglr_m = proj_atom_anglr_m)
+        if  proj_atom_anglr_m is not None:
+            self.update(proj_atom_anglr_m = proj_atom_anglr_m)
 
-    def update(self,envtype, bondtype,proj_atom_anglr_m):
+    def update(self, proj_atom_anglr_m):
         # bond and env type can get from stuct class.
-        self.envtype = envtype
-        self.bondtype = bondtype
+        self.bondtype = get_uniq_symbol(list(proj_atom_anglr_m.keys()))
         # projected angular momentum. get from struct class.
         self.ProjAnglrM = proj_atom_anglr_m
 
