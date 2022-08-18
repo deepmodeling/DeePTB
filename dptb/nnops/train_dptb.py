@@ -28,7 +28,7 @@ class DPTBTrainer(Trainer):
         opt_options = j_must_have(jdata, "optimizer_options")
         sch_options = j_must_have(jdata, "sch_options")
         data_options = j_must_have(jdata,"data_options")
-        model_options = j_must_have(jdata, "model_options")
+        model_options = j_must_have(jdata, "dptb_options")
 
         self.train_options = train_options
         self.opt_options = opt_options

@@ -32,7 +32,8 @@
     "ref_band_min":0,
 	  "ref_band_max":4
   },
-  "model_options": {
+  
+  "dptb_options": {
     "axis_neuron": 10,
     "onsite_net_neuron": [128, 128, 256, 256],
     "env_net_neuron": [128, 128, 256, 256],
@@ -43,6 +44,11 @@
     "onsite_net_type": "ffn",
     "env_net_type": "res",
     "bond_net_type": "ffn",
+    "if_batch_normalized": false
+  },
+
+  "nnsk_options":{
+    "nhidden":100,
     "if_batch_normalized": false
   }
 }
