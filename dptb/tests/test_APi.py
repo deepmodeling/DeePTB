@@ -62,14 +62,14 @@ def test_dptbapi(root_directory):
     hk00 = np.array([-6.628017e-01+0.j,  0.000000e+00+0.j,  0.000000e+00+0.j,
         0.000000e+00+0.j, -8.332963e-01+0.j,  9.057112e-08+0.j,
         0.000000e+00+0.j,  5.966285e-08+0.j], dtype=np.complex64)
-    assert (np.abs(hkmat[0][0].detach().numpy() -  hk00) < 1e-6).all()
+    assert (np.abs(hkmat[0][0].detach().numpy() -  hk00) < 1e-5).all()
     eigks, EF = dptb.get_eigenvalues(kpoints=klist)
     assert eigks.shape == (120,8)
 
     refeig0 = np.array([-22.558338 , -10.220116 ,  -6.2584987,  -6.2584934,   4.1156316,
          9.046395 ,  14.905643 ,  14.905655 ], dtype=np.float32)
-    assert np.abs(EF - -2.3601527214050293) < 1e-6 
-    assert (np.abs(eigks[0]-refeig0) < 1e-6).all()
+    assert np.abs(EF - -2.3601527214050293) < 1e-5 
+    assert (np.abs(eigks[0]-refeig0) < 1e-5).all()
 
 
 def test_nnskapi(root_directory):
@@ -119,8 +119,8 @@ def test_nnskapi(root_directory):
     eigks, EF = nnsk.get_eigenvalues(klist)
 
     assert eigks.shape == (120,8)
-    assert np.abs(EF - -6.587416648864746) < 1e-6 
+    assert np.abs(EF - -6.587416648864746) < 1e-5 
     
     refeig0 = np.array([-22.371159 , -10.782168 ,  -7.0572667,  -7.0572667,  -3.6658115,
         -2.6096034,   4.7781563,   4.7781568], dtype=np.float32)
-    assert (np.abs(eigks[0]-refeig0) < 1e-6).all()
+    assert (np.abs(eigks[0]-refeig0) < 1e-5).all()
