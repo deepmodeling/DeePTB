@@ -6,7 +6,7 @@ def test_skintTypes():
     envtype = ['N','B']
     bondtype = ['N','B']
     proj_atom_anglr_m={'N':['2s','2p'],'B':['2p']}
-    indmap = Index_Mapings(envtype=envtype, bondtype=bondtype, proj_atom_anglr_m=proj_atom_anglr_m)
+    indmap = Index_Mapings(proj_atom_anglr_m=proj_atom_anglr_m)
     bond_map, bond_num = indmap.Bond_Ind_Mapings()
     all_skint_types_dict, reducted_skint_types, sk_bond_ind_dict = all_skint_types(bond_map)
 

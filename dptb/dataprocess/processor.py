@@ -4,13 +4,14 @@ from typing import List
 from dptb.structure.abstract_stracture import AbstractStructure
 
 class Processor(object):
-    def __init__(self, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, env_cutoff: float, device='cpu', require_dict=False, dtype=torch.float32):
+    def __init__(self, mode: str, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, env_cutoff: float = 3.0, device='cpu', require_dict=False, dtype=torch.float32):
         super(Processor, self).__init__()
         if isinstance(structure_list, AbstractStructure):
             structure_list = [structure_list]
+        self.mode = mode
         self.structure_list = np.array(structure_list, dtype=object)
         self.kpoint = kpoint
-        self.eigen_list= np.array(eigen_list, dtype=object)
+        self.eigen_list = np.array(eigen_list, dtype=object)
         self.require_dict = require_dict
 
         self.n_st = len(self.structure_list)
@@ -166,8 +167,13 @@ class Processor(object):
         if self.it < self.n_batch:
             self.shuffle()
             bond, bond_onsite = self.get_bond()
-            data = (bond, bond_onsite, self.get_env(), self.__struct_workspace__,
+            if self.mode == 'dptb':
+                data = (bond, bond_onsite, self.get_env(), self.__struct_workspace__,
                     self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float))
+            else:
+                data = (bond, bond_onsite, None, self.__struct_workspace__,
+                    self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float))
+
             self.it += 1
             return data
         else:
@@ -186,7 +192,7 @@ if __name__ == '__main__':
     atoms = graphene_nanoribbon(1.5, 1, type='armchair', saturated=True)
     basestruct = BaseStruct(atom=atoms, format='ase', cutoff=1.5, proj_atom_anglr_m={'C': ['s', 'p']}, proj_atom_neles={"C":4})
 
-    p = Processor(structure_list=[basestruct, basestruct, basestruct, basestruct], kpoint=1, eigen_list=[1,2,3,4], batchsize=1, env_cutoff=1.5)
+    p = Processor(mode = 'dptb', structure_list=[basestruct, basestruct, basestruct, basestruct], kpoint=1, eigen_list=[1,2,3,4], batchsize=1, env_cutoff=1.5)
 
     count = 0
     for data in p:
