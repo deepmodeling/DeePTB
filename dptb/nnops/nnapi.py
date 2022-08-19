@@ -35,15 +35,38 @@ class ModelAPI(ABC):
 
 
 class DeePTB(ModelAPI):
-    def __init__(self,checkpoint,sk_file_path, proj_atom_anglr_m):
-        f=torch.load(checkpoint)
+    def __init__(self, dptb_checkpoint:str, proj_atom_anglr_m:dict, 
+                            sktbmode:str='nnsk', nnsk_checkpoint:str = None, sk_file_path=None):
+        f=torch.load(dptb_checkpoint)
         model_config = f["model_config"]
         self.nntb = NNTB(**model_config)
         self.nntb.tb_net.load_state_dict(f['state_dict'])
         self.nntb.tb_net.eval()
-        skint = SKIntegrals(proj_atom_anglr_m = proj_atom_anglr_m, sk_file_path=sk_file_path)
-        self.skhslist = SKHSLists(skint,dtype='tensor')
+
+        self.sktbmode = sktbmode
+
+        if sktbmode == 'nnsk':
+            f = torch.load(nnsk_checkpoint)
+            model_config = f["model_config"]
+            self.sknet = SKNet(**model_config)
+            self.sknet.load_state_dict(f['state_dict'])
+            self.sknet.eval()
+            #for p in self.sknet.parameters():
+            #    p.requires_grad = False
+
+            indmap = Index_Mapings(proj_atom_anglr_m)
+            bond_index_map, bond_num_hops =  indmap.Bond_Ind_Mapings()
+            onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings()
+
+            self.hops_fun = SKintHops()
+            self.onsite_db = loadOnsite(onsite_index_map)
+            all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(bond_index_map)
+
+        else:
+            skint = SKIntegrals(proj_atom_anglr_m = proj_atom_anglr_m, sk_file_path=sk_file_path)
+            self.skhslist = SKHSLists(skint,dtype='tensor')
         self.hamileig = HamilEig(dtype='tensor')
+        
         self.if_HR_ready=False
 
     def get_HR(self, structure, env_cutoff, device='cpu', dtype=torch.float32):
@@ -59,12 +82,24 @@ class DeePTB(ModelAPI):
         # get onsite energies
         batch_bond_onsites, batch_onsiteEs = self.nntb.onsite(batched_dcp=batched_dcp)    
 
-        # get the sk parameters.
-        self.skhslist.update_struct(structure)
-        self.skhslist.get_HS_list(bonds_onsite=np.asarray(batch_bond_onsites[0][:,1:]),
+        if self.sktbmode == 'nnsk':
+            coeffdict = self.sknet()
+            sktb_onsiteEs = onsiteFunc(batch_bond_onsites, self.onsite_db)
+            sktb_hoppings = self.hops_fun.get_skhops(batch_bond_hoppings, coeffdict, self.sk_bond_ind_dict)
+            
+            # combine the nn and sk part for the hamiltonian.
+            onsiteEs, hoppings, onsiteSs, overlaps = \
+                            nnsk_correction(nn_onsiteEs=batch_onsiteEs[0],
+                                            nn_hoppings=batch_hoppings[0],
+                                            sk_onsiteEs=sktb_onsiteEs[0], 
+                                            sk_hoppings=sktb_hoppings[0])
+        else:
+            # get the sk parameters.
+            self.skhslist.update_struct(structure)
+            self.skhslist.get_HS_list(bonds_onsite=np.asarray(batch_bond_onsites[0][:,1:]),
                                                 bonds_hoppings=np.asarray(batch_bond_hoppings[0][:,1:]))
-        # combine the nn and sk part for the hamiltonian.
-        onsiteEs, hoppings, onsiteSs, overlaps = \
+            # combine the nn and sk part for the hamiltonian.
+            onsiteEs, hoppings, onsiteSs, overlaps = \
                             nnsk_correction(nn_onsiteEs=batch_onsiteEs[0],
                                             nn_hoppings=batch_hoppings[0],
                                             sk_onsiteEs=self.skhslist.onsiteEs, 
