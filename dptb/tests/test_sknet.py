@@ -4,13 +4,13 @@ import  torch
 def test_SKnet():
     reducted_skint_types = ['N-N-2s-2s-0', 'N-B-2s-2p-0', 'B-B-2p-2p-0', 'B-B-2p-2p-1']
     nout = 4
-    interneural = 10
-    model = SKNet(reducted_skint_types, nout=nout, interneural=interneural)
+    nhidden = 10
+    model = SKNet(reducted_skint_types, nout=nout, nhidden=nhidden)
     
     paras = list(model.parameters())
     assert len(paras) == 2
-    assert paras[0].shape == torch.Size([len(reducted_skint_types), interneural])
-    assert paras[1].shape == torch.Size([interneural, nout])
+    assert paras[0].shape == torch.Size([len(reducted_skint_types), nhidden])
+    assert paras[1].shape == torch.Size([nhidden, nout])
     
     coeff = model()
     assert len(coeff) == len(reducted_skint_types)

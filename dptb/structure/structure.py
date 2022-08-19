@@ -56,7 +56,7 @@ class BaseStruct(AbstractStructure):
         self.proj_atom_type = get_uniq_symbol(atomsymbols=self.proj_atom_symbols)
         self.cal_bond(cutoff=self.cutoff,time_symm=self.time_symm)
         
-        self.IndMap.update(envtype=self.atom_type, bondtype=self.proj_atom_type, proj_atom_anglr_m=self.proj_atom_anglr_m)
+        self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
         self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
 

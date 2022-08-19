@@ -90,7 +90,7 @@ class DPTBTrainer(Trainer):
         self.train_processor_list = []
         for i in range(len(struct_list_sets)):
             self.train_processor_list.append(
-                Processor(struct_list_sets[i], batchsize=self.batch_size, env_cutoff=self.env_cutoff,
+                Processor(mode='dptb', structure_list=struct_list_sets[i], batchsize=self.batch_size, env_cutoff=self.env_cutoff,
                           kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype, require_dict=self.require_dict))
 
         # init reference dataset
@@ -105,7 +105,7 @@ class DPTBTrainer(Trainer):
             self.ref_processor_list = []
             for i in range(len(struct_list_sets)):
                 self.ref_processor_list.append(
-                    Processor(struct_list_sets[i], batchsize=self.ref_batch_size, env_cutoff=self.env_cutoff,
+                    Processor(mode='dptb', structure_list=struct_list_sets[i], batchsize=self.ref_batch_size, env_cutoff=self.env_cutoff,
                               kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype, require_dict=self.require_dict))
 
         # --------------------------------init testing set----------------------------------------------
@@ -120,7 +120,7 @@ class DPTBTrainer(Trainer):
         self.test_processor_list = []
         for i in range(len(struct_list_sets)):
             self.test_processor_list.append(
-                Processor(struct_list_sets[i], batchsize=self.test_batch_size, env_cutoff=self.env_cutoff,
+                Processor(mode='dptb', structure_list=struct_list_sets[i], batchsize=self.test_batch_size, env_cutoff=self.env_cutoff,
                           kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype, require_dict=self.require_dict))
 
         # ---------------------------------init index map------------------------------------------------
@@ -133,8 +133,7 @@ class DPTBTrainer(Trainer):
         self.atom_type = get_uniq_symbol(list(set(atom_type)))
         self.proj_atom_type = get_uniq_symbol(list(set(proj_atom_type)))
         self.IndMap = Index_Mapings()
-        self.IndMap.update(envtype=self.atom_type, bondtype=self.proj_atom_type,
-                           proj_atom_anglr_m=self.proj_atom_anglr_m)
+        self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
         self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
         self.bond_type = get_uniq_bond_type(proj_atom_type)

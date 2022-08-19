@@ -32,7 +32,9 @@
     "ref_band_min":0,
 	  "ref_band_max":4
   },
+  
   "model_options": {
+    "nhidden":100,
     "axis_neuron": 10,
     "onsite_net_neuron": [128, 128, 256, 256],
     "env_net_neuron": [128, 128, 256, 256],
