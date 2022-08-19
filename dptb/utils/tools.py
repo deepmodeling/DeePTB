@@ -407,18 +407,18 @@ def nnsk_correction(nn_onsiteEs, nn_hoppings, sk_onsiteEs, sk_hoppings, sk_onsit
 
         if sk_onsiteSs:
             sk_onsiteSs_ib = sk_onsiteSs[ib]
-            sk_onsiteSs_ib.requires_grad = False
+            # sk_onsiteSs_ib.requires_grad = False
             # no correction to overlap S, just transform to tensor.
             onsiteSs.append(sk_onsiteSs_ib)
 
     hoppings = []
     overlaps = []
     for ib in range(len(nn_hoppings)):
-        if np.linalg.norm(sk_hoppings[ib]) < 1e-6:
-            sk_hoppings_ib = sk_hoppings[ib] + 1e-6
-        else:
-            sk_hoppings_ib = sk_hoppings[ib]
-        sk_hoppings_ib.requires_grad= False
+        #if np.linalg.norm(sk_hoppings[ib]) < 1e-6:
+        #    sk_hoppings_ib = sk_hoppings[ib] + 1e-6
+        #else:
+        sk_hoppings_ib = sk_hoppings[ib]
+        #sk_hoppings_ib.requires_grad= False
         hoppings.append(sk_hoppings_ib * (1 + nn_hoppings[ib]))
 
         if sk_overlaps:
