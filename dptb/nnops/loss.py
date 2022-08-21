@@ -45,7 +45,7 @@ def loss_spectral(criterion, eig_pred, eig_label, emin, emax, num_omega=None, si
 
 def gauss(x,sig,mu=0):
     ## gaussion fucntion
-    return th.exp(-(x-mu)**2/(2*sig**2)) * (1/(th.sqrt(2*np.pi)*sig))
+    return th.exp(-(x-mu)**2/(2*sig**2)) * (1/((2*th.pi)**0.5*sig))
 
 def cal_spectral_func(eigenvalues,omega,sigma=0.1):
     nsnap, nkp, nband = eigenvalues.shape
@@ -56,7 +56,7 @@ def cal_spectral_func(eigenvalues,omega,sigma=0.1):
     gaussian_weight= gauss(diffmax,sigma)
     gaussian_weight_fmt = th.reshape(gaussian_weight,[nsnap, nkp, nband, nomega])
     # eigenvalues_fmt = np.reshape(eigenvalues,[nsnap, nkp, nband, 1])
-    spectral_func = np.sum(gaussian_weight_fmt,axis=2)
+    spectral_func = th.sum(gaussian_weight_fmt,dim=2)
 
     return spectral_func
 

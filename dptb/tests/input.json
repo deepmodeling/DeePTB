@@ -6,7 +6,7 @@
     "use_reference": false
   },
   "optimizer_options": {
-    "lr": 1e-3,
+    "lr": 1e-1,
     "opt_type": "Adam"
   },
   "sch_options": {
@@ -71,6 +71,9 @@
     "onsite_net_type": "ffn",
     "env_net_type": "res",
     "bond_net_type": "ffn",
-    "if_batch_normalized": false
+    "if_batch_normalized": false,
+    "emin": -25,
+    "emax": 10
+
   }
 }

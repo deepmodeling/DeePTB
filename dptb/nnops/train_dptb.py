@@ -12,7 +12,7 @@ from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 from dptb.nnsktb.skintTypes import all_skint_types
 from dptb.dataprocess.datareader import read_data
-from dptb.nnops.loss import loss_type1
+from dptb.nnops.loss import loss_type1, loss_spectral
 from dptb.utils.tools import get_uniq_symbol,  Index_Mapings, \
     get_lr_scheduler, get_uniq_bond_type, get_uniq_env_bond_type, \
     get_env_neuron_config, get_bond_neuron_config, get_onsite_neuron_config, \
@@ -150,6 +150,8 @@ class DPTBTrainer(Trainer):
 
 
         self.criterion = torch.nn.MSELoss(reduction='mean')
+        self.emin = self.model_options["emin"]
+        self.emax = self.model_options["emax"]
 
     def _init_model(self):
         '''
@@ -331,6 +333,8 @@ class DPTBTrainer(Trainer):
                             ref_eig_pred, ref_eig_lbl = ref_eig[irefset]
                             num_kp_ref, num_el_ref = ref_kp_el[irefset]
                             loss += loss_type1(self.criterion, ref_eig_pred, ref_eig_lbl, num_el_ref, num_kp_ref, self.ref_band_min, self.ref_band_max)
+                            loss += loss_spectral(self.criterion, eigenvalues_pred, eigenvalues_lbl, self.emin,
+                                                  self.emax)
                     loss.backward()
 
                     self.train_loss = loss

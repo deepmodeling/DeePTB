@@ -6,7 +6,7 @@ from dptb.utils.tools import get_uniq_symbol,  Index_Mapings, \
     get_optimizer, nnsk_correction, j_must_have
 from dptb.sktb.struct_skhs import SKHSLists
 from dptb.hamiltonian.hamil_eig_sk import HamilEig
-from dptb.nnops.loss import loss_type1
+from dptb.nnops.loss import loss_type1, loss_spectral
 from dptb.dataprocess.processor import Processor
 from dptb.dataprocess.datareader import read_data
 from dptb.nnsktb.skintTypes import all_skint_types
@@ -122,6 +122,8 @@ class NNSKTrainer(Trainer):
         self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **sch_options)  # add optmizer
 
         self.criterion = torch.nn.MSELoss(reduction='mean')
+        self.emin = self.model_options["emin"]
+        self.emax = self.model_options["emax"]
 
     def _init_model(self):
         mode = self.run_opt.get("mode", None)
@@ -194,8 +196,9 @@ class NNSKTrainer(Trainer):
 
                     num_kp = kpoints.shape[0]
                     num_el = np.sum(structs[0].proj_atom_neles_per)
-                    loss = loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp, self.band_min,
-                                      self.band_max)
+                    # loss = loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp, self.band_min,
+                    #                   self.band_max)
+                    loss = loss_spectral(self.criterion, eigenvalues_pred, eigenvalues_lbl, self.emin, self.emax)
                     loss.backward()
 
                     self.train_loss = loss
