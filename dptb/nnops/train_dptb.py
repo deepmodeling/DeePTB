@@ -212,10 +212,11 @@ class DPTBTrainer(Trainer):
                     log.warning(msg="The configure in checkpoint is mismatch with the input configuration {}, init from checkpoint temporarily\n, ".format(kk) +
                                     "but this might cause conflict.")
                     break
+
             self.nntb = NNTB(**self.model_config)
             self.model = self.nntb.tb_net
             self.model.load_state_dict(f['state_dict'])
-            self.model.eval()
+            self.model.train()
 
         else:
             raise RuntimeError("init_mode should be from_scratch/from_model/..., not {}".format(mode))
@@ -223,7 +224,7 @@ class DPTBTrainer(Trainer):
         if self.run_opt["use_correction"]:
             all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(self.bond_index_map)
             f = torch.load(self.run_opt["skcheckpoint_path"])
-            self.model_config = f["model_config"]
+            model_config = f["model_config"]
             for kk in self.model_config:
                 if self.model_options.get(kk) is not None and self.model_options.get(kk) != self.model_config.get(kk):
                     log.warning(
@@ -231,11 +232,13 @@ class DPTBTrainer(Trainer):
                             kk) +
                             "but this might cause conflict.")
                     break
-            self.sknet = SKNet(**self.model_config)
+            self.sknet = SKNet(**model_config)
             self.sknet.load_state_dict(f['state_dict'])
-            self.sknet.eval()
-            for p in self.sknet.parameters():
-                p.requires_grad = False
+            self.sknet.train()
+            if self.run_opt['freeze']:
+                self.sknet.eval()
+                for p in self.sknet.parameters():
+                    p.requires_grad = False
             self.hops_fun = SKintHops()
             self.onsite_fun = onsiteFunc
             self.onsite_db = loadOnsite(self.onsite_index_map)
@@ -291,32 +294,37 @@ class DPTBTrainer(Trainer):
             # iter with different structure
             for data in processor:
                 # iter with samples from the same structure
-                batch_bond, batch_bond_onsite, batch_env, structs, kpoints, eigenvalues = data[0],data[1],data[2], data[3], data[4], data[5]
-                eigenvalues_pred = self.calc(batch_bond, batch_bond_onsite, batch_env, structs, kpoints)
-                eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
 
-                num_kp = kpoints.shape[0]
-                num_el = np.sum(structs[0].proj_atom_neles_per)
-
-                if self.use_reference:
-                    ref_eig = []
-                    ref_kp_el  = []
-
-                    for irefset in range(self.n_ref_sets):
-                        ref_processor = self.ref_processor_list[irefset]
-                        for refdata in ref_processor:
-                            batch_bond, _, batch_env, structs, kpoints, eigenvalues = refdata[0],refdata[1],refdata[2], refdata[3], refdata[4], refdata[5]
-                            ref_eig_pred = self.calc(batch_bond, batch_bond_onsite, batch_env, structs, kpoints)
-                            ref_eig_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
-                            num_kp_ref = kpoints.shape[0]
-                            num_el_ref = np.sum(structs[0].proj_atom_neles_per)
-
-                            ref_eig.append([ref_eig_pred,ref_eig_lbl])
-                            ref_kp_el.append([num_kp_ref,num_el_ref])
 
                 def closure():
                     # calculate eigenvalues.
                     self.optimizer.zero_grad()
+                    batch_bond, batch_bond_onsite, batch_env, structs, kpoints, eigenvalues = data[0], data[1], data[2], \
+                                                                                              data[3], data[4], data[5]
+                    eigenvalues_pred = self.calc(batch_bond, batch_bond_onsite, batch_env, structs, kpoints)
+                    eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
+
+                    num_kp = kpoints.shape[0]
+                    num_el = np.sum(structs[0].proj_atom_neles_per)
+
+                    if self.use_reference:
+                        ref_eig = []
+                        ref_kp_el = []
+
+                        for irefset in range(self.n_ref_sets):
+                            ref_processor = self.ref_processor_list[irefset]
+                            for refdata in ref_processor:
+                                batch_bond, _, batch_env, structs, kpoints, eigenvalues = refdata[0], refdata[1], \
+                                                                                          refdata[2], refdata[3], \
+                                                                                          refdata[4], refdata[5]
+                                ref_eig_pred = self.calc(batch_bond, batch_bond_onsite, batch_env, structs, kpoints)
+                                ref_eig_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
+                                num_kp_ref = kpoints.shape[0]
+                                num_el_ref = np.sum(structs[0].proj_atom_neles_per)
+
+                                ref_eig.append([ref_eig_pred, ref_eig_lbl])
+                                ref_kp_el.append([num_kp_ref, num_el_ref])
+
                     loss = loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp, self.band_min, self.band_max)
                     if self.use_reference:
                         for irefset in range(self.n_ref_sets):

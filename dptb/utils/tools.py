@@ -401,29 +401,29 @@ def nnsk_correction(nn_onsiteEs, nn_hoppings, sk_onsiteEs, sk_hoppings, sk_onsit
     onsiteSs = []
     for ib in range(len(nn_onsiteEs)):
         sk_onsiteEs_ib = sk_onsiteEs[ib]
-        sk_onsiteEs_ib.requires_grad = False
+        # sk_onsiteEs_ib.requires_grad = False
 
-        onsiteEs.append(sk_onsiteEs_ib * (1 + nn_onsiteEs[ib]))
+        onsiteEs.append(sk_onsiteEs_ib * (1 + torch.tanh(nn_onsiteEs[ib])))
 
         if sk_onsiteSs:
             sk_onsiteSs_ib = sk_onsiteSs[ib]
-            sk_onsiteSs_ib.requires_grad = False
+            # sk_onsiteSs_ib.requires_grad = False
             # no correction to overlap S, just transform to tensor.
             onsiteSs.append(sk_onsiteSs_ib)
 
     hoppings = []
     overlaps = []
     for ib in range(len(nn_hoppings)):
-        if np.linalg.norm(sk_hoppings[ib]) < 1e-6:
+        if torch.linalg.norm(sk_hoppings[ib]) < 1e-6:
             sk_hoppings_ib = sk_hoppings[ib] + 1e-6
         else:
             sk_hoppings_ib = sk_hoppings[ib]
-        sk_hoppings_ib.requires_grad= False
-        hoppings.append(sk_hoppings_ib * (1 + nn_hoppings[ib]))
+        # sk_hoppings_ib.requires_grad= False
+        hoppings.append(sk_hoppings_ib * (1 + torch.tanh(nn_hoppings[ib])))
 
         if sk_overlaps:
             sk_overlaps_ib = sk_overlaps[ib]
-            sk_overlaps_ib.requires_grad = False
+            # sk_overlaps_ib.requires_grad = False
             # no correction to overlaps, just transform to tensor.
             overlaps.append(sk_overlaps_ib)
 

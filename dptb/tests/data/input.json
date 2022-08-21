@@ -1,9 +1,9 @@
 {
   "device": "cpu",
-  "train_options": {
-    "num_epoch": 3000,
+  "train_options":{
+    "num_epoch": 1,
     "display_epoch": 1,
-    "use_reference": false
+    "use_reference":false
   },
   "optimizer_options": {
     "lr": 1e-3,
@@ -11,8 +11,8 @@
   },
   "sch_options": {
     "sch_type": "Expo",
-    "gamma": 0.998
-  },
+      "gamma": 0.998
+    },
   "data_options": {
     "batch_size": 1,
     "sk_file_path": "../examples/slakos/",
@@ -24,47 +24,21 @@
     "test_data_prefix": "set",
     "ref_data_path": "../examples/TBmodel/hBN/data/",
     "ref_data_prefix": "set",
-    "proj_atom_neles": {
-      "N": 5,
-      "B": 3
-    },
-    "proj_atom_anglr_m": {
-      "N": [
-        "2s",
-        "2p"
-      ],
-      "B": [
-        "2s",
-        "2p"
-      ]
-    },
+    "proj_atom_neles": {"N":5,"B":3},
+    "proj_atom_anglr_m": {"N":["2s","2p"],"B":["2s","2p"]},
     "time_symm": true,
-    "band_min": 0,
-    "band_max": 4,
-    "ref_band_min": 0,
-    "ref_band_max": 4
+	  "band_min":0,
+	  "band_max":4,
+    "ref_band_min":0,
+	  "ref_band_max":4
   },
+  
   "model_options": {
-    "nhidden": 10,
+    "nhidden":5000,
     "axis_neuron": 10,
-    "onsite_net_neuron": [
-      128,
-      128,
-      256,
-      256
-    ],
-    "env_net_neuron": [
-      128,
-      128,
-      256,
-      256
-    ],
-    "bond_net_neuron": [
-      128,
-      128,
-      256,
-      256
-    ],
+    "onsite_net_neuron": [128, 128, 256, 256],
+    "env_net_neuron": [128, 128, 256, 256],
+    "bond_net_neuron": [128, 128, 256, 256],
     "onsite_net_activation": "tanh",
     "env_net_activation": "tanh",
     "bond_net_activation": "tanh",

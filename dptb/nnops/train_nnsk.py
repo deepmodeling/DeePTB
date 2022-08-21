@@ -147,7 +147,7 @@ class NNSKTrainer(Trainer):
                     break
             self.model = SKNet(**self.model_config)
             self.model.load_state_dict(f['state_dict'])
-            self.model.eval()
+            self.model.train()
 
         else:
             raise RuntimeError("init_mode should be from_scratch/from_model/..., not {}".format(mode))
@@ -182,17 +182,18 @@ class NNSKTrainer(Trainer):
             # iter with different structure
             for data in processor:
                 # iter with samples from the same structure
-                batch_bond, batch_bond_onsites, _, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[3], data[4], \
-                                                                          data[5]
-                eigenvalues_pred = self.calc(batch_bond, batch_bond_onsites, structs, kpoints)
-                eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
 
-                num_kp = kpoints.shape[0]
-                num_el = np.sum(structs[0].proj_atom_neles_per)
 
                 def closure():
                     # calculate eigenvalues.
                     self.optimizer.zero_grad()
+                    batch_bond, batch_bond_onsites, _, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[
+                        3], data[4], data[5]
+                    eigenvalues_pred = self.calc(batch_bond, batch_bond_onsites, structs, kpoints)
+                    eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
+
+                    num_kp = kpoints.shape[0]
+                    num_el = np.sum(structs[0].proj_atom_neles_per)
                     loss = loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp, self.band_min,
                                       self.band_max)
                     loss.backward()
