@@ -6,7 +6,7 @@ from dptb.utils.tools import get_uniq_symbol,  Index_Mapings, \
     get_optimizer, nnsk_correction, j_must_have
 from dptb.sktb.struct_skhs import SKHSLists
 from dptb.hamiltonian.hamil_eig_sk import HamilEig
-from dptb.nnops.loss import loss_type1
+from dptb.nnops.loss import loss_type1, loss_spectral
 from dptb.dataprocess.processor import Processor
 from dptb.dataprocess.datareader import read_data
 from dptb.nnsktb.skintTypes import all_skint_types
@@ -122,6 +122,8 @@ class NNSKTrainer(Trainer):
         self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **sch_options)  # add optmizer
 
         self.criterion = torch.nn.MSELoss(reduction='mean')
+        self.emin = self.model_options["emin"]
+        self.emax = self.model_options["emax"]
 
     def _init_model(self):
         mode = self.run_opt.get("mode", None)
@@ -147,7 +149,7 @@ class NNSKTrainer(Trainer):
                     break
             self.model = SKNet(**self.model_config)
             self.model.load_state_dict(f['state_dict'])
-            self.model.eval()
+            self.model.train()
 
         else:
             raise RuntimeError("init_mode should be from_scratch/from_model/..., not {}".format(mode))
@@ -182,19 +184,21 @@ class NNSKTrainer(Trainer):
             # iter with different structure
             for data in processor:
                 # iter with samples from the same structure
-                batch_bond, batch_bond_onsites, _, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[3], data[4], \
-                                                                          data[5]
-                eigenvalues_pred = self.calc(batch_bond, batch_bond_onsites, structs, kpoints)
-                eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
 
-                num_kp = kpoints.shape[0]
-                num_el = np.sum(structs[0].proj_atom_neles_per)
 
                 def closure():
                     # calculate eigenvalues.
                     self.optimizer.zero_grad()
-                    loss = loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp, self.band_min,
-                                      self.band_max)
+                    batch_bond, batch_bond_onsites, _, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[
+                        3], data[4], data[5]
+                    eigenvalues_pred = self.calc(batch_bond, batch_bond_onsites, structs, kpoints)
+                    eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
+
+                    num_kp = kpoints.shape[0]
+                    num_el = np.sum(structs[0].proj_atom_neles_per)
+                    # loss = loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp, self.band_min,
+                    #                   self.band_max)
+                    loss = loss_spectral(self.criterion, eigenvalues_pred, eigenvalues_lbl, self.emin, self.emax)
                     loss.backward()
 
                     self.train_loss = loss
