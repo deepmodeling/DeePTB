@@ -6,7 +6,7 @@ from dptb.utils.tools import get_uniq_symbol,  Index_Mapings, \
     get_optimizer, nnsk_correction, j_must_have
 from dptb.sktb.struct_skhs import SKHSLists
 from dptb.hamiltonian.hamil_eig_sk import HamilEig
-from dptb.nnops.loss import loss_type1, loss_spectral
+from dptb.nnops.loss import loss_type1, loss_spectral, loss_soft_sort
 from dptb.dataprocess.processor import Processor
 from dptb.dataprocess.datareader import read_data
 from dptb.nnsktb.skintTypes import all_skint_types
@@ -124,6 +124,9 @@ class NNSKTrainer(Trainer):
         self.criterion = torch.nn.MSELoss(reduction='mean')
         self.emin = self.model_options["emin"]
         self.emax = self.model_options["emax"]
+        self.sigma = self.model_options.get('sigma', 0.1)
+        self.num_omega = self.model_options.get('num_omega',None)
+        self.sortstrength = self.model_options.get('sortstrength',0.1)
 
     def _init_model(self):
         mode = self.run_opt.get("mode", None)
@@ -196,9 +199,12 @@ class NNSKTrainer(Trainer):
 
                     num_kp = kpoints.shape[0]
                     num_el = np.sum(structs[0].proj_atom_neles_per)
-                    # loss = loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp, self.band_min,
+                    #loss = loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp, self.band_min,
                     #                   self.band_max)
-                    loss = loss_spectral(self.criterion, eigenvalues_pred, eigenvalues_lbl, self.emin, self.emax)
+                    #loss = loss_spectral(self.criterion, eigenvalues_pred, eigenvalues_lbl, self.emin, self.emax, self.num_omega, self.sigma)
+
+                    loss = loss_soft_sort(self.criterion, eigenvalues_pred, eigenvalues_lbl ,num_el,num_kp, self.sortstrength, self.band_min, self.band_max)
+
                     loss.backward()
 
                     self.train_loss = loss
