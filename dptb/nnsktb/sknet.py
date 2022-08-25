@@ -22,8 +22,8 @@ class SKNet(nn.Module):
             assert isinstance(nhidden, int)
             self.layer1 = torch.nn.Parameter(torch.empty(self.num_skint_types, nhidden, device=device, dtype=dtype))
             self.layer2 = torch.nn.Parameter(torch.empty(nhidden, nout, device=device, dtype=dtype))
-            torch.nn.init.normal_(self.layer1, mean=0, std=0.5)
-            torch.nn.init.normal_(self.layer2, mean=0, std=0.5)
+            torch.nn.init.normal_(self.layer1, mean=0, std=0.005)
+            torch.nn.init.normal_(self.layer2, mean=0, std=0.005)
         
     def forward(self):
         '''> The function takes in a list of skin types and a list of coefficients, and returns a dictionary of
