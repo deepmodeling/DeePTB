@@ -198,7 +198,7 @@ class NNSK(ModelAPI):
 
     def get_eigenvalues(self,kpoints,spindeg=2):
         assert self.if_HR_ready
-        eigenvalues = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm,dtype=self.hamileig.dtype)
+        eigenvalues,_ = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm,dtype=self.hamileig.dtype)
         eigks = eigenvalues.detach().numpy()
 
         num_el = np.sum(self.structure.proj_atom_neles_per)

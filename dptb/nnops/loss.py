@@ -121,3 +121,33 @@ def cal_spectral_func(eigenvalues,omega,sigma=0.1):
 
 
 
+def loss_proj_env(criterion, eig_pred, eig_label, ev_pred, proj_label, band_min=0, band_max=None):
+    # eig_pred [nsnap, nkp, n_band_tb], eig_label [nsnap, nkp, n_band_dft]
+    # ev_pred [nsnap, nkp, n_band_tb, norb_tb], ev_label [nsnap, nkp, n_band_dft, nprojorb_dft]
+    # orbmap_pred [{atomtype-orbtype:index}*nsnap], orbmap_label [{atomtype-orbtype:index}*nsnap]
+    # fit_band ["N-0s","B-0s"] like this
+    
+    norbs = eig_pred.shape[-1]
+    nbanddft = eig_label.shape[-1]
+    up_nband = min(norbs,nbanddft)
+    if band_max is  None:
+        band_max = up_nband
+    else:
+        assert band_max <= up_nband
+    
+    band_min = int(band_min)
+    band_max = int(band_max)
+
+    nsnap, nkp, n_band_tb = eig_pred.shape
+    wei = np.abs(ev_pred)**2
+    wei_shp = wei[:,:,band_min:band_max,[0,3,1,2,5,8,6,7]]
+    eig_pred_reshap = th.reshape(eig_pred[:,:,band_min:band_max], [nsnap,nkp, band_max - band_min,1])
+    encoding_band_pred = th.sum(eig_pred_reshap * wei_shp,axis=2)
+
+    eig_label_reshap = th.reshape(eig_label[:,:,band_min:band_max], [nsnap,nkp,band_max - band_min,1])
+    wei_lbl_shp = proj_label[:,:,band_min:band_max]
+    encoding_band_label = th.sum(eig_label_reshap * wei_lbl_shp,axis=2)
+    
+    loss = criterion(encoding_band_pred, encoding_band_label)
+
+    return loss

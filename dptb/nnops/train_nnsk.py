@@ -6,7 +6,7 @@ from dptb.utils.tools import get_uniq_symbol,  Index_Mapings, \
     get_optimizer, nnsk_correction, j_must_have
 from dptb.sktb.struct_skhs import SKHSLists
 from dptb.hamiltonian.hamil_eig_sk import HamilEig
-from dptb.nnops.loss import loss_type1, loss_spectral, loss_soft_sort
+from dptb.nnops.loss import loss_type1, loss_spectral, loss_soft_sort, loss_proj_env
 from dptb.dataprocess.processor import Processor
 from dptb.dataprocess.datareader import read_data
 from dptb.nnsktb.skintTypes import all_skint_types
@@ -72,6 +72,9 @@ class NNSKTrainer(Trainer):
                                                                       self.time_symm)
         self.n_train_sets = len(struct_list_sets)
         assert self.n_train_sets == len(kpoints_sets) == len(eigens_sets)
+
+        proj_wei = np.load(self.train_data_path + '/set.0/' + 'project_weights.npy')
+        self.projwei_label = torch.from_numpy(proj_wei).float()
 
         self.train_processor_list = []
         for i in range(len(struct_list_sets)):
@@ -169,17 +172,21 @@ class NNSKTrainer(Trainer):
 
         # call sktb to get the sktb hoppings and onsites
         eigenvalues_pred = []
+        eigenvector_pred = []
         for ii in range(len(structs)):
             onsiteEs, hoppings = batch_onsiteEs[ii], batch_hoppings[ii]
             # call hamiltonian block
             self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs)
             self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
                                         bonds_hoppings=np.asarray(batch_bond[ii][:,1:]))
-            eigenvalues_ii = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.time_symm, dtype='tensor')
+            eigenvalues_ii, eigvec = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.time_symm, dtype='tensor')
             eigenvalues_pred.append(eigenvalues_ii)
+            eigenvector_pred.append(eigvec)
         eigenvalues_pred = torch.stack(eigenvalues_pred)
+        eigenvector_pred = torch.stack(eigenvector_pred)
 
-        return eigenvalues_pred
+
+        return eigenvalues_pred, eigenvector_pred
     
     def run(self, epochs=1):
         for q in self.plugin_queues.values():
@@ -207,17 +214,18 @@ class NNSKTrainer(Trainer):
                     self.optimizer.zero_grad()
                     batch_bond, batch_bond_onsites, _, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[
                         3], data[4], data[5]
-                    eigenvalues_pred = self.calc(batch_bond, batch_bond_onsites, structs, kpoints)
+                    eigenvalues_pred, eigenvector_pred = self.calc(batch_bond, batch_bond_onsites, structs, kpoints)
                     eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
 
                     num_kp = kpoints.shape[0]
                     num_el = np.sum(structs[0].proj_atom_neles_per)
                     #loss = loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp, self.band_min,
-                    #                   self.band_max)
+                    #                  self.band_max)
                     #loss = loss_spectral(self.criterion, eigenvalues_pred, eigenvalues_lbl, self.emin, self.emax, self.num_omega, self.sigma)
 
-                    loss = loss_soft_sort(self.criterion, eigenvalues_pred, eigenvalues_lbl ,num_el,num_kp, self.sortstrength_current, self.band_min, self.band_max)
-
+                    loss1 = loss_soft_sort(self.criterion, eigenvalues_pred, eigenvalues_lbl ,num_el,num_kp, self.sortstrength_current, self.band_min, self.band_max)
+                    loss = loss_proj_env(self.criterion, eigenvalues_pred, eigenvalues_lbl, eigenvector_pred, self.projwei_label, self.band_min, self.band_max)
+                    loss = loss1
                     loss.backward()
 
                     self.train_loss = loss
@@ -240,7 +248,7 @@ class NNSKTrainer(Trainer):
                 for data in processor:
                     batch_bond, batch_bond_onsites, _, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[
                         3], data[4], data[5]
-                    eigenvalues_pred = self.calc(batch_bond, batch_bond_onsites, structs, kpoints)
+                    eigenvalues_pred,eigenvector_pred = self.calc(batch_bond, batch_bond_onsites, structs, kpoints)
                     eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
 
                     num_kp = kpoints.shape[0]

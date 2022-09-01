@@ -257,11 +257,13 @@ class HamilEig(RotationSK):
             chklowtinv = th.linalg.inv(chklowt)
             Heff = (chklowtinv @ hkmat @ th.transpose(chklowtinv,dim0=1,dim1=2).conj())
             # the factor 13.605662285137 * 2 from Hartree to eV.
-            eigks = th.linalg.eigvalsh(Heff) * 13.605662285137 * 2
+            # eigks = th.linalg.eigvalsh(Heff) * 13.605662285137 * 2
+            eigks, Q = th.linalg.eigh(Heff)
+            eigks = eigks * 13.605662285137 * 2
         else:
             chklowt = np.linalg.cholesky(skmat)
             chklowtinv = np.linalg.inv(chklowt)
             Heff = (chklowtinv @ hkmat @ np.transpose(chklowtinv,(0,2,1)).conj())
             eigks = np.linalg.eigvalsh(Heff) * 13.605662285137 * 2
 
-        return eigks
+        return eigks, Q.detach()
