@@ -90,6 +90,10 @@ class HamilEig(RotationSK):
                 shidi = anglrMId[ishsymbol]          # 0,1,2,...
                 norbi = 2*shidi + 1 
                 indx = self.__struct__.onsite_index_map[iatype][ish]
+                # this already satisfy for uniform onsite or splited onsite energy. 
+                # e.g. for p orbital,  index may be 1, or 1,2,3, stands for uniform or splited energy for px py pz.
+                # and then self.onsiteEs[ib][indx] can be scalar or torch.Size([1]) or torch.Size([3]).
+                # both of them can be transfer into a [3x3] diagonal matrix in this code.
                 if self.dtype == 'tensor':
                     sub_hamil_block[ist:ist+norbi, ist:ist+norbi] = th.eye(norbi) * self.onsiteEs[ib][indx]
                     if not self.use_orthogonal_basis:
