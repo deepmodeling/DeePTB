@@ -35,7 +35,7 @@ def loadOnsite(onsite_map: dict):
 
     return onsite_db
 
-def onsiteFunc(batch_bonds_onsite, onsite_db):
+def onsiteFunc(batch_bonds_onsite, onsite_db: dict, nn_onsiteE: dict=None):
     """ This function is to get the onsite energies for given bonds_onsite.
 
     Parameters:
@@ -57,7 +57,10 @@ def onsiteFunc(batch_bonds_onsite, onsite_db):
     for kf in list(batch_bonds_onsite.keys()):
         bonds_onsite = batch_bonds_onsite[kf][:,1:]
         ia_list = map(lambda x: atomic_num_dict_r[int(x)], bonds_onsite[:,0])
-        onsiteEs = map(lambda x: onsite_db[x], ia_list)
-        batch_onsiteEs.update({kf:list(onsiteEs)})
+        if nn_onsiteE is not None:
+            onsiteEs = map(lambda x: onsite_db[x] + nn_onsiteE[x], ia_list)
+        else:
+            onsiteEs = map(lambda x: onsite_db[x], ia_list)
+        batch_onsiteEs[kf] = list(onsiteEs)
 
     return batch_onsiteEs
