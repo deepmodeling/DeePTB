@@ -62,6 +62,8 @@ class BaseStruct(AbstractStructure):
             self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
         elif onsitemode.lower() ==  'split':
             self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
+        else:
+            raise ValueError("Unknown onsitemode type: %s" % onsitemode)
 
 
     def read_struct(self, atom=None, format='ase'):

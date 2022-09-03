@@ -54,7 +54,7 @@ class NNSKTrainer(Trainer):
         self.test_data_prefix = data_options.get('test_data_prefix')
         self.proj_atom_anglr_m = data_options.get('proj_atom_anglr_m')
         self.proj_atom_neles = data_options.get('proj_atom_neles')
-        self.onsitemode = data_options.get('onsitemode','uniform')
+        self.onsitemode = model_options.get('onsitemode','uniform')
 
         if data_options['time_symm'] is True:
             self.time_symm = True
@@ -105,9 +105,9 @@ class NNSKTrainer(Trainer):
         self.IndMap = Index_Mapings()
         self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
-        if self.onsitemode is 'uniform':
+        if self.onsitemode == 'uniform':
             self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
-        elif self.onsitemode is 'split':
+        elif self.onsitemode == 'split':
             self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
         else:
             raise ValueError('Unknown onsitemode %s' % self.onsitemode)
