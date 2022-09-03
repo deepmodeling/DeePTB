@@ -54,6 +54,7 @@ class NNSKTrainer(Trainer):
         self.test_data_prefix = data_options.get('test_data_prefix')
         self.proj_atom_anglr_m = data_options.get('proj_atom_anglr_m')
         self.proj_atom_neles = data_options.get('proj_atom_neles')
+        self.onsitemode = data_options.get('onsitemode','uniform')
 
         if data_options['time_symm'] is True:
             self.time_symm = True
@@ -65,10 +66,10 @@ class NNSKTrainer(Trainer):
 
         # init the dataset
         # -----------------------------------init training set------------------------------------------
-        struct_list_sets, kpoints_sets, eigens_sets = read_data(self.train_data_path, self.train_data_prefix,
-                                                                      self.bond_cutoff, self.proj_atom_anglr_m,
-                                                                      self.proj_atom_neles,
-                                                                      self.time_symm)
+        struct_list_sets, kpoints_sets, eigens_sets = read_data(path=self.train_data_path, prefix=self.train_data_prefix,
+                                                                cutoff=self.bond_cutoff, proj_atom_anglr_m=self.proj_atom_anglr_m,
+                                                                proj_atom_neles=self.proj_atom_neles, onsitemode=self.onsitemode,
+                                                                time_symm=self.time_symm)
         self.n_train_sets = len(struct_list_sets)
         assert self.n_train_sets == len(kpoints_sets) == len(eigens_sets)
 
@@ -78,11 +79,11 @@ class NNSKTrainer(Trainer):
                 Processor(mode='nnsk', structure_list=struct_list_sets[i], batchsize=self.batch_size,
                           kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype, require_dict=True))
         # --------------------------------init testing set----------------------------------------------
-        struct_list_sets, kpoints_sets, eigens_sets = read_data(self.test_data_path,
-                                                                      self.test_data_prefix,
-                                                                      self.bond_cutoff, self.proj_atom_anglr_m,
-                                                                      self.proj_atom_neles,
-                                                                      self.time_symm)
+        struct_list_sets, kpoints_sets, eigens_sets = read_data(path=self.test_data_path, prefix=self.test_data_prefix,
+                                                                cutoff=self.bond_cutoff, proj_atom_anglr_m=self.proj_atom_anglr_m,
+                                                                proj_atom_neles=self.proj_atom_neles,onsitemode=self.onsitemode,
+                                                                time_symm=self.time_symm)
+
         self.n_test_sets = len(struct_list_sets)
         assert self.n_test_sets == len(kpoints_sets) == len(eigens_sets)
 
@@ -104,7 +105,13 @@ class NNSKTrainer(Trainer):
         self.IndMap = Index_Mapings()
         self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
-        self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
+        if self.onsitemode is 'uniform':
+            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
+        elif self.onsitemode is 'split':
+            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
+        else:
+            raise ValueError('Unknown onsitemode %s' % self.onsitemode)
+
         self.bond_type = get_uniq_bond_type(proj_atom_type)
 
         # # ------------------------------------initialize model options----------------------------------
@@ -131,9 +138,12 @@ class NNSKTrainer(Trainer):
 
         if mode == "from_scratch":
             all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(self.bond_index_map)
-            # self.model_options.update({"skint_types":reducted_skint_types,"nout":self.hops_fun.num_paras, "device":self.device, "dtype":self.dtype})
             self.model_config = self.model_options.copy()
-            self.model_config.update({"skint_types":reducted_skint_types,"nout":self.hops_fun.num_paras, "device":self.device, "dtype":self.dtype})
+            self.model_config.update({"skint_types":reducted_skint_types,
+                                      "onsite_num":self.onsite_num,
+                                      "bond_neurons":{"nhidden": self.model_options.get('sk_hop_nhidden',1), "nout":self.hops_fun.num_paras},
+                                      "onsite_neurons":{"nhidden":self.model_options.get('sk_onsite_nhidden',1)},
+                                      "device":self.device, "dtype":self.dtype})
             self.model = SKNet(**self.model_config)
         elif mode == "init_model":
             # read configuration from checkpoint path.
@@ -155,9 +165,10 @@ class NNSKTrainer(Trainer):
 
     def calc(self, batch_bond, batch_bond_onsites, structs, kpoints):
         assert len(kpoints.shape) == 2, "kpoints should have shape of [num_kp, 3]."
-        coeffdict = self.model()
+        coeffdict = self.model(mode='hopping')
+        nn_onsiteE = self.model(mode='onsite')
 
-        batch_onsiteEs = self.onsite_fun(batch_bond_onsites, self.onsite_db)
+        batch_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
         batch_hoppings = self.hops_fun.get_skhops(batch_bond, coeffdict, self.sk_bond_ind_dict)
 
         # call sktb to get the sktb hoppings and onsites
