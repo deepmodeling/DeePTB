@@ -328,7 +328,7 @@ def test_HamilRSK(root_directory):
     kpath=snapase.cell.bandpath('GMKG', npoints=10)
     klist = kpath.kpts
 
-    eigks = hrsk.Eigenvalues(kpoints = klist,dtype='numpy')
+    eigks,_ = hrsk.Eigenvalues(kpoints = klist,dtype='numpy')
     assert (np.abs(eigks - eigenvalues) < 1e-5).all()
 
 
