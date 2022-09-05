@@ -110,7 +110,7 @@ class NNSKTrainer(Trainer):
         elif self.onsitemode == 'split':
             self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
         else:
-            raise ValueError('Unknown onsitemode %s' % self.onsitemode)
+            raise ValueError(f'Unknown onsitemode {self.onsitemode}')
 
         self.bond_type = get_uniq_bond_type(proj_atom_type)
 

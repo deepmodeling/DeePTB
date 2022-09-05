@@ -17,6 +17,7 @@ class BaseStruct(AbstractStructure):
     '''
     def __init__(self, atom, format, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='uniform', time_symm=True):
         self.proj_atom_type_norbs = None
+        self.onsitemode = onsitemode
         self.nbonds = 0
         assert isinstance(proj_atom_anglr_m, dict)
         assert isinstance(proj_atom_neles, dict)
@@ -43,6 +44,7 @@ class BaseStruct(AbstractStructure):
 
     def updata_struct(self, atom, format, onsitemode:str='uniform'):
         self.init_desciption()
+        self.onsitemode = onsitemode
         self.read_struct(atom,format=format)
         self.atom_symbols = np.array(self.struct.get_chemical_symbols(), dtype=str)
         self.atom_numbers = np.array(self.struct.get_atomic_numbers(), dtype=int)
