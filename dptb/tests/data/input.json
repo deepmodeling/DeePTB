@@ -35,11 +35,11 @@
   
   "model_options": {
     "onsitemode": "uniform",
-    "nhidden":5000,
+    "nhidden":500,
     "axis_neuron": 10,
-    "onsite_net_neuron": [128, 128, 256, 256],
-    "env_net_neuron": [128, 128, 256, 256],
-    "bond_net_neuron": [128, 128, 256, 256],
+    "onsite_net_neuron": [2, 2, 2, 25],
+    "env_net_neuron": [2, 2, 2, 25],
+    "bond_net_neuron": [2, 2, 2, 25],
     "onsite_net_activation": "tanh",
     "env_net_activation": "tanh",
     "bond_net_activation": "tanh",
