@@ -15,14 +15,14 @@
     },
     "data_options": {
         "batch_size": 1,
-        "sk_file_path": "/root/deeptb/examples/slakos/",
+        "sk_file_path": "../../examples/slakos/",
         "bond_cutoff": 4,
         "env_cutoff": 3.5,
-        "train_data_path": "/root/deeptb/dptb/tests/data/hBN/data/",
+        "train_data_path": "./data/hBN/data/",
         "train_data_prefix": "set",
-        "test_data_path": "/root/deeptb/dptb/tests/data/hBN/data/",
+        "test_data_path": "./data/hBN/data/",
         "test_data_prefix": "set",
-        "ref_data_path": "/root/deeptb/dptb/tests/data/hBN/data/",
+        "ref_data_path": "./data/hBN/data/",
         "ref_data_prefix": "set",
         "proj_atom_neles": {
             "N": 5,
@@ -46,25 +46,25 @@
     },
     "model_options": {
         "onsitemode": "uniform",
-        "nhidden": 5000,
+        "nhidden": 500,
         "axis_neuron": 10,
         "onsite_net_neuron": [
-            128,
-            128,
-            256,
-            256
+            2,
+            2,
+            2,
+            25
         ],
         "env_net_neuron": [
-            128,
-            128,
-            256,
-            256
+            2,
+            2,
+            2,
+            25
         ],
         "bond_net_neuron": [
-            128,
-            128,
-            256,
-            256
+            2,
+            2,
+            2,
+            25
         ],
         "onsite_net_activation": "tanh",
         "env_net_activation": "tanh",
