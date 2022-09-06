@@ -14,19 +14,13 @@ from dptb.utils.tools import j_loader
 from dptb.utils.loggers import set_log_handles
 from typing import Dict, List, Optional, Any
 
-@pytest.fixture(scope='session', autouse=True)
-def root_directory(request):
-    """
-    :return:
-    """
-    return str(request.config.rootdir)
 
 INPUT = os.path.join(Path(os.path.abspath(__file__)).parent, "data/input.json")
 test_data_path = os.path.join(Path(os.path.abspath(__file__)).parent, "data/")
 
 log = logging.getLogger(__name__)
 
-def test_train(root_directory):
+def test_train():
     train(
         INPUT = INPUT,
         init_model = None,
@@ -39,7 +33,7 @@ def test_train(root_directory):
         use_correction=False,
     )
 
-def test_train_sk(root_directory):
+def test_train_sk():
     train(
         INPUT=INPUT,
         init_model=None,
@@ -52,7 +46,7 @@ def test_train_sk(root_directory):
         use_correction=False,
     )
 
-def test_train_init_model(root_directory):
+def test_train_init_model():
     train(
         INPUT=INPUT,
         init_model=test_data_path+"/hBN/checkpoint/best_dptb.pth",
@@ -65,7 +59,7 @@ def test_train_init_model(root_directory):
         use_correction=False,
     )
 
-def test_train_sk_init_model(root_directory):
+def test_train_sk_init_model():
     train(
         INPUT=INPUT,
         init_model=test_data_path+"/hBN/checkpoint/best_nnsk.pth",
@@ -79,7 +73,7 @@ def test_train_sk_init_model(root_directory):
     )
 
 
-def test_train_crt(root_directory):
+def test_train_crt():
     init_model = None
     restart = None
     freeze = False
@@ -204,7 +198,7 @@ def test_train_crt(root_directory):
     log.info("finished training")
     log.info(f"wall time: {(end_time - start_time):.3f} s")
 
-def test_train_init_model_crt(root_directory):
+def test_train_init_model_crt():
     init_model = test_data_path+"/hBN/checkpoint/best_dptb.pth"
     restart = None
     freeze = False
