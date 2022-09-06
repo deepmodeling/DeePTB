@@ -15,6 +15,8 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
     filenames.update(kwargs)
 
     data_dirs = glob.glob(path + "/" + prefix + ".*")
+
+    print(path + "/" + prefix + ".*")
     
     struct_list_sets = []
     kpoints_sets = []
@@ -31,6 +33,7 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
         eigens_sets.append(eigs)
         
         for iatom in asetrajs:
+
             struct = BaseStruct(atom=iatom, format='ase', cutoff=cutoff, proj_atom_anglr_m=proj_atom_anglr_m, proj_atom_neles=proj_atom_neles, onsitemode=onsitemode, time_symm=time_symm)
             struct_list.append(struct)
         struct_list_sets.append(struct_list)

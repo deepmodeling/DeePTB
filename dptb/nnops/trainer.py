@@ -28,6 +28,7 @@ class Trainer(with_metaclass(ABCMeta, object)):
         self.stats = {}  # the status of Trainer.
         self.plugin_queues = {'iteration': [], 'epoch': [], 'batch': [], 'update': []}
         self.iteration = 1
+        self.epoch = 1
 
     def _check_param(self, jdata):
         pass
@@ -55,7 +56,8 @@ class Trainer(with_metaclass(ABCMeta, object)):
             # run plugins of epoch events.
             self.call_plugins(queue_name='epoch', time=i)
             self.lr_scheduler.step()  # modify the lr at each epoch (should we add it to pluggins so we could record the lr scheduler process?)
-
+            self.epoch += 1
+            
     def register_plugin(self, plugin):
         plugin.register(self)
 

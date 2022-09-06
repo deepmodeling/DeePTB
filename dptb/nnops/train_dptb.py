@@ -36,12 +36,14 @@ class DPTBTrainer(Trainer):
         sch_options = j_must_have(jdata, "sch_options")
         data_options = j_must_have(jdata,"data_options")
         model_options = j_must_have(jdata, "model_options")
+        loss_options = j_must_have(jdata, "loss_options")
 
         self.train_options = train_options
         self.opt_options = opt_options
         self.sch_options = sch_options
         self.data_options = data_options
         self.model_options = model_options
+        self.loss_options = loss_options
 
         self.num_epoch = train_options.get('num_epoch')
         self.display_epoch = train_options.get('display_epoch')
@@ -68,22 +70,22 @@ class DPTBTrainer(Trainer):
         else:
             self.time_symm = False
 
-        self.band_min = data_options.get('band_min', 0)
-        self.band_max = data_options.get('band_max', None)
+        self.band_min = loss_options.get('band_min', 0)
+        self.band_max = loss_options.get('band_max', None)
 
         if self.use_reference:
             self.ref_data_path = data_options.get('ref_data_path')
             self.ref_data_prefix = data_options.get('ref_data_prefix')
 
-            self.ref_band_min = data_options.get('ref_band_min', 0)
-            self.ref_band_max = data_options.get('ref_band_max', None)
+            self.ref_band_min = loss_options.get('ref_band_min', 0)
+            self.ref_band_max = loss_options.get('ref_band_max', None)
 
         # init the dataset
         # -----------------------------------init training set------------------------------------------
         struct_list_sets, kpoints_sets, eigens_sets = read_data(self.train_data_path, self.train_data_prefix,
                                                                       self.bond_cutoff, self.proj_atom_anglr_m,
                                                                       self.proj_atom_neles,
-                                                                      self.time_symm)
+                                                                      time_symm=self.time_symm)
         self.n_train_sets = len(struct_list_sets)
         assert self.n_train_sets == len(kpoints_sets) == len(eigens_sets)
 
@@ -99,7 +101,7 @@ class DPTBTrainer(Trainer):
             struct_list_sets, kpoints_sets, eigens_sets = read_data(self.ref_data_path, self.ref_data_prefix,
                                                                           self.bond_cutoff, self.proj_atom_anglr_m,
                                                                           self.proj_atom_neles,
-                                                                          self.time_symm)
+                                                                          time_symm=self.time_symm)
             self.n_ref_sets = len(struct_list_sets)
             assert self.n_ref_sets == len(kpoints_sets) == len(eigens_sets)
             self.ref_processor_list = []
@@ -113,7 +115,7 @@ class DPTBTrainer(Trainer):
                                                                       self.test_data_prefix,
                                                                       self.bond_cutoff, self.proj_atom_anglr_m,
                                                                       self.proj_atom_neles,
-                                                                      self.time_symm)
+                                                                      time_symm=self.time_symm)
         self.n_test_sets = len(struct_list_sets)
         assert self.n_test_sets == len(kpoints_sets) == len(eigens_sets)
 
@@ -150,8 +152,8 @@ class DPTBTrainer(Trainer):
 
 
         self.criterion = torch.nn.MSELoss(reduction='mean')
-        self.emin = self.model_options["emin"]
-        self.emax = self.model_options["emax"]
+        self.emin = self.loss_options["emin"]
+        self.emax = self.loss_options["emax"]
 
     def _init_model(self):
         '''
@@ -256,7 +258,8 @@ class DPTBTrainer(Trainer):
         batch_bond_onsites, batch_onsiteEs = self.nntb.calc(batch_bond, batch_env)
 
         if self.run_opt.get("use_correction", False):
-            coeffdict = self.sknet()
+            coeffdict = self.sknet(mode='hopping')
+            nn_onsiteE = self.sknet(mode='onsite')
             sktb_onsiteEs = self.onsite_fun(batch_bond_onsites, self.onsite_db)
             sktb_hoppings = self.hops_fun.get_skhops(batch_bond_hoppings, coeffdict, self.sk_bond_ind_dict)
 
@@ -281,7 +284,7 @@ class DPTBTrainer(Trainer):
                                          onsiteSs=onsiteSs)
             self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
                                         bonds_hoppings=np.asarray(batch_bond_hoppings[ii][:,1:]))
-            eigenvalues_ii = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.time_symm, dtype='tensor')
+            eigenvalues_ii, _ = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.time_symm, dtype='tensor')
             eigenvalues_pred.append(eigenvalues_ii)
         eigenvalues_pred = torch.stack(eigenvalues_pred)
 

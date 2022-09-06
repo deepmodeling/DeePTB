@@ -32,12 +32,14 @@ class NNSKTrainer(Trainer):
         sch_options = j_must_have(jdata, "sch_options")
         data_options = j_must_have(jdata,"data_options")
         model_options = j_must_have(jdata, "model_options")
+        loss_options = j_must_have(jdata, "loss_options")
 
         self.train_options = train_options
         self.opt_options = opt_options
         self.sch_options = sch_options
         self.data_options = data_options
         self.model_options = model_options
+        self.loss_options = loss_options
 
         self.num_epoch = train_options.get('num_epoch')
         self.display_epoch = train_options.get('display_epoch')
@@ -62,18 +64,18 @@ class NNSKTrainer(Trainer):
         else:
             self.time_symm = False
 
-        self.band_min = data_options.get('band_min', 0)
-        self.band_max = data_options.get('band_max', None)
+        self.band_min = loss_options.get('band_min', 0)
+        self.band_max = loss_options.get('band_max', None)
 
         # init the dataset
-        # -----------------------------------init training set------------------------------------------
+        # -----------------------------------init training set------------------------------------------   
+        
         struct_list_sets, kpoints_sets, eigens_sets = read_data(path=self.train_data_path, prefix=self.train_data_prefix,
                                                                 cutoff=self.bond_cutoff, proj_atom_anglr_m=self.proj_atom_anglr_m,
                                                                 proj_atom_neles=self.proj_atom_neles, onsitemode=self.onsitemode,
                                                                 time_symm=self.time_symm)
         self.n_train_sets = len(struct_list_sets)
         assert self.n_train_sets == len(kpoints_sets) == len(eigens_sets)
-
 
         self.train_processor_list = []
         for i in range(len(struct_list_sets)):
@@ -83,7 +85,7 @@ class NNSKTrainer(Trainer):
         # --------------------------------init testing set----------------------------------------------
         struct_list_sets, kpoints_sets, eigens_sets = read_data(path=self.test_data_path, prefix=self.test_data_prefix,
                                                                 cutoff=self.bond_cutoff, proj_atom_anglr_m=self.proj_atom_anglr_m,
-                                                                proj_atom_neles=self.proj_atom_neles,onsitemode=self.onsitemode,
+                                                                proj_atom_neles=self.proj_atom_neles, onsitemode=self.onsitemode,
                                                                 time_symm=self.time_symm)
 
         self.n_test_sets = len(struct_list_sets)
@@ -131,11 +133,12 @@ class NNSKTrainer(Trainer):
         self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **sch_options)  # add optmizer
 
         self.criterion = torch.nn.MSELoss(reduction='mean')
-        self.emin = self.model_options["emin"]
-        self.emax = self.model_options["emax"]
-        self.sigma = self.model_options.get('sigma', 0.1)
-        self.num_omega = self.model_options.get('num_omega',None)
-        self.sortstrength = self.model_options.get('sortstrength',[0.1,0.1])
+
+        self.emin = self.loss_options["emin"]
+        self.emax = self.loss_options["emax"]
+        self.sigma = self.loss_options.get('sigma', 0.1)
+        self.num_omega = self.loss_options.get('num_omega',None)
+        self.sortstrength = self.loss_options.get('sortstrength',[0.1,0.1])
         self.sortstrength_epoch = np.linspace(self.sortstrength[0],self.sortstrength[1],self.num_epoch)
 
     def _init_model(self):
@@ -197,18 +200,6 @@ class NNSKTrainer(Trainer):
 
         return eigenvalues_pred, eigenvector_pred
     
-    def run(self, epochs=1):
-        for q in self.plugin_queues.values():
-            '''对四个事件调用序列进行最小堆排序。'''
-            heapq.heapify(q)
-
-        for i in range(1, epochs + 1):
-            self.sortstrength_current = self.sortstrength_epoch[i-1]
-            self.train()
-            # run plugins of epoch events.
-            self.call_plugins(queue_name='epoch', time=i)
-            self.lr_scheduler.step()  # modify the lr at each epoch (should we add it to pluggins so we could record the lr scheduler process?)
-
     def train(self) -> None:
         data_set_seq = np.random.choice(self.n_train_sets, size=self.n_train_sets, replace=False)
         for iset in data_set_seq:
@@ -229,7 +220,7 @@ class NNSKTrainer(Trainer):
                     num_kp = kpoints.shape[0]
                     num_el = np.sum(structs[0].proj_atom_neles_per)
                     
-                    loss1 = loss_soft_sort(self.criterion, eigenvalues_pred, eigenvalues_lbl ,num_el,num_kp, self.sortstrength_current, self.band_min, self.band_max)
+                    loss1 = loss_soft_sort(self.criterion, eigenvalues_pred, eigenvalues_lbl ,num_el,num_kp, self.sortstrength[self.epoch-1], self.band_min, self.band_max)
                     loss = loss1
                     loss.backward()
 
