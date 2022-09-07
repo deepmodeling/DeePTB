@@ -74,7 +74,7 @@ def loss_soft_sort(criterion, eig_pred, eig_label,num_el,num_kp, sortstrength=0.
         eig_ddiff_pred = eig_pred_soft[:,k_diff_i,:]  - eig_pred_soft[:,k_diff_j,:]
         loss_diff =  criterion(eig_diff_lbl, eig_ddiff_pred) 
         
-        loss = (1*loss + 10*loss_diff)/2
+        loss = (1*loss + 1*loss_diff)/2
  
     return loss
 
