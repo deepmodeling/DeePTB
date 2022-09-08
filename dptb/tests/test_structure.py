@@ -74,7 +74,7 @@ def test_BaseStruct(root_directory):
        [ 2.5039999e+00, -1.0000000e+00,  0.0000000e+00,  0.0000000e+00]],
       dtype=np.float32)
     struct = BaseStruct(atom=filename,format='vasp',
-        cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles)
+        cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles, onsitemode='uniform')
     assert struct.proj_atom_anglr_m == proj_atom_anglr_m
     assert struct.atom_type == ['N','B']
     assert struct.proj_atom_type == ['N','B']
@@ -98,6 +98,10 @@ def test_BaseStruct(root_directory):
     assert struct.onsite_index_map == onsite_index_map
     assert struct.onsite_num == onsite_num
 
+
+    struct.updata_struct(atom=filename,format='vasp',onsitemode='split')
+    assert struct.onsite_index_map == {'N': {'s': [0], 'p': [1, 2, 3]}, 'B': {'s': [0], 'p': [1, 2, 3]}}
+    assert struct.onsite_num == {'N': 4, 'B': 4}
 
 def test_Struct_IndMap_case1(root_directory):
     filename = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
@@ -125,6 +129,11 @@ def test_Struct_IndMap_case1(root_directory):
     assert struct.bond_num_hops == bond_num_hops
     assert struct.onsite_index_map == onsite_index_map
     assert struct.onsite_num == onsite_num
+
+    struct.updata_struct(atom=filename,format='vasp',onsitemode='split')
+    assert struct.onsite_index_map == {'N': {'s': [0], 'p': [1, 2, 3]}, 'B': {'s': [0], 'p': [1, 2, 3]}}
+    assert struct.onsite_num == {'N': 4, 'B': 4}
+
 
 def test_Struct_IndMap_case2(root_directory):
     filename = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
@@ -155,6 +164,10 @@ def test_Struct_IndMap_case2(root_directory):
     assert struct.onsite_index_map == onsite_index_map
     assert struct.onsite_num == onsite_num
 
+    struct.updata_struct(atom=filename,format='vasp',onsitemode='split')
+    assert struct.onsite_index_map == {'N': {'2s': [0], '2p': [1, 2, 3]}, 'B': {'2s': [0], '2p': [1, 2, 3]}}
+    assert struct.onsite_num == {'N': 4, 'B': 4}
+
 def test_Struct_IndMap_case3(root_directory):
     filename = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
     proj_atom_anglr_m = {"N":["2s","2p",'s*'],"B":["2s","2p"]}
@@ -183,3 +196,7 @@ def test_Struct_IndMap_case3(root_directory):
     assert struct.bond_num_hops == bond_num_hops
     assert struct.onsite_index_map == onsite_index_map
     assert struct.onsite_num == onsite_num
+
+    struct.updata_struct(atom=filename,format='vasp',onsitemode='split')
+    assert struct.onsite_index_map == {'N': {'2s': [0], '2p': [1, 2, 3],'s*':[4]}, 'B': {'2s': [0], '2p': [1, 2, 3]}}
+    assert struct.onsite_num == {'N': 5, 'B': 4}

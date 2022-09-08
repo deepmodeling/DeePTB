@@ -1,22 +1,36 @@
 from dptb.nnsktb.sknet import SKNet
 import  torch
 
-def test_SKnet():
-    reducted_skint_types = ['N-N-2s-2s-0', 'N-B-2s-2p-0', 'B-B-2p-2p-0', 'B-B-2p-2p-1']
-    nout = 4
-    nhidden = 10
-    model = SKNet(reducted_skint_types, nout=nout, nhidden=nhidden)
-    
-    paras = list(model.parameters())
-    assert len(paras) == 2
-    assert paras[0].shape == torch.Size([len(reducted_skint_types), nhidden])
-    assert paras[1].shape == torch.Size([nhidden, nout])
-    
-    coeff = model()
-    assert len(coeff) == len(reducted_skint_types)
+class TestSKnet:    
 
-    for ikey in coeff.keys():
-        assert ikey in reducted_skint_types
-        assert coeff[ikey].shape == torch.Size([nout])
+    reducted_skint_types = ['N-N-2s-2s-0', 'N-B-2s-2p-0', 'B-B-2p-2p-0', 'B-B-2p-2p-1']
+    onsite_num = {'N':4,'B':3}
+    bond_neurons = {'nhidden':5,'nout':4}
+    onsite_neurons = {'nhidden':6}
+    model = SKNet(reducted_skint_types, onsite_num, bond_neurons, onsite_neurons)
+
+    def test_bond(self):
+
+        paras = list(self.model.bond_net.parameters())
+        assert len(paras) == 2
+        assert paras[0].shape == torch.Size([len(self.reducted_skint_types), self.bond_neurons['nhidden']])
+        assert paras[1].shape == torch.Size([self.bond_neurons['nhidden'], self.bond_neurons['nout']])
+
+        coeff = self.model(mode='hopping')
+        assert len(coeff) == len(self.reducted_skint_types)
+
+        for ikey in coeff.keys():
+            assert ikey in self.reducted_skint_types
+            assert coeff[ikey].shape == torch.Size([self.bond_neurons['nout']])
+
+    def test_onsite(self):
+
+        paras = list(self.model.onsite_net.parameters())
+        assert len(paras) == 4
+        for ia in self.onsite_num:
+            paras = list(self.model.onsite_net[ia].parameters())
+            assert len(paras) == 2
+            assert paras[0].shape == torch.Size([1, self.onsite_neurons['nhidden']])
+            assert paras[1].shape == torch.Size([self.onsite_neurons['nhidden'],self.onsite_num[ia]])
 
 

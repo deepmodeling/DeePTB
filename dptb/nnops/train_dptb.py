@@ -12,7 +12,7 @@ from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 from dptb.nnsktb.skintTypes import all_skint_types
 from dptb.dataprocess.datareader import read_data
-from dptb.nnops.loss import loss_type1
+from dptb.nnops.loss import loss_type1, loss_spectral
 from dptb.utils.tools import get_uniq_symbol,  Index_Mapings, \
     get_lr_scheduler, get_uniq_bond_type, get_uniq_env_bond_type, \
     get_env_neuron_config, get_bond_neuron_config, get_onsite_neuron_config, \
@@ -36,12 +36,14 @@ class DPTBTrainer(Trainer):
         sch_options = j_must_have(jdata, "sch_options")
         data_options = j_must_have(jdata,"data_options")
         model_options = j_must_have(jdata, "model_options")
+        loss_options = j_must_have(jdata, "loss_options")
 
         self.train_options = train_options
         self.opt_options = opt_options
         self.sch_options = sch_options
         self.data_options = data_options
         self.model_options = model_options
+        self.loss_options = loss_options
 
         self.num_epoch = train_options.get('num_epoch')
         self.display_epoch = train_options.get('display_epoch')
@@ -68,22 +70,22 @@ class DPTBTrainer(Trainer):
         else:
             self.time_symm = False
 
-        self.band_min = data_options.get('band_min', 0)
-        self.band_max = data_options.get('band_max', None)
+        self.band_min = loss_options.get('band_min', 0)
+        self.band_max = loss_options.get('band_max', None)
 
         if self.use_reference:
             self.ref_data_path = data_options.get('ref_data_path')
             self.ref_data_prefix = data_options.get('ref_data_prefix')
 
-            self.ref_band_min = data_options.get('ref_band_min', 0)
-            self.ref_band_max = data_options.get('ref_band_max', None)
+            self.ref_band_min = loss_options.get('ref_band_min', 0)
+            self.ref_band_max = loss_options.get('ref_band_max', None)
 
         # init the dataset
         # -----------------------------------init training set------------------------------------------
         struct_list_sets, kpoints_sets, eigens_sets = read_data(self.train_data_path, self.train_data_prefix,
                                                                       self.bond_cutoff, self.proj_atom_anglr_m,
                                                                       self.proj_atom_neles,
-                                                                      self.time_symm)
+                                                                      time_symm=self.time_symm)
         self.n_train_sets = len(struct_list_sets)
         assert self.n_train_sets == len(kpoints_sets) == len(eigens_sets)
 
@@ -99,7 +101,7 @@ class DPTBTrainer(Trainer):
             struct_list_sets, kpoints_sets, eigens_sets = read_data(self.ref_data_path, self.ref_data_prefix,
                                                                           self.bond_cutoff, self.proj_atom_anglr_m,
                                                                           self.proj_atom_neles,
-                                                                          self.time_symm)
+                                                                          time_symm=self.time_symm)
             self.n_ref_sets = len(struct_list_sets)
             assert self.n_ref_sets == len(kpoints_sets) == len(eigens_sets)
             self.ref_processor_list = []
@@ -113,7 +115,7 @@ class DPTBTrainer(Trainer):
                                                                       self.test_data_prefix,
                                                                       self.bond_cutoff, self.proj_atom_anglr_m,
                                                                       self.proj_atom_neles,
-                                                                      self.time_symm)
+                                                                      time_symm=self.time_symm)
         self.n_test_sets = len(struct_list_sets)
         assert self.n_test_sets == len(kpoints_sets) == len(eigens_sets)
 
@@ -141,8 +143,9 @@ class DPTBTrainer(Trainer):
         # # ------------------------------------initialize model options----------------------------------
         self._init_model()
 
-        self.skint = SKIntegrals(proj_atom_anglr_m=self.proj_atom_anglr_m, sk_file_path=self.sk_file_path)
-        self.skhslist = SKHSLists(self.skint, dtype='tensor')
+        if not self.run_opt.get("use_correction", False):
+            self.skint = SKIntegrals(proj_atom_anglr_m=self.proj_atom_anglr_m, sk_file_path=self.sk_file_path)
+            self.skhslist = SKHSLists(self.skint, dtype='tensor')
         self.hamileig = HamilEig(dtype='tensor')
 
         self.optimizer = get_optimizer(model_param=self.model.parameters(), **opt_options)
@@ -150,6 +153,8 @@ class DPTBTrainer(Trainer):
 
 
         self.criterion = torch.nn.MSELoss(reduction='mean')
+        self.emin = self.loss_options["emin"]
+        self.emax = self.loss_options["emax"]
 
     def _init_model(self):
         '''
@@ -212,10 +217,11 @@ class DPTBTrainer(Trainer):
                     log.warning(msg="The configure in checkpoint is mismatch with the input configuration {}, init from checkpoint temporarily\n, ".format(kk) +
                                     "but this might cause conflict.")
                     break
+
             self.nntb = NNTB(**self.model_config)
             self.model = self.nntb.tb_net
             self.model.load_state_dict(f['state_dict'])
-            self.model.eval()
+            self.model.train()
 
         else:
             raise RuntimeError("init_mode should be from_scratch/from_model/..., not {}".format(mode))
@@ -223,7 +229,7 @@ class DPTBTrainer(Trainer):
         if self.run_opt["use_correction"]:
             all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(self.bond_index_map)
             f = torch.load(self.run_opt["skcheckpoint_path"])
-            self.model_config = f["model_config"]
+            model_config = f["model_config"]
             for kk in self.model_config:
                 if self.model_options.get(kk) is not None and self.model_options.get(kk) != self.model_config.get(kk):
                     log.warning(
@@ -231,11 +237,13 @@ class DPTBTrainer(Trainer):
                             kk) +
                             "but this might cause conflict.")
                     break
-            self.sknet = SKNet(**self.model_config)
+            self.sknet = SKNet(**model_config)
             self.sknet.load_state_dict(f['state_dict'])
-            self.sknet.eval()
-            for p in self.sknet.parameters():
-                p.requires_grad = False
+            self.sknet.train()
+            if self.run_opt['freeze']:
+                self.sknet.eval()
+                for p in self.sknet.parameters():
+                    p.requires_grad = False
             self.hops_fun = SKintHops()
             self.onsite_fun = onsiteFunc
             self.onsite_db = loadOnsite(self.onsite_index_map)
@@ -251,8 +259,9 @@ class DPTBTrainer(Trainer):
         batch_bond_onsites, batch_onsiteEs = self.nntb.calc(batch_bond, batch_env)
 
         if self.run_opt.get("use_correction", False):
-            coeffdict = self.sknet()
-            sktb_onsiteEs = self.onsite_fun(batch_bond_onsites, self.onsite_db)
+            coeffdict = self.sknet(mode='hopping')
+            nn_onsiteE = self.sknet(mode='onsite')
+            sktb_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
             sktb_hoppings = self.hops_fun.get_skhops(batch_bond_hoppings, coeffdict, self.sk_bond_ind_dict)
 
         # call sktb to get the sktb hoppings and onsites
@@ -276,7 +285,7 @@ class DPTBTrainer(Trainer):
                                          onsiteSs=onsiteSs)
             self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
                                         bonds_hoppings=np.asarray(batch_bond_hoppings[ii][:,1:]))
-            eigenvalues_ii = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.time_symm, dtype='tensor')
+            eigenvalues_ii, _ = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.time_symm, dtype='tensor')
             eigenvalues_pred.append(eigenvalues_ii)
         eigenvalues_pred = torch.stack(eigenvalues_pred)
 
@@ -291,38 +300,45 @@ class DPTBTrainer(Trainer):
             # iter with different structure
             for data in processor:
                 # iter with samples from the same structure
-                batch_bond, batch_bond_onsite, batch_env, structs, kpoints, eigenvalues = data[0],data[1],data[2], data[3], data[4], data[5]
-                eigenvalues_pred = self.calc(batch_bond, batch_bond_onsite, batch_env, structs, kpoints)
-                eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
 
-                num_kp = kpoints.shape[0]
-                num_el = np.sum(structs[0].proj_atom_neles_per)
-
-                if self.use_reference:
-                    ref_eig = []
-                    ref_kp_el  = []
-
-                    for irefset in range(self.n_ref_sets):
-                        ref_processor = self.ref_processor_list[irefset]
-                        for refdata in ref_processor:
-                            batch_bond, _, batch_env, structs, kpoints, eigenvalues = refdata[0],refdata[1],refdata[2], refdata[3], refdata[4], refdata[5]
-                            ref_eig_pred = self.calc(batch_bond, batch_bond_onsite, batch_env, structs, kpoints)
-                            ref_eig_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
-                            num_kp_ref = kpoints.shape[0]
-                            num_el_ref = np.sum(structs[0].proj_atom_neles_per)
-
-                            ref_eig.append([ref_eig_pred,ref_eig_lbl])
-                            ref_kp_el.append([num_kp_ref,num_el_ref])
 
                 def closure():
                     # calculate eigenvalues.
                     self.optimizer.zero_grad()
+                    batch_bond, batch_bond_onsite, batch_env, structs, kpoints, eigenvalues = data[0], data[1], data[2], \
+                                                                                              data[3], data[4], data[5]
+                    eigenvalues_pred = self.calc(batch_bond, batch_bond_onsite, batch_env, structs, kpoints)
+                    eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
+
+                    num_kp = kpoints.shape[0]
+                    num_el = np.sum(structs[0].proj_atom_neles_per)
+
+                    if self.use_reference:
+                        ref_eig = []
+                        ref_kp_el = []
+
+                        for irefset in range(self.n_ref_sets):
+                            ref_processor = self.ref_processor_list[irefset]
+                            for refdata in ref_processor:
+                                batch_bond, _, batch_env, structs, kpoints, eigenvalues = refdata[0], refdata[1], \
+                                                                                          refdata[2], refdata[3], \
+                                                                                          refdata[4], refdata[5]
+                                ref_eig_pred = self.calc(batch_bond, batch_bond_onsite, batch_env, structs, kpoints)
+                                ref_eig_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
+                                num_kp_ref = kpoints.shape[0]
+                                num_el_ref = np.sum(structs[0].proj_atom_neles_per)
+
+                                ref_eig.append([ref_eig_pred, ref_eig_lbl])
+                                ref_kp_el.append([num_kp_ref, num_el_ref])
+
                     loss = loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp, self.band_min, self.band_max)
                     if self.use_reference:
                         for irefset in range(self.n_ref_sets):
                             ref_eig_pred, ref_eig_lbl = ref_eig[irefset]
                             num_kp_ref, num_el_ref = ref_kp_el[irefset]
                             loss += loss_type1(self.criterion, ref_eig_pred, ref_eig_lbl, num_el_ref, num_kp_ref, self.ref_band_min, self.ref_band_max)
+                            loss += loss_spectral(self.criterion, eigenvalues_pred, eigenvalues_lbl, self.emin,
+                                                  self.emax)
                     loss.backward()
 
                     self.train_loss = loss

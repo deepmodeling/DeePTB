@@ -4,7 +4,7 @@ import numpy as np
 from ase.io.trajectory import Trajectory
 from dptb.structure.structure import BaseStruct
 
-def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, time_symm=True, **kwargs):
+def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='uniform', time_symm=True, **kwargs):
     """根据文件路径和prefix的读取文件夹下的数据文件,并存储为神经网络模型的输入格式数据
     """
     filenames  = {
@@ -15,6 +15,8 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, time_sym
     filenames.update(kwargs)
 
     data_dirs = glob.glob(path + "/" + prefix + ".*")
+
+    print(path + "/" + prefix + ".*")
     
     struct_list_sets = []
     kpoints_sets = []
@@ -31,7 +33,8 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, time_sym
         eigens_sets.append(eigs)
         
         for iatom in asetrajs:
-            struct = BaseStruct(atom=iatom, format='ase', cutoff=cutoff, proj_atom_anglr_m=proj_atom_anglr_m, proj_atom_neles=proj_atom_neles, time_symm=time_symm)
+
+            struct = BaseStruct(atom=iatom, format='ase', cutoff=cutoff, proj_atom_anglr_m=proj_atom_anglr_m, proj_atom_neles=proj_atom_neles, onsitemode=onsitemode, time_symm=time_symm)
             struct_list.append(struct)
         struct_list_sets.append(struct_list)
 

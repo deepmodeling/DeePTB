@@ -288,7 +288,6 @@ def test_HamilRSK(root_directory):
     hslist.get_HS_list()
     hrsk = HamilEig(dtype='numpy')
     hrsk.update_hs_list(struct,hslist.hoppings,hslist.onsiteEs,hslist.overlaps,hslist.onsiteSs)
-
     hrsk.get_hs_blocks()
     assert len(all_bonds) == len(hrsk.all_bonds)
     assert (all_bonds - hrsk.all_bonds < 1e-6).all()
@@ -329,5 +328,33 @@ def test_HamilRSK(root_directory):
     kpath=snapase.cell.bandpath('GMKG', npoints=10)
     klist = kpath.kpts
 
-    eigks = hrsk.Eigenvalues(kpoints = klist,dtype='numpy')
+    eigks,_ = hrsk.Eigenvalues(kpoints = klist,dtype='numpy')
     assert (np.abs(eigks - eigenvalues) < 1e-5).all()
+
+
+def test_HamilRSK_SplitOnsite(root_directory):
+    structname = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
+    sk_file_path = root_directory + '/examples/slakos'
+
+    proj_atom_anglr_m = {"N":["s","p"],"B":["s","p"]}
+    proj_atom_neles = {"N":5,"B":3}
+    CutOff = 4
+    struct = BaseStruct(atom=structname,format='vasp',
+        cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles)
+    skint = SKIntegrals(proj_atom_anglr_m=proj_atom_anglr_m,sk_file_path=sk_file_path)
+    hslist = SKHSLists(skint,dtype='numpy')
+    hslist.update_struct(struct)
+    hslist.get_HS_list()
+    hrsk = HamilEig(dtype='numpy')
+    hslist.onsiteEs = [np.array([-0.671363, -0.261222,-0.261222,-0.261222]), np.array([-0.339811, -0.131903,-0.131903,-0.131903])]
+    hrsk.update_hs_list(struct,hslist.hoppings,hslist.onsiteEs,hslist.overlaps,hslist.onsiteSs)
+    hrsk.get_hs_blocks()
+    assert len(all_bonds) == len(hrsk.all_bonds)
+    assert (all_bonds - hrsk.all_bonds < 1e-6).all()
+    assert len(hoppings) == len(hrsk.hamil_blocks)
+    assert len(overlaps) == len(hrsk.overlap_blocks)
+    assert len(hrsk.hamil_blocks) == len(hrsk.overlap_blocks)
+
+    for i in range(len(hoppings)):
+        assert (np.abs(hoppings[i] - hrsk.hamil_blocks[i]) < 1e-6).all()
+        assert (np.abs(overlaps[i] - hrsk.overlap_blocks[i]) < 1e-6).all()
