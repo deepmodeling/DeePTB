@@ -77,10 +77,6 @@ class NNSKTrainer(Trainer):
         self.n_train_sets = len(struct_list_sets)
         assert self.n_train_sets == len(kpoints_sets) == len(eigens_sets)
 
-        proj_wei = np.load(self.train_data_path + '/set.0/' + 'project_weights.npy')
-        self.projwei_label = torch.from_numpy(proj_wei).float()
-
-
         self.train_processor_list = []
         for i in range(len(struct_list_sets)):
             self.train_processor_list.append(
@@ -226,10 +222,6 @@ class NNSKTrainer(Trainer):
                     
                     loss1 = loss_soft_sort(self.criterion, eigenvalues_pred, eigenvalues_lbl ,num_el,num_kp, self.sortstrength_epoch[self.epoch-1], self.band_min, self.band_max)
                     loss = loss1
-=======
-                    loss2 = loss_proj_env(self.criterion, eigenvalues_pred, eigenvalues_lbl, eigenvector_pred, self.projwei_label, self.band_min, self.band_max)
-                    loss = 10*loss1 + 1*loss2
->>>>>>> 34964366ffadade8abb2383283bed5f50054ea76
                     loss.backward()
 
                     self.train_loss = loss
