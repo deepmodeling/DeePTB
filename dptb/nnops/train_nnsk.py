@@ -225,7 +225,6 @@ class NNSKTrainer(Trainer):
                     num_el = np.sum(structs[0].proj_atom_neles_per)
                     
                     loss1 = loss_soft_sort(self.criterion, eigenvalues_pred, eigenvalues_lbl ,num_el,num_kp, self.sortstrength_epoch[self.epoch-1], self.band_min, self.band_max)
-<<<<<<< HEAD
                     loss = loss1
 =======
                     loss2 = loss_proj_env(self.criterion, eigenvalues_pred, eigenvalues_lbl, eigenvector_pred, self.projwei_label, self.band_min, self.band_max)
