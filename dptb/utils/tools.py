@@ -388,6 +388,40 @@ class Index_Mapings(object):
             print()
 
         return onsite_index_map, onsite_num
+    
+    def Onsite_Ind_Mapings_OrbSplit(self):
+        onsite_index_map = {}
+        onsite_num = {}
+        for it in range(len(self.bondtype)):
+            itype = self.bondtype[it]
+            orbdict = {}
+            ist = 0
+            numhops = 0
+            for ish in self.ProjAnglrM[itype]:
+                ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
+                ishid = self.AnglrMID[ishsymbol]
+                # orbdict[ish] = [ist]
+                # ist += 1
+                # numhops += 1
+                orbdict[ish] = np.arange(ist, ist + 2 * ishid + 1).tolist()
+                ist += 2*ishid + 1
+                numhops += 2*ishid + 1
+            onsite_index_map[itype] = orbdict
+            onsite_num[itype] = numhops
+
+        for key in onsite_index_map.keys():
+            print('# ' + key + ':', onsite_index_map[key], ' independent onsite Es')
+            print('## ', end='')
+            ic = 1
+            for key2 in onsite_index_map[key]:
+
+                print('' + key2 + ':', onsite_index_map[key][key2], '   ', end='')
+                if ic % 6 == 0:
+                    print('\n## ', end='')
+                ic += 1
+            print()
+
+        return onsite_index_map, onsite_num
 
 def nnsk_correction(nn_onsiteEs, nn_hoppings, sk_onsiteEs, sk_hoppings, sk_onsiteSs=None, sk_overlaps=None):
     """Add the nn correction to SK parameters hoppings and onsite Es.

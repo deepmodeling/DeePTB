@@ -76,6 +76,7 @@ def main_parser() -> argparse.ArgumentParser:
         default=None,
         help="Initialize the model by the provided checkpoint.",
     )
+    
     parser_train.add_argument(
         "-r",
         "--restart",

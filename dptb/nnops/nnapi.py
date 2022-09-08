@@ -131,7 +131,7 @@ class DeePTB(ModelAPI):
     
     def get_eigenvalues(self,kpoints,spindeg=2):
         assert self.if_HR_ready
-        eigenvalues = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm,dtype=self.hamileig.dtype)
+        eigenvalues,_ = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm,dtype=self.hamileig.dtype)
         eigks = eigenvalues.detach().numpy()
 
         num_el = np.sum(self.structure.proj_atom_neles_per)
@@ -145,15 +145,20 @@ class NNSK(ModelAPI):
     def __init__(self,checkpoint, proj_atom_anglr_m):
         f=torch.load(checkpoint)
         model_config = f["model_config"]
-
+        self.onsitemode =  model_config['onsitemode']
         self.model = SKNet(**model_config)
         self.model.load_state_dict(f['state_dict'])
         self.model.eval()
 
         indmap = Index_Mapings(proj_atom_anglr_m)
         bond_index_map, bond_num_hops =  indmap.Bond_Ind_Mapings()
-        onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings()
-
+        if self.onsitemode == 'uniform':
+            onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings()
+        elif self.onsitemode == 'split':
+            onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings_OrbSplit()
+        else:
+            raise ValueError(f'Unknown onsitemode {self.onsitemode}')
+            
         self.hops_fun = SKintHops()
         self.onsite_db = loadOnsite(onsite_index_map)
         all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(bond_index_map)
@@ -164,13 +169,15 @@ class NNSK(ModelAPI):
 
     def get_HR(self, structure, device='cpu', dtype=torch.float32):
         assert isinstance(structure, BaseStruct)
+        assert structure.onsitemode == self.onsitemode
         self.structure = structure
         self.time_symm = structure.time_symm
         predict_process = Processor(mode='nnsk', structure_list=structure, batchsize=1, kpoint=None, eigen_list=None, require_dict=True, device=device, dtype=dtype)
         batch_bond, batch_bond_onsites = predict_process.get_bond()
 
-        coeffdict = self.model()
-        batch_onsiteEs = onsiteFunc(batch_bond_onsites, self.onsite_db)
+        coeffdict = self.model(mode='hopping')
+        nn_onsiteE = self.model(mode='onsite')
+        batch_onsiteEs = onsiteFunc(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
         batch_hoppings = self.hops_fun.get_skhops(batch_bond, coeffdict, self.sk_bond_ind_dict)
         onsiteEs, hoppings = batch_onsiteEs[0], batch_hoppings[0]
 
@@ -198,7 +205,7 @@ class NNSK(ModelAPI):
 
     def get_eigenvalues(self,kpoints,spindeg=2):
         assert self.if_HR_ready
-        eigenvalues = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm,dtype=self.hamileig.dtype)
+        eigenvalues,_ = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm,dtype=self.hamileig.dtype)
         eigks = eigenvalues.detach().numpy()
 
         num_el = np.sum(self.structure.proj_atom_neles_per)

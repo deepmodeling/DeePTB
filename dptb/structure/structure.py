@@ -15,8 +15,9 @@ class BaseStruct(AbstractStructure):
     '''
         implement the read structure and get bond function
     '''
-    def __init__(self, atom, format, cutoff, proj_atom_anglr_m, proj_atom_neles, time_symm=True):
+    def __init__(self, atom, format, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='uniform', time_symm=True):
         self.proj_atom_type_norbs = None
+        self.onsitemode = onsitemode
         self.nbonds = 0
         assert isinstance(proj_atom_anglr_m, dict)
         assert isinstance(proj_atom_neles, dict)
@@ -28,7 +29,7 @@ class BaseStruct(AbstractStructure):
         self.time_symm = time_symm
         self.__projenv__ = {}
         self.IndMap = Index_Mapings()
-        self.updata_struct(self.atom, format=format)
+        self.updata_struct(self.atom, format=format, onsitemode=onsitemode)
     def init_desciption(self):
         # init description
         self.atom_symbols = None
@@ -41,8 +42,9 @@ class BaseStruct(AbstractStructure):
         self.bonds = None
         self.if_env_ready = False
 
-    def updata_struct(self, atom, format):
+    def updata_struct(self, atom, format, onsitemode:str='uniform'):
         self.init_desciption()
+        self.onsitemode = onsitemode
         self.read_struct(atom,format=format)
         self.atom_symbols = np.array(self.struct.get_chemical_symbols(), dtype=str)
         self.atom_numbers = np.array(self.struct.get_atomic_numbers(), dtype=int)
@@ -58,7 +60,13 @@ class BaseStruct(AbstractStructure):
         
         self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
-        self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
+        if onsitemode.lower() == 'uniform':
+            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
+        elif onsitemode.lower() ==  'split':
+            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
+        else:
+            raise ValueError("Unknown onsitemode type: %s" % onsitemode)
+
 
     def read_struct(self, atom=None, format='ase'):
         '''The function reads a structure from a file or an ase object and stores it in the class
