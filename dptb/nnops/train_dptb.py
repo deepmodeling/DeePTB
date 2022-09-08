@@ -143,8 +143,9 @@ class DPTBTrainer(Trainer):
         # # ------------------------------------initialize model options----------------------------------
         self._init_model()
 
-        self.skint = SKIntegrals(proj_atom_anglr_m=self.proj_atom_anglr_m, sk_file_path=self.sk_file_path)
-        self.skhslist = SKHSLists(self.skint, dtype='tensor')
+        if not self.run_opt.get("use_correction", False):
+            self.skint = SKIntegrals(proj_atom_anglr_m=self.proj_atom_anglr_m, sk_file_path=self.sk_file_path)
+            self.skhslist = SKHSLists(self.skint, dtype='tensor')
         self.hamileig = HamilEig(dtype='tensor')
 
         self.optimizer = get_optimizer(model_param=self.model.parameters(), **opt_options)
@@ -260,7 +261,7 @@ class DPTBTrainer(Trainer):
         if self.run_opt.get("use_correction", False):
             coeffdict = self.sknet(mode='hopping')
             nn_onsiteE = self.sknet(mode='onsite')
-            sktb_onsiteEs = self.onsite_fun(batch_bond_onsites, self.onsite_db)
+            sktb_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
             sktb_hoppings = self.hops_fun.get_skhops(batch_bond_hoppings, coeffdict, self.sk_bond_ind_dict)
 
         # call sktb to get the sktb hoppings and onsites
