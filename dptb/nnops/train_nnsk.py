@@ -77,10 +77,6 @@ class NNSKTrainer(Trainer):
         self.n_train_sets = len(struct_list_sets)
         assert self.n_train_sets == len(kpoints_sets) == len(eigens_sets)
 
-        proj_wei = np.load(self.train_data_path + '/set.0/' + 'project_weights.npy')
-        self.projwei_label = torch.from_numpy(proj_wei).float()
-
-
         self.train_processor_list = []
         for i in range(len(struct_list_sets)):
             self.train_processor_list.append(
