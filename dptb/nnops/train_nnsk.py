@@ -143,7 +143,7 @@ class NNSKTrainer(Trainer):
         self.sigma = self.loss_options.get('sigma', 0.1)
         self.num_omega = self.loss_options.get('num_omega',None)
         self.sortstrength = self.loss_options.get('sortstrength',[0.1,0.1])
-        self.sortstrength_epoch = np.linspace(self.sortstrength[0],self.sortstrength[1],self.num_epoch)
+        self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(self.sortstrength[0]), end=np.log(self.sortstrength[1]), steps=self.num_epoch))
 
     def _init_model(self):
         mode = self.run_opt.get("mode", None)
@@ -225,8 +225,7 @@ class NNSKTrainer(Trainer):
                     num_el = np.sum(structs[0].proj_atom_neles_per)
                     
                     loss1 = loss_soft_sort(self.criterion, eigenvalues_pred, eigenvalues_lbl ,num_el,num_kp, self.sortstrength_epoch[self.epoch-1], self.band_min, self.band_max)
-                    loss2 = loss_proj_env(self.criterion, eigenvalues_pred, eigenvalues_lbl, eigenvector_pred, self.projwei_label, self.band_min, self.band_max)
-                    loss = 10*loss1 + 1*loss2
+                    loss = loss1
                     loss.backward()
 
                     self.train_loss = loss
