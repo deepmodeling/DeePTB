@@ -224,7 +224,7 @@ class NNSKTrainer(Trainer):
                     loss = loss1
                     loss.backward()
 
-                    self.train_loss = loss
+                    self.train_loss = loss.detach()
                     return loss
 
                 self.optimizer.step(closure)
