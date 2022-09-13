@@ -64,6 +64,7 @@ class SKFormula(BaseSK):
         #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
         alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1], paraArray[:, 2], paraArray[:, 3]
 
-
-        return alpha1 * rij**(-alpha2) * th.exp(-alpha3 * rij**alpha4)
+        rcut=th.tensor(2.5)
+        w=th.tensor(0.5)
+        return alpha1 * rij**(-alpha2) * th.exp(-alpha3 * rij**alpha4)/(1+th.exp((rij-rcut)/w))
 
