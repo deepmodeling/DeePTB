@@ -149,7 +149,6 @@ class NNSK(ModelAPI):
         self.model = SKNet(**model_config)
         self.model.load_state_dict(f['state_dict'])
         self.model.eval()
-        
         if "sk_options" in model_config.keys():
             self.skformula = model_config["sk_options"]["skformula"]
             self.sk_cutoff = model_config["sk_options"]["sk_cutoff"]

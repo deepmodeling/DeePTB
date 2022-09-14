@@ -168,6 +168,7 @@ class NNSKTrainer(Trainer):
                                       "bond_neurons":{"nhidden": self.model_options.get('sk_hop_nhidden',1), "nout":self.hops_fun.num_paras},
                                       "onsite_neurons":{"nhidden":self.model_options.get('sk_onsite_nhidden',1)},
                                       "device":self.device, "dtype":self.dtype,
+                                      "proj_atom_anglr_m":self.proj_atom_anglr_m,
                                       "sk_options":self.sk_options})
             self.model = SKNet(**self.model_config)
         elif mode == "init_model":
@@ -180,7 +181,7 @@ class NNSKTrainer(Trainer):
                     log.warning(msg="The configure in checkpoint is mismatch with the input configuration {}, init from checkpoint temporarily\n, ".format(kk) +
                                     "but this might cause conflict.")
                     break
-            self.model_config.update({"sk_options":self.sk_options})
+            self.model_config.update({"sk_options":self.sk_options,"proj_atom_anglr_m":self.proj_atom_anglr_m})
             self.model = SKNet(**self.model_config)
             self.model.load_state_dict(f['state_dict'])
             self.model.train()
