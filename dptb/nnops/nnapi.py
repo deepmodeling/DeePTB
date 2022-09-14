@@ -149,6 +149,15 @@ class NNSK(ModelAPI):
         self.model = SKNet(**model_config)
         self.model.load_state_dict(f['state_dict'])
         self.model.eval()
+        
+        if "sk_options" in model_config.keys():
+            self.skformula = model_config["sk_options"]["skformula"]
+            self.sk_cutoff = model_config["sk_options"]["sk_cutoff"]
+            self.sk_decay_w = model_config["sk_options"]["sk_decay_w"]
+        else:
+            self.skformula = "varTang96"
+            self.sk_cutoff = torch.tensor(6.0)
+            self.sk_decay_w = torch.tensor(0.1)
 
         indmap = Index_Mapings(proj_atom_anglr_m)
         bond_index_map, bond_num_hops =  indmap.Bond_Ind_Mapings()
@@ -159,7 +168,7 @@ class NNSK(ModelAPI):
         else:
             raise ValueError(f'Unknown onsitemode {self.onsitemode}')
             
-        self.hops_fun = SKintHops()
+        self.hops_fun = SKintHops(mode=self.skformula)
         self.onsite_db = loadOnsite(onsite_index_map)
         all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(bond_index_map)
         
@@ -178,7 +187,7 @@ class NNSK(ModelAPI):
         coeffdict = self.model(mode='hopping')
         nn_onsiteE = self.model(mode='onsite')
         batch_onsiteEs = onsiteFunc(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
-        batch_hoppings = self.hops_fun.get_skhops(batch_bond, coeffdict, self.sk_bond_ind_dict)
+        batch_hoppings = self.hops_fun.get_skhops(batch_bonds=batch_bond, coeff_paras=coeffdict, sk_bond_ind=self.sk_bond_ind_dict, rcut=self.sk_cutoff, w=self.sk_decay_w)
         onsiteEs, hoppings = batch_onsiteEs[0], batch_hoppings[0]
 
         self.hamileig.update_hs_list(struct=structure, hoppings=hoppings, onsiteEs=onsiteEs)

@@ -51,7 +51,7 @@ class SKFormula(BaseSK):
         else:
             raise ValueError('No such formula')
 
-    def varTang96(self, rij, paraArray, **kwargs):
+    def varTang96(self, rij, paraArray, rcut:th.float32 = th.tensor(6), w:th.float32 = 0.1, **kwargs):
         """> This function calculates the value of the variational form of Tang et al 1996. without the
         environment dependent
 
@@ -64,7 +64,5 @@ class SKFormula(BaseSK):
         #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
         alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1], paraArray[:, 2], paraArray[:, 3]
 
-        rcut=th.tensor(2.5)
-        w=th.tensor(0.5)
         return alpha1 * rij**(-alpha2) * th.exp(-alpha3 * rij**alpha4)/(1+th.exp((rij-rcut)/w))
 

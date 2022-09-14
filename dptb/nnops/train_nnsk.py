@@ -67,6 +67,19 @@ class NNSKTrainer(Trainer):
         self.band_min = loss_options.get('band_min', 0)
         self.band_max = loss_options.get('band_max', None)
 
+        ## TODO: format the unnecessary parameters.
+        self.sk_options = jdata.get('sk_options',None)
+        if self.sk_options is not None:
+            self.skformula = self.sk_options.get('skformula',"varTang96")
+            self.sk_cutoff = torch.tensor(self.sk_options.get('sk_cutoff',6.0))
+            self.sk_decay_w = torch.tensor(self.sk_options.get('sk_decay_w',0.1))
+        else:
+            self.skformula = "varTang96"
+            self.sk_cutoff = torch.tensor(6.0)
+            self.sk_decay_w = torch.tensor(0.1)
+        
+        self.sk_options={"skformula":self.skformula,"sk_cutoff":self.sk_cutoff,"sk_decay_w":self.sk_decay_w}
+
         # init the dataset
         # -----------------------------------init training set------------------------------------------   
         
@@ -122,9 +135,9 @@ class NNSKTrainer(Trainer):
 
         self.hamileig = HamilEig(dtype='tensor')
 
+ 
 
-
-        self.hops_fun = SKintHops()
+        self.hops_fun = SKintHops(mode=self.skformula)
         self.onsite_fun = onsiteFunc
         self.onsite_db = loadOnsite(self.onsite_index_map)
         self._init_model()
@@ -154,7 +167,8 @@ class NNSKTrainer(Trainer):
                                       "onsite_num":self.onsite_num,
                                       "bond_neurons":{"nhidden": self.model_options.get('sk_hop_nhidden',1), "nout":self.hops_fun.num_paras},
                                       "onsite_neurons":{"nhidden":self.model_options.get('sk_onsite_nhidden',1)},
-                                      "device":self.device, "dtype":self.dtype})
+                                      "device":self.device, "dtype":self.dtype,
+                                      "sk_options":self.sk_options})
             self.model = SKNet(**self.model_config)
         elif mode == "init_model":
             # read configuration from checkpoint path.
@@ -170,7 +184,7 @@ class NNSKTrainer(Trainer):
             self.model.load_state_dict(f['state_dict'])
             self.model.train()
 
-        else:
+        else: 
             raise RuntimeError("init_mode should be from_scratch/from_model/..., not {}".format(mode))
 
 
@@ -180,7 +194,7 @@ class NNSKTrainer(Trainer):
         nn_onsiteE = self.model(mode='onsite')
 
         batch_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
-        batch_hoppings = self.hops_fun.get_skhops(batch_bond, coeffdict, self.sk_bond_ind_dict)
+        batch_hoppings = self.hops_fun.get_skhops(batch_bonds=batch_bond, coeff_paras=coeffdict, sk_bond_ind=self.sk_bond_ind_dict, rcut=self.sk_cutoff, w=self.sk_decay_w)
 
         # call sktb to get the sktb hoppings and onsites
         eigenvalues_pred = []
