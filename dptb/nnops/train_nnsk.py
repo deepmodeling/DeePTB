@@ -180,6 +180,7 @@ class NNSKTrainer(Trainer):
                     log.warning(msg="The configure in checkpoint is mismatch with the input configuration {}, init from checkpoint temporarily\n, ".format(kk) +
                                     "but this might cause conflict.")
                     break
+            self.model_config.update({"sk_options":self.sk_options})
             self.model = SKNet(**self.model_config)
             self.model.load_state_dict(f['state_dict'])
             self.model.train()
