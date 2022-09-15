@@ -48,6 +48,11 @@
     "bond_net_type": "ffn",
     "if_batch_normalized": false
   },
+  "sk_options":{
+    "skformula":"varTang96",
+    "sk_cutoff": 3.5,
+    "sk_decay_w":0.5
+  },
   "loss_options":{
     "emin": -25,
     "emax": 10,

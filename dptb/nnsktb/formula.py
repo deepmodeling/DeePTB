@@ -1,6 +1,7 @@
 # define the integrals formula.
 import torch as th
 from abc import ABC, abstractmethod
+from dptb.nnsktb.bondlengthDB import bond_length
 
 class BaseSK(ABC):
     def __init__(self) -> None:
@@ -26,10 +27,16 @@ class SKFormula(BaseSK):
             self.mode = mode
             self.num_paras = 4
             assert hasattr(self, 'varTang96')
-        # the mode custom, is for user to define their own formula.
-        # just modify custom to the name of your formula.
-        # and define the funnction self.custom(rij, paraArray, **kwargs)
+       
+        elif mode == 'powerlaw':
+            self.mode = mode
+            self.num_paras = 2
+            assert hasattr(self, 'powerlaw')
+
         elif mode =='custom':
+             # the mode custom, is for user to define their own formula.
+            # just modify custom to the name of your formula.
+            # and define the funnction self.custom(rij, paraArray, **kwargs)
             self.mode = mode
             self.num_paras = None # defined by custom.
             assert hasattr(self, 'custom')
@@ -48,6 +55,8 @@ class SKFormula(BaseSK):
 
         if self.mode == 'varTang96':
             return self.varTang96(rij=rij, **kwargs)
+        elif self.mode == 'powerlaw':
+            return self.powerlaw(rij=rij, **kwargs)
         else:
             raise ValueError('No such formula')
 
@@ -62,7 +71,31 @@ class SKFormula(BaseSK):
         assert len(paraArray.shape) in {2, 1}, 'paraArray should be a 2d tensor or 1d tensor'
         paraArray = paraArray.view(-1, self.num_paras)
         #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
-        alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1], paraArray[:, 2], paraArray[:, 3]
+        alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1].abs(), paraArray[:, 2].abs(), paraArray[:, 3].abs()
 
         return alpha1 * rij**(-alpha2) * th.exp(-alpha3 * rij**alpha4)/(1+th.exp((rij-rcut)/w))
+
+    def powerlaw(self, rij, paraArray, iatomtype, jatomtype, **kwargs):
+        """> This function calculates the value of the variational form of Tang et al 1996. without the
+        environment dependent
+
+                $$ h(rij) = \alpha_1 * (rij)^(-\alpha_2) * exp(-\alpha_3 * (rij)^(\alpha_4))$$
+        """
+        if isinstance(paraArray, list):
+            paraArray = th.tensor(paraArray)
+        assert len(paraArray.shape) in {2, 1}, 'paraArray should be a 2d tensor or 1d tensor'
+        assert len(iatomtype) == len(jatomtype)
+        paraArray = paraArray.view(-1, self.num_paras)
+        #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
+        alpha1, alpha2 = paraArray[:, 0], paraArray[:, 1].abs()
+
+        r0 = map(lambda x:(bond_length[iatomtype[x]]+bond_length[jatomtype[x]])/(2*1.8897259886), range(len(iatomtype)))
+        r0 = th.tensor(list(r0))
+
+        # print("rij", rij)
+        # print("ij type", iatomtype, jatomtype)
+        # print("factor", (r0/rij)**(1 + alpha2))
+        # print("NN_h", alpha1 * (r0/rij)**(1 + alpha2))
+        
+        return alpha1 * (r0/rij)**(1 + alpha2)
 
