@@ -43,6 +43,7 @@ class NNSKTrainer(Trainer):
 
         self.num_epoch = train_options.get('num_epoch')
         self.display_epoch = train_options.get('display_epoch')
+        self.use_reference = train_options.get('use_reference', False)
 
         # initialize data options
         # ----------------------------------------------------------------------------------------------------------------------------------------------
@@ -80,6 +81,15 @@ class NNSKTrainer(Trainer):
         
         self.sk_options={"skformula":self.skformula,"sk_cutoff":self.sk_cutoff,"sk_decay_w":self.sk_decay_w}
 
+        if self.use_reference:
+            self.ref_data_path = data_options.get('ref_data_path')
+            self.ref_data_prefix = data_options.get('ref_data_prefix')
+            self.ref_batch_size = data_options.get('ref_batch_size', 1)
+
+
+            self.ref_band_min = loss_options.get('ref_band_min', 0)
+            self.ref_band_max = loss_options.get('ref_band_max', None)
+
         # init the dataset
         # -----------------------------------init training set------------------------------------------   
         
@@ -95,6 +105,24 @@ class NNSKTrainer(Trainer):
             self.train_processor_list.append(
                 Processor(mode='nnsk', structure_list=struct_list_sets[i], batchsize=self.batch_size,
                           kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype, require_dict=True))
+        
+        # init reference dataset
+        # -----------------------------------init reference set------------------------------------------
+        if self.use_reference:
+            struct_list_sets, kpoints_sets, eigens_sets = read_data(path=self.ref_data_path, prefix=self.ref_data_prefix,
+                                                                    cutoff=self.bond_cutoff, proj_atom_anglr_m=self.proj_atom_anglr_m,
+                                                                    proj_atom_neles=self.proj_atom_neles,onsitemode=self.onsitemode,
+                                                                    time_symm=self.time_symm)
+
+            self.n_ref_sets = len(struct_list_sets)
+            assert self.n_ref_sets == len(kpoints_sets) == len(eigens_sets)
+            self.ref_processor_list = []
+            for i in range(len(struct_list_sets)):
+                self.ref_processor_list.append(
+                    Processor(mode='nnsk', structure_list=struct_list_sets[i], batchsize=self.ref_batch_size, 
+                              kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, dtype=self.dtype, require_dict=True))
+       
+       
         # --------------------------------init testing set----------------------------------------------
         struct_list_sets, kpoints_sets, eigens_sets = read_data(path=self.test_data_path, prefix=self.test_data_prefix,
                                                                 cutoff=self.bond_cutoff, proj_atom_anglr_m=self.proj_atom_anglr_m,
@@ -235,9 +263,30 @@ class NNSKTrainer(Trainer):
 
                     num_kp = kpoints.shape[0]
                     num_el = np.sum(structs[0].proj_atom_neles_per)
+
+                    if self.use_reference:
+                        ref_eig=[]
+                        ref_kp_el=[]
+                        for irefset in range(self.n_ref_sets):
+                            ref_processor = self.ref_processor_list[irefset]
+                            for refdata in ref_processor:
+                                batch_bond, batch_bond_onsites, _, structs, kpoints, eigenvalues = refdata[0], refdata[1], refdata[2], \
+                                                                                              refdata[3], refdata[4], refdata[5]
+                                ref_eig_pred, ref_eigv_pred = self.calc(batch_bond, batch_bond_onsites, structs, kpoints)
+                                ref_eig_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
+                                num_kp_ref = kpoints.shape[0]
+                                num_el_ref = np.sum(structs[0].proj_atom_neles_per)
+                                ref_eig.append([ref_eig_pred, ref_eig_lbl])
+                                ref_kp_el.append([num_kp_ref, num_el_ref])
+                        
+                    loss = loss_soft_sort(self.criterion, eigenvalues_pred, eigenvalues_lbl ,num_el,num_kp, self.sortstrength_epoch[self.epoch-1], self.band_min, self.band_max)
+                
+                    if self.use_reference:
+                        for irefset in range(self.n_ref_sets):
+                            ref_eig_pred, ref_eig_lbl = ref_eig[irefset]
+                            num_kp_ref, num_el_ref = ref_kp_el[irefset]
+                            loss += (self.batch_size * 1.0 / (self.ref_batch_size * (1+self.n_ref_sets))) * loss_soft_sort(self.criterion, ref_eig_pred, ref_eig_lbl ,num_el_ref,num_kp_ref, self.sortstrength_epoch[self.epoch-1], self.ref_band_min, self.ref_band_max)                
                     
-                    loss1 = loss_soft_sort(self.criterion, eigenvalues_pred, eigenvalues_lbl ,num_el,num_kp, self.sortstrength_epoch[self.epoch-1], self.band_min, self.band_max)
-                    loss = loss1
                     loss.backward()
 
                     self.train_loss = loss.detach()
