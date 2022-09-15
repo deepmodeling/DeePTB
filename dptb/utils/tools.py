@@ -384,6 +384,36 @@ class Index_Mapings(object):
 
         return onsite_index_map, onsite_num
 
+    def Onsite_Intgrl_Ind_Maping(self,atom_types):
+
+        onsite_intgrl_index_map = {}
+        onsite_intgrl_num = {}
+        for it in range(len(self.bondtype)):
+            for jt in range(len(atom_types)):
+                itype = self.bondtype[it]
+                jtype = atom_types[jt]
+                orbdict = {}
+                ist = 0
+                num_onsite_intgrl = 0
+                for ish in self.ProjAnglrM[itype]:
+                    for jsh in self.ProjAnglrM[itype]:
+                        ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
+                        jshsymbol = ''.join(re.findall(r'[A-Za-z]',jsh))
+                        ishid = self.AnglrMID[ishsymbol]
+                        jshid = self.AnglrMID[jshsymbol]
+                        if  jsh + '-' + ish in orbdict.keys():
+                            orbdict[ish + '-' + jsh] = orbdict[jsh + '-' + ish]
+                            continue
+                        else:
+                            num_onsite_intgrl += min(ishid, jshid) + 1
+                            orbdict[ish + '-' + jsh] = np.arange(ist, ist + min(ishid, jshid) + 1).tolist()
+
+                        ist += min(ishid, jshid) + 1
+                onsite_intgrl_index_map[itype + '-' + jtype] = orbdict
+                onsite_intgrl_num[itype + '-' + jtype] = num_onsite_intgrl
+        return onsite_intgrl_index_map, onsite_intgrl_num
+
+
 def nnsk_correction(nn_onsiteEs, nn_hoppings, sk_onsiteEs, sk_hoppings, sk_onsiteSs=None, sk_overlaps=None):
     """Add the nn correction to SK parameters hoppings and onsite Es.
     Args:
