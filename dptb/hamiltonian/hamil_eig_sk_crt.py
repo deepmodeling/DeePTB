@@ -52,12 +52,14 @@ class HamilEig(RotationSK):
             norbs = self.__struct__.proj_atom_type_norbs[itype]
             self.num_orbs_per_atom.append(norbs)
         
-    def get_hs_blocks(self, bonds_onsite = None, bonds_hoppings=None):
+    def get_hs_blocks(self, bonds_onsite = None, bonds_hoppings=None, env=None):
         """using the SK type bond integral  to build the hamiltonian matrix and overlap matrix in the real space.
 
         The hamiltonian and overlap matrix block are stored in the order of bond list. for ecah bond ij, with lattice 
         vecto R, the matrix stored in [norbsi, norbsj]. norsbi and norbsj are the total number of orbtals on i and j sites.
         e.g. for C-atom with both s and p orbital on each site. norbi is 4.
+
+        bonds_env: {iatom: [env_list]}
         """
         if bonds_onsite is None:
             bonds_onsite = self.__struct__.bonds_onsite
@@ -66,11 +68,13 @@ class HamilEig(RotationSK):
             bonds_hoppings = self.__struct__.bonds 
         assert len(bonds_hoppings) == len(self.__struct__.bonds)
 
+        # ToDo: 1. add d_ij dependence of onsite params 2. rewrite the onsite_index_map 3. confirm the formula of onsite output param
         hamil_blocks = []
         if not self.use_orthogonal_basis:
             overlap_blocks = []
         for ib in range(len(bonds_onsite)):
             ibond = bonds_onsite[ib].astype(int)
+            iatom = ibond[0]
             iatype = self.__struct__.proj_atom_symbols[ibond[1]]
             jatype = self.__struct__.proj_atom_symbols[ibond[3]]
             assert iatype == jatype, "i type should equal j type."
@@ -83,20 +87,14 @@ class HamilEig(RotationSK):
                 sub_hamil_block = np.zeros([self.__struct__.proj_atom_type_norbs[iatype], self.__struct__.proj_atom_type_norbs[jatype]])
                 if not self.use_orthogonal_basis:
                     sub_over_block = np.zeros([self.__struct__.proj_atom_type_norbs[iatype], self.__struct__.proj_atom_type_norbs[jatype]])
-
-            # ToDo: adding onsite correction
+            
             ist = 0
-            # replace sub_hamil_block from now the block diagonal formula to corrected ones.
             for ish in self.__struct__.proj_atom_anglr_m[iatype]:     # ['s','p',..]
                 ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
                 shidi = anglrMId[ishsymbol]          # 0,1,2,...
                 norbi = 2*shidi + 1 
 
                 indx = self.__struct__.onsite_index_map[iatype][ish] # change onsite index map from {N:{s:}} to {N:{ss:, sp:}}
-                # this already satisfy for uniform onsite or splited onsite energy. 
-                # e.g. for p orbital,  index may be 1, or 1,2,3, stands for uniform or splited energy for px py pz.
-                # and then self.onsiteEs[ib][indx] can be scalar or torch.Size([1]) or torch.Size([3]).
-                # both of them can be transfer into a [3x3] diagonal matrix in this code.
                 if self.dtype == 'tensor':
                     sub_hamil_block[ist:ist+norbi, ist:ist+norbi] = th.eye(norbi) * self.onsiteEs[ib][indx]
                     if not self.use_orthogonal_basis:
@@ -106,6 +104,52 @@ class HamilEig(RotationSK):
                     if not self.use_orthogonal_basis:
                         sub_over_block[ist:ist+norbi, ist:ist+norbi] = np.eye(norbi) * self.onsiteSs[ib][indx]
                 ist = ist +norbi
+
+            # ToDo: adding onsite correction
+            ist = 0
+            # replace sub_hamil_block from now the block diagonal formula to corrected ones.
+            for ish in self.__struct__.proj_atom_anglr_m[iatype]:     # ['s','p',..]
+                ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
+                shidi = anglrMId[ishsymbol]          # 0,1,2,...
+                norbi = 2*shidi + 1 
+
+                jst = 0
+                for jsh in self.__struct__.proj_atom_anglr_m[jatype]:
+                    jshsymbol = ''.join(re.findall(r'[A-Za-z]',jsh))
+                    shidj = anglrMId[jshsymbol]
+                    norbj = 2 * shidj + 1
+
+                    idx = self.__struct__.onsite_index_map[iatype][ish+'-'+jsh] # change onsite index map from {N:{s:}} to {N:{ss:, sp:}}
+
+                    for nei in env[iatom]:
+                        d = nei[4:7].norm()
+                        direction_vec = nei[4:7]
+                # this already satisfy for uniform onsite or splited onsite energy. 
+                # e.g. for p orbital,  index may be 1, or 1,2,3, stands for uniform or splited energy for px py pz.
+                # and then self.onsiteEs[ib][indx] can be scalar or torch.Size([1]) or torch.Size([3]).
+                # both of them can be transfer into a [3x3] diagonal matrix in this code.
+                        if shidi < shidj:
+                            tmpH = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.onsiteEs[ib][idx], Angvec=direction_vec)
+                            # Hamilblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpH,dim0=0,dim1=1)
+                            if self.dtype == 'tensor':
+                                sub_hamil_block[ist:ist+norbi, jst:jst+norbj] += th.transpose(tmpH,dim0=0,dim1=1)
+                            else:
+                                sub_hamil_block[ist:ist+norbi, jst:jst+norbj] += np.transpose(tmpH,(1,0))
+                            if not self.use_orthogonal_basis:
+                                tmpS = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.onsiteSs[ib][idx], Angvec=direction_vec)
+                            # Soverblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpS,dim0=0,dim1=1)
+                                if self.dtype == 'tensor':
+                                    sub_over_block[ist:ist+norbi, jst:jst+norbj] += th.transpose(tmpS,dim0=0,dim1=1)
+                                else:
+                                    sub_over_block[ist:ist+norbi, jst:jst+norbj] += np.transpose(tmpS,(1,0))
+                        else:
+                            tmpH = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue=self.onsiteEs[ib][idx], Angvec=direction_vec)
+                            sub_hamil_block[ist:ist+norbi, jst:jst+norbj] += tmpH
+                            if not self.use_orthogonal_basis:
+                                tmpS = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue = self.onsiteSs[ib][idx], Angvec = direction_vec)
+                                sub_over_block[ist:ist+norbi, jst:jst+norbj] += tmpS
+
+                
 
             hamil_blocks.append(sub_hamil_block)
             if not self.use_orthogonal_basis:

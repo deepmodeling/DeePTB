@@ -58,7 +58,7 @@ class DeePTB(ModelAPI):
             bond_index_map, bond_num_hops =  indmap.Bond_Ind_Mapings()
             onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings()
 
-            self.hops_fun = SKintHops()
+            self.hops_fun = SKintHops(mode=model_config.get("skformula", "powerlaw"))
             self.onsite_db = loadOnsite(onsite_index_map)
             all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(bond_index_map)
 
