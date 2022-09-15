@@ -1,9 +1,10 @@
 from re import A
 import torch 
 import torch.nn as nn
+import numpy as np
 
 class DirectNet(nn.Module):
-    def __init__(self,nin, nhidden, nout, device='cpu', dtype=torch.float32, **kwargs):
+    def __init__(self, nin, nhidden, nout, device='cpu', dtype=torch.float32, **kwargs):
         super().__init__()
         assert nout is not None, "nout must be specified!"
         self.nhidden = nhidden
@@ -35,6 +36,7 @@ class SKNet(nn.Module):
             {'nhidden':int}
         
         '''
+
         super().__init__()
         assert len(set(skint_types)) == len(skint_types), "the values in skint_types in not unique."
         self.skint_types = skint_types
@@ -48,17 +50,17 @@ class SKNet(nn.Module):
         }
 
         onsite_config = {}
-        for ia in onsite_num:
+        for ia in self.onsite_num:
             onsite_config[ia] = {
                 'nin':1,
                 'nhidden': onsite_neurons.get('nhidden',1),
-                'nout': onsite_num[ia]
+                'nout': self.onsite_num[ia]
             }
         
         self.bond_net = DirectNet(**bond_config)
         
         self.onsite_net = nn.ModuleDict({})
-        for ia in onsite_num:
+        for ia in self.onsite_num:
             self.onsite_net.update({
                 ia: DirectNet(**onsite_config[ia])
                 })
@@ -101,9 +103,10 @@ class SKNet(nn.Module):
             return self.hop_coeffdict
         elif mode == 'onsite':
             self.onsite_value = {}
-            for  ia in self.onsite_num:
+            for ia in self.onsite_num:
                 out = self.onsite_net[ia]()
                 self.onsite_value[ia] = torch.reshape(out,[-1])
+                
             return self.onsite_value
         else:
             raise ValueError('Invalid mode: ' + mode)

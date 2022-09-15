@@ -38,7 +38,7 @@ class SKintHops(SKFormula):
                 ia, ja = atomic_num_dict_r[int(ibond[0])], atomic_num_dict_r[int(ibond[2])]
                 paraArray = th.stack([coeff_paras[isk] for isk in sk_bond_ind[f'{ia}-{ja}']])
 
-                paras = {'paraArray':paraArray,'rij':rij,'rcut':rcut,'w':w}
+                paras = {'paraArray':paraArray,'rij':rij, 'iatomtype':ia, 'jatomtype':ja, 'rcut':rcut,'w':w}
                 hij = self.skhij(**paras)
                 hoppings.append(hij)
             batch_hoppings.update({ik:hoppings})

@@ -33,6 +33,7 @@ class NNSKTrainer(Trainer):
         data_options = j_must_have(jdata,"data_options")
         model_options = j_must_have(jdata, "model_options")
         loss_options = j_must_have(jdata, "loss_options")
+        sk_options = j_must_have(jdata, "sk_options")
 
         self.train_options = train_options
         self.opt_options = opt_options
@@ -40,6 +41,7 @@ class NNSKTrainer(Trainer):
         self.data_options = data_options
         self.model_options = model_options
         self.loss_options = loss_options
+        self.sk_options = sk_options
 
         self.num_epoch = train_options.get('num_epoch')
         self.display_epoch = train_options.get('display_epoch')
@@ -278,14 +280,17 @@ class NNSKTrainer(Trainer):
                                 num_el_ref = np.sum(structs[0].proj_atom_neles_per)
                                 ref_eig.append([ref_eig_pred, ref_eig_lbl])
                                 ref_kp_el.append([num_kp_ref, num_el_ref])
-                        
-                    loss = loss_soft_sort(self.criterion, eigenvalues_pred, eigenvalues_lbl ,num_el,num_kp, self.sortstrength_epoch[self.epoch-1], self.band_min, self.band_max)
+             
+                    loss = loss_soft_sort(criterion=self.criterion, eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, num_el=num_el,num_kp=num_kp, 
+                                                        sort_strength=self.sortstrength_epoch[self.epoch-1], band_min=self.band_min, band_max=self.band_max)
                 
                     if self.use_reference:
                         for irefset in range(self.n_ref_sets):
                             ref_eig_pred, ref_eig_lbl = ref_eig[irefset]
                             num_kp_ref, num_el_ref = ref_kp_el[irefset]
-                            loss += (self.batch_size * 1.0 / (self.ref_batch_size * (1+self.n_ref_sets))) * loss_soft_sort(self.criterion, ref_eig_pred, ref_eig_lbl ,num_el_ref,num_kp_ref, self.sortstrength_epoch[self.epoch-1], self.ref_band_min, self.ref_band_max)                
+                            loss += (self.batch_size * 1.0 / (self.ref_batch_size * (1+self.n_ref_sets))) * loss_soft_sort(criterion=  self.criterion, 
+                                        eig_pred=ref_eig_pred, eig_label=ref_eig_lbl,num_el=num_el_ref, num_kp=num_kp_ref, sort_strength=self.sortstrength_epoch[self.epoch-1], 
+                                        band_min=self.ref_band_min, band_max=self.ref_band_max)                
                     
                     loss.backward()
 

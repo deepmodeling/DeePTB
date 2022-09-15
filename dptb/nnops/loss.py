@@ -34,7 +34,7 @@ def loss_type1(criterion, eig_pred, eig_label,num_el,num_kp, band_min=0, band_ma
 
     return loss
 
-def loss_soft_sort(criterion, eig_pred, eig_label,num_el,num_kp, sortstrength=0.5, band_min=0, band_max=None, spin_deg=2):
+def loss_soft_sort(criterion, eig_pred, eig_label,num_el,num_kp, sort_strength=0.5, kmax=None, kmin=0, band_min=0, band_max=None, spin_deg=2, **kwarg):
     norbs = eig_pred.shape[-1]
     nbanddft = eig_label.shape[-1]
     up_nband = min(norbs,nbanddft)
@@ -46,6 +46,11 @@ def loss_soft_sort(criterion, eig_pred, eig_label,num_el,num_kp, sortstrength=0.
     else:
         assert band_max <= up_nband
     
+    if kmax is None:
+        kmax = num_kp
+    else:
+        assert kmax <= num_kp
+    
     band_min = int(band_min)
     band_max = int(band_max)
 
@@ -53,8 +58,8 @@ def loss_soft_sort(criterion, eig_pred, eig_label,num_el,num_kp, sortstrength=0.
     # shape of eigs [batch_size, num_kp, num_bands]
     assert len(eig_pred.shape) == 3 and len(eig_label.shape) == 3
 
-    eig_pred_cut = eig_pred[:,:,band_min:band_max]
-    eig_label_cut = eig_label[:,:,band_min:band_max]
+    eig_pred_cut = eig_pred[:,kmin:kmax,band_min:band_max]
+    eig_label_cut = eig_label[:,kmin:kmax,band_min:band_max]
     batch_size, num_kp, num_bands = eig_pred_cut.shape
 
     eig_pred_cut -= eig_pred_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
@@ -63,9 +68,10 @@ def loss_soft_sort(criterion, eig_pred, eig_label,num_el,num_kp, sortstrength=0.
     eig_pred_cut = th.reshape(eig_pred_cut, [-1,band_max-band_min])
     eig_label_cut = th.reshape(eig_label_cut, [-1,band_max-band_min])
 
-    eig_pred_soft = torchsort.soft_sort(eig_pred_cut,regularization_strength=sortstrength)
-    eig_label_soft = torchsort.soft_sort(eig_label_cut,regularization_strength=sortstrength)
-
+    eig_pred_soft = torchsort.soft_sort(eig_pred_cut,regularization_strength=sort_strength)
+    eig_label_soft = torchsort.soft_sort(eig_label_cut,regularization_strength=sort_strength)
+ 
+    
     eig_pred_soft = th.reshape(eig_pred_soft, [batch_size, num_kp, num_bands])
     eig_label_soft = th.reshape(eig_label_soft, [batch_size, num_kp, num_bands])
     
