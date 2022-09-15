@@ -24,6 +24,12 @@ def loss_type1(criterion, eig_pred, eig_label,num_el,num_kp, band_min=0, band_ma
     # 对齐eig_pred和eig_label
     eig_pred_cut = eig_pred[:,:,band_min:band_max]
     eig_label_cut = eig_label[:,:,band_min:band_max]
+    
+    batch_size, num_kp, num_bands = eig_pred_cut.shape
+
+    eig_pred_cut -= eig_pred_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
+    eig_label_cut -= eig_label_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
+
     loss = criterion(eig_pred_cut,eig_label_cut)
 
     return loss
@@ -50,6 +56,9 @@ def loss_soft_sort(criterion, eig_pred, eig_label,num_el,num_kp, sortstrength=0.
     eig_pred_cut = eig_pred[:,:,band_min:band_max]
     eig_label_cut = eig_label[:,:,band_min:band_max]
     batch_size, num_kp, num_bands = eig_pred_cut.shape
+
+    eig_pred_cut -= eig_pred_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
+    eig_label_cut -= eig_label_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
 
     eig_pred_cut = th.reshape(eig_pred_cut, [-1,band_max-band_min])
     eig_label_cut = th.reshape(eig_label_cut, [-1,band_max-band_min])
