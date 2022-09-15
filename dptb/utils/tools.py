@@ -344,18 +344,6 @@ class Index_Mapings(object):
                 bond_index_map[itype + '-' + jtype] = orbdict
                 bond_num_hops[itype + '-' + jtype] = numhops
 
-        for key in bond_index_map.keys():
-            print('# ' + key + ':', bond_num_hops[key], ' independent hoppings')
-            print('## ', end='')
-            ic = 1
-            for key2 in bond_index_map[key]:
-
-                print('' + key2 + ':', bond_index_map[key][key2], '   ', end='')
-                if ic % 6 == 0:
-                    print('\n## ', end='')
-                ic += 1
-            print()
-
         return bond_index_map, bond_num_hops
     
     def Onsite_Ind_Mapings(self):
@@ -375,18 +363,6 @@ class Index_Mapings(object):
             onsite_index_map[itype] = orbdict
             onsite_num[itype] = numhops
 
-        for key in onsite_index_map.keys():
-            print('# ' + key + ':', onsite_index_map[key], ' independent onsite Es')
-            print('## ', end='')
-            ic = 1
-            for key2 in onsite_index_map[key]:
-
-                print('' + key2 + ':', onsite_index_map[key][key2], '   ', end='')
-                if ic % 6 == 0:
-                    print('\n## ', end='')
-                ic += 1
-            print()
-
         return onsite_index_map, onsite_num
     
     def Onsite_Ind_Mapings_OrbSplit(self):
@@ -400,26 +376,11 @@ class Index_Mapings(object):
             for ish in self.ProjAnglrM[itype]:
                 ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
                 ishid = self.AnglrMID[ishsymbol]
-                # orbdict[ish] = [ist]
-                # ist += 1
-                # numhops += 1
                 orbdict[ish] = np.arange(ist, ist + 2 * ishid + 1).tolist()
                 ist += 2*ishid + 1
                 numhops += 2*ishid + 1
             onsite_index_map[itype] = orbdict
             onsite_num[itype] = numhops
-
-        for key in onsite_index_map.keys():
-            print('# ' + key + ':', onsite_index_map[key], ' independent onsite Es')
-            print('## ', end='')
-            ic = 1
-            for key2 in onsite_index_map[key]:
-
-                print('' + key2 + ':', onsite_index_map[key][key2], '   ', end='')
-                if ic % 6 == 0:
-                    print('\n## ', end='')
-                ic += 1
-            print()
 
         return onsite_index_map, onsite_num
 
