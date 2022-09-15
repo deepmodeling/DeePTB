@@ -186,6 +186,7 @@ class DPTBTrainer(Trainer):
                                                          env_nnl[-1])
             bond_net_config = get_bond_neuron_config(bond_nnl, self.bond_num_hops, self.bond_type, env_axisnn,
                                                      env_nnl[-1])
+
             def pack(**options):
                 return options
 
@@ -206,6 +207,7 @@ class DPTBTrainer(Trainer):
                 device=self.device,
                 dtype=self.dtype
             )
+
             self.nntb = NNTB(**self.model_config)
             self.model = self.nntb.tb_net
         elif mode == "init_model":
@@ -264,6 +266,7 @@ class DPTBTrainer(Trainer):
             sktb_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
             sktb_hoppings = self.hops_fun.get_skhops(batch_bond_hoppings, coeffdict, self.sk_bond_ind_dict)
 
+        # ToDo: Advance the correction process before onsite_fun and hops_fun
         # call sktb to get the sktb hoppings and onsites
         eigenvalues_pred = []
         for ii in range(len(structs)):
@@ -341,7 +344,7 @@ class DPTBTrainer(Trainer):
                                                   self.emax)
                     loss.backward()
 
-                    self.train_loss = loss
+                    self.train_loss = loss.detach()
                     return loss
 
                 self.optimizer.step(closure)

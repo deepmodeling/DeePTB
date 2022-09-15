@@ -176,7 +176,7 @@ def get_bond_neuron_config(neuron_list, bond_num_hops, bond_type, axis_neuron, e
 
     return config
 
-def get_onsite_neuron_config(neuron_list,onsite_num, onsite_type, axis_neuron, env_out ):
+def get_onsite_neuron_config(neuron_list, onsite_num, onsite_type, axis_neuron, env_out ):
     # neuron_list: a list of neuron number in each layer
     # return: a list of dict of neuron config
     config = {}
