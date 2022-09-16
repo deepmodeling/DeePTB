@@ -105,3 +105,39 @@ def all_skint_types(bond_index_map):
     return all_skint_types_dict, reducted_skint_types, sk_bond_ind_dict
 
 
+def all_onsite_intgrl_types(onsite_intgrl_index_map):
+    reducted_skint_types = []
+    all_skint_types_dict = {}
+    for ibm in onsite_intgrl_index_map:
+        ia, ja = ibm.split('-')  
+        iaid, jaid = atomic_num_dict[ia], atomic_num_dict[ja] 
+        for isk in onsite_intgrl_index_map[ibm].keys():
+            iorb, jorb = isk.split('-') 
+            for iisk in range(len(onsite_intgrl_index_map[ibm][isk])): 
+                iskint_type = f'{ia}-{ja}-{iorb}-{jorb}-{iisk}'
+                iskint_type_ex = f'{ia}-{ja}-{jorb}-{iorb}-{iisk}'   
+                if iskint_type_ex in reducted_skint_types:
+                    all_skint_types_dict[iskint_type] = iskint_type_ex
+                else:
+                    reducted_skint_types.append(iskint_type)
+                    all_skint_types_dict[iskint_type] = iskint_type
+    for ii in np.unique(list(all_skint_types_dict.values())):
+        assert ii in reducted_skint_types
+    
+    sk_onsite_intgrl_ind_dict = {}
+    for ibm  in onsite_intgrl_index_map:
+        uniq_onst_indeces = np.unique(np.concatenate(list(onsite_intgrl_index_map[ibm].values())))
+        num_indepd_sks = len(uniq_onst_indeces)
+        
+        sk_onsite_intgrl_ind_dict[ibm]  = ['']*num_indepd_sks
+        ia, ja = ibm.split('-')  
+        
+        for isk in onsite_intgrl_index_map[ibm].keys():  
+            iorb, jorb = isk.split('-') 
+            for iisk in range(len(onsite_intgrl_index_map[ibm][isk])): 
+                iskint_type = f'{ia}-{ja}-{iorb}-{jorb}-{iisk}'
+                sk_onsite_intgrl_ind_dict[ibm][ onsite_intgrl_index_map[ibm][isk][iisk] ] = all_skint_types_dict[iskint_type]
+    
+    return all_skint_types_dict, reducted_skint_types, sk_onsite_intgrl_ind_dict
+
+
