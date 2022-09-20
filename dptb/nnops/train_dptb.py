@@ -8,12 +8,13 @@ from dptb.sktb.struct_skhs import SKHSLists
 from dptb.hamiltonian.hamil_eig_sk import HamilEig
 from dptb.dataprocess.processor import Processor
 from dptb.nnsktb.sknet import SKNet
+from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 from dptb.nnsktb.skintTypes import all_skint_types
 from dptb.dataprocess.datareader import read_data
 from dptb.nnops.loss import loss_type1, loss_spectral
-from dptb.utils.tools import get_uniq_symbol,  Index_Mapings, \
+from dptb.utils.tools import get_uniq_symbol, \
     get_lr_scheduler, get_uniq_bond_type, get_uniq_env_bond_type, \
     get_env_neuron_config, get_bond_neuron_config, get_onsite_neuron_config, \
     get_optimizer, nnsk_correction, j_must_have

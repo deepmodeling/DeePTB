@@ -6,16 +6,18 @@ from ase import Atoms
 import numpy  as np
 import re
 from itertools import accumulate
+from dptb.nnsktb.formula import num_paras
 import ase.io
 from dptb.utils.constants import anglrMId,atomic_num_dict
-from dptb.utils.tools import get_uniq_symbol, env_smoth, Index_Mapings
+from dptb.utils.tools import get_uniq_symbol, env_smoth
+from dptb.utils.index_mapping import Index_Mapings
 from dptb.structure.abstract_stracture import AbstractStructure
 
 class BaseStruct(AbstractStructure):
     '''
         implement the read structure and get bond function
     '''
-    def __init__(self, atom, format, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='uniform', time_symm=True):
+    def __init__(self, atom, format, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='uniform', onsite_strain=False, time_symm=True):
         self.proj_atom_type_norbs = None
         self.onsitemode = onsitemode
         self.nbonds = 0
@@ -29,7 +31,8 @@ class BaseStruct(AbstractStructure):
         self.time_symm = time_symm
         self.__projenv__ = {}
         self.IndMap = Index_Mapings()
-        self.updata_struct(self.atom, format=format, onsitemode=onsitemode)
+        self.updata_struct(self.atom, format=format, onsitemode=onsitemode, onsite_strain=onsite_strain)
+
     def init_desciption(self):
         # init description
         self.atom_symbols = None
@@ -38,11 +41,11 @@ class BaseStruct(AbstractStructure):
         self.proj_atom_type = None
         # self.proj_atom_anglr_m = None
         self.proj_atom_type_norbs = None
-        self.bonds_onsite = None
-        self.bonds = None
+        self.__bonds_onsite__ = None
+        self.__bonds__ = None
         self.if_env_ready = False
 
-    def updata_struct(self, atom, format, onsitemode:str='uniform'):
+    def updata_struct(self, atom, format, onsitemode:str='uniform', onsite_strain=False):
         self.init_desciption()
         self.onsitemode = onsitemode
         self.read_struct(atom,format=format)
@@ -56,14 +59,23 @@ class BaseStruct(AbstractStructure):
         self.proj_atom_to_atom_id = np.array(list(range(len(self.atom_symbols))))[self.projatoms]
         self.atom_to_proj_atom_id = np.array(list(accumulate([int(i) for i in self.projatoms]))) - 1
         self.proj_atom_type = get_uniq_symbol(atomsymbols=self.proj_atom_symbols)
-        self.cal_bond(cutoff=self.cutoff,time_symm=self.time_symm)
+        self.get_bond(cutoff=self.cutoff,time_symm=self.time_symm)
+        self.if_env_ready = False
         
         self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
         if onsitemode.lower() == 'uniform':
-            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
+            if onsite_strain:
+                n_strain_param = num_paras[onsite_strain]
+                self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Strain_Ind_Mapings(n_strain_param)
+            else:
+                self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
         elif onsitemode.lower() ==  'split':
-            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
+            if onsite_strain:
+                n_strain_param = num_paras[onsite_strain]
+                self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Strain_Ind_Mapings_OrbSplit(n_strain_param)
+            else:
+                self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
         else:
             raise ValueError("Unknown onsitemode type: %s" % onsitemode)
 
@@ -140,6 +152,34 @@ class BaseStruct(AbstractStructure):
 
         return self.projected_struct
 
+    def get_bond(self, cutoff=None, time_symm=True):
+        if cutoff == None or cutoff == self.cutoff:
+            if self.__bonds__ is not None and self.__bonds_onsite__ is not None:
+                return self.__bonds__, self.__bonds_onsite__
+            cutoff = self.cutoff
+        if cutoff <= 0:
+            logging.error("cutoff:ValueError, cutoff for bond is not positive'")
+            raise ValueError
+        
+        self.__bonds__, self.__bonds_onsite__ = self.cal_bond(cutoff=cutoff, time_symm=time_symm)
+        self.nbonds = len(self.__bonds__)
+
+        return self.__bonds__, self.__bonds_onsite__
+
+    def get_env(self, env_cutoff=None, smooth=False, sorted='iatom'):
+        if self.if_env_ready:
+            if env_cutoff == self.env_cutoff or env_cutoff == None:
+                return self.__projenv__
+
+        if env_cutoff <= 0:
+            logging.error("env_cutoff:ValueError, env_cutoff for bond is not positive'")
+            raise ValueError
+        else:
+            self.__projenv__ = self.cal_env(env_cutoff=env_cutoff, smooth=smooth, sorted=sorted)
+            self.env_cutoff = env_cutoff
+            self.if_env_ready = True
+            return self.__projenv__
+
     def cal_bond(self, cutoff=None, time_symm=True):
         '''It takes the structure, and returns the bonds and bonds on site.
 
@@ -158,25 +198,19 @@ class BaseStruct(AbstractStructure):
             The bonds and bonds on site are being returned.
 
         '''
-        # init
-        self.bonds_onsite = []
 
-        if cutoff == None:
-            cutoff = self.cutoff
-        if cutoff <= 0:
-            logging.error("cutoff:ValueError, cutoff for bond is not positive'")
-            raise ValueError
+        bonds_onsite = []
 
         ilist, jlist, Rlatt = ase.neighborlist.neighbor_list(quantities=['i', 'j', 'S'],
                                                              a=self.projected_struct, cutoff=cutoff)
-        bonds = np.concatenate([np.reshape(ilist, [-1, 1]),
+        bonds_ = np.concatenate([np.reshape(ilist, [-1, 1]),
                                 np.reshape(jlist, [-1, 1]), Rlatt], axis=1)
 
-        nbonds = bonds.shape[0]
+        nbonds = bonds_.shape[0]
         if time_symm:
             bonds_rd = []
             for inb in range(nbonds):
-                atomi, atomj, R = bonds[inb, 0], bonds[inb, 1], bonds[inb, 2:]
+                atomi, atomj, R = bonds_[inb, 0], bonds_[inb, 1], bonds_[inb, 2:]
                 bond_tmp = [atomi, atomj, R[0], R[1], R[2]]
                 bond_tmp_xc = [atomj, atomi, -R[0], -R[1], -R[2]]
                 if not (bond_tmp_xc in bonds_rd) and not (bond_tmp in bonds_rd):
@@ -184,7 +218,7 @@ class BaseStruct(AbstractStructure):
 
             out_bonds = np.asarray(bonds_rd)
         else:
-            out_bonds = np.asarray(bonds)
+            out_bonds = np.asarray(bonds_)
 
         iatom_nums = np.array([atomic_num_dict[self.proj_atom_symbols[i]] for i in out_bonds[:,0]])
         jatom_nums = np.array([atomic_num_dict[self.proj_atom_symbols[i]] for i in out_bonds[:,1]])
@@ -199,20 +233,20 @@ class BaseStruct(AbstractStructure):
         dircetion_cosine = direction_vecs / norm
 
         # bonds stores the bonds in the form of [i_atom_num, i, j_atom_num, j, Rx, Ry, Rz, |rj-ri|, \hat{rij: x, y, z}].
-        self.bonds = np.concatenate((iatom_nums,out_bonds[:,[0]],jatom_nums,out_bonds[:,[1]],out_bonds[:,2:5],norm, dircetion_cosine),axis=1)
-        self.nbonds = len(self.bonds)
+        bonds = np.concatenate((iatom_nums,out_bonds[:,[0]],jatom_nums,out_bonds[:,[1]],out_bonds[:,2:5],norm, dircetion_cosine),axis=1)
         
         # on site bond
         for ii in range(len(self.proj_atom_symbols)):
             # self.bonds_onsite.append([ii, ii, 0, 0, 0])
-            self.bonds_onsite.append([atomic_num_dict[self.proj_atom_symbols[ii]], ii, 
+            bonds_onsite.append([atomic_num_dict[self.proj_atom_symbols[ii]], ii, 
                                       atomic_num_dict[self.proj_atom_symbols[ii]], ii, 0, 0, 0])
 
-        self.bonds_onsite = np.asarray(self.bonds_onsite, dtype=int)
+        bonds_onsite = np.asarray(bonds_onsite, dtype=int)
 
-        return self.bonds, self.bonds_onsite
+        return bonds, bonds_onsite
 
-    def cal_env(self, env_cutoff):
+
+    def cal_env(self, env_cutoff=None, smooth=True, sorted="iatom"):
         '''
 
         Parameters
@@ -226,9 +260,6 @@ class BaseStruct(AbstractStructure):
         -------
 
         '''
-        if env_cutoff <= 0:
-            logging.error("env_cutoff:ValueError, env_cutoff for bond is not positive'")
-            raise ValueError
 
         # if not isinstance(numenv, dict):
         #     logging.error("numenv:TypeError, must be a dict")
@@ -238,35 +269,61 @@ class BaseStruct(AbstractStructure):
         #     logging.error("numenv:ValueError, numenv must be list and have same length as total atom type in structure.")
         #     raise ValueError
 
+        proj_env = {}
         ilist, jlist, Rlatt = ase.neighborlist.neighbor_list(quantities=['i', 'j', 'S'], a=self.struct, cutoff=env_cutoff)
         itypelist = self.atom_numbers[ilist]
+        jtypelist = self.atom_numbers[jlist]
 
         shift_vec = self.struct.positions[jlist] - self.struct.positions[ilist] + np.matmul(Rlatt,
                                                                                            np.array(self.struct.cell))
         norm = np.linalg.norm(shift_vec, axis=1)
         shift_vec = shift_vec / np.reshape(norm, [-1,1])
-        env_all_arrs = np.concatenate([np.reshape(ilist, [-1, 1]), np.reshape(itypelist, [-1, 1]),
-                                       np.reshape(env_smoth(norm, rcut=env_cutoff, rcut_smth=env_cutoff * 0.8), [-1, 1]), shift_vec], axis=1)
+        if smooth:
+            norm = np.reshape(env_smoth(norm, rcut=env_cutoff, rcut_smth=env_cutoff * 0.8), [-1, 1])
+        else:
+            norm = np.reshape(norm, [-1, 1])
+        env_all_arrs = np.concatenate([np.reshape(ilist, [-1, 1]), np.reshape(jlist, [-1, 1]), np.reshape(itypelist, [-1, 1]), np.reshape(jtypelist, [-1, 1]),
+                                       norm, shift_vec], axis=1)
 
-        # (i,itype,s(r),rx,ry,rz)
-        envdict = {}
+        # (i, j, itype, jtype, s(r),rx,ry,rz)
 
-        for ii in range(len(env_all_arrs)):
-            iatom = self.atom_symbols[env_all_arrs[ii][0].astype(int)]
-            jatom = self.atom_symbols[jlist[ii]]
-            if iatom in self.proj_atom_type:
-                env_name = iatom+'-'+jatom
-                if envdict.get(env_name) is None:
-                    envdict.update({env_name:[env_all_arrs[ii]]})
-                else:
-                    envdict[env_name].append(env_all_arrs[ii])
+        if sorted == "itype-jtype":
+            envdict = {}
 
-        for kk in envdict:
-            envdict[kk] = np.asarray(envdict[kk], dtype=float)
-            envdict[kk][:, 0] = self.atom_to_proj_atom_id[envdict[kk][:, 0].astype(int)]
-            self.__projenv__[kk] = np.asarray(envdict[kk], dtype=float)
+            for ii in range(len(env_all_arrs)):
+                iatomtype = self.atom_symbols[env_all_arrs[ii][0].astype(int)]
+                jatomtype = self.atom_symbols[env_all_arrs[ii][1].astype(int)]
+                if iatomtype in self.proj_atom_type:
+                    env_name = iatomtype+'-'+jatomtype
+                    if envdict.get(env_name) is None:
+                        envdict.update({env_name:[env_all_arrs[ii]]})
+                    else:
+                        envdict[env_name].append(env_all_arrs[ii])
 
-        self.if_env_ready = True
+            for kk in envdict:
+                envdict[kk] = np.asarray(envdict[kk], dtype=float)
+                envdict[kk][:, 0] = self.atom_to_proj_atom_id[envdict[kk][:, 0].astype(int)]
+                proj_env[kk] = np.asarray(envdict[kk], dtype=float)
+        
+        if sorted == 'iatom':
+            envdict = {}
+
+            for ii in range(len(env_all_arrs)):
+                iatom = env_all_arrs[ii][0].astype(int)
+                if self.atom_symbols[iatom] in self.proj_atom_type:
+                    env_name = iatom
+                    if envdict.get(env_name) is None:
+                        envdict.update({env_name:[env_all_arrs[ii]]})
+                    else:
+                        envdict[env_name].append(env_all_arrs[ii])
+
+            for kk in envdict:
+                envdict[kk] = np.asarray(envdict[kk], dtype=float)
+                envdict[kk][:, 0] = self.atom_to_proj_atom_id[envdict[kk][:, 0].astype(int)]
+                proj_env[kk] = np.asarray(envdict[kk], dtype=float)
+        
+        return proj_env
+
 
     def ijR2rij(self, ijR):
         rij = (self.struct.positions[ijR[:, 1]]
@@ -397,17 +454,10 @@ class BaseStruct(AbstractStructure):
 
         return envib4
 
-    def get_env(self):
-        if self.if_env_ready:
-            return self.__projenv__
-        else:
-            logging.error("struct.get_projenv:ValueError call cal_env before get it.")
-            raise ValueError
-
 if __name__ == '__main__':
     from ase.build import graphene_nanoribbon
     atoms = graphene_nanoribbon(1.5, 1, type='armchair', saturated=True)
-    basestruct = BaseStruct(atom=atoms, format='ase', cutoff=1.5, proj_atom_anglr_m={'C': ['s', 'p']},proj_atom_neles={'C':4})
+    basestruct = BaseStruct(atom=atoms, format='ase', cutoff=1.5, proj_atom_anglr_m={'C': ['s', 'p']}, proj_atom_neles={'C':4})
 
     print(basestruct.atom_to_proj_atom_id)
     print(basestruct.proj_atom_to_atom_id)

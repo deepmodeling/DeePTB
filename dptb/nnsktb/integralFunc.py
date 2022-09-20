@@ -28,19 +28,19 @@ class SKintHops(SKFormula):
             a list of hopping matrices.
         
         '''
-
+        # ToDo: Expand rij and compute then in a single time.
         batch_hoppings = {}
-        for ik in batch_bonds.keys():
+        for fi in batch_bonds.keys():
             hoppings = []
-            for ib in range(len(batch_bonds[ik])):
-                ibond = batch_bonds[ik][ib,1:8]
-                rij = batch_bonds[ik][ib,8]
+            for ib in range(len(batch_bonds[fi])):
+                ibond = batch_bonds[fi][ib,1:8]
+                rij = batch_bonds[fi][ib,8]
                 ia, ja = atomic_num_dict_r[int(ibond[0])], atomic_num_dict_r[int(ibond[2])]
                 paraArray = th.stack([coeff_paras[isk] for isk in sk_bond_ind[f'{ia}-{ja}']])
 
                 paras = {'paraArray':paraArray,'rij':rij, 'iatomtype':ia, 'jatomtype':ja, 'rcut':rcut,'w':w}
                 hij = self.skhij(**paras)
                 hoppings.append(hij)
-            batch_hoppings.update({ik:hoppings})
+            batch_hoppings.update({fi:hoppings})
 
         return batch_hoppings

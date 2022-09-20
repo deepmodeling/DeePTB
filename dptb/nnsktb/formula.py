@@ -3,6 +3,8 @@ import torch as th
 from abc import ABC, abstractmethod
 from dptb.nnsktb.bondlengthDB import bond_length
 
+num_paras = {'varTang96':4, 'powerlaw':2}
+
 class BaseSK(ABC):
     def __init__(self) -> None:
         pass
@@ -23,14 +25,13 @@ class SKFormula(BaseSK):
     def __init__(self, mode='varTang96') -> None:
         super(SKFormula, self).__init__()
         # one can modify this by add his own formula with the name mode to deifine num of pars.
+        self.num_paras = num_paras[mode]
         if mode == 'varTang96':
             self.mode = mode
-            self.num_paras = 4
             assert hasattr(self, 'varTang96')
        
         elif mode == 'powerlaw':
             self.mode = mode
-            self.num_paras = 2
             assert hasattr(self, 'powerlaw')
 
         elif mode =='custom':
@@ -79,7 +80,7 @@ class SKFormula(BaseSK):
         """> This function calculates the value of the variational form of Tang et al 1996. without the
         environment dependent
 
-                $$ h(rij) = \alpha_1 * (rij)^(-\alpha_2) * exp(-\alpha_3 * (rij)^(\alpha_4))$$
+                $$ h(rij) = \alpha_1 * (rij / r_ij0)^(\lambda + \alpha_2)
         """
         if isinstance(paraArray, list):
             paraArray = th.tensor(paraArray)

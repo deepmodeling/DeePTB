@@ -105,8 +105,8 @@ class SKNet(nn.Module):
             self.onsite_value = {}
             for ia in self.onsite_num:
                 out = self.onsite_net[ia]()
-                self.onsite_value[ia] = torch.reshape(out,[-1])
-                
+                self.onsite_value[ia] = torch.reshape(out,[-1]) # {"N":[s, p, ...]}
+            
             return self.onsite_value
         else:
             raise ValueError('Invalid mode: ' + mode)
@@ -116,7 +116,6 @@ class SKNet(nn.Module):
         if not hasattr(self, 'hop_coeffdict'):
             self.forward(mode='hopping')
         return self.hop_coeffdict[skint_type]
-
 
 
     

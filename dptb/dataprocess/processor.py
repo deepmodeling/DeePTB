@@ -68,9 +68,7 @@ class Processor(object):
         batch_env = {}
         n_stw = len(self.__struct_workspace__)
         for st in range(n_stw):
-            if not self.__struct_workspace__[st].if_env_ready:
-                self.__struct_workspace__[st].cal_env(env_cutoff=self.env_cutoff)
-            env = self.__struct_workspace__[st].get_env()
+            env = self.__struct_workspace__[st].get_env(env_cutoff=self.env_cutoff)
             # (i,itype,s(r),rx,ry,rz)
             for ek in env.keys():
                 # to envalue the order for each structure of the envs.
@@ -93,6 +91,7 @@ class Processor(object):
         -------
             A Tensor of the bonds lists for bond type for all the strucutes in the works space.
         '''
+        # ToDo: Remove require_dict options, unify the data structure.
 
         if len(self.__struct_workspace__) == 0:
             self.__struct_workspace__ = self.structure_list
@@ -102,7 +101,7 @@ class Processor(object):
             batch_bond_onsite = {}
             n_stw = len(self.__struct_workspace__)
             for st in range(n_stw):
-                bond, bond_onsite = self.__struct_workspace__[st].cal_bond()
+                bond, bond_onsite = self.__struct_workspace__[st].get_bond()
                 bond = np.concatenate([np.ones((bond.shape[0], 1)) * st, bond], axis=1)
                 bond_onsite = np.concatenate([np.ones((bond_onsite.shape[0], 1)) * st, bond_onsite], axis=1)
                 batch_bond.update({st:torch.tensor(bond, dtype=self.dtype, device=self.device)})
@@ -113,7 +112,7 @@ class Processor(object):
             batch_bond_onsite = []
             n_stw = len(self.__struct_workspace__)
             for st in range(n_stw):
-                bond, bond_onsite = self.__struct_workspace__[st].cal_bond()
+                bond, bond_onsite = self.__struct_workspace__[st].get_bond()
                 bond = np.concatenate([np.ones((bond.shape[0], 1)) * st, bond], axis=1)
                 bond_onsite = np.concatenate([np.ones((bond_onsite.shape[0], 1)) * st, bond_onsite], axis=1)
                 batch_bond.append(torch.tensor(bond, dtype=self.dtype, device=self.device))
