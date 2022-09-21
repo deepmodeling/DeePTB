@@ -196,7 +196,7 @@ class Index_Mapings(object):
 
 if __name__ == '__main__':
     im = Index_Mapings(proj_atom_anglr_m={"N":["2s","2p"], "C":["2s","2p"]})
-    ma, l = im.Onsite_Intgrl_Ind_Maping_OrbSplit(n_strain_param=2)
+    ma, l = im.Onsite_Strain_Ind_Mapings_OrbSplit(n_strain_param=3)
     print(ma, l)
     
 

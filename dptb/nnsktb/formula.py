@@ -90,9 +90,9 @@ class SKFormula(BaseSK):
         #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
         alpha1, alpha2 = paraArray[:, 0], paraArray[:, 1].abs()
 
-        r0 = map(lambda x:(bond_length[iatomtype[x]]+bond_length[jatomtype[x]])/(2*1.8897259886), range(len(iatomtype)))
-        r0 = th.tensor(list(r0))
-
+        # r0 = map(lambda x:(bond_length[iatomtype[x]]+bond_length[jatomtype[x]])/(2*1.8897259886), range(len(iatomtype)))
+        # r0 = th.tensor(list(r0))
+        r0 = (bond_length[iatomtype]+bond_length[jatomtype])/(2*1.8897259886)
         # print("rij", rij)
         # print("ij type", iatomtype, jatomtype)
         # print("factor", (r0/rij)**(1 + alpha2))
