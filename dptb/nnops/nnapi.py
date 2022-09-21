@@ -5,12 +5,13 @@ from dptb.nnet.nntb import NNTB
 from dptb.nnsktb.sknet import SKNet
 from dptb.sktb.skIntegrals import SKIntegrals
 from dptb.sktb.struct_skhs import SKHSLists
-from dptb.hamiltonian.hamil_eig_sk import HamilEig
+from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
 from dptb.structure.structure import BaseStruct
 from dptb.utils.tools import nnsk_correction
+from dptb.nnsktb.formula import num_paras
 from abc import ABC, abstractmethod
 
-from dptb.utils.tools import Index_Mapings
+from dptb.utils.index_mapping import Index_Mapings
 
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
@@ -153,22 +154,38 @@ class NNSK(ModelAPI):
             self.skformula = model_config["sk_options"]["skformula"]
             self.sk_cutoff = model_config["sk_options"]["sk_cutoff"]
             self.sk_decay_w = model_config["sk_options"]["sk_decay_w"]
+            self.onsite_strain = model_config["sk_options"].get('onsite_strain', False)
+            self.onsite_cutoff = 0.
+
+            
+            if self.onsite_strain:
+                self.onsite_cutoff = model_config["sk_options"].get("onsite_cutoff", 0.)
+                self.n_strain_param = num_paras[self.onsite_strain]
         else:
             self.skformula = "varTang96"
             self.sk_cutoff = torch.tensor(6.0)
             self.sk_decay_w = torch.tensor(0.1)
+            self.onsite_strain = False
+            self.onsite_cutoff = 0
+
 
         indmap = Index_Mapings(proj_atom_anglr_m)
         bond_index_map, bond_num_hops =  indmap.Bond_Ind_Mapings()
         if self.onsitemode == 'uniform':
-            onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings()
+            if self.onsite_strain:
+                onsite_index_map, onsite_num = indmap.Onsite_Strain_Ind_Mapings(self.n_strain_param)
+            else:
+                onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings()
         elif self.onsitemode == 'split':
-            onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings_OrbSplit()
+            if self.onsite_strain:
+                onsite_index_map, onsite_num = indmap.Onsite_Strain_Ind_Mapings_OrbSplit(self.n_strain_param)
+            else:
+                onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings_OrbSplit()
         else:
             raise ValueError(f'Unknown onsitemode {self.onsitemode}')
             
         self.hops_fun = SKintHops(mode=self.skformula)
-        self.onsite_db = loadOnsite(onsite_index_map)
+        self.onsite_db = loadOnsite(onsite_index_map, proj_atom_anglr_m)
         all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(bond_index_map)
         
         self.hamileig = HamilEig(dtype='tensor')
@@ -191,7 +208,7 @@ class NNSK(ModelAPI):
 
         self.hamileig.update_hs_list(struct=structure, hoppings=hoppings, onsiteEs=onsiteEs)
         self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[0][:,1:]),
-                                        bonds_hoppings=np.asarray(batch_bond[0][:,1:]))
+                                        bonds_hoppings=np.asarray(batch_bond[0][:,1:]), onsite_strain=self.onsite_strain, onsite_cutoff=self.onsite_cutoff)
         
         self.if_HR_ready=True
 

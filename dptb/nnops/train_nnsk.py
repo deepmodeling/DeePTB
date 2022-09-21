@@ -79,6 +79,7 @@ class NNSKTrainer(Trainer):
             self.sk_cutoff = torch.tensor(self.sk_options.get('sk_cutoff',6.0))
             self.sk_decay_w = torch.tensor(self.sk_options.get('sk_decay_w',0.1))
             self.onsite_strain = self.sk_options.get('onsite_strain', False)
+            self.onsite_cutoff = 0.
             if self.onsite_strain:
                 self.onsite_cutoff = self.sk_options.get("onsite_cutoff", self.data_options["bond_cutoff"])
                 self.n_strain_param = num_paras[self.onsite_strain]
@@ -89,7 +90,8 @@ class NNSKTrainer(Trainer):
             self.onsite_strain = False
             self.onsite_cutoff = 0
         
-        self.sk_options={"skformula":self.skformula,"sk_cutoff":self.sk_cutoff,"sk_decay_w":self.sk_decay_w}
+        self.sk_options={"skformula":self.skformula,"sk_cutoff":self.sk_cutoff,"sk_decay_w":self.sk_decay_w,
+                 "onsite_strain": self.onsite_strain, "onsite_cutoff": self.onsite_cutoff}
 
         if self.use_reference:
             self.ref_data_path = data_options.get('ref_data_path')
@@ -102,7 +104,6 @@ class NNSKTrainer(Trainer):
 
         # init the dataset
         # -----------------------------------init training set------------------------------------------   
-        print(self.onsitemode, self.onsite_strain)
         struct_list_sets, kpoints_sets, eigens_sets = read_data(path=self.train_data_path, prefix=self.train_data_prefix,
                                                                 cutoff=self.bond_cutoff, proj_atom_anglr_m=self.proj_atom_anglr_m,
                                                                 proj_atom_neles=self.proj_atom_neles, onsitemode=self.onsitemode,

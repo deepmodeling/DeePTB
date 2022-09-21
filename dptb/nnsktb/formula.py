@@ -76,7 +76,7 @@ class SKFormula(BaseSK):
 
         return alpha1 * rij**(-alpha2) * th.exp(-alpha3 * rij**alpha4)/(1+th.exp((rij-rcut)/w))
 
-    def powerlaw(self, rij, paraArray, iatomtype, jatomtype, **kwargs):
+    def powerlaw(self, rij, paraArray, iatomtype, jatomtype, rcut:th.float32 = th.tensor(6), w:th.float32 = 0.1, **kwargs):
         """> This function calculates the value of the variational form of Tang et al 1996. without the
         environment dependent
 
@@ -98,5 +98,5 @@ class SKFormula(BaseSK):
         # print("factor", (r0/rij)**(1 + alpha2))
         # print("NN_h", alpha1 * (r0/rij)**(1 + alpha2))
         
-        return alpha1 * (r0/rij)**(1 + alpha2)
+        return alpha1 * (r0/rij)**(1 + alpha2) / (1+th.exp((rij-rcut)/w))
 
