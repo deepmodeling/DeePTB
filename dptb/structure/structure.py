@@ -65,19 +65,14 @@ class BaseStruct(AbstractStructure):
         self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
         if onsitemode.lower() == 'uniform':
-            if onsite_strain:
-                n_strain_param = num_paras[onsite_strain]
-                self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Strain_Ind_Mapings(n_strain_param)
-            else:
-                self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
+            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
         elif onsitemode.lower() ==  'split':
-            if onsite_strain:
-                n_strain_param = num_paras[onsite_strain]
-                self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Strain_Ind_Mapings_OrbSplit(n_strain_param)
-            else:
-                self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
+            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
         else:
             raise ValueError("Unknown onsitemode type: %s" % onsitemode)
+
+        if onsite_strain:
+            self.onsite_strain_index_map, self.onsite_strain_num = self.IndMap.OnsiteStrain_Ind_Mapings(self.atom_type)
 
 
     def read_struct(self, atom=None, format='ase'):
@@ -166,7 +161,7 @@ class BaseStruct(AbstractStructure):
 
         return self.__bonds__, self.__bonds_onsite__
 
-    def get_env(self, env_cutoff=None, smooth=False, sorted='iatom'):
+    def get_env(self, env_cutoff=None, sorted='iatom'):
         if self.if_env_ready:
             if env_cutoff == self.env_cutoff or env_cutoff == None:
                 return self.__projenv__
@@ -175,7 +170,7 @@ class BaseStruct(AbstractStructure):
             logging.error("env_cutoff:ValueError, env_cutoff for bond is not positive'")
             raise ValueError
         else:
-            self.__projenv__ = self.cal_env(env_cutoff=env_cutoff, smooth=smooth, sorted=sorted)
+            self.__projenv__ = self.cal_env(env_cutoff=env_cutoff, sorted=sorted)
             self.env_cutoff = env_cutoff
             self.if_env_ready = True
             return self.__projenv__
@@ -220,8 +215,10 @@ class BaseStruct(AbstractStructure):
         else:
             out_bonds = np.asarray(bonds_)
 
-        iatom_nums = np.array([atomic_num_dict[self.proj_atom_symbols[i]] for i in out_bonds[:,0]])
-        jatom_nums = np.array([atomic_num_dict[self.proj_atom_symbols[i]] for i in out_bonds[:,1]])
+        # iatom_nums = np.array([atomic_num_dict[self.proj_atom_symbols[i]] for i in out_bonds[:,0]])
+        # jatom_nums = np.array([atomic_num_dict[self.proj_atom_symbols[i]] for i in out_bonds[:,1]])
+        iatom_nums = self.proj_atom_numbers[out_bonds[:,0]]
+        jatom_nums = self.proj_atom_numbers[out_bonds[:,1]]
         iatom_nums = iatom_nums[:,np.newaxis]
         jatom_nums = jatom_nums[:,np.newaxis]
 
@@ -246,7 +243,7 @@ class BaseStruct(AbstractStructure):
         return bonds, bonds_onsite
 
 
-    def cal_env(self, env_cutoff=None, smooth=True, sorted="iatom"):
+    def cal_env(self, env_cutoff=None, sorted="iatom"):
         '''
 
         Parameters
@@ -278,21 +275,18 @@ class BaseStruct(AbstractStructure):
                                                                                            np.array(self.struct.cell))
         norm = np.linalg.norm(shift_vec, axis=1)
         shift_vec = shift_vec / np.reshape(norm, [-1,1])
-        if smooth:
-            norm = np.reshape(env_smoth(norm, rcut=env_cutoff, rcut_smth=env_cutoff * 0.8), [-1, 1])
-        else:
-            norm = np.reshape(norm, [-1, 1])
-        env_all_arrs = np.concatenate([np.reshape(ilist, [-1, 1]), np.reshape(jlist, [-1, 1]), np.reshape(itypelist, [-1, 1]), np.reshape(jtypelist, [-1, 1]),
+        norm = np.reshape(norm, [-1, 1])
+        env_all_arrs = np.concatenate([np.reshape(itypelist, [-1, 1]), np.reshape(ilist, [-1, 1]), np.reshape(jtypelist, [-1, 1]), np.reshape(jlist, [-1, 1]), Rlatt,
                                        norm, shift_vec], axis=1)
 
-        # (i, j, itype, jtype, s(r),rx,ry,rz)
+        # (itype, i, jtype, j, Rx, Ry, Rz, |ri-rj|, rx, ry, rz)
 
         if sorted == "itype-jtype":
             envdict = {}
 
             for ii in range(len(env_all_arrs)):
-                iatomtype = self.atom_symbols[env_all_arrs[ii][0].astype(int)]
-                jatomtype = self.atom_symbols[env_all_arrs[ii][1].astype(int)]
+                iatomtype = self.atom_symbols[env_all_arrs[ii][1].astype(int)]
+                jatomtype = self.atom_symbols[env_all_arrs[ii][3].astype(int)]
                 if iatomtype in self.proj_atom_type:
                     env_name = iatomtype+'-'+jatomtype
                     if envdict.get(env_name) is None:
@@ -302,14 +296,14 @@ class BaseStruct(AbstractStructure):
 
             for kk in envdict:
                 envdict[kk] = np.asarray(envdict[kk], dtype=float)
-                envdict[kk][:, 0] = self.atom_to_proj_atom_id[envdict[kk][:, 0].astype(int)]
+                envdict[kk][:, 1] = self.atom_to_proj_atom_id[envdict[kk][:, 1].astype(int)]
                 proj_env[kk] = np.asarray(envdict[kk], dtype=float)
         
-        if sorted == 'iatom':
+        elif sorted == 'iatom':
             envdict = {}
 
             for ii in range(len(env_all_arrs)):
-                iatom = env_all_arrs[ii][0].astype(int)
+                iatom = env_all_arrs[ii][1].astype(int)
                 if self.atom_symbols[iatom] in self.proj_atom_type:
                     env_name = iatom
                     if envdict.get(env_name) is None:
@@ -319,10 +313,14 @@ class BaseStruct(AbstractStructure):
 
             for kk in envdict:
                 envdict[kk] = np.asarray(envdict[kk], dtype=float)
-                envdict[kk][:, 0] = self.atom_to_proj_atom_id[envdict[kk][:, 0].astype(int)]
+                envdict[kk][:, 1] = self.atom_to_proj_atom_id[envdict[kk][:, 1].astype(int)]
                 proj_env[kk] = np.asarray(envdict[kk], dtype=float)
         
-        return proj_env
+        elif sorted == None:
+            env_all_arrs[:, 1] = self.atom_to_proj_atom_id[env_all_arrs[:, 1].astype(int)]
+            proj_env = env_all_arrs
+        
+        return proj_env # (itype, i, jtype, j, Rx, Ry, Rz, s(r), rx, ry, rz) or the dict of it
 
 
     def ijR2rij(self, ijR):
@@ -333,6 +331,7 @@ class BaseStruct(AbstractStructure):
         return rij
 
     def ibond_env(self, ibond, env_cutoff, numenv):
+        # TODO: Now the smooth option is removed, It should be processed after the env is loaded in dptb
         """
             generate the environment for ecah bond.
 

@@ -19,7 +19,7 @@ class DirectNet(nn.Module):
 
 
 class SKNet(nn.Module):
-    def __init__(self, skint_types: list, onsite_num: dict, bond_neurons: dict, onsite_neurons: dict, device='cpu', dtype=torch.float32, **kwargs):
+    def __init__(self, skint_types: list, onsite_num: dict, bond_neurons: dict, onsite_neurons: dict, device='cpu', dtype=torch.float32, onsite_strain=False, onsiteint_types=False, **kwargs):
         ''' define the nn.parameters for fittig sktb.
 
         Paras 
@@ -39,7 +39,12 @@ class SKNet(nn.Module):
 
         super().__init__()
         assert len(set(skint_types)) == len(skint_types), "the values in skint_types in not unique."
-        self.skint_types = skint_types
+        self.skint_types = skint_types 
+        self.sk_options = kwargs.get("sk_options")
+        self.onsite_strain = onsite_strain
+        if self.onsite_strain:
+            self.onsiteint_types = onsiteint_types
+            self.num_onsiteint_types = len(self.onsiteint_types)
         self.num_skint_types = len(self.skint_types)
         self.onsite_num = onsite_num
 
@@ -49,6 +54,13 @@ class SKNet(nn.Module):
             'nout': bond_neurons.get('nout')
         }
 
+        if self.onsite_strain:
+            onsite_strain_config = {
+                'nin': len(self.onsiteint_types),
+                'nhidden': bond_neurons.get('nhidden',1),
+                'nout': bond_neurons.get('nout')
+            }
+
         onsite_config = {}
         for ia in self.onsite_num:
             onsite_config[ia] = {
@@ -56,6 +68,7 @@ class SKNet(nn.Module):
                 'nhidden': onsite_neurons.get('nhidden',1),
                 'nout': self.onsite_num[ia]
             }
+    
         
         self.bond_net = DirectNet(**bond_config)
         
@@ -64,6 +77,9 @@ class SKNet(nn.Module):
             self.onsite_net.update({
                 ia: DirectNet(**onsite_config[ia])
                 })
+
+        if self.onsite_strain:
+            self.onsite_strain_net = DirectNet(**onsite_strain_config)
 
 
         
@@ -106,7 +122,13 @@ class SKNet(nn.Module):
             for ia in self.onsite_num:
                 out = self.onsite_net[ia]()
                 self.onsite_value[ia] = torch.reshape(out,[-1]) # {"N":[s, p, ...]}
-            
+        
+            if self.onsite_strain:
+                out = self.onsite_strain_net()
+                self.onsite_coeffdict = dict(zip(self.onsiteint_types, out))
+
+                return self.onsite_value, self.onsite_coeffdict
+                
             return self.onsite_value
         else:
             raise ValueError('Invalid mode: ' + mode)

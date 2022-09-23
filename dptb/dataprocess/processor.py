@@ -4,15 +4,15 @@ from typing import List
 from dptb.structure.abstract_stracture import AbstractStructure
 
 class Processor(object):
-    def __init__(self, mode: str, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, env_cutoff: float = 3.0, device='cpu', require_dict=False, dtype=torch.float32):
+    def __init__(self, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, env_cutoff: float = 3.0, sorted_bond=None, sorted_env=None, device='cpu', dtype=torch.float32):
         super(Processor, self).__init__()
         if isinstance(structure_list, AbstractStructure):
             structure_list = [structure_list]
-        self.mode = mode
         self.structure_list = np.array(structure_list, dtype=object)
         self.kpoint = kpoint
         self.eigen_list = np.array(eigen_list, dtype=object)
-        self.require_dict = require_dict
+        self.sorted_bond = sorted_bond
+        self.sorted_env = sorted_env
 
         self.n_st = len(self.structure_list)
         self.__struct_idx_unsampled__ = np.random.choice(np.array(list(range(len(self.structure_list)))),
@@ -54,7 +54,7 @@ class Processor(object):
             self.__struct_idx_unsampled__ = self.__struct_idx_unsampled__[self.batchsize:]
             self.__struct_unsampled__ = self.__struct_unsampled__[self.batchsize:]
     
-    def get_env(self):
+    def get_env(self, sorted=None):
         '''It takes the environment of each structure in the workspace and concatenates them into one big
         environment
         
@@ -62,29 +62,49 @@ class Processor(object):
         -------
             A dictionary of the environment for ent type for all the strucutes in  the works sapce.
         '''
+        
         if len(self.__struct_workspace__) == 0:
             self.__struct_workspace__ = self.structure_list
-
-        batch_env = {}
         n_stw = len(self.__struct_workspace__)
-        for st in range(n_stw):
-            env = self.__struct_workspace__[st].get_env(env_cutoff=self.env_cutoff)
-            # (i,itype,s(r),rx,ry,rz)
-            for ek in env.keys():
-                # to envalue the order for each structure of the envs.
-                env_ek = np.concatenate([np.ones((env[ek].shape[0], 1))*st, env[ek]], axis=1)
+        
+        if sorted is None:
+            batch_env = []
+            for st in range(n_stw):
+                env = self.__struct_workspace__[st].get_env(env_cutoff=self.env_cutoff, sorted=sorted)
+                assert len(env) > 0, "This structure has no environment atoms."
+                batch_env.append(torch.tensor(np.concatenate([np.ones((env.shape[0], 1))*st, env], axis=1), dtype=self.dtype, device=self.device)) # numpy to tensor
+            batch_env = torch.cat(batch_env, dim=0)
+        
+        elif sorted == "itype-jtype":
+            batch_env = {}
+            for st in range(n_stw):
+                env = self.__struct_workspace__[st].get_env(env_cutoff=self.env_cutoff, sorted="itype-jtype")
+                # (i,itype,s(r),rx,ry,rz)
+                for ek in env.keys():
+                    # to envalue the order for each structure of the envs.
+                    env_ek = np.concatenate([np.ones((env[ek].shape[0], 1))*st, env[ek]], axis=1)
 
-                if batch_env.get(ek) is None:
-                    batch_env[ek] = env_ek
-                else:
-                    batch_env[ek] = np.concatenate([batch_env[ek], env_ek], axis=0)
+                    if batch_env.get(ek) is None:
+                        batch_env[ek] = env_ek
+                    else:
+                        batch_env[ek] = np.concatenate([batch_env[ek], env_ek], axis=0)
 
-        for ek in batch_env:
-            batch_env[ek] = torch.tensor(batch_env[ek], dtype=self.dtype, device=self.device)
+            for ek in batch_env:
+                batch_env[ek] = torch.tensor(batch_env[ek], dtype=self.dtype, device=self.device)
 
-        return batch_env # {env_type: [f,i,itype,s(r),rx,ry,rz]}
+        elif sorted == "st":
+            batch_env = {}
+            for st in range(n_stw):
+                env = self.__struct_workspace__[st].get_env(env_cutoff=self.env_cutoff, sorted=None)
+                assert len(env) > 0, "This structure has no environment atoms."
+                batch_env[st] = torch.tensor(np.concatenate([np.ones((env.shape[0], 1))*st, env], axis=1), dtype=self.dtype, device=self.device) # numpy to tensor
 
-    def get_bond(self):
+        else:
+            raise NotImplementedError
+
+        return batch_env # {env_type: (itype, i, jtype, j, jtype, Rx, Ry, Rz, s(r), rx, ry, rz)} or [(f, itype, i, jtype, j, jtype, Rx, Ry, Rz, s(r), rx, ry, rz)]
+
+    def get_bond(self, sorted=None):
         '''It takes the bonds of each structure in the workspace and concatenates them into one big dictionary.
         
         Returns
@@ -96,18 +116,7 @@ class Processor(object):
         if len(self.__struct_workspace__) == 0:
             self.__struct_workspace__ = self.structure_list
 
-        if self.require_dict:
-            batch_bond = {}
-            batch_bond_onsite = {}
-            n_stw = len(self.__struct_workspace__)
-            for st in range(n_stw):
-                bond, bond_onsite = self.__struct_workspace__[st].get_bond()
-                bond = np.concatenate([np.ones((bond.shape[0], 1)) * st, bond], axis=1)
-                bond_onsite = np.concatenate([np.ones((bond_onsite.shape[0], 1)) * st, bond_onsite], axis=1)
-                batch_bond.update({st:torch.tensor(bond, dtype=self.dtype, device=self.device)})
-                batch_bond_onsite.update({st:torch.tensor(bond_onsite, dtype=self.dtype, device=self.device)})
-
-        else:
+        if sorted is None:
             batch_bond = []
             batch_bond_onsite = []
             n_stw = len(self.__struct_workspace__)
@@ -120,6 +129,18 @@ class Processor(object):
 
             batch_bond = torch.cat(batch_bond, dim=0)
             batch_bond_onsite = torch.cat(batch_bond_onsite, dim=0)
+
+        elif sorted == "st":
+            batch_bond = {}
+            batch_bond_onsite = {}
+            n_stw = len(self.__struct_workspace__)
+            for st in range(n_stw):
+                bond, bond_onsite = self.__struct_workspace__[st].get_bond()
+                bond = np.concatenate([np.ones((bond.shape[0], 1)) * st, bond], axis=1)
+                bond_onsite = np.concatenate([np.ones((bond_onsite.shape[0], 1)) * st, bond_onsite], axis=1)
+                batch_bond.update({st:torch.tensor(bond, dtype=self.dtype, device=self.device)})
+                batch_bond_onsite.update({st:torch.tensor(bond_onsite, dtype=self.dtype, device=self.device)})
+            
 
         return batch_bond, batch_bond_onsite # [f, i_atom_num, i, j_atom_num, j, Rx, Ry, Rz, |rj-ri|, \hat{rij: x, y, z}] or dict
 
@@ -165,13 +186,10 @@ class Processor(object):
     def __next__(self):
         if self.it < self.n_batch:
             self.shuffle()
-            bond, bond_onsite = self.get_bond()
-            if self.mode == 'dptb':
-                data = (bond, bond_onsite, self.get_env(), self.__struct_workspace__,
-                    self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float))
-            else:
-                data = (bond, bond_onsite, None, self.__struct_workspace__,
-                    self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float))
+            bond, bond_onsite = self.get_bond(self.sorted_bond)
+
+            data = (bond, bond_onsite, self.get_env(self.sorted_env), self.__struct_workspace__,
+                self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float))
 
             self.it += 1
             return data

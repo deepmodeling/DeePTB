@@ -28,7 +28,7 @@ class SKintHops(SKFormula):
             a list of hopping matrices.
         
         '''
-        # ToDo: Expand rij and compute then in a single time.
+        # TODO: Expand rij and compute then in a single time.
         batch_hoppings = {}
         for fi in batch_bonds.keys():
             hoppings = []
