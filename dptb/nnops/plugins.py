@@ -30,7 +30,7 @@ class Saver(Plugin):
 
     def _save(self, name):
         obj = {}
-        obj.update({"model_config":self.trainer.model_config, "state_dict":self.trainer.model.state_dict()})
+        obj.update({"model_config":self.trainer.model_config, "state_dict":self.trainer.model.state_dict(), "sk_options":self.trainer.sk_options})
         f_path = os.path.join(self.checkpoint_path, name+".pth")
         torch.save(obj, f=f_path)
 

@@ -79,7 +79,7 @@ class NNSKTrainer(Trainer):
             self.sk_cutoff = torch.tensor(self.sk_options.get('sk_cutoff',6.0))
             self.sk_decay_w = torch.tensor(self.sk_options.get('sk_decay_w',0.1))
             self.onsite_strain = self.sk_options.get('onsite_strain', False)
-            self.onsite_cutoff = 0.
+            self.onsite_cutoff = self.bond_cutoff
             if self.onsite_strain:
                 self.onsite_cutoff = self.sk_options.get("onsite_cutoff", self.data_options["bond_cutoff"])
         else:
@@ -87,7 +87,7 @@ class NNSKTrainer(Trainer):
             self.sk_cutoff = torch.tensor(6.0)
             self.sk_decay_w = torch.tensor(0.1)
             self.onsite_strain = False
-            self.onsite_cutoff = 0
+            self.onsite_cutoff = self.bond_cutoff
         
         self.sk_options={"skformula":self.skformula,"sk_cutoff":self.sk_cutoff,"sk_decay_w":self.sk_decay_w,
                  "onsite_strain": self.onsite_strain, "onsite_cutoff": self.onsite_cutoff}
