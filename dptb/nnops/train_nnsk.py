@@ -199,6 +199,9 @@ class NNSKTrainer(Trainer):
         self.sortstrength = self.loss_options.get('sortstrength',[0.1,0.1])
         self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(self.sortstrength[0]), end=np.log(self.sortstrength[1]), steps=self.num_epoch))
 
+    def _init_data(self):
+        pass
+
     def _init_model(self):
         mode = self.run_opt.get("mode", None)
         if mode is None:
