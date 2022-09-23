@@ -16,6 +16,7 @@ from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 import logging
 import heapq
 import numpy as np
+from dptb.nnsktb.loadparas import load_paras
 
 log = logging.getLogger(__name__)
 
@@ -211,9 +212,11 @@ class NNSKTrainer(Trainer):
                     log.warning(msg="The configure in checkpoint is mismatch with the input configuration {}, init from checkpoint temporarily\n, ".format(kk) +
                                     "but this might cause conflict.")
                     break
-            self.model_config.update({"sk_options":self.sk_options,"proj_atom_anglr_m":self.proj_atom_anglr_m})
+            model_config, state_dict = load_paras(model_config=self.model_config, state_dict=f['state_dict'],proj_atom_anglr_m=self.proj_atom_anglr_m)
+            self.model_config.update(model_config)
+            self.model_config.update({"sk_options":self.sk_options})
             self.model = SKNet(**self.model_config)
-            self.model.load_state_dict(f['state_dict'])
+            self.model.load_state_dict(state_dict)
             self.model.train()
 
         else: 
