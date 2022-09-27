@@ -1,3 +1,4 @@
+from asyncio import FastChildWatcher
 import numpy as np
 import torch as th
 import torchsort
@@ -34,7 +35,7 @@ def loss_type1(criterion, eig_pred, eig_label,num_el,num_kp, band_min=0, band_ma
 
     return loss
 
-def loss_soft_sort(criterion, eig_pred, eig_label,num_el,num_kp, sort_strength=0.5, kmax=None, kmin=0, band_min=0, band_max=None, spin_deg=2, **kwarg):
+def loss_soft_sort(criterion, eig_pred, eig_label,num_el,num_kp, sort_strength=0.5, kmax=None, kmin=0, band_min=0, band_max=None, spin_deg=2, gap_penalty=False, fermi_band=0, eta=1e-2, **kwarg):
     norbs = eig_pred.shape[-1]
     nbanddft = eig_label.shape[-1]
     up_nband = min(norbs,nbanddft)
@@ -77,6 +78,11 @@ def loss_soft_sort(criterion, eig_pred, eig_label,num_el,num_kp, sort_strength=0
     
     loss = criterion(eig_pred_soft,eig_label_soft)
 
+    if gap_penalty:
+        gap1 = eig_pred_soft[:,:,fermi_band+1] - eig_pred_soft[:,:,fermi_band]
+        gap2 = eig_label_soft[:,:,fermi_band+1] - eig_label_soft[:,:,fermi_band]
+        loss_gap = criterion(1.0/(gap1+eta), 1.0/(gap2+eta)) 
+
     if num_kp > 1:
         # randon choose nk_diff kps' eigenvalues to gen Delta eig.
         # nk_diff = max(nkps//4,1)     
@@ -89,8 +95,11 @@ def loss_soft_sort(criterion, eig_pred, eig_label,num_el,num_kp, sort_strength=0
         eig_ddiff_pred = eig_pred_soft[:,k_diff_i,:]  - eig_pred_soft[:,k_diff_j,:]
         loss_diff =  criterion(eig_diff_lbl, eig_ddiff_pred) 
         
-        loss = (1*loss + 1*loss_diff)/2
- 
+        loss = (1*loss + 1*loss_diff)/2 
+    
+    if gap_penalty:
+        loss = loss + 0.1*loss_gap 
+
     return loss
 
 
