@@ -18,6 +18,7 @@ from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 import logging
 import heapq
 import numpy as np
+from dptb.nnsktb.loadparas import load_paras
 
 log = logging.getLogger(__name__)
 
@@ -71,6 +72,12 @@ class NNSKTrainer(Trainer):
 
         self.band_min = loss_options.get('band_min', 0)
         self.band_max = loss_options.get('band_max', None)
+        self.gap_penalty = loss_options.get('gap_penalty',False)
+        self.ref_gap_penalty = loss_options.get('ref_gap_penalty', self.gap_penalty)
+        self.fermi_band = loss_options.get('fermi_band', 0)
+        self.ref_fermi_band = loss_options.get('ref_fermi_band',self.fermi_band)
+        self.loss_gap_eta = loss_options.get('loss_gap_eta',1e-2)    
+        self.ref_loss_gap_eta = loss_options.get('ref_loss_gap_eta',self.loss_gap_eta)
 
         ## TODO: format the unnecessary parameters.
         self.sk_options = jdata.get('sk_options',None)
@@ -232,8 +239,11 @@ class NNSKTrainer(Trainer):
                     log.warning(msg="The configure in checkpoint is mismatch with the input configuration {}, init from checkpoint temporarily\n, ".format(kk) +
                                     "but this might cause conflict.")
                     break
+            model_config, state_dict = load_paras(model_config=self.model_config, state_dict=f['state_dict'],proj_atom_anglr_m=self.proj_atom_anglr_m)
+            self.model_config.update(model_config)
+            self.model_config.update({"sk_options":self.sk_options})
             self.model = SKNet(**self.model_config)
-            self.model.load_state_dict(f['state_dict'])
+            self.model.load_state_dict(state_dict)
             self.model.train()
 
         else: 
@@ -317,15 +327,17 @@ class NNSKTrainer(Trainer):
                                 ref_kp_el.append([num_kp_ref, num_el_ref])
              
                     loss = loss_soft_sort(criterion=self.criterion, eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, num_el=num_el,num_kp=num_kp, 
-                                                        sort_strength=self.sortstrength_epoch[self.epoch-1], band_min=self.band_min, band_max=self.band_max)
-                
+                                                        sort_strength=self.sortstrength_epoch[self.epoch-1], band_min=self.band_min, band_max=self.band_max, 
+                                                        gap_penalty=self.gap_penalty, fermi_band=self.fermi_band,eta=self.loss_gap_eta)
+
                     if self.use_reference:
                         for irefset in range(self.n_ref_sets):
                             ref_eig_pred, ref_eig_lbl = ref_eig[irefset]
                             num_kp_ref, num_el_ref = ref_kp_el[irefset]
                             loss += (self.batch_size * 1.0 / (self.ref_batch_size * (1+self.n_ref_sets))) * loss_soft_sort(criterion=  self.criterion, 
                                         eig_pred=ref_eig_pred, eig_label=ref_eig_lbl,num_el=num_el_ref, num_kp=num_kp_ref, sort_strength=self.sortstrength_epoch[self.epoch-1], 
-                                        band_min=self.ref_band_min, band_max=self.ref_band_max)                
+                                        band_min=self.ref_band_min, band_max=self.ref_band_max,
+                                        gap_penalty=self.ref_gap_penalty, fermi_band=self.ref_fermi_band,eta=self.ref_loss_gap_eta)           
                     
                     loss.backward()
 
