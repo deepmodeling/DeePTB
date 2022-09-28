@@ -224,7 +224,7 @@ class NNSKTrainer(Trainer):
                                       "bond_neurons":bond_neuron,
                                       "onsite_neurons":onsite_neuron,
                                       "device":self.device, "dtype":self.dtype,
-                                      "onsite_strain":self.onsite_strain})
+                                      "onsite_strain":self.onsite_strain, "proj_atom_anglr_m": self.proj_atom_anglr_m})
             if self.onsite_strain:
                 all_onsiteint_types_dcit, reducted_onsiteint_types, self.onsite_strain_ind_dict = all_skint_types(self.onsite_strain_index_map)
                 self.model_config.update({"onsiteint_types":reducted_onsiteint_types})
@@ -245,6 +245,9 @@ class NNSKTrainer(Trainer):
             self.model = SKNet(**self.model_config)
             self.model.load_state_dict(state_dict)
             self.model.train()
+
+            if self.onsite_strain:
+                all_onsiteint_types_dcit, reducted_onsiteint_types, self.onsite_strain_ind_dict = all_skint_types(self.onsite_strain_index_map)
 
         else: 
             raise RuntimeError("init_mode should be from_scratch/from_model/..., not {}".format(mode))
