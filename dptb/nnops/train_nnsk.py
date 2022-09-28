@@ -176,7 +176,7 @@ class NNSKTrainer(Trainer):
             self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
         else:
             raise ValueError(f'Unknown onsitemode {self.onsitemode}')
-        
+
         if self.onsite_strain:
             self.onsite_strain_index_map, self.onsite_strain_num = self.IndMap.OnsiteStrain_Ind_Mapings(self.atom_type)
 

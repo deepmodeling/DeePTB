@@ -95,48 +95,6 @@ class Index_Mapings(object):
 
         return onsite_index_map, onsite_num
 
-    # def Onsite_Strain_Ind_Mapings(self, n_strain_param):
-    #     n_strain_param = n_strain_param - 1
-    #     onsite_intgrl_index_map = {}
-    #     onsite_intgrl_num = {}
-
-    #     for it in range(len(self.bondtype)):
-    #         itype = self.bondtype[it]
-    #         orbdict = {}
-    #         ist = 0
-    #         num_onsite_intgrl = 0
-
-    #         for ish in self.ProjAnglrM[itype]:
-    #             for jsh in self.ProjAnglrM[itype]:
-    #                 ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
-    #                 jshsymbol = ''.join(re.findall(r'[A-Za-z]',jsh))
-    #                 ishid = self.AnglrMID[ishsymbol]
-    #                 jshid = self.AnglrMID[jshsymbol]
-    #                 if  jsh + '-' + ish in orbdict.keys():
-    #                     orbdict[ish + '-' + jsh] = orbdict[jsh + '-' + ish]
-    #                     continue
-    #                 else:
-    #                     num_onsite_intgrl += min(ishid, jshid) + 1
-    #                     orbdict[ish + '-' + jsh] = np.arange(ist, ist + min(ishid, jshid) + 1).tolist()
-    #                     ist += min(ishid, jshid) + 1
-
-    #         for ish in self.ProjAnglrM[itype]:
-    #             for jsh in self.ProjAnglrM[itype]:
-    #                 ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
-    #                 jshsymbol = ''.join(re.findall(r'[A-Za-z]',jsh))
-    #                 ishid = self.AnglrMID[ishsymbol]
-    #                 jshid = self.AnglrMID[jshsymbol]
-    #                 if jsh + '-' + ish + '-' + "param" in orbdict.keys():
-    #                     orbdict[ish + '-' + jsh + '-' + "param"] = orbdict[jsh + '-' + ish + '-' + "param"]
-    #                     continue
-    #                 else:
-    #                     num_onsite_intgrl += (min(ishid, jshid) + 1) * n_strain_param
-    #                     orbdict[ish + '-' + jsh + '-' + "param"] = np.arange(ist, ist + (min(ishid, jshid) + 1)*n_strain_param).tolist()
-    #                     ist += (min(ishid, jshid) + 1) * n_strain_param
-                    
-    #         onsite_intgrl_index_map[itype] = orbdict
-    #         onsite_intgrl_num[itype] = num_onsite_intgrl
-    #     return onsite_intgrl_index_map, onsite_intgrl_num
 
     def OnsiteStrain_Ind_Mapings(self, atomtypes):
 
@@ -163,6 +121,8 @@ class Index_Mapings(object):
                             orbdict[ish + '-' + jsh] = np.arange(ist, ist + min(ishid, jshid) + 1).tolist()
 
                         ist += min(ishid, jshid) + 1
+                # note: there is no symmetry of interchange i,j. since i is the center atom which the onsite orbitals lie on but j it the neighbour atom 
+                # this is the difference with the hoppings part. where the orbitals from both i and j. there only on i.
                 onsite_intgrl_index_map[itype + '-' + jtype] = orbdict
                 onsite_intgrl_num[itype + '-' + jtype] = num_onsite_intgrl
 
