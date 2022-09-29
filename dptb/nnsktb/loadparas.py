@@ -1,4 +1,4 @@
-from dptb.utils.tools import Index_Mapings 
+from dptb.utils.index_mapping import Index_Mapings 
 from dptb.nnsktb.skintTypes import all_skint_types
 import torch
 
