@@ -223,7 +223,7 @@ class NNSK(ModelAPI):
         else:
             self.hamileig.update_hs_list(struct=structure, hoppings=hoppings, onsiteEs=onsiteEs)
             self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[0][:,1:]),
-                                            bonds_hoppings=np.asarray(batch_bond[0][:,1:]), onsite_strain=self.onsite_strain, onsite_cutoff=self.onsite_cutoff)
+                                            bonds_hoppings=np.asarray(batch_bond[0][:,1:]))
         
         self.if_HR_ready=True
 

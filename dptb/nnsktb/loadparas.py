@@ -16,6 +16,7 @@ def load_paras(model_config, state_dict, proj_atom_anglr_m):
         onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings_OrbSplit()
     else:
         raise ValueError('Unknown onsitemode.')
+    
 
     proj_atom_anglr_m_ckpt = model_config['proj_atom_anglr_m']
     indmap.update(proj_atom_anglr_m=proj_atom_anglr_m_ckpt)
@@ -27,6 +28,25 @@ def load_paras(model_config, state_dict, proj_atom_anglr_m):
         onsite_index_map_ckpt, onsite_num_ckpt = indmap.Onsite_Ind_Mapings_OrbSplit()
     else:
         raise ValueError('Unknown onsitemode.')
+
+    if model_config.get("onsite_strain"):
+        indmap.update(proj_atom_anglr_m=proj_atom_anglr_m)
+        onsite_strain_index_map, onsite_strain_num = indmap.OnsiteStrain_Ind_Mapings(model_config.get("atom_type"))
+        all_onsiteint_types_dcit, reducted_onsiteint_types, onsite_strain_ind_dict = all_skint_types(onsite_strain_index_map)
+
+        indmap.update(proj_atom_anglr_m=proj_atom_anglr_m_ckpt)
+        onsite_strain_index_map_ckpt, onsite_strain_num_ckpt = indmap.OnsiteStrain_Ind_Mapings(model_config.get("atom_type"))
+        all_onsiteint_types_dcit_ckpt, reducted_onsiteint_types_ckpt, onsite_strain_ind_dict_ckpt = all_skint_types(onsite_strain_index_map_ckpt)
+
+        nhidden = model_config['sk_hop_nhidden']
+        layer1 = torch.zeros([len(reducted_onsiteint_types), nhidden])
+        for i in range(len(reducted_onsiteint_types)):
+            env_type = reducted_onsiteint_types[i]
+            if env_type in reducted_onsiteint_types_ckpt:
+                index = reducted_skint_types_ckpt.index(env_type)
+                layer1[i] =  state_dict['onsite_strain_net.layer1'][index]
+        state_dict['onsite_strain_net.layer1'] = layer1
+
 
 
     #paras['bond_net.layer1']
