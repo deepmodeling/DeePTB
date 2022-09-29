@@ -226,6 +226,7 @@ class NNSKTrainer(Trainer):
                                       "device":self.device, "dtype":self.dtype,
                                       "onsite_strain":self.onsite_strain})
             if self.onsite_strain:
+                # TODO: check if the all_skint_types works properly for onsiteint_types. should be all_onsite_intgrl_types.
                 all_onsiteint_types_dcit, reducted_onsiteint_types, self.onsite_strain_ind_dict = all_skint_types(self.onsite_strain_index_map)
                 self.model_config.update({"onsiteint_types":reducted_onsiteint_types})
             self.model = SKNet(**self.model_config)

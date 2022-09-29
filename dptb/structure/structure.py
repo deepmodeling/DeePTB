@@ -31,6 +31,7 @@ class BaseStruct(AbstractStructure):
         self.time_symm = time_symm
         self.__projenv__ = {}
         self.IndMap = Index_Mapings()
+        # TODO: make the onsite_strain to be another onsitemode. 
         self.updata_struct(self.atom, format=format, onsitemode=onsitemode, onsite_strain=onsite_strain)
 
     def init_desciption(self):
