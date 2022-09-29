@@ -1,4 +1,3 @@
-from ast import main
 from dptb.utils.tools import get_uniq_symbol
 from dptb.utils.constants import anglrMId
 import re
