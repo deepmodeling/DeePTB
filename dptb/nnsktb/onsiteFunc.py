@@ -8,6 +8,7 @@ from dptb.nnsktb.formula import SKFormula
 # define the function for output all the onsites Es for given i.
 
 def loadOnsite(onsite_map: dict, proj_atom_anglr_m: dict):
+    # TODO: remove the proj_atom_anglr_m parameter, only use the onsite_map this function will still work.
     """ load the onsite energies from the database, according to the onsite_map:dict
     This function only need to run once before calculation/ training.
 
@@ -57,7 +58,7 @@ def onsiteFunc(batch_bonds_onsite, onsite_db: dict, nn_onsiteE: dict=None):
         e.g.: {f: [tensor[es,ep], tensor[es,ep]]} or {f: [tensor[es,ep1,ep2,ep3], tensor[es,ep1,ep2,ep3]]}.
     """
     batch_onsiteEs = {}
-
+    # TODO: change this part back to the original one, see the qgonsite branch.
     for kf in list(batch_bonds_onsite.keys()):
         bonds_onsite = batch_bonds_onsite[kf][:,1:]
         ia_list = map(lambda x: atomic_num_dict_r[int(x)], bonds_onsite[:,0]) # itype

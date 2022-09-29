@@ -124,20 +124,20 @@ def all_onsite_intgrl_types(onsite_intgrl_index_map):
     for ii in np.unique(list(all_skint_types_dict.values())):
         assert ii in reducted_skint_types
     
-    sk_onsite_intgrl_ind_dict = {}
+    sk_onsite_ind_dict = {}
     for ibm  in onsite_intgrl_index_map:
         uniq_onst_indeces = np.unique(np.concatenate(list(onsite_intgrl_index_map[ibm].values())))
         num_indepd_sks = len(uniq_onst_indeces)
         
-        sk_onsite_intgrl_ind_dict[ibm]  = ['']*num_indepd_sks
+        sk_onsite_ind_dict[ibm]  = ['']*num_indepd_sks
         ia, ja = ibm.split('-')  
         
         for isk in onsite_intgrl_index_map[ibm].keys():  
             iorb, jorb = isk.split('-') 
             for iisk in range(len(onsite_intgrl_index_map[ibm][isk])): 
                 iskint_type = f'{ia}-{ja}-{iorb}-{jorb}-{iisk}'
-                sk_onsite_intgrl_ind_dict[ibm][ onsite_intgrl_index_map[ibm][isk][iisk] ] = all_skint_types_dict[iskint_type]
+                sk_onsite_ind_dict[ibm][ onsite_intgrl_index_map[ibm][isk][iisk] ] = all_skint_types_dict[iskint_type]
     
-    return all_skint_types_dict, reducted_skint_types, sk_onsite_intgrl_ind_dict
+    return all_skint_types_dict, reducted_skint_types, sk_onsite_ind_dict
 
 

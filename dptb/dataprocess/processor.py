@@ -55,6 +55,7 @@ class Processor(object):
             self.__struct_unsampled__ = self.__struct_unsampled__[self.batchsize:]
     
     def get_env(self, sorted=None):
+        # TODO: the sorted mode should be explained here, in which case, we should use.
         '''It takes the environment of each structure in the workspace and concatenates them into one big
         environment
         
