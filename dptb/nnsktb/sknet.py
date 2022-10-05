@@ -4,14 +4,14 @@ import torch.nn as nn
 import numpy as np
 
 class DirectNet(nn.Module):
-    def __init__(self, nin, nhidden, nout, device='cpu', dtype=torch.float32, **kwargs):
+    def __init__(self, nin, nhidden, nout, device='cpu', dtype=torch.float32, ini_std=0.5, **kwargs):
         super().__init__()
         assert nout is not None, "nout must be specified!"
         self.nhidden = nhidden
         self.layer1 = torch.nn.Parameter(torch.empty(nin, nhidden, device=device, dtype=dtype))
         self.layer2 = torch.nn.Parameter(torch.empty(nhidden, nout, device=device, dtype=dtype))
-        torch.nn.init.normal_(self.layer1, mean=0, std=0.5)
-        torch.nn.init.normal_(self.layer2, mean=0, std=0.5)
+        torch.nn.init.normal_(self.layer1, mean=0, std=ini_std)
+        torch.nn.init.normal_(self.layer2, mean=0, std=ini_std)
     
     def forward(self):
         return self.layer1 @ self.layer2 / self.nhidden
@@ -19,7 +19,7 @@ class DirectNet(nn.Module):
 
 
 class SKNet(nn.Module):
-    def __init__(self, skint_types: list, onsite_num: dict, bond_neurons: dict, onsite_neurons: dict, device='cpu', dtype=torch.float32, onsite_strain=False, onsiteint_types=False, **kwargs):
+    def __init__(self, skint_types: list, onsite_num: dict, bond_neurons: dict, onsite_neurons: dict, device='cpu', dtype=torch.float32, onsitemode:str='none', onsiteint_types=False, **kwargs):
         ''' define the nn.parameters for fittig sktb.
 
         Paras 
@@ -41,45 +41,39 @@ class SKNet(nn.Module):
         assert len(set(skint_types)) == len(skint_types), "the values in skint_types in not unique."
         self.skint_types = skint_types 
         self.sk_options = kwargs.get("sk_options")
-        self.onsite_strain = onsite_strain
-        if self.onsite_strain:
-            self.onsiteint_types = onsiteint_types
-            self.num_onsiteint_types = len(self.onsiteint_types)
+        self.onsitemode = onsitemode
+
         self.num_skint_types = len(self.skint_types)
         self.onsite_num = onsite_num
 
         bond_config = {
             'nin': len(self.skint_types),
             'nhidden': bond_neurons.get('nhidden',1),
-            'nout': bond_neurons.get('nout')
-        }
-
-        if self.onsite_strain:
-            onsite_strain_config = {
-                'nin': len(self.onsiteint_types),
-                'nhidden': bond_neurons.get('nhidden',1),
-                'nout': bond_neurons.get('nout')
-            }
-
-        onsite_config = {}
-        for ia in self.onsite_num:
-            onsite_config[ia] = {
-                'nin':1,
-                'nhidden': onsite_neurons.get('nhidden',1),
-                'nout': self.onsite_num[ia]
-            }
-    
-        
+            'nout': bond_neurons.get('nout')}
         self.bond_net = DirectNet(**bond_config)
         
-        self.onsite_net = nn.ModuleDict({})
-        for ia in self.onsite_num:
-            self.onsite_net.update({
-                ia: DirectNet(**onsite_config[ia])
-                })
+        if self.onsitemode.lower() == 'none':
+            pass
+        elif self.onsitemode.lower() == 'strain':
+            self.onsiteint_types = onsiteint_types
+            self.num_onsiteint_types = len(self.onsiteint_types)
+            onsite_config = {
+                'nin': len(self.onsiteint_types),
+                'nhidden': bond_neurons.get('nhidden',1),
+                'nout': bond_neurons.get('nout'),
+                'ini_std':0.1}
 
-        if self.onsite_strain:
-            self.onsite_strain_net = DirectNet(**onsite_strain_config)
+            self.onsite_net = DirectNet(**onsite_config)
+        else:
+            onsite_config = {}
+            for ia in self.onsite_num:
+                onsite_config[ia] = {'nin':1, 'nhidden': onsite_neurons.get('nhidden',1),
+                    'nout': self.onsite_num[ia]}
+
+            self.onsite_net = nn.ModuleDict({})
+            for ia in self.onsite_num:
+                self.onsite_net.update({
+                    ia: DirectNet(**onsite_config[ia])})
 
 
         
@@ -117,21 +111,23 @@ class SKNet(nn.Module):
             out = self.bond_net()
             self.hop_coeffdict = dict(zip(self.skint_types, out))
             return self.hop_coeffdict
-        elif mode == 'onsite':
-            self.onsite_value = {}
-            for ia in self.onsite_num:
-                out = self.onsite_net[ia]()
-                self.onsite_value[ia] = torch.reshape(out,[-1]) # {"N":[s, p, ...]}
-        
-            if self.onsite_strain:
-                out = self.onsite_strain_net()
-                self.onsite_coeffdict = dict(zip(self.onsiteint_types, out))
 
-                return self.onsite_value, self.onsite_coeffdict
-                
-            return self.onsite_value
+        elif mode == 'onsite':
+            if self.onsitemode.lower() == 'none':
+                return None
+            elif self.onsitemode.lower() == 'strain':
+                out = self.onsite_net()
+                self.onsite_coeffdict = dict(zip(self.onsiteint_types, out))
+                return self.onsite_coeffdict
+            else:
+                self.onsite_value = {}
+                for ia in self.onsite_num:
+                    out = self.onsite_net[ia]()
+                    self.onsite_value[ia] = torch.reshape(out,[-1]) # {"N":[s, p, ...]}
+                return self.onsite_value
+            
         else:
-            raise ValueError('Invalid mode: ' + mode)
+            raise ValueError(f'Invalid mode: {mode}')
         
     
     def get_hop_coeff(self, skint_type):
