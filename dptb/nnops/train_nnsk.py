@@ -11,7 +11,7 @@ from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
 from dptb.nnops.loss import loss_type1, loss_spectral, loss_soft_sort, loss_proj_env
 from dptb.dataprocess.processor import Processor
 from dptb.dataprocess.datareader import read_data
-from dptb.nnsktb.skintTypes import all_skint_types
+from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
 from dptb.nnsktb.sknet import SKNet
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
@@ -63,7 +63,8 @@ class NNSKTrainer(Trainer):
         self.test_data_prefix = data_options.get('test_data_prefix')
         self.proj_atom_anglr_m = data_options.get('proj_atom_anglr_m')
         self.proj_atom_neles = data_options.get('proj_atom_neles')
-        self.onsitemode = model_options.get('onsitemode','uniform')
+        self.onsitemode = model_options.get('onsitemode','none')
+        self.onsite_cutoff = self.data_options.get("onsite_cutoff", self.bond_cutoff)
 
         if data_options['time_symm'] is True:
             self.time_symm = True
@@ -73,11 +74,8 @@ class NNSKTrainer(Trainer):
         self.band_min = loss_options.get('band_min', 0)
         self.band_max = loss_options.get('band_max', None)
         self.gap_penalty = loss_options.get('gap_penalty',False)
-        self.ref_gap_penalty = loss_options.get('ref_gap_penalty', self.gap_penalty)
         self.fermi_band = loss_options.get('fermi_band', 0)
-        self.ref_fermi_band = loss_options.get('ref_fermi_band',self.fermi_band)
         self.loss_gap_eta = loss_options.get('loss_gap_eta',1e-2)    
-        self.ref_loss_gap_eta = loss_options.get('ref_loss_gap_eta',self.loss_gap_eta)
 
         ## TODO: format the unnecessary parameters.
         self.sk_options = jdata.get('sk_options',None)
@@ -85,35 +83,31 @@ class NNSKTrainer(Trainer):
             self.skformula = self.sk_options.get('skformula',"varTang96")
             self.sk_cutoff = torch.tensor(self.sk_options.get('sk_cutoff',6.0))
             self.sk_decay_w = torch.tensor(self.sk_options.get('sk_decay_w',0.1))
-            self.onsite_strain = self.sk_options.get('onsite_strain', False)
-            self.onsite_cutoff = self.bond_cutoff
-            if self.onsite_strain:
-                self.onsite_cutoff = self.sk_options.get("onsite_cutoff", self.data_options["bond_cutoff"])
         else:
             self.skformula = "varTang96"
             self.sk_cutoff = torch.tensor(6.0)
             self.sk_decay_w = torch.tensor(0.1)
-            self.onsite_strain = False
-            self.onsite_cutoff = self.bond_cutoff
         
-        self.sk_options={"skformula":self.skformula,"sk_cutoff":self.sk_cutoff,"sk_decay_w":self.sk_decay_w,
-                 "onsite_strain": self.onsite_strain, "onsite_cutoff": self.onsite_cutoff}
+        self.sk_options={"skformula":self.skformula,"sk_cutoff":self.sk_cutoff,"sk_decay_w":self.sk_decay_w}
 
         if self.use_reference:
             self.ref_data_path = data_options.get('ref_data_path')
             self.ref_data_prefix = data_options.get('ref_data_prefix')
             self.ref_batch_size = data_options.get('ref_batch_size', 1)
-
-
             self.ref_band_min = loss_options.get('ref_band_min', 0)
             self.ref_band_max = loss_options.get('ref_band_max', None)
+
+            self.ref_gap_penalty = loss_options.get('ref_gap_penalty', self.gap_penalty)
+            self.ref_fermi_band = loss_options.get('ref_fermi_band',self.fermi_band)
+            self.ref_loss_gap_eta = loss_options.get('ref_loss_gap_eta',self.loss_gap_eta)
+
 
         # init the dataset
         # -----------------------------------init training set------------------------------------------   
         struct_list_sets, kpoints_sets, eigens_sets = read_data(path=self.train_data_path, prefix=self.train_data_prefix,
                                                                 cutoff=self.bond_cutoff, proj_atom_anglr_m=self.proj_atom_anglr_m,
                                                                 proj_atom_neles=self.proj_atom_neles, onsitemode=self.onsitemode,
-                                                                time_symm=self.time_symm, onsite_strain=self.onsite_strain)
+                                                                time_symm=self.time_symm)
         self.n_train_sets = len(struct_list_sets)
         assert self.n_train_sets == len(kpoints_sets) == len(eigens_sets)
 
@@ -130,7 +124,7 @@ class NNSKTrainer(Trainer):
             struct_list_sets, kpoints_sets, eigens_sets = read_data(path=self.ref_data_path, prefix=self.ref_data_prefix,
                                                                     cutoff=self.bond_cutoff, proj_atom_anglr_m=self.proj_atom_anglr_m,
                                                                     proj_atom_neles=self.proj_atom_neles,onsitemode=self.onsitemode,
-                                                                    time_symm=self.time_symm, onsite_strain=self.onsite_strain)
+                                                                    time_symm=self.time_symm)
 
             self.n_ref_sets = len(struct_list_sets)
             assert self.n_ref_sets == len(kpoints_sets) == len(eigens_sets)
@@ -146,7 +140,7 @@ class NNSKTrainer(Trainer):
         struct_list_sets, kpoints_sets, eigens_sets = read_data(path=self.test_data_path, prefix=self.test_data_prefix,
                                                                 cutoff=self.bond_cutoff, proj_atom_anglr_m=self.proj_atom_anglr_m,
                                                                 proj_atom_neles=self.proj_atom_neles, onsitemode=self.onsitemode,
-                                                                time_symm=self.time_symm, onsite_strain=self.onsite_strain)
+                                                                time_symm=self.time_symm)
 
         self.n_test_sets = len(struct_list_sets)
         assert self.n_test_sets == len(kpoints_sets) == len(eigens_sets)
@@ -170,18 +164,18 @@ class NNSKTrainer(Trainer):
         self.IndMap = Index_Mapings()
         self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
-        if self.onsitemode == 'uniform':
+
+        if self.onsitemode.lower() in ['uniform','none']:
             self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
-        elif self.onsitemode == 'split':
+        elif self.onsitemode.lower() == 'split':
             self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
+        elif self.onsitemode.lower() == 'strain':
+            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
+            self.onsite_strain_index_map, self.onsite_strain_num = self.IndMap.OnsiteStrain_Ind_Mapings(self.atom_type)
         else:
             raise ValueError(f'Unknown onsitemode {self.onsitemode}')
 
-        if self.onsite_strain:
-            self.onsite_strain_index_map, self.onsite_strain_num = self.IndMap.OnsiteStrain_Ind_Mapings(self.atom_type)
-
         self.bond_type = get_uniq_bond_type(proj_atom_type)
-
         # # ------------------------------------initialize model options----------------------------------
 
         self.hamileig = HamilEig(dtype='tensor')
@@ -224,10 +218,10 @@ class NNSKTrainer(Trainer):
                                       "bond_neurons":bond_neuron,
                                       "onsite_neurons":onsite_neuron,
                                       "device":self.device, "dtype":self.dtype,
-                                      "onsite_strain":self.onsite_strain, "proj_atom_anglr_m": self.proj_atom_anglr_m, "atom_type": self.atom_type})
-            if self.onsite_strain:
+                                      "onsitemode":self.onsitemode, "onsite_cutoff":self.onsite_cutoff, "proj_atom_anglr_m": self.proj_atom_anglr_m, "atom_type": self.atom_type})
+            if self.onsitemode == 'strain':
                 # TODO: check if the all_skint_types works properly for onsiteint_types. should be all_onsite_intgrl_types.
-                all_onsiteint_types_dcit, reducted_onsiteint_types, self.onsite_strain_ind_dict = all_skint_types(self.onsite_strain_index_map)
+                all_onsiteint_types_dcit, reducted_onsiteint_types, self.onsite_strain_ind_dict = all_onsite_intgrl_types(self.onsite_strain_index_map)
                 self.model_config.update({"onsiteint_types":reducted_onsiteint_types})
             self.model = SKNet(**self.model_config)
         elif mode == "init_model":
@@ -240,18 +234,17 @@ class NNSKTrainer(Trainer):
                     log.warning(msg="The configure in checkpoint is mismatch with the input configuration {}, init from checkpoint temporarily\n, ".format(kk) +
                                     "but this might cause conflict.")
                     break
-            model_config, state_dict = load_paras(model_config=self.model_config, state_dict=f['state_dict'],proj_atom_anglr_m=self.proj_atom_anglr_m)
+            model_config, state_dict = load_paras(model_config=self.model_config, state_dict=f['state_dict'],proj_atom_anglr_m=self.proj_atom_anglr_m, onsitemode=self.onsitemode)
             self.model_config.update(model_config)
             self.model_config.update({"sk_options":self.sk_options})
             self.model_config.update({"proj_atom_anglr_m":self.proj_atom_anglr_m})
-            if self.onsite_strain:
-                all_onsiteint_types_dcit, reducted_onsiteint_types, self.onsite_strain_ind_dict = all_skint_types(self.onsite_strain_index_map)
+            self.model_config.update({"onsitemode":self.onsitemode, "onsite_cutoff":self.onsite_cutoff})
+            if self.onsitemode == 'strain':
+                all_onsiteint_types_dcit, reducted_onsiteint_types, self.onsite_strain_ind_dict = all_onsite_intgrl_types(self.onsite_strain_index_map)
                 self.model_config.update({"onsiteint_types":reducted_onsiteint_types})
             self.model = SKNet(**self.model_config)
             self.model.load_state_dict(state_dict)
             self.model.train()
-
-            
 
         else: 
             raise RuntimeError("init_mode should be from_scratch/from_model/..., not {}".format(mode))
@@ -260,28 +253,30 @@ class NNSKTrainer(Trainer):
     def calc(self, batch_bonds, batch_bond_onsites, batch_envs, structs, kpoints):
         assert len(kpoints.shape) == 2, "kpoints should have shape of [num_kp, 3]."
         coeffdict = self.model(mode='hopping')
-        if self.onsite_strain:
-            nn_onsiteE, onsite_coeffdict = self.model(mode='onsite')
+        batch_hoppings = self.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, sk_bond_ind=self.sk_bond_ind_dict, rcut=self.sk_cutoff, w=self.sk_decay_w)
+
+        if self.onsitemode == 'strain':
+            assert self.model.onsitemode == 'strain'
+            onsite_coeffdict = self.model(mode='onsite')
             batch_onsiteVs = self.hops_fun.get_skhops(batch_bonds=batch_envs, coeff_paras=onsite_coeffdict, sk_bond_ind=self.onsite_strain_ind_dict)
+            batch_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=None)
+
         else:
             nn_onsiteE = self.model(mode='onsite')
-
-        batch_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
-        batch_hoppings = self.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, sk_bond_ind=self.sk_bond_ind_dict, rcut=self.sk_cutoff, w=self.sk_decay_w)
+            batch_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
 
         # call sktb to get the sktb hoppings and onsites
         eigenvalues_pred = []
         eigenvector_pred = []
         for ii in range(len(structs)):
-            if self.onsite_strain:
+            if self.onsitemode == 'strain':
                 onsiteEs, onsiteVs, hoppings = batch_onsiteEs[ii], batch_onsiteVs[ii], batch_hoppings[ii]
                 # call hamiltonian block
                 
                 self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs)
                 self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
                                             bonds_hoppings=np.asarray(batch_bonds[ii][:,1:]), 
-                                            onsite_envs=np.asarray(batch_envs[ii][:,1:])
-                                            )
+                                            onsite_envs=np.asarray(batch_envs[ii][:,1:]))
             else:
                 onsiteEs, hoppings = batch_onsiteEs[ii], batch_hoppings[ii]
                 # call hamiltonian block
@@ -375,8 +370,7 @@ class NNSKTrainer(Trainer):
                     num_el = np.sum(structs[0].proj_atom_neles_per)
 
                     total_loss += loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp,
-                                             self.band_min,
-                                             self.band_max)
+                                             self.band_min, self.band_max)
                     if kwargs.get('quick'):
                         break
 

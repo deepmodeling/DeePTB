@@ -17,7 +17,7 @@ class BaseStruct(AbstractStructure):
     '''
         implement the read structure and get bond function
     '''
-    def __init__(self, atom, format, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='uniform', onsite_strain=False, time_symm=True):
+    def __init__(self, atom, format, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='none', time_symm=True):
         self.proj_atom_type_norbs = None
         self.onsitemode = onsitemode
         self.nbonds = 0
@@ -32,7 +32,7 @@ class BaseStruct(AbstractStructure):
         self.__projenv__ = {}
         self.IndMap = Index_Mapings()
         # TODO: make the onsite_strain to be another onsitemode. 
-        self.updata_struct(self.atom, format=format, onsitemode=onsitemode, onsite_strain=onsite_strain)
+        self.updata_struct(self.atom, format=format, onsitemode=onsitemode)
 
     def init_desciption(self):
         # init description
@@ -46,7 +46,7 @@ class BaseStruct(AbstractStructure):
         self.__bonds__ = None
         self.if_env_ready = False
 
-    def updata_struct(self, atom, format, onsitemode:str='uniform', onsite_strain=False):
+    def updata_struct(self, atom, format, onsitemode:str='none'):
         self.init_desciption()
         self.onsitemode = onsitemode
         self.read_struct(atom,format=format)
@@ -62,18 +62,19 @@ class BaseStruct(AbstractStructure):
         self.proj_atom_type = get_uniq_symbol(atomsymbols=self.proj_atom_symbols)
         self.get_bond(cutoff=self.cutoff,time_symm=self.time_symm)
         self.if_env_ready = False
-        
+
         self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
-        if onsitemode.lower() == 'uniform':
+        if onsitemode.lower() in ['uniform','none']:
             self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
         elif onsitemode.lower() ==  'split':
             self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
-        else:
-            raise ValueError("Unknown onsitemode type: %s" % onsitemode)
-
-        if onsite_strain:
+        elif onsitemode.lower() == 'strain':
+            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
             self.onsite_strain_index_map, self.onsite_strain_num = self.IndMap.OnsiteStrain_Ind_Mapings(self.atom_type)
+        else:
+            raise ValueError(f"Unknown onsitemode type: {onsitemode}")
+
 
 
     def read_struct(self, atom=None, format='ase'):

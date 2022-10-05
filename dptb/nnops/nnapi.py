@@ -15,7 +15,7 @@ from dptb.utils.index_mapping import Index_Mapings
 
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
-from dptb.nnsktb.skintTypes import all_skint_types
+from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
 
 class ModelAPI(ABC):
     def __init__(self) -> None:
@@ -147,6 +147,7 @@ class NNSK(ModelAPI):
         f=torch.load(checkpoint)
         model_config = f["model_config"]
         self.onsitemode =  model_config['onsitemode']
+        self.onsite_cutoff = model_config.get('onsite_cutoff',0.)
         self.model = SKNet(**model_config)
         self.model.load_state_dict(f['state_dict'])
         self.sk_options = f.get("sk_options", None)
@@ -156,25 +157,23 @@ class NNSK(ModelAPI):
             self.skformula = self.sk_options["skformula"]
             self.sk_cutoff = self.sk_options["sk_cutoff"]
             self.sk_decay_w = self.sk_options["sk_decay_w"]
-            self.onsite_strain = self.sk_options.get('onsite_strain', False)
-            self.onsite_cutoff = 0.
-
-            if self.onsite_strain:
-                self.onsite_cutoff = self.sk_options.get("onsite_cutoff", 0.)
-
         else:
             self.skformula = "varTang96"
             self.sk_cutoff = torch.tensor(6.0)
             self.sk_decay_w = torch.tensor(0.1)
-            self.onsite_strain = False
-            self.onsite_cutoff = 0
 
         self.indmap = Index_Mapings(proj_atom_anglr_m)
         bond_index_map, bond_num_hops =  self.indmap.Bond_Ind_Mapings()
-        if self.onsitemode == 'uniform':
+        if self.onsitemode in ['uniform', 'none']:
             onsite_index_map, onsite_num = self.indmap.Onsite_Ind_Mapings()
         elif self.onsitemode == 'split':
             onsite_index_map, onsite_num = self.indmap.Onsite_Ind_Mapings_OrbSplit()
+        elif self.onsitemode == 'strain':
+            onsite_index_map, onsite_num = self.indmap.Onsite_Ind_Mapings()
+            onsite_strain_index_map, onsite_strain_num = self.indmap.OnsiteStrain_Ind_Mapings(model_config.get("atom_type"))
+            all_onsiteint_types_dcit, reducted_onsiteint_types, self.onsite_strain_ind_dict = all_onsite_intgrl_types(onsite_strain_index_map)
+
+
         else:
             raise ValueError(f'Unknown onsitemode {self.onsitemode}')
             
@@ -193,33 +192,28 @@ class NNSK(ModelAPI):
         self.time_symm = structure.time_symm
         predict_process = Processor(structure_list=structure, batchsize=1, kpoint=None, eigen_list=None, device=device, dtype=dtype, 
         env_cutoff=self.onsite_cutoff, sorted_bond="st", sorted_env="st")
-        atom_type = structure.atom_type
-        if self.onsite_strain:
-            self.onsite_strain_index_map, self.onsite_strain_num = self.indmap.OnsiteStrain_Ind_Mapings(atom_type)
-            all_onsiteint_types_dcit, reducted_onsiteint_types, onsite_strain_ind_dict = all_skint_types(self.onsite_strain_index_map)
 
         batch_bond, batch_bond_onsites = predict_process.get_bond(sorted="st")
-        if self.onsite_strain:
+        if self.onsitemode == 'strain':
             batch_envs = predict_process.get_env(sorted="st")
+            onsite_coeffdict = self.model(mode='onsite')
+            batch_onsiteVs = self.hops_fun.get_skhops(batch_bonds=batch_envs, coeff_paras=onsite_coeffdict, sk_bond_ind=self.onsite_strain_ind_dict)
+            batch_onsiteEs = onsiteFunc(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=None)
 
-        if self.onsite_strain:
-            nn_onsiteE, onsite_coeffdict = self.model(mode='onsite')
-            batch_onsiteVs = self.hops_fun.get_skhops(batch_bonds=batch_envs, coeff_paras=onsite_coeffdict, sk_bond_ind=onsite_strain_ind_dict)
         else:
             nn_onsiteE = self.model(mode='onsite')
+            batch_onsiteEs = onsiteFunc(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
+
 
         coeffdict = self.model(mode='hopping')
-
-        batch_onsiteEs = onsiteFunc(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
         batch_hoppings = self.hops_fun.get_skhops(batch_bonds=batch_bond, coeff_paras=coeffdict, sk_bond_ind=self.sk_bond_ind_dict, rcut=self.sk_cutoff, w=self.sk_decay_w)
         onsiteEs, hoppings = batch_onsiteEs[0], batch_hoppings[0]
-        if self.onsite_strain:
+        if self.onsitemode == 'strain':
             onsiteVs = batch_onsiteVs[0]
             self.hamileig.update_hs_list(struct=structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs)
             self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[0][:,1:]),
                                         bonds_hoppings=np.asarray(batch_bond[0][:,1:]), 
-                                        onsite_envs=np.asarray(batch_envs[0][:,1:])
-                                        )
+                                        onsite_envs=np.asarray(batch_envs[0][:,1:]))
         else:
             self.hamileig.update_hs_list(struct=structure, hoppings=hoppings, onsiteEs=onsiteEs)
             self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[0][:,1:]),
