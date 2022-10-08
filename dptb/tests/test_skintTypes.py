@@ -1,6 +1,6 @@
 from email.quoprimime import body_check
 from dptb.nnsktb.skintTypes import all_skint_types
-from dptb.utils.tools import Index_Mapings
+from dptb.utils.index_mapping import Index_Mapings
 
 def test_skintTypes():
     envtype = ['N','B']

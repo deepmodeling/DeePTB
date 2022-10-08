@@ -109,7 +109,7 @@ def test_Struct_IndMap_case1(root_directory):
     proj_atom_neles = {"N":5,"B":3}
     CutOff = 4
     struct = BaseStruct(atom=filename,format='vasp',
-        cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles)
+        cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles, onsitemode='uniform')
     assert struct.proj_atom_anglr_m == proj_atom_anglr_m
     assert struct.atom_type == ['N','B']
     assert struct.proj_atom_type == ['N','B']
@@ -141,7 +141,7 @@ def test_Struct_IndMap_case2(root_directory):
     proj_atom_neles = {"N":5,"B":3}
     CutOff = 4
     struct = BaseStruct(atom=filename,format='vasp',
-        cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles)
+        cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles, onsitemode='uniform')
     assert struct.proj_atom_anglr_m == proj_atom_anglr_m
     assert struct.atom_type == ['N','B']
     assert struct.proj_atom_type == ['N','B']
@@ -174,7 +174,7 @@ def test_Struct_IndMap_case3(root_directory):
     proj_atom_neles = {"N":5,"B":3}
     CutOff = 4
     struct = BaseStruct(atom=filename,format='vasp',
-        cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles)
+        cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles, onsitemode='uniform')
     assert struct.proj_atom_anglr_m == proj_atom_anglr_m
     assert struct.atom_type == ['N','B']
     assert struct.proj_atom_type == ['N','B']
