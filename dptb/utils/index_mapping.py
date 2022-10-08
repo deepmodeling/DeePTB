@@ -130,7 +130,7 @@ class Index_Mapings(object):
 
     def Onsite_Ind_Mapings(self, onsitemode, atomtype=None):
         onsite_strain_index_map, onsite_strain_num = None, None
-        if onsitemode == 'uniform':
+        if onsitemode in ['uniform', 'none']:
             onsite_index_map, onsite_num = self._Onsite_Ind_Mapings()
         elif onsitemode == 'split':
             onsite_index_map, onsite_num = self._Onsite_Ind_Mapings_OrbSplit()
@@ -139,7 +139,7 @@ class Index_Mapings(object):
             assert atomtype is not None, "Error: atomtype should not be None when requires strain"
             onsite_strain_index_map, onsite_strain_num = self._OnsiteStrain_Ind_Mapings(atomtype)
         else:
-            raise ValueError(f'Unknown onsitemode {self.onsitemode}')
+            raise ValueError(f'Unknown onsitemode {onsitemode}')
 
         return onsite_strain_index_map, onsite_strain_num, onsite_index_map, onsite_num
 
