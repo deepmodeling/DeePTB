@@ -1,3 +1,4 @@
+from typing_extensions import Self
 from dptb.utils.tools import get_uniq_symbol
 from dptb.utils.constants import anglrMId
 import re
@@ -56,7 +57,7 @@ class Index_Mapings(object):
 
         return bond_index_map, bond_num_hops
     
-    def Onsite_Ind_Mapings(self):
+    def _Onsite_Ind_Mapings(self):
         onsite_index_map = {}
         onsite_num = {}
         for it in range(len(self.bondtype)):
@@ -75,7 +76,7 @@ class Index_Mapings(object):
 
         return onsite_index_map, onsite_num
     
-    def Onsite_Ind_Mapings_OrbSplit(self):
+    def _Onsite_Ind_Mapings_OrbSplit(self):
         onsite_index_map = {}
         onsite_num = {}
         for it in range(len(self.bondtype)):
@@ -95,7 +96,7 @@ class Index_Mapings(object):
         return onsite_index_map, onsite_num
 
 
-    def OnsiteStrain_Ind_Mapings(self, atomtypes):
+    def _OnsiteStrain_Ind_Mapings(self, atomtypes):
 
         onsite_intgrl_index_map = {}
         onsite_intgrl_num = {}
@@ -127,7 +128,20 @@ class Index_Mapings(object):
 
         return onsite_intgrl_index_map, onsite_intgrl_num
 
+    def Onsite_Ind_Mapings(self, onsitemode, atomtype=None):
+        onsite_strain_index_map, onsite_strain_num = None, None
+        if onsitemode == 'uniform':
+            onsite_index_map, onsite_num = self._Onsite_Ind_Mapings()
+        elif onsitemode == 'split':
+            onsite_index_map, onsite_num = self._Onsite_Ind_Mapings_OrbSplit()
+        elif onsitemode == 'strain':
+            onsite_index_map, onsite_num = self._Onsite_Ind_Mapings()
+            assert atomtype is not None, "Error: atomtype should not be None when requires strain"
+            onsite_strain_index_map, onsite_strain_num = self._OnsiteStrain_Ind_Mapings(atomtype)
+        else:
+            raise ValueError(f'Unknown onsitemode {self.onsitemode}')
 
+        return onsite_strain_index_map, onsite_strain_num, onsite_index_map, onsite_num
 
 if __name__ == '__main__':
     im = Index_Mapings(proj_atom_anglr_m={"N":["2s","2p"], "C":["2s","2p"]})

@@ -1,7 +1,6 @@
 import torch
 import numpy as np
 from dptb.dataprocess.processor import Processor
-from dptb.dataprocess.toolset import EnvSet
 from dptb.utils.constants import atomic_num_dict_r, atomic_num_dict
 from dptb.nnet.tb_net import TBNet
 from dptb.sktb.skIntegrals import SKIntegrals

@@ -165,15 +165,17 @@ class NNSKTrainer(Trainer):
         self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
 
-        if self.onsitemode.lower() in ['uniform','none']:
-            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
-        elif self.onsitemode.lower() == 'split':
-            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
-        elif self.onsitemode.lower() == 'strain':
-            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
-            self.onsite_strain_index_map, self.onsite_strain_num = self.IndMap.OnsiteStrain_Ind_Mapings(self.atom_type)
-        else:
-            raise ValueError(f'Unknown onsitemode {self.onsitemode}')
+        self.onsite_strain_index_map, self.onsite_strain_num, self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings(self.onsitemode, atomtype=self.atom_type)
+
+        # if self.onsitemode.lower() in ['uniform','none']:
+        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
+        # elif self.onsitemode.lower() == 'split':
+        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
+        # elif self.onsitemode.lower() == 'strain':
+        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
+        #     self.onsite_strain_index_map, self.onsite_strain_num = self.IndMap.OnsiteStrain_Ind_Mapings(self.atom_type)
+        # else:
+        #     raise ValueError(f'Unknown onsitemode {self.onsitemode}')
 
         self.bond_type = get_uniq_bond_type(proj_atom_type)
         # # ------------------------------------initialize model options----------------------------------

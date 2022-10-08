@@ -65,15 +65,17 @@ class BaseStruct(AbstractStructure):
 
         self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
-        if onsitemode.lower() in ['uniform','none']:
-            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
-        elif onsitemode.lower() ==  'split':
-            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
-        elif onsitemode.lower() == 'strain':
-            self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
-            self.onsite_strain_index_map, self.onsite_strain_num = self.IndMap.OnsiteStrain_Ind_Mapings(self.atom_type)
-        else:
-            raise ValueError(f"Unknown onsitemode type: {onsitemode}")
+        self.onsite_strain_index_map, self.onsite_strain_num, self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings(onsitemode, atomtype=self.atom_type)
+
+        # if onsitemode.lower() in ['uniform','none']:
+        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
+        # elif onsitemode.lower() ==  'split':
+        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
+        # elif onsitemode.lower() == 'strain':
+        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
+        #     self.onsite_strain_index_map, self.onsite_strain_num = self.IndMap.OnsiteStrain_Ind_Mapings(self.atom_type)
+        # else:
+        #     raise ValueError(f"Unknown onsitemode type: {onsitemode}")
 
 
 
