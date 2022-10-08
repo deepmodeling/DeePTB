@@ -6,7 +6,6 @@ from dptb.utils.tools import get_uniq_symbol, \
     get_optimizer, nnsk_correction, j_must_have
 from dptb.utils.index_mapping import Index_Mapings
 from dptb.sktb.struct_skhs import SKHSLists
-from dptb.nnsktb.formula import num_paras
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
 from dptb.nnops.loss import loss_type1, loss_spectral, loss_soft_sort, loss_proj_env
 from dptb.dataprocess.processor import Processor
@@ -186,7 +185,7 @@ class NNSKTrainer(Trainer):
 
         self.hops_fun = SKintHops(mode=self.skformula)
         self.onsite_fun = onsiteFunc
-        self.onsite_db = loadOnsite(self.onsite_index_map, self.proj_atom_anglr_m)
+        self.onsite_db = loadOnsite(self.onsite_index_map)
         self._init_model()
 
         self.optimizer = get_optimizer(model_param=self.model.parameters(), **opt_options)

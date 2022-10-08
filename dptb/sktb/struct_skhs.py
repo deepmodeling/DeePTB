@@ -22,11 +22,11 @@ class SKHSLists(object):
     
     def get_HS_list(self, bonds_onsite = None, bonds_hoppings=None):
         if bonds_onsite is None:
-            bonds_onsite = self.__struct__.bonds_onsite
-        assert len(bonds_onsite) == len(self.__struct__.bonds_onsite) 
+            bonds_onsite = self.__struct__.__bonds_onsite__
+        assert len(bonds_onsite) == len(self.__struct__.__bonds_onsite__) 
         if bonds_hoppings is None:
-            bonds_hoppings = self.__struct__.bonds 
-        assert len(bonds_hoppings) == len(self.__struct__.bonds)
+            bonds_hoppings = self.__struct__.__bonds__ 
+        assert len(bonds_hoppings) == len(self.__struct__.__bonds__)
         
         self.hoppings = []
         self.onsiteEs = []

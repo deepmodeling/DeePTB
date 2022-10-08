@@ -8,7 +8,6 @@ from dptb.sktb.struct_skhs import SKHSLists
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
 from dptb.structure.structure import BaseStruct
 from dptb.utils.tools import nnsk_correction
-from dptb.nnsktb.formula import num_paras
 from abc import ABC, abstractmethod
 
 from dptb.utils.index_mapping import Index_Mapings
@@ -164,21 +163,10 @@ class NNSK(ModelAPI):
 
         self.indmap = Index_Mapings(proj_atom_anglr_m)
         bond_index_map, bond_num_hops =  self.indmap.Bond_Ind_Mapings()
-        if self.onsitemode in ['uniform', 'none']:
-            onsite_index_map, onsite_num = self.indmap.Onsite_Ind_Mapings()
-        elif self.onsitemode == 'split':
-            onsite_index_map, onsite_num = self.indmap.Onsite_Ind_Mapings_OrbSplit()
-        elif self.onsitemode == 'strain':
-            onsite_index_map, onsite_num = self.indmap.Onsite_Ind_Mapings()
-            onsite_strain_index_map, onsite_strain_num = self.indmap.OnsiteStrain_Ind_Mapings(model_config.get("atom_type"))
-            all_onsiteint_types_dcit, reducted_onsiteint_types, self.onsite_strain_ind_dict = all_onsite_intgrl_types(onsite_strain_index_map)
-
-
-        else:
-            raise ValueError(f'Unknown onsitemode {self.onsitemode}')
+        self.onsite_strain_index_map, onsite_strain_num, onsite_index_map, onsite_num = self.indmap.Onsite_Ind_Mapings(onsitemode=self.onsitemode, atomtype=model_config.get("atom_type"))
             
         self.hops_fun = SKintHops(mode=self.skformula)
-        self.onsite_db = loadOnsite(onsite_index_map, proj_atom_anglr_m)
+        self.onsite_db = loadOnsite(onsite_index_map)
         all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(bond_index_map)
         
         self.hamileig = HamilEig(dtype='tensor')
@@ -197,6 +185,7 @@ class NNSK(ModelAPI):
         if self.onsitemode == 'strain':
             batch_envs = predict_process.get_env(sorted="st")
             onsite_coeffdict = self.model(mode='onsite')
+            all_onsiteint_types_dcit, reducted_onsiteint_types, self.onsite_strain_ind_dict = all_onsite_intgrl_types(self.onsite_strain_index_map)
             batch_onsiteVs = self.hops_fun.get_skhops(batch_bonds=batch_envs, coeff_paras=onsite_coeffdict, sk_bond_ind=self.onsite_strain_ind_dict)
             batch_onsiteEs = onsiteFunc(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=None)
 

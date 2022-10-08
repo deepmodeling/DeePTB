@@ -3,7 +3,6 @@ import torch as th
 from abc import ABC, abstractmethod
 from dptb.nnsktb.bondlengthDB import bond_length
 
-num_paras = {'varTang96':4, 'powerlaw':2}
 
 class BaseSK(ABC):
     def __init__(self) -> None:
@@ -25,13 +24,14 @@ class SKFormula(BaseSK):
     def __init__(self, mode='varTang96') -> None:
         super(SKFormula, self).__init__()
         # one can modify this by add his own formula with the name mode to deifine num of pars.
-        self.num_paras = num_paras[mode]
         if mode == 'varTang96':
             self.mode = mode
+            self.num_paras = 4
             assert hasattr(self, 'varTang96')
        
         elif mode == 'powerlaw':
             self.mode = mode
+            self.num_paras = 2
             assert hasattr(self, 'powerlaw')
 
         elif mode =='custom':
