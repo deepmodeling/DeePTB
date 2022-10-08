@@ -60,11 +60,11 @@ class HamilEig(RotationSK):
         e.g. for C-atom with both s and p orbital on each site. norbi is 4.
         """
         if bonds_onsite is None:
-            bonds_onsite = self.__struct__.bonds_onsite
-        assert len(bonds_onsite) == len(self.__struct__.bonds_onsite) 
+            bonds_onsite = self.__struct__.__bonds_onsite__
+        assert len(bonds_onsite) == len(self.__struct__.__bonds_onsite__) 
         if bonds_hoppings is None:
-            bonds_hoppings = self.__struct__.bonds 
-        assert len(bonds_hoppings) == len(self.__struct__.bonds)
+            bonds_hoppings = self.__struct__.__bonds__ 
+        assert len(bonds_hoppings) == len(self.__struct__.__bonds__)
 
         hamil_blocks = []
         if not self.use_orthogonal_basis:
