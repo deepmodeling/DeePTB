@@ -185,7 +185,7 @@ class NNSKTrainer(Trainer):
 
         self.hops_fun = SKintHops(mode=self.skformula)
         self.onsite_fun = onsiteFunc
-        self.onsite_db = loadOnsite(self.onsite_index_map, self.proj_atom_anglr_m)
+        self.onsite_db = loadOnsite(self.onsite_index_map)
         self._init_model()
 
         self.optimizer = get_optimizer(model_param=self.model.parameters(), **opt_options)

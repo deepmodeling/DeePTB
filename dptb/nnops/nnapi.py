@@ -177,7 +177,7 @@ class NNSK(ModelAPI):
             raise ValueError(f'Unknown onsitemode {self.onsitemode}')
             
         self.hops_fun = SKintHops(mode=self.skformula)
-        self.onsite_db = loadOnsite(onsite_index_map, proj_atom_anglr_m)
+        self.onsite_db = loadOnsite(onsite_index_map)
         all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(bond_index_map)
         
         self.hamileig = HamilEig(dtype='tensor')

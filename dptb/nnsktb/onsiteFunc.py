@@ -7,7 +7,7 @@ from dptb.nnsktb.formula import SKFormula
 
 # define the function for output all the onsites Es for given i.
 
-def loadOnsite(onsite_map: dict, proj_atom_anglr_m: dict):
+def loadOnsite(onsite_map: dict):
     # TODO: remove the proj_atom_anglr_m parameter, only use the onsite_map this function will still work.
     """ load the onsite energies from the database, according to the onsite_map:dict
     This function only need to run once before calculation/ training.
@@ -26,15 +26,14 @@ def loadOnsite(onsite_map: dict, proj_atom_anglr_m: dict):
 
     """
 
-    atoms_types = list(proj_atom_anglr_m.keys())
+    atoms_types = list(onsite_map.keys())
     onsite_db = {}
     for ia in atoms_types:
         assert ia in onsite_energy_database.keys(), f'{ia} is not in the onsite_energy_database. \n see the onsite_energy_database in dptb.nnsktb.onsiteDB.py.'
         orb_energies = onsite_energy_database[ia]
-        indeces = sum([onsite_map[ia][x] for x in list(proj_atom_anglr_m[ia])],[])
+        indeces = sum(list(onsite_map[ia].values()),[])
         onsite_db[ia] = th.zeros(len(indeces))
-        for isk in proj_atom_anglr_m[ia]:
-
+        for isk in onsite_map[ia].keys():
             assert isk in orb_energies.keys(), f'{isk} is not in the onsite_energy_database for {ia} atom. \n see the onsite_energy_database in dptb.nnsktb.onsiteDB.py.'
             onsite_db[ia][onsite_map[ia][isk]] = orb_energies[isk]
 
@@ -75,5 +74,5 @@ def onsiteFunc(batch_bonds_onsite, onsite_db: dict, nn_onsiteE: dict=None):
     return batch_onsiteEs
 
 if __name__ == '__main__':
-    onsite = loadOnsite({'N': {'2s': [0], '2p': [1,2,3]}, 'B': {'2s': [0], '2p': [1,2,3]}}, {'N':['2s','2p'], 'B':['2s', '2p']})
+    onsite = loadOnsite({'N': {'2s': [0], '2p': [1,2,3]}, 'B': {'2s': [0], '2p': [1,2,3]}})
     print(len(onsite['N']))
