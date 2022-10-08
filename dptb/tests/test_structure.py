@@ -75,15 +75,16 @@ def test_BaseStruct(root_directory):
       dtype=np.float32)
     struct = BaseStruct(atom=filename,format='vasp',
         cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles, onsitemode='uniform')
+    bonds, bonds_onsite = struct.get_bond()
     assert struct.proj_atom_anglr_m == proj_atom_anglr_m
     assert struct.atom_type == ['N','B']
     assert struct.proj_atom_type == ['N','B']
     assert struct.proj_atom_type_norbs == {'N':4,'B':4}
     assert (struct.proj_atom_symbols == ['N','B'])
     assert (struct.atom_symbols == ['N','B']).all()
-    assert (struct.bonds[:,0:7].astype(int) == bondlist).all()
-    assert (np.abs(struct.bonds[:,7:11].astype(np.float32)-bond_dist_vec) < 1e-6).all()
-    assert (struct.bonds_onsite == onsitelist).all()
+    assert (struct.__bonds__[:,0:7].astype(int) == bondlist).all()
+    assert (np.abs(struct.__bonds__[:,7:11].astype(np.float32)-bond_dist_vec) < 1e-6).all()
+    assert (struct.__bonds_onsite__ == onsitelist).all()
 
     bond_index_map = {'N-N': {'s-s': [0], 's-p': [1], 'p-s': [1], 'p-p': [2, 3]},
                       'N-B': {'s-s': [0], 's-p': [1], 'p-s': [2], 'p-p': [3, 4]},
