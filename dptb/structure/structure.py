@@ -6,7 +6,6 @@ from ase import Atoms
 import numpy  as np
 import re
 from itertools import accumulate
-from dptb.nnsktb.formula import num_paras
 import ase.io
 from dptb.utils.constants import anglrMId,atomic_num_dict
 from dptb.utils.tools import get_uniq_symbol, env_smoth

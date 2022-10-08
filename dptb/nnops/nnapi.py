@@ -8,7 +8,6 @@ from dptb.sktb.struct_skhs import SKHSLists
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
 from dptb.structure.structure import BaseStruct
 from dptb.utils.tools import nnsk_correction
-from dptb.nnsktb.formula import num_paras
 from abc import ABC, abstractmethod
 
 from dptb.utils.index_mapping import Index_Mapings
