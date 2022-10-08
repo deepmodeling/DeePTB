@@ -20,7 +20,7 @@ test_data_path = os.path.join(Path(os.path.abspath(__file__)).parent, "data/")
 
 log = logging.getLogger(__name__)
 
-def test_train():
+def _test_train():
     train(
         INPUT = INPUT,
         init_model = None,
@@ -46,7 +46,7 @@ def test_train_sk():
         use_correction=False,
     )
 
-def test_train_init_model():
+def _test_train_init_model():
     train(
         INPUT=INPUT,
         init_model=test_data_path+"/hBN/checkpoint/best_dptb.pth",
@@ -59,7 +59,7 @@ def test_train_init_model():
         use_correction=False,
     )
 
-def test_train_sk_init_model():
+def _test_train_sk_init_model():
     train(
         INPUT=INPUT,
         init_model=test_data_path+"/hBN/checkpoint/best_nnsk.pth",
@@ -73,7 +73,7 @@ def test_train_sk_init_model():
     )
 
 
-def test_train_crt():
+def _test_train_crt():
     init_model = None
     restart = None
     freeze = False
@@ -198,7 +198,7 @@ def test_train_crt():
     log.info("finished training")
     log.info(f"wall time: {(end_time - start_time):.3f} s")
 
-def test_train_init_model_crt():
+def _test_train_init_model_crt():
     init_model = test_data_path+"/hBN/checkpoint/best_dptb.pth"
     restart = None
     freeze = False
