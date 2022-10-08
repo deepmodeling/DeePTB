@@ -17,14 +17,14 @@ class TestIndexMap:
         assert bond_num == {'N-N': 4, 'N-B': 5, 'B-N': 5, 'B-B': 4}
 
     def test_onsite_mapings(self):
-        _, _, onsite_map, onsite_num = self.indmap.Onsite_Ind_Mapings(onsitemode="unifrom")
+        _, _, onsite_map, onsite_num = self.indmap.Onsite_Ind_Mapings(onsitemode="uniform")
         
         assert onsite_map == {'N': {'2s': [0], '2p': [1]}, 'B': {'2s': [0], '2p': [1]}}
         assert onsite_num == {'N': 2, 'B': 2}
 
 
     def test_onsite_split_mapings(self):
-        _, _, onsite_map, onsite_num = self.indmap.Onsite_Ind_Mapings_OrbSplit(onsitemode="split")
+        _, _, onsite_map, onsite_num = self.indmap.Onsite_Ind_Mapings(onsitemode="split")
         
         assert onsite_map == {'N': {'2s': [0], '2p': [1, 2, 3]}, 'B': {'2s': [0], '2p': [1, 2, 3]}}
         assert onsite_num == {'N': 4, 'B': 4}
