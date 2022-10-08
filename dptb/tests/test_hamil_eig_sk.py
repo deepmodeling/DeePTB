@@ -282,6 +282,7 @@ def test_HamilRSK(root_directory):
     CutOff = 4
     struct = BaseStruct(atom=structname,format='vasp',
         cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles)
+    _, _ = struct.get_bond()
     skint = SKIntegrals(proj_atom_anglr_m=proj_atom_anglr_m,sk_file_path=sk_file_path)
     hslist = SKHSLists(skint,dtype='numpy')
     hslist.update_struct(struct)
