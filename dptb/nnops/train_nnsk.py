@@ -285,6 +285,7 @@ class NNSKTrainer(Trainer):
                 self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs)
                 self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
                                             bonds_hoppings=np.asarray(batch_bonds[ii][:,1:]))
+            # TODO: 对角化应该放在 batch 中所有结构的 hamiltonina 矩阵构造完毕之后，然后再整体去对角化。 
             eigenvalues_ii, eigvec = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.time_symm, dtype='tensor')
             eigenvalues_pred.append(eigenvalues_ii)
             eigenvector_pred.append(eigvec)
