@@ -2,11 +2,11 @@ from dptb.entrypoints.train import train
 from dptb.entrypoints.main import parse_args
 import os
 from pathlib import Path
-from dptb.nnops.train_logger import Logger
+from dptb.plugins.train_logger import Logger
 from dptb.nnops.train_dptb import DPTBTrainer
-from dptb.nnops.plugins import Saver
+from dptb.plugins.plugins import Saver
 from dptb.nnops.train_nnsk import NNSKTrainer
-from dptb.nnops.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
+from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
 import time
 import json
 import logging
@@ -23,7 +23,6 @@ test_data_path = os.path.join(Path(os.path.abspath(__file__)).parent, "data/")
 log = logging.getLogger(__name__)
 
 def _test_train():
-    
     train(
         INPUT = INPUT,
         init_model = None,
