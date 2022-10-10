@@ -18,6 +18,8 @@ from typing import Dict, List, Optional, Any
 INPUT = os.path.join(Path(os.path.abspath(__file__)).parent, "data/input.json")
 test_data_path = os.path.join(Path(os.path.abspath(__file__)).parent, "data/")
 
+
+
 log = logging.getLogger(__name__)
 
 def _test_train():
@@ -34,6 +36,7 @@ def _test_train():
     )
 
 def test_train_sk():
+    print("Here",INPUT)
     train(
         INPUT=INPUT,
         init_model=None,

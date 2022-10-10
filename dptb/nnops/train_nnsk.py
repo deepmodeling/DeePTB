@@ -1,13 +1,11 @@
 import torch
 from dptb.nnops.trainer import Trainer
 from dptb.utils.tools import get_uniq_symbol, \
-    get_lr_scheduler, get_uniq_bond_type, get_uniq_env_bond_type, \
-    get_env_neuron_config, get_bond_neuron_config, get_onsite_neuron_config, \
-    get_optimizer, nnsk_correction, j_must_have
+    get_lr_scheduler, get_uniq_bond_type, get_optimizer, j_must_have
 from dptb.utils.index_mapping import Index_Mapings
 from dptb.sktb.struct_skhs import SKHSLists
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
-from dptb.nnops.loss import loss_type1, loss_spectral, loss_soft_sort, loss_proj_env
+from dptb.nnops.loss import loss_type1, loss_soft_sort
 from dptb.dataprocess.processor import Processor
 from dptb.dataprocess.datareader import read_data
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
@@ -15,9 +13,9 @@ from dptb.nnsktb.sknet import SKNet
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 import logging
-import heapq
 import numpy as np
 from dptb.nnsktb.loadparas import load_paras
+from dptb.utils.base_plugin import PluginUser
 
 log = logging.getLogger(__name__)
 
@@ -27,6 +25,7 @@ class NNSKTrainer(Trainer):
         self.run_opt = run_opt
         self.name = "nnsk"
         self._init_param(jdata)
+        
 
     def _init_param(self, jdata):
         train_options = j_must_have(jdata, "train_options")

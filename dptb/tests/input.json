@@ -81,6 +81,12 @@
     "band_min": 0,
     "band_max": 4,
     "ref_band_min": 0,
-    "ref_band_max": 4
+    "ref_band_max": 4,
+    "sigma":2,
+    "num_omega":3000,
+    "sortstrength":[0.01,0.01],
+    "gap_penalty": false,
+    "fermi_band":3,
+    "loss_gap_eta":1e-2
   }
 }
