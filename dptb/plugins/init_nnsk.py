@@ -1,7 +1,7 @@
 import os
 import time
 import torch
-from dptb.plugins.base_plugin import PluginUser
+from dptb.plugins.base_plugin import Plugin
 import logging
 from dptb.nnsktb.sknet import SKNet
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
@@ -13,16 +13,15 @@ from dptb.nnsktb.loadparas import load_paras
 
 log = logging.getLogger(__name__)
 
-class InitSKModel(PluginUser):
+class InitSKModel(Plugin):
     def __init__(self, interval=None):
         if interval is None:
-            interval = [(-1, 'init')]
+            interval = [(-1, 'inimodel')]
         super(InitSKModel, self).__init__(interval)
+    def register(self, host):
+        self.trainer = host
 
-    def register(self, trainer):
-        self.trainer = trainer
-
-    def init(self, mode=None, **kwargs):
+    def inimodel(self, mode=None, **kwargs):
         if mode == "from_scratch":
             self.init_from_scratch()
         elif mode == "init_model":
@@ -40,10 +39,10 @@ class InitSKModel(PluginUser):
                 IndMap.Onsite_Ind_Mapings(self.trainer.onsitemode, atomtype=self.trainer.atom_type)
 
         self.trainer.onsite_fun = onsiteFunc
-        self.trainer.onsite_db = loadOnsite(onsite_index_map)
-        self.trainer.hops_fun = SKintHops(mode=self.trainer.sk_options.get('skformula',"varTang96"))
+        self.trainer.onsite_db  = loadOnsite(onsite_index_map)
+        self.trainer.hops_fun   = SKintHops(mode=self.trainer.sk_options.get('skformula',"varTang96"))
         
-        _, reducted_skint_types, _ = all_skint_types(bond_index_map)
+        _, reducted_skint_types, self.trainer.sk_bond_ind_dict = all_skint_types(bond_index_map)
         bond_neurons = {"nhidden": self.trainer.model_options.get('sk_hop_nhidden',1), "nout":self.trainer.hops_fun.num_paras}
     
 
@@ -69,8 +68,8 @@ class InitSKModel(PluginUser):
                                         "proj_atom_anglr_m":self.trainer.proj_atom_anglr_m,
                                         "atom_type":self.trainer.atom_type,
                                         "skformula":self.trainer.sk_options.get('skformula',"varTang96"),
-                                        "sk_cutoff":self.sk_cutoff,
-                                        "sk_decay_w":self.sk_decay_w,
+                                        "sk_cutoff":self.trainer.sk_cutoff,
+                                        "sk_decay_w":self.trainer.sk_decay_w,
                                         "sk_hop_nhidden":self.trainer.model_options.get('sk_hop_nhidden',1),
                                         "sk_onsite_nhidden":self.trainer.model_options.get('sk_onsite_nhidden',1),
                                         "onsitemode":self.trainer.onsitemode,
@@ -91,7 +90,7 @@ class InitSKModel(PluginUser):
         self.trainer.onsite_db = loadOnsite(onsite_index_map)
         self.trainer.hops_fun = SKintHops(mode=model_config['skformula'])
 
-        _, reducted_skint_types, _ = all_skint_types(bond_index_map)
+        _, reducted_skint_types, self.trainer.sk_bond_ind_dict = all_skint_types(bond_index_map)
         bond_neurons = {"nhidden": model_config['sk_hop_nhidden'], "nout":self.trainer.hops_fun.num_paras}
 
 

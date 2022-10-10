@@ -162,46 +162,32 @@ class NNSKTrainer(Trainer):
         self.IndMap = Index_Mapings()
         self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
-
         self.onsite_strain_index_map, self.onsite_strain_num, self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings(self.onsitemode, atomtype=self.atom_type)
 
-        # if self.onsitemode.lower() in ['uniform','none']:
-        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
-        # elif self.onsitemode.lower() == 'split':
-        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
-        # elif self.onsitemode.lower() == 'strain':
-        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
-        #     self.onsite_strain_index_map, self.onsite_strain_num = self.IndMap.OnsiteStrain_Ind_Mapings(self.atom_type)
-        # else:
-        #     raise ValueError(f'Unknown onsitemode {self.onsitemode}')
 
         self.bond_type = get_uniq_bond_type(proj_atom_type)
         # # ------------------------------------initialize model options----------------------------------
 
         self.hamileig = HamilEig(dtype='tensor')
-
- 
-
-        self.hops_fun = SKintHops(mode=self.skformula)
-        self.onsite_fun = onsiteFunc
-        self.onsite_db = loadOnsite(self.onsite_index_map)
-        self._init_model()
-
-        self.optimizer = get_optimizer(model_param=self.model.parameters(), **opt_options)
-        self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **sch_options)  # add optmizer
-
-        self.criterion = torch.nn.MSELoss(reduction='mean')
-
+        
         self.emin = self.loss_options["emin"]
         self.emax = self.loss_options["emax"]
         self.sigma = self.loss_options.get('sigma', 0.1)
         self.num_omega = self.loss_options.get('num_omega',None)
         self.sortstrength = self.loss_options.get('sortstrength',[0.1,0.1])
         self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(self.sortstrength[0]), end=np.log(self.sortstrength[1]), steps=self.num_epoch))
+    
+    def preprocess_plugin(self):
+        self.call_plugins(queue_name='inimodel', time=0, mode=self.run_opt.get("mode", None))
 
+        self.optimizer = get_optimizer(model_param=self.model.parameters(), **self.opt_options)
+# 
+        self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **self.sch_options)  # add optmizer
+
+        self.criterion = torch.nn.MSELoss(reduction='mean')
+    
     def _init_data(self):
         pass
-
     def _init_model(self):
         mode = self.run_opt.get("mode", None)
         if mode is None:
