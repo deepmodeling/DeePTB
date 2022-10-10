@@ -172,7 +172,6 @@ class NNSK(ModelAPI):
         self.hamileig = HamilEig(dtype='tensor')
         self.if_HR_ready=False
 
-
     def get_HR(self, structure, device='cpu', dtype=torch.float32):
         assert isinstance(structure, BaseStruct)
         assert structure.onsitemode == self.onsitemode

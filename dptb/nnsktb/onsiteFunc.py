@@ -8,7 +8,6 @@ from dptb.nnsktb.formula import SKFormula
 # define the function for output all the onsites Es for given i.
 
 def loadOnsite(onsite_map: dict):
-    # TODO: remove the proj_atom_anglr_m parameter, only use the onsite_map this function will still work.
     """ load the onsite energies from the database, according to the onsite_map:dict
     This function only need to run once before calculation/ training.
 

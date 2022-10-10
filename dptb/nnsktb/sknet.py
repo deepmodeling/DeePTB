@@ -17,7 +17,6 @@ class DirectNet(nn.Module):
         return self.layer1 @ self.layer2 / self.nhidden
 
 
-
 class SKNet(nn.Module):
     def __init__(self, skint_types: list, onsite_num: dict, bond_neurons: dict, onsite_neurons: dict, device='cpu', dtype=torch.float32, onsitemode:str='none', onsiteint_types=False, **kwargs):
         ''' define the nn.parameters for fittig sktb.

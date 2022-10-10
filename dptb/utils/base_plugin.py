@@ -15,10 +15,8 @@ class Plugin(object):
     def register(self, *args):
         raise NotImplementedError
 
-
-
-class PluginUser(with_metaclass(ABCMeta, object)):
-    def __init__(self, jdata) -> None:
+class PluginUser(object):
+    def __init__(self) -> None:
         ''' Here is for plugins.
                     plugins:
                         - iteration: events  after every batch training iteration.  
@@ -39,7 +37,6 @@ class PluginUser(with_metaclass(ABCMeta, object)):
         if not isinstance(intervals, list):
             intervals = [intervals]
 
-        
         for duration, unit in intervals:
             # unit the plugin type.
             queue = self.plugin_queues[unit]
@@ -62,6 +59,9 @@ class PluginUser(with_metaclass(ABCMeta, object)):
                 if trigger[1] == queue_name:
                     interval = trigger[0]
             # 根据插件的事件触发间隔，来更新事件队列里的事件 duration
-            new_item = (time + interval, queue[0][1], plugin)
-            heapq.heappushpop(queue, new_item)
-            '''加入新的事件并弹出最小堆的堆头。最小堆重新排序。'''
+            if queue[0][0] > 0:
+                new_item = (time + interval, queue[0][1], plugin)
+                heapq.heappushpop(queue, new_item)
+                '''加入新的事件并弹出最小堆的堆头。最小堆重新排序。'''
+            else:
+                heapq.heappop(queue)
