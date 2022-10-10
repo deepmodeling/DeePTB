@@ -15,7 +15,7 @@ from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 import logging
 import numpy as np
 from dptb.nnsktb.loadparas import load_paras
-from dptb.utils.base_plugin import PluginUser
+from dptb.plugins.base_plugin import PluginUser
 
 log = logging.getLogger(__name__)
 

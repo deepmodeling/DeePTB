@@ -1,4 +1,4 @@
-from dptb.utils.base_plugin import Plugin
+from dptb.plugins.base_plugin import Plugin
 from collections import defaultdict
 import logging
 import os
