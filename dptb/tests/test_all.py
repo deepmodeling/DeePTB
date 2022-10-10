@@ -6,7 +6,7 @@ from dptb.plugins.train_logger import Logger
 from dptb.nnops.train_dptb import DPTBTrainer
 from dptb.plugins.plugins import Saver
 from dptb.nnops.train_nnsk import NNSKTrainer
-from dptb.nnops.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
+from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
 import time
 import json
 import logging

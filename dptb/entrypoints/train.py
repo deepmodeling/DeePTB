@@ -1,6 +1,6 @@
 from dptb.nnops.train_dptb import DPTBTrainer
 from dptb.nnops.train_nnsk import NNSKTrainer
-from dptb.nnops.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
+from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
 from dptb.plugins.train_logger import Logger
 from dptb.plugins.plugins import Saver
 from typing import Dict, List, Optional, Any

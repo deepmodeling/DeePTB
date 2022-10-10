@@ -1,7 +1,7 @@
 import os
 import time
 import torch
-from dptb.nnops.base_plugin import Plugin
+from dptb.plugins.base_plugin import PluginUser
 import logging
 from dptb.nnsktb.sknet import SKNet
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
@@ -13,7 +13,7 @@ from dptb.nnsktb.loadparas import load_paras
 
 log = logging.getLogger(__name__)
 
-class InitSKModel(Plugin):
+class InitSKModel(PluginUser):
     def __init__(self, interval=None):
         if interval is None:
             interval = [(-1, 'init')]
