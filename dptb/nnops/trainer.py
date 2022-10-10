@@ -6,7 +6,7 @@ from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 from future.utils import with_metaclass
 from dptb.utils.constants import dtype_dict
-from dptb.utils.base_plugin import PluginUser
+from dptb.plugins.base_plugin import PluginUser
 
 
 log = logging.getLogger(__name__)
