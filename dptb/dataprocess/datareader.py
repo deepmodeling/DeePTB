@@ -2,7 +2,9 @@ import ase
 import glob
 import numpy as np
 from ase.io.trajectory import Trajectory
+import torch
 from dptb.structure.structure import BaseStruct
+from dptb.dataprocess.processor import Processor
 
 def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='uniform', time_symm=True, **kwargs):
     """根据文件路径和prefix的读取文件夹下的数据文件,并存储为神经网络模型的输入格式数据
@@ -42,8 +44,22 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
     return struct_list_sets, kpoints_sets, eigens_sets
 
 
-def read_test_data(path, prefix, **kwargs):
-    pass
+def get_data(path, prefix,batch_size, bond_cutoff, env_cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='uniform', time_symm=True, device='cpu', dtype=torch.float32, **kwargs):
+    """
+        input: data params
+        output: processor
+    """
+    
+    struct_list_sets, kpoints_sets, eigens_sets = read_data(path, prefix, bond_cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode, time_symm, **kwargs)
+    assert len(struct_list_sets) == len(kpoints_sets) == len(eigens_sets)
+    processor_list = []
+
+    for i in range(len(struct_list_sets)):
+        processor_list.append(
+            Processor(structure_list=struct_list_sets[i], batchsize=batch_size,
+                        kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=device, 
+                        dtype=dtype, env_cutoff=onsite_cutoff, sorted_bond="st", sorted_env="st"))
+    
 
 
 
