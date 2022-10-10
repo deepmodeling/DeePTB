@@ -2,7 +2,7 @@ from dptb.entrypoints.train import train
 from dptb.entrypoints.main import parse_args
 import os
 from pathlib import Path
-from dptb.nnops.train_logger import Logger
+from dptb.plugins.train_logger import Logger
 from dptb.nnops.train_dptb import DPTBTrainer
 from dptb.nnops.plugins import Saver
 from dptb.nnops.train_nnsk import NNSKTrainer
