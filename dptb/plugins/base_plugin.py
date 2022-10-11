@@ -26,7 +26,7 @@ class PluginUser(object):
                     The difference b/w iteration and update the parameters, iteration takes in the batch output, loss etc., while  update takes in model itself.
                 '''
         self.stats = {}  # the status of Trainer.
-        self.plugin_queues = {'iteration': [], 'epoch': [], 'batch': [], 'update': []}
+        self.plugin_queues = {'inimodel':[], 'iteration': [], 'epoch': [], 'batch': [], 'update': []}
 
     def register_plugin(self, plugin):
         plugin.register(self)
@@ -65,3 +65,5 @@ class PluginUser(object):
                 '''加入新的事件并弹出最小堆的堆头。最小堆重新排序。'''
             else:
                 heapq.heappop(queue)
+                if len(queue) == 0:
+                    return

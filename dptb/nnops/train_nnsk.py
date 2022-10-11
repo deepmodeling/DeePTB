@@ -179,103 +179,48 @@ class NNSKTrainer(Trainer):
         self.IndMap = Index_Mapings()
         self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
-
         self.onsite_strain_index_map, self.onsite_strain_num, self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings(self.onsitemode, atomtype=self.atom_type)
 
-        # if self.onsitemode.lower() in ['uniform','none']:
-        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
-        # elif self.onsitemode.lower() == 'split':
-        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
-        # elif self.onsitemode.lower() == 'strain':
-        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
-        #     self.onsite_strain_index_map, self.onsite_strain_num = self.IndMap.OnsiteStrain_Ind_Mapings(self.atom_type)
-        # else:
-        #     raise ValueError(f'Unknown onsitemode {self.onsitemode}')
 
         self.bond_type = get_uniq_bond_type(proj_atom_type)
         # # ------------------------------------initialize model options----------------------------------
+        self.onsite_fun = onsiteFunc
+        self.onsite_db  = loadOnsite(self.onsite_index_map)
+        self.hops_fun   = SKintHops(mode='hopping',functype=self.sk_options.get('skformula',"varTang96"),proj_atom_anglr_m=self.proj_atom_anglr_m)
+        if self.onsitemode == 'strain':
+            self.onsitestrain_fun   = SKintHops(mode='onsite', functype=self.sk_options.get('onsiteformula',"varTang96"),proj_atom_anglr_m=self.proj_atom_anglr_m,atom_types=self.atom_type)
+
 
         self.hamileig = HamilEig(dtype='tensor')
-
- 
-
-        self.hops_fun = SKintHops(mode=self.skformula)
-        self.onsite_fun = onsiteFunc
-        self.onsite_db = loadOnsite(self.onsite_index_map)
-        self._init_model()
-
-        self.optimizer = get_optimizer(model_param=self.model.parameters(), **opt_options)
-        self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **sch_options)  # add optmizer
-
-        self.criterion = torch.nn.MSELoss(reduction='mean')
-
+        
         self.emin = self.loss_options["emin"]
         self.emax = self.loss_options["emax"]
         self.sigma = self.loss_options.get('sigma', 0.1)
         self.num_omega = self.loss_options.get('num_omega',None)
         self.sortstrength = self.loss_options.get('sortstrength',[0.1,0.1])
         self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(self.sortstrength[0]), end=np.log(self.sortstrength[1]), steps=self.num_epoch))
+    
+    def _init_model(self):
+        self.call_plugins(queue_name='inimodel', time=0, mode=self.run_opt.get("mode", None))
 
+        self.optimizer = get_optimizer(model_param=self.model.parameters(), **self.opt_options)
+# 
+        self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **self.sch_options)  # add optmizer
+
+        self.criterion = torch.nn.MSELoss(reduction='mean')
+    
     def _init_data(self):
         pass
-
-    def _init_model(self):
-        mode = self.run_opt.get("mode", None)
-        if mode is None:
-            mode = 'from_scratch'
-            log.info(msg="Haven't assign a initializing mode, training from scratch as default.")
-
-        if mode == "from_scratch":
-            all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(self.bond_index_map)
-            self.model_config = self.model_options.copy()
-            bond_neuron = {"nhidden": self.model_options.get('sk_hop_nhidden',1), "nout":self.hops_fun.num_paras}
-            onsite_neuron = {"nhidden":self.model_options.get('sk_onsite_nhidden',1)}
-            self.model_config.update({"skint_types":reducted_skint_types,
-                                      "onsite_num":self.onsite_num,
-                                      "bond_neurons":bond_neuron,
-                                      "onsite_neurons":onsite_neuron,
-                                      "device":self.device, "dtype":self.dtype,
-                                      "onsitemode":self.onsitemode, "onsite_cutoff":self.onsite_cutoff, "proj_atom_anglr_m": self.proj_atom_anglr_m, "atom_type": self.atom_type})
-            if self.onsitemode == 'strain':
-                # TODO: check if the all_skint_types works properly for onsiteint_types. should be all_onsite_intgrl_types.
-                all_onsiteint_types_dcit, reducted_onsiteint_types, self.onsite_strain_ind_dict = all_onsite_intgrl_types(self.onsite_strain_index_map)
-                self.model_config.update({"onsiteint_types":reducted_onsiteint_types})
-            self.model = SKNet(**self.model_config)
-        elif mode == "init_model":
-            # read configuration from checkpoint path.
-            all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(self.bond_index_map)
-            f = torch.load(self.run_opt["init_model"])
-            self.model_config = f["model_config"]
-            for kk in self.model_config:
-                if self.model_options.get(kk) is not None and self.model_options.get(kk) != self.model_config.get(kk):
-                    log.warning(msg="The configure in checkpoint is mismatch with the input configuration {}, init from checkpoint temporarily\n, ".format(kk) +
-                                    "but this might cause conflict.")
-                    break
-            model_config, state_dict = load_paras(model_config=self.model_config, state_dict=f['state_dict'],proj_atom_anglr_m=self.proj_atom_anglr_m, onsitemode=self.onsitemode)
-            self.model_config.update(model_config)
-            self.model_config.update({"sk_options":self.sk_options})
-            self.model_config.update({"proj_atom_anglr_m":self.proj_atom_anglr_m})
-            self.model_config.update({"onsitemode":self.onsitemode, "onsite_cutoff":self.onsite_cutoff})
-            if self.onsitemode == 'strain':
-                all_onsiteint_types_dcit, reducted_onsiteint_types, self.onsite_strain_ind_dict = all_onsite_intgrl_types(self.onsite_strain_index_map)
-                self.model_config.update({"onsiteint_types":reducted_onsiteint_types})
-            self.model = SKNet(**self.model_config)
-            self.model.load_state_dict(state_dict)
-            self.model.train()
-
-        else: 
-            raise RuntimeError("init_mode should be from_scratch/from_model/..., not {}".format(mode))
-
 
     def calc(self, batch_bonds, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints):
         assert len(kpoints.shape) == 2, "kpoints should have shape of [num_kp, 3]."
         coeffdict = self.model(mode='hopping')
-        batch_hoppings = self.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, sk_bond_ind=self.sk_bond_ind_dict, rcut=self.sk_cutoff, w=self.sk_decay_w)
+        batch_hoppings = self.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, rcut=self.sk_cutoff, w=self.sk_decay_w)
         
         nn_onsiteE, onsite_coeffdict = self.model(mode='onsite')
         batch_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
         if self.onsitemode == 'strain':
-            batch_onsiteVs = self.hops_fun.get_skhops(batch_bonds=batch_onsitenvs, coeff_paras=onsite_coeffdict, sk_bond_ind=self.onsite_strain_ind_dict)
+            batch_onsiteVs = self.onsitestrain_fun.get_skhops(batch_bonds=batch_onsitenvs, coeff_paras=onsite_coeffdict)
 
         # call sktb to get the sktb hoppings and onsites
         eigenvalues_pred = []

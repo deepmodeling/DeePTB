@@ -4,7 +4,7 @@ from dptb.nnsktb.formula import SKFormula
 
 def test_default_sk():
     skform = SKFormula()
-    assert skform.mode == 'varTang96'
+    assert skform.functype == 'varTang96'
     assert skform.num_paras == 4
     assert hasattr(skform, 'varTang96')
 

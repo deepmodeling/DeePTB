@@ -14,31 +14,31 @@ class BaseSK(ABC):
         
         Returns
         -------
-            The function defined by mode is called to cal skhij and returned.
+            The function defined by type is called to cal skhij and returned.
         
         '''
         pass
 
 class SKFormula(BaseSK):
 
-    def __init__(self, mode='varTang96') -> None:
+    def __init__(self, functype='varTang96') -> None:
         super(SKFormula, self).__init__()
-        # one can modify this by add his own formula with the name mode to deifine num of pars.
-        if mode == 'varTang96':
-            self.mode = mode
+        # one can modify this by add his own formula with the name functype to deifine num of pars.
+        if functype == 'varTang96':
+            self.functype = functype
             self.num_paras = 4
             assert hasattr(self, 'varTang96')
        
-        elif mode == 'powerlaw':
-            self.mode = mode
+        elif functype == 'powerlaw':
+            self.functype = functype
             self.num_paras = 2
             assert hasattr(self, 'powerlaw')
 
-        elif mode =='custom':
-             # the mode custom, is for user to define their own formula.
+        elif functype =='custom':
+             # the functype custom, is for user to define their own formula.
             # just modify custom to the name of your formula.
             # and define the funnction self.custom(rij, paraArray, **kwargs)
-            self.mode = mode
+            self.functype = functype
             self.num_paras = None # defined by custom.
             assert hasattr(self, 'custom')
         else:
@@ -50,13 +50,13 @@ class SKFormula(BaseSK):
         
         Returns
         -------
-            The function defined by mode is called to cal skhij and returned.
+            The function defined by functype is called to cal skhij and returned.
         
         '''
 
-        if self.mode == 'varTang96':
+        if self.functype == 'varTang96':
             return self.varTang96(rij=rij, **kwargs)
-        elif self.mode == 'powerlaw':
+        elif self.functype == 'powerlaw':
             return self.powerlaw(rij=rij, **kwargs)
         else:
             raise ValueError('No such formula')

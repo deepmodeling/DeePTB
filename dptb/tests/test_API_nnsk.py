@@ -11,7 +11,7 @@ def root_directory(request):
         return str(request.config.rootdir)
 
 
-def test_nnskapi(root_directory):
+def _test_nnskapi(root_directory):
     filepath = f'{root_directory}/dptb/tests/data'
     checkpoint = f'{filepath}/hbn_nnsk_onsite.pb'
     assert os.path.exists(checkpoint), f'{checkpoint} not found!'

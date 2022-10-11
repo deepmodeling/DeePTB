@@ -1,6 +1,7 @@
 from dptb.nnops.train_dptb import DPTBTrainer
 from dptb.nnops.train_nnsk import NNSKTrainer
 from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
+from dptb.plugins.init_nnsk import InitSKModel
 from dptb.plugins.train_logger import Logger
 from dptb.plugins.plugins import Saver
 from typing import Dict, List, Optional, Any
@@ -139,14 +140,15 @@ def train(
     jdata = j_loader(INPUT)
     if train_sk:
         trainer = NNSKTrainer(run_opt, jdata)
+        trainer.register_plugin(InitSKModel())
     else:
         trainer = DPTBTrainer(run_opt, jdata)
-
     # register the plugin in trainer, to tract training info
     trainer.register_plugin(Validationer())
     trainer.register_plugin(TrainLossMonitor())
     trainer.register_plugin(LearningRateMonitor())
     trainer.register_plugin(Logger(["train_loss", "validation_loss", "lr"]))
+    trainer._init_model()
 
     if output:
         # output training configurations:

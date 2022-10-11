@@ -23,7 +23,6 @@ test_data_path = os.path.join(Path(os.path.abspath(__file__)).parent, "data/")
 log = logging.getLogger(__name__)
 
 def _test_train():
-    
     train(
         INPUT = INPUT,
         init_model = None,
