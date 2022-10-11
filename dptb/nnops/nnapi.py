@@ -178,18 +178,18 @@ class NNSK(ModelAPI):
         self.structure = structure
         self.time_symm = structure.time_symm
         predict_process = Processor(structure_list=structure, batchsize=1, kpoint=None, eigen_list=None, device=device, dtype=dtype, 
-        env_cutoff=self.onsite_cutoff, sorted_bond="st", sorted_env="st")
+        env_cutoff=self.onsite_cutoff, onsitemode=self.onsitemode, onsite_cutoff=self.onsite_cutoff, sorted_onsite="st", sorted_bond="st", sorted_env="st")
 
         batch_bond, batch_bond_onsites = predict_process.get_bond(sorted="st")
         if self.onsitemode == 'strain':
             batch_envs = predict_process.get_env(sorted="st")
-            onsite_coeffdict = self.model(mode='onsite')
+            nn_onsiteE, onsite_coeffdict = self.model(mode='onsite')
             all_onsiteint_types_dcit, reducted_onsiteint_types, self.onsite_strain_ind_dict = all_onsite_intgrl_types(self.onsite_strain_index_map)
             batch_onsiteVs = self.hops_fun.get_skhops(batch_bonds=batch_envs, coeff_paras=onsite_coeffdict, sk_bond_ind=self.onsite_strain_ind_dict)
             batch_onsiteEs = onsiteFunc(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=None)
 
         else:
-            nn_onsiteE = self.model(mode='onsite')
+            nn_onsiteE, onsite_coeffdict = self.model(mode='onsite')
             batch_onsiteEs = onsiteFunc(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
 
 

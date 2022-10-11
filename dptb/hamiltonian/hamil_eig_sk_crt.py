@@ -68,8 +68,6 @@ class HamilEig(RotationSK):
             _, bonds_onsite = self.__struct__.get_bond(sorted=None)
         if bonds_hoppings is None:
             bonds_hoppings, _ = self.__struct__.get_bond(sorted=None)
-        if self.onsiteVs is not None and onsite_envs is None:
-            onsite_envs = self.__struct__.get_env(sorted=None)
 
         # ToDo: 1. add d_ij dependence of onsite params 2. rewrite the onsite_index_map 3. confirm the formula of onsite output param
         hamil_blocks = []
@@ -118,6 +116,7 @@ class HamilEig(RotationSK):
 
         # onsite strain
         if onsite_envs is not None:
+            assert self.onsiteVs is not None
             for env in onsite_envs:
                 iatype, iatom, jatype, jatom = self.__struct__.proj_atom_symbols[int(env[1])], env[1], self.__struct__.atom_symbols[int(env[3])], env[3]
                 direction_vec = env[8:11].astype(np.float32)

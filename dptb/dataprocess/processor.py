@@ -5,7 +5,7 @@ from dptb.structure.abstract_stracture import AbstractStructure
 
 class Processor(object):
     # TODO: 现在strain的env 是通过get_env 获得，但是在dptb中的env是有另外的含义。是否已经考虑。
-    def __init__(self, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, env_cutoff: float = 3.0, sorted_bond=None, sorted_env=None, device='cpu', dtype=torch.float32):
+    def __init__(self, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, env_cutoff: float = 3.0, onsitemode=None, onsite_cutoff=None, sorted_bond=None, sorted_onsite=None, sorted_env=None, device='cpu', dtype=torch.float32):
         super(Processor, self).__init__()
         if isinstance(structure_list, AbstractStructure):
             structure_list = [structure_list]
@@ -14,6 +14,9 @@ class Processor(object):
         self.eigen_list = np.array(eigen_list, dtype=object)
         self.sorted_bond = sorted_bond
         self.sorted_env = sorted_env
+        self.sorted_onsite = sorted_onsite
+        self.onsite_cutoff = onsite_cutoff
+        self.onsitemode = onsitemode
 
         self.n_st = len(self.structure_list)
         self.__struct_idx_unsampled__ = np.random.choice(np.array(list(range(len(self.structure_list)))),
@@ -55,7 +58,7 @@ class Processor(object):
             self.__struct_idx_unsampled__ = self.__struct_idx_unsampled__[self.batchsize:]
             self.__struct_unsampled__ = self.__struct_unsampled__[self.batchsize:]
     
-    def get_env(self, sorted=None):
+    def get_env(self, cutoff=None, sorted=None):
         # TODO: the sorted mode should be explained here, in which case, we should use.
         '''It takes the environment of each structure in the workspace and concatenates them into one big
         environment
@@ -68,11 +71,16 @@ class Processor(object):
         if len(self.__struct_workspace__) == 0:
             self.__struct_workspace__ = self.structure_list
         n_stw = len(self.__struct_workspace__)
+
+        if cutoff is None:
+            cutoff = self.env_cutoff
+        else:
+            assert isinstance(cutoff, float)
         
         if sorted is None:
             batch_env = []
             for st in range(n_stw):
-                env = self.__struct_workspace__[st].get_env(env_cutoff=self.env_cutoff, sorted=sorted)
+                env = self.__struct_workspace__[st].get_env(env_cutoff=cutoff, sorted=sorted)
                 assert len(env) > 0, "This structure has no environment atoms."
                 batch_env.append(torch.tensor(np.concatenate([np.ones((env.shape[0], 1))*st, env], axis=1), dtype=self.dtype, device=self.device)) # numpy to tensor
             batch_env = torch.cat(batch_env, dim=0)
@@ -80,7 +88,7 @@ class Processor(object):
         elif sorted == "itype-jtype":
             batch_env = {}
             for st in range(n_stw):
-                env = self.__struct_workspace__[st].get_env(env_cutoff=self.env_cutoff, sorted="itype-jtype")
+                env = self.__struct_workspace__[st].get_env(env_cutoff=cutoff, sorted="itype-jtype")
                 # (i,itype,s(r),rx,ry,rz)
                 for ek in env.keys():
                     # to envalue the order for each structure of the envs.
@@ -97,7 +105,7 @@ class Processor(object):
         elif sorted == "st":
             batch_env = {}
             for st in range(n_stw):
-                env = self.__struct_workspace__[st].get_env(env_cutoff=self.env_cutoff, sorted=None)
+                env = self.__struct_workspace__[st].get_env(env_cutoff=cutoff, sorted=None)
                 assert len(env) > 0, "This structure has no environment atoms."
                 batch_env[st] = torch.tensor(np.concatenate([np.ones((env.shape[0], 1))*st, env], axis=1), dtype=self.dtype, device=self.device) # numpy to tensor
 
@@ -190,8 +198,12 @@ class Processor(object):
             self.shuffle()
             bond, bond_onsite = self.get_bond(self.sorted_bond)
 
-            data = (bond, bond_onsite, self.get_env(self.sorted_env), self.__struct_workspace__,
-                self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float))
+            if not self.onsitemode == 'strain':
+                data = (bond, bond_onsite, self.get_env(sorted=self.sorted_env), None,  self.__struct_workspace__,
+                    self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float))
+            else:
+                data = (bond, bond_onsite, self.get_env(sorted=self.sorted_env), self.get_env(cutoff=self.onsite_cutoff, sorted=self.sorted_onsite), self.__struct_workspace__,
+                    self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float))
 
             self.it += 1
             return data

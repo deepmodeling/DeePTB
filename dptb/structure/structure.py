@@ -29,6 +29,7 @@ class BaseStruct(AbstractStructure):
         self.proj_atom_neles = proj_atom_neles
         self.time_symm = time_symm
         self.__projenv__ = {}
+        self.__onsitenv__ = {}
         self.IndMap = Index_Mapings()
         # TODO: make the onsite_strain to be another onsitemode. 
         self.updata_struct(self.atom, format=format, onsitemode=onsitemode)
@@ -44,6 +45,8 @@ class BaseStruct(AbstractStructure):
         self.__bonds_onsite__ = None
         self.__bonds__ = None
         self.if_env_ready = False
+        self.if_onsitenv_ready = False
+        self.onsite_cutoff = None
 
     def updata_struct(self, atom, format, onsitemode:str='none'):
         self.init_desciption()
@@ -61,6 +64,7 @@ class BaseStruct(AbstractStructure):
         self.proj_atom_type = get_uniq_symbol(atomsymbols=self.proj_atom_symbols)
         self.get_bond(cutoff=self.cutoff,time_symm=self.time_symm)
         self.if_env_ready = False
+        self.if_onsitenv_ready = False
 
         self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
@@ -101,6 +105,7 @@ class BaseStruct(AbstractStructure):
             structase = ase.io.read(filename=atom, format=format)
             self.struct = structase
         self.if_env_ready = False
+        self.if_onsitenv_ready = False
         
 
     def projection(self):
@@ -164,10 +169,13 @@ class BaseStruct(AbstractStructure):
 
         return self.__bonds__, self.__bonds_onsite__
 
-    def get_env(self, env_cutoff=None, sorted='iatom'):
+    def get_env(self, env_cutoff=None, sorted='iatom-jatom'):
         if self.if_env_ready:
             if env_cutoff == self.env_cutoff or env_cutoff == None:
                 return self.__projenv__
+
+        if env_cutoff is None:
+            env_cutoff = self.env_cutoff
 
         if env_cutoff <= 0:
             logging.error("env_cutoff:ValueError, env_cutoff for bond is not positive'")
@@ -177,6 +185,22 @@ class BaseStruct(AbstractStructure):
             self.env_cutoff = env_cutoff
             self.if_env_ready = True
             return self.__projenv__
+
+    def get_onsitenv(self, onsite_cutoff=None, sorted='iatom'):
+        if self.if_onsitenv_ready:
+            if onsite_cutoff is None or onsite_cutoff == self.onsite_cutoff:
+                return self.__onsitenv__
+        
+        assert isinstance(onsite_cutoff, float)
+
+        if onsite_cutoff <= 0:
+            logging.error("onsite_cutoff:ValueError, onsite_cutoff for bond is not positive'")
+            raise ValueError
+        else:
+            self.__onsitenv__ = self.cal_env(env_cutoff=onsite_cutoff, sorted=sorted)
+            self.onsite_cutoff = onsite_cutoff
+            self.if_onsitenv_ready = True
+            return self.__onsitenv__
 
     def cal_bond(self, cutoff=None, time_symm=True):
         '''It takes the structure, and returns the bonds and bonds on site.

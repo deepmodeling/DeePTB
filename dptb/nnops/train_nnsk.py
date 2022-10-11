@@ -7,7 +7,7 @@ from dptb.sktb.struct_skhs import SKHSLists
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
 from dptb.nnops.loss import loss_type1, loss_soft_sort
 from dptb.dataprocess.processor import Processor
-from dptb.dataprocess.datareader import read_data
+from dptb.dataprocess.datareader import read_data, get_data
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
 from dptb.nnsktb.sknet import SKNet
 from dptb.nnsktb.integralFunc import SKintHops
@@ -54,7 +54,7 @@ class NNSKTrainer(Trainer):
         self.test_batch_size = data_options.get('test_batch_size', self.batch_size)
 
         self.bond_cutoff = data_options.get('bond_cutoff')
-        # self.env_cutoff = data_options.get('env_cutoff')
+        self.env_cutoff = data_options.get('env_cutoff', self.bond_cutoff)
         self.train_data_path = data_options.get('train_data_path')
         self.train_data_prefix = data_options.get('train_data_prefix')
         self.test_data_path = data_options.get('test_data_path')
@@ -102,53 +102,70 @@ class NNSKTrainer(Trainer):
 
         # init the dataset
         # -----------------------------------init training set------------------------------------------   
-        struct_list_sets, kpoints_sets, eigens_sets = read_data(path=self.train_data_path, prefix=self.train_data_prefix,
-                                                                cutoff=self.bond_cutoff, proj_atom_anglr_m=self.proj_atom_anglr_m,
-                                                                proj_atom_neles=self.proj_atom_neles, onsitemode=self.onsitemode,
-                                                                time_symm=self.time_symm)
-        self.n_train_sets = len(struct_list_sets)
-        assert self.n_train_sets == len(kpoints_sets) == len(eigens_sets)
+        self.train_processor_list = get_data(
+            path=self.train_data_path, 
+            prefix=self.train_data_prefix,
+            batch_size=self.batch_size, 
+            bond_cutoff=self.bond_cutoff, 
+            env_cutoff=self.env_cutoff, 
+            onsite_cutoff=self.onsite_cutoff, 
+            proj_atom_anglr_m=self.proj_atom_anglr_m, 
+            proj_atom_neles=self.proj_atom_neles, 
+            sorted_onsite="st", 
+            sorted_bond="st", 
+            sorted_env="st", 
+            onsitemode=self.onsitemode, 
+            time_symm=self.time_symm, 
+            device=self.device, 
+            dtype=self.dtype
+        )
+        self.n_train_sets = len(self.train_processor_list)
 
-        self.train_processor_list = []
-        for i in range(len(struct_list_sets)):
-            self.train_processor_list.append(
-                Processor(structure_list=struct_list_sets[i], batchsize=self.batch_size,
-                          kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, 
-                          dtype=self.dtype, env_cutoff=self.onsite_cutoff, sorted_bond="st", sorted_env="st"))
         
         # init reference dataset
         # -----------------------------------init reference set------------------------------------------
         if self.use_reference:
-            struct_list_sets, kpoints_sets, eigens_sets = read_data(path=self.ref_data_path, prefix=self.ref_data_prefix,
-                                                                    cutoff=self.bond_cutoff, proj_atom_anglr_m=self.proj_atom_anglr_m,
-                                                                    proj_atom_neles=self.proj_atom_neles,onsitemode=self.onsitemode,
-                                                                    time_symm=self.time_symm)
 
-            self.n_ref_sets = len(struct_list_sets)
-            assert self.n_ref_sets == len(kpoints_sets) == len(eigens_sets)
-            self.ref_processor_list = []
-            for i in range(len(struct_list_sets)):
-                self.ref_processor_list.append(
-                    Processor(structure_list=struct_list_sets[i], batchsize=self.ref_batch_size, 
-                              kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device,
-                               dtype=self.dtype, env_cutoff=self.onsite_cutoff, sorted_bond="st", sorted_env="st"))
-       
+            self.ref_processor_list = get_data(
+            path=self.ref_data_path, 
+            prefix=self.ref_data_prefix,
+            batch_size=self.ref_batch_size, 
+            bond_cutoff=self.bond_cutoff, 
+            env_cutoff=self.env_cutoff, 
+            onsite_cutoff=self.onsite_cutoff, 
+            proj_atom_anglr_m=self.proj_atom_anglr_m, 
+            proj_atom_neles=self.proj_atom_neles, 
+            sorted_onsite="st", 
+            sorted_bond="st", 
+            sorted_env="st", 
+            onsitemode=self.onsitemode, 
+            time_symm=self.time_symm, 
+            device=self.device, 
+            dtype=self.dtype
+            )
+
+
+            self.n_ref_sets = len(self.ref_processor_list)
        
         # --------------------------------init testing set----------------------------------------------
-        struct_list_sets, kpoints_sets, eigens_sets = read_data(path=self.test_data_path, prefix=self.test_data_prefix,
-                                                                cutoff=self.bond_cutoff, proj_atom_anglr_m=self.proj_atom_anglr_m,
-                                                                proj_atom_neles=self.proj_atom_neles, onsitemode=self.onsitemode,
-                                                                time_symm=self.time_symm)
-
-        self.n_test_sets = len(struct_list_sets)
-        assert self.n_test_sets == len(kpoints_sets) == len(eigens_sets)
-
-        self.test_processor_list = []
-        for i in range(len(struct_list_sets)):
-            self.test_processor_list.append(
-                Processor(structure_list=struct_list_sets[i], batchsize=self.test_batch_size, 
-                          kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=self.device, 
-                          dtype=self.dtype, env_cutoff=self.onsite_cutoff, sorted_bond="st", sorted_env="st"))
+        self.test_processor_list = get_data(
+            path=self.test_data_path, 
+            prefix=self.test_data_prefix,
+            batch_size=self.test_batch_size, 
+            bond_cutoff=self.bond_cutoff, 
+            env_cutoff=self.env_cutoff, 
+            onsite_cutoff=self.onsite_cutoff, 
+            proj_atom_anglr_m=self.proj_atom_anglr_m, 
+            proj_atom_neles=self.proj_atom_neles, 
+            sorted_onsite="st", 
+            sorted_bond="st", 
+            sorted_env="st", 
+            onsitemode=self.onsitemode, 
+            time_symm=self.time_symm, 
+            device=self.device, 
+            dtype=self.dtype
+        )
+        self.n_test_sets = len(self.test_processor_list)
 
         # ---------------------------------init index map------------------------------------------------
         # since training and testing set contains same atom type and proj_atom type, we may expect the maps are the same in train and test.
@@ -250,20 +267,15 @@ class NNSKTrainer(Trainer):
             raise RuntimeError("init_mode should be from_scratch/from_model/..., not {}".format(mode))
 
 
-    def calc(self, batch_bonds, batch_bond_onsites, batch_envs, structs, kpoints):
+    def calc(self, batch_bonds, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints):
         assert len(kpoints.shape) == 2, "kpoints should have shape of [num_kp, 3]."
         coeffdict = self.model(mode='hopping')
         batch_hoppings = self.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, sk_bond_ind=self.sk_bond_ind_dict, rcut=self.sk_cutoff, w=self.sk_decay_w)
-
+        
+        nn_onsiteE, onsite_coeffdict = self.model(mode='onsite')
+        batch_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
         if self.onsitemode == 'strain':
-            assert self.model.onsitemode == 'strain'
-            onsite_coeffdict = self.model(mode='onsite')
-            batch_onsiteVs = self.hops_fun.get_skhops(batch_bonds=batch_envs, coeff_paras=onsite_coeffdict, sk_bond_ind=self.onsite_strain_ind_dict)
-            batch_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=None)
-
-        else:
-            nn_onsiteE = self.model(mode='onsite')
-            batch_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
+            batch_onsiteVs = self.hops_fun.get_skhops(batch_bonds=batch_onsitenvs, coeff_paras=onsite_coeffdict, sk_bond_ind=self.onsite_strain_ind_dict)
 
         # call sktb to get the sktb hoppings and onsites
         eigenvalues_pred = []
@@ -271,20 +283,18 @@ class NNSKTrainer(Trainer):
         for ii in range(len(structs)):
             if self.onsitemode == 'strain':
                 onsiteEs, onsiteVs, hoppings = batch_onsiteEs[ii], batch_onsiteVs[ii], batch_hoppings[ii]
+                onsitenvs = np.asarray(batch_onsitenvs[ii][:,1:])
                 # call hamiltonian block
-                
-                self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs)
-                self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
-                                            bonds_hoppings=np.asarray(batch_bonds[ii][:,1:]), 
-                                            onsite_envs=np.asarray(batch_envs[ii][:,1:]))
             else:
                 onsiteEs, hoppings = batch_onsiteEs[ii], batch_hoppings[ii]
+                onsiteVs = None
+                onsitenvs = None
                 # call hamiltonian block
-                
-                self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs)
-                self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
-                                            bonds_hoppings=np.asarray(batch_bonds[ii][:,1:]))
-            # TODO: 对角化应该放在 batch 中所有结构的 hamiltonina 矩阵构造完毕之后，然后再整体去对角化。 
+
+            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs)
+            self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
+                                        bonds_hoppings=np.asarray(batch_bonds[ii][:,1:]), 
+                                        onsite_envs=onsitenvs)
             eigenvalues_ii, eigvec = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.time_symm, dtype='tensor')
             eigenvalues_pred.append(eigenvalues_ii)
             eigenvector_pred.append(eigvec)
@@ -306,9 +316,9 @@ class NNSKTrainer(Trainer):
                 def closure():
                     # calculate eigenvalues.
                     self.optimizer.zero_grad()
-                    batch_bond, batch_bond_onsites, batch_envs, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[
-                        3], data[4], data[5]
-                    eigenvalues_pred, eigenvector_pred = self.calc(batch_bond, batch_bond_onsites, batch_envs, structs, kpoints)
+                    batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[
+                        3], data[4], data[5], data[6]
+                    eigenvalues_pred, eigenvector_pred = self.calc(batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints)
                     eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
 
                     num_kp = kpoints.shape[0]
@@ -320,9 +330,9 @@ class NNSKTrainer(Trainer):
                         for irefset in range(self.n_ref_sets):
                             ref_processor = self.ref_processor_list[irefset]
                             for refdata in ref_processor:
-                                batch_bond, batch_bond_onsites, _, structs, kpoints, eigenvalues = refdata[0], refdata[1], refdata[2], \
-                                                                                              refdata[3], refdata[4], refdata[5]
-                                ref_eig_pred, ref_eigv_pred = self.calc(batch_bond, batch_bond_onsites, batch_envs, structs, kpoints)
+                                batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues = refdata[0], refdata[1], refdata[2], \
+                                                                                              refdata[3], refdata[4], refdata[5], refdata[6]
+                                ref_eig_pred, ref_eigv_pred = self.calc(batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints)
                                 ref_eig_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
                                 num_kp_ref = kpoints.shape[0]
                                 num_el_ref = np.sum(structs[0].proj_atom_neles_per)
@@ -362,9 +372,9 @@ class NNSKTrainer(Trainer):
             total_loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
             for processor in self.test_processor_list:
                 for data in processor:
-                    batch_bond, batch_bond_onsites, batch_envs, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[
-                        3], data[4], data[5]
-                    eigenvalues_pred,eigenvector_pred = self.calc(batch_bond, batch_bond_onsites, batch_envs, structs, kpoints)
+                    batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[
+                        3], data[4], data[5], data[6]
+                    eigenvalues_pred, eigenvector_pred = self.calc(batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints)
                     eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
 
                     num_kp = kpoints.shape[0]
