@@ -113,17 +113,17 @@ class SKNet(nn.Module):
 
         elif mode == 'onsite':
             if self.onsitemode.lower() == 'none':
-                return None
+                return None, None
             elif self.onsitemode.lower() == 'strain':
                 out = self.onsite_net()
                 self.onsite_coeffdict = dict(zip(self.onsiteint_types, out))
-                return self.onsite_coeffdict
+                return None, self.onsite_coeffdict
             else:
                 self.onsite_value = {}
                 for ia in self.onsite_num:
                     out = self.onsite_net[ia]()
                     self.onsite_value[ia] = torch.reshape(out,[-1]) # {"N":[s, p, ...]}
-                return self.onsite_value
+                return self.onsite_value, None
             
         else:
             raise ValueError(f'Invalid mode: {mode}')
