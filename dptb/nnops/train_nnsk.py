@@ -99,74 +99,21 @@ class NNSKTrainer(Trainer):
             self.ref_fermi_band = loss_options.get('ref_fermi_band',self.fermi_band)
             self.ref_loss_gap_eta = loss_options.get('ref_loss_gap_eta',self.loss_gap_eta)
 
-
-        # init the dataset
-        # -----------------------------------init training set------------------------------------------   
-        self.train_processor_list = get_data(
-            path=self.train_data_path, 
-            prefix=self.train_data_prefix,
-            batch_size=self.batch_size, 
-            bond_cutoff=self.bond_cutoff, 
-            env_cutoff=self.env_cutoff, 
-            onsite_cutoff=self.onsite_cutoff, 
-            proj_atom_anglr_m=self.proj_atom_anglr_m, 
-            proj_atom_neles=self.proj_atom_neles, 
-            sorted_onsite="st", 
-            sorted_bond="st", 
-            sorted_env="st", 
-            onsitemode=self.onsitemode, 
-            time_symm=self.time_symm, 
-            device=self.device, 
-            dtype=self.dtype
-        )
-        self.n_train_sets = len(self.train_processor_list)
-
         
-        # init reference dataset
-        # -----------------------------------init reference set------------------------------------------
-        if self.use_reference:
-
-            self.ref_processor_list = get_data(
-            path=self.ref_data_path, 
-            prefix=self.ref_data_prefix,
-            batch_size=self.ref_batch_size, 
-            bond_cutoff=self.bond_cutoff, 
-            env_cutoff=self.env_cutoff, 
-            onsite_cutoff=self.onsite_cutoff, 
-            proj_atom_anglr_m=self.proj_atom_anglr_m, 
-            proj_atom_neles=self.proj_atom_neles, 
-            sorted_onsite="st", 
-            sorted_bond="st", 
-            sorted_env="st", 
-            onsitemode=self.onsitemode, 
-            time_symm=self.time_symm, 
-            device=self.device, 
-            dtype=self.dtype
-            )
-
-
-            self.n_ref_sets = len(self.ref_processor_list)
-       
-        # --------------------------------init testing set----------------------------------------------
-        self.test_processor_list = get_data(
-            path=self.test_data_path, 
-            prefix=self.test_data_prefix,
-            batch_size=self.test_batch_size, 
-            bond_cutoff=self.bond_cutoff, 
-            env_cutoff=self.env_cutoff, 
-            onsite_cutoff=self.onsite_cutoff, 
-            proj_atom_anglr_m=self.proj_atom_anglr_m, 
-            proj_atom_neles=self.proj_atom_neles, 
-            sorted_onsite="st", 
-            sorted_bond="st", 
-            sorted_env="st", 
-            onsitemode=self.onsitemode, 
-            time_symm=self.time_symm, 
-            device=self.device, 
-            dtype=self.dtype
-        )
+        self.emin = self.loss_options["emin"]
+        self.emax = self.loss_options["emax"]
+        self.sigma = self.loss_options.get('sigma', 0.1)
+        self.num_omega = self.loss_options.get('num_omega',None)
+        self.sortstrength = self.loss_options.get('sortstrength',[0.1,0.1])
+        self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(self.sortstrength[0]), end=np.log(self.sortstrength[1]), steps=self.num_epoch))
+    
+    def _init_data(self):
+        self.call_plugins(queue_name='inidata', time=0)
+        self.n_train_sets = len(self.train_processor_list)
         self.n_test_sets = len(self.test_processor_list)
-
+        if self.use_reference:
+            self.n_ref_sets = len(self.ref_processor_list)
+        
         # ---------------------------------init index map------------------------------------------------
         # since training and testing set contains same atom type and proj_atom type, we may expect the maps are the same in train and test.
         atom_type = []
@@ -182,35 +129,23 @@ class NNSKTrainer(Trainer):
         self.onsite_strain_index_map, self.onsite_strain_num, self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings(self.onsitemode, atomtype=self.atom_type)
 
 
-        self.bond_type = get_uniq_bond_type(proj_atom_type)
-        # # ------------------------------------initialize model options----------------------------------
+    def _init_model(self):
+        # ---------------------------------------------------------------- init onsite and hopping functions  ----------------------------------------------------------------
+        self.bond_type = get_uniq_bond_type(self.proj_atom_type)
         self.onsite_fun = onsiteFunc
         self.onsite_db  = loadOnsite(self.onsite_index_map)
         self.hops_fun   = SKintHops(mode='hopping',functype=self.sk_options.get('skformula',"varTang96"),proj_atom_anglr_m=self.proj_atom_anglr_m)
         if self.onsitemode == 'strain':
             self.onsitestrain_fun   = SKintHops(mode='onsite', functype=self.sk_options.get('onsiteformula',"varTang96"),proj_atom_anglr_m=self.proj_atom_anglr_m,atom_types=self.atom_type)
-
+        
+        # ----------------------------------------------------------------         init network model         ----------------------------------------------------------------
+        self.call_plugins(queue_name='inimodel', time=0, mode=self.run_opt.get("mode", None))
+        self.optimizer = get_optimizer(model_param=self.model.parameters(), **self.opt_options)
+        self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **self.sch_options)  # add optmizer
+        self.criterion = torch.nn.MSELoss(reduction='mean')
 
         self.hamileig = HamilEig(dtype='tensor')
-        
-        self.emin = self.loss_options["emin"]
-        self.emax = self.loss_options["emax"]
-        self.sigma = self.loss_options.get('sigma', 0.1)
-        self.num_omega = self.loss_options.get('num_omega',None)
-        self.sortstrength = self.loss_options.get('sortstrength',[0.1,0.1])
-        self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(self.sortstrength[0]), end=np.log(self.sortstrength[1]), steps=self.num_epoch))
     
-    def _init_model(self):
-        self.call_plugins(queue_name='inimodel', time=0, mode=self.run_opt.get("mode", None))
-
-        self.optimizer = get_optimizer(model_param=self.model.parameters(), **self.opt_options)
-# 
-        self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **self.sch_options)  # add optmizer
-
-        self.criterion = torch.nn.MSELoss(reduction='mean')
-    
-    def _init_data(self):
-        pass
 
     def calc(self, batch_bonds, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints):
         assert len(kpoints.shape) == 2, "kpoints should have shape of [num_kp, 3]."
