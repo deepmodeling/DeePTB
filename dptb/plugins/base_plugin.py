@@ -26,7 +26,7 @@ class PluginUser(object):
                     The difference b/w iteration and update the parameters, iteration takes in the batch output, loss etc., while  update takes in model itself.
                 '''
         self.stats = {}  # the status of Trainer.
-        self.plugin_queues = {'inimodel':[], 'iteration': [], 'epoch': [], 'batch': [], 'update': []}
+        self.plugin_queues = {'inimodel':[], 'inidata':[], 'iteration': [], 'epoch': [], 'batch': [], 'update': []}
 
     def register_plugin(self, plugin):
         plugin.register(self)
