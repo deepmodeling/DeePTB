@@ -148,7 +148,7 @@ def train(
     trainer.register_plugin(TrainLossMonitor())
     trainer.register_plugin(LearningRateMonitor())
     trainer.register_plugin(Logger(["train_loss", "validation_loss", "lr"]))
-    trainer.preprocess_plugin()
+    trainer._init_model()
 
     if output:
         # output training configurations:
