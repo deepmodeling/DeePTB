@@ -28,43 +28,38 @@ class NNSKTrainer(Trainer):
         
 
     def _init_param(self, jdata):
+        common_options = j_must_have(jdata, "common_options")
         train_options = j_must_have(jdata, "train_options")
         opt_options = j_must_have(jdata, "optimizer_options")
-        sch_options = j_must_have(jdata, "sch_options")
+        schedule_options = j_must_have(jdata, "schedule_options")
         data_options = j_must_have(jdata,"data_options")
         model_options = j_must_have(jdata, "model_options")
         loss_options = j_must_have(jdata, "loss_options")
-        sk_options = j_must_have(jdata, "sk_options")
 
+        self.common_options = common_options
         self.train_options = train_options
         self.opt_options = opt_options
-        self.sch_options = sch_options
+        self.sch_options =schedule_options
         self.data_options = data_options
         self.model_options = model_options
         self.loss_options = loss_options
-        self.sk_options = sk_options
 
         self.num_epoch = train_options.get('num_epoch')
         self.display_epoch = train_options.get('display_epoch')
-        self.use_reference = train_options.get('use_reference', False)
+        self.use_reference = data_options.get('use_reference', False)
 
         # initialize data options
         # ----------------------------------------------------------------------------------------------------------------------------------------------
-        self.batch_size = data_options.get('batch_size')
-        self.test_batch_size = data_options.get('test_batch_size', self.batch_size)
+        self.batch_size = train_options.get('batch_size')
+        self.test_batch_size = data_options['validation'].get('validation_batch_size', self.batch_size)
 
-        self.bond_cutoff = data_options.get('bond_cutoff')
-        self.env_cutoff = data_options.get('env_cutoff', self.bond_cutoff)
-        self.train_data_path = data_options.get('train_data_path')
-        self.train_data_prefix = data_options.get('train_data_prefix')
-        self.test_data_path = data_options.get('test_data_path')
-        self.test_data_prefix = data_options.get('test_data_prefix')
-        self.proj_atom_anglr_m = data_options.get('proj_atom_anglr_m')
-        self.proj_atom_neles = data_options.get('proj_atom_neles')
-        self.onsitemode = model_options.get('onsitemode','none')
-        self.onsite_cutoff = self.data_options.get("onsite_cutoff", self.bond_cutoff)
+        self.bond_cutoff = common_options.get('bond_cutoff')
+        self.env_cutoff = common_options.get('env_cutoff', self.bond_cutoff)
+        self.proj_atom_anglr_m = common_options.get('proj_atom_anglr_m')
+        self.proj_atom_neles = common_options.get('proj_atom_neles')
+        self.onsitemode = common_options.get('onsitemode','none')
 
-        if data_options['time_symm'] is True:
+        if common_options['time_symm'] is True:
             self.time_symm = True
         else:
             self.time_symm = False
@@ -76,7 +71,7 @@ class NNSKTrainer(Trainer):
         self.loss_gap_eta = loss_options.get('loss_gap_eta',1e-2)    
 
         ## TODO: format the unnecessary parameters.
-        self.sk_options = jdata.get('sk_options',None)
+        self.sk_options = model_options.get('skfunction',None)
         if self.sk_options is not None:
             self.skformula = self.sk_options.get('skformula',"varTang96")
             self.sk_cutoff = torch.tensor(self.sk_options.get('sk_cutoff',6.0))
@@ -108,7 +103,7 @@ class NNSKTrainer(Trainer):
         self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(self.sortstrength[0]), end=np.log(self.sortstrength[1]), steps=self.num_epoch))
     
     def _init_data(self):
-        self.call_plugins(queue_name='inidata', time=0)
+        self.call_plugins(queue_name='inidata', time=0, **dict(self.common_options,**self.data_options))
         self.n_train_sets = len(self.train_processor_list)
         self.n_test_sets = len(self.test_processor_list)
         if self.use_reference:
@@ -128,7 +123,6 @@ class NNSKTrainer(Trainer):
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
         self.onsite_strain_index_map, self.onsite_strain_num, self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings(self.onsitemode, atomtype=self.atom_type)
 
-
     def _init_model(self):
         # ---------------------------------------------------------------- init onsite and hopping functions  ----------------------------------------------------------------
         self.bond_type = get_uniq_bond_type(self.proj_atom_type)
@@ -139,7 +133,7 @@ class NNSKTrainer(Trainer):
             self.onsitestrain_fun   = SKintHops(mode='onsite', functype=self.sk_options.get('onsiteformula',"varTang96"),proj_atom_anglr_m=self.proj_atom_anglr_m,atom_types=self.atom_type)
         
         # ----------------------------------------------------------------         init network model         ----------------------------------------------------------------
-        self.call_plugins(queue_name='inimodel', time=0, mode=self.run_opt.get("mode", None))
+        self.call_plugins(queue_name='inimodel', time=0, mode=self.run_opt.get("mode", None), **dict(self.common_options, **self.model_options))
         self.optimizer = get_optimizer(model_param=self.model.parameters(), **self.opt_options)
         self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **self.sch_options)  # add optmizer
         self.criterion = torch.nn.MSELoss(reduction='mean')

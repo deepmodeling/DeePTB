@@ -10,6 +10,7 @@ from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.loadparas import load_paras
 from dptb.dataprocess.datareader import get_data
+from dptb.utils.constants import dtype_dict
 
 
 log = logging.getLogger(__name__)
@@ -23,68 +24,103 @@ class InitData(Plugin):
     def register(self, host):
         self.host = host
 
-    def inidata(self, **kwargs):
-        self.init_training_data()
+    def inidata(self, **common_and_data_options):
+        # ----------------------------------------------------------------------------------------------------------
+        use_reference = common_and_data_options['use_reference']
+        self.bond_cutoff = common_and_data_options['bond_cutoff']
+        self.env_cutoff = common_and_data_options['env_cutoff']
+        self.onsite_cutoff = common_and_data_options['onsite_cutoff']
+        self.proj_atom_anglr_m = common_and_data_options['proj_atom_anglr_m']
+        self.proj_atom_neles = common_and_data_options['proj_atom_neles']
+        self.onsitemode = common_and_data_options['onsitemode']
+        self.time_symm = common_and_data_options['time_symm']
+        self.device = common_and_data_options['device']
+        self.dtype = dtype_dict[common_and_data_options['dtype']]
+        # ----------------------------------------------------------------------------------------------------------
 
-        self.init_validation_dara()
         
-        if self.host.use_reference:
-            self.init_reference_data()
+        self.init_training_data(**common_and_data_options)
+
+        self.init_validation_dara(**common_and_data_options)
+
+        if use_reference:
+            self.init_reference_data(**common_and_data_options)
 
     
-    def init_training_data(self):
+    def init_training_data(self,  **data_options):
+        # paras directly imported from inputs.
+        # ----------------------------------------------------------------------------------------------------------
+        train_data_path = data_options['train'].get('train_data_path')
+        train_data_prefix = data_options['train'].get('train_data_prefix')
+        train_batch_size = data_options['train'].get('train_batch_size')
+        # ----------------------------------------------------------------------------------------------------------
+
         self.host.train_processor_list = get_data(
-            path=self.host.train_data_path, 
-            prefix=self.host.train_data_prefix,
-            batch_size=self.host.batch_size, 
-            bond_cutoff=self.host.bond_cutoff, 
-            env_cutoff=self.host.env_cutoff, 
-            onsite_cutoff=self.host.onsite_cutoff, 
-            proj_atom_anglr_m=self.host.proj_atom_anglr_m, 
-            proj_atom_neles=self.host.proj_atom_neles, 
+            path=train_data_path, 
+            prefix=train_data_prefix,
+            batch_size=train_batch_size, 
+            bond_cutoff=self.bond_cutoff, 
+            env_cutoff= self.env_cutoff, 
+            onsite_cutoff= self.onsite_cutoff, 
+            proj_atom_anglr_m= self.proj_atom_anglr_m, 
+            proj_atom_neles= self.proj_atom_neles, 
             sorted_onsite="st", 
             sorted_bond="st", 
             sorted_env="st", 
-            onsitemode=self.host.onsitemode, 
-            time_symm=self.host.time_symm, 
-            device=self.host.device, 
-            dtype=self.host.dtype
+            onsitemode= self.onsitemode, 
+            time_symm= self.time_symm, 
+            device= self.device, 
+            dtype= self.dtype
         )
 
-    def init_reference_data(self):
+    def init_reference_data(self, **data_options):
+        # paras directly imported from inputs.
+        # ----------------------------------------------------------------------------------------------------------
+        reference_data_path = data_options['reference'].get('reference_data_path')
+        reference_data_prefix = data_options['reference'].get('reference_data_prefix')
+        reference_batch_size = data_options['reference'].get('reference_batch_size')
+        # ----------------------------------------------------------------------------------------------------------
+
         self.host.ref_processor_list = get_data(
-            path=self.host.ref_data_path, 
-            prefix=self.host.ref_data_prefix,
-            batch_size=self.host.ref_batch_size, 
-            bond_cutoff=self.host.bond_cutoff, 
-            env_cutoff=self.host.env_cutoff, 
-            onsite_cutoff=self.host.onsite_cutoff, 
-            proj_atom_anglr_m=self.host.proj_atom_anglr_m, 
-            proj_atom_neles=self.host.proj_atom_neles, 
+            path= reference_data_path, 
+            prefix= reference_data_prefix,
+            batch_size= reference_batch_size, 
+            bond_cutoff= self.bond_cutoff, 
+            env_cutoff= self.env_cutoff, 
+            onsite_cutoff= self.onsite_cutoff, 
+            proj_atom_anglr_m= self.proj_atom_anglr_m, 
+            proj_atom_neles= self.proj_atom_neles, 
             sorted_onsite="st", 
             sorted_bond="st", 
             sorted_env="st", 
-            onsitemode=self.host.onsitemode, 
-            time_symm=self.host.time_symm, 
-            device=self.host.device, 
-            dtype=self.host.dtype
+            onsitemode= self.onsitemode, 
+            time_symm= self.time_symm, 
+            device= self.device, 
+            dtype= self.dtype
             )
     
-    def init_validation_dara(self):
+    def init_validation_dara(self,**data_options):
+        # paras directly imported from inputs.
+        # ----------------------------------------------------------------------------------------------------------
+        validation_data_path = data_options['validation'].get('validation_data_path')
+        validation_data_prefix = data_options['validation'].get('validation_data_prefix')
+        validation_batch_size = data_options['validation'].get('validation_batch_size')
+        # ----------------------------------------------------------------------------------------------------------
+
         self.host.test_processor_list = get_data(
-            path=self.host.test_data_path, 
-            prefix=self.host.test_data_prefix,
-            batch_size=self.host.test_batch_size, 
-            bond_cutoff=self.host.bond_cutoff, 
-            env_cutoff=self.host.env_cutoff, 
-            onsite_cutoff=self.host.onsite_cutoff, 
-            proj_atom_anglr_m=self.host.proj_atom_anglr_m, 
-            proj_atom_neles=self.host.proj_atom_neles, 
+            path= validation_data_path, 
+            prefix= validation_data_prefix,
+            batch_size= validation_batch_size, 
+            bond_cutoff= self.bond_cutoff, 
+            env_cutoff= self.env_cutoff, 
+            onsite_cutoff= self.onsite_cutoff, 
+            proj_atom_anglr_m= self.proj_atom_anglr_m, 
+            proj_atom_neles= self.proj_atom_neles, 
             sorted_onsite="st", 
             sorted_bond="st", 
             sorted_env="st", 
-            onsitemode=self.host.onsitemode, 
-            time_symm=self.host.time_symm, 
-            device=self.host.device, 
-            dtype=self.host.dtype
+            onsitemode= self.onsitemode, 
+            time_symm= self.time_symm, 
+            device= self.device, 
+            dtype= self.dtype
         )
