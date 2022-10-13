@@ -70,8 +70,7 @@ def Adam():
         Argument("betas", list, optional=True, default=[0.9, 0.999]),
         Argument("eps", float, optional=True, default=1e-8),
         Argument("weight_decay", float, optional=True, default=0),
-        Argument("amsgrad", bool, optional=True, default=False),
-        Argument("maximize", bool, optional=True, default=False)
+        Argument("amsgrad", bool, optional=True, default=False)
 
     ]
 
@@ -82,8 +81,7 @@ def SGD():
         Argument("momentum", float, optional=True, default=0.),
         Argument("weight_decay", float, optional=True, default=0.),
         Argument("dampening", float, optional=True, default=0.),
-        Argument("nesterov", bool, optional=True, default=False),
-        Argument("maximize", bool, optional=True, default=False)
+        Argument("nesterov", bool, optional=True, default=False)
 
     ]
 
