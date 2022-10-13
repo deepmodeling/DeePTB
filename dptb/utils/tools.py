@@ -34,24 +34,24 @@ if TYPE_CHECKING:
     _PRECISION = Literal["default", "float16", "float32", "float64"]
 
 
-def get_optimizer(opt_type: str, model_param, lr: float, **options: dict):
-    if opt_type == 'Adam':
+def get_optimizer(type: str, model_param, lr: float, **options: dict):
+    if type == 'Adam':
         optimizer = optim.Adam(params=model_param, lr=lr, **options)
-    elif opt_type == 'SGD':
+    elif type == 'SGD':
         optimizer = optim.SGD(params=model_param, lr=lr, **options)
-    elif opt_type == 'RMSprop':
+    elif type == 'RMSprop':
         optimizer = optim.RMSprop(params=model_param, lr=lr, **options)
-    elif opt_type == 'LBFGS':
+    elif type == 'LBFGS':
         optimizer = optim.LBFGS(params=model_param, lr=lr, **options)
     else:
-        raise RuntimeError("Optimizer should be Adam/SGD/RMSprop, not {}".format(opt_type))
+        raise RuntimeError("Optimizer should be Adam/SGD/RMSprop, not {}".format(type))
     return optimizer
 
-def get_lr_scheduler(sch_type: str, optimizer: optim.Optimizer, **sch_options):
-    if sch_type == 'Expo':
+def get_lr_scheduler(type: str, optimizer: optim.Optimizer, **sch_options):
+    if type == 'Exp':
         schedular = optim.lr_scheduler.ExponentialLR(optimizer=optimizer, **sch_options)
     else:
-        raise RuntimeError("Scheduler should be Expo/..., not {}".format(sch_type))
+        raise RuntimeError("Scheduler should be Expo/..., not {}".format(type))
 
     return schedular
 

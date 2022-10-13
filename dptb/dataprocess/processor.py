@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from typing import List
+from dptb.utils.constants import dtype_dict
 from dptb.structure.abstract_stracture import AbstractStructure
 
 class Processor(object):
@@ -34,7 +35,7 @@ class Processor(object):
         assert self.batchsize > 0
 
         self.device = device
-        self.dtype = dtype
+        self.dtype = dtype_dict[dtype]
 
     def shuffle(self):
         '''> If the batch size is larger than the number of unsampled structures, then we sample all the
@@ -155,7 +156,7 @@ class Processor(object):
         return batch_bond, batch_bond_onsite # [f, i_atom_num, i, j_atom_num, j, Rx, Ry, Rz, |rj-ri|, \hat{rij: x, y, z}] or dict
 
     @property
-    def atom_type(self):
+    def atomtype(self):
         '''It returns a list of unique atom types in the structure.
         
         Returns
@@ -164,12 +165,12 @@ class Processor(object):
         '''
         at_list = []
         for st in self.structure_list:
-            at_list += st.atom_type
+            at_list += st.atomtype
 
         return list(set(at_list))
 
     @property
-    def proj_atom_type(self):
+    def proj_atomtype(self):
         ''' This function returns a list of all the projected atom types in the structure list
         
         Returns
@@ -178,7 +179,7 @@ class Processor(object):
         '''
         at_list = []
         for st in self.structure_list:
-            at_list += st.proj_atom_type
+            at_list += st.proj_atomtype
 
         return list(set(at_list))
 

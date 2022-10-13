@@ -44,7 +44,7 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
     return struct_list_sets, kpoints_sets, eigens_sets
 
 
-def get_data(path, prefix,batch_size, bond_cutoff, env_cutoff, onsite_cutoff, proj_atom_anglr_m, proj_atom_neles, 
+def get_data(path, prefix, batch_size, bond_cutoff, env_cutoff, onsite_cutoff, proj_atom_anglr_m, proj_atom_neles, 
         sorted_onsite="st", sorted_bond="st", sorted_env="st", onsitemode:str='uniform', time_symm=True, device='cpu', dtype=torch.float32, **kwargs):
     """
         input: data params

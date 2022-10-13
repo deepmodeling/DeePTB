@@ -1,76 +1,101 @@
 {
-  "common_options":{
-  "device": "cpu",
-  "dtype": "float32",
-  "onsitemode":"uniform",
-  "onsite_cutoff":3.0,
-  "bond_cutoff": 4.0,
-  "env_cutoff": 3.5,
-  "sk_file_path": "./examples/slakos/",
-  "proj_atom_neles": {"N":5,"B":3},
-  "proj_atom_anglr_m": {"N":["2s","2p"],"B":["2s","2p"]},
-  "time_symm": true
+  "common_options": {
+      "device": "cpu",
+      "dtype": "float32",
+      "onsite_cutoff": 3.0,
+      "bond_cutoff": 4.0,
+      "env_cutoff": 3.5,
+      "sk_file_path": "./examples/slakos/",
+      "atomtype": [
+          "N",
+          "B"
+      ],
+      "proj_atom_neles": {
+          "N": 5,
+          "B": 3
+      },
+      "proj_atom_anglr_m": {
+          "N": [
+              "2s",
+              "2p"
+          ],
+          "B": [
+              "2s",
+              "2p"
+          ]
+      },
+      "onsitemode": "none",
+      "time_symm": true
   },
-  
-  "train_options":{
-    "num_epoch":1,
-    "batch_size": 1,
-    "display_epoch": 1
+  "train_options": {
+      "num_epoch": 1,
+      "optimizer": {
+          "lr": 0.01,
+          "type": "Adam",
+          "betas": [
+              0.9,
+              0.999
+          ],
+          "eps": 1e-08,
+          "weight_decay": 0,
+          "amsgrad": false,
+          "foreach": null,
+          "maximize": false,
+          "capturable": false
+      },
+      "lr_scheduler": {
+          "type": "Exp",
+          "gamma": 0.999
+      },
+      "seed": 3982377700,
+      "save_freq": 10,
+      "test_freq": 10,
+      "display_freq": 1
   },
-  "optimizer_options": {
-    "lr": 1e-2,
-    "opt_type": "Adam"
-  },
-  "schedule_options": {
-    "sch_type": "Expo",
-    "gamma": 0.999
-  },
-  "data_options": { 
-    "use_reference":true,
-    "train":{
-      "train_batch_size": 1,
-      "train_data_path": "./dptb/tests/data/hBN/data/",
-      "train_data_prefix": "set"
-    }, 
-    "validation":{
-      "validation_batch_size": 1,
-      "validation_data_path":"./dptb/tests/data/hBN/data/",
-      "validation_data_prefix": "set"
-    }, 
-    "reference":{
-      "reference_batch_size": 1,
-      "reference_data_path": "./dptb/tests/data/hBN/data/",
-      "reference_data_prefix": "set"
-    }
+  "data_options": {
+      "use_reference": true,
+      "train": {
+          "batch_size": 1,
+          "path": "./dptb/tests/data/hBN/data/",
+          "prefix": "set"
+      },
+      "validation": {
+          "batch_size": 1,
+          "path": "./dptb/tests/data/hBN/data/",
+          "prefix": "set"
+      },
+      "reference": {
+          "batch_size": 1,
+          "path": "./dptb/tests/data/hBN/data/",
+          "prefix": "set"
+      }
   },
   "model_options": {
-    "network":{
-      "sk_hop_nhidden":50,
-      "sk_onsite_nhidden":50
-    },
-    "skfunction":{
-      "skformula":"varTang96",
-      "sk_cutoff": 3.5,
-      "sk_decay_w":0.5    
-    }
+      "sknetwork": {
+          "sk_hop_nhidden": 50,
+          "sk_onsite_nhidden": 50
+      },
+      "skfunction": {
+          "skformula": "varTang96",
+          "sk_cutoff": 3.5,
+          "sk_decay_w": 0.5
+      }
   },
-  
-  "loss_options":{
-    "band_min":0,
-    "band_max":4,
-    "ref_band_min":0,
-    "ref_band_max":4,
-    "emin": -25,   
-    "emax": 10,  
-    "sigma":2, 
-    "num_omega":3000, 
-    "sortstrength":[0.01,0.01],
-    "gap_penalty": false,
-    "fermi_band":3,
-    "loss_gap_eta":1e-2,
-    "_ref_gap_penalty": true,
-    "_ref_fermi_band":4,
-    "_ref_loss_gap_eta":1e-2
+  "loss_options": {
+      "band_min": 0,
+      "band_max": 4,
+      "ref_band_min": 0,
+      "ref_band_max": 4,
+      "emin": -25,
+      "emax": 10,
+      "sigma": 2,
+      "num_omega": 3000,
+      "sortstrength": [
+          0.01,
+          0.01
+      ],
+      "gap_penalty": false,
+      "fermi_band": 3,
+      "loss_gap_eta": 0.01
   }
 }
-
