@@ -49,7 +49,7 @@ class HamilEig(RotationSK):
 
         self.num_orbs_per_atom = []
         for itype in self.__struct__.proj_atom_symbols:
-            norbs = self.__struct__.proj_atom_type_norbs[itype]
+            norbs = self.__struct__.proj_atomtype_norbs[itype]
             self.num_orbs_per_atom.append(norbs)
         
     def get_hs_blocks(self, bonds_onsite = None, bonds_hoppings=None):
@@ -76,13 +76,13 @@ class HamilEig(RotationSK):
             assert iatype == jatype, "i type should equal j type."
 
             if self.dtype == 'tensor':
-                sub_hamil_block = th.zeros([self.__struct__.proj_atom_type_norbs[iatype], self.__struct__.proj_atom_type_norbs[jatype]])
+                sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
                 if not self.use_orthogonal_basis:
-                    sub_over_block = th.zeros([self.__struct__.proj_atom_type_norbs[iatype], self.__struct__.proj_atom_type_norbs[jatype]])
+                    sub_over_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
             else:
-                sub_hamil_block = np.zeros([self.__struct__.proj_atom_type_norbs[iatype], self.__struct__.proj_atom_type_norbs[jatype]])
+                sub_hamil_block = np.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
                 if not self.use_orthogonal_basis:
-                    sub_over_block = np.zeros([self.__struct__.proj_atom_type_norbs[iatype], self.__struct__.proj_atom_type_norbs[jatype]])
+                    sub_over_block = np.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
 
             # ToDo: adding onsite correction
             ist = 0
@@ -124,13 +124,13 @@ class HamilEig(RotationSK):
             jatype = self.__struct__.proj_atom_symbols[ibond[3]]
 
             if self.dtype == 'tensor':
-                sub_hamil_block = th.zeros([self.__struct__.proj_atom_type_norbs[iatype], self.__struct__.proj_atom_type_norbs[jatype]])
+                sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
                 if not self.use_orthogonal_basis:
-                    sub_over_block = th.zeros([self.__struct__.proj_atom_type_norbs[iatype], self.__struct__.proj_atom_type_norbs[jatype]])
+                    sub_over_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
             else:
-                sub_hamil_block = np.zeros([self.__struct__.proj_atom_type_norbs[iatype], self.__struct__.proj_atom_type_norbs[jatype]])
+                sub_hamil_block = np.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
                 if not self.use_orthogonal_basis:
-                    sub_over_block = np.zeros([self.__struct__.proj_atom_type_norbs[iatype], self.__struct__.proj_atom_type_norbs[jatype]])
+                    sub_over_block = np.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
             
             bondatomtype = iatype + '-' + jatype
             

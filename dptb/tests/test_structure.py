@@ -77,9 +77,9 @@ def test_BaseStruct(root_directory):
         cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles, onsitemode='uniform')
     bonds, bonds_onsite = struct.get_bond()
     assert struct.proj_atom_anglr_m == proj_atom_anglr_m
-    assert struct.atom_type == ['N','B']
-    assert struct.proj_atom_type == ['N','B']
-    assert struct.proj_atom_type_norbs == {'N':4,'B':4}
+    assert struct.atomtype == ['N','B']
+    assert struct.proj_atomtype == ['N','B']
+    assert struct.proj_atomtype_norbs == {'N':4,'B':4}
     assert (struct.proj_atom_symbols == ['N','B'])
     assert (struct.atom_symbols == ['N','B']).all()
     assert (struct.__bonds__[:,0:7].astype(int) == bondlist).all()
@@ -112,9 +112,9 @@ def test_Struct_IndMap_case1(root_directory):
     struct = BaseStruct(atom=filename,format='vasp',
         cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles, onsitemode='uniform')
     assert struct.proj_atom_anglr_m == proj_atom_anglr_m
-    assert struct.atom_type == ['N','B']
-    assert struct.proj_atom_type == ['N','B']
-    assert struct.proj_atom_type_norbs == {'N':4,'B':4}
+    assert struct.atomtype == ['N','B']
+    assert struct.proj_atomtype == ['N','B']
+    assert struct.proj_atomtype_norbs == {'N':4,'B':4}
     assert (struct.proj_atom_symbols == ['N','B'])
     assert (struct.atom_symbols == ['N','B']).all()
 
@@ -144,9 +144,9 @@ def test_Struct_IndMap_case2(root_directory):
     struct = BaseStruct(atom=filename,format='vasp',
         cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles, onsitemode='uniform')
     assert struct.proj_atom_anglr_m == proj_atom_anglr_m
-    assert struct.atom_type == ['N','B']
-    assert struct.proj_atom_type == ['N','B']
-    assert struct.proj_atom_type_norbs == {'N':4,'B':4}
+    assert struct.atomtype == ['N','B']
+    assert struct.proj_atomtype == ['N','B']
+    assert struct.proj_atomtype_norbs == {'N':4,'B':4}
     assert (struct.proj_atom_symbols == ['N','B'])
     assert (struct.atom_symbols == ['N','B']).all()
 
@@ -177,9 +177,9 @@ def test_Struct_IndMap_case3(root_directory):
     struct = BaseStruct(atom=filename,format='vasp',
         cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles, onsitemode='uniform')
     assert struct.proj_atom_anglr_m == proj_atom_anglr_m
-    assert struct.atom_type == ['N','B']
-    assert struct.proj_atom_type == ['N','B']
-    assert struct.proj_atom_type_norbs == {'N':5,'B':4}
+    assert struct.atomtype == ['N','B']
+    assert struct.proj_atomtype == ['N','B']
+    assert struct.proj_atomtype_norbs == {'N':5,'B':4}
     assert (struct.proj_atom_symbols == ['N','B'])
     assert (struct.atom_symbols == ['N','B']).all()
 

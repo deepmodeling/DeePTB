@@ -6,7 +6,7 @@ from dptb.structure.abstract_stracture import AbstractStructure
 
 class Processor(object):
     # TODO: 现在strain的env 是通过get_env 获得，但是在dptb中的env是有另外的含义。是否已经考虑。
-    def __init__(self, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, env_cutoff: float = 3.0, onsitemode=None, onsite_cutoff=None, sorted_bond=None, sorted_onsite=None, sorted_env=None, device='cpu', dtype=torch.float32):
+    def __init__(self, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, env_cutoff: float = 3.0, onsitemode=None, onsite_cutoff=None, sorted_bond=None, sorted_onsite=None, sorted_env=None, device='cpu', dtype='float32'):
         super(Processor, self).__init__()
         if isinstance(structure_list, AbstractStructure):
             structure_list = [structure_list]
