@@ -8,17 +8,13 @@ build image:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker build -t $CI_REGISTRY_IMAGE .
     - docker push $CI_REGISTRY_IMAGE
-  tags:
-    - bohrium
+
 run test:
   image: $CI_REGISTRY_IMAGE
   rules:
     - if: $CI_PIPELINE_SOURCE != "schedule"
   before_script:
-    - /opt/intel/oneapi/intelpython/latest/bin/python  --version
-    - /opt/intel/oneapi/intelpython/latest/bin/python setup.py install --user
+    - python --version
+    - pip install .
   script:
-    - /opt/intel/oneapi/intelpython/latest/bin/pytest ./dptb/tests
-  tags:
-    - bohrium
-
+    - pytest ./dptb/tests

@@ -4,10 +4,13 @@ from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validati
 from dptb.plugins.init_nnsk import InitSKModel
 from dptb.plugins.init_data import InitData
 from dptb.plugins.train_logger import Logger
+from dptb.utils.argcheck import normalize
 from dptb.plugins.plugins import Saver
 from typing import Dict, List, Optional, Any
+from dptb.utils.argcheck import normalize
 from dptb.utils.tools import j_loader
 from dptb.utils.loggers import set_log_handles
+import heapq
 import logging
 from pathlib import Path
 import json
@@ -139,11 +142,17 @@ def train(
     set_log_handles(log_level, Path(log_path) if log_path else None)
     # parse the config. Since if use init, config file may not equals to current
     jdata = j_loader(INPUT)
+    jdata = normalize(jdata)
+
+    with open(os.path.join(output, "train_config.json"), "w") as fp:
+            json.dump(jdata, fp, indent=4)
     if train_sk:
         trainer = NNSKTrainer(run_opt, jdata)
         trainer.register_plugin(InitSKModel())
     else:
         trainer = DPTBTrainer(run_opt, jdata)
+    
+    
     # register the plugin in trainer, to tract training info
     trainer.register_plugin(InitData())
     trainer.register_plugin(Validationer())
@@ -151,8 +160,10 @@ def train(
     trainer.register_plugin(LearningRateMonitor())
     trainer.register_plugin(Logger(["train_loss", "validation_loss", "lr"]))
     
-    trainer._init_data()
-    trainer._init_model()
+    for q in trainer.plugin_queues.values():
+        heapq.heapify(q)
+    
+    trainer.build()
 
     if output:
         # output training configurations:

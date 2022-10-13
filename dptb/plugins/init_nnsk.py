@@ -12,12 +12,12 @@ log = logging.getLogger(__name__)
 class InitSKModel(Plugin):
     def __init__(self, interval=None):
         if interval is None:
-            interval = [(-1, 'inimodel')]
+            interval = [(-1, 'disposable')]
         super(InitSKModel, self).__init__(interval)
     def register(self, host):
         self.host = host
 
-    def inimodel(self, mode=None, **common_and_model_options):
+    def disposable(self, mode=None, **common_and_model_options):
         if mode == "from_scratch":
             self.init_from_scratch(**common_and_model_options)
         elif mode == "init_model":
@@ -32,13 +32,13 @@ class InitSKModel(Plugin):
         # ----------------------------------------------------------------------------------------------------------
         device = common_and_model_options['device']
         dtype = dtype_dict[common_and_model_options['dtype']]
-        num_hopping_hideen = common_and_model_options['network'].get('sk_hop_nhidden')
-        num_onsite_hidden = common_and_model_options['network'].get('sk_onsite_nhidden')
+        num_hopping_hideen = common_and_model_options['sknetwork'].get('sk_hop_nhidden')
+        num_onsite_hidden = common_and_model_options['sknetwork'].get('sk_onsite_nhidden')
         proj_atom_anglr_m = common_and_model_options['proj_atom_anglr_m']
         onsitemode = common_and_model_options['onsitemode']
         skformula = common_and_model_options['skfunction'].get('skformula')
-        sk_cutoff = common_and_model_options['skfunction'].get('skcutoff')
-        sk_decay_w = common_and_model_options['skfunction'].get('skdecay_w')
+        sk_cutoff = common_and_model_options['skfunction'].get('sk_cutoff')
+        sk_decay_w = common_and_model_options['skfunction'].get('sk_decay_w')
         onsite_cutoff = common_and_model_options['onsite_cutoff']
         # ----------------------------------------------------------------------------------------------------------
         
@@ -46,7 +46,7 @@ class InitSKModel(Plugin):
         IndMap.update(proj_atom_anglr_m=proj_atom_anglr_m)
         bond_index_map, bond_num_hops = IndMap.Bond_Ind_Mapings()
         onsite_strain_index_map, onsite_strain_num, onsite_index_map, onsite_num = \
-                IndMap.Onsite_Ind_Mapings(onsitemode, atomtype=self.host.atom_type)
+                IndMap.Onsite_Ind_Mapings(onsitemode, atomtype=self.host.atomtype)
         
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
         bond_neurons = {"nhidden": num_hopping_hideen,  "nout":self.host.hops_fun.num_paras}
@@ -72,7 +72,7 @@ class InitSKModel(Plugin):
         
         self.host.model_config = ({  
                                     "proj_atom_anglr_m":proj_atom_anglr_m,
-                                    "atom_type":self.host.atom_type,
+                                    "atomtype":self.host.atomtype,
                                     "skformula":skformula,
                                     "sk_cutoff":sk_cutoff,
                                     "sk_decay_w":sk_decay_w,
@@ -95,8 +95,8 @@ class InitSKModel(Plugin):
         proj_atom_anglr_m = common_and_model_and_run_options['proj_atom_anglr_m']
         onsitemode = common_and_model_and_run_options['onsitemode']
         skformula = common_and_model_and_run_options['skfunction'].get('skformula')
-        sk_cutoff = common_and_model_and_run_options['skfunction'].get('skcutoff')
-        sk_decay_w = common_and_model_and_run_options['skfunction'].get('skdecay_w')
+        sk_cutoff = common_and_model_and_run_options['skfunction'].get('sk_cutoff')
+        sk_decay_w = common_and_model_and_run_options['skfunction'].get('sk_decay_w')
         onsite_cutoff = common_and_model_and_run_options['onsite_cutoff']
         # ----------------------------------------------------------------------------------------------------------
         assert skformula == model_config['skformula']
@@ -105,7 +105,7 @@ class InitSKModel(Plugin):
         IndMap.update(proj_atom_anglr_m=proj_atom_anglr_m)
         bond_index_map, bond_num_hops = IndMap.Bond_Ind_Mapings()
         onsite_strain_index_map, onsite_strain_num, onsite_index_map, onsite_num = \
-                IndMap.Onsite_Ind_Mapings(onsitemode, atomtype=self.host.atom_type)
+                IndMap.Onsite_Ind_Mapings(onsitemode, atomtype=self.host.atomtype)
 
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
         bond_neurons = {"nhidden": model_config['sk_hop_nhidden'], "nout":self.host.hops_fun.num_paras}
