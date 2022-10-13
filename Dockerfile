@@ -6,3 +6,5 @@ RUN pip install ase
 RUN pip install pytest
 RUN pip install future
 RUN pip install pyyaml
+RUN pip install inspect
+RUN pip install dargs==0.3.3
