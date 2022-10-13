@@ -38,10 +38,7 @@
           ],
           "eps": 1e-08,
           "weight_decay": 0,
-          "amsgrad": false,
-          "foreach": null,
-          "maximize": false,
-          "capturable": false
+          "amsgrad": false
       },
       "lr_scheduler": {
           "type": "Exp",

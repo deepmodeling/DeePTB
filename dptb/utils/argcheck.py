@@ -67,7 +67,7 @@ def Adam():
 
     return [
         Argument("lr", float, optional=True, default=1e-3),
-        Argument("betas", tuple, optional=True, default=(0.9, 0.999)),
+        Argument("betas", list, optional=True, default=[0.9, 0.999]),
         Argument("eps", float, optional=True, default=1e-8),
         Argument("weight_decay", float, optional=True, default=0),
         Argument("amsgrad", bool, optional=True, default=False),
