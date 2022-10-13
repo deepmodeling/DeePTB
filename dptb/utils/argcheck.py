@@ -1,5 +1,3 @@
-import doctest
-from tracemalloc import get_traceback_limit
 from typing import List, Callable
 
 from dargs import dargs, Argument, Variant, ArgumentEncoder

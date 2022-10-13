@@ -91,7 +91,7 @@ class NNSKTrainer(Trainer):
         self.hops_fun = SKintHops(mode='hopping',functype=self.model_options["skfunction"]["skformula"],proj_atom_anglr_m=self.proj_atom_anglr_m)
         if self.onsitemode == 'strain':
             self.onsitestrain_fun = SKintHops(mode='onsite', functype=self.model_options["skfunction"]["skformula"],proj_atom_anglr_m=self.proj_atom_anglr_m, atomtype=self.atomtype)
-        self.call_plugins(queue_name='disposable', time=0, mode=self.run_opt.get("mode", None), **self.model_options, **self.common_options, **self.data_options)
+        self.call_plugins(queue_name='disposable', time=0, mode=self.run_opt["mode"], **self.model_options, **self.common_options, **self.data_options)
         # ----------------------------------------------------------------         init network model         ----------------------------------------------------------------
         self.optimizer = get_optimizer(model_param=self.model.parameters(), **self.train_options["optimizer"])
         self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **self.train_options["lr_scheduler"])  # add optmizer

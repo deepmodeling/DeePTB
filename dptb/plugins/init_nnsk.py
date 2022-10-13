@@ -18,6 +18,7 @@ class InitSKModel(Plugin):
         self.host = host
 
     def disposable(self, mode=None, **common_and_model_options):
+        self.mode = mode
         if mode == "from_scratch":
             self.init_from_scratch(**common_and_model_options)
         elif mode == "init_model":
@@ -70,21 +71,15 @@ class InitSKModel(Plugin):
                                 **options)
         
         
-        self.host.model_config = ({  
-                                    "proj_atom_anglr_m":proj_atom_anglr_m,
-                                    "atomtype":self.host.atomtype,
-                                    "skformula":skformula,
-                                    "sk_cutoff":sk_cutoff,
-                                    "sk_decay_w":sk_decay_w,
-                                    "sk_hop_nhidden":num_hopping_hideen,
-                                    "sk_onsite_nhidden":num_onsite_hidden,
-                                    "onsitemode":onsitemode,
-                                    "onsite_cutoff":onsite_cutoff
-                                 })
+        self.host.model_config = (common_and_model_options)
 
     def init_from_model(self, **common_and_model_and_run_options):
         # load checkpoint
-        checkpoint = common_and_model_and_run_options['init_model']
+        if self.mode == "init_model":
+            checkpoint = common_and_model_and_run_options['init_model']
+        else:
+            checkpoint = common_and_model_and_run_options["restart"]
+            
         ckpt = torch.load(checkpoint)
         model_config = ckpt["model_config"]
         
