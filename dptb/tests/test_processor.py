@@ -14,7 +14,7 @@ def test_env():
 
     pass
 
-def test_atom_type(root_directory):
+def test_atomtype(root_directory):
     filename = root_directory
     filename += '/examples/TBmodel/hBN/check/hBN.vasp'
     proj_atom_anglr_m = {"N": ["s", "p"], "B": ["s", "p"]}
@@ -30,10 +30,9 @@ def test_atom_type(root_directory):
     kpoints_list = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
     eig_list = [np.zeros([2,10]), np.zeros([2,10])]
     processor = Processor(structure_list=struct_list, kpoint=kpoints_list, eigen_list=eig_list, batchsize=2, env_cutoff=5)
-    print(processor.atom_type)
-    assert get_uniq_symbol(processor.atom_type) == get_uniq_symbol(['N','B','C','H'])
+    assert get_uniq_symbol(processor.atomtype) == get_uniq_symbol(['N','B','C','H'])
 
-def test_proj_atom_type(root_directory):
+def test_proj_atomtype(root_directory):
     filename = root_directory
     filename +=  '/examples/TBmodel/hBN/check/hBN.vasp'
     proj_atom_anglr_m = {"N": ["s", "p"], "B": ["s", "p"]}
@@ -49,8 +48,8 @@ def test_proj_atom_type(root_directory):
     kpoints_list = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
     eig_list = [np.zeros([2,10]), np.zeros([2,10])]
     processor = Processor(structure_list=struct_list, kpoint=kpoints_list, eigen_list=eig_list, batchsize=2, env_cutoff=5)
-    print(processor.proj_atom_type)
-    assert get_uniq_symbol(processor.proj_atom_type) == get_uniq_symbol(['N', 'B', 'C'])
+    print(processor.proj_atomtype)
+    assert get_uniq_symbol(processor.proj_atomtype) == get_uniq_symbol(['N', 'B', 'C'])
 
 def test_getbond(root_directory):
     pass

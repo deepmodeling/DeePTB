@@ -1,5 +1,4 @@
 from typing import List, Callable
-
 from dargs import dargs, Argument, Variant, ArgumentEncoder
 from dptb.plugins.base_plugin import Plugin
 from numpy import floating
