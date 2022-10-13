@@ -16,8 +16,8 @@ class Trainer(with_metaclass(ABCMeta, PluginUser)):
 
     def __init__(self, jdata) -> None:
         super(Trainer, self).__init__()
-        self.dtype = dtype_dict[jdata.get("dtype", "float32")]
-        self.device = jdata.get("device", "cpu")
+        self.dtype = dtype_dict[jdata["common_options"]["dtype"]]
+        self.device = jdata["common_options"]["device"]
         ''' Here is for plugins.
                     plugins:
                         - iteration: events  after every batch training iteration.  
@@ -37,7 +37,7 @@ class Trainer(with_metaclass(ABCMeta, PluginUser)):
         pass
 
     @abstractmethod
-    def _init_model(self):
+    def build(self):
         '''
         init the model
         '''

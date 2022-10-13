@@ -17,7 +17,7 @@ class BaseStruct(AbstractStructure):
         implement the read structure and get bond function
     '''
     def __init__(self, atom, format, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='none', time_symm=True):
-        self.proj_atom_type_norbs = None
+        self.proj_atomtype_norbs = None
         self.onsitemode = onsitemode
         self.nbonds = 0
         assert isinstance(proj_atom_anglr_m, dict)
@@ -37,11 +37,11 @@ class BaseStruct(AbstractStructure):
     def init_desciption(self):
         # init description
         self.atom_symbols = None
-        self.atom_type = None
+        self.atomtype = None
         # self.atom_anglr_m = None
-        self.proj_atom_type = None
+        self.proj_atomtype = None
         # self.proj_atom_anglr_m = None
-        self.proj_atom_type_norbs = None
+        self.proj_atomtype_norbs = None
         self.__bonds_onsite__ = None
         self.__bonds__ = None
         self.if_env_ready = False
@@ -54,21 +54,21 @@ class BaseStruct(AbstractStructure):
         self.read_struct(atom,format=format)
         self.atom_symbols = np.array(self.struct.get_chemical_symbols(), dtype=str)
         self.atom_numbers = np.array(self.struct.get_atomic_numbers(), dtype=int)
-        self.atom_type = get_uniq_symbol(atomsymbols=self.atom_symbols)
+        self.atomtype = get_uniq_symbol(atomsymbols=self.atom_symbols)
         self.projection()
         self.proj_atom_symbols = self.projected_struct.get_chemical_symbols()
         self.proj_atom_numbers = self.projected_struct.get_atomic_numbers()
         self.proj_atom_neles_per = np.array([self.proj_atom_neles[ii] for ii in self.proj_atom_symbols])
         self.proj_atom_to_atom_id = np.array(list(range(len(self.atom_symbols))))[self.projatoms]
         self.atom_to_proj_atom_id = np.array(list(accumulate([int(i) for i in self.projatoms]))) - 1
-        self.proj_atom_type = get_uniq_symbol(atomsymbols=self.proj_atom_symbols)
+        self.proj_atomtype = get_uniq_symbol(atomsymbols=self.proj_atom_symbols)
         self.get_bond(cutoff=self.cutoff,time_symm=self.time_symm)
         self.if_env_ready = False
         self.if_onsitenv_ready = False
 
         self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
-        self.onsite_strain_index_map, self.onsite_strain_num, self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings(onsitemode, atomtype=self.atom_type)
+        self.onsite_strain_index_map, self.onsite_strain_num, self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings(onsitemode, atomtype=self.atomtype)
 
         # if onsitemode.lower() in ['uniform','none']:
         #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
@@ -76,7 +76,7 @@ class BaseStruct(AbstractStructure):
         #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
         # elif onsitemode.lower() == 'strain':
         #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
-        #     self.onsite_strain_index_map, self.onsite_strain_num = self.IndMap.OnsiteStrain_Ind_Mapings(self.atom_type)
+        #     self.onsite_strain_index_map, self.onsite_strain_num = self.IndMap.OnsiteStrain_Ind_Mapings(self.atomtype)
         # else:
         #     raise ValueError(f"Unknown onsitemode type: {onsitemode}")
 
@@ -126,23 +126,23 @@ class BaseStruct(AbstractStructure):
         '''
 
         proj_atom_anglr_m = self.proj_atom_anglr_m
-        self.proj_atom_type = get_uniq_symbol(list(proj_atom_anglr_m.keys()))
+        self.proj_atomtype = get_uniq_symbol(list(proj_atom_anglr_m.keys()))
 
         if not isinstance(proj_atom_anglr_m, dict):
             logging.error("proj_atom_anglr_m:TypeError, must be a dict")
             raise TypeError
 
-        #self.proj_atom_type_norbs = np.zeros(len(self.proj_atom_type), dtype=int)
-        self.proj_atom_type_norbs = {}
-        for ii in self.proj_atom_type:
-            self.proj_atom_type_norbs[ii] = 0
+        #self.proj_atomtype_norbs = np.zeros(len(self.proj_atomtype), dtype=int)
+        self.proj_atomtype_norbs = {}
+        for ii in self.proj_atomtype:
+            self.proj_atomtype_norbs[ii] = 0
             for iorb in proj_atom_anglr_m[ii]:
                 ishsymbol = ''.join(re.findall(r'[A-Za-z]',iorb))
-                self.proj_atom_type_norbs[ii] += int(1 + 2 * anglrMId[ishsymbol])
+                self.proj_atomtype_norbs[ii] += int(1 + 2 * anglrMId[ishsymbol])
 
         # projind = []
         self.projatoms = np.array([False] * len(self.struct.get_chemical_symbols()))
-        for iproj in self.proj_atom_type:
+        for iproj in self.proj_atomtype:
             self.projatoms[np.where(np.asarray(self.struct.get_chemical_symbols()) == iproj)[0]] = True
             # ind_tmp = np.where(np.asarray(self.AtomSymbols)==iproj)[0]
             # projind.append(ind_tmp.tolist())
@@ -289,7 +289,7 @@ class BaseStruct(AbstractStructure):
         #     logging.error("numenv:TypeError, must be a dict")
         #     raise TypeError
         #
-        # if len(self.atom_type) != len(numenv):
+        # if len(self.atomtype) != len(numenv):
         #     logging.error("numenv:ValueError, numenv must be list and have same length as total atom type in structure.")
         #     raise ValueError
 
@@ -314,7 +314,7 @@ class BaseStruct(AbstractStructure):
             for ii in range(len(env_all_arrs)):
                 iatomtype = self.atom_symbols[env_all_arrs[ii][1].astype(int)]
                 jatomtype = self.atom_symbols[env_all_arrs[ii][3].astype(int)]
-                if iatomtype in self.proj_atom_type:
+                if iatomtype in self.proj_atomtype:
                     env_name = iatomtype+'-'+jatomtype
                     if envdict.get(env_name) is None:
                         envdict.update({env_name:[env_all_arrs[ii]]})
@@ -331,7 +331,7 @@ class BaseStruct(AbstractStructure):
 
             for ii in range(len(env_all_arrs)):
                 iatom = env_all_arrs[ii][1].astype(int)
-                if self.atom_symbols[iatom] in self.proj_atom_type:
+                if self.atom_symbols[iatom] in self.proj_atomtype:
                     env_name = iatom
                     if envdict.get(env_name) is None:
                         envdict.update({env_name:[env_all_arrs[ii]]})
@@ -401,8 +401,8 @@ class BaseStruct(AbstractStructure):
             envi_hat = envi / np.reshape(rr, [-1, 1])
             srr = env_smoth(rr, rcut=env_cutoff, rcut_smth=env_cutoff * 0.8)
 
-            # for it in range(len(self.atom_type)):
-            for it in self.atom_type:
+            # for it in range(len(self.atomtype)):
+            for it in self.atomtype:
                 if np.sum(envitype == atomic_num_dict[it]) > 0:
                     srrit = np.reshape(srr[envitype == atomic_num_dict[it]], [-1, 1])
                     envi_hatit = envi_hat[envitype == atomic_num_dict[it]]
@@ -461,8 +461,8 @@ class BaseStruct(AbstractStructure):
         envi_hat = envi / np.reshape(rr, [-1, 1])
         srr = env_smoth(rr, rcut=env_cutoff, rcut_smth=env_cutoff * 0.8)
 
-        # for it in range(len(self.atom_type)):
-        for it in self.atom_type:
+        # for it in range(len(self.atomtype)):
+        for it in self.atomtype:
             if np.sum(envitype == atomic_num_dict[it]) > 0:
                 srrit = np.reshape(srr[envitype == atomic_num_dict[it]], [-1, 1])
                 envi_hatit = envi_hat[envitype == atomic_num_dict[it]]

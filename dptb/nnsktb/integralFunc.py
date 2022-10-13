@@ -9,7 +9,7 @@ from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
 
 
 class SKintHops(SKFormula):
-    def __init__(self, proj_atom_anglr_m, atom_types=None, mode='hopping', functype='varTang96') -> None:
+    def __init__(self, proj_atom_anglr_m, atomtype=None, mode='hopping', functype='varTang96') -> None:
         super().__init__(functype=functype)
         IndMap = Index_Mapings()
         IndMap.update(proj_atom_anglr_m=proj_atom_anglr_m)
@@ -18,7 +18,7 @@ class SKintHops(SKFormula):
             _, _, sk_bond_ind_dict = all_skint_types(bond_index_map)
             self.bon_index_dict = sk_bond_ind_dict
         elif mode == 'onsite':
-            onsite_strain_index_map, _,  _, _ = IndMap.Onsite_Ind_Mapings(onsitemode='strain', atomtype=atom_types)
+            onsite_strain_index_map, _,  _, _ = IndMap.Onsite_Ind_Mapings(onsitemode='strain', atomtype=atomtype)
             _, _, onsite_strain_ind_dict = all_onsite_intgrl_types(onsite_strain_index_map)
             self.bon_index_dict = onsite_strain_ind_dict
 
