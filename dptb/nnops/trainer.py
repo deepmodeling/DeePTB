@@ -48,7 +48,7 @@ class Trainer(with_metaclass(ABCMeta, PluginUser)):
             '''对四个事件调用序列进行最小堆排序。'''
             heapq.heapify(q)
 
-        for i in range(1, epochs + 1):
+        for i in range(self.epoch, epochs + 1):
             self.train()
             # run plugins of epoch events.
             self.call_plugins(queue_name='epoch', time=i)

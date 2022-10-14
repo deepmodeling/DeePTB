@@ -70,7 +70,5 @@ class InitData(Plugin):
         atomtype = get_uniq_symbol(list(set(atomtype)))
         proj_atomtype = get_uniq_symbol(list(set(proj_atomtype)))
 
-        print(atomtype)
-        print(self.host.atomtype)
         assert atomtype == self.host.atomtype
         assert proj_atomtype == self.host.proj_atomtype

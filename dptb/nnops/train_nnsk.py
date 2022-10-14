@@ -1,5 +1,7 @@
+from pdb import Restart
 import torch
 from dptb.nnops.trainer import Trainer
+from dptb.utils.argcheck import optimizer
 from dptb.utils.tools import get_uniq_symbol, \
     get_lr_scheduler, get_uniq_bond_type, get_optimizer, j_must_have
 from dptb.utils.index_mapping import Index_Mapings
@@ -80,21 +82,30 @@ class NNSKTrainer(Trainer):
         
         
         # ---------------------------------------------------------------- init onsite and hopping functions  ----------------------------------------------------------------
-        self.IndMap = Index_Mapings()
-        self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
-        self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
-        self.onsite_strain_index_map, self.onsite_strain_num, self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings(self.onsitemode, atomtype=self.atomtype)
+        # self.IndMap = Index_Mapings()
+        # self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
+        # self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
+        # self.onsite_strain_index_map, self.onsite_strain_num, self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings(self.onsitemode, atomtype=self.atomtype)
 
-        self.bond_type = get_uniq_bond_type(self.proj_atomtype)
-        self.onsite_fun = onsiteFunc
+        self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
         self.onsite_db = loadOnsite(self.onsite_index_map)
-        self.hops_fun = SKintHops(mode='hopping',functype=self.model_options["skfunction"]["skformula"],proj_atom_anglr_m=self.proj_atom_anglr_m)
-        if self.onsitemode == 'strain':
-            self.onsitestrain_fun = SKintHops(mode='onsite', functype=self.model_options["skfunction"]["skformula"],proj_atom_anglr_m=self.proj_atom_anglr_m, atomtype=self.atomtype)
-        self.call_plugins(queue_name='disposable', time=0, mode=self.run_opt["mode"], **self.model_options, **self.common_options, **self.data_options)
         # ----------------------------------------------------------------         init network model         ----------------------------------------------------------------
         self.optimizer = get_optimizer(model_param=self.model.parameters(), **self.train_options["optimizer"])
-        self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **self.train_options["lr_scheduler"])  # add optmizer
+        self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **self.train_options["lr_scheduler"])
+        
+        if self.run_opt["mode"] == "restart":
+            ckpt = torch.load(self.run_opt["restart"])
+            self.epoch = ckpt["epoch"]
+            self.iteration = ckpt["iteration"]
+            self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+            self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, last_epoch=self.epoch, **self.train_options["lr_scheduler"])  # add optmizer
+            self.stats = ckpt["stats"]
+            
+            queues_name = list(self.plugin_queues.keys())
+            for unit in queues_name:
+                for plugin in self.plugin_queues[unit]:
+                    plugin = (getattr(self, unit) + plugin[0], plugin[1], plugin[2])
+
         self.criterion = torch.nn.MSELoss(reduction='mean')
 
         self.hamileig = HamilEig(dtype='tensor')

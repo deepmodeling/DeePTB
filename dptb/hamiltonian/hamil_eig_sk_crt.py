@@ -117,7 +117,8 @@ class HamilEig(RotationSK):
         # onsite strain
         if onsite_envs is not None:
             assert self.onsiteVs is not None
-            for env in onsite_envs:
+            for ib, env in enumerate(onsite_envs):
+                
                 iatype, iatom, jatype, jatom = self.__struct__.proj_atom_symbols[int(env[1])], env[1], self.__struct__.atom_symbols[int(env[3])], env[3]
                 direction_vec = env[8:11].astype(np.float32)
 
@@ -143,6 +144,7 @@ class HamilEig(RotationSK):
                         idx = self.__struct__.onsite_strain_index_map[envtype][ish+'-'+jsh]
                         
                         if shidi < shidj:
+                            
                             tmpH = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.onsiteVs[ib][idx], Angvec=direction_vec)
                             # Hamilblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpH,dim0=0,dim1=1)
                             if self.dtype == 'tensor':
@@ -150,7 +152,7 @@ class HamilEig(RotationSK):
                             else:
                                 sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = np.transpose(tmpH,(1,0))
                         else:
-                            tmpH = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue=self.hoppings[ib][idx], Angvec=direction_vec)
+                            tmpH = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue=self.onsiteVs[ib][idx], Angvec=direction_vec)
                             sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = tmpH
                 
                         jst = jst + norbj 

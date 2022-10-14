@@ -10,8 +10,9 @@ def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none
     indmap.update(proj_atom_anglr_m=proj_atom_anglr_m)
     bond_index_map, bond_num_hops = indmap.Bond_Ind_Mapings()
     all_skint_types_dict, reducted_skint_types, sk_bond_ind_dict = all_skint_types(bond_index_map)
-    onsite_strain_index_map, onsite_strain_num, onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings(onsitemode, atomtype=model_config.get("atom_type"))
-    all_onsiteint_types_dcit, reducted_onsiteint_types, onsite_strain_ind_dict = all_onsite_intgrl_types(onsite_strain_index_map)
+    onsite_strain_index_map, onsite_strain_num, onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings(onsitemode, atomtype=model_config["atomtype"])
+    if onsitemode == 'strain':
+        all_onsiteint_types_dcit, reducted_onsiteint_types, onsite_strain_ind_dict = all_onsite_intgrl_types(onsite_strain_index_map)
 
     # if onsitemode in ['uniform', 'none']: 
     #     onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings()
@@ -19,7 +20,7 @@ def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none
     #     onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings_OrbSplit()
     # elif onsitemode == 'strain':
     #     onsite_index_map, onsite_num = indmap.Onsite_Ind_Mapings()
-    #     onsite_strain_index_map, onsite_strain_num = indmap.OnsiteStrain_Ind_Mapings(model_config.get("atom_type"))
+    #     onsite_strain_index_map, onsite_strain_num = indmap.OnsiteStrain_Ind_Mapings(model_config.get("atomtype"))
     #     all_onsiteint_types_dcit, reducted_onsiteint_types, onsite_strain_ind_dict = all_onsite_intgrl_types(onsite_strain_index_map)
     # else:
     #     raise ValueError('Unknown onsitemode.')
@@ -29,8 +30,9 @@ def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none
     indmap.update(proj_atom_anglr_m=proj_atom_anglr_m_ckpt)
     bond_index_map, bond_num_hops = indmap.Bond_Ind_Mapings()
     all_skint_types_dict_ckpt, reducted_skint_types_ckpt, sk_bond_ind_dict_ckpt = all_skint_types(bond_index_map)
-    onsite_strain_index_map_ckpt, onsite_strain_num_ckpt, onsite_index_map_ckpt, onsite_num_ckpt = indmap.Onsite_Ind_Mapings(model_config['onsitemode'], atomtype=model_config.get("atom_type"))
-    all_onsiteint_types_dcit_ckpt, reducted_onsiteint_types_ckpt, onsite_strain_ind_dict_ckpt = all_onsite_intgrl_types(onsite_strain_index_map_ckpt)
+    onsite_strain_index_map_ckpt, onsite_strain_num_ckpt, onsite_index_map_ckpt, onsite_num_ckpt = indmap.Onsite_Ind_Mapings(model_config['onsitemode'], atomtype=model_config["atomtype"])
+    if model_config["onsitemode"] == "strain":
+        all_onsiteint_types_dcit_ckpt, reducted_onsiteint_types_ckpt, onsite_strain_ind_dict_ckpt = all_onsite_intgrl_types(onsite_strain_index_map_ckpt)
     
     # if model_config['onsitemode'] in ['uniform', 'none']: 
     #     onsite_index_map_ckpt, onsite_num_ckpt = indmap.Onsite_Ind_Mapings()
@@ -38,13 +40,13 @@ def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none
     #     onsite_index_map_ckpt, onsite_num_ckpt = indmap.Onsite_Ind_Mapings_OrbSplit()
     # elif model_config["onsitemode"] == 'strain':
     #     onsite_index_map_ckpt, onsite_num_ckpt = indmap.Onsite_Ind_Mapings()
-    #     onsite_strain_index_map_ckpt, onsite_strain_num_ckpt = indmap.OnsiteStrain_Ind_Mapings(model_config.get("atom_type"))
+    #     onsite_strain_index_map_ckpt, onsite_strain_num_ckpt = indmap.OnsiteStrain_Ind_Mapings(model_config.get("atomtype"))
     #     all_onsiteint_types_dcit_ckpt, reducted_onsiteint_types_ckpt, onsite_strain_ind_dict_ckpt = all_onsite_intgrl_types(onsite_strain_index_map_ckpt)
     # else:
     #     raise ValueError('Unknown onsitemode.')
 
 
-    nhidden = model_config['sk_hop_nhidden']
+    nhidden = model_config['sknetwork']['sk_hop_nhidden']
     layer1 = torch.zeros([len(reducted_skint_types),nhidden])
     for i in range(len(reducted_skint_types)):
         bond_type = reducted_skint_types[i]
@@ -54,7 +56,7 @@ def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none
     state_dict['bond_net.layer1'] = layer1
     nhop_out = state_dict['bond_net.layer2'].shape[1]
     
-    onsite_nhidden = model_config['sk_onsite_nhidden']
+    onsite_nhidden = model_config['sknetwork']['sk_onsite_nhidden']
     
     if onsitemode == 'none':
         pass
