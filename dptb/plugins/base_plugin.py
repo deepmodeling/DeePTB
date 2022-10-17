@@ -46,7 +46,8 @@ class PluginUser(object):
 
     def call_plugins(self, queue_name, time, **kwargs):
         # args should contain: [input, target, output, loss]
-        kwargs.update({"time": time})
+        # TODO: why we need a time update here?
+        # kwargs.update({"time": time})
         # time can be iteration or epoch ...
         queue = self.plugin_queues[queue_name]
         if len(queue) == 0:

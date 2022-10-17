@@ -251,6 +251,7 @@ class DPTBTrainer(Trainer):
             self.onsite_fun = onsiteFunc
             self.onsite_db = loadOnsite(self.onsite_index_map)
 
+    # TODO: 传入了无用的参数batch_bond_onsites. check it !
     def calc(self, batch_bond, batch_bond_onsites, batch_env, structs, kpoints):
         '''
         conduct one step forward computation, used in train, test and validation.

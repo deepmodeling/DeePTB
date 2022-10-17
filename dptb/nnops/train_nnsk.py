@@ -1,23 +1,12 @@
-from pdb import Restart
 import torch
-from dptb.nnops.trainer import Trainer
-from dptb.utils.argcheck import optimizer
-from dptb.utils.tools import get_uniq_symbol, \
-    get_lr_scheduler, get_uniq_bond_type, get_optimizer, j_must_have
-from dptb.utils.index_mapping import Index_Mapings
-from dptb.sktb.struct_skhs import SKHSLists
-from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
-from dptb.nnops.loss import loss_type1, loss_soft_sort
-from dptb.dataprocess.processor import Processor
-from dptb.dataprocess.datareader import read_data, get_data
-from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
-from dptb.nnsktb.sknet import SKNet
-from dptb.nnsktb.integralFunc import SKintHops
-from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 import logging
 import numpy as np
-from dptb.nnsktb.loadparas import load_paras
-from dptb.plugins.base_plugin import PluginUser
+from dptb.nnops.trainer import Trainer
+from dptb.utils.tools import get_uniq_symbol, \
+    get_lr_scheduler, get_optimizer, j_must_have
+from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
+from dptb.nnsktb.onsiteFunc import loadOnsite
+from dptb.nnops.trainloss import lossfunction
 
 log = logging.getLogger(__name__)
 
@@ -55,28 +44,34 @@ class NNSKTrainer(Trainer):
         self.onsitemode = common_options.get('onsitemode','none')
         self.atomtype = common_options["atomtype"]
         self.proj_atomtype = get_uniq_symbol(list(self.proj_atom_anglr_m.keys()))
-
-        self.band_min = loss_options.get('band_min', 0)
-        self.band_max = loss_options.get('band_max', None)
-        self.gap_penalty = loss_options.get('gap_penalty',False)
-        self.fermi_band = loss_options.get('fermi_band', 0)
-        self.loss_gap_eta = loss_options.get('loss_gap_eta',1e-2)    
-
-        if self.use_reference:
-            self.ref_band_min = loss_options.get('ref_band_min', 0)
-            self.ref_band_max = loss_options.get('ref_band_max', None)
-
-            self.ref_gap_penalty = loss_options.get('ref_gap_penalty', self.gap_penalty)
-            self.ref_fermi_band = loss_options.get('ref_fermi_band',self.fermi_band)
-            self.ref_loss_gap_eta = loss_options.get('ref_loss_gap_eta',self.loss_gap_eta)
-
-        self.emin = self.loss_options["emin"]
-        self.emax = self.loss_options["emax"]
-        self.sigma = self.loss_options.get('sigma', 0.1)
-        self.num_omega = self.loss_options.get('num_omega',None)
-        self.sortstrength = self.loss_options.get('sortstrength',[0.1,0.1])
-        self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(self.sortstrength[0]), end=np.log(self.sortstrength[1]), steps=self.num_epoch))
+ 
         
+        self.validation_loss_options = loss_options.copy()
+        if loss_options['val_band_min'] != None:
+            self.validation_loss_options.update({'band_min': loss_options['val_band_min']})
+        if loss_options['val_band_max'] != None:
+            self.validation_loss_options.update({'band_max': loss_options['val_band_max']})
+        if self.use_reference:
+            self.reference_loss_options = loss_options.copy()
+            if loss_options['ref_band_min'] != None:
+                self.reference_loss_options.update({'band_min': loss_options['ref_band_min']})
+            if loss_options['ref_band_max'] != None:
+                self.reference_loss_options.update({'band_max': loss_options['ref_band_max']})
+            if loss_options['ref_gap_penalty'] != None:
+                self.reference_loss_options.update({'gap_penalty': loss_options['ref_gap_penalty']})
+            if loss_options['ref_fermi_band'] != None:
+                self.reference_loss_options.update({'fermi_band': loss_options['ref_fermi_band']})
+            if loss_options['ref_loss_gap_eta'] != None:
+                self.reference_loss_options.update({'loss_gap_eta': loss_options['ref_loss_gap_eta']})
+
+        sortstrength = loss_options['sortstrength']
+        self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(sortstrength[0]), end=np.log(sortstrength[1]), steps=self.num_epoch))
+
+        # self.emin = self.loss_options["emin"]
+        # self.emax = self.loss_options["emax"]
+        # self.sigma = self.loss_options.get('sigma', 0.1)
+        # self.num_omega = self.loss_options.get('num_omega',None)
+
         
     def build(self):
         
@@ -86,7 +81,6 @@ class NNSKTrainer(Trainer):
         # self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         # self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
         # self.onsite_strain_index_map, self.onsite_strain_num, self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings(self.onsitemode, atomtype=self.atomtype)
-
         self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
         self.onsite_db = loadOnsite(self.onsite_index_map)
         # ----------------------------------------------------------------         init network model         ----------------------------------------------------------------
@@ -108,7 +102,11 @@ class NNSKTrainer(Trainer):
 
         self.criterion = torch.nn.MSELoss(reduction='mean')
 
+        self.train_lossfunc = getattr(lossfunction(self.criterion), self.loss_options['losstype'])
+        self.validation_lossfunc = getattr(lossfunction(self.criterion), 'l2eig')
+
         self.hamileig = HamilEig(dtype='tensor')
+
     
 
     def calc(self, batch_bonds, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints):
@@ -128,6 +126,7 @@ class NNSKTrainer(Trainer):
         for ii in range(len(structs)):
             if self.onsitemode == 'strain':
                 onsiteEs, onsiteVs, hoppings = batch_onsiteEs[ii], batch_onsiteVs[ii], batch_hoppings[ii]
+                # TODO: 这里的numpy 是否要改为tensor 方便之后为了GPU的加速。
                 onsitenvs = np.asarray(batch_onsitenvs[ii][:,1:])
                 # call hamiltonian block
             else:
@@ -184,18 +183,27 @@ class NNSKTrainer(Trainer):
                                 ref_eig.append([ref_eig_pred, ref_eig_lbl])
                                 ref_kp_el.append([num_kp_ref, num_el_ref])
              
-                    loss = loss_soft_sort(criterion=self.criterion, eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, num_el=num_el,num_kp=num_kp, 
-                                                        sort_strength=self.sortstrength_epoch[self.epoch-1], band_min=self.band_min, band_max=self.band_max, 
-                                                        gap_penalty=self.gap_penalty, fermi_band=self.fermi_band,eta=self.loss_gap_eta)
+
+                    self.loss_options.update({'num_el':num_el, 'strength':self.sortstrength_epoch[self.epoch-1]})
+                    loss = self.train_lossfunc(eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, **self.loss_options)
+                    
+                    #loss_soft_sort(criterion=self.criterion, eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, num_el=num_el,num_kp=num_kp, 
+                    #                                    sort_strength=self.sortstrength_epoch[self.epoch-1], band_min=self.band_min, band_max=self.band_max, 
+                    #                                    gap_penalty=self.gap_penalty, fermi_band=self.fermi_band,eta=self.loss_gap_eta)
 
                     if self.use_reference:
                         for irefset in range(self.n_reference_sets):
                             ref_eig_pred, ref_eig_lbl = ref_eig[irefset]
                             num_kp_ref, num_el_ref = ref_kp_el[irefset]
-                            loss += (self.batch_size * 1.0 / (self.reference_batch_size * (1+self.n_reference_sets))) * loss_soft_sort(criterion=  self.criterion, 
-                                        eig_pred=ref_eig_pred, eig_label=ref_eig_lbl,num_el=num_el_ref, num_kp=num_kp_ref, sort_strength=self.sortstrength_epoch[self.epoch-1], 
-                                        band_min=self.ref_band_min, band_max=self.ref_band_max,
-                                        gap_penalty=self.ref_gap_penalty, fermi_band=self.ref_fermi_band,eta=self.ref_loss_gap_eta)           
+                            
+                            self.reference_loss_options.update({'num_el':num_el_ref, 'strength':self.sortstrength_epoch[self.epoch-1]})
+                            loss += (self.batch_size * 1.0 / (self.reference_batch_size * (1+self.n_reference_sets))) * \
+                                            self.train_lossfunc(eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, **self.reference_loss_options)
+
+                            #loss += (self.batch_size * 1.0 / (self.reference_batch_size * (1+self.n_reference_sets))) * loss_soft_sort(criterion=  self.criterion, 
+                            #            eig_pred=ref_eig_pred, eig_label=ref_eig_lbl,num_el=num_el_ref, num_kp=num_kp_ref, sort_strength=self.sortstrength_epoch[self.epoch-1], 
+                            #            band_min=self.ref_band_min, band_max=self.ref_band_max,
+                            #            gap_penalty=self.ref_gap_penalty, fermi_band=self.ref_fermi_band,eta=self.ref_loss_gap_eta)           
                     
                     loss.backward()
 
@@ -224,9 +232,10 @@ class NNSKTrainer(Trainer):
 
                     num_kp = kpoints.shape[0]
                     num_el = np.sum(structs[0].proj_atom_neles_per)
-
-                    total_loss += loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp,
-                                             self.band_min, self.band_max)
+                    self.validation_loss_options.update({'num_el':num_el})
+                    total_loss += self.validation_lossfunc(eig_pred=eigenvalues_pred,eig_label=eigenvalues_lbl,**self.validation_loss_options)
+                    #total_loss += loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp,
+                    #                         self.band_min, self.band_max)
                     if kwargs.get('quick'):
                         break
 

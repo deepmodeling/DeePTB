@@ -131,7 +131,7 @@ class Processor(object):
         n_stw = len(self.__struct_workspace__)
 
         if cutoff is None:
-            cutoff = self.env_cutoff
+            cutoff = self.onsite_cutoff
         else:
             assert isinstance(cutoff, float)
         

@@ -1,4 +1,6 @@
+from tkinter import NO
 from typing import List, Callable
+from xml.sax.handler import feature_external_ges
 from dargs import dargs, Argument, Variant, ArgumentEncoder
 from dptb.plugins.base_plugin import Plugin
 from numpy import floating
@@ -203,8 +205,11 @@ def model_options():
 
 
 def loss_options():
+    doc_losstype = ""
     doc_band_min = ""
     doc_band_max = ""
+    doc_val_band_min = ""
+    doc_val_band_max = ""
     doc_ref_band_min = ""
     doc_ref_band_max = ""
     doc_emin = ""
@@ -217,18 +222,24 @@ def loss_options():
     doc_loss_gap_eta = ""
 
     args = [
-        Argument("band_min", int, optional=False, doc=doc_band_min),
-        Argument("band_max", int, optional=False, doc=doc_band_max),
-        Argument("ref_band_min", int, optional=False, doc=doc_ref_band_min),
-        Argument("ref_band_max", int, optional=False, doc=doc_ref_band_max),
-        Argument("emin", int, optional=False, doc=doc_emin),
-        Argument("emax", int, optional=False, doc=doc_emax),
-        Argument("sigma", int, optional=False, doc=doc_sigma),
-        Argument("num_omega", int, optional=False, doc=doc_numomega),
-        Argument("sortstrength", list, optional=False, doc=doc_sortstrength),
-        Argument("gap_penalty", bool, optional=False, doc=doc_gap_penalty),
-        Argument("fermi_band", int, optional=False, doc=doc_fermi_band),
-        Argument("loss_gap_eta", float, optional=False, doc=doc_loss_gap_eta),
+        Argument("losstype", str, optional=True, doc=doc_losstype, default='l2eig_deig_sf'),
+        Argument("band_min", int, optional=True, doc=doc_band_min, default=0),
+        Argument("band_max", [int, None], optional=True, doc=doc_band_max, default=None),
+        Argument("val_band_min", [int, None], optional=True, doc=doc_val_band_min, default=None),
+        Argument("val_band_max", [int, None], optional=True, doc=doc_val_band_max, default=None),
+        Argument("ref_band_min", [int, None], optional=True, doc=doc_ref_band_min, default=None),
+        Argument("ref_band_max", [int, None], optional=True, doc=doc_ref_band_max, default=None),
+        Argument("emin", [int, None], optional=True, doc=doc_emin,default=None),
+        Argument("emax", [int, None], optional=True, doc=doc_emax,default=None),
+        Argument("sigma", [int, None], optional=True, doc=doc_sigma, default=None),
+        Argument("num_omega", [int, None], optional=True, doc=doc_numomega,default=None),
+        Argument("sortstrength", list, optional=True, doc=doc_sortstrength,default=[0.01,0.01]),
+        Argument("gap_penalty", bool, optional=True, doc=doc_gap_penalty, default=False),
+        Argument("fermi_band", int, optional=True, doc=doc_fermi_band,default=0),
+        Argument("loss_gap_eta", float, optional=True, doc=doc_loss_gap_eta, default=0.01),
+        Argument("ref_gap_penalty", [bool, None], optional=True, doc=doc_gap_penalty, default=None),
+        Argument("ref_fermi_band", [int, None], optional=True, doc=doc_fermi_band,default=None),
+        Argument("ref_loss_gap_eta", [float, None], optional=True, doc=doc_loss_gap_eta, default=None),
     ]
 
     doc_loss_options = ""
