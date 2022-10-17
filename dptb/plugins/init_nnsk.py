@@ -105,9 +105,6 @@ class InitSKModel(Plugin):
         num_onsite_hidden = common_and_model_and_run_options['sknetwork']['sk_onsite_nhidden']
         onsitemode = common_and_model_and_run_options['onsitemode']
         skformula = common_and_model_and_run_options['skfunction']['skformula']
-        sk_cutoff = common_and_model_and_run_options['skfunction']['sk_cutoff']
-        sk_decay_w = common_and_model_and_run_options['skfunction']['sk_decay_w']
-        onsite_cutoff = common_and_model_and_run_options['onsite_cutoff']
         # ----------------------------------------------------------------------------------------------------------
         assert skformula == model_config['skfunction'].get('skformula')
 

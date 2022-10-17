@@ -1,29 +1,15 @@
 {
-    "device": "cpu",
-    "train_options": {
-        "num_epoch": 1,
-        "display_epoch": 1,
-        "use_reference": false
-    },
-    "optimizer_options": {
-        "lr": 0.001,
-        "opt_type": "Adam"
-    },
-    "sch_options": {
-        "sch_type": "Expo",
-        "gamma": 0.998
-    },
-    "data_options": {
-        "batch_size": 1,
-        "sk_file_path": "/root/deeptb/examples/slakos/",
-        "bond_cutoff": 4,
+    "common_options": {
+        "device": "cpu",
+        "dtype": "float32",
+        "onsite_cutoff": 3.0,
+        "bond_cutoff": 4.0,
         "env_cutoff": 3.5,
-        "train_data_path": "/root/deeptb/dptb/tests/data/hBN/data/",
-        "train_data_prefix": "set",
-        "test_data_path": "/root/deeptb/dptb/tests/data/hBN/data/",
-        "test_data_prefix": "set",
-        "ref_data_path": "/root/deeptb/dptb/tests/data/hBN/data/",
-        "ref_data_prefix": "set",
+        "sk_file_path": "./examples/slakos/",
+        "atomtype": [
+            "N",
+            "B"
+        ],
         "proj_atom_neles": {
             "N": 5,
             "B": 3
@@ -38,48 +24,81 @@
                 "2p"
             ]
         },
-        "time_symm": true,
-        "band_min": 0,
-        "band_max": 4,
-        "ref_band_min": 0,
-        "ref_band_max": 4
+        "onsitemode": "none",
+        "time_symm": true
+    },
+    "train_options": {
+        "num_epoch": 10,
+        "optimizer": {
+            "lr": 0.01,
+            "type": "Adam",
+            "betas": [
+                0.9,
+                0.999
+            ],
+            "eps": 1e-08,
+            "weight_decay": 0,
+            "amsgrad": false
+        },
+        "lr_scheduler": {
+            "type": "Exp",
+            "gamma": 0.999
+        },
+        "seed": 3982377700,
+        "save_freq": 10,
+        "test_freq": 10,
+        "display_freq": 1
+    },
+    "data_options": {
+        "use_reference": true,
+        "train": {
+            "batch_size": 1,
+            "path": "./dptb/tests/data/hBN/data/",
+            "prefix": "set"
+        },
+        "validation": {
+            "batch_size": 1,
+            "path": "./dptb/tests/data/hBN/data/",
+            "prefix": "set"
+        },
+        "reference": {
+            "batch_size": 1,
+            "path": "./dptb/tests/data/hBN/data/",
+            "prefix": "set"
+        }
     },
     "model_options": {
-        "onsitemode": "uniform",
-        "nhidden": 500,
-        "axis_neuron": 10,
-        "onsite_net_neuron": [
-            2,
-            2,
-            2,
-            25
-        ],
-        "env_net_neuron": [
-            2,
-            2,
-            2,
-            25
-        ],
-        "bond_net_neuron": [
-            2,
-            2,
-            2,
-            25
-        ],
-        "onsite_net_activation": "tanh",
-        "env_net_activation": "tanh",
-        "bond_net_activation": "tanh",
-        "onsite_net_type": "ffn",
-        "env_net_type": "res",
-        "bond_net_type": "ffn",
-        "if_batch_normalized": false
+        "sknetwork": {
+            "sk_hop_nhidden": 50,
+            "sk_onsite_nhidden": 50
+        },
+        "skfunction": {
+            "skformula": "varTang96",
+            "sk_cutoff": 3.5,
+            "sk_decay_w": 0.5
+        }
     },
     "loss_options": {
-        "emin": -25,
-        "emax": 10,
         "band_min": 0,
         "band_max": 4,
         "ref_band_min": 0,
-        "ref_band_max": 4
+        "ref_band_max": 4,
+        "emin": -25,
+        "emax": 10,
+        "sigma": 2,
+        "num_omega": 3000,
+        "sortstrength": [
+            0.01,
+            0.01
+        ],
+        "gap_penalty": false,
+        "fermi_band": 3,
+        "loss_gap_eta": 0.01,
+        "losstype": "l2eig_deig_sf",
+        "val_band_min": null,
+        "val_band_max": null,
+        "ref_gap_penalty": null,
+        "ref_fermi_band": null,
+        "ref_loss_gap_eta": null
     }
 }
