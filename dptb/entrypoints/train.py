@@ -7,7 +7,6 @@ from dptb.plugins.train_logger import Logger
 from dptb.utils.argcheck import normalize
 from dptb.plugins.plugins import Saver
 from typing import Dict, List, Optional, Any
-from dptb.utils.argcheck import normalize
 from dptb.utils.tools import j_loader
 from dptb.utils.loggers import set_log_handles
 import heapq

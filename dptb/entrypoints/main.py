@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 from dptb.entrypoints.train import train
+from dptb.entrypoints.postrun import postrun
 from dptb.utils.loggers import set_log_handles
 
 def get_ll(log_level: str) -> int:
@@ -111,8 +112,54 @@ def main_parser() -> argparse.ArgumentParser:
         "--output",
         type=str,
         default="./",
-        help="The output file of the parameters used in training.",
+        help="The output files in training.",
     )
+    
+    parser_run = subparsers.add_parser(
+        "run",
+        parents=[parser_log],
+        help="run the TB with a model.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser_run.add_argument(
+        "INPUT", help="the input parameter file for postprocess run in json format",
+        type=str,
+        default=None
+    )
+
+    parser_run.add_argument(
+        "-ckpt", 
+        "--model_ckpt",
+        help="the checkpointfile for postprocess run in json format, prior to the model_ckpt tags in the input json. ",
+        type=str,
+        default=None
+    )
+    
+    parser_run.add_argument(
+        "-str",
+        "--structure",
+        type=str,
+        default=None,
+        help="the structure file name wiht its suffix of format, such as, .vasp, .cif etc., prior to the model_ckpt tags in the input json. "
+    )
+
+    parser_run.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default="./",
+        help="The output files in postprocess run."
+    )
+
+    parser_run.add_argument(
+        "-sk",
+        "--run_sk",
+        action="store_true",
+        help="using NNSKTB parameters TB models for post-run."
+    )
+
+
 
     return parser
 
@@ -142,10 +189,13 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
 def main():
     args = parse_args()
 
-    if args.command not in (None, "train"):
+    if args.command not in (None, "train", "run"):
         set_log_handles(args.log_level, Path(args.log_path) if args.log_path else None)
 
     dict_args = vars(args)
 
     if args.command == 'train':
         train(**dict_args)
+
+    if args.command == 'run':
+        postrun(**dict_args)
