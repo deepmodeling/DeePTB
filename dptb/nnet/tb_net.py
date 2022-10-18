@@ -1,3 +1,4 @@
+import logging
 import torch
 import torch.nn as nn
 from dptb.utils.tools import get_uniq_symbol, get_uniq_bond_type, get_uniq_env_bond_type
@@ -14,8 +15,8 @@ def _get_network(activation, config, if_batch_normalized=False, type='res', devi
     return RuntimeError("type should be mlp/res/..., not {}".format(type))
 
 class TBNet(nn.Module):
-    def __init__(self, proj_atom_type,
-                 atom_type,
+    def __init__(self, proj_atomtype,
+                 atomtype,
                  env_net_config,
                  onsite_net_config,
                  bond_net_config,
@@ -30,13 +31,14 @@ class TBNet(nn.Module):
                  dtype=torch.float32
                  ):
         super(TBNet, self).__init__()
-        self.proj_atom_type = get_uniq_symbol(proj_atom_type)
-        self.atom_type = get_uniq_symbol(atom_type)
-        self.bond_type = get_uniq_bond_type(proj_atom_type)
-        self.env_bond_type = get_uniq_env_bond_type(proj_atom_type, atom_type)
+        self.proj_atom_type = get_uniq_symbol(proj_atomtype)
+        self.atom_type = get_uniq_symbol(atomtype)
+        self.bond_type = get_uniq_bond_type(proj_atomtype)
+        self.env_bond_type = get_uniq_env_bond_type(proj_atomtype, atomtype)
         self.bond_nets = nn.ModuleDict({})
         self.onsite_nets = nn.ModuleDict({})
         self.env_nets = nn.ModuleDict({})
+        
 
 
         # init NNs
@@ -96,8 +98,8 @@ class TBNet(nn.Module):
 
         '''
         if mode == 'emb':
-            # here x should be of form [(f,i,itype,s(r),rx,ry,rz)]
-            sr = x[:,3].unsqueeze(1)
+            # here x should be of form [(f,itype,i,jtype,j,Rx,Ry,Rz,s(r),rx,ry,rz)]
+            sr = x[:,8].unsqueeze(1)
             out = self.env_nets[flag](sr)
             out = torch.cat((x, out), dim=1)
 
@@ -106,6 +108,7 @@ class TBNet(nn.Module):
             emb = x[:,3:]
             out = self.onsite_nets[flag](emb)
             out = torch.cat((x[:,:3], out), dim=1)
+            
             # out : [f,i,itype,onsite]
         elif mode == 'hopping':
             # x : [f,itype,i,jtype,j,R,|rij|,rij_hat,emb_fij] --> [f, itype, i, jtype,j,R, |rij|, rij_hat,hopping]

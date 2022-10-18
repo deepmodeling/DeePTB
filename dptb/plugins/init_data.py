@@ -30,7 +30,7 @@ class InitData(Plugin):
         self.host.train_processor_list = get_data(
             sorted_onsite="st", 
             sorted_bond="st", 
-            sorted_env="st",
+            sorted_env="itype-jtype",
             **common_and_data_options,
             **common_and_data_options["train"]
         )
@@ -38,7 +38,7 @@ class InitData(Plugin):
         self.host.validation_processor_list = get_data(
             sorted_onsite="st", 
             sorted_bond="st", 
-            sorted_env="st",
+            sorted_env="itype-jtype",
             **common_and_data_options,
             **common_and_data_options["validation"]
         )
@@ -48,7 +48,7 @@ class InitData(Plugin):
             self.host.ref_processor_list = get_data(
             sorted_onsite="st", 
             sorted_bond="st", 
-            sorted_env="st", 
+            sorted_env="itype-jtype", 
             **common_and_data_options["reference"],
             **common_and_data_options
             )

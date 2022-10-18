@@ -194,14 +194,42 @@ def skfunction():
     return Argument("skfunction", dict, optional=True, sub_fields=args, sub_variants=[], default={}, doc=doc_skfunction)
 
 def dptb():
+    doc_axis_neuron = ""
+    doc_onsite_net_neuron = ""
+    doc_env_net_neuron = ""
+    doc_bond_net_neuron = ""
+    doc_onsite_net_activation = ""
+    doc_env_net_activation = ""
+    doc_bond_net_activation = "",
+    doc_onsite_net_type = ""
+    doc_env_net_type = ""
+    doc_bond_net_type = ""
+    doc_if_batch_normalized = ""
 
-    pass
+    args = [
+        Argument("axis_neuron", int, optional=True, default=10, doc=doc_axis_neuron),
+        Argument("onsite_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_onsite_net_neuron),
+        Argument("env_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_env_net_neuron),
+        Argument("bond_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_bond_net_neuron),
+        Argument("onsite_net_activation", str, optional=True, default="tanh", doc=doc_onsite_net_activation),
+        Argument("env_net_activation", str, optional=True, default="tanh", doc=doc_env_net_activation),
+        Argument("bond_net_activation", str, optional=True, default="tanh", doc=doc_bond_net_activation),
+        Argument("onsite_net_type", str, optional=True, default="res", doc=doc_onsite_net_type),
+        Argument("env_net_type", str, optional=True, default="res", doc=doc_env_net_type),
+        Argument("bond_net_type", str, optional=True, default="res", doc=doc_bond_net_type),
+        Argument("if_batch_normalized", bool, optional=True, default=False, doc=doc_if_batch_normalized)
+    ]
+
+    doc_dptb = ""
+
+    return Argument("dptb", dict, optional=True, sub_fields=args, sub_variants=[], default={}, doc=doc_dptb)
+
 
 def model_options():
 
     doc_model_options = ""
 
-    return Argument("model_options", dict, sub_fields=[skfunction(), sknetwork()], sub_variants=[], optional=False, doc=doc_model_options)
+    return Argument("model_options", dict, sub_fields=[skfunction(), sknetwork(), dptb()], sub_variants=[], optional=False, doc=doc_model_options)
 
 
 def loss_options():

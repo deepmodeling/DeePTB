@@ -13,10 +13,9 @@ log = logging.getLogger(__name__)
 class NNSKTrainer(Trainer):
     def __init__(self, run_opt, jdata) -> None:
         super(NNSKTrainer, self).__init__(jdata)
-        self.run_opt = run_opt
         self.name = "nnsk"
+        self.run_opt = run_opt
         self._init_param(jdata)
-        
 
     def _init_param(self, jdata):
         common_options = j_must_have(jdata, "common_options")
@@ -75,7 +74,6 @@ class NNSKTrainer(Trainer):
         
     def build(self):
         
-        
         # ---------------------------------------------------------------- init onsite and hopping functions  ----------------------------------------------------------------
         # self.IndMap = Index_Mapings()
         # self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
@@ -106,7 +104,6 @@ class NNSKTrainer(Trainer):
         self.validation_lossfunc = getattr(lossfunction(self.criterion), 'l2eig')
 
         self.hamileig = HamilEig(dtype='tensor')
-
     
 
     def calc(self, batch_bonds, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints):

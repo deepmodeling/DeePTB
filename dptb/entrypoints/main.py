@@ -96,7 +96,8 @@ def main_parser() -> argparse.ArgumentParser:
     parser_train.add_argument(
         "-crt",
         "--use-correction",
-        action="store_true",
+        type=str,
+        default=None,
         help="Use nnsktb correction when training dptb",
     )
 

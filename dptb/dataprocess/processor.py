@@ -114,7 +114,7 @@ class Processor(object):
         else:
             raise NotImplementedError
 
-        return batch_env # {env_type: (itype, i, jtype, j, jtype, Rx, Ry, Rz, s(r), rx, ry, rz)} or [(f, itype, i, jtype, j, jtype, Rx, Ry, Rz, s(r), rx, ry, rz)]
+        return batch_env # {env_type: (f, itype, i, jtype, j, jtype, Rx, Ry, Rz, s(r), rx, ry, rz)} or [(f, itype, i, jtype, j, jtype, Rx, Ry, Rz, s(r), rx, ry, rz)]
 
     def get_onsitenv(self, cutoff=None, sorted=None):
         # TODO: the sorted mode should be explained here, in which case, we should use.
@@ -170,7 +170,7 @@ class Processor(object):
         else:
             raise NotImplementedError
 
-        return batch_env # {env_type: (itype, i, jtype, j, jtype, Rx, Ry, Rz, s(r), rx, ry, rz)} or [(f, itype, i, jtype, j, jtype, Rx, Ry, Rz, s(r), rx, ry, rz)]
+        return batch_env # {env_type: (f, itype, i, jtype, j, jtype, Rx, Ry, Rz, s(r), rx, ry, rz)} or [(f, itype, i, jtype, j, jtype, Rx, Ry, Rz, s(r), rx, ry, rz)]
 
     def get_bond(self, sorted=None):
         '''It takes the bonds of each structure in the workspace and concatenates them into one big dictionary.
@@ -210,7 +210,7 @@ class Processor(object):
                 batch_bond_onsite.update({st:torch.tensor(bond_onsite, dtype=self.dtype, device=self.device)})
             
 
-        return batch_bond, batch_bond_onsite # [f, i_atom_num, i, j_atom_num, j, Rx, Ry, Rz, |rj-ri|, \hat{rij: x, y, z}] or dict
+        return batch_bond, batch_bond_onsite # [f, itype, i, jtype, j, Rx, Ry, Rz, |rj-ri|, \hat{rij: x, y, z}] or dict
 
     @property
     def atomtype(self):

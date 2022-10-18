@@ -2,6 +2,7 @@ from dptb.nnops.train_dptb import DPTBTrainer
 from dptb.nnops.train_nnsk import NNSKTrainer
 from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
 from dptb.plugins.init_nnsk import InitSKModel
+from dptb.plugins.init_dptb import InitDPTBModel
 from dptb.plugins.init_data import InitData
 from dptb.plugins.train_logger import Logger
 from dptb.utils.argcheck import normalize
@@ -30,7 +31,7 @@ def train(
         log_level: int,
         log_path: Optional[str],
         train_sk: bool,
-        use_correction: bool,
+        use_correction: Optional[str],
         **kwargs
 ):
     run_opt = {
@@ -71,7 +72,7 @@ def train(
         )
     if all((use_correction, train_sk)):
         raise RuntimeError(
-            "--use-cprrection and --train_sk should not be set at the same time"
+            "--use-correction and --train_sk should not be set at the same time"
         )
 
     # setup INPUT path
@@ -83,6 +84,7 @@ def train(
             skconfig_path = os.path.join(str(Path(restart).parent.absolute()), "config_nnsktb.json")
             mode = "restart"
         elif INPUT is not None:
+            log.info(msg="Haven't assign a initializing mode, training from scratch as default.")
             mode = "from_scratch"
             skconfig_path = INPUT
         else:
@@ -97,6 +99,7 @@ def train(
             dptbconfig_path = os.path.join(str(Path(restart).parent.absolute()), "config_dptbtb.json")
             mode = "restart"
         elif INPUT is not None:
+            log.info(msg="Haven't assign a initializing mode, training from scratch as default.")
             dptbconfig_path = INPUT
             mode = "from_scratch"
         else:
@@ -104,8 +107,10 @@ def train(
             raise ValueError
 
         if use_correction:
-            skcheckpoint_path = str(Path(str(input(f"Enter skcheckpoint_path (default ./checkpoint/best_nnsk.pth): \n"))).absolute())
-
+            skconfig_path = os.path.join(str(Path(use_correction).parent.absolute()), "config_nnsktb.json")
+            # skcheckpoint_path = str(Path(str(input(f"Enter skcheckpoint_path (default ./checkpoint/best_nnsk.pth): \n"))).absolute())
+        else:
+            skconfig_path = None
     # setup output path
     if output:
         Path(output).parent.mkdir(exist_ok=True, parents=True)
@@ -132,7 +137,7 @@ def train(
     else:
         if use_correction:
             run_opt.update({
-                "skcheckpoint_path": skcheckpoint_path
+                "skconfig_path": skconfig_path
             })
         run_opt.update({
             "dptbconfig_path": dptbconfig_path
@@ -150,6 +155,7 @@ def train(
         trainer.register_plugin(InitSKModel())
     else:
         trainer = DPTBTrainer(run_opt, jdata)
+        trainer.register_plugin(InitDPTBModel())
     
     
     # register the plugin in trainer, to tract training info
