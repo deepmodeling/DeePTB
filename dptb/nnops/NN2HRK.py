@@ -3,6 +3,7 @@ import numpy as np
 from dptb.structure.structure import BaseStruct
 from dptb.dataprocess.processor import Processor
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
+from ase import Atoms
 
 class NN2HRK(object):
     def __init__(self, apihost, mode):
@@ -17,16 +18,27 @@ class NN2HRK(object):
         ## parameters.
         self.device = apihost.model_config['device']
         self.dtype =  apihost.model_config['dtype']
-        self.env_cutoff = self.apihost.model_config['env_cutoff']
-        self.onsitemode = self.apihost.model_config['onsitemode']
-        self.onsite_cutoff = self.apihost.model_config['onsite_cutoff']
-        self.sk_cutoff = self.apihost.model_config['skfunction']['sk_cutoff']
-        self.sk_decay_w = self.apihost.model_config['skfunction']['sk_decay_w']
+        self.bond_cutoff = apihost.model_config['bond_cutoff']
+        self.env_cutoff = apihost.model_config['env_cutoff']
+        self.onsitemode =  apihost.model_config['onsitemode']
+        self.onsite_cutoff = apihost.model_config['onsite_cutoff']
+        self.sk_cutoff =  apihost.model_config['skfunction']['sk_cutoff']
+        self.sk_decay_w = apihost.model_config['skfunction']['sk_decay_w']
+        self.proj_atom_anglr_m = apihost.model_config['proj_atom_anglr_m']
+        self.proj_atom_neles = apihost.model_config['proj_atom_neles']
+        self.time_symm = apihost.model_config['time_symm']
 
 
     def update_struct(self,structure):
         # update status is the structure is update.
-        self.structure = structure
+        if isinstance(structure, BaseStruct):
+            self.structure = structure
+        elif isinstance(structure,Atoms):
+            struct = BaseStruct(atom=structure, format='ase', cutoff=self.bond_cutoff, proj_atom_anglr_m=self.proj_atom_anglr_m, proj_atom_neles=self.proj_atom_neles, onsitemode=self.onsitemode, time_symm=self.time_symm)
+            self.structure = struct
+        else:
+            raise ValueError("Invalid structure type: %s" % type(structure))
+        
         self.time_symm = self.structure.time_symm
         self.if_dp_HR_ready = False
         self.if_nn_HR_ready = False
