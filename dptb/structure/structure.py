@@ -80,8 +80,6 @@ class BaseStruct(AbstractStructure):
         # else:
         #     raise ValueError(f"Unknown onsitemode type: {onsitemode}")
 
-
-
     def read_struct(self, atom=None, format='ase'):
         '''The function reads a structure from a file or an ase object and stores it in the class
         
@@ -267,7 +265,7 @@ class BaseStruct(AbstractStructure):
 
         bonds_onsite = np.asarray(bonds_onsite, dtype=int)
 
-        return bonds, bonds_onsite
+        return bonds, bonds_onsite # [itype, i, jtype, j, Rx, Ry, Rz, |rj-ri|, \hat{rij: x, y, z}]
 
 
     def cal_env(self, env_cutoff=None, sorted="iatom"):

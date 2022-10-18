@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from dptb.dataprocess.processor import Processor
-from dptb.utils.constants import atomic_num_dict_r, atomic_num_dict
+from dptb.utils.constants import atomic_num_dict_r, atomic_num_dict, dtype_dict
 from dptb.nnet.tb_net import TBNet
 from dptb.sktb.skIntegrals import SKIntegrals
 from dptb.sktb.struct_skhs import SKHSLists
@@ -11,8 +11,8 @@ from dptb.utils.tools import nnsk_correction
 
 class NNTB(object):
     def __init__(self,
-                 atom_type,
-                 proj_atom_type,
+                 atomtype,
+                 proj_atomtype,
                  axis_neuron,
                  env_net_config,
                  onsite_net_config,
@@ -24,14 +24,16 @@ class NNTB(object):
                  env_net_type='res',
                  bond_net_type='res',
                  device='cpu',
-                 dtype=torch.float32,
-                 if_batch_normalized=False
+                 dtype="float32",
+                 if_batch_normalized=False,
+                 **kwargs
                  ):
-
+        
+        self.dtype = dtype_dict[dtype]
 
         self.tb_net = TBNet(
-                 proj_atom_type,
-                 atom_type,
+                 proj_atomtype,
+                 atomtype,
                  env_net_config,
                  onsite_net_config,
                  bond_net_config,
@@ -43,10 +45,10 @@ class NNTB(object):
                  bond_net_type=bond_net_type,
                  if_batch_normalized=if_batch_normalized,
                  device=device,
-                 dtype=dtype
+                 dtype=self.dtype
                  )
 
-        self.dtype= dtype
+        
         self.device = device
         self.axis_neuron = axis_neuron
 
@@ -57,7 +59,7 @@ class NNTB(object):
         Parameters
         ----------
         batch_env: dict,  for atoms i, the env is formed by its neighbour atoms.
-            {env_type:(f,i,itype,s(r),rx,ry,rz)}, 
+            {env_type:(f,itype,i,jtype,j,Rx,Ry,Rz,s(r),rx,ry,rz)}, 
             where the key env type is 'center_atom_type'+ '-' + 'neighbour_atom_type' e.g. 'N-N', 'N-B', etc.
             f is the index of frames in the batch.
             i is the index of atoms in f.
@@ -73,7 +75,7 @@ class NNTB(object):
 
         flag_list = batch_env.keys()
         for flag in flag_list:
-            # {env_type:(f,i,itype,s(r),rx,ry,rz)} -> {env_type:(f,i,itype,s(r),rx,ry,rz,emb)}
+            # {env_type:(f,itype, i, jtype, j,Rx,Ry,Rz s(r),rx,ry,rz)} -> {env_type:(f,i,itype,s(r),rx,ry,rz,emb)}
             batch_env[flag] = self.tb_net(batch_env[flag], flag=flag, mode='emb')
 
         batch_env = torch.cat(list(batch_env.values()), dim=0)
@@ -81,7 +83,7 @@ class NNTB(object):
         batched_dcp = {}
         # rearranged by f-i
         for item in batch_env:
-            name = str(int(item[0]))+'-'+str(int(item[1]))
+            name = str(int(item[0]))+'-'+str(int(item[2]))
             if batched_dcp.get(name) is None:
                 batched_dcp[name] = [item]
             else:
@@ -92,16 +94,14 @@ class NNTB(object):
         for flag in batched_dcp:
             data = torch.stack(batched_dcp[flag])
             # compute descriptor for f-i:
-            r_norm = data[:,3:7]
-            emb = torch.matmul(data[:,7:].T,r_norm) / r_norm.shape[0]
+            r_norm = data[:,8:12]
+            emb = torch.matmul(data[:,12:].T,r_norm) / r_norm.shape[0]
             emb = torch.matmul(emb, emb.T[:,:self.axis_neuron]).reshape(-1)
             batched_dcp[flag] = torch.cat([batched_dcp[flag][0][0:3],emb])
 
-
-
         self.env_out_dim = batched_dcp['0-0'].shape[0] - 3
 
-        return batched_dcp # {f-i:[f,i,itype,emb_fi]}
+        return batched_dcp # {f-i:[f,itype,i,emb_fi]}
 
     def hopping(self, batched_dcp, batch_bond):
         ''' The function takes in a descriptors batched_dcp and bond list, to get atom-descriptor to bond-descriptor 
@@ -110,10 +110,10 @@ class NNTB(object):
         Parameters
         ----------
         batched_dcp: dict
-            {f-i:[f,i,itype,emb_fi]}
+            {f-i:[f,itype, i, emb_fi]}
 
         batch_bond: tensor
-            [f, itype, i, jtype, j, R, |rij|, rij_hat]
+            [f, itype, i, jtype, j, Rx, Ry, Rz, |rij|, rij_hat]
             f is the index of frames in the batch.
             i, j are the indices of atoms i and j in f. bond-ij connects i and j.
             itype, jtype are atom number of the atom i and j. eg. 7 when the i-th atom is a nitrogen.
@@ -125,7 +125,7 @@ class NNTB(object):
         Returns
         -------
         batch_bond_hoppings: dict: {key: list[np.array]}
-        {f:[itype, i, jtype,j,R, |rij|, rij_hat]}
+        {f:[f, itype, i, jtype,j, R, |rij|, rij_hat]}
 
         batch_hoppings: dict: {key: list[torch.tensor]}
         {f:[hoppings]}
@@ -136,8 +136,8 @@ class NNTB(object):
 
         # atom-descriptor to bond-descriptor
         # batch_bond: 
-
-        batch_bond = torch.cat((batch_bond, torch.zeros(batch_bond.shape[0], self.env_out_dim)), dim=1)
+        batch_bond = torch.concat(list(batch_bond.values()), dim=0)
+        batch_bond = torch.cat((batch_bond, torch.zeros((batch_bond.shape[0], self.env_out_dim), dtype=self.dtype, device=self.device)), dim=1)
 
         batch_bond_sort = {}
         for ibond in range(len(batch_bond)):
@@ -183,7 +183,7 @@ class NNTB(object):
                 else:
                     batch_bond_hoppings[f] = [ib[0:12].detach()]
                     batch_hoppings[f] = [ib[12:]]
-                # {f:[itype, i, jtype,j,R, |rij|, rij_hat]}, {f:[hopping]}
+                # {f:[f, itype, i, jtype,j,R, |rij|, rij_hat]}, {f:[hopping]}
         for f in batch_bond_hoppings.keys():
             batch_bond_hoppings[f] = torch.stack(batch_bond_hoppings[f])
         return batch_bond_hoppings, batch_hoppings
@@ -196,23 +196,24 @@ class NNTB(object):
         Parameters
         ----------
         batched_dcp
-            a dictionary of the form {f: [f, i, itype, emb_fi]}
+            a dictionary of the form {f: [f, itype, i, jtype, j,  emb_fi]}
         
         Returns
         -------
         batch_bond_onsites: dict: {key: list[np.array]}
-        {f:[itype, i, itype, i, 0 0 0]}
+        {f:[f, itype, i, itype, i, 0, 0, 0, 0, 0 0 0]}
     
         batch_onsiteEs: dict: {key: list[torch.tensor]}
         {f:[onsiteEs]}
 
         '''
+
         # rearranged by atom type:
-        # [f,i,itype,emb_fi]
+        # [f,itype,i,emb_fi]
         # batched_dcp = torch.stack(list(batched_dcp))
         dcp_at = {}
         for item in list(batched_dcp.values()):
-            iatomtype = atomic_num_dict_r[int(item[2])]
+            iatomtype = atomic_num_dict_r[int(item[1])]
             if dcp_at.get(iatomtype) is None:
                 dcp_at[iatomtype] = [item]
             else:
@@ -231,11 +232,11 @@ class NNTB(object):
                 f = int(ion[0])
                 if batch_onsiteEs.get(f) is not None:
                     batch_onsiteEs[f].append(ion[3:])
-                    batch_bond_onsites[f].append(torch.tensor([f, ion[2], ion[1], ion[2], ion[1], 0, 0, 0],
+                    batch_bond_onsites[f].append(torch.tensor([f, ion[1], ion[2], ion[1], ion[2], 0, 0, 0, 0, 0, 0, 0],
                                                             dtype=self.dtype, device=self.device).int())
                 else:
                     batch_onsiteEs[f] = [ion[3:]]
-                    batch_bond_onsites[f] = [torch.tensor([f, ion[2], ion[1], ion[2], ion[1], 0, 0, 0],
+                    batch_bond_onsites[f] = [torch.tensor([f, ion[1], ion[2], ion[1], ion[2], 0, 0, 0, 0, 0, 0, 0],
                                                         dtype=self.dtype, device=self.device).int()]
         for f in batch_bond_onsites.keys():
             batch_bond_onsites[f] = torch.stack(batch_bond_onsites[f])
