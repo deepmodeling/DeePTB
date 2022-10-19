@@ -28,7 +28,7 @@
         "time_symm": true
     },
     "train_options": {
-        "num_epoch": 10,
+        "num_epoch": 50,
         "optimizer": {
             "lr": 0.01,
             "type": "Adam",
@@ -76,6 +76,34 @@
             "skformula": "varTang96",
             "sk_cutoff": 3.5,
             "sk_decay_w": 0.5
+        },
+        "dptb": {
+            "axis_neuron": 10,
+            "onsite_net_neuron": [
+                128,
+                128,
+                256,
+                256
+            ],
+            "env_net_neuron": [
+                128,
+                128,
+                256,
+                256
+            ],
+            "bond_net_neuron": [
+                128,
+                128,
+                256,
+                256
+            ],
+            "onsite_net_activation": "tanh",
+            "env_net_activation": "tanh",
+            "bond_net_activation": "tanh",
+            "onsite_net_type": "res",
+            "env_net_type": "res",
+            "bond_net_type": "res",
+            "if_batch_normalized": false
         }
     },
     "loss_options": {

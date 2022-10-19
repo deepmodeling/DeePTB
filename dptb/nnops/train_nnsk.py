@@ -80,7 +80,6 @@ class NNSKTrainer(Trainer):
         # self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
         # self.onsite_strain_index_map, self.onsite_strain_num, self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings(self.onsitemode, atomtype=self.atomtype)
         self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
-        self.onsite_db = loadOnsite(self.onsite_index_map)
         # ----------------------------------------------------------------         init network model         ----------------------------------------------------------------
         self.optimizer = get_optimizer(model_param=self.model.parameters(), **self.train_options["optimizer"])
         self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **self.train_options["lr_scheduler"])
