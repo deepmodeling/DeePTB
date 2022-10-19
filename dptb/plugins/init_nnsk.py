@@ -79,7 +79,8 @@ class InitSKModel(Plugin):
 
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
-        self.host.onsite_index_map = onsite_index_map
+        #self.host.onsite_index_map = onsite_index_map
+        self.host.onsite_db = loadOnsite(onsite_index_map)
         if onsitemode == 'strain':
             self.host.onsitestrain_fun = onsitestrain_fun
 
@@ -101,12 +102,13 @@ class InitSKModel(Plugin):
         atomtype = common_and_model_and_run_options["atomtype"]
         dtype = dtype_dict[common_and_model_and_run_options['dtype']]
         proj_atom_anglr_m = common_and_model_and_run_options['proj_atom_anglr_m']
-        num_hopping_hideen = common_and_model_and_run_options['sknetwork']['sk_hop_nhidden']
-        num_onsite_hidden = common_and_model_and_run_options['sknetwork']['sk_onsite_nhidden']
         onsitemode = common_and_model_and_run_options['onsitemode']
         skformula = common_and_model_and_run_options['skfunction']['skformula']
         # ----------------------------------------------------------------------------------------------------------
-        assert skformula == model_config['skfunction'].get('skformula')
+        
+        assert skformula == model_config['skfunction'].get('skformula')        
+        num_hopping_hideen = model_config['sknetwork']['sk_hop_nhidden']
+        num_onsite_hidden = model_config['sknetwork']['sk_onsite_nhidden']
 
         IndMap = Index_Mapings()
         IndMap.update(proj_atom_anglr_m=proj_atom_anglr_m)
@@ -143,12 +145,13 @@ class InitSKModel(Plugin):
                                    )
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
-        self.host.onsite_index_map = onsite_index_map
+        #self.host.onsite_index_map = onsite_index_map
+        self.host.onsite_db = loadOnsite(onsite_index_map)
         if onsitemode == 'strain':
             self.host.onsitestrain_fun = onsitestrain_fun
         
         model_config.update(common_and_model_and_run_options)
         self.host.model_config = model_config
         
-        self.host.model.load_state_dict(state_dict)
+        self.host.model.load_state_dict(state_dict)            
         self.host.model.train()

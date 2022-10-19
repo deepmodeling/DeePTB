@@ -31,7 +31,7 @@ class bandcalc (object):
                         'high_sym_kpoints': self.high_sym_kpoints,
                         'labels': self.labels,
                         'eigenvalues': self.eigenvalues,
-                        'E-E_fermi': self.E_fermi }
+                        'E_fermi': self.E_fermi }
 
         np.save(f'{self.results_path}/eigenstatus',eigenstatus)
 

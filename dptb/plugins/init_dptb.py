@@ -32,7 +32,7 @@ class InitDPTBModel(Plugin):
         if mode == "from_scratch":
             self.init_from_scratch(**common_and_model_options)
         elif mode =="init_model" or "mode" == "restart":
-            self.ini_from_model(**common_and_model_options)
+            self.init_from_model(**common_and_model_options)
         else:
             log.info(msg="Haven't assign a initializing mode, training from scratch as default.")
             self.init_from_scratch(**common_and_model_options)
@@ -65,31 +65,12 @@ class InitDPTBModel(Plugin):
         bond_net_config = get_bond_neuron_config(bond_nnl, bond_num_hops, bond_type, env_axisnn,
                                                     env_nnl[-1])
     
-        model_config = {
-            "proj_atomtype": proj_atomtype,
-            "env_net_config":env_net_config, 
-            "bond_net_config": bond_net_config,
-            "onsite_net_config": onsite_net_config
-            }
-
-        self.host.nntb = NNTB(**model_config, **options["dptb"], **options)
+        self.host.nntb = NNTB(proj_atomtype=proj_atomtype, env_net_config=env_net_config, 
+                    bond_net_config=bond_net_config, onsite_net_config=onsite_net_config, **options, **options["dptb"])
         self.host.model = self.host.nntb.tb_net
-
-        model_config.update(options)
-        self.host.model_config = model_config
+        self.host.model_config = options
 
     def init_from_model(self, **options):
-        env_nnl = options["dptb"]['env_net_neuron']
-        env_axisnn = options["dptb"]['axis_neuron']
-        onsite_nnl = options["dptb"]['onsite_net_neuron']
-        bond_nnl = options["dptb"]['bond_net_neuron']
-        proj_atom_anglr_m = options["proj_atom_anglr_m"]
-        onsitemode = options["onsitemode"]
-        skformula = options['skfunction']['skformula']
-        atomtype = options["atomtype"]
-        proj_atomtype = get_uniq_symbol(list(proj_atom_anglr_m.keys()))
-        bond_type = get_uniq_bond_type(proj_atomtype)
-
         if self.mode == "init_model":
             checkpoint = options['init_model']
         elif self.mode == "restart":
@@ -97,9 +78,16 @@ class InitDPTBModel(Plugin):
         ckpt = torch.load(checkpoint)
         model_config = ckpt["model_config"]
 
-        assert skformula == model_config['skfunction']['skformula']
-
-        # _, state_dict = load_paras(model_config=model_config, state_dict=ckpt['model_state_dict'], proj_atom_anglr_m=proj_atom_anglr_m, onsitemode=onsitemode)
+        env_nnl = model_config["dptb"]['env_net_neuron']
+        env_axisnn = model_config["dptb"]['axis_neuron']
+        onsite_nnl = model_config["dptb"]['onsite_net_neuron']
+        bond_nnl = model_config["dptb"]['bond_net_neuron']
+        proj_atom_anglr_m = model_config["proj_atom_anglr_m"]
+        onsitemode = model_config["onsitemode"]
+        skformula = model_config['skfunction']['skformula']
+        atomtype = model_config["atomtype"]
+        proj_atomtype = get_uniq_symbol(list(proj_atom_anglr_m.keys()))
+        bond_type = get_uniq_bond_type(proj_atomtype)
 
         IndMap = Index_Mapings()
         IndMap.update(proj_atom_anglr_m=proj_atom_anglr_m)
@@ -113,35 +101,28 @@ class InitDPTBModel(Plugin):
         bond_net_config = get_bond_neuron_config(bond_nnl, bond_num_hops, bond_type, env_axisnn,
                                                     env_nnl[-1])
         
-        model_config = {
-            "proj_atomtype": proj_atomtype,
-            "env_net_config":env_net_config, 
-            "bond_net_config": bond_net_config,
-            "onsite_net_config": onsite_net_config
-            }
-
-        self.host.nntb = NNTB(**model_config, **options["dptb"], **options)
+        self.host.nntb = NNTB(proj_atomtype=proj_atomtype, env_net_config=env_net_config, 
+                    bond_net_config=bond_net_config, onsite_net_config=onsite_net_config, **model_config, **model_config["dptb"])
         self.host.model = self.host.nntb.tb_net
-
-        model_config.update(options)
         self.host.model_config = model_config
-        
         self.host.model.load_state_dict(ckpt["model_state_dict"])
         self.host.model.train()
 
     def init_correction_model(self, **options):
         ckpt = torch.load(options["use_correction"])
         model_config = ckpt["model_config"]
-
+        
+        # -------------------------------------------------------------------------------------------
         device = options['device']
         atomtype = options["atomtype"]
         dtype = dtype_dict[options['dtype']]
         proj_atom_anglr_m = options['proj_atom_anglr_m']
-        num_hopping_hideen = options['sknetwork']['sk_hop_nhidden']
-        num_onsite_hidden = options['sknetwork']['sk_onsite_nhidden']
         onsitemode = options['onsitemode']
         skformula = options['skfunction']['skformula']
+        # -------------------------------------------------------------------------------------------
 
+        num_hopping_hideen = model_config['sknetwork']['sk_hop_nhidden']
+        num_onsite_hidden = model_config['sknetwork']['sk_onsite_nhidden']
         assert skformula == model_config['skfunction'].get('skformula')
 
         IndMap = Index_Mapings()
@@ -181,7 +162,7 @@ class InitDPTBModel(Plugin):
 
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
-        self.host.onsite_index_map = onsite_index_map
+        self.host.onsite_db = loadOnsite(onsite_index_map)
         if onsitemode == 'strain':
             self.host.onsitestrain_fun = onsitestrain_fun
 

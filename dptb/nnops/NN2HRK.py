@@ -90,7 +90,6 @@ class NN2HRK(object):
         batch_onsiteEs = self.apihost.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.apihost.onsite_db, nn_onsiteE=nn_onsiteE)
         
         if self.onsitemode == 'strain':
-            # TODO: 注意检查 processor get_env 以及get_onsite_env 涉及的 env_cutoff 和 onsite_cutoff.
             batch_onsite_envs = predict_process.get_env(sorted="st")
             batch_onsiteVs = self.apihost.onsitestrain_fun.get_skhops(batch_bonds=batch_onsite_envs, coeff_paras=onsite_coeffdict)
 

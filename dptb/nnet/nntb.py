@@ -75,7 +75,7 @@ class NNTB(object):
 
         flag_list = batch_env.keys()
         for flag in flag_list:
-            # {env_type:(f,itype, i, jtype, j,Rx,Ry,Rz s(r),rx,ry,rz)} -> {env_type:(f,i,itype,s(r),rx,ry,rz,emb)}
+            # {env_type:(f,itype, i, jtype, j,Rx,Ry,Rz s(r),rx,ry,rz)} -> {env_type:(f,itype,i,jtype,j,Rx,Ry,Rz,s(r),rx,ry,rz,emb)}
             batch_env[flag] = self.tb_net(batch_env[flag], flag=flag, mode='emb')
 
         batch_env = torch.cat(list(batch_env.values()), dim=0)

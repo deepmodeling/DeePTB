@@ -7,6 +7,9 @@ dptb/__pycache__/
 .VSCodeCounter
 train_config.json
 # examples processed data  and checkpoint.
+asserts
+*.css 
+band.png
 *.pth
 *log*
 *.npy

@@ -26,7 +26,7 @@ def train(
         INPUT: str,
         init_model: Optional[str],
         restart: Optional[str],
-        freeze,
+        freeze:bool,
         output: str,
         log_level: int,
         log_path: Optional[str],
@@ -43,6 +43,7 @@ def train(
         "train_sk": train_sk,
         "use_correction": use_correction
     }
+
     '''
         -1- set up input and output directories
             noticed that, the checkpoint of sktb and dptb should be in different directory, and in train_dptb,
@@ -61,9 +62,6 @@ def train(
             - config_nnsktb.json
             - config_dptb.json
     '''
-    # TODO: The condition switch to adjust for different run options is too complex here. This would be hard to proceed
-    #  if we add more orders. So we should seperate it in the future.
-
     # init all paths
     # if init_model, restart or init_frez, findout the input configure file
     if all((init_model, restart)):

@@ -31,7 +31,6 @@ class BaseStruct(AbstractStructure):
         self.__projenv__ = {}
         self.__onsitenv__ = {}
         self.IndMap = Index_Mapings()
-        # TODO: make the onsite_strain to be another onsitemode. 
         self.updata_struct(self.atom, format=format, onsitemode=onsitemode)
 
     def init_desciption(self):
@@ -69,16 +68,6 @@ class BaseStruct(AbstractStructure):
         self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
         self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
         self.onsite_strain_index_map, self.onsite_strain_num, self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings(onsitemode, atomtype=self.atomtype)
-
-        # if onsitemode.lower() in ['uniform','none']:
-        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
-        # elif onsitemode.lower() ==  'split':
-        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings_OrbSplit()
-        # elif onsitemode.lower() == 'strain':
-        #     self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings()
-        #     self.onsite_strain_index_map, self.onsite_strain_num = self.IndMap.OnsiteStrain_Ind_Mapings(self.atomtype)
-        # else:
-        #     raise ValueError(f"Unknown onsitemode type: {onsitemode}")
 
     def read_struct(self, atom=None, format='ase'):
         '''The function reads a structure from a file or an ase object and stores it in the class
