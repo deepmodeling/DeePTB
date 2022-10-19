@@ -160,6 +160,14 @@ def main_parser() -> argparse.ArgumentParser:
         help="using NNSKTB parameters TB models for post-run."
     )
 
+    parser_run.add_argument(
+        "-crt",
+        "--use-correction",
+        type=str,
+        default=None,
+        help="Use nnsktb correction when training dptb",
+    )
+
 
 
     return parser

@@ -208,7 +208,8 @@ class Processor(object):
                 bond_onsite = np.concatenate([np.ones((bond_onsite.shape[0], 1)) * st, bond_onsite], axis=1)
                 batch_bond.update({st:torch.tensor(bond, dtype=self.dtype, device=self.device)})
                 batch_bond_onsite.update({st:torch.tensor(bond_onsite, dtype=self.dtype, device=self.device)})
-            
+        else:
+            raise ValueError(f"Invalid sorted type : {sorted}")
 
         return batch_bond, batch_bond_onsite # [f, itype, i, jtype, j, Rx, Ry, Rz, |rj-ri|, \hat{rij: x, y, z}] or dict
 

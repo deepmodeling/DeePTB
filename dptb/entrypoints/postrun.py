@@ -7,11 +7,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dptb.plugins.train_logger import Logger
 from dptb.plugins.init_nnsk import InitSKModel
+from dptb.plugins.init_dptb import InitDPTBModel
 from dptb.utils.argcheck import normalize
 from dptb.utils.tools import j_loader
 from dptb.utils.loggers import set_log_handles
 from dptb.utils.tools import j_must_have
-from dptb.nnops.apihost import NNSKHost
+from dptb.nnops.apihost import NNSKHost, DPTBHost
 from dptb.nnops.NN2HRK import NN2HRK
 from ase.io import read,write
 from dptb.postprocess.bandstructure.band import bandcalc
@@ -28,6 +29,7 @@ def postrun(
         structure: str,
         log_level: int,
         log_path: Optional[str],
+        use_correction: Optional[str],
         **kwargs
     ):
     
@@ -36,7 +38,8 @@ def postrun(
         "model_ckpt":model_ckpt,
         "structure":structure,
         "log_path": log_path,
-        "log_level": log_level
+        "log_level": log_level,
+        "use_correction":use_correction
     }
 
     # output folder.
@@ -69,6 +72,11 @@ def postrun(
     if run_opt['model_ckpt'] == None:
         log.info(msg="model_ckpt is not set in run option, read from input config file.")
         model_ckpt = j_must_have(jdata, "model_ckpt")
+    
+    if run_opt['use_correction'] == None and jdata.get('use_correction',None) != None:
+        use_correction = jdata['use_correction']
+        run_opt.update({"use_correction":use_correction})
+        log.info(msg="use_correction is set in run option, read from input config file.")
 
 
     if run_sk:
@@ -77,9 +85,10 @@ def postrun(
         apihost.build()
         apiHrk = NN2HRK(apihost=apihost, mode='nnsk')
     else:
-        # TODO: add the dptbhost
-        pass
-    
+        apihost = DPTBHost(dptbmodel=model_ckpt,use_correction=use_correction)
+        apihost.register_plugin(InitDPTBModel())
+        apihost.build()
+        apiHrk = NN2HRK(apihost=apihost, mode='dptb')    
         
     # one can just add his own function to calculate properties by add a task, and its code to calculate.
 

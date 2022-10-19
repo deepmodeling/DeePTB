@@ -16,22 +16,17 @@ class DPTBHost(PluginUser):
         super(DPTBHost, self).__init__()
         ckpt = torch.load(dptbmodel)
         model_config = ckpt["model_config"]
-        model_config.update({'init_model':dptbmodel, "use_correction": use_correction})
-        
+        model_config.update({'init_model':dptbmodel,'use_correction':use_correction})
+        self.use_correction = use_correction
         self.__init_params(**model_config)
-
     
     def __init_params(self, **model_config):
-        self.model_config = model_config
-        if model_config["use_correction"]:
-            ckpt = torch.load(model_config["use_correction"])
-            nnsk_model_config = ckpt["model_config"]
-            nnsk_model_config.update({'init_model': model_config["use_correction"]})
+        self.model_config = model_config      
+
     
     def build(self):
         self.call_plugins(queue_name='disposable', time=0, mode='init_model', **self.model_config)
-
-
+        self.model_config.update({'use_correction':self.use_correction})
 
 class NNSKHost(PluginUser):
     def __init__(self, checkpoint):
@@ -42,9 +37,9 @@ class NNSKHost(PluginUser):
         self.__init_params(**model_config)
 
     def __init_params(self, **model_config):
-        self.model_config = model_config
-
+        self.model_config = model_config        
+        
     def build(self):
-        # ----------------------------------------------------------------         init network model         ----------------------------------------------------------------
+        # ---------------------------       init network model        -----------------------
         self.call_plugins(queue_name='disposable', time=0, mode='init_model', **self.model_config)
         

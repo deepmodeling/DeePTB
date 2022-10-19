@@ -1,0 +1,11 @@
+{   
+    "task":"eigenvalues",
+    "structure":"./dptb/tests/data/hBN/hBN.vasp",
+    "model_ckpt":"./dptb/tests/data/hBN/checkpoint/best_dptb.pth",
+    "use_correction":"./dptb/tests/data/hBN/checkpoint/best_nnsk.pth",
+    "band_plot":{
+        "kmode":"ase_kpath",
+        "kpath":"GMKG",
+        "nkpoints":120
+    }
+}
