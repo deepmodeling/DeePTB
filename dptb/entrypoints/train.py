@@ -12,6 +12,9 @@ from dptb.utils.tools import j_loader
 from dptb.utils.loggers import set_log_handles
 import heapq
 import logging
+import torch
+import random
+import numpy as np
 from pathlib import Path
 import json
 import os
@@ -146,6 +149,9 @@ def train(
     jdata = j_loader(INPUT)
     jdata = normalize(jdata)
 
+    # setup seed
+    setup_seed(seed=jdata["train_options"]["seed"])
+
     with open(os.path.join(output, "train_config.json"), "w") as fp:
             json.dump(jdata, fp, indent=4)
     if train_sk:
@@ -185,3 +191,12 @@ def train(
     end_time = time.time()
     log.info("finished training")
     log.info(f"wall time: {(end_time - start_time):.3f} s")
+
+
+def setup_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)

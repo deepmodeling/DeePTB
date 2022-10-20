@@ -170,6 +170,3 @@ class InitDPTBModel(Plugin):
             self.host.sknet.eval()
             for p in self.host.sknet.parameters():
                 p.requires_grad = False
-
-
-

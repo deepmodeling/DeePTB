@@ -9,7 +9,7 @@
     "sk_file_path": "./examples/slakos/",
     "atomtype": ["N", "B"],
     "proj_atom_neles": {"N":5,"B":3},
-    "proj_atom_anglr_m": {"N":["2s",  "2p"],"B":["2s","2p"]}
+    "proj_atom_anglr_m": {"N":["2s",  "2p", "d*"],"B":["2s","2p", "d*"]}
     },
     
     "train_options":{
