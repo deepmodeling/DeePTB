@@ -168,7 +168,7 @@ class BaseStruct(AbstractStructure):
             logging.error("env_cutoff:ValueError, env_cutoff for bond is not positive'")
             raise ValueError
         else:
-            self.__projenv__ = self.cal_env(env_cutoff=env_cutoff, sorted=sorted)
+            self.__projenv__ = self.cal_env(env_cutoff=env_cutoff, sorted=sorted, smooth=True)
             self.env_cutoff = env_cutoff
             self.if_env_ready = True
             return self.__projenv__
@@ -242,9 +242,10 @@ class BaseStruct(AbstractStructure):
         norm = np.linalg.norm(direction_vecs,axis=1)
         norm = norm[:,np.newaxis]
         dircetion_cosine = direction_vecs / norm
+        
 
         # bonds stores the bonds in the form of [i_atom_num, i, j_atom_num, j, Rx, Ry, Rz, |rj-ri|, \hat{rij: x, y, z}].
-        bonds = np.concatenate((iatom_nums,out_bonds[:,[0]],jatom_nums,out_bonds[:,[1]],out_bonds[:,2:5],norm, dircetion_cosine),axis=1)
+        bonds = np.concatenate((iatom_nums,out_bonds[:,[0]],jatom_nums,out_bonds[:,[1]],out_bonds[:,2:5], norm, dircetion_cosine),axis=1)
         
         # on site bond
         for ii in range(len(self.proj_atom_symbols)):
@@ -257,7 +258,7 @@ class BaseStruct(AbstractStructure):
         return bonds, bonds_onsite # [itype, i, jtype, j, Rx, Ry, Rz, |rj-ri|, \hat{rij: x, y, z}]
 
 
-    def cal_env(self, env_cutoff=None, sorted="iatom"):
+    def cal_env(self, env_cutoff=None, sorted="iatom", smooth=False):
         '''
 
         Parameters
@@ -290,8 +291,11 @@ class BaseStruct(AbstractStructure):
         norm = np.linalg.norm(shift_vec, axis=1)
         shift_vec = shift_vec / np.reshape(norm, [-1,1])
         norm = np.reshape(norm, [-1, 1])
+        if smooth:
+            norm = env_smoth(norm, rcut=env_cutoff, rcut_smth=env_cutoff * 0.8)
         env_all_arrs = np.concatenate([np.reshape(itypelist, [-1, 1]), np.reshape(ilist, [-1, 1]), np.reshape(jtypelist, [-1, 1]), np.reshape(jlist, [-1, 1]), Rlatt,
                                        norm, shift_vec], axis=1)
+        
 
         # (itype, i, jtype, j, Rx, Ry, Rz, |ri-rj|, rx, ry, rz)
 

@@ -156,7 +156,7 @@ class HamilEig(RotationSK):
                             sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = tmpH
                 
                         jst = jst + norbj 
-                    ist = ist + norbi   
+                    ist = ist + norbi
                 hamil_blocks[iatom_to_onsite_index[iatom]] += sub_hamil_block
 
         for ib in range(len(bonds_hoppings)):
@@ -218,6 +218,7 @@ class HamilEig(RotationSK):
                 
                     jst = jst + norbj 
                 ist = ist + norbi   
+            
             hamil_blocks.append(sub_hamil_block)
             if not self.use_orthogonal_basis:
                 overlap_blocks.append(sub_over_block)

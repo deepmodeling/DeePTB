@@ -1,63 +1,74 @@
 {
+  "common_options":{
   "device": "cpu",
+  "dtype": "float32",
+  "onsite_cutoff":3.0,
+  "onsitemode":"strain",
+  "bond_cutoff": 4.0,
+  "env_cutoff": 3.5,
+  "sk_file_path": "./examples/slakos/",
+  "atomtype": ["N", "B"],
+  "proj_atom_neles": {"N":5,"B":3},
+  "proj_atom_anglr_m": {"N":["2s",  "2p"],"B":["2s","2p"]}
+  },
+  
   "train_options":{
     "num_epoch":1,
-    "display_epoch": 1,
-    "use_reference":false
-  },
-  "optimizer_options": {
-    "lr": 1e-3,
-    "opt_type": "Adam"
-  },
-  "sch_options": {
-    "sch_type": "Expo",
-      "gamma": 0.999
+    "optimizer": {
+      "lr": 1e-3,
+      "type": "Adam"
     },
+    "lr_scheduler": {
+      "type": "Exp",
+      "gamma": 0.999
+    }
+  },
   "data_options": {
-    "batch_size": 1,
-    "sk_file_path": "./examples/slakos/",
-    "bond_cutoff": 4,
-    "env_cutoff": 3.5,
-    "train_data_path": "./dptb/tests/data/hBN/data/",
-    "train_data_prefix": "set",
-    "test_data_path": "./dptb/tests/data/hBN/data/",
-    "test_data_prefix": "set",
-    "ref_data_path": "./dptb/tests/data/hBN/data/",
-    "ref_data_prefix": "set",
-    "proj_atom_neles": {"N":5,"B":3},
-    "proj_atom_anglr_m": {"N":["2s","2p"],"B":["2s","2p"]},
-    "time_symm": true
+    "use_reference":true,
+    "train":{
+      "batch_size": 1,
+      "path": "./dptb/tests/data/hBN/data",
+      "prefix": "set"
+    }, 
+    "validation":{
+      "batch_size": 1,
+      "path":"./dptb/tests/data/hBN/data",
+      "prefix": "set"
+    }, 
+    "reference":{
+      "batch_size": 1,
+      "path": "./dptb/tests/data/hBN/data",
+      "prefix": "set"
+    }
   },
   "model_options": {
-	  "sk_hop_nhidden":50,
-    "sk_onsite_nhidden":50,
-    "onsitemode":"uniform",
-    "axis_neuron": 10,
-    "onsite_net_neuron": [2, 2, 2, 25],
-    "env_net_neuron": [2, 2, 2, 25],
-    "bond_net_neuron": [2, 2, 2, 25],
-    "onsite_net_activation": "tanh",
-    "env_net_activation": "tanh",
-    "bond_net_activation": "tanh",
-    "onsite_net_type": "ffn",
-    "env_net_type": "res",
-    "bond_net_type": "ffn",
-    "if_batch_normalized": false
+    "sknetwork":{
+      "sk_hop_nhidden":50,
+      "sk_onsite_nhidden":50
+    },
+    "skfunction":{
+      "skformula":"varTang96",
+      "sk_cutoff": 3.5,
+      "sk_decay_w":0.5    
+    },
+    "dptb":{
+      
+    }
   },
-  "sk_options":{
-    "skformula":"varTang96",
-    "sk_cutoff": 3.5,
-    "sk_decay_w":0.5
-  },
+  
   "loss_options":{
     "band_min":0,
-	  "band_max":4,
+    "band_max":6,
     "ref_band_min":0,
-	  "ref_band_max":4,
-    "emin": -25,
-    "emax": 10,
-    "sigma":2,
-    "num_omega":3000,
-    "sortstrength":[0.01,0.01]
+    "ref_band_max":4,
+    "emin": -25,   
+    "emax": 10,  
+    "sigma":2, 
+    "num_omega":3000, 
+    "sortstrength":[0.01,0.01],
+    "gap_penalty": false,
+    "fermi_band":3,
+    "loss_gap_eta":1e-2
   }
 }
+
