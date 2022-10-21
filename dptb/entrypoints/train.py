@@ -9,6 +9,7 @@ from dptb.utils.argcheck import normalize
 from dptb.plugins.plugins import Saver
 from typing import Dict, List, Optional, Any
 from dptb.utils.tools import j_loader
+from dptb.utils.constants import dtype_dict
 from dptb.utils.loggers import set_log_handles
 import heapq
 import logging
@@ -154,6 +155,9 @@ def train(
 
     with open(os.path.join(output, "train_config.json"), "w") as fp:
             json.dump(jdata, fp, indent=4)
+    
+    str_dtype = jdata["common_options"]["dtype"]
+    jdata["common_options"]["dtype"] = dtype_dict[jdata["common_options"]["dtype"]]
     if train_sk:
         trainer = NNSKTrainer(run_opt, jdata)
         trainer.register_plugin(InitSKModel())
@@ -162,26 +166,30 @@ def train(
         trainer.register_plugin(InitDPTBModel())
     
     
+    
     # register the plugin in trainer, to tract training info
     trainer.register_plugin(InitData())
     trainer.register_plugin(Validationer())
     trainer.register_plugin(TrainLossMonitor())
     trainer.register_plugin(LearningRateMonitor())
-    trainer.register_plugin(Logger(["train_loss", "validation_loss", "lr"]))
+    trainer.register_plugin(Logger(["train_loss", "validation_loss", "lr"], 
+        interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
     
     for q in trainer.plugin_queues.values():
         heapq.heapify(q)
     
     trainer.build()
 
+
     if output:
         # output training configurations:
         with open(os.path.join(output, "train_config.json"), "w") as fp:
+            jdata["common_options"]["dtype"] = str_dtype
             json.dump(jdata, fp, indent=4)
 
         trainer.register_plugin(Saver(
-            interval=[(jdata["train_options"].get("save_epoch"), 'epoch')] if jdata["train_options"].get(
-                "save_epoch") else None))
+            interval=[(jdata["train_options"].get("save_freq"), 'epoch'), (1, 'iteration')] if jdata["train_options"].get(
+                "save_freq") else None))
         # add a plugin to save the training parameters of the model, with model_output as given path
 
     start_time = time.time()

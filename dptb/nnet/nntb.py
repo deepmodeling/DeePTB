@@ -29,7 +29,7 @@ class NNTB(object):
                  **kwargs
                  ):
         
-        self.dtype = dtype_dict[dtype]
+        self.dtype = dtype
 
         self.tb_net = TBNet(
                  proj_atomtype,

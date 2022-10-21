@@ -2,10 +2,11 @@ import pytest
 import logging
 import pickle
 import numpy as np
+import torch
 from dptb.sktb.struct_skhs import SKHSLists
 from dptb.sktb.skIntegrals import SKIntegrals
 from dptb.structure.structure import BaseStruct
-from dptb.hamiltonian.hamil_eig_sk import HamilEig
+from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
 @pytest.fixture(scope='session', autouse=True)
 def root_directory(request):
         return str(request.config.rootdir)
@@ -285,10 +286,11 @@ def test_HamilRSK(root_directory):
     _, _ = struct.get_bond()
     skint = SKIntegrals(proj_atom_anglr_m=proj_atom_anglr_m,sk_file_path=sk_file_path)
     hslist = SKHSLists(skint,dtype='numpy')
+
     hslist.update_struct(struct)
     hslist.get_HS_list()
-    hrsk = HamilEig(dtype='numpy')
-    hrsk.update_hs_list(struct,hslist.hoppings,hslist.onsiteEs,hslist.overlaps,hslist.onsiteSs)
+    hrsk = HamilEig()
+    hrsk.update_hs_list(struct=struct,hoppings=hslist.hoppings,onsiteEs=hslist.onsiteEs,overlaps=hslist.overlaps,onsiteSs=hslist.onsiteSs)
     hrsk.get_hs_blocks()
     assert len(all_bonds) == len(hrsk.all_bonds)
     assert (all_bonds - hrsk.all_bonds < 1e-6).all()
@@ -297,8 +299,8 @@ def test_HamilRSK(root_directory):
     assert len(hrsk.hamil_blocks) == len(hrsk.overlap_blocks)
 
     for i in range(len(hoppings)):
-        assert (np.abs(hoppings[i] - hrsk.hamil_blocks[i]) < 1e-6).all()
-        assert (np.abs(overlaps[i] - hrsk.overlap_blocks[i]) < 1e-6).all()
+        assert (np.abs(hoppings[i] - hrsk.hamil_blocks[i].numpy()) < 1e-6).all()
+        assert (np.abs(overlaps[i] - hrsk.overlap_blocks[i].numpy()) < 1e-6).all()
     
     snapase = struct.struct
     lat = snapase.cell.get_bravais_lattice()
@@ -307,8 +309,8 @@ def test_HamilRSK(root_directory):
     xlist, high_sym_kpoints, labels = kpath.get_linear_kpoint_axis()
     klist = kpath.kpts
 
-    HK = hrsk.hs_block_R2k(kpoints=klist, HorS='H', time_symm=True, dtype='numpy')
-    SK = hrsk.hs_block_R2k(kpoints=klist, HorS='S', time_symm=True, dtype='numpy')
+    HK = hrsk.hs_block_R2k(kpoints=klist, HorS='H', time_symm=True)
+    SK = hrsk.hs_block_R2k(kpoints=klist, HorS='S', time_symm=True)
 
     hkfile = root_directory + '/dptb/tests/data/hBN_HK.pickle'
     skfile = root_directory + '/dptb/tests/data/hBN_SK.pickle'
@@ -322,15 +324,16 @@ def test_HamilRSK(root_directory):
     assert HK.shape == hk.shape
     assert SK.shape == sk.shape
 
-    assert (np.abs(HK - hk) < 1e-6).all()
-    assert (np.abs(SK - sk) < 1e-6).all()
+    assert (np.abs(HK.numpy() - hk) < 1e-6).all()
+    assert (np.abs(SK.numpy() - sk) < 1e-6).all()
 
 
     kpath=snapase.cell.bandpath('GMKG', npoints=10)
     klist = kpath.kpts
 
-    eigks,_ = hrsk.Eigenvalues(kpoints = klist,dtype='numpy')
-    assert (np.abs(eigks - eigenvalues) < 1e-5).all()
+    eigks,_ = hrsk.Eigenvalues(kpoints = klist)
+
+    assert (np.abs(eigks.numpy() - eigenvalues) < 1e-4).all()
 
 
 def test_HamilRSK_SplitOnsite(root_directory):
@@ -346,9 +349,9 @@ def test_HamilRSK_SplitOnsite(root_directory):
     hslist = SKHSLists(skint,dtype='numpy')
     hslist.update_struct(struct)
     hslist.get_HS_list()
-    hrsk = HamilEig(dtype='numpy')
+    hrsk = HamilEig()
     hslist.onsiteEs = [np.array([-0.671363, -0.261222,-0.261222,-0.261222]), np.array([-0.339811, -0.131903,-0.131903,-0.131903])]
-    hrsk.update_hs_list(struct,hslist.hoppings,hslist.onsiteEs,hslist.overlaps,hslist.onsiteSs)
+    hrsk.update_hs_list(struct=struct,hoppings=hslist.hoppings,onsiteEs=hslist.onsiteEs,overlaps=hslist.overlaps,onsiteSs=hslist.onsiteSs)
     hrsk.get_hs_blocks()
     assert len(all_bonds) == len(hrsk.all_bonds)
     assert (all_bonds - hrsk.all_bonds < 1e-6).all()
@@ -357,5 +360,5 @@ def test_HamilRSK_SplitOnsite(root_directory):
     assert len(hrsk.hamil_blocks) == len(hrsk.overlap_blocks)
 
     for i in range(len(hoppings)):
-        assert (np.abs(hoppings[i] - hrsk.hamil_blocks[i]) < 1e-6).all()
-        assert (np.abs(overlaps[i] - hrsk.overlap_blocks[i]) < 1e-6).all()
+        assert (np.abs(hoppings[i] - hrsk.hamil_blocks[i].numpy()) < 1e-6).all()
+        assert (np.abs(overlaps[i] - hrsk.overlap_blocks[i].numpy()) < 1e-6).all()

@@ -36,7 +36,7 @@ class InitSKModel(Plugin):
         # ----------------------------------------------------------------------------------------------------------
         device = common_and_model_options['device']
         atomtype = common_and_model_options["atomtype"]
-        dtype = dtype_dict[common_and_model_options['dtype']]
+        dtype = common_and_model_options['dtype']
         num_hopping_hideen = common_and_model_options['sknetwork']['sk_hop_nhidden']
         num_onsite_hidden = common_and_model_options['sknetwork']['sk_onsite_nhidden']
         proj_atom_anglr_m = common_and_model_options['proj_atom_anglr_m']
@@ -95,12 +95,13 @@ class InitSKModel(Plugin):
 
         ckpt = torch.load(checkpoint)
         model_config = ckpt["model_config"]
+        model_config["dtype"] = dtype_dict[model_config["dtype"]]
         
         # paras directly imported from inputs.
         # ----------------------------------------------------------------------------------------------------------
         device = common_and_model_and_run_options['device']
         atomtype = common_and_model_and_run_options["atomtype"]
-        dtype = dtype_dict[common_and_model_and_run_options['dtype']]
+        dtype = common_and_model_and_run_options['dtype']
         proj_atom_anglr_m = common_and_model_and_run_options['proj_atom_anglr_m']
         onsitemode = common_and_model_and_run_options['onsitemode']
         skformula = common_and_model_and_run_options['skfunction']['skformula']

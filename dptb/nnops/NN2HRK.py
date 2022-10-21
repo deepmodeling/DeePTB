@@ -11,7 +11,7 @@ class NN2HRK(object):
         assert mode in ['nnsk', 'dptb']
         self.apihost = apihost
         self.mode = mode
-        self.hamileig = HamilEig(dtype='tensor')
+        self.hamileig = HamilEig(dtype=torch.float32)
         
         self.if_nn_HR_ready = False
         self.if_dp_HR_ready = False
@@ -52,16 +52,16 @@ class NN2HRK(object):
         assert self.if_nn_HR_ready or self.if_dp_HR_ready, "The HR shoule be calcualted before call for HK." 
 
         if not self.use_orthogonal_basis:
-            hkmat =  self.hamileig.hs_block_R2k(kpoints=kpoints, HorS='H', time_symm=self.time_symm, dtype=self.hamileig.dtype)
-            skmat =  self.hamileig.hs_block_R2k(kpoints=kpoints, HorS='S', time_symm=self.time_symm, dtype=self.hamileig.dtype)
+            hkmat =  self.hamileig.hs_block_R2k(kpoints=kpoints, HorS='H', time_symm=self.time_symm)
+            skmat =  self.hamileig.hs_block_R2k(kpoints=kpoints, HorS='S', time_symm=self.time_symm)
         else:
-            hkmat =  self.hamileig.hs_block_R2k(kpoints=kpoints, HorS='H', time_symm=self.time_symm, dtype=self.hamileig.dtype)
+            hkmat =  self.hamileig.hs_block_R2k(kpoints=kpoints, HorS='H', time_symm=self.time_symm)
             skmat = torch.eye(hkmat.shape[1], dtype=torch.complex64).unsqueeze(0).repeat(hkmat.shape[0], 1, 1)
         return hkmat, skmat
     
     def get_eigenvalues(self,kpoints,spindeg=2):
         assert self.if_nn_HR_ready or self.if_dp_HR_ready, "The HR shoule be calcualted before call for HK." 
-        eigenvalues,_ = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm,dtype=self.hamileig.dtype)
+        eigenvalues,_ = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm)
         eigks = eigenvalues.detach().numpy()
 
         num_el = np.sum(self.structure.proj_atom_neles_per)

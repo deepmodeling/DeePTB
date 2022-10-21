@@ -6,6 +6,7 @@ from dptb.nnsktb.sknet import SKNet
 from dptb.sktb.skIntegrals import SKIntegrals
 from dptb.sktb.struct_skhs import SKHSLists
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
+from dptb.utils.constants import dtype_dict
 from dptb.structure.structure import BaseStruct
 from dptb.utils.tools import nnsk_correction
 from abc import ABC, abstractmethod
@@ -65,7 +66,7 @@ class DeePTB(ModelAPI):
         else:
             skint = SKIntegrals(proj_atom_anglr_m = proj_atom_anglr_m, sk_file_path=sk_file_path)
             self.skhslist = SKHSLists(skint,dtype='tensor')
-        self.hamileig = HamilEig(dtype='tensor')
+        self.hamileig = HamilEig(dtype=dtype_dict[model_config["dtype"]])
         
         self.if_HR_ready=False
 
@@ -169,7 +170,7 @@ class NNSK(ModelAPI):
         self.onsite_db = loadOnsite(onsite_index_map)
         all_skint_types_dict, reducted_skint_types, self.sk_bond_ind_dict = all_skint_types(bond_index_map)
         
-        self.hamileig = HamilEig(dtype='tensor')
+        self.hamileig = HamilEig(dtype=dtype_dict[model_config["dtype"]])
         self.if_HR_ready=False
 
     def get_HR(self, structure, device='cpu', dtype=torch.float32):
@@ -218,16 +219,16 @@ class NNSK(ModelAPI):
         assert self.if_HR_ready
 
         if not self.hamileig.use_orthogonal_basis:
-            hkmat =  self.hamileig.hs_block_R2k(kpoints=kpoints, HorS='H', time_symm=self.time_symm, dtype=self.hamileig.dtype)
-            skmat =  self.hamileig.hs_block_R2k(kpoints=kpoints, HorS='S', time_symm=self.time_symm, dtype=self.hamileig.dtype)
+            hkmat =  self.hamileig.hs_block_R2k(kpoints=kpoints, HorS='H', time_symm=self.time_symm)
+            skmat =  self.hamileig.hs_block_R2k(kpoints=kpoints, HorS='S', time_symm=self.time_symm)
         else:
-            hkmat =  self.hamileig.hs_block_R2k(kpoints=kpoints, HorS='H', time_symm=self.time_symm, dtype=self.hamileig.dtype)
+            hkmat =  self.hamileig.hs_block_R2k(kpoints=kpoints, HorS='H', time_symm=self.time_symm)
             skmat = torch.eye(hkmat.shape[1], dtype=torch.complex64).unsqueeze(0).repeat(hkmat.shape[0], 1, 1)
         return hkmat, skmat
 
     def get_eigenvalues(self,kpoints,spindeg=2):
         assert self.if_HR_ready
-        eigenvalues,_ = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm,dtype=self.hamileig.dtype)
+        eigenvalues,_ = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm)
         eigks = eigenvalues.detach().numpy()
 
         num_el = np.sum(self.structure.proj_atom_neles_per)

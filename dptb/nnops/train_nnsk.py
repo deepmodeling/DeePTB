@@ -102,7 +102,7 @@ class NNSKTrainer(Trainer):
         self.train_lossfunc = getattr(lossfunction(self.criterion), self.loss_options['losstype'])
         self.validation_lossfunc = getattr(lossfunction(self.criterion), 'l2eig')
 
-        self.hamileig = HamilEig(dtype='tensor')
+        self.hamileig = HamilEig(dtype=self.dtype, device=self.device)
     
 
     def calc(self, batch_bonds, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints):
@@ -135,7 +135,7 @@ class NNSKTrainer(Trainer):
             self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
                                         bonds_hoppings=np.asarray(batch_bonds[ii][:,1:]), 
                                         onsite_envs=onsitenvs)
-            eigenvalues_ii, eigvec = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"], dtype='tensor')
+            eigenvalues_ii, eigvec = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"])
             eigenvalues_pred.append(eigenvalues_ii)
             eigenvector_pred.append(eigvec)
         eigenvalues_pred = torch.stack(eigenvalues_pred)

@@ -55,7 +55,7 @@ class PluginUser(object):
         while queue[0][0] <= time:
             plugin = queue[0][2]
             # the plugin must have at-least one of the iteration、batch、epoch and update events.
-            getattr(plugin, queue_name)(**kwargs)
+            getattr(plugin, queue_name)(time=time, **kwargs)
             for trigger in plugin.trigger_interval:
                 if trigger[1] == queue_name:
                     interval = trigger[0]
