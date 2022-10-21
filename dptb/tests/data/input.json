@@ -52,7 +52,17 @@
       "sk_decay_w":0.5    
     },
     "dptb":{
-      
+      "axis_neuron": 10,
+      "onsite_net_neuron": [2,4,8],
+      "env_net_neuron": [3,6,12],
+      "bond_net_neuron": [4,8,16],
+      "onsite_net_activation": "tanh",
+      "env_net_activation": "tanh",
+      "bond_net_activation": "tanh",
+      "onsite_net_type": "res",
+      "env_net_type": "res",
+      "bond_net_type": "res",
+      "if_batch_normalized": false
     }
   },
   

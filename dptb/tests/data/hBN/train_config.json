@@ -3,6 +3,7 @@
         "device": "cpu",
         "dtype": "float32",
         "onsite_cutoff": 3.0,
+        "onsitemode": "strain",
         "bond_cutoff": 4.0,
         "env_cutoff": 3.5,
         "sk_file_path": "./examples/slakos/",
@@ -24,13 +25,12 @@
                 "2p"
             ]
         },
-        "onsitemode": "none",
         "time_symm": true
     },
     "train_options": {
-        "num_epoch": 50,
+        "num_epoch": 1,
         "optimizer": {
-            "lr": 0.01,
+            "lr": 0.001,
             "type": "Adam",
             "betas": [
                 0.9,
@@ -53,17 +53,17 @@
         "use_reference": true,
         "train": {
             "batch_size": 1,
-            "path": "./dptb/tests/data/hBN/data/",
+            "path": "./dptb/tests/data/hBN/data",
             "prefix": "set"
         },
         "validation": {
             "batch_size": 1,
-            "path": "./dptb/tests/data/hBN/data/",
+            "path": "./dptb/tests/data/hBN/data",
             "prefix": "set"
         },
         "reference": {
             "batch_size": 1,
-            "path": "./dptb/tests/data/hBN/data/",
+            "path": "./dptb/tests/data/hBN/data",
             "prefix": "set"
         }
     },
@@ -80,22 +80,19 @@
         "dptb": {
             "axis_neuron": 10,
             "onsite_net_neuron": [
-                128,
-                128,
-                256,
-                256
+                2,
+                4,
+                8
             ],
             "env_net_neuron": [
-                128,
-                128,
-                256,
-                256
+                3,
+                6,
+                12
             ],
             "bond_net_neuron": [
-                128,
-                128,
-                256,
-                256
+                4,
+                8,
+                16
             ],
             "onsite_net_activation": "tanh",
             "env_net_activation": "tanh",
@@ -108,7 +105,7 @@
     },
     "loss_options": {
         "band_min": 0,
-        "band_max": 4,
+        "band_max": 6,
         "ref_band_min": 0,
         "ref_band_max": 4,
         "emin": -25,
