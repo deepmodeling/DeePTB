@@ -155,7 +155,7 @@ class Test_NNTB:
                 bond_net_type='ffn',
                 if_batch_normalized=False,
                 device='cpu',
-                dtype="float32")
+                dtype=th.float32)
 
     
     def test_get_desciptor(self):

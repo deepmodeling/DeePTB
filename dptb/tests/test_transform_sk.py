@@ -6,8 +6,8 @@ from dptb.hamiltonian.transform_sk import RotationSK
 
 class TestRotationSK:
 
-    rotmap = RotationSK(rot_type='numpy')
-    rotmap_th = RotationSK(rot_type='tensor')
+    rotmap = RotationSK(rot_type=th.float32, device='cpu')
+    rotmap_th = RotationSK(rot_type=th.float32, device='cpu')
 
 
     def test_ss(self):
@@ -15,11 +15,9 @@ class TestRotationSK:
         vec = vec/np.linalg.norm(vec)
         Hvalue = np.random.uniform(size=[1,1])
         
-        res = self.rotmap.rot_HS('ss', Hvalue=Hvalue, Angvec=vec)
-        assert (np.abs(res - Hvalue)<1e-6)
         
         Hvalue = th.from_numpy(Hvalue).float()
-        res = self.rotmap_th.rot_HS('ss', Hvalue=Hvalue, Angvec=vec)
+        res = self.rotmap_th.rot_HS('ss', Hvalue=Hvalue, Angvec=th.tensor(vec))
         assert (np.abs(res.numpy() - Hvalue.numpy()) < 1e-6)
 
 
@@ -27,15 +25,13 @@ class TestRotationSK:
         vec = np.random.uniform(size=[3])
         vec = vec/np.linalg.norm(vec)
         Hvalue = np.random.uniform(size=[1,1])
-        res = self.rotmap.rot_HS('sp', Hvalue=Hvalue, Angvec=vec)
-
+        
         rot_mat = np.reshape(vec[[1,2,0]] ,[3 ,1])
         spvalue = np.reshape(Hvalue ,[1 ,1])
         hs = np.reshape(np.dot(rot_mat ,spvalue),[3 ,1])
-        assert (np.abs(res- hs)<1e-6).all()
 
         Hvalue = th.from_numpy(Hvalue).float()
-        res = self.rotmap_th.rot_HS('sp', Hvalue=Hvalue, Angvec=vec)
+        res = self.rotmap_th.rot_HS('sp', Hvalue=Hvalue, Angvec=th.tensor(vec))
         hs = np.asarray(hs,dtype=np.float32)
         assert (np.abs(res.numpy() - hs) < 1e-6).all()
 
@@ -44,7 +40,6 @@ class TestRotationSK:
         vec = np.random.uniform(size=[3])
         vec = vec/np.linalg.norm(vec)
         Hvalue = np.random.uniform(size=[1,1])
-        res = self.rotmap.rot_HS('sd', Hvalue=Hvalue, Angvec=vec)
 
         x,y,z = vec
         s3 = np.sqrt(3.0)
@@ -52,10 +47,9 @@ class TestRotationSK:
                             s3 * x * z, s3 * (2.0 * x ** 2 - 1.0 + z ** 2) / 2.0])
         rot_mat = np.reshape(rot_mat, [5, 1])
         hs = np.reshape(np.dot(rot_mat,np.reshape(Hvalue,[1,1])),[5,1])
-        assert (np.abs(res- hs)<1e-6).all()
 
         Hvalue = th.from_numpy(Hvalue).float()
-        res = self.rotmap_th.rot_HS('sd', Hvalue=Hvalue, Angvec=vec)
+        res = self.rotmap_th.rot_HS('sd', Hvalue=Hvalue, Angvec=th.tensor(vec))
         hs = np.asarray(hs,dtype=np.float32)
         assert (np.abs(res.numpy() - hs) < 1e-6).all()
 
@@ -66,7 +60,6 @@ class TestRotationSK:
         vec = np.random.uniform(size=[3])
         vec = vec/np.linalg.norm(vec)
         Hvalue = np.random.uniform(size=[2,1])
-        res = self.rotmap.rot_HS('pp', Hvalue=Hvalue, Angvec=vec)
         
         x,y,z = vec
         rot_mat = np.zeros([3, 3, 2])
@@ -82,10 +75,9 @@ class TestRotationSK:
         rot_mat[2, 2, :] = np.array([x ** 2, 1 - x ** 2])
 
         hs = np.reshape(np.dot(rot_mat,np.reshape(Hvalue,[2,1])),[3,3])
-        assert (np.abs(res- hs)<1e-6).all()
 
         Hvalue = th.from_numpy(Hvalue).float()
-        res = self.rotmap_th.rot_HS('pp', Hvalue=Hvalue, Angvec=vec)
+        res = self.rotmap_th.rot_HS('pp', Hvalue=Hvalue, Angvec=th.tensor(vec))
         hs = np.asarray(hs,dtype=np.float32)
         assert (np.abs(res.numpy() - hs) < 1e-6).all()
 
@@ -94,7 +86,6 @@ class TestRotationSK:
         vec = np.random.uniform(size=[3])
         vec = vec/np.linalg.norm(vec)
         Hvalue = np.random.uniform(size=[2,1])
-        res = self.rotmap.rot_HS('pd', Hvalue=Hvalue, Angvec=vec)
         
         x,y,z = vec
         s3 = np.sqrt(3.0)
@@ -137,10 +128,9 @@ class TestRotationSK:
                                      -1 * ((z ** 2 - 2.0 + 2.0 * x ** 2) * x)])
 
         hs = np.reshape(np.dot(rot_mat,np.reshape(Hvalue,[2,1])),[5,3])
-        assert (np.abs(res- hs)<1e-6).all()
 
         Hvalue = th.from_numpy(Hvalue).float()
-        res = self.rotmap_th.rot_HS('pd', Hvalue=Hvalue, Angvec=vec)
+        res = self.rotmap_th.rot_HS('pd', Hvalue=Hvalue, Angvec=th.tensor(vec))
         hs = np.asarray(hs,dtype=np.float32)
         assert (np.abs(res.numpy() - hs) < 1e-6).all()
 
@@ -149,7 +139,6 @@ class TestRotationSK:
         vec = np.random.uniform(size=[3])
         vec = vec/np.linalg.norm(vec)
         Hvalue = np.random.uniform(size=[3,1])
-        res = self.rotmap.rot_HS('dd', Hvalue=Hvalue, Angvec=vec)
         
         x,y,z = vec
         s3 = np.sqrt(3.0)
@@ -229,9 +218,8 @@ class TestRotationSK:
                                      (z ** 4 / 4.0 + x ** 2 * z ** 2 + z ** 2 / 2.0 + 1.0 / 4.0 - x ** 2 + x ** 4)])
 
         hs = np.reshape(np.dot(rot_mat,np.reshape(Hvalue,[3,1])),[5,5])
-        assert (np.abs(res- hs)<1e-6).all()
 
         Hvalue = th.from_numpy(Hvalue).float()
-        res = self.rotmap_th.rot_HS('dd', Hvalue=Hvalue, Angvec=vec)
+        res = self.rotmap_th.rot_HS('dd', Hvalue=Hvalue, Angvec=th.tensor(vec))
         hs = np.asarray(hs,dtype=np.float32)
         assert (np.abs(res.numpy() - hs) < 1e-6).all()

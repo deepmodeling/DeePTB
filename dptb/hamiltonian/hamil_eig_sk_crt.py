@@ -15,12 +15,17 @@ log = logging.getLogger(__name__)
 class HamilEig(RotationSK):
     """ This module is to build the Hamiltonian from the SK-type bond integral.
     """
-    def __init__(self, dtype='tensor') -> None:
-        super().__init__(rot_type=dtype)
+    def __init__(self, dtype=torch.float32, device='cpu') -> None:
+        super().__init__(rot_type=dtype, device=device)
         self.dtype = dtype
+        if self.dtype is th.float32:
+            self.cdtype = th.complex64
+        elif self.dtype is th.float64:
+            self.cdtype = th.complex128
         self.use_orthogonal_basis = False
         self.hamil_blocks = None
         self.overlap_blocks = None
+        self.device = device
 
     def update_hs_list(self, struct, hoppings, onsiteEs, onsiteVs=None, overlaps=None, onsiteSs=None, **options):
         '''It updates the bond structure, bond type, bond type id, bond hopping, bond onsite, hopping, onsite
@@ -53,26 +58,15 @@ class HamilEig(RotationSK):
         for itype in self.__struct__.proj_atom_symbols:
             norbs = self.__struct__.proj_atomtype_norbs[itype]
             self.num_orbs_per_atom.append(norbs)
-        
-    def get_hs_blocks(self, bonds_onsite = None, bonds_hoppings=None, onsite_envs=None):
-        """using the SK type bond integral  to build the hamiltonian matrix and overlap matrix in the real space.
-
-        The hamiltonian and overlap matrix block are stored in the order of bond list. for ecah bond ij, with lattice 
-        vecto R, the matrix stored in [norbsi, norbsj]. norsbi and norbsj are the total number of orbtals on i and j sites.
-        e.g. for C-atom with both s and p orbital on each site. norbi is 4.
-
-        bonds_env: {iatom: [env_list]}
-        """
-
+    
+    def get_hs_onsite(self, bonds_onsite = None, onsite_envs=None):
         if bonds_onsite is None:
-            _, bonds_onsite = self.__struct__.get_bond(sorted=None)
-        if bonds_hoppings is None:
-            bonds_hoppings, _ = self.__struct__.get_bond(sorted=None)
-
-        # ToDo: 1. add d_ij dependence of onsite params 2. rewrite the onsite_index_map 3. confirm the formula of onsite output param
-        hamil_blocks = []
+            _, bonds_onsite = self.__struct__.get_bond()
+        onsiteH_blocks = []
         if not self.use_orthogonal_basis:
-            overlap_blocks = []
+            onsiteS_blocks = []
+        else:
+            onsiteS_blocks = None
         
         iatom_to_onsite_index = {}
         for ib in range(len(bonds_onsite)):
@@ -84,14 +78,9 @@ class HamilEig(RotationSK):
             jatype = self.__struct__.proj_atom_symbols[jatom]
             assert iatype == jatype, "i type should equal j type."
 
-            if self.dtype == 'tensor':
-                sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
-                if not self.use_orthogonal_basis:
-                    sub_over_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
-            else:
-                sub_hamil_block = np.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
-                if not self.use_orthogonal_basis:
-                    sub_over_block = np.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
+            sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
+            if not self.use_orthogonal_basis:
+                sub_over_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
             
             ist = 0
             for ish in self.__struct__.proj_atom_anglr_m[iatype]:     # ['s','p',..]
@@ -100,19 +89,14 @@ class HamilEig(RotationSK):
                 norbi = 2*shidi + 1 
 
                 indx = self.__struct__.onsite_index_map[iatype][ish] # change onsite index map from {N:{s:}} to {N:{ss:, sp:}}
-                if self.dtype == 'tensor':
-                    sub_hamil_block[ist:ist+norbi, ist:ist+norbi] = th.eye(norbi) * self.onsiteEs[ib][indx]
-                    if not self.use_orthogonal_basis:
-                        sub_over_block[ist:ist+norbi, ist:ist+norbi] = th.eye(norbi) * self.onsiteSs[ib][indx]
-                else:
-                    sub_hamil_block[ist:ist+norbi, ist:ist+norbi] = np.eye(norbi) * self.onsiteEs[ib][indx]
-                    if not self.use_orthogonal_basis:
-                        sub_over_block[ist:ist+norbi, ist:ist+norbi] = np.eye(norbi) * self.onsiteSs[ib][indx]
+                sub_hamil_block[ist:ist+norbi, ist:ist+norbi] = th.eye(norbi, dtype=self.dtype, device=self.device) * self.onsiteEs[ib][indx]
+                if not self.use_orthogonal_basis:
+                    sub_over_block[ist:ist+norbi, ist:ist+norbi] = th.eye(norbi, dtype=self.dtype, device=self.device) * self.onsiteSs[ib][indx]
                 ist = ist + norbi
 
-            hamil_blocks.append(sub_hamil_block)
+            onsiteH_blocks.append(sub_hamil_block)
             if not self.use_orthogonal_basis:
-                overlap_blocks.append(sub_over_block)
+                onsiteS_blocks.append(sub_over_block)
 
         # onsite strain
         if onsite_envs is not None:
@@ -122,10 +106,7 @@ class HamilEig(RotationSK):
                 iatype, iatom, jatype, jatom = self.__struct__.proj_atom_symbols[int(env[1])], env[1], self.__struct__.atom_symbols[int(env[3])], env[3]
                 direction_vec = env[8:11].astype(np.float32)
 
-                if self.dtype == 'tensor':
-                    sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[iatype]])
-                else:
-                    sub_hamil_block = np.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[iatype]])
+                sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[iatype]], dtype=self.dtype, device=self.device)
             
                 envtype = iatype + '-' + jatype
 
@@ -147,18 +128,27 @@ class HamilEig(RotationSK):
                             
                             tmpH = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.onsiteVs[ib][idx], Angvec=direction_vec)
                             # Hamilblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpH,dim0=0,dim1=1)
-                            if self.dtype == 'tensor':
-                                sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpH,dim0=0,dim1=1)
-                            else:
-                                sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = np.transpose(tmpH,(1,0))
+                            sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpH,dim0=0,dim1=1)
                         else:
                             tmpH = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue=self.onsiteVs[ib][idx], Angvec=direction_vec)
                             sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = tmpH
                 
                         jst = jst + norbj 
                     ist = ist + norbi
-                hamil_blocks[iatom_to_onsite_index[iatom]] += sub_hamil_block
+                onsiteH_blocks[iatom_to_onsite_index[iatom]] += sub_hamil_block
 
+        return onsiteH_blocks, onsiteS_blocks, bonds_onsite
+    
+    def get_hs_hopping(self, bonds_hoppings = None):
+        if bonds_hoppings is None:
+            bonds_hoppings, _ = self.__struct__.get_bond()
+
+        hoppingH_blocks = []
+        if not self.use_orthogonal_basis:
+            hoppingS_blocks = []
+        else:
+            hoppingS_blocks = None
+        
         for ib in range(len(bonds_hoppings)):
             
             ibond = bonds_hoppings[ib,0:7].astype(int)
@@ -171,14 +161,9 @@ class HamilEig(RotationSK):
             iatype = self.__struct__.proj_atom_symbols[ibond[1]]
             jatype = self.__struct__.proj_atom_symbols[ibond[3]]
 
-            if self.dtype == 'tensor':
-                sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
-                if not self.use_orthogonal_basis:
-                    sub_over_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
-            else:
-                sub_hamil_block = np.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
-                if not self.use_orthogonal_basis:
-                    sub_over_block = np.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]])
+            sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
+            if not self.use_orthogonal_basis:
+                sub_over_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
             
             bondatomtype = iatype + '-' + jatype
             
@@ -198,17 +183,11 @@ class HamilEig(RotationSK):
                     if shidi < shidj:
                         tmpH = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.hoppings[ib][idx], Angvec=direction_vec)
                         # Hamilblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpH,dim0=0,dim1=1)
-                        if self.dtype == 'tensor':
-                            sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * th.transpose(tmpH,dim0=0,dim1=1)
-                        else:
-                            sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * np.transpose(tmpH,(1,0))
+                        sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * th.transpose(tmpH,dim0=0,dim1=1)
                         if not self.use_orthogonal_basis:
                             tmpS = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.overlaps[ib][idx], Angvec=direction_vec)
                         # Soverblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpS,dim0=0,dim1=1)
-                            if self.dtype == 'tensor':
-                                sub_over_block[ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * th.transpose(tmpS,dim0=0,dim1=1)
-                            else:
-                                sub_over_block[ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * np.transpose(tmpS,(1,0))
+                            sub_over_block[ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * th.transpose(tmpS,dim0=0,dim1=1)
                     else:
                         tmpH = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue=self.hoppings[ib][idx], Angvec=direction_vec)
                         sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = tmpH
@@ -219,17 +198,27 @@ class HamilEig(RotationSK):
                     jst = jst + norbj 
                 ist = ist + norbi   
             
-            hamil_blocks.append(sub_hamil_block)
+            hoppingH_blocks.append(sub_hamil_block)
             if not self.use_orthogonal_basis:
-                overlap_blocks.append(sub_over_block)
+                hoppingS_blocks.append(sub_over_block)
+
+        return hoppingH_blocks, hoppingS_blocks, bonds_hoppings
+    
+    def get_hs_blocks(self, bonds_onsite = None, bonds_hoppings=None, onsite_envs=None):
+        onsiteH, onsiteS, bonds_onsite = self.get_hs_onsite(bonds_onsite=bonds_onsite, onsite_envs=onsite_envs)
+        hoppingH, hoppingS, bonds_hoppings = self.get_hs_hopping(bonds_hoppings=bonds_hoppings)
+
         self.all_bonds = np.concatenate([bonds_onsite[:,0:7],bonds_hoppings[:,0:7]],axis=0)
         self.all_bonds = self.all_bonds.astype(int)
-        self.hamil_blocks = hamil_blocks
+        onsiteH.extend(hoppingH)
+        self.hamil_blocks = onsiteH
         if not self.use_orthogonal_basis:
-            self.overlap_blocks = overlap_blocks
+            onsiteS.extend(hoppingS)
+            self.overlap_blocks = onsiteS
 
+        return True
 
-    def hs_block_R2k(self, kpoints, HorS='H', time_symm=True, dtype='tensor'):
+    def hs_block_R2k(self, kpoints, HorS='H', time_symm=True):
         '''The function takes in a list of Hamiltonian matrices for each bond, and a list of k-points, and
         returns a list of Hamiltonian matrices for each k-point
 
@@ -247,7 +236,8 @@ class HamilEig(RotationSK):
         Returns
         -------
             A list of Hamiltonian or Overlap matrices for each k-point.
-        '''   
+        ''' 
+
         numOrbs = np.array(self.num_orbs_per_atom)
         totalOrbs = np.sum(numOrbs)
         if HorS == 'H':
@@ -257,17 +247,11 @@ class HamilEig(RotationSK):
         else:
             print("HorS should be 'H' or 'S' !")
 
-        if dtype == 'tensor':
-            Hk = th.zeros([len(kpoints), totalOrbs, totalOrbs], dtype = th.complex64)
-        else:
-            Hk = np.zeros([len(kpoints), totalOrbs, totalOrbs], dtype = np.complex64)
+        Hk = th.zeros([len(kpoints), totalOrbs, totalOrbs], dtype = self.cdtype, device=self.device)
 
         for ik in range(len(kpoints)):
             k = kpoints[ik]
-            if dtype == 'tensor':
-                hk = th.zeros([totalOrbs,totalOrbs],dtype = th.complex64)
-            else:
-                hk = np.zeros([totalOrbs,totalOrbs],dtype = np.complex64)
+            hk = th.zeros([totalOrbs,totalOrbs],dtype = self.cdtype, device=self.device)
             for ib in range(len(self.all_bonds)):
                 Rlatt = self.all_bonds[ib,4:7].astype(int)
                 i = self.all_bonds[ib,1].astype(int)
@@ -295,33 +279,32 @@ class HamilEig(RotationSK):
             Hk[ik] = hk
         return Hk
 
-    def Eigenvalues(self, kpoints, time_symm=True,dtype='tensor'):
+    def Eigenvalues(self, kpoints, time_symm=True):
         """ using the tight-binding H and S matrix calculate eigenvalues at kpoints.
         
         Args:
             kpoints: the k-kpoints used to calculate the eigenvalues.
         Note: must have the BondHBlock and BondSBlock 
         """
-        hkmat = self.hs_block_R2k(kpoints=kpoints, HorS='H', time_symm=time_symm, dtype=dtype)
+        hkmat = self.hs_block_R2k(kpoints=kpoints, HorS='H', time_symm=time_symm)
         if not self.use_orthogonal_basis:
-            skmat =  self.hs_block_R2k(kpoints=kpoints, HorS='S', time_symm=time_symm, dtype=dtype)
+            skmat =  self.hs_block_R2k(kpoints=kpoints, HorS='S', time_symm=time_symm)
         else:
-            skmat = torch.eye(hkmat.shape[1], dtype=torch.complex64).unsqueeze(0).repeat(hkmat.shape[0], 1, 1)
+            skmat = torch.eye(hkmat.shape[1], dtype=self.cdtype).unsqueeze(0).repeat(hkmat.shape[0], 1, 1)
 
-        if self.dtype == 'tensor':
-            chklowt = th.linalg.cholesky(skmat)
-            chklowtinv = th.linalg.inv(chklowt)
-            Heff = (chklowtinv @ hkmat @ th.transpose(chklowtinv,dim0=1,dim1=2).conj())
-            # the factor 13.605662285137 * 2 from Hartree to eV.
-            # eigks = th.linalg.eigvalsh(Heff) * 13.605662285137 * 2
-            eigks, Q = th.linalg.eigh(Heff)
-            eigks = eigks * 13.605662285137 * 2
-            Qres = Q.detach()
-        else:
-            chklowt = np.linalg.cholesky(skmat)
-            chklowtinv = np.linalg.inv(chklowt)
-            Heff = (chklowtinv @ hkmat @ np.transpose(chklowtinv,(0,2,1)).conj())
-            eigks = np.linalg.eigvalsh(Heff) * 13.605662285137 * 2
-            Qres = 0
+        chklowt = th.linalg.cholesky(skmat)
+        chklowtinv = th.linalg.inv(chklowt)
+        Heff = (chklowtinv @ hkmat @ th.transpose(chklowtinv,dim0=1,dim1=2).conj())
+        # the factor 13.605662285137 * 2 from Hartree to eV.
+        # eigks = th.linalg.eigvalsh(Heff) * 13.605662285137 * 2
+        eigks, Q = th.linalg.eigh(Heff)
+        eigks = eigks * 13.605662285137 * 2
+        Qres = Q.detach()
+        # else:
+        #     chklowt = np.linalg.cholesky(skmat)
+        #     chklowtinv = np.linalg.inv(chklowt)
+        #     Heff = (chklowtinv @ hkmat @ np.transpose(chklowtinv,(0,2,1)).conj())
+        #     eigks = np.linalg.eigvalsh(Heff) * 13.605662285137 * 2
+        #     Qres = 0
 
         return eigks, Qres

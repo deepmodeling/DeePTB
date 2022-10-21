@@ -77,6 +77,7 @@ class InitDPTBModel(Plugin):
             checkpoint = options["restart"]
         ckpt = torch.load(checkpoint)
         model_config = ckpt["model_config"]
+        model_config["dtype"] = dtype_dict[model_config["dtype"]]
 
         env_nnl = model_config["dptb"]['env_net_neuron']
         env_axisnn = model_config["dptb"]['axis_neuron']
@@ -115,7 +116,7 @@ class InitDPTBModel(Plugin):
         # -------------------------------------------------------------------------------------------
         device = options['device']
         atomtype = options["atomtype"]
-        dtype = dtype_dict[options['dtype']]
+        dtype = options['dtype']
         proj_atom_anglr_m = options['proj_atom_anglr_m']
         onsitemode = options['onsitemode']
         skformula = options['skfunction']['skformula']

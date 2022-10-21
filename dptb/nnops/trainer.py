@@ -16,7 +16,7 @@ class Trainer(with_metaclass(ABCMeta, PluginUser)):
 
     def __init__(self, jdata) -> None:
         super(Trainer, self).__init__()
-        self.dtype = dtype_dict[jdata["common_options"]["dtype"]]
+        self.dtype = jdata["common_options"]["dtype"]
         self.device = jdata["common_options"]["device"]
         ''' Here is for plugins.
                     plugins:

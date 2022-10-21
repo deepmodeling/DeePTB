@@ -109,6 +109,6 @@ class Logger(Plugin):
 
     def epoch(self, **kwargs):
         self._log_all('log_epoch_fields',
-                      prefix='Epoch summary:',
+                      prefix='Epoch {} summary:'.format(kwargs.get('time')),
                       suffix='\n'+ self.separator,
                       require_dict=True)

@@ -46,7 +46,7 @@ def train_options():
     doc_num_epoch = ""
     doc_seed = ""
     doc_save_freq = ""
-    doc_test_freq = ""
+    doc_validation_freq = ""
     doc_display_freq = ""
     doc_optimizer = ""
     doc_lr_scheduler = ""
@@ -57,7 +57,7 @@ def train_options():
         Argument("optimizer", dict, sub_fields=[], sub_variants=[optimizer()], doc = doc_optimizer),
         Argument("lr_scheduler", dict, sub_fields=[], sub_variants=[lr_scheduler()], doc = doc_lr_scheduler),
         Argument("save_freq", int, optional=True, default=10, doc=doc_save_freq),
-        Argument("test_freq", int, optional=True, default=10, doc=doc_test_freq),
+        Argument("validation_freq", int, optional=True, default=10, doc=doc_validation_freq),
         Argument("display_freq", int, optional=True, default=1, doc=doc_display_freq)
     ]
 
