@@ -158,6 +158,8 @@ class InitDPTBModel(Plugin):
                                    onsitemode=onsitemode,
                                    onsiteint_types=reducted_onsiteint_types
                                    )
+        self.host.sknet_config  = model_config
+        
         self.host.sknet.load_state_dict(state_dict)
         self.host.sknet.train()
 
@@ -166,7 +168,7 @@ class InitDPTBModel(Plugin):
         self.host.onsite_db = loadOnsite(onsite_index_map)
         if onsitemode == 'strain':
             self.host.onsitestrain_fun = onsitestrain_fun
-
+        
         if options['freeze']:
             self.host.sknet.eval()
             for p in self.host.sknet.parameters():

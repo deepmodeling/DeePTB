@@ -188,7 +188,9 @@ def train(
             json.dump(jdata, fp, indent=4)
 
         trainer.register_plugin(Saver(
-            interval=[(jdata["train_options"].get("save_freq"), 'epoch'), (1, 'iteration')] if jdata["train_options"].get(
+            #interval=[(jdata["train_options"].get("save_freq"), 'epoch'), (1, 'iteration')] if jdata["train_options"].get(
+            #    "save_freq") else None))
+            interval=[(jdata["train_options"].get("save_freq"), 'iteration'),  (1, 'epoch')] if jdata["train_options"].get(
                 "save_freq") else None))
         # add a plugin to save the training parameters of the model, with model_output as given path
 
