@@ -20,20 +20,31 @@ class Saver(Plugin):
 
     def iteration(self, **kwargs):
         suffix = "_c"+str(self.trainer.model_options["skfunction"]["sk_cutoff"])+"w"+str(self.trainer.model_options["skfunction"]["sk_decay_w"])
-        self._save("latest_"+self.trainer.name+suffix)
+        self._save(name="latest_"+self.trainer.name+suffix,model=self.trainer.model,model_config=self.trainer.model_config)
+        if self.trainer.name == "dptb" \
+                and self.trainer.run_opt["use_correction"] \
+                    and not self.trainer.run_opt["freeze"]:
+
+            self._save(name="latest_"+self.trainer.name+'_nnsk_'+suffix,model=self.trainer.sknet, model_config=self.trainer.sknet_config)
 
     def epoch(self, **kwargs):
         if self.trainer.stats.get('validation_loss').get('last',1e6) < self.best_loss:
             suffix = "_c"+str(self.trainer.model_options["skfunction"]["sk_cutoff"])+"w"+str(self.trainer.model_options["skfunction"]["sk_decay_w"])
-            self._save("best_"+self.trainer.name+suffix)
+            self._save(name="best_"+self.trainer.name+suffix,model=self.trainer.model,model_config=self.trainer.model_config)
             self.best_loss = self.trainer.stats['validation_loss'].get('last',1e6)
+
+            if self.trainer.name == "dptb" \
+                and self.trainer.run_opt["use_correction"] \
+                    and not self.trainer.run_opt["freeze"]:
+
+                self._save(name="best_"+self.trainer.name+'_nnsk_'+suffix,model=self.trainer.sknet, model_config=self.trainer.sknet_config)
 
             # log.info(msg="checkpoint saved as {}".format("best_epoch"))
 
-    def _save(self, name):
+    def _save(self, name, model, model_config):
         obj = {}
-        self.trainer.model_config["dtype"] = str(self.trainer.model_config["dtype"]).split('.')[-1]
-        obj.update({"model_config":self.trainer.model_config, "model_state_dict":self.trainer.model.state_dict(), 
+        model_config["dtype"] = str(model_config["dtype"]).split('.')[-1]
+        obj.update({"model_config":model_config, "model_state_dict": model.state_dict(), 
             "optimizer_state_dict": self.trainer.optimizer.state_dict(), "epoch": self.trainer.epoch+1, "iteration":self.trainer.iteration+1, "stats": self.trainer.stats})
         f_path = os.path.join(self.checkpoint_path, name+".pth")
         torch.save(obj, f=f_path)
