@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 from dptb.entrypoints.train import train
+from dptb.entrypoints.tester import validation
 from dptb.entrypoints.postrun import postrun
 from dptb.utils.loggers import set_log_handles
 
@@ -115,6 +116,51 @@ def main_parser() -> argparse.ArgumentParser:
         default="./",
         help="The output files in training.",
     )
+
+    parser_test = subparsers.add_parser(
+        "test",
+        parents=[parser_log],
+        help="test the model",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    
+    parser_test.add_argument(
+        "INPUT", help="the input parameter file in json or yaml format",
+        type=str,
+        default=None
+    )
+    
+    parser_test.add_argument(
+        "-i",
+        "--init-model",
+        type=str,
+        default=None,
+        help="Initialize the model by the provided checkpoint.",
+    )
+
+    parser_test.add_argument(
+        "-sk",
+        "--test-sk",
+        action="store_true",
+        help="Test NNSKTB parameters.",
+    )
+
+    parser_test.add_argument(
+        "-crt",
+        "--use-correction",
+        type=str,
+        default=None,
+        help="Use nnsktb correction when testing dptb.",
+    )
+
+    parser_test.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default="./",
+        help="The output files in testing.",
+    )
+
     
     parser_run = subparsers.add_parser(
         "run",
@@ -198,13 +244,16 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
 def main():
     args = parse_args()
 
-    if args.command not in (None, "train", "run"):
+    if args.command not in (None, "train", "test", "run"):
         set_log_handles(args.log_level, Path(args.log_path) if args.log_path else None)
 
     dict_args = vars(args)
 
     if args.command == 'train':
         train(**dict_args)
+
+    if args.command == 'test':
+        validation(**dict_args)
 
     if args.command == 'run':
         postrun(**dict_args)

@@ -8,7 +8,7 @@ from dptb.utils.tools import get_uniq_symbol, get_lr_scheduler, \
 get_optimizer, nnsk_correction, j_must_have
 
 from dptb.nnops.trainloss import lossfunction
-from dptb.nnops.trainer import Trainer
+from dptb.nnops.base_trainer import Trainer
 
 log = logging.getLogger(__name__)
 

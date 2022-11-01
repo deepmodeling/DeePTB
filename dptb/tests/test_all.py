@@ -1,4 +1,5 @@
 from dptb.entrypoints.train import train
+from dptb.entrypoints.tester import validation
 from dptb.entrypoints.main import parse_args
 import os
 from pathlib import Path
@@ -135,4 +136,26 @@ def test_train_nnsk_adding_orbital():
         log_path=None,
         train_sk=True,
         use_correction=None,
+    )
+
+def test_tester_nnsk():
+    validation(
+        INPUT=INPUT,
+        init_model=test_data_path+"/hBN/checkpoint/best_nnsk.pth",
+        output=test_data_path+"/test_all",
+        log_level=2,
+        log_path=None,
+        test_sk=True,
+        use_correction=False,
+    )
+
+def test_tester_dptb():
+    validation(
+        INPUT=INPUT,
+        init_model=test_data_path+"/hBN/checkpoint/best_dptb.pth",
+        output=test_data_path+"/test_all",
+        log_level=2,
+        log_path=None,
+        test_sk=False,
+        use_correction=test_data_path+"/hBN/checkpoint/best_nnsk.pth",
     )

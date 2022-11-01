@@ -45,7 +45,7 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
 
 
 def get_data(path, prefix, batch_size, bond_cutoff, env_cutoff, onsite_cutoff, proj_atom_anglr_m, proj_atom_neles, 
-        sorted_onsite="st", sorted_bond="st", sorted_env="st", onsitemode:str='uniform', time_symm=True, device='cpu', dtype=torch.float32, **kwargs):
+        sorted_onsite="st", sorted_bond="st", sorted_env="st", onsitemode:str='uniform', time_symm=True, device='cpu', dtype=torch.float32, if_shuffle=True, **kwargs):
     """
         input: data params
         output: processor
@@ -60,7 +60,7 @@ def get_data(path, prefix, batch_size, bond_cutoff, env_cutoff, onsite_cutoff, p
             Processor(structure_list=struct_list_sets[i], batchsize=batch_size,
                         kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=device, 
                         dtype=dtype, env_cutoff=env_cutoff, onsite_cutoff=onsite_cutoff, onsitemode=onsitemode, 
-                        sorted_onsite=sorted_onsite, sorted_bond=sorted_bond, sorted_env=sorted_env))
+                        sorted_onsite=sorted_onsite, sorted_bond=sorted_bond, sorted_env=sorted_env, if_shuffle = if_shuffle))
     
     return processor_list
     
