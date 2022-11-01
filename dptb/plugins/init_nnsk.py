@@ -20,7 +20,7 @@ class InitSKModel(Plugin):
     def register(self, host):
         self.host = host
 
-    def disposable(self, mode=None, **common_and_model_options):
+    def disposable(self, mode=None, time=0, **common_and_model_options):
         self.mode = mode
         if mode == "from_scratch":
             self.init_from_scratch(**common_and_model_options)

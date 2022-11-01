@@ -20,6 +20,8 @@ from pathlib import Path
 import yaml
 import torch.optim as optim
 import logging
+import random
+
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +35,13 @@ if TYPE_CHECKING:
     _ACTIVATION = Literal["relu", "relu6", "softplus", "sigmoid", "tanh", "gelu", "gelu_tf"]
     _PRECISION = Literal["default", "float16", "float32", "float64"]
 
+def setup_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
 
 def get_optimizer(type: str, model_param, lr: float, **options: dict):
     if type == 'Adam':

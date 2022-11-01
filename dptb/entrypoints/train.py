@@ -8,7 +8,7 @@ from dptb.plugins.train_logger import Logger
 from dptb.utils.argcheck import normalize
 from dptb.plugins.plugins import Saver
 from typing import Dict, List, Optional, Any
-from dptb.utils.tools import j_loader
+from dptb.utils.tools import j_loader, setup_seed
 from dptb.utils.constants import dtype_dict
 from dptb.utils.loggers import set_log_handles
 import heapq
@@ -203,10 +203,3 @@ def train(
     log.info(f"wall time: {(end_time - start_time):.3f} s")
 
 
-def setup_seed(seed):
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    os.environ['PYTHONHASHSEED'] = str(seed)

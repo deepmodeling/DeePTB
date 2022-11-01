@@ -7,7 +7,7 @@ from dptb.structure.abstract_stracture import AbstractStructure
 class Processor(object):
     # TODO: 现在strain的env 是通过get_env 获得，但是在dptb中的env是有另外的含义。是否已经考虑。
     def __init__(self, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, env_cutoff: float = 3.0, onsitemode=None, 
-    onsite_cutoff=None, sorted_bond=None, sorted_onsite=None, sorted_env=None, device='cpu', dtype=torch.float32):
+    onsite_cutoff=None, sorted_bond=None, sorted_onsite=None, sorted_env=None, device='cpu', dtype=torch.float32, if_shuffle=True):
         super(Processor, self).__init__()
         if isinstance(structure_list, AbstractStructure):
             structure_list = [structure_list]
@@ -19,11 +19,13 @@ class Processor(object):
         self.sorted_onsite = sorted_onsite
         self.onsite_cutoff = onsite_cutoff
         self.onsitemode = onsitemode
-
+        self.if_shuffle = if_shuffle
         self.n_st = len(self.structure_list)
-        self.__struct_idx_unsampled__ = np.random.choice(np.array(list(range(len(self.structure_list)))),
+        if self.if_shuffle:
+            self.__struct_idx_unsampled__ = np.random.choice(np.array(list(range(len(self.structure_list)))),
                                                      size=len(self.structure_list), replace=False)
-
+        else:
+            self.__struct_idx_unsampled__ = np.arange(len(self.structure_list))
         self.__struct_unsampled__ = self.structure_list[self.__struct_idx_unsampled__]
         self.__struct_workspace__ = []
         self.__struct_idx_workspace__ = []
@@ -51,8 +53,12 @@ class Processor(object):
         if self.batchsize >= len(self.__struct_unsampled__):
             self.__struct_workspace__ = self.__struct_unsampled__
             self.__struct_idx_workspace__ = self.__struct_idx_unsampled__
-            self.__struct_idx_unsampled__ = np.random.choice(np.array(list(range(len(self.structure_list)))),
+            if self.if_shuffle:
+                self.__struct_idx_unsampled__ = np.random.choice(np.array(list(range(len(self.structure_list)))),
                                                          size=len(self.structure_list), replace=False)
+            else:
+                self.__struct_idx_unsampled__ = np.arange(len(self.structure_list))
+
             self.__struct_unsampled__ = self.structure_list[self.__struct_idx_unsampled__]
         else:
             self.__struct_workspace__ = self.__struct_unsampled__[:self.batchsize]
@@ -244,9 +250,11 @@ class Processor(object):
     def __iter__(self):
         # processor = Processor; for i in processor: i: (batch_bond, batch_env, structures)
         self.it = 0 # label of iteration
-        self.__struct_idx_unsampled__ = np.random.choice(np.array(list(range(len(self.structure_list)))),
+        if self.if_shuffle:
+            self.__struct_idx_unsampled__ = np.random.choice(np.array(list(range(len(self.structure_list)))),
                                                          size=len(self.structure_list), replace=False)
-
+        else:
+            self.__struct_idx_unsampled__ = np.arange(len(self.structure_list))
         self.__struct_unsampled__ = self.structure_list[self.__struct_idx_unsampled__]
         self.__struct_workspace__ = []
         self.__struct_idx_workspace__ = []

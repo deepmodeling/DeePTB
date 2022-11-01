@@ -27,7 +27,7 @@ class InitDPTBModel(Plugin):
     def register(self, host):
         self.host = host
 
-    def disposable(self, mode=None, use_correction=False, **common_and_model_options):
+    def disposable(self, mode=None, use_correction=False, time=0, **common_and_model_options):
         self.mode = mode
         if mode == "from_scratch":
             self.init_from_scratch(**common_and_model_options)
@@ -71,6 +71,7 @@ class InitDPTBModel(Plugin):
         self.host.model_config = options
 
     def init_from_model(self, **options):
+        # TODO: env_cutoff 按照input file 更新checkpoint.
         if self.mode == "init_model":
             checkpoint = options['init_model']
         elif self.mode == "restart":

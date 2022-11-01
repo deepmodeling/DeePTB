@@ -1,7 +1,7 @@
 import torch
 import logging
 import numpy as np
-from dptb.nnops.trainer import Trainer
+from dptb.nnops.base_trainer import Trainer
 from dptb.utils.tools import get_uniq_symbol, \
     get_lr_scheduler, get_optimizer, j_must_have
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig

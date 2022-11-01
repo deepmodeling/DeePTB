@@ -99,6 +99,12 @@ class TrainLossMonitor(Monitor):
     def _get_value(self, **kwargs):
         return kwargs.get('train_loss', None)
 
+class TestLossMonitor(Monitor):
+    # It's a Monitor that records the loss.
+    # stat_name is used in the Monitor class to register.
+    stat_name = 'test_loss'
+    def _get_value(self, **kwargs):
+        return kwargs.get('test_loss', None)
 class LearningRateMonitor(Monitor):
     # It's a Monitor that records the loss.
     # stat_name is used in the Monitor class to register.

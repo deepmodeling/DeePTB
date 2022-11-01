@@ -72,3 +72,38 @@ class InitData(Plugin):
 
         assert atomtype == self.host.atomtype
         assert proj_atomtype == self.host.proj_atomtype
+
+class InitTestData(Plugin):
+    def __init__(self, interval=None):
+        if interval is None:
+            interval = [(-2, 'disposable')]
+        super(InitTestData, self).__init__(interval)
+        
+    def register(self, host):
+        self.host = host
+
+    def disposable(self, **common_and_data_options):
+        self.host.test_processor_list = get_data(
+            sorted_onsite="st", 
+            sorted_bond="st", 
+            sorted_env="itype-jtype",
+            if_shuffle = False,
+            **common_and_data_options,
+            **common_and_data_options["train"]
+        )
+
+        self.data_stats()
+
+    def data_stats(self):
+        self.host.n_test_sets = len(self.host.test_processor_list)
+        
+        atomtype, proj_atomtype = [], []
+        for ips in self.host.test_processor_list:
+            atomtype += ips.atomtype
+            proj_atomtype += ips.proj_atomtype
+        
+        atomtype = get_uniq_symbol(list(set(atomtype)))
+        proj_atomtype = get_uniq_symbol(list(set(proj_atomtype)))
+
+        assert atomtype == self.host.atomtype
+        assert proj_atomtype == self.host.proj_atomtype
