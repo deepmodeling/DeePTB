@@ -15,13 +15,19 @@ class bandcalc (object):
     def get_bands(self):
         self.band_plot_options = j_must_have(self.jdata, 'band_plot')
         kmode = self.band_plot_options['kmode']
-        kpath = self.band_plot_options['kpath']
-        nkpoints = self.band_plot_options['nkpoints']
+
         
         if kmode == 'ase_kpath':
+            kpath = self.band_plot_options['kpath']
+            nkpoints = self.band_plot_options['nkpoints']
             self.klist, self.xlist, self.high_sym_kpoints, self.labels = ase_kpath(structase=self.structase,
                                                  pathstr=kpath, total_nkpoints=nkpoints)
-        
+        elif kmode == 'line_mode':
+            kpath = self.band_plot_options['kpath']
+            self.labels = self.band_plot_options['klabels']
+            self.klist, self.xlist, self.high_sym_kpoints  = interp_kpath(structase=self.structase, kpath=kpath)
+
+
         all_bonds, hamil_blocks, overlap_blocks = self.apiH.get_HR()
         self.eigenvalues, self.E_fermi = self.apiH.get_eigenvalues(self.klist)
 

@@ -1,0 +1,69 @@
+import pytest
+from dptb.utils.make_kpoints import interp_kpath, ase_kpath
+from ase.io import read
+import numpy as np
+
+@pytest.fixture(scope='session', autouse=True)
+def root_directory(request):
+        return str(request.config.rootdir)
+
+true_klist = np.array([[0.        , 0.        , 0.        ],
+                       [0.125     , 0.        , 0.        ],
+                       [0.25      , 0.        , 0.        ],
+                       [0.375     , 0.        , 0.        ],
+                       [0.5       , 0.        , 0.        ],
+                       [0.45833333, 0.08333333, 0.        ],
+                       [0.41666666, 0.16666666, 0.        ],
+                       [0.375     , 0.25      , 0.        ],
+                       [0.33333333, 0.33333333, 0.        ],
+                       [0.25      , 0.25      , 0.        ],
+                       [0.16666666, 0.16666666, 0.        ],
+                       [0.08333333, 0.08333333, 0.        ],
+                       [0.        , 0.        , 0.        ]])
+
+true_xlist = np.array([0.        , 0.04992013, 0.09984026, 0.14976039, 0.19968052,
+       0.23819517, 0.27670983, 0.31522448, 0.35373914, 0.41879611,
+       0.48385308, 0.54891004, 0.61396701])
+true_hskp = np.array([0.        , 0.19968052, 0.35373914, 0.61396701])
+
+def test_intpkpath(root_directory):
+    hbn_file=f'{root_directory}/dptb/tests/data/hBN/hBN.vasp'
+    kpath=[[0.00000000, 0.00000000, 0.00000000, 4],
+           [0.50000000, 0.00000000, 0.00000000, 4],
+           [0.33333333, 0.33333333, 0.00000000, 4],
+           [0.00000000, 0.00000000, 0.00000000, 1]]
+    klabels = ['G','M','K','G']
+    struct = read(hbn_file)
+    klist, xlist, high_sym_kpoints = interp_kpath(structase=struct, kpath=kpath)
+    assert (np.abs(klist -  true_klist) < 1e-6).all()
+    assert (np.abs(xlist -  true_xlist) < 1e-6).all()
+    assert (np.abs(high_sym_kpoints - true_hskp)< 1e-6).all()
+
+
+true_klist2= np.array([[0.        , 0.        , 0.        ],
+                       [0.125     , 0.        , 0.        ],
+                       [0.25      , 0.        , 0.        ],
+                       [0.375     , 0.        , 0.        ],
+                       [0.5       , 0.        , 0.        ],
+                       [0.33333333, 0.33333333, 0.        ],
+                       [0.25      , 0.25      , 0.        ],
+                       [0.16666666, 0.16666666, 0.        ],
+                       [0.08333333, 0.08333333, 0.        ],
+                       [0.        , 0.        , 0.        ]])
+
+true_xlist2 = np.array([0.        , 0.04992013, 0.09984026, 0.14976039, 0.19968052,
+       0.19968052, 0.26473748, 0.32979445, 0.39485142, 0.45990839])
+true_hskp2 = np.array([0.0, 0.19968051528895628, 0.19968051528895628, 0.45990838794869915])
+
+def test_intpkpath2(root_directory):
+    hbn_file=f'{root_directory}/dptb/tests/data/hBN/hBN.vasp'
+    kpath=[[0.00000000, 0.00000000, 0.00000000, 4],
+           [0.50000000, 0.00000000, 0.00000000, 1],
+           [0.33333333, 0.33333333, 0.00000000, 4],
+           [0.00000000, 0.00000000, 0.00000000, 1]]
+    klabels = ['G','M','K','G']
+    struct = read(hbn_file)
+    klist, xlist, high_sym_kpoints = interp_kpath(structase=struct, kpath=kpath)
+    assert (np.abs(klist -  true_klist2) < 1e-6).all()
+    assert (np.abs(xlist -  true_xlist2) < 1e-6).all()
+    assert (np.abs(high_sym_kpoints - true_hskp2)< 1e-6).all()
