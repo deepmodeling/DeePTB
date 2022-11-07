@@ -17,7 +17,7 @@ def interp_kpath(structase, kpath):
     kpath_list = np.concatenate(kpath_list,axis=0)
 
     #rev_latt = 2*np.pi*np.mat(ase_struct.cell).I
-    rev_latt = np.mat(structase.cell).I
+    rev_latt = np.mat(structase.cell).I.T
     kdiff = kpoints[1:] - kpoints[:-1]
     kdiff_cart = np.asarray(kdiff * rev_latt)
     kdist  = np.linalg.norm(kdiff_cart,axis=1)
