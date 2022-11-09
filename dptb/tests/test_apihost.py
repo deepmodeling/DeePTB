@@ -1,4 +1,3 @@
-from tkinter import FALSE
 import pytest
 from dptb.plugins.init_nnsk import InitSKModel
 from dptb.plugins.init_dptb import InitDPTBModel

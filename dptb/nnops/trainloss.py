@@ -1,6 +1,5 @@
 import torch as th
 import numpy as np
-import torchsort
 
 
 class lossfunction(object):
@@ -40,7 +39,7 @@ class lossfunction(object):
 
         return loss
 
-    def l2eig_deig_sf(self, eig_pred, eig_label, num_el, strength=0.5, kmax=None, kmin=0, band_min=0, band_max=None, emax=None, emin=0, spin_deg=2, gap_penalty=False, fermi_band=0, eta=1e-2, **kwarg):
+    def l2eig_deig_sf(self, eig_pred, eig_label, num_el, strength=0.5, kmax=None, kmin=0, band_min=0, band_max=None, emax=None, emin=None, spin_deg=2, gap_penalty=False, fermi_band=0, eta=1e-2, **kwarg):
         norbs = eig_pred.shape[-1]
         nbanddft = eig_label.shape[-1]
         num_kp = eig_label.shape[-2]
@@ -70,23 +69,43 @@ class lossfunction(object):
         eig_label_cut = eig_label[:,kmin:kmax,band_min:band_max]
         batch_size, num_kp, num_bands = eig_pred_cut.shape
 
-        eig_pred_cut -= eig_pred_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
-        eig_label_cut -= eig_label_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
+        eig_pred_cut = eig_pred_cut - eig_pred_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
+        eig_label_cut = eig_label_cut - eig_label_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
 
-        eig_pred_cut = th.reshape(eig_pred_cut, [-1,band_max-band_min])
-        eig_label_cut = th.reshape(eig_label_cut, [-1,band_max-band_min])
+        if emax != None and emin != None:
+            mask_in = eig_label_cut.lt(emax) * eig_label_cut.gt(emin)
+            mask_out = eig_label_cut.gt(emax) + eig_label_cut.lt(emin)
+        elif emax != None:
+            mask_in = eig_label_cut.lt(emax)
+            mask_out = eig_label_cut.gt(emax)
+        elif emin != None:
+            mask_in = eig_label_cut.gt(emin)
+            mask_out = eig_label_cut.lt(emin)
+        else:
+            mask_in = None
+            mask_out = None
 
-        mask = eig_label_cut.lt(emax) * eig_label_cut.gt(emin)
+        # eig_pred_cut = th.reshape(eig_pred_cut, [-1,band_max-band_min])
+        # eig_label_cut = th.reshape(eig_label_cut, [-1,band_max-band_min])
 
-        eig_pred_soft = torchsort.soft_sort(eig_pred_cut,regularization_strength=strength)
-        eig_label_soft = torchsort.soft_sort(eig_label_cut,regularization_strength=strength)
+        # eig_pred_soft = torchsort.soft_sort(eig_pred_cut,regularization_strength=strength)
+        # eig_label_soft = torchsort.soft_sort(eig_label_cut,regularization_strength=strength)
        
+        # eig_pred_soft = th.reshape(eig_pred_soft, [batch_size, num_kp, num_bands])
+        # eig_label_soft = th.reshape(eig_label_soft, [batch_size, num_kp, num_bands])
+        eig_pred_soft = eig_pred_cut
+        eig_label_soft = eig_label_cut
         
-        eig_pred_soft = th.reshape(eig_pred_soft, [batch_size, num_kp, num_bands])
-        eig_label_soft = th.reshape(eig_label_soft, [batch_size, num_kp, num_bands])
-        
-        
-        loss = self.criterion(eig_pred_soft.masked_select(mask), eig_label_soft.masked_select(mask))
+        loss = 0
+        if mask_in is not None:
+            if th.any(mask_in).item():
+                loss = loss + self.criterion(eig_pred_soft.masked_select(mask_in), eig_label_soft.masked_select(mask_in))
+            if th.any(mask_out).item():
+                loss = loss + 0.0001 * self.criterion(eig_pred_soft.masked_select(mask_out), eig_label_soft.masked_select(mask_out))
+        else:
+            loss = self.criterion(eig_pred_soft, eig_label_soft)
+
+        #print(loss)
 
         if gap_penalty:
             gap1 = eig_pred_soft[:,:,fermi_band+1] - eig_pred_soft[:,:,fermi_band]

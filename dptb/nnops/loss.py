@@ -1,6 +1,6 @@
 import numpy as np
 import torch as th
-import torchsort
+#import torchsort
 
 def loss_type1(criterion, eig_pred, eig_label,num_el,num_kp, band_min=0, band_max=None, spin_deg=2):
     norbs = eig_pred.shape[-1]

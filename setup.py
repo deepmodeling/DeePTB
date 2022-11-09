@@ -11,8 +11,7 @@ install_requires=["numpy",
                   "scipy",
                   "spglib",
                   "matplotlib",
-                  "ase",
-                  "torchsort"]
+                  "ase"]
 
 def setup(scm=None):
     packages = find_packages()
