@@ -31,7 +31,7 @@ class InitDPTBModel(Plugin):
         self.mode = mode
         if mode == "from_scratch":
             self.init_from_scratch(**common_and_model_options)
-        elif mode =="init_model" or "mode" == "restart":
+        elif mode =="init_model" or mode == "restart":
             self.init_from_model(**common_and_model_options)
         else:
             log.info(msg="Haven't assign a initializing mode, training from scratch as default.")
@@ -105,9 +105,9 @@ class InitDPTBModel(Plugin):
         
         self.host.nntb = NNTB(proj_atomtype=proj_atomtype, env_net_config=env_net_config, 
                     bond_net_config=bond_net_config, onsite_net_config=onsite_net_config, **model_config, **model_config["dptb"])
+        self.host.nntb.tb_net.load_state_dict(ckpt["model_state_dict"])
         self.host.model = self.host.nntb.tb_net
         self.host.model_config = model_config
-        self.host.model.load_state_dict(ckpt["model_state_dict"])
         self.host.model.train()
 
     def init_correction_model(self, **options):
