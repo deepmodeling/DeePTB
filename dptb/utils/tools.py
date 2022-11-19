@@ -35,6 +35,55 @@ if TYPE_CHECKING:
     _ACTIVATION = Literal["relu", "relu6", "softplus", "sigmoid", "tanh", "gelu", "gelu_tf"]
     _PRECISION = Literal["default", "float16", "float32", "float64"]
 
+
+def flatten_dict(dictionary):
+    queue = list(dictionary.items())
+    f_dict = {}
+    while(len(queue)>0):
+        k, v = queue.pop()
+        if isinstance(v, dict) and len(v.items()) != 0:
+            for it in v.items():
+                queue.append((k+"-"+it[0], it[1]))
+        else:
+            f_dict.update({k:v})
+    
+    return f_dict
+
+def reconstruct_dict(dictionary):
+    queue = list(dictionary.items())
+    r_dict = {}
+    while(len(queue)>0):
+        k,v = queue.pop()
+        ks = k.split("-")
+        s_dict = r_dict
+        if len(ks) > 1:
+            for ik in ks[:-1]:
+                if not s_dict.get(ik, None):
+                    s_dict.update({ik:{}})
+                s_dict = s_dict[ik]
+        s_dict[ks[-1]] = v
+    
+    return r_dict
+
+def update_dict(temp_dict, update_dict, checklist):
+    '''
+        temp_dict: the dict that need to be update, and some of its value need to be checked in case of wrong update
+        update_dict: the dict used to update the templete dict
+    '''
+    flatten_temp_dict = flatten_dict(temp_dict)
+    flatten_update_dict = flatten_dict(update_dict)
+
+    for cid in checklist:
+        if flatten_update_dict.get(cid) != flatten_temp_dict.get(cid):
+            raise ValueError
+    
+    flatten_temp_dict.update(flatten_update_dict)
+    
+    return reconstruct_dict(flatten_temp_dict)
+
+
+
+
 def setup_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)

@@ -11,10 +11,11 @@ from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.loadparas import load_paras
 from dptb.utils.constants import dtype_dict
+from dptb.utils.argcheck import model_config_checklist
 from dptb.utils.tools import get_uniq_symbol, \
     get_lr_scheduler, get_uniq_bond_type, get_uniq_env_bond_type, \
     get_env_neuron_config, get_bond_neuron_config, get_onsite_neuron_config, \
-    get_optimizer, nnsk_correction, j_must_have
+    get_optimizer, nnsk_correction, j_must_have, update_dict
 
 log = logging.getLogger(__name__)
 
@@ -107,7 +108,8 @@ class InitDPTBModel(Plugin):
                     bond_net_config=bond_net_config, onsite_net_config=onsite_net_config, **model_config, **model_config["dptb"])
         self.host.nntb.tb_net.load_state_dict(ckpt["model_state_dict"])
         self.host.model = self.host.nntb.tb_net
-        self.host.model_config = model_config
+        
+        self.host.model_config = update_dict(temp_dict=model_config, update_dict=options, checklist=model_config_checklist)
         self.host.model.train()
 
     def init_correction_model(self, **options):

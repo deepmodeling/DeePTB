@@ -9,6 +9,8 @@ from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.loadparas import load_paras
 from dptb.utils.constants import dtype_dict
+from dptb.utils.tools import update_dict
+from dptb.utils.argcheck import model_config_checklist
 
 log = logging.getLogger(__name__)
 
@@ -152,7 +154,7 @@ class InitSKModel(Plugin):
             self.host.onsitestrain_fun = onsitestrain_fun
         
         model_config.update(common_and_model_and_run_options)
-        self.host.model_config = model_config
+        self.host.model_config = update_dict(temp_dict=model_config, update_dict=common_and_model_and_run_options, checklist=model_config_checklist)
         
         self.host.model.load_state_dict(state_dict)            
         self.host.model.train()
