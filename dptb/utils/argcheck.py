@@ -249,6 +249,7 @@ def loss_options():
     doc_gap_penalty = ""
     doc_fermi_band = ""
     doc_loss_gap_eta = ""
+    doc_eout_weight = ""
 
     args = [
         Argument("losstype", str, optional=True, doc=doc_losstype, default='l2eig_deig_sf'),
@@ -269,6 +270,7 @@ def loss_options():
         Argument("ref_gap_penalty", [bool, None], optional=True, doc=doc_gap_penalty, default=None),
         Argument("ref_fermi_band", [int, None], optional=True, doc=doc_fermi_band,default=None),
         Argument("ref_loss_gap_eta", [float, None], optional=True, doc=doc_loss_gap_eta, default=None),
+        Argument("eout_weight", float, optional=True, doc=doc_loss_gap_eta, default=0.),
     ]
 
     doc_loss_options = ""

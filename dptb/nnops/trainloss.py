@@ -39,7 +39,7 @@ class lossfunction(object):
 
         return loss
 
-    def l2eig_deig_sf(self, eig_pred, eig_label, num_el, strength=0.5, kmax=None, kmin=0, band_min=0, band_max=None, emax=None, emin=None, spin_deg=2, gap_penalty=False, fermi_band=0, eta=1e-2, **kwarg):
+    def l2eig_deig_sf(self, eig_pred, eig_label, num_el, strength=0.5, kmax=None, kmin=0, band_min=0, band_max=None, emax=None, emin=None, spin_deg=2, gap_penalty=False, fermi_band=0, eta=1e-2, eout_weight=0, **kwarg):
         norbs = eig_pred.shape[-1]
         nbanddft = eig_label.shape[-1]
         num_kp = eig_label.shape[-2]
@@ -101,7 +101,7 @@ class lossfunction(object):
             if th.any(mask_in).item():
                 loss = loss + self.criterion(eig_pred_soft.masked_select(mask_in), eig_label_soft.masked_select(mask_in))
             if th.any(mask_out).item():
-                loss = loss + 0.0001 * self.criterion(eig_pred_soft.masked_select(mask_out), eig_label_soft.masked_select(mask_out))
+                loss = loss + eout_weight * self.criterion(eig_pred_soft.masked_select(mask_out), eig_label_soft.masked_select(mask_out))
         else:
             loss = self.criterion(eig_pred_soft, eig_label_soft)
 
