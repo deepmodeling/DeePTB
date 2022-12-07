@@ -124,6 +124,7 @@
         "val_band_max": null,
         "ref_gap_penalty": null,
         "ref_fermi_band": null,
-        "ref_loss_gap_eta": null
+        "ref_loss_gap_eta": null,
+        "eout_weight": 0.0
     }
 }

@@ -73,8 +73,6 @@ class SKNet(nn.Module):
             for ia in self.onsite_num:
                 self.onsite_net.update({
                     ia: DirectNet(**onsite_config[ia])})
-
-
         
     def forward(self, mode: str):
         '''> The function takes in a list of skin types and a list of coefficients, and returns a dictionary of
