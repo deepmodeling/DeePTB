@@ -58,6 +58,8 @@ class HamilEig(RotationSK):
         
         if soc_lambdas is None:
             self.soc = False
+        else:
+            self.soc = True
 
         self.num_orbs_per_atom = []
         for itype in self.__struct__.proj_atom_symbols:
@@ -70,16 +72,16 @@ class HamilEig(RotationSK):
         if bonds_onsite is None:
             _, bonds_onsite = self.__struct__.get_bond()
 
-        soc_diag = torch.zeros_like((totalOrbs, totalOrbs), device=self.device, dtype=self.cdtype)
-        soc_up = torch.zeros_like((totalOrbs, totalOrbs), device=self.device, dtype=self.cdtype)
+        soc_upup = torch.zeros_like((totalOrbs, totalOrbs), device=self.device, dtype=self.cdtype)
+        soc_updown = torch.zeros_like((totalOrbs, totalOrbs), device=self.device, dtype=self.cdtype)
 
         # compute soc mat for each atom:
-        soc_atom_diag = self.__struct__.get("soc_atom_diag", {})
-        soc_atom_up = self.__struct__.get("soc_atom_up", {})
-        if not soc_atom_diag or not soc_atom_up:
+        soc_atom_upup = self.__struct__.get("soc_atom_diag", {})
+        soc_atom_updown = self.__struct__.get("soc_atom_up", {})
+        if not soc_atom_upup or not soc_atom_updown:
             for iatype in self.__struct__.proj_atomtype:
-                tmp_diag = torch.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[iatype]], dtype=self.cdtype, device=self.device)
-                tmp_up = torch.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[iatype]], dtype=self.cdtype, device=self.device)
+                tmp_upup = torch.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[iatype]], dtype=self.cdtype, device=self.device)
+                tmp_updown = torch.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[iatype]], dtype=self.cdtype, device=self.device)
 
                 ist = 0
                 for ish in self.__struct__.proj_atom_anglr_m[iatype]:
@@ -89,14 +91,14 @@ class HamilEig(RotationSK):
 
                     soc_orb = get_matrix_lmbasis(creat_basis_lm(ishsymbol, device=self.device, dtype=self.dtype))
 
-                    tmp_diag[ist:ist+norbi, ist:ist+norbi] = soc_orb[:norbi,:norbi]
-                    tmp_up[ist:ist+norbi, ist:ist+norbi] = soc_orb[:norbi, norbi:]
+                    tmp_upup[ist:ist+norbi, ist:ist+norbi] = soc_orb[:norbi,:norbi]
+                    tmp_updown[ist:ist+norbi, ist:ist+norbi] = soc_orb[:norbi, norbi:]
                     ist = ist + norbi
 
-                soc_atom_diag.update({iatype:tmp_diag})
-                soc_atom_up.update({iatype:tmp_up})
-            self.__struct__.soc_atom_diag = soc_atom_diag
-            self.__struct__.soc_atom_up = soc_atom_up
+                soc_atom_upup.update({iatype:tmp_upup})
+                soc_atom_updown.update({iatype:tmp_updown})
+            self.__struct__.soc_atom_upup = soc_atom_upup
+            self.__struct__.soc_atom_updown = soc_atom_updown
         
         for ib in range(len(bonds_onsite)):
             ibond = bonds_onsite[ib].astype(int)
@@ -115,10 +117,13 @@ class HamilEig(RotationSK):
                 lambdas[ist:ist+norbi] = self.soc_lambdas[ib][indx]
                 ist = ist + norbi
 
-            soc_diag[ist:ied,ist:ied] += soc_atom_diag[iatype] * torch.diag(lambdas)
-            soc_up[ist:ied, ist:ied] += soc_atom_up[iatype] * torch.diag(lambdas)
+            soc_upup[ist:ied,ist:ied] = soc_atom_upup[iatype] * torch.diag(lambdas)
+            soc_updown[ist:ied, ist:ied] = soc_atom_updown[iatype] * torch.diag(lambdas)
+        
+        soc_upup.contiguous()
+        soc_updown.contiguous()
 
-        return soc_diag, soc_up
+        return soc_upup, soc_updown
     
     def get_hs_onsite(self, bonds_onsite = None, onsite_envs=None):
         if bonds_onsite is None:
@@ -277,7 +282,7 @@ class HamilEig(RotationSK):
             onsiteS.extend(hoppingS)
             self.overlap_blocks = onsiteS
         if self.soc:
-            self.soc_diag, self.soc_up = self.get_soc_block(bonds_onsite=bonds_onsite)
+            self.soc_upup, self.soc_updown = self.get_soc_block(bonds_onsite=bonds_onsite)
 
         return True
 
@@ -347,10 +352,12 @@ class HamilEig(RotationSK):
             Hk[ik] = hk
         
         if self.soc:
-            Hk[:, :totalOrbs, :totalOrbs] += self.soc_diag.unsqueeze(0)
-            Hk[:, totalOrbs:, totalOrbs:] += self.soc_diag.conj().unsqueeze(0)
-            Hk[:, :totalOrbs, totalOrbs:] += self.soc_up.unsqueeze(0)
-            Hk[:, totalOrbs:, :totalOrbs] += self.soc_up.conj().unsqueeze(0)
+            Hk[:, :totalOrbs, :totalOrbs] += self.soc_upup.unsqueeze(0)
+            Hk[:, totalOrbs:, totalOrbs:] += self.soc_upup.conj().unsqueeze(0)
+            Hk[:, :totalOrbs, totalOrbs:] += self.soc_updown.unsqueeze(0)
+            Hk[:, totalOrbs:, :totalOrbs] += self.soc_updown.conj().unsqueeze(0)
+        
+        Hk.contiguous()
             
         return Hk
 

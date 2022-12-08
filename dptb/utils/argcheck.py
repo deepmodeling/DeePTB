@@ -169,10 +169,12 @@ def data_options():
 def sknetwork():
     doc_sk_hop_nhidden = ""
     doc_sk_onsite_nhidden = ""
+    doc_sk_soc_nhidden = ""
 
     args = [
         Argument("sk_hop_nhidden", int, optional=False, doc=doc_sk_hop_nhidden),
         Argument("sk_onsite_nhidden", int, optional=False, doc=doc_sk_onsite_nhidden),
+        Argument("sk_soc_nhidden", [int, None], optional=True, default=None, doc=doc_sk_soc_nhidden)
     ]
 
     doc_sknetwork = ""
@@ -183,9 +185,11 @@ def skfunction():
     doc_skformula = ""
     doc_sk_cutoff = ""
     doc_sk_decay_w = ""
+    doc_soc = ""
 
     args = [
         Argument("skformula", str, optional=True, default="varTang96", doc=doc_skformula),
+        Argument("soc", bool, optional=True, default=False, doc=doc_soc),
         Argument("sk_cutoff", float, optional=True, default=6.0, doc=doc_sk_cutoff),
         Argument("sk_decay_w", float, optional=True, default=0.1, doc=doc_sk_decay_w)
     ]

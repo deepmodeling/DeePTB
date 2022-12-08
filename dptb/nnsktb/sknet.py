@@ -18,7 +18,7 @@ class DirectNet(nn.Module):
 
 
 class SKNet(nn.Module):
-    def __init__(self, skint_types: list, onsite_num: dict, bond_neurons: dict, onsite_neurons: dict, device='cpu', dtype=torch.float32, onsitemode:str='none', onsiteint_types=False, **kwargs):
+    def __init__(self, skint_types: list, onsite_num: dict, bond_neurons: dict, onsite_neurons: dict, soc_neurons: dict, device='cpu', dtype=torch.float32, onsitemode:str='none', onsiteint_types=False, **kwargs):
         ''' define the nn.parameters for fittig sktb.
 
         Paras 
@@ -49,7 +49,7 @@ class SKNet(nn.Module):
             'nin': len(self.skint_types),
             'nhidden': bond_neurons.get('nhidden',1),
             'nout': bond_neurons.get('nout')}
-        self.bond_net = DirectNet(**bond_config)
+        self.bond_net = DirectNet(device=device, dtype=dtype, **bond_config)
         
         if self.onsitemode.lower() == 'none':
             pass
@@ -62,7 +62,7 @@ class SKNet(nn.Module):
                 'nout': bond_neurons.get('nout'),
                 'ini_std':0.1}
 
-            self.onsite_net = DirectNet(**onsite_config)
+            self.onsite_net = DirectNet(device=device, dtype=dtype, **onsite_config)
         else:
             onsite_config = {}
             for ia in self.onsite_num:
@@ -72,7 +72,19 @@ class SKNet(nn.Module):
             self.onsite_net = nn.ModuleDict({})
             for ia in self.onsite_num:
                 self.onsite_net.update({
-                    ia: DirectNet(**onsite_config[ia])})
+                    ia: DirectNet(device=device, dtype=dtype, **onsite_config[ia])})
+        
+        if soc_neurons:
+            soc_config = {}
+            for ia in self.onsite_num:
+                soc_config[ia] = {'nin':1, 'nhidden': onsite_neurons.get('nhidden',1),
+                    'nout': self.onsite_num[ia]}
+
+            self.soc_net = nn.ModuleDict({})
+            for ia in self.onsite_num:
+                self.onsite_net.update({
+                    ia: DirectNet(device=device, dtype=dtype, **soc_config[ia])})
+
         
     def forward(self, mode: str):
         '''> The function takes in a list of skin types and a list of coefficients, and returns a dictionary of
@@ -108,6 +120,12 @@ class SKNet(nn.Module):
             out = self.bond_net()
             self.hop_coeffdict = dict(zip(self.skint_types, out))
             return self.hop_coeffdict
+        elif mode == 'soc':
+            self.soc_value = {}
+            for ia in self.onsite_num:
+                out = self.soc_net[ia]()
+                self.soc_value[ia] = torch.reshape(out,[-1]) # {"N":[s, p, ...]}
+            return self.soc_value, None
 
         elif mode == 'onsite':
             if self.onsitemode.lower() == 'none':

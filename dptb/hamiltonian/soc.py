@@ -14,7 +14,7 @@ def creat_basis_lm(orb):
             for spin in [1,-1]:
                 basis.append([2,m,spin])
     if orb=='s':
-        print('we do not consider the soc in s orbital')
+        basis = None
     if orb=='f':
         print('for now, soc for f orbital is not added.')
         exit()
@@ -26,23 +26,26 @@ def get_matrix_lmbasis(basis, device='cpu', dtype=torch.float32):
     MatLpSm = torch.zeros([ndim,ndim], device=device, dtype=dtype)
     MatLmSp = torch.zeros([ndim,ndim], device=device, dtype=dtype)
     MatLzSz = torch.zeros([ndim,ndim], device=device, dtype=dtype)
-    for i in range(len(basis)):
-        raw = i
-        cof,bas = MapLpSm(basis[i])
-        if bas in basis:
-            col = basis.index(bas)
-            MatLpSm[raw,col] = cof
+    if basis == None:
+        LdotS = torch.zeros([2,2], device=device, dtype=dtype)
+    else:
+        for i in range(len(basis)):
+            raw = i
+            cof,bas = MapLpSm(basis[i])
+            if bas in basis:
+                col = basis.index(bas)
+                MatLpSm[raw,col] = cof
+                
+            cof,bas = MapLmSp(basis[i])
+            if bas in basis:
+                col = basis.index(bas)
+                MatLmSp[raw,col] = cof
             
-        cof,bas = MapLmSp(basis[i])
-        if bas in basis:
-            col = basis.index(bas)
-            MatLmSp[raw,col] = cof
-        
-        cof,bas = MapLzSz(basis[i])
-        if bas in basis:
-            col = basis.index(bas)
-            MatLzSz[raw,col] = cof
-    LdotS = 0.5*(MatLpSm + MatLmSp + MatLzSz)
+            cof,bas = MapLzSz(basis[i])
+            if bas in basis:
+                col = basis.index(bas)
+                MatLzSz[raw,col] = cof
+        LdotS = 0.5*(MatLpSm + MatLmSp + MatLzSz)
     return LdotS
 
 def MapLpSm(lms):
