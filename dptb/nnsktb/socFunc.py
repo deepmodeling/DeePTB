@@ -1,6 +1,6 @@
 import torch as th
 from dptb.utils.constants import atomic_num_dict_r
-from dptb.nnsktb.socDB import soc_database
+from dptb.nnsktb.socDB import soc_strength_database
 
 # define the function for output all the onsites Es for given i.
 
@@ -25,8 +25,8 @@ def loadSoc(soc_map: dict):
     atoms_types = list(soc_map.keys())
     soc_db = {}
     for ia in atoms_types:
-        assert ia in soc_database.keys(), f'{ia} is not in the onsite_energy_database. \n see the onsite_energy_database in dptb.nnsktb.onsiteDB.py.'
-        soc_energies = soc_database[ia]
+        assert ia in soc_strength_database.keys(), f'{ia} is not in the onsite_energy_database. \n see the onsite_energy_database in dptb.nnsktb.onsiteDB.py.'
+        soc_energies = soc_strength_database[ia]
         indeces = sum(list(soc_map[ia].values()),[])
         soc_db[ia] = th.zeros(len(indeces))
         for isk in soc_map[ia].keys():

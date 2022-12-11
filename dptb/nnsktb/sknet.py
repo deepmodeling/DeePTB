@@ -18,7 +18,7 @@ class DirectNet(nn.Module):
 
 
 class SKNet(nn.Module):
-    def __init__(self, skint_types: list, onsite_num: dict, bond_neurons: dict, onsite_neurons: dict, soc_neurons: dict, device='cpu', dtype=torch.float32, onsitemode:str='none', onsiteint_types=False, **kwargs):
+    def __init__(self, skint_types: list, onsite_num: dict, bond_neurons: dict, onsite_neurons: dict, soc_neurons: dict=None, device='cpu', dtype=torch.float32, onsitemode:str='none', onsiteint_types=False, **kwargs):
         ''' define the nn.parameters for fittig sktb.
 
         Paras 
@@ -74,7 +74,7 @@ class SKNet(nn.Module):
                 self.onsite_net.update({
                     ia: DirectNet(device=device, dtype=dtype, **onsite_config[ia])})
         
-        if soc_neurons:
+        if soc_neurons is not None:
             soc_config = {}
             for ia in self.onsite_num:
                 soc_config[ia] = {'nin':1, 'nhidden': onsite_neurons.get('nhidden',1),
