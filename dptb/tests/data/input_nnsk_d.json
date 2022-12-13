@@ -44,7 +44,8 @@
     "model_options": {
       "sknetwork":{
         "sk_hop_nhidden":50,
-        "sk_onsite_nhidden":50
+        "sk_onsite_nhidden":50,
+        "sk_soc_nhidden":50
       },
       "skfunction":{
         "skformula":"varTang96",

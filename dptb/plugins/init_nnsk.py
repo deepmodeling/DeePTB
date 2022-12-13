@@ -42,11 +42,11 @@ class InitSKModel(Plugin):
         dtype = common_and_model_options['dtype']
         num_hopping_hideen = common_and_model_options['sknetwork']['sk_hop_nhidden']
         num_onsite_hidden = common_and_model_options['sknetwork']['sk_onsite_nhidden']
-        num_soc_hidden = common_and_model_options['sknetwork']['num_soc_hidden']
+        num_soc_hidden = common_and_model_options['sknetwork']['sk_soc_nhidden']
         proj_atom_anglr_m = common_and_model_options['proj_atom_anglr_m']
         onsitemode = common_and_model_options['onsitemode']
         skformula = common_and_model_options['skfunction']['skformula']
-        soc = common_and_model_options['skfunction']["soc"]
+        soc = common_and_model_options["soc"]
         # ----------------------------------------------------------------------------------------------------------
         
         IndMap = Index_Mapings()
@@ -77,6 +77,8 @@ class InitSKModel(Plugin):
 
         if soc:
             soc_neurons = {"nhidden":num_soc_hidden}
+        else:
+            soc_neurons=None
 
         self.host.model = SKNet(skint_types=reducted_skint_types,
                                 onsite_num=onsite_num,
@@ -119,15 +121,27 @@ class InitSKModel(Plugin):
         proj_atom_anglr_m = common_and_model_and_run_options['proj_atom_anglr_m']
         onsitemode = common_and_model_and_run_options['onsitemode']
         skformula = common_and_model_and_run_options['skfunction']['skformula']
-        
+        soc = common_and_model_and_run_options['soc']
         # ----------------------------------------------------------------------------------------------------------
+        # Add warnings:
+        if soc:
+            if not 'soc' in model_config.keys():
+                log.warning('Warning, the model is non-soc. Transferring it into soc case.')
+            else:
+                if not model_config['soc']:
+                    log.warning('Warning, the model is non-soc. Transferring it into soc case.')
+
+        else:
+            if 'soc' in model_config.keys() and model_config['soc']:
+                log.warning('Warning, the model is with soc, but this run job soc is turned off. Transferring it into non-soc case.')
+                
         
         # load params from model_config
         assert skformula == model_config['skfunction'].get('skformula')        
         num_hopping_hideen = model_config['sknetwork']['sk_hop_nhidden']
         num_onsite_hidden = model_config['sknetwork']['sk_onsite_nhidden']
-        num_soc_hidden = model_config['sknetwork']['num_soc_hidden']
-        soc = model_config['skfunction']['soc']
+        if soc:
+            num_soc_hidden = model_config['sknetwork']['sk_soc_nhidden']
 
         IndMap = Index_Mapings()
         IndMap.update(proj_atom_anglr_m=proj_atom_anglr_m)
@@ -154,6 +168,8 @@ class InitSKModel(Plugin):
 
         if soc:
             soc_neurons = {"nhidden":num_soc_hidden}
+        else:
+            soc_neurons = None
 
         _, state_dict = load_paras(model_config=model_config, state_dict=ckpt['model_state_dict'], proj_atom_anglr_m=proj_atom_anglr_m, onsitemode=onsitemode)
 
@@ -166,6 +182,8 @@ class InitSKModel(Plugin):
                                    device=device,
                                    dtype=dtype,
                                    onsitemode=onsitemode,
+                                   # Onsiteint_types is a list of onsite integral types, which is used
+                                   # to determine the number of output neurons of the onsite network.
                                    onsiteint_types=reducted_onsiteint_types
                                    )
         self.host.onsite_fun = onsite_fun

@@ -19,6 +19,7 @@ def common_options():
     doc_proj_atom_anglr_m = ""
     doc_atomtype = ""
     doc_time_symm = ""
+    doc_soc = ""
 
     args = [
         Argument("onsite_cutoff", float, optional = False, doc = doc_onsite_cutoff),
@@ -31,7 +32,8 @@ def common_options():
         Argument("dtype", str, optional = True, default="float32", doc = doc_dtype),
         Argument("onsitemode", str, optional = True, default = "none", doc = doc_onsitemode),
         Argument("sk_file_path", str, optional = True, default="./", doc = doc_sk_file_path),
-        Argument("time_symm", bool, optional = True, default=True, doc = doc_time_symm)
+        Argument("time_symm", bool, optional = True, default=True, doc = doc_time_symm),
+        Argument("soc", bool, optional=True, default=False, doc=doc_soc)
     ]
 
     doc_common_options = ""
@@ -185,11 +187,9 @@ def skfunction():
     doc_skformula = ""
     doc_sk_cutoff = ""
     doc_sk_decay_w = ""
-    doc_soc = ""
 
     args = [
         Argument("skformula", str, optional=True, default="varTang96", doc=doc_skformula),
-        Argument("soc", bool, optional=True, default=False, doc=doc_soc),
         Argument("sk_cutoff", float, optional=True, default=6.0, doc=doc_sk_cutoff),
         Argument("sk_decay_w", float, optional=True, default=0.1, doc=doc_sk_decay_w)
     ]

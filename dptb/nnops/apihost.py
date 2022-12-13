@@ -27,6 +27,8 @@ class DPTBHost(PluginUser):
 
     
     def build(self):
+        if not 'soc' in self.model_config.keys():
+            self.model_config.update({'soc':False})
         self.call_plugins(queue_name='disposable', time=0, mode='init_model', **self.model_config)
         self.model_config.update({'use_correction':self.use_correction})
 
@@ -43,6 +45,8 @@ class NNSKHost(PluginUser):
         self.model_config = model_config        
         
     def build(self):
+        if not 'soc' in self.model_config.keys():
+            self.model_config.update({'soc':False})
         # ---------------------------       init network model        -----------------------
         self.call_plugins(queue_name='disposable', time=0, mode='init_model', **self.model_config)
         
