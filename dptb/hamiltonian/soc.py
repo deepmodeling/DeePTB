@@ -1,8 +1,24 @@
 import numpy as np
 import torch
 
-Cubic_Mag_Num_Dict = {'s':[0],'p':[],'d':[]}
-LM_Mag_Num_Dict ={'s' :[0], 'p':[-1, 0, 1], 'd':[-2, -1, 0, 1, 2]}
+# l=0,  m=0, s
+#
+#       m=-1, py
+# l=1,  m= 0, pz
+#       m= 1, px
+#
+#       m= -2, dxy 
+#       m= -1, dyz
+# l=2,  m=  0, dz2
+#       m=  1, dxz
+#       m=  2 dx2-y2
+
+# sktb 变换中轨道的顺序选择 m从小到大排列。see dptb.hamiltonian.transform_sk for more details.
+# 因此定义soc矩阵的 Cubic_Mag_Num_Dict 中每个角动量的轨道，也是按照m从小到大排序。
+# 值得注意的是这个排序只是一种约定，保持代码中一致就可以。
+
+Cubic_Mag_Num_Dict = {'s':[0], 'p':[-1, 0, 1], 'd':[-2, -1, 0, 1, 2]}
+LM_Mag_Num_Dict    = {'s':[0], 'p':[-1, 0, 1], 'd':[-2, -1, 0, 1, 2]}
 
 
 # magnetic quantum number
