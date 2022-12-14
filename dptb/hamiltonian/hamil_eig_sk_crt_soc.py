@@ -6,7 +6,7 @@ import re
 from dptb.hamiltonian.transform_sk import RotationSK
 from dptb.nnsktb.formula import SKFormula
 from dptb.utils.constants import anglrMId
-from dptb.hamiltonian.soc import creat_basis_lm, get_matrix_lmbasis
+from dptb.hamiltonian.soc import creat_basis_lm, get_soc_matrix_cubic_basis
 
 ''' Over use of different index system cause the symbols and type and index kind of object need to be recalculated in different 
 Class, this makes entanglement of classes difficult. Need to design an consistent index system to resolve.'''
@@ -80,8 +80,9 @@ class HamilEig(RotationSK):
         soc_atom_updown = self.__struct__.get("soc_atom_up", {})
         if not soc_atom_upup or not soc_atom_updown:
             for iatype in self.__struct__.proj_atomtype:
-                tmp_upup = torch.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[iatype]], dtype=self.cdtype, device=self.device)
-                tmp_updown = torch.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[iatype]], dtype=self.cdtype, device=self.device)
+                total_num_orbs_iatom= self.__struct__.proj_atomtype_norbs[iatype]
+                tmp_upup = torch.zeros([total_num_orbs_iatom, total_num_orbs_iatom], dtype=self.cdtype, device=self.device)
+                tmp_updown = torch.zeros([total_num_orbs_iatom, total_num_orbs_iatom], dtype=self.cdtype, device=self.device)
 
                 ist = 0
                 for ish in self.__struct__.proj_atom_anglr_m[iatype]:
@@ -89,8 +90,9 @@ class HamilEig(RotationSK):
                     shidi = anglrMId[ishsymbol]          # 0,1,2,...
                     norbi = 2*shidi + 1
 
-                    soc_orb = get_matrix_lmbasis(creat_basis_lm(ishsymbol, device=self.device, dtype=self.dtype))
-
+                    soc_orb = get_soc_matrix_cubic_basis(orbital=ishsymbol, device=self.device, dtype=self.dtype)
+                    if len(soc_orb) != 2*norbi:
+                        log.error(msg='The dimension of the soc_orb is not correct!')
                     tmp_upup[ist:ist+norbi, ist:ist+norbi] = soc_orb[:norbi,:norbi]
                     tmp_updown[ist:ist+norbi, ist:ist+norbi] = soc_orb[:norbi, norbi:]
                     ist = ist + norbi
@@ -112,6 +114,7 @@ class HamilEig(RotationSK):
             lambdas = torch.zeros((ied-ist,), device=self.device, dtype=self.dtype)
             for ish in self.__struct__.proj_atom_anglr_m[iatype]:
                 indx = self.__struct__.onsite_index_map[iatype][ish]
+                ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
                 shidi = anglrMId[ishsymbol]          # 0,1,2,...
                 norbi = 2*shidi + 1
                 lambdas[ist:ist+norbi] = self.soc_lambdas[ib][indx]

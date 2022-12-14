@@ -1,5 +1,8 @@
 import numpy as np
 import torch
+import logging
+
+log = logging.getLogger(__name__)
 
 # l=0,  m=0, s
 #
@@ -39,11 +42,18 @@ def lm2cubic_mat(cubic_mag_num, lm_mag_num, device='cpu', dtype=torch.float32):
     
     '''
     assert len(cubic_mag_num) in [1, 3, 5], "The number of magnetic_quantum_numbers must be 1, 3, 5"
-    assert len(lm_mag_num) in [1, 3, 5], "The number of magnetic_quantum_numbers must be 1, 3, 5"
+    assert len(lm_mag_num) == len(cubic_mag_num), "The number of lm_mag_nummust the same  as cubic_mag_num"
     
+    if dtype is torch.float32:
+        cdtype = torch.complex64
+    elif dtype is torch.float64:
+        cdtype = torch.complex128
+    else:
+        log.error(msg="the dtype is not supported! now only float64, float32 is supported!")
+
     t2 = torch.tensor(2.0)
     s2_1=1.0/torch.sqrt(t2)
-    M = torch.zeros([len(cubic_mag_num),len(cubic_mag_num)],device=device, dtype=torch.complex64)
+    M = torch.zeros([len(cubic_mag_num),len(cubic_mag_num)],device=device, dtype=cdtype)
 
 
     for i in range(len(cubic_mag_num)):
@@ -182,6 +192,14 @@ def get_soc_matrix_cubic_basis(orbital: str,cubic_mag_num=None, lm_mag_num=None,
         cubic_mag_num = Cubic_Mag_Num_Dict[orbital]
     if lm_mag_num is None:
         lm_mag_num = LM_Mag_Num_Dict[orbital]
+
+    if dtype is torch.float32:
+        cdtype = torch.complex64
+    elif dtype is torch.float64:
+        cdtype = torch.complex128
+    else:
+        log.error(msg="the dtype is not supported! now only float64, float32 is supported!")
+
     num_orb = {'s':1,'p':3,'d':5}
     assert len(cubic_mag_num)  == num_orb[orbital], "The number of magnetic_quantum_numbers is not correct!"
     assert len(lm_mag_num) == num_orb[orbital],  "The number of magnetic_quantum_numbers is not correct!"   
@@ -199,7 +217,7 @@ def get_soc_matrix_cubic_basis(orbital: str,cubic_mag_num=None, lm_mag_num=None,
     # 'transfor the spin basis form up down up down ... to up up ... down down...'
     norbs = len(cubic_mag_num)
     assert len(Msoc_cubic) == 2*norbs
-    Msoc_updn_block = torch.zeros([2*norbs,2*norbs],device=device,dtype=torch.complex64)
+    Msoc_updn_block = torch.zeros([2*norbs,2*norbs],device=device,dtype=cdtype)
     Msoc_updn_block[0    :  norbs,    0:  norbs] = Msoc_cubic[0:2*norbs:2,0:2*norbs:2]
     Msoc_updn_block[norbs:2*norbs,norbs:2*norbs] = Msoc_cubic[1:2*norbs:2,1:2*norbs:2]
     Msoc_updn_block[0    :  norbs,norbs:2*norbs] = Msoc_cubic[0:2*norbs:2,1:2*norbs:2]
