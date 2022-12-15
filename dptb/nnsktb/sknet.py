@@ -89,7 +89,7 @@ class SKNet(nn.Module):
 
             self.soc_net = nn.ModuleDict({})
             for ia in self.onsite_num:
-                self.onsite_net.update({
+                self.soc_net.update({
                     ia: DirectNet(device=device, dtype=dtype, **soc_config[ia])})
 
         

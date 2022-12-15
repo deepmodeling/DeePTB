@@ -24,8 +24,11 @@ class TestSKnet:
                     onsite_neurons=onsite_neurons, onsiteint_types=reducted_onsiteint_types, onsitemode='strain')
     
     soc_neurons = {'nhidden':6}
-    modelsoc = SKNet(skint_types=reducted_skint_types, onsite_num=onsite_num2, bond_neurons=bond_neurons, onsite_neurons=onsite_neurons, 
-                        soc_neurons=soc_neurons, onsiteint_types=reducted_onsiteint_types, onsitemode='soc')
+    modelstrainsoc = SKNet(skint_types=reducted_skint_types, onsite_num=onsite_num2, bond_neurons=bond_neurons, onsite_neurons=onsite_neurons, 
+                        soc_neurons=soc_neurons, onsiteint_types=reducted_onsiteint_types, onsitemode='strain')
+    modeluniformsoc = SKNet(skint_types=reducted_skint_types, onsite_num=onsite_num2, bond_neurons=bond_neurons, 
+                    onsite_neurons=onsite_neurons,soc_neurons=soc_neurons, onsitemode='uniform')
+
     def test_bond(self):
 
         paras = list(self.modeluniform.bond_net.parameters())
@@ -65,12 +68,45 @@ class TestSKnet:
             assert ikey in self.reducted_onsiteint_types
             assert coeff[ikey].shape == torch.Size([self.bond_neurons['nout']])
 
-    def test_onsite_soc(self):
+    def test_onsite_uniform_soc(self):
 
-        paras = list(self.modelsoc.onsite_net.parameters())
+        paras = list(self.modeluniformsoc.onsite_net.parameters())
         assert len(paras) == 4
-        for ia in self.onsite_num:
-            paras = list(self.modelsoc.onsite_net[ia].parameters())
+        for ia in self.onsite_num2:
+            paras = list(self.modeluniformsoc.onsite_net[ia].parameters())
+            assert len(paras) == 2
+            assert paras[0].shape == torch.Size([1, self.onsite_neurons['nhidden']])
+            assert paras[1].shape == torch.Size([self.onsite_neurons['nhidden'],self.onsite_num2[ia]])
+
+
+
+        paras = list(self.modeluniformsoc.soc_net.parameters())
+        assert len(paras) == 4
+        for ia in self.onsite_num2:
+            paras = list(self.modeluniformsoc.soc_net[ia].parameters())
             assert len(paras) == 2
             assert paras[0].shape == torch.Size([1, self.soc_neurons['nhidden']])
-            assert paras[1].shape == torch.Size([self.soc_neurons['nhidden'],self.onsite_num2[ia]])
+            assert paras[1].shape == torch.Size([self.soc_neurons['nhidden'], self.onsite_num2[ia]])
+    
+    def test_onsite_strain_soc(self):
+        
+        paras = list(self.modelstrainsoc.onsite_net.parameters())
+        assert len(paras) == 2
+        assert paras[0].shape == torch.Size([len(self.reducted_onsiteint_types), self.bond_neurons['nhidden']])
+        assert paras[1].shape == torch.Size([self.bond_neurons['nhidden'], self.bond_neurons['nout']])
+
+        _, coeff = self.modelstrainsoc(mode='onsite')
+        assert len(coeff) == len(self.reducted_onsiteint_types)
+ 
+        for ikey in coeff.keys():
+            assert ikey in self.reducted_onsiteint_types
+            assert coeff[ikey].shape == torch.Size([self.bond_neurons['nout']])
+
+
+        paras = list(self.modelstrainsoc.soc_net.parameters())
+        assert len(paras) == 4
+        for ia in self.onsite_num2:
+            paras = list(self.modelstrainsoc.soc_net[ia].parameters())
+            assert len(paras) == 2
+            assert paras[0].shape == torch.Size([1, self.soc_neurons['nhidden']])
+            assert paras[1].shape == torch.Size([self.soc_neurons['nhidden'], self.onsite_num2[ia]])
