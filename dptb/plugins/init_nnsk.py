@@ -171,7 +171,7 @@ class InitSKModel(Plugin):
         else:
             soc_neurons = None
 
-        _, state_dict = load_paras(model_config=model_config, state_dict=ckpt['model_state_dict'], proj_atom_anglr_m=proj_atom_anglr_m, onsitemode=onsitemode)
+        _, state_dict = load_paras(model_config=model_config, state_dict=ckpt['model_state_dict'], proj_atom_anglr_m=proj_atom_anglr_m, onsitemode=onsitemode, soc=soc)
 
         
         self.host.model = SKNet(skint_types=reducted_skint_types,

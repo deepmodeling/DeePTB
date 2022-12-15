@@ -4,7 +4,7 @@ import torch
 
 eps = 1.0E-5
 
-def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none'):
+def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none', soc=False):
   
     indmap = Index_Mapings()
     indmap.update(proj_atom_anglr_m=proj_atom_anglr_m)
@@ -23,6 +23,10 @@ def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none
     if model_config["onsitemode"] == "strain":
         all_onsiteint_types_dcit_ckpt, reducted_onsiteint_types_ckpt, onsite_strain_ind_dict_ckpt = all_onsite_intgrl_types(onsite_strain_index_map_ckpt)
     
+    if 'soc' not in model_config:
+        model_soc = False
+    else:
+        model_soc =  model_config['soc']
 
     nhidden = model_config['sknetwork']['sk_hop_nhidden']
     layer1 = torch.randn([len(reducted_skint_types),nhidden]) * eps
@@ -75,8 +79,27 @@ def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none
     else:
         raise ValueError('Unknown onsitemode.')
     
+    if soc:
+        assert onsitemode != 'split', 'Soc doesnot suport the onsite split mode!'
+        for i in onsite_num.keys(): 
+            layer1 = torch.randn([1,onsite_nhidden]) * eps
+            layer2 = torch.randn([onsite_nhidden,onsite_num[i]]) * eps
+            if model_soc:
+                if f'soc_net.{i}.layer2' in  state_dict:
+                    assert  onsite_nhidden == state_dict[f'soc_net.{i}.layer2'].shape[0]
+                    for orb in onsite_index_map[i].keys():
+                        if (orb in onsite_index_map_ckpt[i]):
+                            layer2[:,onsite_index_map[i][orb]] = \
+                                state_dict[f'soc_net.{i}.layer2'][:,onsite_index_map_ckpt[i][orb]]
+                if f'soc_net.{i}.layer1' in  state_dict:
+                    layer1 = state_dict[f'soc_net.{i}.layer1']
+
+            state_dict[f'soc_net.{i}.layer2'] = layer2
+            state_dict[f'soc_net.{i}.layer1'] = layer1
+
     model_config.update({"proj_atom_anglr_m":proj_atom_anglr_m,
                             "skint_types":reducted_skint_types,
-                            "onsite_num":onsite_num})
+                            "onsite_num":onsite_num,
+                            "soc":soc})
 
     return model_config, state_dict
