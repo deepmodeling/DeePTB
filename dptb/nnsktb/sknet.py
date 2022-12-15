@@ -18,20 +18,26 @@ class DirectNet(nn.Module):
 
 
 class SKNet(nn.Module):
-    def __init__(self, skint_types: list, onsite_num: dict, bond_neurons: dict, onsite_neurons: dict, soc_neurons: dict=None, device='cpu', dtype=torch.float32, onsitemode:str='none', onsiteint_types=False, **kwargs):
+    def __init__(self, skint_types: list, onsite_num: dict, bond_neurons: dict, onsite_neurons: dict, soc_neurons: dict=None, 
+                        onsitemode:str='none', onsiteint_types=False, device='cpu', dtype=torch.float32, **kwargs):
         ''' define the nn.parameters for fittig sktb.
 
         Paras 
         -----
         skint_types: 
             the keys for sk integrals, like, ['N-N-2s-2p-sigma','N-N-2p-2p-pi',...]
-        onsite_num: dict
-            {'N':4,'B':4}
+
+        onsite_num:  check the utils/index_mapping.py docstrings for details.
+            {'N':int,'B':int}
         
         bond_neurons: dict
             {'nhidden':int, 'nout':int}
+        # Note: nout 是拟合公式中的待定参数。比如varTang96 formula nout = 4. 
 
         onsite_neurons:dict
+            {'nhidden':int}
+
+        soc_neurons: dict
             {'nhidden':int}
         
         '''
@@ -61,6 +67,7 @@ class SKNet(nn.Module):
                 'nhidden': bond_neurons.get('nhidden',1),
                 'nout': bond_neurons.get('nout'),
                 'ini_std':0.1}
+            # Note: 这里onsite integral 选取和bond integral一样的公式，因此是相同的 nout.
 
             self.onsite_net = DirectNet(device=device, dtype=dtype, **onsite_config)
         else:
@@ -77,7 +84,7 @@ class SKNet(nn.Module):
         if soc_neurons is not None:
             soc_config = {}
             for ia in self.onsite_num:
-                soc_config[ia] = {'nin':1, 'nhidden': onsite_neurons.get('nhidden',1),
+                soc_config[ia] = {'nin':1, 'nhidden': soc_neurons.get('nhidden',1),
                     'nout': self.onsite_num[ia]}
 
             self.soc_net = nn.ModuleDict({})
