@@ -6,6 +6,7 @@ import re
 from dptb.hamiltonian.transform_sk import RotationSK
 from dptb.nnsktb.formula import SKFormula
 from dptb.utils.constants import anglrMId
+from dptb.hamiltonian.soc import creat_basis_lm, get_soc_matrix_cubic_basis
 
 ''' Over use of different index system cause the symbols and type and index kind of object need to be recalculated in different 
 Class, this makes entanglement of classes difficult. Need to design an consistent index system to resolve.'''
@@ -27,7 +28,7 @@ class HamilEig(RotationSK):
         self.overlap_blocks = None
         self.device = device
 
-    def update_hs_list(self, struct, hoppings, onsiteEs, onsiteVs=None, overlaps=None, onsiteSs=None, **options):
+    def update_hs_list(self, struct, hoppings, onsiteEs, onsiteVs=None, overlaps=None, onsiteSs=None, soc_lambdas=None, **options):
         '''It updates the bond structure, bond type, bond type id, bond hopping, bond onsite, hopping, onsite
         energy, overlap, and onsite spin
         
@@ -46,6 +47,7 @@ class HamilEig(RotationSK):
         self.hoppings = hoppings
         self.onsiteEs = onsiteEs
         self.onsiteVs = onsiteVs
+        self.soc_lambdas = soc_lambdas
         self.use_orthogonal_basis = False
         if overlaps is None:
             self.use_orthogonal_basis = True
@@ -53,11 +55,78 @@ class HamilEig(RotationSK):
             self.overlaps = overlaps
             self.onsiteSs = onsiteSs
             self.use_orthogonal_basis = False
+        
+        if soc_lambdas is None:
+            self.soc = False
+        else:
+            self.soc = True
 
         self.num_orbs_per_atom = []
         for itype in self.__struct__.proj_atom_symbols:
             norbs = self.__struct__.proj_atomtype_norbs[itype]
             self.num_orbs_per_atom.append(norbs)
+
+    def get_soc_block(self, bonds_onsite = None):
+        numOrbs = np.array(self.num_orbs_per_atom)
+        totalOrbs = np.sum(numOrbs)
+        if bonds_onsite is None:
+            _, bonds_onsite = self.__struct__.get_bond()
+
+        soc_upup = torch.zeros_like((totalOrbs, totalOrbs), device=self.device, dtype=self.cdtype)
+        soc_updown = torch.zeros_like((totalOrbs, totalOrbs), device=self.device, dtype=self.cdtype)
+
+        # compute soc mat for each atom:
+        soc_atom_upup = self.__struct__.get("soc_atom_diag", {})
+        soc_atom_updown = self.__struct__.get("soc_atom_up", {})
+        if not soc_atom_upup or not soc_atom_updown:
+            for iatype in self.__struct__.proj_atomtype:
+                total_num_orbs_iatom= self.__struct__.proj_atomtype_norbs[iatype]
+                tmp_upup = torch.zeros([total_num_orbs_iatom, total_num_orbs_iatom], dtype=self.cdtype, device=self.device)
+                tmp_updown = torch.zeros([total_num_orbs_iatom, total_num_orbs_iatom], dtype=self.cdtype, device=self.device)
+
+                ist = 0
+                for ish in self.__struct__.proj_atom_anglr_m[iatype]:
+                    ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
+                    shidi = anglrMId[ishsymbol]          # 0,1,2,...
+                    norbi = 2*shidi + 1
+
+                    soc_orb = get_soc_matrix_cubic_basis(orbital=ishsymbol, device=self.device, dtype=self.dtype)
+                    if len(soc_orb) != 2*norbi:
+                        log.error(msg='The dimension of the soc_orb is not correct!')
+                    tmp_upup[ist:ist+norbi, ist:ist+norbi] = soc_orb[:norbi,:norbi]
+                    tmp_updown[ist:ist+norbi, ist:ist+norbi] = soc_orb[:norbi, norbi:]
+                    ist = ist + norbi
+
+                soc_atom_upup.update({iatype:tmp_upup})
+                soc_atom_updown.update({iatype:tmp_updown})
+            self.__struct__.soc_atom_upup = soc_atom_upup
+            self.__struct__.soc_atom_updown = soc_atom_updown
+        
+        for ib in range(len(bonds_onsite)):
+            ibond = bonds_onsite[ib].astype(int)
+            iatom = ibond[1]
+            ist = int(np.sum(numOrbs[0:iatom]))
+            ied = int(np.sum(numOrbs[0:iatom+1]))
+            iatype = self.__struct__.proj_atom_symbols[iatom]
+
+            # get lambdas
+            ist = 0
+            lambdas = torch.zeros((ied-ist,), device=self.device, dtype=self.dtype)
+            for ish in self.__struct__.proj_atom_anglr_m[iatype]:
+                indx = self.__struct__.onsite_index_map[iatype][ish]
+                ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
+                shidi = anglrMId[ishsymbol]          # 0,1,2,...
+                norbi = 2*shidi + 1
+                lambdas[ist:ist+norbi] = self.soc_lambdas[ib][indx]
+                ist = ist + norbi
+
+            soc_upup[ist:ied,ist:ied] = soc_atom_upup[iatype] * torch.diag(lambdas)
+            soc_updown[ist:ied, ist:ied] = soc_atom_updown[iatype] * torch.diag(lambdas)
+        
+        soc_upup.contiguous()
+        soc_updown.contiguous()
+
+        return soc_upup, soc_updown
     
     def get_hs_onsite(self, bonds_onsite = None, onsite_envs=None):
         if bonds_onsite is None:
@@ -74,7 +143,7 @@ class HamilEig(RotationSK):
             iatom = ibond[1]
             iatom_to_onsite_index.update({iatom:ib})
             jatom = ibond[3]
-            iatype = self.__struct__.proj_atom_symbols[ibond[1]]
+            iatype = self.__struct__.proj_atom_symbols[iatom]
             jatype = self.__struct__.proj_atom_symbols[jatom]
             assert iatype == jatype, "i type should equal j type."
 
@@ -215,6 +284,8 @@ class HamilEig(RotationSK):
         if not self.use_orthogonal_basis:
             onsiteS.extend(hoppingS)
             self.overlap_blocks = onsiteS
+        if self.soc:
+            self.soc_upup, self.soc_updown = self.get_soc_block(bonds_onsite=bonds_onsite)
 
         return True
 
@@ -247,7 +318,10 @@ class HamilEig(RotationSK):
         else:
             print("HorS should be 'H' or 'S' !")
 
-        Hk = th.zeros([len(kpoints), totalOrbs, totalOrbs], dtype = self.cdtype, device=self.device)
+        if self.soc:
+            Hk = th.zeros([len(kpoints), 2*totalOrbs, 2*totalOrbs], dtype = self.cdtype, device=self.device)
+        else:
+            Hk = th.zeros([len(kpoints), totalOrbs, totalOrbs], dtype = self.cdtype, device=self.device)
 
         for ik in range(len(kpoints)):
             k = kpoints[ik]
@@ -269,14 +343,25 @@ class HamilEig(RotationSK):
                     for case 2. no need to do H = H+H^dagger. since the matrix is already full.
                     """
                     if time_symm:
-                        hk[ist:ied,jst:jed] += 0.5 * hijAll[ib] * np.exp(-1j * 2 * np.pi* np.dot(k,Rlatt)) 
+                        hk[ist:ied,jst:jed] += 0.5 * hijAll[ib] * np.exp(-1j * 2 * np.pi* np.dot(k,Rlatt))
                     else:
                         hk[ist:ied,jst:jed] += hijAll[ib] * np.exp(-1j * 2 * np.pi* np.dot(k,Rlatt)) 
                 else:
                     hk[ist:ied,jst:jed] += hijAll[ib] * np.exp(-1j * 2 * np.pi* np.dot(k,Rlatt)) 
             if time_symm:
                 hk = hk + hk.T.conj()
+            if self.soc:
+                hk = torch.kron(A=torch.eye(2, device=self.device, dtype=self.dtype), B=hk)
             Hk[ik] = hk
+        
+        if self.soc:
+            Hk[:, :totalOrbs, :totalOrbs] += self.soc_upup.unsqueeze(0)
+            Hk[:, totalOrbs:, totalOrbs:] += self.soc_upup.conj().unsqueeze(0)
+            Hk[:, :totalOrbs, totalOrbs:] += self.soc_updown.unsqueeze(0)
+            Hk[:, totalOrbs:, :totalOrbs] += self.soc_updown.conj().unsqueeze(0)
+        
+        Hk.contiguous()
+            
         return Hk
 
     def Eigenvalues(self, kpoints, time_symm=True):

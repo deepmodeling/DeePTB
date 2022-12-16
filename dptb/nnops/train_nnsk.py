@@ -5,7 +5,6 @@ from dptb.nnops.base_trainer import Trainer
 from dptb.utils.tools import get_uniq_symbol, \
     get_lr_scheduler, get_optimizer, j_must_have
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
-from dptb.nnsktb.onsiteFunc import loadOnsite
 from dptb.nnops.trainloss import lossfunction
 
 log = logging.getLogger(__name__)
@@ -118,7 +117,7 @@ class NNSKTrainer(Trainer):
             batch_onsiteVs = self.onsitestrain_fun.get_skhops(batch_bonds=batch_onsitenvs, coeff_paras=onsite_coeffdict)
 
         if self.soc:
-            nn_soc_lambdas, _ = self.model(mode='onsite')
+            nn_soc_lambdas, _ = self.model(mode='soc')
             batch_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_onsiteE=nn_soc_lambdas)
 
         # call sktb to get the sktb hoppings and onsites
