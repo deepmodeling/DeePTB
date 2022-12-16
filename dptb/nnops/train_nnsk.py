@@ -136,7 +136,7 @@ class NNSKTrainer(Trainer):
                 # call hamiltonian block
 
             if self.soc:
-                soc_lambdas = batch_onsiteVs[ii]
+                soc_lambdas = batch_soc_lambdas[ii]
             else:
                 soc_lambdas = None
 
