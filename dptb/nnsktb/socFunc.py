@@ -10,15 +10,12 @@ def loadSoc(soc_map: dict):
 
     Parameters:
     -----------
-        soc_map: dict, has two possible format.
-            -1. {'N': {'2s': [0], '2p': [1]}, 'B': {'2s': [0], '2p': [1]}}
-            -2. {'N': {'2s': [0], '2p': [1,2,3]}, 'B': {'2s': [0], '2p': [1,2,3]}}
-    
+        soc_map: dict, only support the onsite mode tobe uniform and strain.
+            {'N': {'2s': [0], '2p': [1]}, 'B': {'2s': [0], '2p': [1]}}    
     Returns:
     --------
         soc_db: dict, the format follows the input onsite_map, e.g.:
-            -1. {'N':tensor[es,ep], 'B': tensor[es,ep]}
-            -2. {'N':tensor[es,ep1,ep2,ep3], 'B': tensor[es,ep1,ep2,ep3]}
+            {'N':tensor[lamba_s,lambda_p], 'B': tensor[lambda_s, lambda_p]}
 
     """
 
@@ -44,7 +41,7 @@ def socFunc(batch_bonds_onsite, soc_db: dict, nn_soc: dict=None):
             e.g.:  dict(f: [[f, 7, 0, 7, 0, 0, 0, 0],
                             [f, 5, 1, 5, 1, 0, 0, 0]])
         onsite_db: dict from function loadOnsite
-            e.g.: {'N':tensor[es,ep], 'B': tensor[es,ep]} or {'N':tensor[es,ep1,ep2,ep3], 'B': tensor[es,ep1,ep2,ep3]}
+            e.g.: {'N':tensor[lamba_s, lambda_p], 'B': tensor[lambda_s,lambda_p]}
     
     Return:
     ------
