@@ -199,6 +199,7 @@ def skfunction():
     return Argument("skfunction", dict, optional=True, sub_fields=args, sub_variants=[], default={}, doc=doc_skfunction)
 
 def dptb():
+    doc_soc_env = "button that allow environmental correction for soc parameters, used only when soc is open"
     doc_axis_neuron = ""
     doc_onsite_net_neuron = ""
     doc_env_net_neuron = ""
@@ -212,8 +213,10 @@ def dptb():
     doc_if_batch_normalized = ""
 
     args = [
+        Argument("soc_env", bool, optional=True, default=False, doc=doc_soc_env),
         Argument("axis_neuron", int, optional=True, default=10, doc=doc_axis_neuron),
         Argument("onsite_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_onsite_net_neuron),
+        Argument("soc_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_onsite_net_neuron),
         Argument("env_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_env_net_neuron),
         Argument("bond_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_bond_net_neuron),
         Argument("onsite_net_activation", str, optional=True, default="tanh", doc=doc_onsite_net_activation),

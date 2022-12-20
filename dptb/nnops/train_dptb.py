@@ -44,6 +44,7 @@ class DPTBTrainer(Trainer):
         self.proj_atom_neles = common_options.get('proj_atom_neles')
         self.onsitemode = common_options.get('onsitemode','none')
         self.atomtype = common_options["atomtype"]
+        self.soc = common_options['soc']
         self.proj_atomtype = get_uniq_symbol(list(self.proj_atom_anglr_m.keys()))
 
         self.band_min = loss_options.get('band_min', 0)
@@ -116,7 +117,7 @@ class DPTBTrainer(Trainer):
         assert len(kpoints.shape) == 2, "kpoints should have shape of [num_kp, 3]."
 
         batch_bond_hoppings, batch_hoppings, \
-        batch_bond_onsites, batch_onsiteEs = self.nntb.calc(batch_bond, batch_env)
+        batch_bond_onsites, batch_onsiteEs, batch_soc_lambdas = self.nntb.calc(batch_bond, batch_env)
 
         if self.run_opt.get("use_correction", False):
             coeffdict = self.sknet(mode='hopping')
@@ -128,7 +129,10 @@ class DPTBTrainer(Trainer):
             
             if self.onsitemode == "strain":
                 batch_nnsk_onsiteVs = self.onsitestrain_fun.get_skhops(batch_bonds=batch_onsitenvs, coeff_paras=onsite_coeffdict)
-            
+            if self.soc:
+                nnsk_soc_lambdas, _ = self.sknet(mode="soc")
+                batch_nnsk_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_onsiteE=nnsk_soc_lambdas)
+
         # ToDo: Advance the correction process before onsite_fun and hops_fun
         # call sktb to get the sktb hoppings and onsites
         eigenvalues_pred = []
@@ -138,16 +142,28 @@ class DPTBTrainer(Trainer):
         for ii in range(len(structs)):
             if not self.run_opt.get("use_correction", False):
                 onsiteEs, hoppings = batch_onsiteEs[ii], batch_hoppings[ii]
-                
+                soc_lambdas = None
             else:
-                onsiteEs, hoppings, _, _ = nnsk_correction(nn_onsiteEs=batch_onsiteEs[ii], nn_hoppings=batch_hoppings[ii],
+                if self.soc and self.model_options["dptb"]["env_soc"]:
+                    nn_soc_lambdas = batch_soc_lambdas[ii]
+                else:
+                    nn_soc_lambdas = None
+                if self.soc:
+                    sk_soc_lambdas = batch_nnsk_soc_lambdas[ii]
+                else:
+                    sk_soc_lambdas = None
+
+                onsiteEs, hoppings, _, _, soc_lambdas = nnsk_correction(nn_onsiteEs=batch_onsiteEs[ii], nn_hoppings=batch_hoppings[ii],
                                     sk_onsiteEs=batch_nnsk_onsiteEs[ii], sk_hoppings=batch_nnsk_hoppings[ii],
-                                    sk_onsiteSs=None, sk_overlaps=None)
+                                    sk_onsiteSs=None, sk_overlaps=None, 
+                                    nn_soc_lambdas=nn_soc_lambdas, 
+                                    sk_soc_lambdas=sk_soc_lambdas)
+
                 if self.onsitemode == "strain":
                     onsiteVs = batch_nnsk_onsiteVs[ii]
                     onsitenvs = np.asarray(batch_onsitenvs[ii][:,1:])
             # call hamiltonian block
-            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs)
+            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
             self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
                                         bonds_hoppings=np.asarray(batch_bond_hoppings[ii][:,1:]),
                                         onsite_envs=onsitenvs)

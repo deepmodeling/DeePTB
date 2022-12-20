@@ -20,9 +20,12 @@ class NNTB(object):
                  onsite_net_activation,
                  env_net_activation,
                  bond_net_activation,
+                 soc_net_config=None,
+                 soc_net_activation=None,
                  onsite_net_type='res',
                  env_net_type='res',
                  bond_net_type='res',
+                 soc_net_type='res',
                  device='cpu',
                  dtype="float32",
                  if_batch_normalized=False,
@@ -30,7 +33,6 @@ class NNTB(object):
                  ):
         
         self.dtype = dtype
-
         self.tb_net = TBNet(
                  proj_atomtype,
                  atomtype,
@@ -40,14 +42,21 @@ class NNTB(object):
                  onsite_net_activation,
                  env_net_activation,
                  bond_net_activation,
+                 soc_net_config=soc_net_config,
+                 soc_net_activation=soc_net_activation,
                  onsite_net_type=onsite_net_type,
                  env_net_type=env_net_type,
                  bond_net_type=bond_net_type,
+                 soc_net_type=soc_net_type,
                  if_batch_normalized=if_batch_normalized,
                  device=device,
                  dtype=self.dtype
                  )
 
+        if soc_net_config:
+            self.soc = True
+        else:
+            self.soc = False
         
         self.device = device
         self.axis_neuron = axis_neuron
@@ -212,6 +221,7 @@ class NNTB(object):
         # [f,itype,i,emb_fi]
         # batched_dcp = torch.stack(list(batched_dcp))
         dcp_at = {}
+        soc_at = {}
         for item in list(batched_dcp.values()):
             iatomtype = atomic_num_dict_r[int(item[1])]
             if dcp_at.get(iatomtype) is None:
@@ -222,8 +232,11 @@ class NNTB(object):
         for atype in dcp_at:
             emb = torch.stack(dcp_at[atype])
             onsite = self.tb_net(emb, flag=atype, mode='onsite')
+            if self.soc:
+                soc = self.tb_net(emb, flag=atype, mode='soc')
 
             dcp_at[atype] = onsite
+            soc_at[atype] = soc
 
         # rearrange to the output shape
         batch_onsiteEs, batch_bond_onsites = {}, {}
@@ -238,9 +251,24 @@ class NNTB(object):
                     batch_onsiteEs[f] = [ion[3:]]
                     batch_bond_onsites[f] = [torch.tensor([f, ion[1], ion[2], ion[1], ion[2], 0, 0, 0, 0, 0, 0, 0],
                                                         dtype=self.dtype, device=self.device).int()]
+        batch_soc_lambdas = {}
+        if self.soc:
+            for ions in list(soc_at.values()):
+                for ion in ions:
+                    f = int(ion[0])
+                    if batch_soc_lambdas.get(f) is not None:
+                        batch_soc_lambdas[f].append(ion[3:])
+                    else:
+                        batch_soc_lambdas[f] = [ion[3:]]
+            
+
         for f in batch_bond_onsites.keys():
             batch_bond_onsites[f] = torch.stack(batch_bond_onsites[f])
-        return batch_bond_onsites, batch_onsiteEs
+        
+        if self.soc:
+            return batch_bond_onsites, batch_onsiteEs, batch_soc_lambdas
+        else:
+            return batch_bond_onsites, batch_onsiteEs, None
 
     def calc(self, batch_bond, batch_env):
         '''
@@ -249,9 +277,9 @@ class NNTB(object):
 
         batched_dcp = self.get_desciptor(batch_env)
         batch_bond_hoppings, batch_hoppings = self.hopping(batched_dcp=batched_dcp, batch_bond=batch_bond)
-        batch_bond_onsites, batch_onsiteEs = self.onsite(batched_dcp=batched_dcp)
-
-        return batch_bond_hoppings, batch_hoppings, batch_bond_onsites, batch_onsiteEs
+        
+        batch_bond_onsites, batch_onsiteEs, batch_soc_lambdas = self.onsite(batched_dcp=batched_dcp)
+        return batch_bond_hoppings, batch_hoppings, batch_bond_onsites, batch_onsiteEs, batch_soc_lambdas
 
 
 

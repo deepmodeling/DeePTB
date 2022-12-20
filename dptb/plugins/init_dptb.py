@@ -6,6 +6,7 @@ import logging
 from dptb.nnet.nntb import NNTB
 from dptb.nnsktb.sknet import SKNet
 from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
+from dptb.nnsktb.socFunc import socFunc, loadSoc
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
 from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.integralFunc import SKintHops
@@ -42,7 +43,14 @@ class InitDPTBModel(Plugin):
             self.init_correction_model(use_correction=use_correction, **common_and_model_options)
     
     def init_from_scratch(self, **options):
+        soc_env = options["dptb"]["soc_env"]
+        if soc_env:
+            assert options["soc"]
+        # soc switch on the soc function
+        # soc env switch on the env correction of soc parameters
+        # init dptb only need to consider whether includes env soc
         env_nnl = options["dptb"]['env_net_neuron']
+        soc_nnl = options["dptb"]['soc_net_neuron']
         env_axisnn = options["dptb"]['axis_neuron']
         onsite_nnl = options["dptb"]['onsite_net_neuron']
         bond_nnl = options["dptb"]['bond_net_neuron']
@@ -65,8 +73,13 @@ class InitDPTBModel(Plugin):
                                                         env_nnl[-1])
         bond_net_config = get_bond_neuron_config(bond_nnl, bond_num_hops, bond_type, env_axisnn,
                                                     env_nnl[-1])
-    
-        self.host.nntb = NNTB(proj_atomtype=proj_atomtype, env_net_config=env_net_config, 
+        if soc_env:
+            # here the number of soc should equals to numbers of onsite E, so onsite_num can reused?
+            soc_net_config = get_onsite_neuron_config(soc_nnl, onsite_num, proj_atomtype, env_axisnn,
+                                                            env_nnl[-1])
+        else:
+            soc_net_config = None
+        self.host.nntb = NNTB(proj_atomtype=proj_atomtype, soc_net_config=soc_net_config, env_net_config=env_net_config, 
                     bond_net_config=bond_net_config, onsite_net_config=onsite_net_config, **options, **options["dptb"])
         self.host.model = self.host.nntb.tb_net
         self.host.model_config = options
@@ -78,10 +91,14 @@ class InitDPTBModel(Plugin):
         elif self.mode == "restart":
             checkpoint = options["restart"]
         ckpt = torch.load(checkpoint)
+        soc_env = options["dptb"]["soc_env"]
+        if soc_env:
+            assert options["soc"]
         model_config = ckpt["model_config"]
         model_config["dtype"] = dtype_dict[model_config["dtype"]]
 
         env_nnl = model_config["dptb"]['env_net_neuron']
+        soc_nnl = model_config["dptb"]['soc_net_neuron']
         env_axisnn = model_config["dptb"]['axis_neuron']
         onsite_nnl = model_config["dptb"]['onsite_net_neuron']
         bond_nnl = model_config["dptb"]['bond_net_neuron']
@@ -103,9 +120,15 @@ class InitDPTBModel(Plugin):
                                                         env_nnl[-1])
         bond_net_config = get_bond_neuron_config(bond_nnl, bond_num_hops, bond_type, env_axisnn,
                                                     env_nnl[-1])
+        if soc_env:
+            soc_net_config = get_onsite_neuron_config(soc_nnl, onsite_num, proj_atomtype, env_axisnn,
+                                                            env_nnl[-1])
+        else:
+            soc_net_config = None
         
         self.host.nntb = NNTB(proj_atomtype=proj_atomtype, env_net_config=env_net_config, 
-                    bond_net_config=bond_net_config, onsite_net_config=onsite_net_config, **model_config, **model_config["dptb"])
+                    bond_net_config=bond_net_config, soc_net_config=soc_net_config, 
+                    onsite_net_config=onsite_net_config, **model_config, **model_config["dptb"])
         self.host.nntb.tb_net.load_state_dict(ckpt["model_state_dict"])
         self.host.model = self.host.nntb.tb_net
         
@@ -115,6 +138,18 @@ class InitDPTBModel(Plugin):
     def init_correction_model(self, **options):
         ckpt = torch.load(options["use_correction"])
         model_config = ckpt["model_config"]
+        soc = options["soc"]
+
+        if soc:
+            if not 'soc' in model_config.keys():
+                log.warning('Warning, the model is non-soc. Transferring it into soc case.')
+            else:
+                if not model_config['soc']:
+                    log.warning('Warning, the model is non-soc. Transferring it into soc case.')
+
+        else:
+            if 'soc' in model_config.keys() and model_config['soc']:
+                log.warning('Warning, the model is with soc, but this run job soc is turned off. Transferring it into non-soc case.')
         
         # -------------------------------------------------------------------------------------------
         device = options['device']
@@ -126,6 +161,8 @@ class InitDPTBModel(Plugin):
         # -------------------------------------------------------------------------------------------
 
         num_hopping_hideen = model_config['sknetwork']['sk_hop_nhidden']
+        if soc:
+            num_soc_hidden = model_config['sknetwork']['sk_soc_nhidden']
         num_onsite_hidden = model_config['sknetwork']['sk_onsite_nhidden']
         assert skformula == model_config['skfunction'].get('skformula')
 
@@ -137,6 +174,8 @@ class InitDPTBModel(Plugin):
 
         onsite_fun = onsiteFunc
         hops_fun = SKintHops(mode='hopping',functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m)
+        if soc:
+            soc_fun = socFunc
         if onsitemode == 'strain':
             onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m, atomtype=atomtype)
 
@@ -150,12 +189,18 @@ class InitDPTBModel(Plugin):
             onsite_neurons = {"nhidden":num_onsite_hidden}
             reducted_onsiteint_types = False
 
-        _, state_dict = load_paras(model_config=model_config, state_dict=ckpt['model_state_dict'], proj_atom_anglr_m=proj_atom_anglr_m, onsitemode=onsitemode)
+        if soc:
+            soc_neurons = {"nhidden":num_soc_hidden}
+        else:
+            soc_neurons = None
+
+        _, state_dict = load_paras(model_config=model_config, state_dict=ckpt['model_state_dict'], proj_atom_anglr_m=proj_atom_anglr_m, onsitemode=onsitemode, soc=soc)
 
         self.host.sknet = SKNet(skint_types=reducted_skint_types,
                                    onsite_num=onsite_num,
                                    bond_neurons=bond_neurons,
                                    onsite_neurons=onsite_neurons,
+                                   soc_neurons=soc_neurons,
                                    device=device,
                                    dtype=dtype,
                                    onsitemode=onsitemode,
@@ -171,6 +216,9 @@ class InitDPTBModel(Plugin):
         self.host.onsite_db = loadOnsite(onsite_index_map)
         if onsitemode == 'strain':
             self.host.onsitestrain_fun = onsitestrain_fun
+        if soc:
+            self.host.soc_fun = soc_fun
+            self.host.soc_db = loadSoc(onsite_index_map)
         
         if options['freeze']:
             self.host.sknet.eval()
