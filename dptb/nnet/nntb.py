@@ -232,11 +232,13 @@ class NNTB(object):
         for atype in dcp_at:
             emb = torch.stack(dcp_at[atype])
             onsite = self.tb_net(emb, flag=atype, mode='onsite')
+            dcp_at[atype] = onsite
             if self.soc:
                 soc = self.tb_net(emb, flag=atype, mode='soc')
+                soc_at[atype] = soc
 
-            dcp_at[atype] = onsite
-            soc_at[atype] = soc
+            
+            
 
         # rearrange to the output shape
         batch_onsiteEs, batch_bond_onsites = {}, {}

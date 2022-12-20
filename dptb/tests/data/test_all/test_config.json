@@ -102,7 +102,14 @@
             "onsite_net_type": "res",
             "env_net_type": "res",
             "bond_net_type": "res",
-            "if_batch_normalized": false
+            "if_batch_normalized": false,
+            "soc_env": false,
+            "soc_net_neuron": [
+                128,
+                128,
+                256,
+                256
+            ]
         }
     },
     "loss_options": {

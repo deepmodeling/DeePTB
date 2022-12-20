@@ -42,6 +42,7 @@ class TBNet(nn.Module):
         self.onsite_nets = nn.ModuleDict({})
         self.env_nets = nn.ModuleDict({})
         if soc_net_config:
+            print(soc_net_config)
             self.soc_nets = nn.ModuleDict({})
         
 
@@ -60,17 +61,18 @@ class TBNet(nn.Module):
                 )
             })
         
-        for atom in self.proj_atom_type:
-            self.soc_nets.update({
-                atom:_get_network(
-                config=soc_net_config[atom],
-                activation=soc_net_activation,
-                if_batch_normalized=if_batch_normalized,
-                type=soc_net_type,
-                device=device,
-                dtype=dtype
-                )
-            })
+        if soc_net_config:
+            for atom in self.proj_atom_type:
+                self.soc_nets.update({
+                    atom:_get_network(
+                    config=soc_net_config[atom],
+                    activation=soc_net_activation,
+                    if_batch_normalized=if_batch_normalized,
+                    type=soc_net_type,
+                    device=device,
+                    dtype=dtype
+                    )
+                })
 
         # ToDo: add env_bond type specific net_config.
         for env_bond in self.env_bond_type:
@@ -128,6 +130,12 @@ class TBNet(nn.Module):
             out = torch.cat((x[:,:3], out), dim=1)
             
             # out : [f,i,itype,onsite]
+        elif mode == 'soc':
+            # x : [f,i,itype,emb_fi]
+            emb = x[:,3:]
+            out = self.soc_nets[flag](emb)
+            out = torch.cat((x[:,:3], out), dim=1)
+
         elif mode == 'hopping':
             # x : [f,itype,i,jtype,j,R,|rij|,rij_hat,emb_fij] --> [f, itype, i, jtype,j,R, |rij|, rij_hat,hopping]
             emb = torch.cat((x[:,[8]], x[:,12:]), dim=1)
