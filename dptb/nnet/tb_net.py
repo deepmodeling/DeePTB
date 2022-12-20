@@ -23,9 +23,12 @@ class TBNet(nn.Module):
                  onsite_net_activation,
                  env_net_activation,
                  bond_net_activation,
+                 soc_net_config=None,
+                 soc_net_activation=None,
                  onsite_net_type='res',
                  env_net_type='res',
                  bond_net_type='res',
+                 soc_net_type='res',
                  if_batch_normalized=False,
                  device='cpu',
                  dtype=torch.float32
@@ -38,6 +41,8 @@ class TBNet(nn.Module):
         self.bond_nets = nn.ModuleDict({})
         self.onsite_nets = nn.ModuleDict({})
         self.env_nets = nn.ModuleDict({})
+        if soc_net_config:
+            self.soc_nets = nn.ModuleDict({})
         
 
 
@@ -54,6 +59,19 @@ class TBNet(nn.Module):
                 dtype=dtype
                 )
             })
+        
+        for atom in self.proj_atom_type:
+            self.soc_nets.update({
+                atom:_get_network(
+                config=soc_net_config[atom],
+                activation=soc_net_activation,
+                if_batch_normalized=if_batch_normalized,
+                type=soc_net_type,
+                device=device,
+                dtype=dtype
+                )
+            })
+
         # ToDo: add env_bond type specific net_config.
         for env_bond in self.env_bond_type:
             self.env_nets.update({
