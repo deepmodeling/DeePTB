@@ -143,15 +143,19 @@ class DPTBTrainer(Trainer):
             if not self.run_opt.get("use_correction", False):
                 onsiteEs, hoppings = batch_onsiteEs[ii], batch_hoppings[ii]
                 soc_lambdas = None
-            else:
-                if self.soc and self.model_options["dptb"]["env_soc"]:
-                    nn_soc_lambdas = batch_soc_lambdas[ii]
-                else:
-                    nn_soc_lambdas = None
                 if self.soc:
+                    log.error(msg="ValueError: Soc mode can only be used with nnsk correction.")
+                    raise ValueError
+            else:
+                if self.soc and self.model_options["dptb"]["soc_env"]:
+                    nn_soc_lambdas = batch_soc_lambdas[ii]
                     sk_soc_lambdas = batch_nnsk_soc_lambdas[ii]
                 else:
-                    sk_soc_lambdas = None
+                    nn_soc_lambdas = None
+                    if self.soc:
+                        sk_soc_lambdas = batch_nnsk_soc_lambdas[ii]
+                    else:
+                        sk_soc_lambdas = None
 
                 onsiteEs, hoppings, _, _, soc_lambdas = nnsk_correction(nn_onsiteEs=batch_onsiteEs[ii], nn_hoppings=batch_hoppings[ii],
                                     sk_onsiteEs=batch_nnsk_onsiteEs[ii], sk_hoppings=batch_nnsk_hoppings[ii],

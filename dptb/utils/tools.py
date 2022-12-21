@@ -352,7 +352,7 @@ def j_loader(filename: Union[str, Path]) -> Dict[str, Any]:
     else:
         raise TypeError("config file must be json, or yaml/yml")
 
-def nnsk_correction(nn_onsiteEs, nn_hoppings, sk_onsiteEs, sk_hoppings, sk_onsiteSs=None, sk_overlaps=None):
+def nnsk_correction(nn_onsiteEs, nn_hoppings, sk_onsiteEs, sk_hoppings, sk_onsiteSs=None, sk_overlaps=None, nn_soc_lambdas=None, sk_soc_lambdas=None):
     """Add the nn correction to SK parameters hoppings and onsite Es.
     Args:
         corr_strength (int, optional): correction strength for correction mode 2, Defaults to 1.
@@ -370,6 +370,24 @@ def nnsk_correction(nn_onsiteEs, nn_hoppings, sk_onsiteEs, sk_hoppings, sk_onsit
             sk_onsiteSs_ib = sk_onsiteSs[ib]
             onsiteSs.append(sk_onsiteSs_ib)
 
+    if nn_soc_lambdas and sk_soc_lambdas:
+        soc_lambdas = []
+        for ib in range(len(nn_soc_lambdas)):
+            sk_soc_ib = sk_soc_lambdas[ib]
+            soc_lambdas.append(sk_soc_ib * (1 + nn_soc_lambdas[ib]))
+
+        if sk_onsiteSs:
+            sk_onsiteSs_ib = sk_onsiteSs[ib]
+            onsiteSs.append(sk_onsiteSs_ib)
+    else:
+        if nn_soc_lambdas:
+            soc_lambdas = nn_soc_lambdas
+        elif sk_soc_lambdas:
+            soc_lambdas = sk_soc_lambdas
+        else:
+            soc_lambdas = None
+    
+
     hoppings = []
     overlaps = []
     for ib in range(len(nn_hoppings)):
@@ -382,9 +400,9 @@ def nnsk_correction(nn_onsiteEs, nn_hoppings, sk_onsiteEs, sk_hoppings, sk_onsit
             overlaps.append(sk_overlaps_ib)
 
     if sk_overlaps:
-        return onsiteEs, hoppings, onsiteSs, overlaps
+        return onsiteEs, hoppings, onsiteSs, overlaps, soc_lambdas
     else:
-        return onsiteEs, hoppings, None, None
+        return onsiteEs, hoppings, None, None, soc_lambdas
 
 if __name__ == '__main__':
     print(get_neuron_config(nl=[0,1,2,3,4,5,6,7]))

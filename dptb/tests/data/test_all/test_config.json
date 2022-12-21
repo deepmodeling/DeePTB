@@ -109,7 +109,9 @@
                 128,
                 256,
                 256
-            ]
+            ],
+            "soc_net_activation": "tanh",
+            "soc_net_type": "res"
         }
     },
     "loss_options": {

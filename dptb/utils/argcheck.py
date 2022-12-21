@@ -206,7 +206,10 @@ def dptb():
     doc_bond_net_neuron = ""
     doc_onsite_net_activation = ""
     doc_env_net_activation = ""
-    doc_bond_net_activation = "",
+    doc_bond_net_activation = ""
+    doc_soc_net_activation = ""
+    doc_soc_net_neuron = ""
+    doc_soc_net_type = ""
     doc_onsite_net_type = ""
     doc_env_net_type = ""
     doc_bond_net_type = ""
@@ -222,9 +225,11 @@ def dptb():
         Argument("onsite_net_activation", str, optional=True, default="tanh", doc=doc_onsite_net_activation),
         Argument("env_net_activation", str, optional=True, default="tanh", doc=doc_env_net_activation),
         Argument("bond_net_activation", str, optional=True, default="tanh", doc=doc_bond_net_activation),
+        Argument("soc_net_activation", str, optional=True, default="tanh", doc=doc_soc_net_activation),
         Argument("onsite_net_type", str, optional=True, default="res", doc=doc_onsite_net_type),
         Argument("env_net_type", str, optional=True, default="res", doc=doc_env_net_type),
         Argument("bond_net_type", str, optional=True, default="res", doc=doc_bond_net_type),
+        Argument("soc_net_type", str, optional=True, default="res", doc=doc_soc_net_type),
         Argument("if_batch_normalized", bool, optional=True, default=False, doc=doc_if_batch_normalized)
     ]
 

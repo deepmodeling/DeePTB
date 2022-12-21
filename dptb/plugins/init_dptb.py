@@ -190,9 +190,12 @@ class InitDPTBModel(Plugin):
             reducted_onsiteint_types = False
 
         if soc:
-            soc_neurons = {"nhidden":num_soc_hidden}
+            if num_soc_hidden is not None:
+                soc_neurons = {"nhidden":num_soc_hidden}
+            else:
+                soc_neurons = {"nhidden": num_hopping_hideen}
         else:
-            soc_neurons = None
+            soc_neurons=None
 
         _, state_dict = load_paras(model_config=model_config, state_dict=ckpt['model_state_dict'], proj_atom_anglr_m=proj_atom_anglr_m, onsitemode=onsitemode, soc=soc)
 
