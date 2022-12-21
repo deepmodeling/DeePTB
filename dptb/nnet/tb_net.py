@@ -42,7 +42,6 @@ class TBNet(nn.Module):
         self.onsite_nets = nn.ModuleDict({})
         self.env_nets = nn.ModuleDict({})
         if soc_net_config:
-            print(soc_net_config)
             self.soc_nets = nn.ModuleDict({})
         
 

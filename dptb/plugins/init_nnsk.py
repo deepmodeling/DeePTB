@@ -105,6 +105,11 @@ class InitSKModel(Plugin):
 
         self.host.model_config = common_and_model_options
 
+        if common_and_model_options["train_soc"]:
+            for k,v in self.host.model.named_parameters():
+                if "soc" not in k:
+                    v.requires_grad = False
+
     def init_from_model(self, **common_and_model_and_run_options):
         # load checkpoint
         if self.mode == "init_model":
@@ -204,3 +209,8 @@ class InitSKModel(Plugin):
         
         self.host.model.load_state_dict(state_dict)            
         self.host.model.train()
+
+        if common_and_model_and_run_options["train_soc"]:
+            for k,v in self.host.model.named_parameters():
+                if "soc" not in k:
+                    v.requires_grad = False

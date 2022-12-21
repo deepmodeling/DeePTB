@@ -84,6 +84,11 @@ class InitDPTBModel(Plugin):
         self.host.model = self.host.nntb.tb_net
         self.host.model_config = options
 
+        if options["train_soc"]:
+            for k,v in self.host.model.named_parameters():
+                if "soc" not in k:
+                    v.requires_grad = False
+
     def init_from_model(self, **options):
         # TODO: env_cutoff 按照input file 更新checkpoint.
         if self.mode == "init_model":
@@ -134,6 +139,11 @@ class InitDPTBModel(Plugin):
         
         self.host.model_config = update_dict(temp_dict=model_config, update_dict=options, checklist=model_config_checklist)
         self.host.model.train()
+
+        if options["train_soc"]:
+            for k,v in self.host.model.named_parameters():
+                if "soc" not in k:
+                    v.requires_grad = False
 
     def init_correction_model(self, **options):
         ckpt = torch.load(options["use_correction"])
@@ -227,3 +237,8 @@ class InitDPTBModel(Plugin):
             self.host.sknet.eval()
             for p in self.host.sknet.parameters():
                 p.requires_grad = False
+
+        if options["train_soc"]:
+            for k,v in self.host.model.named_parameters():
+                if "soc" not in k:
+                    v.requires_grad = False

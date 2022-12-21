@@ -103,6 +103,13 @@ def main_parser() -> argparse.ArgumentParser:
     )
 
     parser_train.add_argument(
+        "-s",
+        "--train_soc",
+        action="store_true",
+        help="Initialize the training from the frozen model.",
+    )
+
+    parser_train.add_argument(
         "-f",
         "--freeze",
         action="store_true",
