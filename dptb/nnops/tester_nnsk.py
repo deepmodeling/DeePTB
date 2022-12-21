@@ -31,10 +31,13 @@ class NNSKTester(Tester):
         self.loss_options = loss_options
         self.results_path = self.run_opt['results_path']
 
+        
+
         # initialize loss options
         # ----------------------------------------------------------------------------------------------------------------------------------------------
         self.batch_size = data_options["train"]['batch_size']
         
+        self.soc = common_options['soc']
         self.proj_atom_anglr_m = common_options.get('proj_atom_anglr_m')
         self.proj_atom_neles = common_options.get('proj_atom_neles')
         self.onsitemode = common_options.get('onsitemode','none')
@@ -59,6 +62,10 @@ class NNSKTester(Tester):
         if self.onsitemode == 'strain':
             batch_onsiteVs = self.onsitestrain_fun.get_skhops(batch_bonds=batch_onsitenvs, coeff_paras=onsite_coeffdict)
 
+        if self.soc:
+            nn_soc_lambdas, _ = self.model(mode='soc')
+            batch_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_soc=nn_soc_lambdas)
+
         # call sktb to get the sktb hoppings and onsites
         eigenvalues_pred = []
         eigenvector_pred = []
@@ -73,8 +80,13 @@ class NNSKTester(Tester):
                 onsiteVs = None
                 onsitenvs = None
                 # call hamiltonian block
+            
+            if self.soc:
+                soc_lambdas = batch_soc_lambdas[ii]
+            else:
+                soc_lambdas = None
 
-            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs)
+            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs,soc_lambdas=soc_lambdas)
             self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
                                         bonds_hoppings=np.asarray(batch_bonds[ii][:,1:]), 
                                         onsite_envs=onsitenvs)

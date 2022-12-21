@@ -7,8 +7,6 @@ from dptb.sktb.skIntegrals import SKIntegrals
 from dptb.sktb.struct_skhs import SKHSLists
 from dptb.utils.tools import nnsk_correction
 
-
-
 class NNTB(object):
     def __init__(self,
                  atomtype,

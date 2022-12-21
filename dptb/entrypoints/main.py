@@ -256,6 +256,8 @@ def main():
 
     dict_args = vars(args)
 
+    print(dict_args)
+
     if args.command == 'train':
         train(**dict_args)
 

@@ -40,7 +40,8 @@ def validation(
         "log_level": log_level,
         "test_sk": test_sk,
         "use_correction": use_correction,
-        "freeze":True
+        "freeze":True,
+        "train_soc":False
     }
     
     if all((use_correction, test_sk)):

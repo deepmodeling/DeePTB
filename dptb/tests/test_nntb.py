@@ -182,7 +182,7 @@ class Test_NNTB:
 
     def test_onsite(self):
         batched_dcp = self.nntb.get_desciptor(batch_env3)
-        batch_bond_onsites, batch_onsiteEs = self.nntb.onsite(batched_dcp=batched_dcp)
+        batch_bond_onsites, batch_onsiteEs, _ = self.nntb.onsite(batched_dcp=batched_dcp)
 
         assert np.sum(np.array(batch_bond_onsites[0][:,1:12])-np.array([[7, 0, 7,0, 0,0,0,0, 0, 0, 0], [5,0, 5,1, 1, 0,0,0,0, 0, 0]])) < 1e-6
 

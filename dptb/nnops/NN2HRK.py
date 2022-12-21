@@ -83,6 +83,10 @@ class NN2HRK(object):
         batch_hoppings = self.apihost.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, rcut=self.apihost.model_config['skfunction']['sk_cutoff'], w=self.apihost.model_config['skfunction']['sk_decay_w'])
         nn_onsiteE, onsite_coeffdict = self.apihost.model(mode='onsite')
         batch_onsiteEs = self.apihost.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.apihost.onsite_db, nn_onsiteE=nn_onsiteE)
+
+        if self.apihost.model_config['soc']:
+            nn_soc_lambdas, _ = self.apihost.model(mode='soc')
+            batch_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_soc=nn_soc_lambdas)
         
         if self.apihost.model_config['onsitemode'] == 'strain':
             batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
@@ -92,8 +96,13 @@ class NN2HRK(object):
         else:
             onsiteEs, hoppings, onsiteVs = batch_onsiteEs[0], batch_hoppings[0],  None
             onsitenvs = None
+        
+        if self.apihost.model_config["soc"]:
+            soc_lambdas = batch_soc_lambdas[0]
+        else:
+            soc_lambdas = None
 
-        self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs)
+        self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
         self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[0][:,1:]), bonds_hoppings=np.asarray(batch_bonds[0][:,1:]), 
                                     onsite_envs=onsitenvs)
         
@@ -114,7 +123,7 @@ class NN2HRK(object):
         
         batch_bonds, batch_bond_onsites = predict_process.get_bond(sorted=self.sorted_bond)
         batch_env = predict_process.get_env(cutoff=self.apihost.model_config['env_cutoff'], sorted=self.sorted_env)
-        batch_bond_hoppings, batch_hoppings, batch_bond_onsites, batch_onsiteEs = self.apihost.nntb.calc(batch_bonds, batch_env)
+        batch_bond_hoppings, batch_hoppings, batch_bond_onsites, batch_onsiteEs, batch_soc_lambdas = self.apihost.nntb.calc(batch_bonds, batch_env)
 
         if  self.apihost.model_config['use_correction']:
             coeffdict = self.apihost.sknet(mode='hopping')
@@ -122,6 +131,9 @@ class NN2HRK(object):
                             rcut=self.apihost.model_config["skfunction"]["sk_cutoff"], w=self.apihost.model_config["skfunction"]["sk_decay_w"])
             nnsk_onsiteE, onsite_coeffdict = self.apihost.sknet(mode='onsite')
             batch_nnsk_onsiteEs = self.apihost.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.apihost.onsite_db, nn_onsiteE=nnsk_onsiteE)
+            if self.apihost.model_config["soc"]:
+                nnsk_soc_lambdas, _ = self.apihost.sknet(mode="soc")
+                batch_nnsk_soc_lambdas = self.apihost.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_soc=nnsk_soc_lambdas)
 
             if self.apihost.model_config['onsitemode'] == "strain":
                 batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
@@ -132,14 +144,25 @@ class NN2HRK(object):
                 onsiteVs = None
                 onsitenvs = None
 
-            onsiteEs, hoppings, _, _ = nnsk_correction(nn_onsiteEs=batch_onsiteEs[0], nn_hoppings=batch_hoppings[0],
+            if self.apihost.model_config["soc"] and self.apihost.model_config["dptb"]["soc_env"]:
+                nn_soc_lambdas = batch_soc_lambdas[0]
+                sk_soc_lambdas = batch_nnsk_soc_lambdas[0]
+            else:
+                nn_soc_lambdas = None
+                if self.apihost.model_config["soc"]:
+                    sk_soc_lambdas = batch_nnsk_soc_lambdas[0]
+                else:
+                    sk_soc_lambdas = None
+                
+
+            onsiteEs, hoppings, _, _, soc_lambdas = nnsk_correction(nn_onsiteEs=batch_onsiteEs[0], nn_hoppings=batch_hoppings[0],
                                     sk_onsiteEs=batch_nnsk_onsiteEs[0], sk_hoppings=batch_nnsk_hoppings[0],
-                                    sk_onsiteSs=None, sk_overlaps=None)
+                                    sk_onsiteSs=None, sk_overlaps=None, nn_soc_lambdas=nn_soc_lambdas, sk_soc_lambdas=sk_soc_lambdas)
         else:
-             onsiteEs, hoppings = batch_onsiteEs[0], batch_hoppings[0]
+             onsiteEs, hoppings, soc_lambdas = batch_onsiteEs[0], batch_hoppings[0], None
 
         
-        self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs)
+        self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
         self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[0][:,1:]), bonds_hoppings=np.asarray(batch_bond_hoppings[0][:,1:]),
                                     onsite_envs=onsitenvs)
 
