@@ -72,12 +72,12 @@ class HamilEig(RotationSK):
         if bonds_onsite is None:
             _, bonds_onsite = self.__struct__.get_bond()
 
-        soc_upup = torch.zeros_like((totalOrbs, totalOrbs), device=self.device, dtype=self.cdtype)
-        soc_updown = torch.zeros_like((totalOrbs, totalOrbs), device=self.device, dtype=self.cdtype)
+        soc_upup = torch.zeros((totalOrbs, totalOrbs), device=self.device, dtype=self.cdtype)
+        soc_updown = torch.zeros((totalOrbs, totalOrbs), device=self.device, dtype=self.cdtype)
 
         # compute soc mat for each atom:
-        soc_atom_upup = self.__struct__.get("soc_atom_diag", {})
-        soc_atom_updown = self.__struct__.get("soc_atom_up", {})
+        soc_atom_upup = getattr(self.__struct__, "soc_atom_upup") if hasattr(self.__struct__, "soc_atom_upup") else {}
+        soc_atom_updown = getattr(self.__struct__, "soc_atom_updown") if hasattr(self.__struct__, "soc_atom_updown") else {}
         if not soc_atom_upup or not soc_atom_updown:
             for iatype in self.__struct__.proj_atomtype:
                 total_num_orbs_iatom= self.__struct__.proj_atomtype_norbs[iatype]
@@ -110,7 +110,7 @@ class HamilEig(RotationSK):
             iatype = self.__struct__.proj_atom_symbols[iatom]
 
             # get lambdas
-            ist = 0
+            istin = 0
             lambdas = torch.zeros((ied-ist,), device=self.device, dtype=self.dtype)
             for ish in self.__struct__.proj_atom_anglr_m[iatype]:
                 indx = self.__struct__.onsite_index_map[iatype][ish]
@@ -118,7 +118,7 @@ class HamilEig(RotationSK):
                 shidi = anglrMId[ishsymbol]          # 0,1,2,...
                 norbi = 2*shidi + 1
                 lambdas[ist:ist+norbi] = self.soc_lambdas[ib][indx]
-                ist = ist + norbi
+                istin = istin + norbi
 
             soc_upup[ist:ied,ist:ied] = soc_atom_upup[iatype] * torch.diag(lambdas)
             soc_updown[ist:ied, ist:ied] = soc_atom_updown[iatype] * torch.diag(lambdas)
@@ -351,7 +351,7 @@ class HamilEig(RotationSK):
             if time_symm:
                 hk = hk + hk.T.conj()
             if self.soc:
-                hk = torch.kron(A=torch.eye(2, device=self.device, dtype=self.dtype), B=hk)
+                hk = torch.kron(input=torch.eye(2, device=self.device, dtype=self.dtype), other=hk)
             Hk[ik] = hk
         
         if self.soc:

@@ -76,7 +76,10 @@ class InitSKModel(Plugin):
             reducted_onsiteint_types = False
 
         if soc:
-            soc_neurons = {"nhidden":num_soc_hidden}
+            if num_soc_hidden is not None:
+                soc_neurons = {"nhidden":num_soc_hidden}
+            else:
+                soc_neurons = {"nhidden": num_hopping_hideen}
         else:
             soc_neurons=None
 

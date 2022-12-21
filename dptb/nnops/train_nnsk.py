@@ -118,7 +118,7 @@ class NNSKTrainer(Trainer):
 
         if self.soc:
             nn_soc_lambdas, _ = self.model(mode='soc')
-            batch_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_onsiteE=nn_soc_lambdas)
+            batch_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_soc=nn_soc_lambdas)
 
         # call sktb to get the sktb hoppings and onsites
         eigenvalues_pred = []

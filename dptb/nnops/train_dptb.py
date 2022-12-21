@@ -131,7 +131,7 @@ class DPTBTrainer(Trainer):
                 batch_nnsk_onsiteVs = self.onsitestrain_fun.get_skhops(batch_bonds=batch_onsitenvs, coeff_paras=onsite_coeffdict)
             if self.soc:
                 nnsk_soc_lambdas, _ = self.sknet(mode="soc")
-                batch_nnsk_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_onsiteE=nnsk_soc_lambdas)
+                batch_nnsk_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_soc=nnsk_soc_lambdas)
 
         # ToDo: Advance the correction process before onsite_fun and hops_fun
         # call sktb to get the sktb hoppings and onsites
