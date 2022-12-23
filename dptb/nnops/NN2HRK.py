@@ -133,7 +133,7 @@ class NN2HRK(object):
             batch_nnsk_onsiteEs = self.apihost.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.apihost.onsite_db, nn_onsiteE=nnsk_onsiteE)
             if self.apihost.model_config["soc"]:
                 nnsk_soc_lambdas, _ = self.apihost.sknet(mode="soc")
-                batch_nnsk_soc_lambdas = self.apihost.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_soc=nnsk_soc_lambdas)
+                batch_nnsk_soc_lambdas = self.apihost.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.apihost.soc_db, nn_soc=nnsk_soc_lambdas)
 
             if self.apihost.model_config['onsitemode'] == "strain":
                 batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)

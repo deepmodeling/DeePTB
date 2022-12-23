@@ -66,6 +66,8 @@ class HamilEig(RotationSK):
             norbs = self.__struct__.proj_atomtype_norbs[itype]
             self.num_orbs_per_atom.append(norbs)
 
+        print(soc_lambdas)
+
     def get_soc_block(self, bonds_onsite = None):
         numOrbs = np.array(self.num_orbs_per_atom)
         totalOrbs = np.sum(numOrbs)
@@ -111,17 +113,17 @@ class HamilEig(RotationSK):
 
             # get lambdas
             istin = 0
-            lambdas = torch.zeros((ied-ist,), device=self.device, dtype=self.dtype)
+            lambdas = torch.zeros((ied-ist,), device=self.device, dtype=self.cdtype)
             for ish in self.__struct__.proj_atom_anglr_m[iatype]:
                 indx = self.__struct__.onsite_index_map[iatype][ish]
                 ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
                 shidi = anglrMId[ishsymbol]          # 0,1,2,...
                 norbi = 2*shidi + 1
-                lambdas[ist:ist+norbi] = self.soc_lambdas[ib][indx]
+                lambdas[istin:istin+norbi] = self.soc_lambdas[ib][indx]
                 istin = istin + norbi
-
-            soc_upup[ist:ied,ist:ied] = soc_atom_upup[iatype] * torch.diag(lambdas)
-            soc_updown[ist:ied, ist:ied] = soc_atom_updown[iatype] * torch.diag(lambdas)
+                
+            soc_upup[ist:ied,ist:ied] = soc_atom_upup[iatype] @ torch.diag(lambdas)
+            soc_updown[ist:ied, ist:ied] = soc_atom_updown[iatype] @ torch.diag(lambdas)
         
         soc_upup.contiguous()
         soc_updown.contiguous()

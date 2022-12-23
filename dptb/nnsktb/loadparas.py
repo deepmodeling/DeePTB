@@ -2,7 +2,7 @@ from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
 import torch
 
-eps = 1.0E-5
+eps = 1.0E-1
 
 def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none', soc=False):
   

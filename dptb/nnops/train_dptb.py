@@ -87,7 +87,11 @@ class DPTBTrainer(Trainer):
         '''
         self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
 
-        self.optimizer = get_optimizer(model_param=self.model.parameters(), **self.train_options["optimizer"])
+        if self.run_opt.get("use_correction", False):
+            model_param = [{"params":self.model.parameters()}, {"params":self.sknet.parameters()}]
+        else:
+            model_param = self.model.parameters()
+        self.optimizer = get_optimizer(model_param=model_param, **self.train_options["optimizer"])
         self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **self.train_options["lr_scheduler"])
 
         if self.run_opt["mode"] == "restart":

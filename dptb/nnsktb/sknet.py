@@ -85,7 +85,7 @@ class SKNet(nn.Module):
             soc_config = {}
             for ia in self.onsite_num:
                 soc_config[ia] = {'nin':1, 'nhidden': soc_neurons.get('nhidden',1),
-                    'nout': self.onsite_num[ia]}
+                    'nout': self.onsite_num[ia], 'ini_std':0.5}
 
             self.soc_net = nn.ModuleDict({})
             for ia in self.onsite_num:
