@@ -53,8 +53,8 @@ def train_options():
     args = [
         Argument("num_epoch", int, optional=False, doc=doc_num_epoch),
         Argument("seed", int, optional=True, default=3982377700, doc=doc_seed),
-        Argument("optimizer", dict, sub_fields=[], sub_variants=[optimizer()], doc = doc_optimizer),
-        Argument("lr_scheduler", dict, sub_fields=[], sub_variants=[lr_scheduler()], doc = doc_lr_scheduler),
+        Argument("optimizer", dict, sub_fields=[], optional=True, default={}, sub_variants=[optimizer()], doc = doc_optimizer),
+        Argument("lr_scheduler", dict, sub_fields=[], optional=True, default={}, sub_variants=[lr_scheduler()], doc = doc_lr_scheduler),
         Argument("save_freq", int, optional=True, default=10, doc=doc_save_freq),
         Argument("validation_freq", int, optional=True, default=10, doc=doc_validation_freq),
         Argument("display_freq", int, optional=True, default=1, doc=doc_display_freq)
@@ -98,7 +98,7 @@ def optimizer():
 def ExponentialLR():
 
     return [
-        Argument("gamma", float, optional=False)
+        Argument("gamma", float, optional=True, default=0.999)
     ]
 
 def lr_scheduler():

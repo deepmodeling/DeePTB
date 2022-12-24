@@ -66,8 +66,6 @@ class HamilEig(RotationSK):
             norbs = self.__struct__.proj_atomtype_norbs[itype]
             self.num_orbs_per_atom.append(norbs)
 
-        print(soc_lambdas)
-
     def get_soc_block(self, bonds_onsite = None):
         numOrbs = np.array(self.num_orbs_per_atom)
         totalOrbs = np.sum(numOrbs)
