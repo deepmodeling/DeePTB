@@ -16,11 +16,11 @@ class SKintHops(SKFormula):
         bond_index_map, _ = IndMap.Bond_Ind_Mapings()
         if mode == 'hopping':
             _, _, sk_bond_ind_dict = all_skint_types(bond_index_map)
-            self.bon_index_dict = sk_bond_ind_dict
+            self.bond_index_dict = sk_bond_ind_dict
         elif mode == 'onsite':
             onsite_strain_index_map, _,  _, _ = IndMap.Onsite_Ind_Mapings(onsitemode='strain', atomtype=atomtype)
             _, _, onsite_strain_ind_dict = all_onsite_intgrl_types(onsite_strain_index_map)
-            self.bon_index_dict = onsite_strain_ind_dict
+            self.bond_index_dict = onsite_strain_ind_dict
 
         else:
             raise ValueError("Unknown mode '%s' for SKintHops" %mode)
@@ -37,7 +37,7 @@ class SKintHops(SKFormula):
         bond length.
         coeff_paras : dict
             a dictionary of the coeffient parameters for each SK term.
-        bon_index_dict : dict
+        bond_index_dict : dict
             a dictionary that contains the of `key/name` of the dict of Slater-Koster coeffient parameters for each bond type.
         
         Returns
@@ -53,7 +53,7 @@ class SKintHops(SKFormula):
                 ibond = batch_bonds[fi][ib,1:8]
                 rij = batch_bonds[fi][ib,8]
                 ia, ja = atomic_num_dict_r[int(ibond[0])], atomic_num_dict_r[int(ibond[2])]
-                paraArray = th.stack([coeff_paras[isk] for isk in self.bon_index_dict[f'{ia}-{ja}']])
+                paraArray = th.stack([coeff_paras[isk] for isk in self.bond_index_dict[f'{ia}-{ja}']])
 
                 paras = {'paraArray':paraArray,'rij':rij, 'iatomtype':ia, 'jatomtype':ja, 'rcut':rcut,'w':w}
                 hij = self.skhij(**paras)

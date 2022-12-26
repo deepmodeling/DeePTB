@@ -1,6 +1,89 @@
-from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
+from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types, all_onsite_ene_types
 from dptb.utils.index_mapping import Index_Mapings
 
+# add test for all_onsite_intgrl_types
+def test_onsite_intgrl_types():
+    proj_atom_anglr_m = {'B':['2s'],'N':['2s','2p']}
+    indm = Index_Mapings(proj_atom_anglr_m)
+    onsite_strain_index_map, onsite_strain_num, onsite_index_map, onsite_num = \
+                        indm.Onsite_Ind_Mapings(onsitemode='strain',atomtype=['N','B'])
+
+    all_onsite_int_types_dict, reducted_onsite_int_types, sk_onsite_ind_dict = all_onsite_intgrl_types(onsite_strain_index_map)
+
+    all_onsite_int_types_dict_check = {'N-N-2s-2s-0': 'N-N-2s-2s-0',
+                                 'N-N-2s-2p-0': 'N-N-2s-2p-0',
+                                 'N-N-2p-2s-0': 'N-N-2s-2p-0',
+                                 'N-N-2p-2p-0': 'N-N-2p-2p-0',
+                                 'N-N-2p-2p-1': 'N-N-2p-2p-1',
+                                 'N-B-2s-2s-0': 'N-B-2s-2s-0',
+                                 'N-B-2s-2p-0': 'N-B-2s-2p-0',
+                                 'N-B-2p-2s-0': 'N-B-2s-2p-0',
+                                 'N-B-2p-2p-0': 'N-B-2p-2p-0',
+                                 'N-B-2p-2p-1': 'N-B-2p-2p-1',
+                                 'B-N-2s-2s-0': 'B-N-2s-2s-0',
+                                 'B-B-2s-2s-0': 'B-B-2s-2s-0'}
+    
+    reducted_onsite_int_types_check = ['N-N-2s-2s-0',
+                                 'N-N-2s-2p-0',
+                                 'N-N-2p-2p-0',
+                                 'N-N-2p-2p-1',
+                                 'N-B-2s-2s-0',
+                                 'N-B-2s-2p-0',
+                                 'N-B-2p-2p-0',
+                                 'N-B-2p-2p-1',
+                                 'B-N-2s-2s-0',
+                                 'B-B-2s-2s-0']
+    
+    sk_onsite_ind_dict_check = {'N-N': ['N-N-2s-2s-0', 'N-N-2s-2p-0', 'N-N-2p-2p-0', 'N-N-2p-2p-1'],
+                          'N-B': ['N-B-2s-2s-0', 'N-B-2s-2p-0', 'N-B-2p-2p-0', 'N-B-2p-2p-1'],
+                          'B-N': ['B-N-2s-2s-0'],
+                          'B-B': ['B-B-2s-2s-0']}
+    
+    assert isinstance(all_onsite_int_types_dict, dict)
+    assert isinstance(reducted_onsite_int_types, list)
+    assert isinstance(sk_onsite_ind_dict, dict)
+    
+    assert all_onsite_int_types_dict == all_onsite_int_types_dict_check
+    assert reducted_onsite_int_types == reducted_onsite_int_types_check
+    assert sk_onsite_ind_dict == sk_onsite_ind_dict_check
+
+    uniq_sktype = set(all_onsite_int_types_dict.values())
+    assert len(uniq_sktype) == len(reducted_onsite_int_types)
+    for ia in uniq_sktype:
+        assert ia in reducted_onsite_int_types
+    
+    assert list(sk_onsite_ind_dict.keys()) == (['N-N', 'N-B', 'B-N', 'B-B'])
+    assert onsite_strain_index_map.keys() == sk_onsite_ind_dict.keys()
+    
+    for ibt in sk_onsite_ind_dict.keys():
+        for isk in  onsite_strain_index_map[ibt].keys():
+            index = onsite_strain_index_map[ibt][isk]
+            for ii in range(len(index)):
+                skbondname = f'{ibt}-{isk}-{ii}'
+                assert sk_onsite_ind_dict[ibt][index[ii]] == all_onsite_int_types_dict[skbondname]
+
+
+# add test for all_onsite_ene_types
+
+
+def test_onsite_ene_types():
+    proj_atom_anglr_m = {'B':['2s'],'N':['2s','2p']}
+    indm = Index_Mapings(proj_atom_anglr_m)
+    onsite_strain_index_map, onsite_strain_num, onsite_index_map, onsite_num = \
+                        indm.Onsite_Ind_Mapings(onsitemode='strain',atomtype=['N','B'])
+    all_onsiteE_types_dict, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
+    all_onsiteE_types_dict_check = {'N-2s-0': 'N-2s-0', 'N-2p-0': 'N-2p-0', 'B-2s-0': 'B-2s-0'}
+    reduced_onsiteE_types_check = ['N-2s-0', 'N-2p-0', 'B-2s-0']
+    onsiteE_ind_dict_check = {'N': ['N-2s-0', 'N-2p-0'], 'B': ['B-2s-0']}
+    
+    assert isinstance(all_onsiteE_types_dict, dict)
+    assert isinstance(reduced_onsiteE_types, list)
+    assert isinstance(onsiteE_ind_dict, dict)
+    
+    assert all_onsiteE_types_dict == all_onsiteE_types_dict_check
+    assert reduced_onsiteE_types == reduced_onsiteE_types_check
+    assert onsiteE_ind_dict == onsiteE_ind_dict_check
+    
 def test_skintTypes():
     envtype = ['N','B']
     bondtype = ['N','B']

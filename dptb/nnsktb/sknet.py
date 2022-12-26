@@ -1,7 +1,5 @@
-from re import A
 import torch 
 import torch.nn as nn
-import numpy as np
 
 class DirectNet(nn.Module):
     def __init__(self, nin, nhidden, nout, device='cpu', dtype=torch.float32, ini_std=0.5, **kwargs):
@@ -18,8 +16,8 @@ class DirectNet(nn.Module):
 
 
 class SKNet(nn.Module):
-    def __init__(self, skint_types: list, onsite_num: dict, bond_neurons: dict, onsite_neurons: dict, soc_neurons: dict=None, 
-                        onsitemode:str='none', onsiteint_types=False, device='cpu', dtype=torch.float32, **kwargs):
+    def __init__(self, skint_types: list, onsite_types:dict, soc_types: dict, bond_neurons: dict, onsite_neurons: dict, soc_neurons: dict=None, 
+                        onsite_index_dict:dict=None, onsitemode:str='none', device='cpu', dtype=torch.float32, **kwargs):
         ''' define the nn.parameters for fittig sktb.
 
         Paras 
@@ -27,8 +25,12 @@ class SKNet(nn.Module):
         skint_types: 
             the keys for sk integrals, like, ['N-N-2s-2p-sigma','N-N-2p-2p-pi',...]
 
-        onsite_num:  check the utils/index_mapping.py docstrings for details.
-            {'N':int,'B':int}
+        skint_types: list
+            the independent/reduced sk integral types, like, ['N-N-2s-2p-0','N-N-2p-2p-0',...]
+        onsiteE_types: list
+            the independent/reduced onsite Energy types. like ['N-2s-0', 'N-2p-0', 'B-2s-0'],
+        onsiteint_types: list   
+            the independent/reduced sk-like onsite integral types. like [''N-N-2s-2s-0',...]
         
         bond_neurons: dict
             {'nhidden':int, 'nout':int}
@@ -44,12 +46,15 @@ class SKNet(nn.Module):
 
         super().__init__()
         assert len(set(skint_types)) == len(skint_types), "the values in skint_types in not unique."
+        assert skint_types is not None, "skint_types cannot be None"
+
         self.skint_types = skint_types 
         self.sk_options = kwargs.get("sk_options")
         self.onsitemode = onsitemode
+        self.onsite_types = onsite_types
+        self.soc_types = soc_types
+        self.onsite_index_dict = onsite_index_dict
 
-        self.num_skint_types = len(self.skint_types)
-        self.onsite_num = onsite_num
 
         bond_config = {
             'nin': len(self.skint_types),
@@ -60,10 +65,9 @@ class SKNet(nn.Module):
         if self.onsitemode.lower() == 'none':
             pass
         elif self.onsitemode.lower() == 'strain':
-            self.onsiteint_types = onsiteint_types
-            self.num_onsiteint_types = len(self.onsiteint_types)
+            assert onsite_types is not None, "for strain mode, the onsiteint_types can not be None!"
             onsite_config = {
-                'nin': len(self.onsiteint_types),
+                'nin': len(self.onsite_types),
                 'nhidden': bond_neurons.get('nhidden',1),
                 'nout': bond_neurons.get('nout'),
                 'ini_std':0.1}
@@ -71,26 +75,28 @@ class SKNet(nn.Module):
 
             self.onsite_net = DirectNet(device=device, dtype=dtype, **onsite_config)
         else:
-            onsite_config = {}
-            for ia in self.onsite_num:
-                onsite_config[ia] = {'nin':1, 'nhidden': onsite_neurons.get('nhidden',1),
-                    'nout': self.onsite_num[ia]}
+            assert onsite_types is not None, f"for {onsitemode} mode, onsiteE_types can not be None!"
+            assert onsite_index_dict is not None, f"for {onsitemode} mode, onsiteE_index_dict can not be None!"
 
-            self.onsite_net = nn.ModuleDict({})
-            for ia in self.onsite_num:
-                self.onsite_net.update({
-                    ia: DirectNet(device=device, dtype=dtype, **onsite_config[ia])})
+            onsite_config = {
+                'nin': len(self.onsite_types),
+                'nhidden': onsite_neurons.get('nhidden',1),
+                'nout': 1,
+                'ini_std':0.1}
+
+            self.onsite_net = DirectNet(**onsite_config)
         
         if soc_neurons is not None:
-            soc_config = {}
-            for ia in self.onsite_num:
-                soc_config[ia] = {'nin':1, 'nhidden': soc_neurons.get('nhidden',1),
-                    'nout': self.onsite_num[ia], 'ini_std':0.5}
+            assert soc_types is not None
 
-            self.soc_net = nn.ModuleDict({})
-            for ia in self.onsite_num:
-                self.soc_net.update({
-                    ia: DirectNet(device=device, dtype=dtype, **soc_config[ia])})
+            soc_config = {
+                'nin': len(self.soc_types),
+                'nhidden': soc_neurons.get('nhidden',1),
+                'nout': 1,
+                'ini_std':0.1
+            }
+
+            self.onsite_net = DirectNet(**soc_config)
 
         
     def forward(self, mode: str):
@@ -128,10 +134,13 @@ class SKNet(nn.Module):
             self.hop_coeffdict = dict(zip(self.skint_types, out))
             return self.hop_coeffdict
         elif mode == 'soc':
+            out = self.soc_net()
+            self.soc_values = dict(zip(self.soc_types, out))
+
             self.soc_value = {}
-            for ia in self.onsite_num:
-                out = self.soc_net[ia]()
-                self.soc_value[ia] = torch.reshape(out,[-1]) # {"N":[s, p, ...]}
+            for ia in self.onsite_index_dict:
+                self.soc_value[ia] = torch.stack([self.soc_values[itag][0]  for itag in self.onsite_index_dict[ia]])
+
             return self.soc_value, None
 
         elif mode == 'onsite':
@@ -139,14 +148,17 @@ class SKNet(nn.Module):
                 return None, None
             elif self.onsitemode.lower() == 'strain':
                 out = self.onsite_net()
-                self.onsite_coeffdict = dict(zip(self.onsiteint_types, out))
+                self.onsite_coeffdict = dict(zip(self.onsite_types, out))
                 return None, self.onsite_coeffdict
             else:
-                self.onsite_value = {}
-                for ia in self.onsite_num:
-                    out = self.onsite_net[ia]()
-                    self.onsite_value[ia] = torch.reshape(out,[-1]) # {"N":[s, p, ...]}
-                return self.onsite_value, None
+                out = self.onsite_net()
+                self.onsite_values = dict(zip(self.onsite_types, out))
+
+                self.onsite_value_formated = {}
+                for ia in self.onsite_index_dict:
+                    self.onsite_value_formated[ia] = torch.stack([self.onsite_values[itag][0]  for itag in self.onsite_index_dict[ia]])
+                    #self.onsite_value_formated[ia] = torch.reshape(out,[-1]) # {"N":[s, p, ...]}
+                return self.onsite_value_formated, None
             
         else:
             raise ValueError(f'Invalid mode: {mode}')

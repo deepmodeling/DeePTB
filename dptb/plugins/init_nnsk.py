@@ -5,7 +5,7 @@ import logging
 from dptb.nnsktb.sknet import SKNet
 from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 from dptb.nnsktb.socFunc import socFunc, loadSoc
-from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
+from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types, all_onsite_ene_types
 from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.loadparas import load_paras
@@ -63,6 +63,7 @@ class InitSKModel(Plugin):
             onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m, atomtype=atomtype)
         
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
+        _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
         bond_neurons = {"nhidden": num_hopping_hideen,  "nout": hops_fun.num_paras}
 
 
@@ -70,10 +71,12 @@ class InitSKModel(Plugin):
         if onsitemode == 'strain':
             onsite_neurons = {"nhidden": num_onsite_hidden, "nout": onsitestrain_fun.num_paras}
             _, reducted_onsiteint_types, onsite_strain_ind_dict = all_onsite_intgrl_types(onsite_strain_index_map)
-            options.update({"onsiteint_types":reducted_onsiteint_types})
+            onsite_types = reducted_onsiteint_types
         else:
             onsite_neurons = {"nhidden":num_onsite_hidden}
-            reducted_onsiteint_types = False
+            onsite_types = reduced_onsiteE_types
+        
+        options.update({"onsite_types":onsite_types})
 
         if soc:
             if num_soc_hidden is not None:
@@ -84,14 +87,15 @@ class InitSKModel(Plugin):
             soc_neurons=None
 
         self.host.model = SKNet(skint_types=reducted_skint_types,
-                                onsite_num=onsite_num,
+                                onsite_types=onsite_types,
+                                soc_types=reduced_onsiteE_types,
                                 bond_neurons=bond_neurons,
                                 onsite_neurons=onsite_neurons,
                                 soc_neurons=soc_neurons,
                                 device=device,
                                 dtype=dtype,
                                 onsitemode=onsitemode,
-                                onsiteint_types=reducted_onsiteint_types)
+                                onsite_index_dict=onsiteE_ind_dict)
 
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
@@ -165,14 +169,16 @@ class InitSKModel(Plugin):
             onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m, atomtype=atomtype)
 
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
+        _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
         bond_neurons = {"nhidden": num_hopping_hideen,  "nout": hops_fun.num_paras}
 
         if onsitemode == 'strain':
             onsite_neurons = {"nhidden":num_onsite_hidden,"nout":onsitestrain_fun.num_paras}
             _, reducted_onsiteint_types, _ = all_onsite_intgrl_types(onsite_strain_index_map)
+            onsite_types = reducted_onsiteint_types
         else:
             onsite_neurons = {"nhidden":num_onsite_hidden}
-            reducted_onsiteint_types = False
+            onsite_types = reduced_onsiteE_types
 
         if soc:
             soc_neurons = {"nhidden":num_soc_hidden}
@@ -183,7 +189,8 @@ class InitSKModel(Plugin):
 
         
         self.host.model = SKNet(skint_types=reducted_skint_types,
-                                   onsite_num=onsite_num,
+                                   onsite_types=onsite_types,
+                                   soc_types=reduced_onsiteE_types,
                                    bond_neurons=bond_neurons,
                                    onsite_neurons=onsite_neurons,
                                    soc_neurons=soc_neurons,
@@ -192,7 +199,7 @@ class InitSKModel(Plugin):
                                    onsitemode=onsitemode,
                                    # Onsiteint_types is a list of onsite integral types, which is used
                                    # to determine the number of output neurons of the onsite network.
-                                   onsiteint_types=reducted_onsiteint_types
+                                   onsite_index_dict=onsiteE_ind_dict
                                    )
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun

@@ -7,7 +7,7 @@ from dptb.nnet.nntb import NNTB
 from dptb.nnsktb.sknet import SKNet
 from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 from dptb.nnsktb.socFunc import socFunc, loadSoc
-from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
+from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types, all_onsite_ene_types
 from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.loadparas import load_paras
@@ -192,12 +192,14 @@ class InitDPTBModel(Plugin):
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
         bond_neurons = {"nhidden": num_hopping_hideen,  "nout": hops_fun.num_paras}
 
+        _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
         if onsitemode == 'strain':
             onsite_neurons = {"nhidden":num_onsite_hidden,"nout":onsitestrain_fun.num_paras}
             _, reducted_onsiteint_types, _ = all_onsite_intgrl_types(onsite_strain_index_map)
+            onsite_types = reducted_onsiteint_types
         else:
             onsite_neurons = {"nhidden":num_onsite_hidden}
-            reducted_onsiteint_types = False
+            onsite_types = reduced_onsiteE_types
 
         if soc:
             if num_soc_hidden is not None:
@@ -210,14 +212,15 @@ class InitDPTBModel(Plugin):
         _, state_dict = load_paras(model_config=model_config, state_dict=ckpt['model_state_dict'], proj_atom_anglr_m=proj_atom_anglr_m, onsitemode=onsitemode, soc=soc)
 
         self.host.sknet = SKNet(skint_types=reducted_skint_types,
-                                   onsite_num=onsite_num,
+                                   onsite_types=onsite_types,
+                                   soc_types=reduced_onsiteE_types,
                                    bond_neurons=bond_neurons,
                                    onsite_neurons=onsite_neurons,
                                    soc_neurons=soc_neurons,
                                    device=device,
                                    dtype=dtype,
                                    onsitemode=onsitemode,
-                                   onsiteint_types=reducted_onsiteint_types
+                                   onsite_index_dict=onsiteE_ind_dict
                                    )
         self.host.sknet_config  = model_config
         

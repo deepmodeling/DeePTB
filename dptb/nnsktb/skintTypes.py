@@ -106,8 +106,57 @@ def all_skint_types(bond_index_map):
 
 
 def all_onsite_intgrl_types(onsite_intgrl_index_map):
-    reducted_skint_types = []
-    all_skint_types_dict = {}
+    """ This function is to get all the possible sk like onsite integra types by given the onsite_intgrl_index_map.
+    
+    Parameters
+    ----------
+    onsite_intgrl_index_map:
+           {'N-N': {'2s-2s': [0], '2s-2p': [1], '2p-2s': [1], '2p-2p': [2, 3]},
+            'N-B': {'2s-2s': [0], '2s-2p': [1], '2p-2s': [1], '2p-2p': [2, 3]},
+            'B-N': {'2s-2s': [0]},
+            'B-B': {'2s-2s': [0]}}
+        This is quite like the bond_index_map for sk hopping.
+    Output
+    ------ 
+    all_onsite_int_types_dict:
+        All the possible sk-like onsite integral types. and maps to the reduced one.
+        key is the all the possible sk-like onsite integral integral types. value is the reduced one.
+        {'N-N-2s-2s-0': 'N-N-2s-2s-0',
+         'N-N-2s-2p-0': 'N-N-2s-2p-0',
+         'N-N-2p-2s-0': 'N-N-2s-2p-0',
+         'N-N-2p-2p-0': 'N-N-2p-2p-0',
+         'N-N-2p-2p-1': 'N-N-2p-2p-1',
+         'N-B-2s-2s-0': 'N-B-2s-2s-0',
+         'N-B-2s-2p-0': 'N-B-2s-2p-0',
+         'N-B-2p-2s-0': 'N-B-2s-2p-0',
+         'N-B-2p-2p-0': 'N-B-2p-2p-0',
+         'N-B-2p-2p-1': 'N-B-2p-2p-1',
+         'B-N-2s-2s-0': 'B-N-2s-2s-0',
+         'B-B-2s-2s-0': 'B-B-2s-2s-0'}
+
+    reducted_onsite_int_types:
+        The independent/reduced sk-like onsite integral types.
+        ['N-N-2s-2s-0',
+         'N-N-2s-2p-0',
+         'N-N-2p-2p-0',
+         'N-N-2p-2p-1',
+         'N-B-2s-2s-0',
+         'N-B-2s-2p-0',
+         'N-B-2p-2p-0',
+         'N-B-2p-2p-1',
+         'B-N-2s-2s-0',
+         'B-B-2s-2s-0']
+
+    sk_onsite_ind_dict:
+        the sk like onsite integral type in the format in onsite_intgrl_index_map. 
+        {'N-N': ['N-N-2s-2s-0', 'N-N-2s-2p-0', 'N-N-2p-2p-0', 'N-N-2p-2p-1'],
+         'N-B': ['N-B-2s-2s-0', 'N-B-2s-2p-0', 'N-B-2p-2p-0', 'N-B-2p-2p-1'],
+         'B-N': ['B-N-2s-2s-0'],
+         'B-B': ['B-B-2s-2s-0']}
+
+    """
+    reducted_onsite_int_types = []
+    all_onsite_int_types_dict = {}
     for ibm in onsite_intgrl_index_map:
         ia, ja = ibm.split('-')  
         iaid, jaid = atomic_num_dict[ia], atomic_num_dict[ja] 
@@ -116,28 +165,87 @@ def all_onsite_intgrl_types(onsite_intgrl_index_map):
             for iisk in range(len(onsite_intgrl_index_map[ibm][isk])): 
                 iskint_type = f'{ia}-{ja}-{iorb}-{jorb}-{iisk}'
                 iskint_type_ex = f'{ia}-{ja}-{jorb}-{iorb}-{iisk}'   
-                if iskint_type_ex in reducted_skint_types:
-                    all_skint_types_dict[iskint_type] = iskint_type_ex
+                if iskint_type_ex in reducted_onsite_int_types:
+                    all_onsite_int_types_dict[iskint_type] = iskint_type_ex
                 else:
-                    reducted_skint_types.append(iskint_type)
-                    all_skint_types_dict[iskint_type] = iskint_type
-    for ii in np.unique(list(all_skint_types_dict.values())):
-        assert ii in reducted_skint_types
+                    reducted_onsite_int_types.append(iskint_type)
+                    all_onsite_int_types_dict[iskint_type] = iskint_type
+    for ii in np.unique(list(all_onsite_int_types_dict.values())):
+        assert ii in reducted_onsite_int_types
     
     sk_onsite_ind_dict = {}
     for ibm  in onsite_intgrl_index_map:
         uniq_onst_indeces = np.unique(np.concatenate(list(onsite_intgrl_index_map[ibm].values())))
         num_indepd_sks = len(uniq_onst_indeces)
         
-        sk_onsite_ind_dict[ibm]  = ['']*num_indepd_sks
+        sk_onsite_ind_dict[ibm] = [''] * num_indepd_sks
         ia, ja = ibm.split('-')  
         
         for isk in onsite_intgrl_index_map[ibm].keys():  
             iorb, jorb = isk.split('-') 
             for iisk in range(len(onsite_intgrl_index_map[ibm][isk])): 
                 iskint_type = f'{ia}-{ja}-{iorb}-{jorb}-{iisk}'
-                sk_onsite_ind_dict[ibm][ onsite_intgrl_index_map[ibm][isk][iisk] ] = all_skint_types_dict[iskint_type]
+                sk_onsite_ind_dict[ibm][ onsite_intgrl_index_map[ibm][isk][iisk] ] = all_onsite_int_types_dict[iskint_type]
     
-    return all_skint_types_dict, reducted_skint_types, sk_onsite_ind_dict
+    return all_onsite_int_types_dict, reducted_onsite_int_types, sk_onsite_ind_dict
+
+
+def all_onsite_ene_types(onsite_index_map):
+    ''' This function is to get all the possible Onsite Eergies types by given the onsite_index_map.
+
+    Parameters
+    ----------
+    onsite_index_map:
+        a dictionary that maps the site index to the onsite energy indeces.
+        e.g.: {'N': {'2s': [0], '2p': [1]}, 'B': {'2s': [0]}}
+
+    Output
+    ------
+    all_onsiteE_types_dict: dict
+        All the possible sk integral types. and maps to the reduced one. 
+        key is the all the possible sk integral types. value is the reduced one.
+        For onsite E there is no reduction. so all the types are independent. For the input parameters above, 
+        {'N-2s-0': 'N-2s-0', 
+         'N-2p-0': 'N-2p-0', 
+         'B-2s-0': 'B-2s-0'}
+    
+    reduced_onsiteE_types: list:
+        The independent/reduced onsite Energy types. for the above input parameters,
+         ['N-2s-0', 'N-2p-0', 'B-2s-0'],
+    
+    onsiteE_ind_dict: dict
+        the onsite Energy type in the format in onsite_index_map. for the above input parameters,
+        {'N': ['N-2s-0', 'N-2p-0'], 'B': ['B-2s-0']})
+
+    '''
+    all_onsiteE_types_dict = {}
+    reduced_onsiteE_types = []
+    for isite in onsite_index_map.keys():
+        ia = (isite)
+        for isk in onsite_index_map[isite]:
+            iorb = isk
+            for iisk in range(len(onsite_index_map[isite][isk])):
+                onsiteE_type = f'{ia}-{iorb}-{iisk}'
+                reduced_onsiteE_types.append(onsiteE_type)
+                all_onsiteE_types_dict[onsiteE_type] = onsiteE_type
+    
+    for ii in np.unique(list(all_onsiteE_types_dict.values())):
+        assert ii in reduced_onsiteE_types
+    
+    onsiteE_ind_dict = {}
+    for isite in onsite_index_map:
+        uniq_onsiteE_indeces = np.unique(np.concatenate(list(onsite_index_map[isite].values())))
+        num_indepd_Es = len(uniq_onsiteE_indeces)
+
+        onsiteE_ind_dict[isite] = [''] * num_indepd_Es
+
+        ia  = isite
+        for isk in onsite_index_map[isite]:
+            iorb = isk
+            for iisk in range(len(onsite_index_map[isite][isk])):
+                onsiteE_type =  f'{ia}-{iorb}-{iisk}'
+                onsiteE_ind_dict[isite][onsite_index_map[isite][isk][iisk]] = all_onsiteE_types_dict[onsiteE_type]
+    
+    return all_onsiteE_types_dict, reduced_onsiteE_types, onsiteE_ind_dict
 
 
