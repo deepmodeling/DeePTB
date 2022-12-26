@@ -2,7 +2,7 @@ from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types, all_onsite_ene_types
 import torch
 
-eps = 1.0E-1
+eps = 1e-1
 
 def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none', soc=False):
   
@@ -76,6 +76,7 @@ def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none
 
         state_dict['onsite_net.layer1'] = layer1
         state_dict['onsite_net.layer2'] = layer2
+
 
     else:
         raise ValueError('Unknown onsitemode.')

@@ -71,6 +71,7 @@ class SKNet(nn.Module):
                 'nhidden': bond_neurons.get('nhidden',1),
                 'nout': bond_neurons.get('nout'),
                 'ini_std':0.1}
+            
             # Note: 这里onsite integral 选取和bond integral一样的公式，因此是相同的 nout.
 
             self.onsite_net = DirectNet(device=device, dtype=dtype, **onsite_config)
@@ -96,7 +97,7 @@ class SKNet(nn.Module):
                 'ini_std':0.1
             }
 
-            self.onsite_net = DirectNet(**soc_config)
+            self.soc_net = DirectNet(**soc_config)
 
         
     def forward(self, mode: str):

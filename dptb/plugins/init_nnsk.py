@@ -187,7 +187,6 @@ class InitSKModel(Plugin):
 
         _, state_dict = load_paras(model_config=model_config, state_dict=ckpt['model_state_dict'], proj_atom_anglr_m=proj_atom_anglr_m, onsitemode=onsitemode, soc=soc)
 
-        
         self.host.model = SKNet(skint_types=reducted_skint_types,
                                    onsite_types=onsite_types,
                                    soc_types=reduced_onsiteE_types,
@@ -201,6 +200,7 @@ class InitSKModel(Plugin):
                                    # to determine the number of output neurons of the onsite network.
                                    onsite_index_dict=onsiteE_ind_dict
                                    )
+
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
         #self.host.onsite_index_map = onsite_index_map
