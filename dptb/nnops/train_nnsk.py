@@ -46,39 +46,17 @@ class NNSKTrainer(Trainer):
         self.soc = common_options['soc']
         
         self.validation_loss_options = loss_options.copy()
-        if loss_options['val_band_min'] != None:
-            self.validation_loss_options.update({'band_min': loss_options['val_band_min']})
-        if loss_options['val_band_max'] != None:
-            self.validation_loss_options.update({'band_max': loss_options['val_band_max']})
         if self.use_reference:
             self.reference_loss_options = loss_options.copy()
-            if loss_options['ref_band_min'] != None:
-                self.reference_loss_options.update({'band_min': loss_options['ref_band_min']})
-            if loss_options['ref_band_max'] != None:
-                self.reference_loss_options.update({'band_max': loss_options['ref_band_max']})
-            if loss_options['ref_gap_penalty'] != None:
-                self.reference_loss_options.update({'gap_penalty': loss_options['ref_gap_penalty']})
-            if loss_options['ref_fermi_band'] != None:
-                self.reference_loss_options.update({'fermi_band': loss_options['ref_fermi_band']})
-            if loss_options['ref_loss_gap_eta'] != None:
-                self.reference_loss_options.update({'loss_gap_eta': loss_options['ref_loss_gap_eta']})
 
         sortstrength = loss_options['sortstrength']
         self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(sortstrength[0]), end=np.log(sortstrength[1]), steps=self.num_epoch))
 
-        # self.emin = self.loss_options["emin"]
-        # self.emax = self.loss_options["emax"]
-        # self.sigma = self.loss_options.get('sigma', 0.1)
-        # self.num_omega = self.loss_options.get('num_omega',None)
 
         
     def build(self):
         
         # ---------------------------------------------------------------- init onsite and hopping functions  ----------------------------------------------------------------
-        # self.IndMap = Index_Mapings()
-        # self.IndMap.update(proj_atom_anglr_m=self.proj_atom_anglr_m)
-        # self.bond_index_map, self.bond_num_hops = self.IndMap.Bond_Ind_Mapings()
-        # self.onsite_strain_index_map, self.onsite_strain_num, self.onsite_index_map, self.onsite_num = self.IndMap.Onsite_Ind_Mapings(self.onsitemode, atomtype=self.atomtype)
         self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
         # ----------------------------------------------------------------         init network model         ----------------------------------------------------------------
         self.optimizer = get_optimizer(model_param=self.model.parameters(), **self.train_options["optimizer"])
@@ -157,7 +135,9 @@ class NNSKTrainer(Trainer):
         data_set_seq = np.random.choice(self.n_train_sets, size=self.n_train_sets, replace=False)
         for iset in data_set_seq:
             processor = self.train_processor_list[iset]
+            
             # iter with different structure
+            self.loss_options.update(processor.bandinfo)
             for data in processor:
                 # iter with samples from the same structure
 
@@ -190,6 +170,7 @@ class NNSKTrainer(Trainer):
              
 
                     self.loss_options.update({'num_el':num_el, 'strength':self.sortstrength_epoch[self.epoch-1]})
+                   
                     loss = self.train_lossfunc(eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, **self.loss_options)
                     
                     #loss_soft_sort(criterion=self.criterion, eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, num_el=num_el,num_kp=num_kp, 
@@ -202,13 +183,10 @@ class NNSKTrainer(Trainer):
                             num_kp_ref, num_el_ref = ref_kp_el[irefset]
                             
                             self.reference_loss_options.update({'num_el':num_el_ref, 'strength':self.sortstrength_epoch[self.epoch-1]})
-                            loss += (self.batch_size * 1.0 / (self.reference_batch_size * (1+self.n_reference_sets))) * \
-                                            self.train_lossfunc(eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, **self.reference_loss_options)
+                            self.reference_loss_options.update(self.ref_processor_list[irefset].bandinfo)
 
-                            #loss += (self.batch_size * 1.0 / (self.reference_batch_size * (1+self.n_reference_sets))) * loss_soft_sort(criterion=  self.criterion, 
-                            #            eig_pred=ref_eig_pred, eig_label=ref_eig_lbl,num_el=num_el_ref, num_kp=num_kp_ref, sort_strength=self.sortstrength_epoch[self.epoch-1], 
-                            #            band_min=self.ref_band_min, band_max=self.ref_band_max,
-                            #            gap_penalty=self.ref_gap_penalty, fermi_band=self.ref_fermi_band,eta=self.ref_loss_gap_eta)           
+                            loss += (self.batch_size * 1.0 / (self.reference_batch_size * (1+self.n_reference_sets))) * \
+                                            self.train_lossfunc(eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, **self.reference_loss_options)    
                     
                     loss.backward()
 
@@ -216,7 +194,6 @@ class NNSKTrainer(Trainer):
                     return loss
 
                 self.optimizer.step(closure)
-                #print('sortstrength_current:', self.sortstrength_current)
                 state = {'field': 'iteration', "train_loss": self.train_loss,
                          "lr": self.optimizer.state_dict()["param_groups"][0]['lr']}
 
@@ -229,6 +206,7 @@ class NNSKTrainer(Trainer):
         with torch.no_grad():
             total_loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
             for processor in self.validation_processor_list:
+                self.validation_loss_options.update(processor.bandinfo)
                 for data in processor:
                     batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[
                         3], data[4], data[5], data[6]
