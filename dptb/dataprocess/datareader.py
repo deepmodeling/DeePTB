@@ -5,6 +5,7 @@ from ase.io.trajectory import Trajectory
 import torch
 from dptb.structure.structure import BaseStruct
 from dptb.dataprocess.processor import Processor
+from dptb.utils.tools import j_loader
 
 def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='uniform', time_symm=True, **kwargs):
     """根据文件路径和prefix的读取文件夹下的数据文件,并存储为神经网络模型的输入格式数据
@@ -12,7 +13,8 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
     filenames  = {
         "xdat_file": "xdat.traj",
         "eigen_file": "eigs.npy",
-        "kpoints_file" : "kpoints.npy"
+        "kpoints_file" : "kpoints.npy",
+        "bandinfo_file": "bandinfo.json"
     }
     filenames.update(kwargs)
 
@@ -23,11 +25,14 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
     struct_list_sets = []
     kpoints_sets = []
     eigens_sets = []
+    bandinfo_sets = []
     for ii in range(len(data_dirs)):
         struct_list = []
         asetrajs = Trajectory(filename=data_dirs[ii] + "/" + filenames['xdat_file'], mode='r')
         kpoints = np.load(data_dirs[ii] + "/" + filenames['kpoints_file'])
         eigs = np.load(data_dirs[ii] + "/" + filenames['eigen_file'])
+        bandinfo = j_loader(data_dirs[ii] + "/" + filenames['bandinfo_file'])
+        bandinfo_sets.append(bandinfo)
         if len(eigs.shape)==2:
             eigs = eigs[np.newaxis]
         assert len(eigs.shape) == 3
@@ -41,7 +46,7 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
         struct_list_sets.append(struct_list)
 
 
-    return struct_list_sets, kpoints_sets, eigens_sets
+    return struct_list_sets, kpoints_sets, eigens_sets, bandinfo_sets
 
 
 def get_data(path, prefix, batch_size, bond_cutoff, env_cutoff, onsite_cutoff, proj_atom_anglr_m, proj_atom_neles, 
@@ -51,7 +56,7 @@ def get_data(path, prefix, batch_size, bond_cutoff, env_cutoff, onsite_cutoff, p
         output: processor
     """
     
-    struct_list_sets, kpoints_sets, eigens_sets = read_data(path, prefix, bond_cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode, time_symm, **kwargs)
+    struct_list_sets, kpoints_sets, eigens_sets, bandinfo_sets = read_data(path, prefix, bond_cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode, time_symm, **kwargs)
     assert len(struct_list_sets) == len(kpoints_sets) == len(eigens_sets)
     processor_list = []
 
@@ -60,7 +65,7 @@ def get_data(path, prefix, batch_size, bond_cutoff, env_cutoff, onsite_cutoff, p
             Processor(structure_list=struct_list_sets[i], batchsize=batch_size,
                         kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=device, 
                         dtype=dtype, env_cutoff=env_cutoff, onsite_cutoff=onsite_cutoff, onsitemode=onsitemode, 
-                        sorted_onsite=sorted_onsite, sorted_bond=sorted_bond, sorted_env=sorted_env, if_shuffle = if_shuffle))
+                        sorted_onsite=sorted_onsite, sorted_bond=sorted_bond, sorted_env=sorted_env, if_shuffle = if_shuffle, bandinfo=bandinfo_sets[i]))
     
     return processor_list
     
