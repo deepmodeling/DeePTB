@@ -9,9 +9,10 @@ from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types, all
 from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.loadparas import load_paras
+from dptb.nnsktb.init_from_model import init_from_model_
 from dptb.utils.constants import dtype_dict
-from dptb.utils.tools import update_dict
-from dptb.utils.argcheck import model_config_checklist
+from dptb.utils.tools import update_dict, checkdict, update_dict_with_warning
+from dptb.utils.argcheck import nnsk_model_config_checklist, nnsk_model_config_updatelist
 
 log = logging.getLogger(__name__)
 
@@ -108,6 +109,7 @@ class InitSKModel(Plugin):
             self.host.onsitestrain_fun = onsitestrain_fun
 
         self.host.model_config = common_and_model_options
+        self.host.model_config.update({"types_list": [self.host.model.onsite_types, self.host.model.skint_types, self.host.model.soc_types]})
 
         if common_and_model_options["train_soc"]:
             for k,v in self.host.model.named_parameters():
@@ -117,13 +119,14 @@ class InitSKModel(Plugin):
     def init_from_model(self, **common_and_model_and_run_options):
         # load checkpoint
         if self.mode == "init_model":
-            checkpoint = common_and_model_and_run_options['init_model']
+            checkpoint = common_and_model_and_run_options['init_model']["path"]
+            interpolate = common_and_model_and_run_options['init_model']["interpolate"]
         elif self.mode == "restart":
             checkpoint = common_and_model_and_run_options["restart"]
+            interpolate = False
+        if not isinstance(checkpoint, list):
+            checkpoint = [checkpoint]
 
-        ckpt = torch.load(checkpoint)
-        model_config = ckpt["model_config"]
-        model_config["dtype"] = dtype_dict[model_config["dtype"]]
         
         # paras directly imported from inputs.
         # ----------------------------------------------------------------------------------------------------------
@@ -135,26 +138,45 @@ class InitSKModel(Plugin):
         skformula = common_and_model_and_run_options['skfunction']['skformula']
         soc = common_and_model_and_run_options['soc']
         # ----------------------------------------------------------------------------------------------------------
-        # Add warnings:
-        if soc:
-            if not 'soc' in model_config.keys():
-                log.warning('Warning, the model is non-soc. Transferring it into soc case.')
-            else:
-                if not model_config['soc']:
-                    log.warning('Warning, the model is non-soc. Transferring it into soc case.')
-
-        else:
-            if 'soc' in model_config.keys() and model_config['soc']:
-                log.warning('Warning, the model is with soc, but this run job soc is turned off. Transferring it into non-soc case.')
-                
         
-        # load params from model_config
-        assert skformula == model_config['skfunction'].get('skformula')        
-        num_hopping_hideen = model_config['sknetwork']['sk_hop_nhidden']
-        num_onsite_hidden = model_config['sknetwork']['sk_onsite_nhidden']
-        if soc:
-            num_soc_hidden = model_config['sknetwork']['sk_soc_nhidden']
+        ckpt_list = [torch.load(ckpt) for ckpt in checkpoint]
 
+        # load params from model_config and make sure the key param doesn't conflict
+        # ----------------------------------------------------------------------------------------------------------
+        num_hopping_hidden = common_and_model_and_run_options['sknetwork']['sk_hop_nhidden']
+        num_onsite_hidden = common_and_model_and_run_options['sknetwork']['sk_onsite_nhidden']
+        num_soc_hidden = common_and_model_and_run_options['sknetwork']['sk_soc_nhidden']
+
+        for ckpt in ckpt_list:
+            model_config = ckpt["model_config"]
+            checkdict(
+                dict_prototype=common_and_model_and_run_options,
+                dict_update=model_config,
+                checklist=nnsk_model_config_checklist
+                )
+
+            num_hopping_hidden = max(num_hopping_hidden, model_config['sknetwork']['sk_hop_nhidden'])
+            num_onsite_hidden = max(num_onsite_hidden ,model_config['sknetwork']['sk_onsite_nhidden'])
+            if soc:
+                if not 'soc' in model_config.keys():
+                    log.warning('Warning, the model is non-soc. Transferring it into soc case.')
+                elif not ckpt["model_config"]["soc"]:
+                    log.warning('Warning, the model is non-soc. Transferring it into soc case.')
+                else:
+                    num_soc_hidden = max(num_soc_hidden ,model_config['sknetwork']['sk_soc_nhidden'])
+            else:
+                if 'soc' in model_config.keys() and model_config['soc']:
+                    log.warning('Warning, the model is with soc, but this run job soc is turned off. Transferring it into non-soc case.')
+        
+        # update common_and_model_and_run_options
+        # ----------------------------------------------------------------------------------------------------------
+        common_and_model_and_run_options = update_dict_with_warning(
+            dict_input=common_and_model_and_run_options,
+            update_list=nnsk_model_config_updatelist,
+            update_value=[num_hopping_hidden, num_onsite_hidden, num_soc_hidden]
+            )
+
+        # computing onsite/hopping/soc types to init model
         IndMap = Index_Mapings()
         IndMap.update(proj_atom_anglr_m=proj_atom_anglr_m)
         bond_index_map, bond_num_hops = IndMap.Bond_Ind_Mapings()
@@ -170,7 +192,7 @@ class InitSKModel(Plugin):
 
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
         _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
-        bond_neurons = {"nhidden": num_hopping_hideen,  "nout": hops_fun.num_paras}
+        bond_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras}
 
         if onsitemode == 'strain':
             onsite_neurons = {"nhidden":num_onsite_hidden,"nout":onsitestrain_fun.num_paras}
@@ -185,9 +207,7 @@ class InitSKModel(Plugin):
         else:
             soc_neurons = None
 
-        _, state_dict = load_paras(model_config=model_config, state_dict=ckpt['model_state_dict'], proj_atom_anglr_m=proj_atom_anglr_m, onsitemode=onsitemode, soc=soc)
-
-        self.host.model = SKNet(skint_types=reducted_skint_types,
+        model = SKNet(skint_types=reducted_skint_types,
                                    onsite_types=onsite_types,
                                    soc_types=reduced_onsiteE_types,
                                    bond_neurons=bond_neurons,
@@ -200,6 +220,11 @@ class InitSKModel(Plugin):
                                    # to determine the number of output neurons of the onsite network.
                                    onsite_index_dict=onsiteE_ind_dict
                                    )
+        self.host.model = init_from_model_(SKNet=model, checkpoint_list=ckpt_list, interpolate=interpolate)
+
+        # _, state_dict = load_paras(model_config=model_config, state_dict=ckpt['model_state_dict'], proj_atom_anglr_m=proj_atom_anglr_m, onsitemode=onsitemode, soc=soc)
+
+        
 
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
@@ -211,11 +236,13 @@ class InitSKModel(Plugin):
         if onsitemode == 'strain':
             self.host.onsitestrain_fun = onsitestrain_fun
         
-        model_config.update(common_and_model_and_run_options)
-        self.host.model_config = update_dict(temp_dict=model_config, update_dict=common_and_model_and_run_options, checklist=model_config_checklist)
+        # model_config.update(common_and_model_and_run_options)
+        # self.host.model_config = update_dict(temp_dict=model_config, update_dict=common_and_model_and_run_options, checklist=nnsk_model_config_checklist)
         
-        self.host.model.load_state_dict(state_dict)            
+        # self.host.model.load_state_dict(state_dict)            
         self.host.model.train()
+        self.host.model_config = common_and_model_and_run_options
+        self.host.model_config.update({"types_list": [self.host.model.onsite_types, self.host.model.skint_types, self.host.model.soc_types]})
 
         if common_and_model_and_run_options["train_soc"]:
             for k,v in self.host.model.named_parameters():

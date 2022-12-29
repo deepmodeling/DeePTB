@@ -1,4 +1,8 @@
 {
+    "init_model":{
+        "path": ["./checkpoint/latest_nnsk_c1.5w0.3.pth"],
+        "interpolate": true
+    },
     "common_options": {
         "onsitemode": "strain",
         "onsite_cutoff": 2.6,
@@ -24,8 +28,9 @@
         }
     },
     "train_options": {
+        "seed":120478,
         "num_epoch": 1000,
-        "optimizer": {"lr":1e-2}
+        "optimizer": {"lr":1e-4}
     },
     "data_options": {
         "use_reference": true,
@@ -47,8 +52,8 @@
     },
     "model_options": {
         "sknetwork": {
-            "sk_hop_nhidden": 50,
-            "sk_onsite_nhidden": 50
+            "sk_hop_nhidden": 20,
+            "sk_onsite_nhidden": 20
         },
         "skfunction": {
             "sk_cutoff": 1.5,

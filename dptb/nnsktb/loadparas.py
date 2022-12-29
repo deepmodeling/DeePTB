@@ -2,10 +2,10 @@ from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types, all_onsite_ene_types
 import torch
 
-eps = 1e-1
+eps = 1e-5
 
 def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none', soc=False):
-  
+
     indmap = Index_Mapings()
     indmap.update(proj_atom_anglr_m=proj_atom_anglr_m)
     bond_index_map, bond_num_hops = indmap.Bond_Ind_Mapings()
@@ -26,7 +26,7 @@ def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none
         all_onsiteint_types_dcit_ckpt, reducted_onsiteint_types_ckpt, onsite_strain_ind_dict_ckpt = all_onsite_intgrl_types(onsite_strain_index_map_ckpt)
 
     nhidden = model_config['sknetwork']['sk_hop_nhidden']
-    layer1 = torch.randn([len(reducted_skint_types),nhidden]) * eps
+    layer1 = torch.randn([len(reducted_skint_types), 1, nhidden]) * eps
     for i in range(len(reducted_skint_types)):
         bond_type = reducted_skint_types[i]
         if bond_type in reducted_skint_types_ckpt:
@@ -62,8 +62,8 @@ def load_paras(model_config, state_dict, proj_atom_anglr_m, onsitemode:str='none
 
     elif onsitemode == 'strain':
         
-        layer1 = torch.randn([len(reducted_onsiteint_types), onsite_nhidden]) * eps
-        layer2 = torch.randn([onsite_nhidden, nhop_out]) * eps
+        layer1 = torch.randn([len(reducted_onsiteint_types), 1, onsite_nhidden]) * eps
+        layer2 = torch.randn([len(reducted_onsiteint_types), nhop_out, onsite_nhidden]) * eps
         if model_config['onsitemode'] == onsitemode:
             if f'onsite_net.layer1' in  state_dict: 
                 for i in range(len(reducted_onsiteint_types)):

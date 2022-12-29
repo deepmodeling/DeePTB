@@ -6,13 +6,15 @@ class DirectNet(nn.Module):
         super().__init__()
         assert nout is not None, "nout must be specified!"
         self.nhidden = nhidden
-        self.layer1 = torch.nn.Parameter(torch.empty(nin, nhidden, device=device, dtype=dtype))
-        self.layer2 = torch.nn.Parameter(torch.empty(nhidden, nout, device=device, dtype=dtype))
+        self.layer1 = torch.nn.Parameter(torch.empty(nin, 1, nhidden, device=device, dtype=dtype))
+        self.layer2 = torch.nn.Parameter(torch.empty(nin, nout, nhidden, device=device, dtype=dtype))
         torch.nn.init.normal_(self.layer1, mean=0, std=ini_std)
         torch.nn.init.normal_(self.layer2, mean=0, std=ini_std)
     
     def forward(self):
-        return self.layer1 @ self.layer2 / self.nhidden
+
+        return (self.layer1 * self.layer2).sum(dim=2)
+        # return self.layer1 @ self.layer2 / self.nhidden
 
 
 class SKNet(nn.Module):

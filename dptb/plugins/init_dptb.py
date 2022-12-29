@@ -11,12 +11,13 @@ from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types, all
 from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.loadparas import load_paras
+from dptb.nnsktb.init_from_model import init_from_model_
 from dptb.utils.constants import dtype_dict
-from dptb.utils.argcheck import model_config_checklist
+from dptb.utils.argcheck import dptb_model_config_checklist, nnsk_model_config_updatelist, nnsk_model_config_checklist
 from dptb.utils.tools import get_uniq_symbol, \
     get_lr_scheduler, get_uniq_bond_type, get_uniq_env_bond_type, \
     get_env_neuron_config, get_bond_neuron_config, get_onsite_neuron_config, \
-    get_optimizer, nnsk_correction, j_must_have, update_dict
+    get_optimizer, nnsk_correction, j_must_have, update_dict, checkdict, update_dict_with_warning
 
 log = logging.getLogger(__name__)
 
@@ -137,7 +138,7 @@ class InitDPTBModel(Plugin):
         self.host.nntb.tb_net.load_state_dict(ckpt["model_state_dict"])
         self.host.model = self.host.nntb.tb_net
         
-        self.host.model_config = update_dict(temp_dict=model_config, update_dict=options, checklist=model_config_checklist)
+        self.host.model_config = update_dict(temp_dict=model_config, update_dict=options, checklist=dptb_model_config_checklist)
         self.host.model.train()
 
         if options["train_soc"]:
@@ -146,9 +147,26 @@ class InitDPTBModel(Plugin):
                     v.requires_grad = False
 
     def init_correction_model(self, **options):
-        ckpt = torch.load(options["use_correction"])
-        model_config = ckpt["model_config"]
+        
+        checkpoint = [options["use_correction"]]
+        # -------------------------------------------------------------------------------------------
+        device = options['device']
+        atomtype = options["atomtype"]
+        dtype = options['dtype']
+        proj_atom_anglr_m = options['proj_atom_anglr_m']
+        onsitemode = options['onsitemode']
+        skformula = options['skfunction']['skformula']
         soc = options["soc"]
+        # -------------------------------------------------------------------------------------------
+
+        ckpt_list = [torch.load(ckpt) for ckpt in checkpoint]
+        model_config = ckpt_list[0]["model_config"]
+
+        # load params from model_config and make sure the key param doesn't conflict
+        # ----------------------------------------------------------------------------------------------------------
+        num_hopping_hidden = model_config['sknetwork']['sk_hop_nhidden']
+        num_onsite_hidden = model_config['sknetwork']['sk_onsite_nhidden']
+        num_soc_hidden = model_config['sknetwork']['sk_soc_nhidden']
 
         if soc:
             if not 'soc' in model_config.keys():
@@ -161,21 +179,6 @@ class InitDPTBModel(Plugin):
             if 'soc' in model_config.keys() and model_config['soc']:
                 log.warning('Warning, the model is with soc, but this run job soc is turned off. Transferring it into non-soc case.')
         
-        # -------------------------------------------------------------------------------------------
-        device = options['device']
-        atomtype = options["atomtype"]
-        dtype = options['dtype']
-        proj_atom_anglr_m = options['proj_atom_anglr_m']
-        onsitemode = options['onsitemode']
-        skformula = options['skfunction']['skformula']
-        # -------------------------------------------------------------------------------------------
-
-        num_hopping_hideen = model_config['sknetwork']['sk_hop_nhidden']
-        if soc:
-            num_soc_hidden = model_config['sknetwork']['sk_soc_nhidden']
-        num_onsite_hidden = model_config['sknetwork']['sk_onsite_nhidden']
-        assert skformula == model_config['skfunction'].get('skformula')
-
         IndMap = Index_Mapings()
         IndMap.update(proj_atom_anglr_m=proj_atom_anglr_m)
         bond_index_map, bond_num_hops = IndMap.Bond_Ind_Mapings()
@@ -190,7 +193,7 @@ class InitDPTBModel(Plugin):
             onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m, atomtype=atomtype)
 
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
-        bond_neurons = {"nhidden": num_hopping_hideen,  "nout": hops_fun.num_paras}
+        bond_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras}
 
         _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
         if onsitemode == 'strain':
@@ -205,13 +208,11 @@ class InitDPTBModel(Plugin):
             if num_soc_hidden is not None:
                 soc_neurons = {"nhidden":num_soc_hidden}
             else:
-                soc_neurons = {"nhidden": num_hopping_hideen}
+                soc_neurons = {"nhidden": num_hopping_hidden}
         else:
             soc_neurons=None
 
-        _, state_dict = load_paras(model_config=model_config, state_dict=ckpt['model_state_dict'], proj_atom_anglr_m=proj_atom_anglr_m, onsitemode=onsitemode, soc=soc)
-
-        self.host.sknet = SKNet(skint_types=reducted_skint_types,
+        sknet = SKNet(skint_types=reducted_skint_types,
                                    onsite_types=onsite_types,
                                    soc_types=reduced_onsiteE_types,
                                    bond_neurons=bond_neurons,
@@ -222,9 +223,10 @@ class InitDPTBModel(Plugin):
                                    onsitemode=onsitemode,
                                    onsite_index_dict=onsiteE_ind_dict
                                    )
+
+        self.host.sknet = init_from_model_(SKNet=sknet, checkpoint_list=ckpt_list, interpolate=False)
         self.host.sknet_config  = model_config
         
-        self.host.sknet.load_state_dict(state_dict)
         self.host.sknet.train()
 
         self.host.onsite_fun = onsite_fun

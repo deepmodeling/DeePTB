@@ -85,7 +85,7 @@ class SKFormula(BaseSK):
         if isinstance(paraArray, list):
             paraArray = th.tensor(paraArray)
         assert len(paraArray.shape) in {2, 1}, 'paraArray should be a 2d tensor or 1d tensor'
-        assert len(iatomtype) == len(jatomtype)
+        
         paraArray = paraArray.view(-1, self.num_paras)
         #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
         alpha1, alpha2 = paraArray[:, 0], paraArray[:, 1].abs()

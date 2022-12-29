@@ -2,10 +2,23 @@ from typing import List, Callable
 from dargs import dargs, Argument, Variant, ArgumentEncoder
 
 
-model_config_checklist = ['dptb-if_batch_normalized', 'dptb-bond_net_type', 'dptb-env_net_type', 'dptb-onsite_net_type', 'dptb-bond_net_activation', 'dptb-env_net_activation', 'dptb-onsite_net_activation', 
-                        'dptb-bond_net_neuron', 'dptb-env_net_neuron', 'dptb-onsite_net_neuron', 'dptb-axis_neuron', 'skfunction-skformula', 'sknetwork-sk_onsite_nhidden', 
+nnsk_model_config_checklist = ['skfunction-skformula']
+nnsk_model_config_updatelist = ['sknetwork-sk_hop_nhidden', 'sknetwork-sk_onsite_nhidden', 'sknetwork-sk_soc_nhidden']
+dptb_model_config_checklist = ['dptb-if_batch_normalized', 'dptb-bond_net_type', 'dptb-soc_net_type', 'dptb-env_net_type', 'dptb-onsite_net_type', 'dptb-bond_net_activation', 'dptb-soc_net_activation', 'dptb-env_net_activation', 'dptb-onsite_net_activation', 
+                        'dptb-bond_net_neuron', 'dptb-env_net_neuron', 'dptb-soc_net_neuron', 'dptb-onsite_net_neuron', 'dptb-axis_neuron', 'skfunction-skformula', 'sknetwork-sk_onsite_nhidden', 
                         'sknetwork-sk_hop_nhidden']
 
+
+def init_model():
+    doc_path = ""
+    doc_interpolate = ""
+
+    args = [
+        Argument("path", [list, str, None], optional = True, default=None, doc = doc_path),
+        Argument("interpolate", bool, optional = True, default=False, doc = doc_interpolate)
+    ]
+    doc_init_model = ""
+    return Argument("init_model", dict, optional = True, default={}, sub_fields=args, doc = doc_init_model)
 
 def common_options():
     doc_device = ""
@@ -290,13 +303,15 @@ def loss_options():
 
 def normalize(data):
 
+    ini = init_model()
+
     co = common_options()
     tr = train_options()
     da = data_options()
     mo = model_options()
     lo = loss_options()
 
-    base = Argument("base", dict, [co, tr, da, mo, lo])
+    base = Argument("base", dict, [ini, co, tr, da, mo, lo])
     data = base.normalize_value(data)
     # data = base.normalize_value(data, trim_pattern="_*")
     base.check_value(data, strict=True)

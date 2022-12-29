@@ -95,6 +95,31 @@ def train(
             log.error("ValueError: Missing Input configuration file path.")
             raise ValueError
 
+        # switch the init model mode from command line to config file
+        jdata = j_loader(INPUT)
+        jdata = normalize(jdata)
+
+        if all((jdata["init_model"]["path"], run_opt["init_model"])) or \
+        all((jdata["init_model"]["path"], run_opt["restart"])):
+            raise RuntimeError(
+                "init-model in config and command line is in conflict, turn off one of then to avoid this error !"
+            )
+        else:
+            if jdata["init_model"]["path"] is not None:
+                assert mode == "from_scratch"
+                run_opt["init_model"] = jdata["init_model"]
+                mode = "init_model"
+                if isinstance(run_opt["init_model"]["path"], str):
+                    skconfig_path = os.path.join(str(Path(run_opt["init_model"]["path"]).parent.absolute()), "config_nnsktb.json")
+                else: # list
+                    skconfig_path = [os.path.join(str(Path(path).parent.absolute()), "config_nnsktb.json") for path in run_opt["init_model"]["path"]]
+            else:
+                if run_opt["init_model"] is not None:
+                    assert mode == "init_model"
+                    path = run_opt["init_model"]
+                    run_opt["init_model"] = jdata["init_model"]
+                    run_opt["init_model"]["path"] = path
+
     else:
         if init_model:
             dptbconfig_path = os.path.join(str(Path(init_model).parent.absolute()), "config_dptbtb.json")
@@ -115,6 +140,14 @@ def train(
             # skcheckpoint_path = str(Path(str(input(f"Enter skcheckpoint_path (default ./checkpoint/best_nnsk.pth): \n"))).absolute())
         else:
             skconfig_path = None
+
+        # parse INPUT file
+        jdata = j_loader(INPUT)
+        jdata = normalize(jdata)
+
+    
+    
+
     # setup output path
     if output:
         Path(output).parent.mkdir(exist_ok=True, parents=True)
@@ -149,9 +182,8 @@ def train(
 
     set_log_handles(log_level, Path(log_path) if log_path else None)
     # parse the config. Since if use init, config file may not equals to current
-    jdata = j_loader(INPUT)
-    jdata = normalize(jdata)
-
+    
+    
     # setup seed
     setup_seed(seed=jdata["train_options"]["seed"])
 

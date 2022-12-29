@@ -65,6 +65,16 @@ def reconstruct_dict(dictionary):
     
     return r_dict
 
+
+def checkdict(dict_prototype, dict_update, checklist):
+    flatten_dict_prototype = flatten_dict(dict_prototype)
+    flatten_dict_update = flatten_dict(dict_update)
+    for cid in checklist:
+        if flatten_dict_prototype.get(cid) != flatten_dict_update.get(cid):
+            raise ValueError
+
+    return True
+    
 def update_dict(temp_dict, update_dict, checklist):
     '''
         temp_dict: the dict that need to be update, and some of its value need to be checked in case of wrong update
@@ -80,6 +90,17 @@ def update_dict(temp_dict, update_dict, checklist):
     flatten_temp_dict.update(flatten_update_dict)
     
     return reconstruct_dict(flatten_temp_dict)
+
+def update_dict_with_warning(dict_input, update_list, update_value):
+    flatten_input_dict = flatten_dict(dict_input)
+
+    for cid in update_list:
+        idx = update_list.index(cid)
+        if flatten_input_dict[cid] != update_value[idx]:
+            log.warning(msg="Warning! The value {0} of input config has been changed.".format(cid))
+            flatten_input_dict[cid] = update_value[idx]
+    
+    return reconstruct_dict(flatten_input_dict)
 
 
 
