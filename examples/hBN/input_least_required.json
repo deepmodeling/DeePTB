@@ -1,6 +1,6 @@
 {
-    "init_model":{
-        "path": ["./checkpoint/latest_nnsk_c1.5w0.3.pth"],
+    "init_model": {
+        "path": "./checkpoint/best_nnsk_c1.5w0.3.pth",
         "interpolate": true
     },
     "common_options": {
@@ -30,7 +30,7 @@
     "train_options": {
         "seed":120478,
         "num_epoch": 1000,
-        "optimizer": {"lr":1e-4}
+        "optimizer": {"lr":1e-2}
     },
     "data_options": {
         "use_reference": true,
@@ -59,11 +59,5 @@
             "sk_cutoff": 1.5,
             "sk_decay_w": 0.3
         }
-    },
-    "loss_options": {
-        "band_min": 0,
-        "band_max": 6,
-        "ref_band_min": 0,
-        "ref_band_max": 4
     }
 }

@@ -164,7 +164,7 @@ def all_onsite_intgrl_types(onsite_intgrl_index_map):
             iorb, jorb = isk.split('-') 
             for iisk in range(len(onsite_intgrl_index_map[ibm][isk])): 
                 iskint_type = f'{ia}-{ja}-{iorb}-{jorb}-{iisk}'
-                iskint_type_ex = f'{ia}-{ja}-{jorb}-{iorb}-{iisk}'   
+                iskint_type_ex = f'{ia}-{ja}-{jorb}-{iorb}-{iisk}'
                 if iskint_type_ex in reducted_onsite_int_types:
                     all_onsite_int_types_dict[iskint_type] = iskint_type_ex
                 else:

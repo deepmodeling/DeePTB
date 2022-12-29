@@ -260,12 +260,6 @@ def model_options():
 
 def loss_options():
     doc_losstype = ""
-    doc_band_min = ""
-    doc_band_max = ""
-    doc_val_band_min = ""
-    doc_val_band_max = ""
-    doc_ref_band_min = ""
-    doc_ref_band_max = ""
     doc_emin = ""
     doc_emax = ""
     doc_sigma = ""
@@ -278,20 +272,11 @@ def loss_options():
 
     args = [
         Argument("losstype", str, optional=True, doc=doc_losstype, default='l2eig_deig_sf'),
-        Argument("band_min", int, optional=True, doc=doc_band_min, default=0),
-        Argument("band_max", [int, None], optional=True, doc=doc_band_max, default=None),
-        Argument("val_band_min", [int, None], optional=True, doc=doc_val_band_min, default=None),
-        Argument("val_band_max", [int, None], optional=True, doc=doc_val_band_max, default=None),
-        Argument("ref_band_min", [int, None], optional=True, doc=doc_ref_band_min, default=None),
-        Argument("ref_band_max", [int, None], optional=True, doc=doc_ref_band_max, default=None),
         Argument("emin", [int, None], optional=True, doc=doc_emin,default=None),
         Argument("emax", [int, None], optional=True, doc=doc_emax,default=None),
         Argument("sigma", [int, None], optional=True, doc=doc_sigma, default=None),
         Argument("num_omega", [int, None], optional=True, doc=doc_numomega,default=None),
         Argument("sortstrength", list, optional=True, doc=doc_sortstrength,default=[0.01,0.01]),
-        Argument("gap_penalty", bool, optional=True, doc=doc_gap_penalty, default=False),
-        Argument("fermi_band", int, optional=True, doc=doc_fermi_band,default=0),
-        Argument("loss_gap_eta", float, optional=True, doc=doc_loss_gap_eta, default=0.01),
         Argument("ref_gap_penalty", [bool, None], optional=True, doc=doc_gap_penalty, default=None),
         Argument("ref_fermi_band", [int, None], optional=True, doc=doc_fermi_band,default=None),
         Argument("ref_loss_gap_eta", [float, None], optional=True, doc=doc_loss_gap_eta, default=None),
@@ -299,7 +284,8 @@ def loss_options():
     ]
 
     doc_loss_options = ""
-    return Argument("loss_options", dict, sub_fields=args, sub_variants=[], optional=False, doc=doc_loss_options)
+    return Argument("loss_options", dict, sub_fields=args, sub_variants=[], optional=True, default={}, doc=doc_loss_options)
+
 
 def normalize(data):
 
@@ -317,3 +303,28 @@ def normalize(data):
     base.check_value(data, strict=True)
 
     return data
+
+def normalize_bandinfo(data):
+    doc_band_min = ""
+    doc_band_max = ""
+    doc_emin = ""
+    doc_emax = ""
+    doc_gap_penalty = ""
+    doc_fermi_band = ""
+    doc_loss_gap_eta = ""
+
+    args = [
+        Argument("band_min", int, optional=True, doc=doc_band_min, default=0),
+        Argument("band_max", [int, None], optional=True, doc=doc_band_max, default=None),
+        Argument("emin", [int, None], optional=True, doc=doc_emin,default=None),
+        Argument("emax", [int, None], optional=True, doc=doc_emax,default=None),
+        Argument("gap_penalty", bool, optional=True, doc=doc_gap_penalty, default=False),
+        Argument("fermi_band", int, optional=True, doc=doc_fermi_band,default=0),
+        Argument("loss_gap_eta", float, optional=True, doc=doc_loss_gap_eta, default=0.01)
+    ]
+    bandinfo = Argument("bandinfo", dict, sub_fields=args)
+    data = bandinfo.normalize_value(data)
+    bandinfo.check_value(data, strict=True)
+
+    return data
+

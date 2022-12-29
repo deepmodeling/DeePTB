@@ -1,6 +1,7 @@
 import  torch
 from dptb.utils.constants import atomic_num_dict_r
 from dptb.nnsktb.formula import SKFormula
+import re
 from dptb.utils.index_mapping import Index_Mapings
 import logging
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
@@ -26,9 +27,9 @@ def init_from_model_(SKNet, checkpoint_list, interpolate=False):
         checkpoint_list (_type_): _description_
     """
 
-    onsite_types = SKNet.onsite_types
-    skint_types = SKNet.skint_types
-    soc_types = SKNet.soc_types
+    onsite_types = SKNet.onsite_types.copy()
+    skint_types = SKNet.skint_types.copy()
+    soc_types = SKNet.soc_types.copy()
 
     model_state_dict = SKNet.state_dict()
 
@@ -110,6 +111,9 @@ def interpolate_init(skint_types, skint_layers, skint_types_ckpt_list, skint_lay
     nhidden = skint_layers[0].shape[2]
     for skint_layers_ckpt in skint_layers_ckpt_list:
         assert nhidden >= skint_layers_ckpt[0].shape[2], "The radial dependency of hoppings of checkpoint and current network is mismatched"
+    
+    skint_types = _remove_orbnum_(skint_types)
+    skint_types_ckpt_list = [_remove_orbnum_(x) for x in skint_types_ckpt_list]
 
     layer1 = skint_layers[0]
     layer1_ = layer1.clone()
@@ -122,10 +126,12 @@ def interpolate_init(skint_types, skint_layers, skint_types_ckpt_list, skint_lay
         types_ckpt_all.extend(types)
 
     for i in range(len(skint_types)):
-        type = skint_types[i]
-        t1 = type[0]+"-"+type[0]+type[3:]
-        t2 = type[2]+"-"+type[2]+type[3:]
-        if type[0] == type[2] or type in types_ckpt_all:
+        type = skint_types[i].split("-")
+        t1 = "-".join([type[0],type[0]]+type[2:])
+        t2 = "-".join([type[1],type[1]]+type[2:])
+        t3 = "-".join([type[0],type[0]]+[type[3], type[2], type[4]])
+        t4 = "-".join([type[1],type[1]]+[type[3], type[2], type[4]])
+        if type[0] == type[1] or type in types_ckpt_all:
             count[i] = None
         elif types_ckpt_all.count(t1) > 1:
             count[i] = None
@@ -133,19 +139,31 @@ def interpolate_init(skint_types, skint_layers, skint_types_ckpt_list, skint_lay
         elif types_ckpt_all.count(t2) > 1:
             count[i] = None
             log.warning(msg="Warning! There is more than one of element {0}'s param in checkpoint, interpolation on {1} is not performed.".format(type[2], type[0]+"-"+type[2]))
+        elif types_ckpt_all.count(t1) + types_ckpt_all.count(t3) > 1 and type[3] != type[2]:
+            count[i] = None
+            log.warning(msg="Warning! There is more than one of element {0}'s param in checkpoint, interpolation on {1} is not performed.".format(type[0], type[0]+"-"+type[2]))
+        elif types_ckpt_all.count(t2) + types_ckpt_all.count(t4) > 1 and type[3] != type[2]:
+            count[i] = None
+            log.warning(msg="Warning! There is more than one of element {0}'s param in checkpoint, interpolation on {1} is not performed.".format(type[0], type[0]+"-"+type[2]))
             
 
     for i in range(len(skint_types)):
-        type = skint_types[i] # like N-B-2s-2p-0, so corresponding key will be N-N-2s-2p-0 and B-B-2s-2p-0
-        iatom = type[0]
-        jatom = type[2]
+        type = skint_types[i].split("-") # like N-B-2s-2p-0, so corresponding key will be N-N-2s-2p-0 and B-B-2s-2p-0
         if count[i] is not None:
-            t1 = iatom+"-"+iatom+type[3:]
-            t2 = jatom+"-"+jatom+type[3:]
+            t1 = "-".join([type[0],type[0]]+type[2:])
+            t2 = "-".join([type[1],type[1]]+type[2:])
+            t3 = "-".join([type[0],type[0]]+[type[3], type[2], type[4]])
+            t4 = "-".join([type[1],type[1]]+[type[3], type[2], type[4]])
             for (skint_layers_ckpt, skint_types_ckpt) in zip(skint_layers_ckpt_list, skint_types_ckpt_list):
                 nhidden_ckpt = skint_layers_ckpt[0].shape[2]
+                print(skint_types_ckpt)
                 if t1 in skint_types_ckpt:
                     index = skint_types_ckpt.index(t1)
+                    layer1_[i][:,:nhidden_ckpt] = skint_layers_ckpt[0][index]
+                    layer2_[i][:,:nhidden_ckpt] = skint_layers_ckpt[1][index]
+                    count[i] += 1
+                elif t3 in skint_types_ckpt:
+                    index = skint_types_ckpt.index(t3)
                     layer1_[i][:,:nhidden_ckpt] = skint_layers_ckpt[0][index]
                     layer2_[i][:,:nhidden_ckpt] = skint_layers_ckpt[1][index]
                     count[i] += 1
@@ -154,9 +172,14 @@ def interpolate_init(skint_types, skint_layers, skint_types_ckpt_list, skint_lay
                     layer1_[i][:,:nhidden_ckpt] = skint_layers_ckpt[0][index]
                     layer2_[i][:,:nhidden_ckpt] = skint_layers_ckpt[1][index]
                     count[i] += 1
+                elif t4 in skint_types_ckpt:
+                    index = skint_types_ckpt.index(t4)
+                    layer1_[i][:,:nhidden_ckpt] = skint_layers_ckpt[0][index]
+                    layer2_[i][:,:nhidden_ckpt] = skint_layers_ckpt[1][index]
+                    count[i] += 1
     
     for i in range(len(count)):
-        if i == 2:
+        if count[i] == 2:
             layer1[i] = layer1_[i] * 0.5
             layer2[i] = layer2_[i] * 0.5
     
@@ -164,3 +187,12 @@ def interpolate_init(skint_types, skint_layers, skint_types_ckpt_list, skint_lay
     print(count)
 
     return skint_layers
+
+def _remove_orbnum_(types):
+    for i in range(len(types)):
+        temp = types[i].split("-") # "["N", "N", "2s", "2p", "0"]"
+        temp[2] = "".join(re.findall(r'[A-za-z*]', temp[2]))
+        temp[3] = "".join(re.findall(r'[A-za-z*]', temp[3]))
+        types[i] = "-".join(temp)
+    
+    return types

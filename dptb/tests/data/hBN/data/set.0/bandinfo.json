@@ -1,0 +1,9 @@
+{
+    "band_min": 0,
+    "band_max": 4,
+    "gap_penalty": false,
+    "fermi_band": 3,
+    "loss_gap_eta": 0.1,
+    "emin": null,
+    "emax": null
+}

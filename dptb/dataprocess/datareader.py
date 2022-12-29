@@ -6,6 +6,7 @@ import torch
 from dptb.structure.structure import BaseStruct
 from dptb.dataprocess.processor import Processor
 from dptb.utils.tools import j_loader
+from dptb.utils.argcheck import normalize_bandinfo
 
 def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='uniform', time_symm=True, **kwargs):
     """根据文件路径和prefix的读取文件夹下的数据文件,并存储为神经网络模型的输入格式数据
@@ -32,6 +33,7 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
         kpoints = np.load(data_dirs[ii] + "/" + filenames['kpoints_file'])
         eigs = np.load(data_dirs[ii] + "/" + filenames['eigen_file'])
         bandinfo = j_loader(data_dirs[ii] + "/" + filenames['bandinfo_file'])
+        bandinfo = normalize_bandinfo(bandinfo)
         bandinfo_sets.append(bandinfo)
         if len(eigs.shape)==2:
             eigs = eigs[np.newaxis]
