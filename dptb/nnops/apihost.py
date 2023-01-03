@@ -38,7 +38,7 @@ class NNSKHost(PluginUser):
         ckpt = torch.load(checkpoint)
         model_config = ckpt["model_config"]
         model_config["dtype"] = dtype_dict[model_config["dtype"]]
-        model_config.update({'init_model':checkpoint})
+        model_config.update({"init_model": {"path": checkpoint,"interpolate": False}})
         self.__init_params(**model_config)
 
     def __init_params(self, **model_config):
