@@ -13,7 +13,7 @@ class DirectNet(nn.Module):
     
     def forward(self):
 
-        return (self.layer1 * self.layer2).sum(dim=2)
+        return (self.layer1 * self.layer2).sum(dim=2) / self.nhidden
         # return self.layer1 @ self.layer2 / self.nhidden
 
 
