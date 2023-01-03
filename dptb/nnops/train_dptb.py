@@ -51,22 +51,8 @@ class DPTBTrainer(Trainer):
         self.band_max = loss_options.get('band_max', None)
 
         self.validation_loss_options = loss_options.copy()
-        if loss_options['val_band_min'] != None:
-            self.validation_loss_options.update({'band_min': loss_options['val_band_min']})
-        if loss_options['val_band_max'] != None:
-            self.validation_loss_options.update({'band_max': loss_options['val_band_max']})
         if self.use_reference:
             self.reference_loss_options = loss_options.copy()
-            if loss_options['ref_band_min'] != None:
-                self.reference_loss_options.update({'band_min': loss_options['ref_band_min']})
-            if loss_options['ref_band_max'] != None:
-                self.reference_loss_options.update({'band_max': loss_options['ref_band_max']})
-            if loss_options['ref_gap_penalty'] != None:
-                self.reference_loss_options.update({'gap_penalty': loss_options['ref_gap_penalty']})
-            if loss_options['ref_fermi_band'] != None:
-                self.reference_loss_options.update({'fermi_band': loss_options['ref_fermi_band']})
-            if loss_options['ref_loss_gap_eta'] != None:
-                self.reference_loss_options.update({'loss_gap_eta': loss_options['ref_loss_gap_eta']})
 
         sortstrength = loss_options['sortstrength']
         self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(sortstrength[0]), end=np.log(sortstrength[1]), steps=self.num_epoch))
@@ -183,16 +169,17 @@ class DPTBTrainer(Trainer):
 
         return eigenvalues_pred, eigenvector_pred
 
+# 
 
     def train(self) -> None:
 
         data_set_seq = np.random.choice(self.n_train_sets, size=self.n_train_sets, replace=False)
         for iset in data_set_seq:
             processor = self.train_processor_list[iset]
+            self.loss_options.update(processor.bandinfo)
             # iter with different structure
             for data in processor:
                 # iter with samples from the same structure
-
 
                 def closure():
                     # calculate eigenvalues.
@@ -230,6 +217,7 @@ class DPTBTrainer(Trainer):
                         for irefset in range(self.n_reference_sets):
                             ref_eig_pred, ref_eig_lbl = ref_eig[irefset]
                             num_kp_ref, num_el_ref = ref_kp_el[irefset]
+                            self.reference_loss_options.update(self.ref_processor_list[irefset].bandinfo)
                             self.reference_loss_options.update({'num_el':num_el_ref, 'strength':self.sortstrength_epoch[self.epoch-1]})
                             loss += (self.batch_size * 1.0 / (self.reference_batch_size * (1+self.n_reference_sets))) * \
                                             self.train_lossfunc(eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, **self.reference_loss_options)
@@ -252,6 +240,7 @@ class DPTBTrainer(Trainer):
         with torch.no_grad():
             total_loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
             for processor in self.validation_processor_list:
+                self.validation_loss_options.update(processor.bandinfo)
                 for data in processor:
                     batch_bond, batch_bond_onsite, batch_env, batch_onsitenvs, structs, kpoints, eigenvalues = data[0],data[1],data[2], data[3], data[4], data[5], data[6]
                     eigenvalues_pred, _ = self.calc(batch_bond, batch_bond_onsite, batch_env, batch_onsitenvs, structs, kpoints)
