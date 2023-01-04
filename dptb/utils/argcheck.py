@@ -301,8 +301,8 @@ def normalize_bandinfo(data):
     args = [
         Argument("band_min", int, optional=True, doc=doc_band_min, default=0),
         Argument("band_max", [int, None], optional=True, doc=doc_band_max, default=None),
-        Argument("emin", [int, None], optional=True, doc=doc_emin,default=None),
-        Argument("emax", [int, None], optional=True, doc=doc_emax,default=None),
+        Argument("emin", [float, None], optional=True, doc=doc_emin,default=None),
+        Argument("emax", [float, None], optional=True, doc=doc_emax,default=None),
         Argument("gap_penalty", bool, optional=True, doc=doc_gap_penalty, default=False),
         Argument("fermi_band", int, optional=True, doc=doc_fermi_band,default=0),
         Argument("loss_gap_eta", float, optional=True, doc=doc_loss_gap_eta, default=0.01),
