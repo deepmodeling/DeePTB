@@ -260,27 +260,11 @@ def model_options():
 
 def loss_options():
     doc_losstype = ""
-    doc_emin = ""
-    doc_emax = ""
-    doc_sigma = ""
-    doc_numomega = ""
     doc_sortstrength = ""
-    doc_gap_penalty = ""
-    doc_fermi_band = ""
-    doc_loss_gap_eta = ""
-    doc_eout_weight = ""
 
     args = [
         Argument("losstype", str, optional=True, doc=doc_losstype, default='l2eig_deig_sf'),
-        Argument("emin", [int, None], optional=True, doc=doc_emin,default=None),
-        Argument("emax", [int, None], optional=True, doc=doc_emax,default=None),
-        Argument("sigma", [int, None], optional=True, doc=doc_sigma, default=None),
-        Argument("num_omega", [int, None], optional=True, doc=doc_numomega,default=None),
         Argument("sortstrength", list, optional=True, doc=doc_sortstrength,default=[0.01,0.01]),
-        Argument("ref_gap_penalty", [bool, None], optional=True, doc=doc_gap_penalty, default=None),
-        Argument("ref_fermi_band", [int, None], optional=True, doc=doc_fermi_band,default=None),
-        Argument("ref_loss_gap_eta", [float, None], optional=True, doc=doc_loss_gap_eta, default=None),
-        Argument("eout_weight", float, optional=True, doc=doc_loss_gap_eta, default=0.),
     ]
 
     doc_loss_options = ""
@@ -312,6 +296,7 @@ def normalize_bandinfo(data):
     doc_gap_penalty = ""
     doc_fermi_band = ""
     doc_loss_gap_eta = ""
+    eout_weight=""
 
     args = [
         Argument("band_min", int, optional=True, doc=doc_band_min, default=0),
@@ -320,7 +305,8 @@ def normalize_bandinfo(data):
         Argument("emax", [int, None], optional=True, doc=doc_emax,default=None),
         Argument("gap_penalty", bool, optional=True, doc=doc_gap_penalty, default=False),
         Argument("fermi_band", int, optional=True, doc=doc_fermi_band,default=0),
-        Argument("loss_gap_eta", float, optional=True, doc=doc_loss_gap_eta, default=0.01)
+        Argument("loss_gap_eta", float, optional=True, doc=doc_loss_gap_eta, default=0.01),
+        Argument("eout_weight", float, optional=True, doc=eout_weight, default=0.00),
     ]
     bandinfo = Argument("bandinfo", dict, sub_fields=args)
     data = bandinfo.normalize_value(data)
