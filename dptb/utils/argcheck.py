@@ -203,7 +203,7 @@ def skfunction():
 
     args = [
         Argument("skformula", str, optional=True, default="varTang96", doc=doc_skformula),
-        Argument("sk_cutoff", float, optional=True, default=6.0, doc=doc_sk_cutoff),
+        Argument("sk_cutoff", [float,int], optional=True, default=6.0, doc=doc_sk_cutoff),
         Argument("sk_decay_w", float, optional=True, default=0.1, doc=doc_sk_decay_w)
     ]
 
