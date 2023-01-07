@@ -72,7 +72,7 @@ class SKNet(nn.Module):
                 'nin': len(self.onsite_types),
                 'nhidden': bond_neurons.get('nhidden',1),
                 'nout': bond_neurons.get('nout'),
-                'ini_std':0.1}
+                'ini_std':0.01}
             
             # Note: 这里onsite integral 选取和bond integral一样的公式，因此是相同的 nout.
 
@@ -85,7 +85,7 @@ class SKNet(nn.Module):
                 'nin': len(self.onsite_types),
                 'nhidden': onsite_neurons.get('nhidden',1),
                 'nout': 1,
-                'ini_std':0.1}
+                'ini_std':0.01}
 
             self.onsite_net = DirectNet(**onsite_config)
         
@@ -96,7 +96,7 @@ class SKNet(nn.Module):
                 'nin': len(self.soc_types),
                 'nhidden': soc_neurons.get('nhidden',1),
                 'nout': 1,
-                'ini_std':0.1
+                'ini_std':0.01
             }
 
             self.soc_net = DirectNet(**soc_config)

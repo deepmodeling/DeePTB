@@ -1,6 +1,7 @@
 import ase
 import glob
 import numpy as np
+import os
 from ase.io.trajectory import Trajectory
 import torch
 from dptb.structure.structure import BaseStruct
@@ -15,7 +16,8 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
         "xdat_file": "xdat.traj",
         "eigen_file": "eigs.npy",
         "kpoints_file" : "kpoints.npy",
-        "bandinfo_file": "bandinfo.json"
+        "bandinfo_file": "bandinfo.json",
+        "wannier_file": "wannier.npy"
     }
     filenames.update(kwargs)
 
@@ -27,12 +29,18 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
     kpoints_sets = []
     eigens_sets = []
     bandinfo_sets = []
+    wannier_sets = []
     for ii in range(len(data_dirs)):
         struct_list = []
         asetrajs = Trajectory(filename=data_dirs[ii] + "/" + filenames['xdat_file'], mode='r')
         kpoints = np.load(data_dirs[ii] + "/" + filenames['kpoints_file'])
         eigs = np.load(data_dirs[ii] + "/" + filenames['eigen_file'])
         bandinfo = j_loader(data_dirs[ii] + "/" + filenames['bandinfo_file'])
+        if os.path.exist(data_dirs[ii] + "/" + filenames['wannier_file']):
+            wannier = np.load(data_dirs[ii] + "/" + filenames['wannier_file'], allow_pickle=True)
+        else:
+            wannier = None
+        wannier_sets.append(wannier)
         bandinfo = normalize_bandinfo(bandinfo)
         bandinfo_sets.append(bandinfo)
         if len(eigs.shape)==2:
@@ -41,6 +49,7 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
         kpoints_sets.append(kpoints)
         eigens_sets.append(eigs)
         
+        
         for iatom in asetrajs:
 
             struct = BaseStruct(atom=iatom, format='ase', cutoff=cutoff, proj_atom_anglr_m=proj_atom_anglr_m, proj_atom_neles=proj_atom_neles, onsitemode=onsitemode, time_symm=time_symm)
@@ -48,7 +57,7 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
         struct_list_sets.append(struct_list)
 
 
-    return struct_list_sets, kpoints_sets, eigens_sets, bandinfo_sets
+    return struct_list_sets, kpoints_sets, eigens_sets, bandinfo_sets, wannier_sets
 
 
 def get_data(path, prefix, batch_size, bond_cutoff, env_cutoff, onsite_cutoff, proj_atom_anglr_m, proj_atom_neles, 
@@ -58,14 +67,14 @@ def get_data(path, prefix, batch_size, bond_cutoff, env_cutoff, onsite_cutoff, p
         output: processor
     """
     
-    struct_list_sets, kpoints_sets, eigens_sets, bandinfo_sets = read_data(path, prefix, bond_cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode, time_symm, **kwargs)
-    assert len(struct_list_sets) == len(kpoints_sets) == len(eigens_sets)
+    struct_list_sets, kpoints_sets, eigens_sets, bandinfo_sets, wannier_sets = read_data(path, prefix, bond_cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode, time_symm, **kwargs)
+    assert len(struct_list_sets) == len(kpoints_sets) == len(eigens_sets) == len(bandinfo_sets) == len(wannier_sets)
     processor_list = []
 
     for i in range(len(struct_list_sets)):
         processor_list.append(
             Processor(structure_list=struct_list_sets[i], batchsize=batch_size,
-                        kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], device=device, 
+                        kpoint=kpoints_sets[i], eigen_list=eigens_sets[i], wannier_list=wannier_sets[i], device=device, 
                         dtype=dtype, env_cutoff=env_cutoff, onsite_cutoff=onsite_cutoff, onsitemode=onsitemode, 
                         sorted_onsite=sorted_onsite, sorted_bond=sorted_bond, sorted_env=sorted_env, if_shuffle = if_shuffle, bandinfo=bandinfo_sets[i]))
     

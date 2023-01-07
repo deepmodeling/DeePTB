@@ -78,12 +78,17 @@ class NNSKTrainer(Trainer):
         self.criterion = torch.nn.MSELoss(reduction='mean')
 
         self.train_lossfunc = getattr(lossfunction(self.criterion), self.loss_options['losstype'])
+        if self.loss_options['losstype'].startwith("eigs"):
+            self.decompose = True
+        else:
+            self.decompose = False
+
         self.validation_lossfunc = getattr(lossfunction(self.criterion), 'l2eig')
 
         self.hamileig = HamilEig(dtype=self.dtype, device=self.device)
     
 
-    def calc(self, batch_bonds, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints):
+    def calc(self, batch_bonds, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues, wannier_blocks, decompose=True):
         assert len(kpoints.shape) == 2, "kpoints should have shape of [num_kp, 3]."
         coeffdict = self.model(mode='hopping')
         batch_hoppings = self.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, 
@@ -93,43 +98,50 @@ class NNSKTrainer(Trainer):
         batch_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
         if self.onsitemode == 'strain':
             batch_onsiteVs = self.onsitestrain_fun.get_skhops(batch_bonds=batch_onsitenvs, coeff_paras=onsite_coeffdict)
+        else:
+            batch_onsiteVs = None
 
         if self.soc:
             nn_soc_lambdas, _ = self.model(mode='soc')
             batch_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_soc=nn_soc_lambdas)
+        else:
+            batch_soc_lambdas = None
 
-        # call sktb to get the sktb hoppings and onsites
-        eigenvalues_pred = []
-        eigenvector_pred = []
-        for ii in range(len(structs)):
-            if self.onsitemode == 'strain':
-                onsiteEs, onsiteVs, hoppings = batch_onsiteEs[ii], batch_onsiteVs[ii], batch_hoppings[ii]
-                # TODO: 这里的numpy 是否要改为tensor 方便之后为了GPU的加速。
-                onsitenvs = np.asarray(batch_onsitenvs[ii][:,1:])
-                # call hamiltonian block
-            else:
-                onsiteEs, hoppings = batch_onsiteEs[ii], batch_hoppings[ii]
-                onsiteVs = None
-                onsitenvs = None
-                # call hamiltonian block
+        if decompose:
+            # call sktb to get the sktb hoppings and onsites
+            eigenvalues_pred = []
+            for ii in range(len(structs)):
+                if self.onsitemode == 'strain':
+                    onsiteEs, onsiteVs, hoppings = batch_onsiteEs[ii], batch_onsiteVs[ii], batch_hoppings[ii]
+                    # TODO: 这里的numpy 是否要改为tensor 方便之后为了GPU的加速。
+                    onsitenvs = np.asarray(batch_onsitenvs[ii][:,1:])
+                    # call hamiltonian block
+                else:
+                    onsiteEs, hoppings = batch_onsiteEs[ii], batch_hoppings[ii]
+                    onsiteVs = None
+                    onsitenvs = None
+                    # call hamiltonian block
 
-            if self.soc:
-                soc_lambdas = batch_soc_lambdas[ii]
-            else:
-                soc_lambdas = None
+                if self.soc:
+                    soc_lambdas = batch_soc_lambdas[ii]
+                else:
+                    soc_lambdas = None
 
-            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs,soc_lambdas=soc_lambdas)
-            self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
-                                        bonds_hoppings=np.asarray(batch_bonds[ii][:,1:]), 
-                                        onsite_envs=onsitenvs)
-            eigenvalues_ii, eigvec = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"])
-            eigenvalues_pred.append(eigenvalues_ii)
-            eigenvector_pred.append(eigvec)
-        eigenvalues_pred = torch.stack(eigenvalues_pred)
-        eigenvector_pred = torch.stack(eigenvector_pred)
+                self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs,soc_lambdas=soc_lambdas)
+                self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
+                                            bonds_hoppings=np.asarray(batch_bonds[ii][:,1:]), 
+                                            onsite_envs=onsitenvs)
+                eigenvalues_ii, _ = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"])
+                eigenvalues_pred.append(eigenvalues_ii)
+            eigenvalues_pred = torch.stack(eigenvalues_pred)
 
+            return eigenvalues_pred, torch.from_numpy(eigenvalues.astype(float)).float()
+        else:
+            # directly return batch_onsiteEs, batch_hoppings, batch_onsiteVs, batch_soc_lambdas
+            # matching the wannier block with shape as output of onsite E/V, hopping
 
-        return eigenvalues_pred, eigenvector_pred
+            return (batch_onsiteEs, batch_hoppings, batch_onsiteVs, batch_soc_lambdas), ()
+        
     
     def train(self) -> None:
         data_set_seq = np.random.choice(self.n_train_sets, size=self.n_train_sets, replace=False)
@@ -145,13 +157,10 @@ class NNSKTrainer(Trainer):
                 def closure():
                     # calculate eigenvalues.
                     self.optimizer.zero_grad()
-                    batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[
-                        3], data[4], data[5], data[6]
-                    eigenvalues_pred, eigenvector_pred = self.calc(batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints)
-                    eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
-
-                    num_kp = kpoints.shape[0]
-                    num_el = np.sum(structs[0].proj_atom_neles_per)
+                    # eigenvalues_pred, eigenvector_pred = self.calc(batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints)
+                    # eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
+                    pred, label = self.calc(*data, decompose=self.decompose)
+                    loss = self.train_lossfunc(pred, label, **self.loss_options)
 
                     if self.use_reference:
                         ref_eig=[]
@@ -159,24 +168,12 @@ class NNSKTrainer(Trainer):
                         for irefset in range(self.n_reference_sets):
                             ref_processor = self.ref_processor_list[irefset]
                             for refdata in ref_processor:
-                                batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues = refdata[0], refdata[1], refdata[2], \
-                                                                                              refdata[3], refdata[4], refdata[5], refdata[6]
-                                ref_eig_pred, ref_eigv_pred = self.calc(batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints)
-                                ref_eig_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
-                                num_kp_ref = kpoints.shape[0]
-                                num_el_ref = np.sum(structs[0].proj_atom_neles_per)
+                                ref_pred, ref_label = self.calc(*refdata, decompose=self.decompose)
                                 ref_eig.append([ref_eig_pred, ref_eig_lbl])
                                 ref_kp_el.append([num_kp_ref, num_el_ref])
-             
-
-                    self.loss_options.update({'num_el':num_el, 'strength':self.sortstrength_epoch[self.epoch-1]})
-                   
-                    loss = self.train_lossfunc(eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, **self.loss_options)
-                    
                     #loss_soft_sort(criterion=self.criterion, eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, num_el=num_el,num_kp=num_kp, 
                     #                                    sort_strength=self.sortstrength_epoch[self.epoch-1], band_min=self.band_min, band_max=self.band_max, 
                     #                                    gap_penalty=self.gap_penalty, fermi_band=self.fermi_band,eta=self.loss_gap_eta)
-
                     if self.use_reference:
                         for irefset in range(self.n_reference_sets):
                             ref_eig_pred, ref_eig_lbl = ref_eig[irefset]
@@ -208,7 +205,7 @@ class NNSKTrainer(Trainer):
             for processor in self.validation_processor_list:
                 self.validation_loss_options.update(processor.bandinfo)
                 for data in processor:
-                    batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[
+                    batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues, wan = data[0], data[1], data[2], data[
                         3], data[4], data[5], data[6]
                     eigenvalues_pred, eigenvector_pred = self.calc(batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints)
                     eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()

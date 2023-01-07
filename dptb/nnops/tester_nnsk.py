@@ -51,7 +51,7 @@ class NNSKTester(Tester):
         self.test_lossfunc = getattr(lossfunction(self.criterion), 'l2eig')
         self.hamileig = HamilEig(dtype=self.dtype, device=self.device)
     
-    def calc(self, batch_bonds, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints):
+    def calc(self, batch_bonds, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints=None, decompose=True):
         assert len(kpoints.shape) == 2, "kpoints should have shape of [num_kp, 3]."
         coeffdict = self.model(mode='hopping')
         batch_hoppings = self.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, 
@@ -61,43 +61,53 @@ class NNSKTester(Tester):
         batch_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
         if self.onsitemode == 'strain':
             batch_onsiteVs = self.onsitestrain_fun.get_skhops(batch_bonds=batch_onsitenvs, coeff_paras=onsite_coeffdict)
+        else:
+            batch_onsiteVs = None
 
         if self.soc:
             nn_soc_lambdas, _ = self.model(mode='soc')
             batch_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_soc=nn_soc_lambdas)
+        else:
+            batch_soc_lambdas = None
 
-        # call sktb to get the sktb hoppings and onsites
-        eigenvalues_pred = []
-        eigenvector_pred = []
-        for ii in range(len(structs)):
-            if self.onsitemode == 'strain':
-                onsiteEs, onsiteVs, hoppings = batch_onsiteEs[ii], batch_onsiteVs[ii], batch_hoppings[ii]
-                # TODO: 这里的numpy 是否要改为tensor 方便之后为了GPU的加速。
-                onsitenvs = np.asarray(batch_onsitenvs[ii][:,1:])
-                # call hamiltonian block
-            else:
-                onsiteEs, hoppings = batch_onsiteEs[ii], batch_hoppings[ii]
-                onsiteVs = None
-                onsitenvs = None
-                # call hamiltonian block
-            
-            if self.soc:
-                soc_lambdas = batch_soc_lambdas[ii]
-            else:
-                soc_lambdas = None
+        if decompose:
+            # call sktb to get the sktb hoppings and onsites
+            eigenvalues_pred = []
+            eigenvector_pred = []
+            for ii in range(len(structs)):
+                if self.onsitemode == 'strain':
+                    onsiteEs, onsiteVs, hoppings = batch_onsiteEs[ii], batch_onsiteVs[ii], batch_hoppings[ii]
+                    # TODO: 这里的numpy 是否要改为tensor 方便之后为了GPU的加速。
+                    onsitenvs = np.asarray(batch_onsitenvs[ii][:,1:])
+                    # call hamiltonian block
+                else:
+                    onsiteEs, hoppings = batch_onsiteEs[ii], batch_hoppings[ii]
+                    onsiteVs = None
+                    onsitenvs = None
+                    # call hamiltonian block
+                
+                if self.soc:
+                    soc_lambdas = batch_soc_lambdas[ii]
+                else:
+                    soc_lambdas = None
 
-            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs,soc_lambdas=soc_lambdas)
-            self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
-                                        bonds_hoppings=np.asarray(batch_bonds[ii][:,1:]), 
-                                        onsite_envs=onsitenvs)
-            eigenvalues_ii, eigvec = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"])
-            eigenvalues_pred.append(eigenvalues_ii)
-            eigenvector_pred.append(eigvec)
-        eigenvalues_pred = torch.stack(eigenvalues_pred)
-        eigenvector_pred = torch.stack(eigenvector_pred)
+                self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs,soc_lambdas=soc_lambdas)
+                self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
+                                            bonds_hoppings=np.asarray(batch_bonds[ii][:,1:]), 
+                                            onsite_envs=onsitenvs)
+                eigenvalues_ii, eigvec = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"])
+                eigenvalues_pred.append(eigenvalues_ii)
+                eigenvector_pred.append(eigvec)
+            eigenvalues_pred = torch.stack(eigenvalues_pred)
+            eigenvector_pred = torch.stack(eigenvector_pred)
+
+            return eigenvalues_pred, eigenvector_pred
+        else:
+            # directly return batch_onsiteEs, batch_hoppings, batch_onsiteVs, batch_soc_lambdas
+            return batch_onsiteEs, batch_hoppings, batch_onsiteVs, batch_soc_lambdas
 
 
-        return eigenvalues_pred, eigenvector_pred
+        
     
     def test(self):
         with torch.no_grad():

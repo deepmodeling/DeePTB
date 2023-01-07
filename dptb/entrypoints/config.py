@@ -4,6 +4,13 @@ This file initialize all the required config items
 import torch
 
 DEFAULT_CONFIG = {
+    "init_model":{
+        "path": None,
+        "interpolate": False
+    },
+    "common_options":{
+
+    },
     "device": "cpu",
     "dtype": torch.float32,
     "train_options": {

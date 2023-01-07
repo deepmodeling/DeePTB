@@ -6,7 +6,7 @@ from dptb.structure.abstract_stracture import AbstractStructure
 
 class Processor(object):
     # TODO: 现在strain的env 是通过get_env 获得，但是在dptb中的env是有另外的含义。是否已经考虑。
-    def __init__(self, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, env_cutoff: float = 3.0, onsitemode=None, 
+    def __init__(self, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, wannier_list = None, env_cutoff: float = 3.0, onsitemode=None, 
     onsite_cutoff=None, sorted_bond=None, sorted_onsite=None, sorted_env=None, bandinfo=None, device='cpu', dtype=torch.float32, if_shuffle=True):
         super(Processor, self).__init__()
         if isinstance(structure_list, AbstractStructure):
@@ -14,6 +14,7 @@ class Processor(object):
         self.structure_list = np.array(structure_list, dtype=object)
         self.kpoint = kpoint
         self.eigen_list = np.array(eigen_list, dtype=object)
+        self.wannier_list = wannier_list # [{"i-j-R":np.array}]
         self.sorted_bond = sorted_bond
         self.sorted_env = sorted_env
         self.sorted_onsite = sorted_onsite
@@ -271,7 +272,7 @@ class Processor(object):
                     self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float))
             else:
                 data = (bond, bond_onsite, self.get_env(sorted=self.sorted_env), self.get_onsitenv(cutoff=self.onsite_cutoff, sorted=self.sorted_onsite), self.__struct_workspace__,
-                    self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float))
+                    self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float), self.wannier_list[self.])
 
             self.it += 1
             return data
