@@ -396,10 +396,6 @@ def nnsk_correction(nn_onsiteEs, nn_hoppings, sk_onsiteEs, sk_hoppings, sk_onsit
         for ib in range(len(nn_soc_lambdas)):
             sk_soc_ib = sk_soc_lambdas[ib]
             soc_lambdas.append(sk_soc_ib * (1 + nn_soc_lambdas[ib]))
-
-        if sk_onsiteSs:
-            sk_onsiteSs_ib = sk_onsiteSs[ib]
-            onsiteSs.append(sk_onsiteSs_ib)
     else:
         if nn_soc_lambdas:
             soc_lambdas = nn_soc_lambdas

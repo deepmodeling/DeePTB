@@ -203,7 +203,7 @@ def skfunction():
 
     args = [
         Argument("skformula", str, optional=True, default="varTang96", doc=doc_skformula),
-        Argument("sk_cutoff", float, optional=True, default=6.0, doc=doc_sk_cutoff),
+        Argument("sk_cutoff", [float,int], optional=True, default=6.0, doc=doc_sk_cutoff),
         Argument("sk_decay_w", float, optional=True, default=0.1, doc=doc_sk_decay_w)
     ]
 
@@ -260,25 +260,11 @@ def model_options():
 
 def loss_options():
     doc_losstype = ""
-    doc_emin = ""
-    doc_emax = ""
-    doc_sigma = ""
-    doc_numomega = ""
     doc_sortstrength = ""
-    doc_gap_penalty = ""
-    doc_fermi_band = ""
-    doc_loss_gap_eta = ""
 
     args = [
         Argument("losstype", str, optional=True, doc=doc_losstype, default='l2eig_deig_sf'),
-        Argument("emin", [int, float, None], optional=True, doc=doc_emin,default=None),
-        Argument("emax", [int, float, None], optional=True, doc=doc_emax,default=None),
-        Argument("sigma", [int, None], optional=True, doc=doc_sigma, default=None),
-        Argument("num_omega", [int, None], optional=True, doc=doc_numomega,default=None),
         Argument("sortstrength", list, optional=True, doc=doc_sortstrength,default=[0.01,0.01]),
-        Argument("ref_gap_penalty", [bool, None], optional=True, doc=doc_gap_penalty, default=None),
-        Argument("ref_fermi_band", [int, None], optional=True, doc=doc_fermi_band,default=None),
-        Argument("ref_loss_gap_eta", [float, None], optional=True, doc=doc_loss_gap_eta, default=None)
     ]
 
     doc_loss_options = ""
@@ -310,17 +296,17 @@ def normalize_bandinfo(data):
     doc_gap_penalty = ""
     doc_fermi_band = ""
     doc_loss_gap_eta = ""
-    doc_loss_gap_eta = ""
+    eout_weight=""
 
     args = [
         Argument("band_min", int, optional=True, doc=doc_band_min, default=0),
         Argument("band_max", [int, None], optional=True, doc=doc_band_max, default=None),
-        Argument("emin", [int, float, None], optional=True, doc=doc_emin,default=None),
-        Argument("emax", [int, float, None], optional=True, doc=doc_emax,default=None),
+        Argument("emin", [float, None], optional=True, doc=doc_emin,default=None),
+        Argument("emax", [float, None], optional=True, doc=doc_emax,default=None),
         Argument("gap_penalty", bool, optional=True, doc=doc_gap_penalty, default=False),
         Argument("fermi_band", int, optional=True, doc=doc_fermi_band,default=0),
         Argument("loss_gap_eta", float, optional=True, doc=doc_loss_gap_eta, default=0.01),
-        Argument("eout_weight", float, optional=True, doc=doc_loss_gap_eta, default=0.)
+        Argument("eout_weight", float, optional=True, doc=eout_weight, default=0.00),
     ]
     bandinfo = Argument("bandinfo", dict, sub_fields=args)
     data = bandinfo.normalize_value(data)
