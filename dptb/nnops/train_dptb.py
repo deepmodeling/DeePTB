@@ -189,9 +189,6 @@ class DPTBTrainer(Trainer):
                     eigenvalues_pred, eigenvector_pred = self.calc(batch_bond, batch_bond_onsite, batch_env, batch_onsitenvs, structs, kpoints)
                     eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
 
-                    num_kp = kpoints.shape[0]
-                    num_el = np.sum(structs[0].proj_atom_neles_per)
-
                     if self.use_reference:
                         ref_eig = []
                         ref_kp_el = []
@@ -210,15 +207,12 @@ class DPTBTrainer(Trainer):
                                 ref_eig.append([ref_eig_pred, ref_eig_lbl])
                                 ref_kp_el.append([num_kp_ref, num_el_ref])
 
-                    self.loss_options.update({'num_el':num_el, 'strength':self.sortstrength_epoch[self.epoch-1]})
                     loss = self.train_lossfunc(eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, **self.loss_options)
                     
                     if self.use_reference:
                         for irefset in range(self.n_reference_sets):
                             ref_eig_pred, ref_eig_lbl = ref_eig[irefset]
-                            num_kp_ref, num_el_ref = ref_kp_el[irefset]
                             self.reference_loss_options.update(self.ref_processor_list[irefset].bandinfo)
-                            self.reference_loss_options.update({'num_el':num_el_ref, 'strength':self.sortstrength_epoch[self.epoch-1]})
                             loss += (self.batch_size * 1.0 / (self.reference_batch_size * (1+self.n_reference_sets))) * \
                                             self.train_lossfunc(eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, **self.reference_loss_options)
 
@@ -246,10 +240,6 @@ class DPTBTrainer(Trainer):
                     eigenvalues_pred, _ = self.calc(batch_bond, batch_bond_onsite, batch_env, batch_onsitenvs, structs, kpoints)
                     eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
 
-                    num_kp = kpoints.shape[0]
-                    num_el = np.sum(structs[0].proj_atom_neles_per)
-
-                    self.validation_loss_options.update({'num_el':num_el})
                     total_loss += self.validation_lossfunc(eig_pred=eigenvalues_pred,eig_label=eigenvalues_lbl,**self.validation_loss_options)
                     if quick:
                         break

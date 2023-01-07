@@ -14,7 +14,7 @@ class Processor(object):
         self.structure_list = np.array(structure_list, dtype=object)
         self.kpoint = kpoint
         self.eigen_list = np.array(eigen_list, dtype=object)
-        self.wannier_list = wannier_list # [{"i-j-R":np.array}]
+        self.wannier_list = np.array(wannier_list, dtype=object) # [{"i-j-R":np.array}]
         self.sorted_bond = sorted_bond
         self.sorted_env = sorted_env
         self.sorted_onsite = sorted_onsite
@@ -272,7 +272,7 @@ class Processor(object):
                     self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float))
             else:
                 data = (bond, bond_onsite, self.get_env(sorted=self.sorted_env), self.get_onsitenv(cutoff=self.onsite_cutoff, sorted=self.sorted_onsite), self.__struct_workspace__,
-                    self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float), self.wannier_list[self.])
+                    self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float), self.wannier_list[self.__struct_idx_workspace__])
 
             self.it += 1
             return data
