@@ -33,6 +33,7 @@ def common_options():
     doc_atomtype = ""
     doc_time_symm = ""
     doc_soc = ""
+    doc_unit = ""
 
     args = [
         Argument("onsite_cutoff", float, optional = False, doc = doc_onsite_cutoff),
@@ -46,7 +47,8 @@ def common_options():
         Argument("onsitemode", str, optional = True, default = "none", doc = doc_onsitemode),
         Argument("sk_file_path", str, optional = True, default="./", doc = doc_sk_file_path),
         Argument("time_symm", bool, optional = True, default=True, doc = doc_time_symm),
-        Argument("soc", bool, optional=True, default=False, doc=doc_soc)
+        Argument("soc", bool, optional=True, default=False, doc=doc_soc),
+        Argument("unit", str, optional=True, default="Hatree", doc=doc_soc)
     ]
 
     doc_common_options = ""

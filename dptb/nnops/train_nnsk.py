@@ -135,7 +135,7 @@ class NNSKTrainer(Trainer):
                                         bonds_hoppings=bond_hoppings, 
                                         onsite_envs=onsitenvs)
             if decompose:
-                eigenvalues_ii, _ = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"])
+                eigenvalues_ii, _ = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"], unit=self.common_options["unit"])
                 pred.append(eigenvalues_ii)
             else:
                 assert not self.soc, "soc should not open when using wannier blocks to fit."
