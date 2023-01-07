@@ -95,7 +95,7 @@ class NNSKTester(Tester):
                 self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
                                             bonds_hoppings=np.asarray(batch_bonds[ii][:,1:]), 
                                             onsite_envs=onsitenvs)
-                eigenvalues_ii, eigvec = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"])
+                eigenvalues_ii, eigvec = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"], unit=self.common_options.get('unit','Hartree'))
                 eigenvalues_pred.append(eigenvalues_ii)
                 eigenvector_pred.append(eigvec)
             eigenvalues_pred = torch.stack(eigenvalues_pred)

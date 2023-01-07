@@ -45,6 +45,7 @@ class DeePTB(ModelAPI):
         self.nntb.tb_net.eval()
 
         self.sktbmode = sktbmode
+        self.unitenergy = model_config.get('unit','Hartree') 
 
         if sktbmode == 'nnsk':
             f = torch.load(nnsk_checkpoint)
@@ -132,7 +133,7 @@ class DeePTB(ModelAPI):
     
     def get_eigenvalues(self,kpoints,spindeg=2):
         assert self.if_HR_ready
-        eigenvalues,_ = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm,dtype=self.hamileig.dtype)
+        eigenvalues,_ = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm,dtype=self.hamileig.dtype, unit=self.unitenergy)
         eigks = eigenvalues.detach().numpy()
 
         num_el = np.sum(self.structure.proj_atom_neles_per)
@@ -152,6 +153,7 @@ class NNSK(ModelAPI):
         self.model.load_state_dict(f['state_dict'])
         self.sk_options = f.get("sk_options", None)
         self.model.eval()
+        self.unitenergy = model_config.get('unit', 'Hartree')
         
         if self.sk_options is not None:
             self.skformula = self.sk_options["skformula"]
@@ -228,7 +230,7 @@ class NNSK(ModelAPI):
 
     def get_eigenvalues(self,kpoints,spindeg=2):
         assert self.if_HR_ready
-        eigenvalues,_ = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm)
+        eigenvalues,_ = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm, dtype=self.hamileig.dtype, unit=self.unitenergy)
         eigks = eigenvalues.detach().numpy()
 
         num_el = np.sum(self.structure.proj_atom_neles_per)
