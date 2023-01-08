@@ -248,7 +248,7 @@ class InitSKModel(Plugin):
 
         if common_and_model_and_run_options["freeze"]:
             for k,v in self.host.model.named_parameters():
-                if "onsite" not in k:
+                if "onsite" in k:
                     v.requires_grad = False
 
         if common_and_model_and_run_options["train_soc"]:
