@@ -83,7 +83,7 @@ class NNSKTrainer(Trainer):
         else:
             self.decompose = False
 
-        self.validation_lossfunc = getattr(lossfunction(self.criterion), 'l2eig')
+        self.validation_lossfunc = getattr(lossfunction(self.criterion), 'eigs_l2')
 
         self.hamileig = HamilEig(dtype=self.dtype, device=self.device)
     
@@ -141,12 +141,16 @@ class NNSKTrainer(Trainer):
                 assert not self.soc, "soc should not open when using wannier blocks to fit."
                 pred.append(self.hamileig.hamil_blocks) # in order of [batch_bond_onsite, batch_bonds]
                 for bo in bond_onsites:
-                    key = str(bo[1]) +"-"+ str(bo[3]) +"-"+ str(bo[4]) +"-"+ str(bo[5]) +"-"+ str(bo[6])
-                    l.append(wannier_blocks[ii][key])
-            label.append(l)
+                    key = str(int(bo[1])) +"_"+ str(int(bo[3])) +"_"+ str(int(bo[4])) +"_"+ str(int(bo[5])) +"_"+ str(int(bo[6]))
+                    l.append(torch.tensor(wannier_blocks[ii][key], dtype=self.dtype, device=self.device))
+                for bo in bond_hoppings:
+                    key = str(int(bo[1])) +"_"+ str(int(bo[3])) +"_"+ str(int(bo[4])) +"_"+ str(int(bo[5])) +"_"+ str(int(bo[6]))
+                    l.append(torch.tensor(wannier_blocks[ii][key], dtype=self.dtype, device=self.device))
+                label.append(l)
 
         if decompose:
             label = torch.from_numpy(eigenvalues.astype(float)).float()
+            pred = torch.stack(pred)
 
         return pred, label
         
@@ -195,9 +199,9 @@ class NNSKTrainer(Trainer):
             for processor in self.validation_processor_list:
                 self.validation_loss_options.update(processor.bandinfo)
                 for data in processor:
-                    batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues, wan = data[0], data[1], data[2], data[
+                    batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[
                         3], data[4], data[5], data[6]
-                    eigenvalues_pred, eigenvector_pred = self.calc(batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints)
+                    eigenvalues_pred, eigenvector_pred = self.calc(batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues, None)
                     eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
 
                     total_loss += self.validation_lossfunc(eig_pred=eigenvalues_pred,eig_label=eigenvalues_lbl,**self.validation_loss_options)
