@@ -101,7 +101,7 @@ class InitSKModel(Plugin):
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
         #self.host.onsite_index_map = onsite_index_map
-        self.host.onsite_db = loadOnsite(onsite_index_map)
+        self.host.onsite_db = loadOnsite(onsite_index_map, unit=common_and_model_options["unit"])
         if soc:
             self.host.soc_fun = soc_fun
             self.host.soc_db = loadSoc(onsite_index_map)
@@ -146,6 +146,8 @@ class InitSKModel(Plugin):
         num_hopping_hidden = common_and_model_and_run_options['sknetwork']['sk_hop_nhidden']
         num_onsite_hidden = common_and_model_and_run_options['sknetwork']['sk_onsite_nhidden']
         num_soc_hidden = common_and_model_and_run_options['sknetwork']['sk_soc_nhidden']
+        unit = common_and_model_and_run_options["unit"]
+        
 
         for ckpt in ckpt_list:
             model_config = ckpt["model_config"]
@@ -229,7 +231,7 @@ class InitSKModel(Plugin):
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
         #self.host.onsite_index_map = onsite_index_map
-        self.host.onsite_db = loadOnsite(onsite_index_map)
+        self.host.onsite_db = loadOnsite(onsite_index_map, unit=unit)
         if soc:
             self.host.soc_fun = soc_fun
             self.host.soc_db = loadSoc(onsite_index_map)

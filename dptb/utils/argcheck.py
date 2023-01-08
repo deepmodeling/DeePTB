@@ -2,7 +2,7 @@ from typing import List, Callable
 from dargs import dargs, Argument, Variant, ArgumentEncoder
 
 
-nnsk_model_config_checklist = ['skfunction-skformula']
+nnsk_model_config_checklist = ['unit','skfunction-skformula']
 nnsk_model_config_updatelist = ['sknetwork-sk_hop_nhidden', 'sknetwork-sk_onsite_nhidden', 'sknetwork-sk_soc_nhidden']
 dptb_model_config_checklist = ['dptb-if_batch_normalized', 'dptb-bond_net_type', 'dptb-soc_net_type', 'dptb-env_net_type', 'dptb-onsite_net_type', 'dptb-bond_net_activation', 'dptb-soc_net_activation', 'dptb-env_net_activation', 'dptb-onsite_net_activation', 
                         'dptb-bond_net_neuron', 'dptb-env_net_neuron', 'dptb-soc_net_neuron', 'dptb-onsite_net_neuron', 'dptb-axis_neuron', 'skfunction-skformula', 'sknetwork-sk_onsite_nhidden', 

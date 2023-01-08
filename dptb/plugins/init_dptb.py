@@ -167,6 +167,7 @@ class InitDPTBModel(Plugin):
         num_hopping_hidden = model_config['sknetwork']['sk_hop_nhidden']
         num_onsite_hidden = model_config['sknetwork']['sk_onsite_nhidden']
         num_soc_hidden = model_config['sknetwork']['sk_soc_nhidden']
+        unit = model_config["unit"]
 
         if soc:
             if not 'soc' in model_config.keys():
@@ -231,7 +232,7 @@ class InitDPTBModel(Plugin):
 
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
-        self.host.onsite_db = loadOnsite(onsite_index_map)
+        self.host.onsite_db = loadOnsite(onsite_index_map, unit=unit)
         if onsitemode == 'strain':
             self.host.onsitestrain_fun = onsitestrain_fun
         if soc:

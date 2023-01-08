@@ -214,7 +214,9 @@ class lossfunction(object):
         count = 0
         for st in range(len(pred)):
             for p, l in zip(pred[st], label[st]):
-                loss += self.criterion(l, p)
-                count += 1
+                rd = np.random.randint(low=0, high=10)
+                if rd >= 3:
+                    loss += self.criterion(l, p)
+                    count += 1
         
         return loss / count

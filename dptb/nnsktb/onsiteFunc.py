@@ -4,10 +4,12 @@ import torch as th
 from dptb.utils.constants import atomic_num_dict_r
 from dptb.nnsktb.onsiteDB import onsite_energy_database
 from dptb.nnsktb.formula import SKFormula
+import logging
 
 # define the function for output all the onsites Es for given i.
+log = logging.getLogger(__name__)
 
-def loadOnsite(onsite_map: dict):
+def loadOnsite(onsite_map: dict, unit="Hartree"):
     """ load the onsite energies from the database, according to the onsite_map:dict
     This function only need to run once before calculation/ training.
 
@@ -34,6 +36,15 @@ def loadOnsite(onsite_map: dict):
         onsite_db[ia] = th.zeros(len(indeces))
         for isk in onsite_map[ia].keys():
             assert isk in orb_energies.keys(), f'{isk} is not in the onsite_energy_database for {ia} atom. \n see the onsite_energy_database in dptb.nnsktb.onsiteDB.py.'
+            if unit == "Hartree":
+                factor = 1.
+            elif unit == "eV":
+                factor = 13.605662285137 * 2
+            elif unit == "Ry":
+                factor = 2
+            else:
+                log.error("The unit name is not correct !")
+                raise ValueError
             onsite_db[ia][onsite_map[ia][isk]] = orb_energies[isk]
 
     return onsite_db
