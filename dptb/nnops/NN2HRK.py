@@ -19,6 +19,7 @@ class NN2HRK(object):
         ## parameters.
         self.device = apihost.model_config['device']
         self.dtype =  apihost.model_config['dtype']
+        self.unit = apihost.model_config['unit']
             
         self.sorted_onsite="st"
         self.sorted_bond="st"
@@ -61,7 +62,7 @@ class NN2HRK(object):
     
     def get_eigenvalues(self,kpoints,spindeg=2):
         assert self.if_nn_HR_ready or self.if_dp_HR_ready, "The HR shoule be calcualted before call for HK." 
-        eigenvalues,_ = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm)
+        eigenvalues,_ = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm, unit =self.unit)
         eigks = eigenvalues.detach().numpy()
 
         num_el = np.sum(self.structure.proj_atom_neles_per)

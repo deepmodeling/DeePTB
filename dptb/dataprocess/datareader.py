@@ -36,11 +36,12 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
         kpoints = np.load(data_dirs[ii] + "/" + filenames['kpoints_file'])
         eigs = np.load(data_dirs[ii] + "/" + filenames['eigen_file'])
         bandinfo = j_loader(data_dirs[ii] + "/" + filenames['bandinfo_file'])
-        if os.path.exist(data_dirs[ii] + "/" + filenames['wannier_file']):
+        if os.path.exists(data_dirs[ii] + "/" + filenames['wannier_file']):
             wannier = np.load(data_dirs[ii] + "/" + filenames['wannier_file'], allow_pickle=True)
+            wannier = [x.tolist() for x in wannier]
         else:
-            wannier = None
-        wannier_sets.append(wannier)
+            wannier = [None]
+        
         bandinfo = normalize_bandinfo(bandinfo)
         bandinfo_sets.append(bandinfo)
         if len(eigs.shape)==2:
@@ -48,6 +49,9 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
         assert len(eigs.shape) == 3
         kpoints_sets.append(kpoints)
         eigens_sets.append(eigs)
+        if wannier[0] is None:
+            wannier = [None] * eigs.shape[0]
+        wannier_sets.append(wannier)
         
         
         for iatom in asetrajs:

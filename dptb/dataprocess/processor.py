@@ -269,7 +269,7 @@ class Processor(object):
 
             if not self.onsitemode == 'strain':
                 data = (bond, bond_onsite, self.get_env(sorted=self.sorted_env), None,  self.__struct_workspace__,
-                    self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float))
+                    self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float), self.wannier_list[self.__struct_idx_workspace__])
             else:
                 data = (bond, bond_onsite, self.get_env(sorted=self.sorted_env), self.get_onsitenv(cutoff=self.onsite_cutoff, sorted=self.sorted_onsite), self.__struct_workspace__,
                     self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float), self.wannier_list[self.__struct_idx_workspace__])

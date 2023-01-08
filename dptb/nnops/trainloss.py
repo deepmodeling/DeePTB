@@ -6,15 +6,13 @@ class lossfunction(object):
     def __init__(self,criterion):
         self.criterion =criterion
 
-    def eigs_l2(self, eig_pred, eig_label, num_el, band_min=0, band_max=None, spin_deg=2, **kwargs):
+    def eigs_l2(self, eig_pred, eig_label, band_min=0, band_max=None, spin_deg=2, **kwargs):
         norbs = eig_pred.shape[-1]
         nbanddft = eig_label.shape[-1]
         num_kp = eig_label.shape[-2]
         assert num_kp == eig_pred.shape[-2]
         up_nband = min(norbs,nbanddft)
-        num_val_band = int(num_el//spin_deg)
-        num_k_val_band = int(num_kp * num_el // spin_deg)
-        assert num_val_band <= up_nband
+
         if band_max is  None:
             band_max = up_nband
         else:
@@ -39,15 +37,13 @@ class lossfunction(object):
 
         return loss
 
-    def eigs_l2dsf(self, eig_pred, eig_label, num_el, strength=0.5, kmax=None, kmin=0, band_min=0, band_max=None, emax=None, emin=None, spin_deg=2, gap_penalty=False, fermi_band=0, eta=1e-2, eout_weight=0, **kwarg):
+    def eigs_l2dsf(self, eig_pred, eig_label, strength=0.5, kmax=None, kmin=0, band_min=0, band_max=None, emax=None, emin=None, spin_deg=2, gap_penalty=False, fermi_band=0, eta=1e-2, eout_weight=0, **kwarg):
         norbs = eig_pred.shape[-1]
         nbanddft = eig_label.shape[-1]
         num_kp = eig_label.shape[-2]
         assert num_kp == eig_pred.shape[-2]
         up_nband = min(norbs,nbanddft)
-        num_val_band = int(num_el//spin_deg)
         
-        assert num_val_band <= up_nband
         if band_max is  None:
             band_max = up_nband
         else:
@@ -215,8 +211,10 @@ class lossfunction(object):
         
         assert len(pred) == len(label)
         loss = 0
+        count = 0
+        for st in range(len(pred)):
+            for p, l in zip(pred[st], label[st]):
+                loss += self.criterion(l, p)
+                count += 1
         
-        for p, l in zip(pred, label):
-            loss += self.criterion(l, p)
-        
-        return loss / len(pred)
+        return loss / count
