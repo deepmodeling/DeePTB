@@ -41,7 +41,7 @@ def loadOnsite(onsite_map: dict, unit="Hartree"):
             elif unit == "eV":
                 factor = 13.605662285137 * 2
             elif unit == "Ry":
-                factor = 2
+                factor = 2.
             else:
                 log.error("The unit name is not correct !")
                 raise ValueError

@@ -212,5 +212,5 @@ class NNSKTrainer(Trainer):
                     #                         self.band_min, self.band_max)
                     if kwargs.get('quick'):
                         break
-
-            return total_loss
+        with torch.enable_grad():
+            return total_loss.detach()
