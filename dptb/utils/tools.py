@@ -421,5 +421,56 @@ def nnsk_correction(nn_onsiteEs, nn_hoppings, sk_onsiteEs, sk_hoppings, sk_onsit
     else:
         return onsiteEs, hoppings, None, None, soc_lambdas
 
+
+def read_wannier_hr(Filename='wannier90_hr.dat'):
+    """Read wannier90_hr.dat."""
+    print('reading wannier90_hr.dat ...')
+    f=open(Filename,'r')
+    data=f.readlines()
+    #read hopping matrix
+    num_wann = int(data[1])
+    nrpts = int(data[2])
+    r_hop= np.zeros([num_wann,num_wann], dtype=complex)
+    #hop=[]
+    #skip n lines of degeneracy of each Wigner-Seitz grid point
+    skiplines = int(np.ceil(nrpts / 15.0))
+    istart = 3 + skiplines
+    deg=[]
+    for i in range(3,istart):
+        deg.append(np.array([int(j) for j in data[i].split()]))
+    deg=np.concatenate(deg,0)
+    
+    icount=0
+    ii=-1
+    Rlatt = []
+    hopps = []
+    for i in range(istart,len(data)):
+        line=data[i].split()
+        m = int(line[3]) - 1
+        n = int(line[4]) - 1
+        r_hop[m,n] = complex(round(float(line[5]),6),round(float(line[6]),6))
+        icount+=1
+        if(icount % (num_wann*num_wann) == 0):
+            ii+=1
+            R = np.array([float(x) for x in line[0:3]])
+            #hop.append(np.asarray([R,r_hop]))
+            #r_hop= np.zeros([num_wann,num_wann], dtype=complex)
+            
+            Rlatt.append(R)
+            hopps.append(r_hop)
+            #hop.append(np.asarray([R,r_hop]))
+            r_hop= np.zeros([num_wann,num_wann], dtype=complex)
+    Rlatt=np.asarray(Rlatt,dtype=int)
+    hopps=np.asarray(hopps)
+    deg = np.reshape(deg,[nrpts,1,1])
+    hopps=hopps/deg
+
+    for i in range(nrpts):
+        if (Rlatt[i]==0).all():
+            indR0 = i
+    return Rlatt, hopps, indR0
+
+
+
 if __name__ == '__main__':
     print(get_neuron_config(nl=[0,1,2,3,4,5,6,7]))
