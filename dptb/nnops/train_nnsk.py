@@ -135,6 +135,8 @@ class NNSKTrainer(Trainer):
                                         bonds_hoppings=bond_hoppings, 
                                         onsite_envs=onsitenvs)
             if decompose:
+                if self.run_opt["freeze"]:
+                    kpoints = np.array([[0,0,0]])
                 eigenvalues_ii, _ = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"], unit=self.common_options["unit"])
                 pred.append(eigenvalues_ii)
             else:
@@ -149,9 +151,11 @@ class NNSKTrainer(Trainer):
                 label.append(l)
 
         if decompose:
-            label = torch.from_numpy(eigenvalues.astype(float)).float()
+            if self.run_opt["freeze"]:
+                label = torch.from_numpy(eigenvalues.astype(float))[:,[0],:].float()
+            else:
+                label = torch.from_numpy(eigenvalues.astype(float)).float()
             pred = torch.stack(pred)
-
         return pred, label
         
     
@@ -201,9 +205,8 @@ class NNSKTrainer(Trainer):
                 for data in processor:
                     batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[
                         3], data[4], data[5], data[6]
-                    eigenvalues_pred, eigenvector_pred = self.calc(batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues, None)
-                    eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
-                
+                    eigenvalues_pred, eigenvalues_lbl = self.calc(batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues, None)
+
                     total_loss += self.validation_lossfunc(eig_pred=eigenvalues_pred,eig_label=eigenvalues_lbl,**self.validation_loss_options)
                     #total_loss += loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp,
                     #                         self.band_min, self.band_max)
