@@ -203,11 +203,11 @@ class NNSKTrainer(Trainer):
                         3], data[4], data[5], data[6]
                     eigenvalues_pred, eigenvector_pred = self.calc(batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues, None)
                     eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
-
+                
                     total_loss += self.validation_lossfunc(eig_pred=eigenvalues_pred,eig_label=eigenvalues_lbl,**self.validation_loss_options)
                     #total_loss += loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp,
                     #                         self.band_min, self.band_max)
                     if kwargs.get('quick'):
                         break
-
-            return total_loss
+        with torch.enable_grad():
+            return total_loss.detach()

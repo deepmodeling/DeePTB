@@ -45,7 +45,7 @@ def loadOnsite(onsite_map: dict, unit="Hartree"):
             else:
                 log.error("The unit name is not correct !")
                 raise ValueError
-            onsite_db[ia][onsite_map[ia][isk]] = orb_energies[isk]
+            onsite_db[ia][onsite_map[ia][isk]] = orb_energies[isk] * factor
 
     return onsite_db
 
