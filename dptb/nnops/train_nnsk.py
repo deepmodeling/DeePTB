@@ -203,9 +203,7 @@ class NNSKTrainer(Trainer):
             for processor in self.validation_processor_list:
                 self.validation_loss_options.update(processor.bandinfo)
                 for data in processor:
-                    batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues = data[0], data[1], data[2], data[
-                        3], data[4], data[5], data[6]
-                    eigenvalues_pred, eigenvalues_lbl = self.calc(batch_bond, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues, None)
+                    eigenvalues_pred, eigenvalues_lbl = self.calc(*data)
 
                     total_loss += self.validation_lossfunc(eig_pred=eigenvalues_pred,eig_label=eigenvalues_lbl,**self.validation_loss_options)
                     #total_loss += loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp,
