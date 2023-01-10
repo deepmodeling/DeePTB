@@ -73,6 +73,76 @@ def init_from_model_(SKNet, checkpoint_list, interpolate=False):
     SKNet.load_state_dict(model_state_dict)
     return SKNet
 
+def init_from_json_(SKNet, json_model:dict):
+    """
+    从json 文件初始化网络参数,json文件包含了对应key的网络输出值。利用输出的值, 设定nhidden=1, 来初始化网络对应的参数。
+    Args:
+        SKNet (_type_): sknet model
+        json_model (dict): {"onsite": onsitedict, "hopping": hopppingdict, "soc": socdict]
+    """
+    onsite_types = SKNet.onsite_types.copy()
+    skint_types = SKNet.skint_types.copy()
+    soc_types = SKNet.soc_types.copy()
+
+    model_state_dict = SKNet.state_dict()
+    
+    types_list = [onsite_types, skint_types, soc_types]
+    layers_list = [["onsite_net.layer1", "onsite_net.layer2"], ["bond_net.layer1", "bond_net.layer2"], ["soc_net.layer1", "soc_net.layer2"]]
+
+    json_model_types = ["onsite", "hopping","soc"]
+    #assert "onsite" in json_model.keys() and "hopping" in json_model.keys()
+    
+    for i in range(len(types_list)):
+        # update only when SKNET using the json data.
+        if isinstance(model_state_dict.get(layers_list[i][0], None), torch.Tensor) \
+                and json_model_types[i] in json_model:
+
+            types = types_list[i] # the list of net key, types. as N-N-2s-2s-0, or N-B-2s-2p-1
+            layers = [model_state_dict[layers_list[i][0]], model_state_dict[layers_list[i][1]]] 
+            json_model_i = json_model[json_model_types[i]]
+
+            if layers[0] is not None:
+                layers = init_para_from_out(types=types, layers=layers, json_model=json_model_i)
+
+                model_state_dict[layers_list[i][0]], model_state_dict[layers_list[i][1]] = layers[0], layers[1]
+
+    SKNet.load_state_dict(model_state_dict)
+    return SKNet
+
+def init_para_from_out(types, layers, json_model):
+    """ json中保存了网络对应的输出参数的数值。现在根据输出数值，逆向对网络参数进行初始化，在不影响网络性质及使用范围的情况下，设置nhidden=1，
+    从而方便从输出数值进行反向初始化网络参数。
+
+    注，sknet的网络的格式目前设置的为 layer1: [nin，1，nhidden]; layer2: [nin, nout, nhidden].
+    Args:
+        types (list): the list of net key, types. as N-N-2s-2s-0, or N-B-2s-2p-1
+            the keys of the network, and the aslo the name of the SKTB model parameter.
+        layers (list): [layer1, layer2]
+            the layers of the network. both of them are tensors.
+        json_model (dict): {" N-N-2s-2s-0": [float,float,...], "N-B-2s-2p-1": [float,float,...], ...}
+            the json model from input.
+
+    """
+    nhidden  = layers[0].shape[2]
+    assert nhidden == 1, 'for init from json files the nhidden only support 1.'
+    # layer1 shape: [nin, 1, nhidden]
+    # layer2 shape: [nin, nout, nhidden]
+    layers1 = layers[0]
+    layers2 = layers[1]
+    for i in range(len(types)):
+        type = types[i]
+        if type in json_model.keys():
+            assert layers2.shape[1] == len(json_model[type]), 'the output of the json model is not match the net output.'
+            layers2[i] = torch.reshape(json_model[type],[-1,1])
+        else:
+            log.warning(msg="<><><><><><><><><><><><><><><><><><><><><><><><><><><><><>")
+            log.warning(msg="The type {} is not in the json model.".format(type))
+            log.warning(msg="<><><><><><><><><><><><><><><><><><><><><><><><><><><><><>")
+
+
+    layers = [layers1, layers2]
+
+    return layers
 
 def copy_param(types, layers, types_ckpt, layers_ckpt):
     """_summary_

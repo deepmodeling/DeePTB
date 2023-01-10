@@ -117,6 +117,14 @@ class NNSKTrainer(Trainer):
         #         onsite_coeffdict[i] = onsite_coeffdict[i].tolist()
         #     json.dump(onsite_coeffdict, f, indent=4)
         
+        self.hopping_coeff = coeffdict
+        if self.onsitemode == 'strain':
+            self.onsite_coeff = onsite_coeffdict
+        else:
+            self.onsite_coeff = nn_onsiteE
+        if self.soc:    
+            self.soc_coeff = nn_soc_lambdas
+
         pred = []
         label = []
         for ii in range(len(structs)):

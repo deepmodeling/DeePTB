@@ -7,9 +7,10 @@ class DirectNet(nn.Module):
         super().__init__()
         assert nout is not None, "nout must be specified!"
         self.nhidden = nhidden
-        self.layer1 = torch.nn.Parameter(torch.empty(nin, 1, nhidden, device=device, dtype=dtype))
+        self.layer1 = torch.nn.Parameter(torch.empty(nin, 1, nhidden, device=device, dtype=dtype),requires_grad=False)
         self.layer2 = torch.nn.Parameter(torch.empty(nin, nout, nhidden, device=device, dtype=dtype))
-        torch.nn.init.normal_(self.layer1, mean=0, std=ini_std)
+        #torch.nn.init.normal_(self.layer1, mean=0, std=ini_std)
+        torch.nn.init.ones_(self.layer1)
         torch.nn.init.normal_(self.layer2, mean=0, std=ini_std)
     
     def forward(self):
@@ -79,6 +80,7 @@ class SKNet(nn.Module):
 
             self.onsite_net = DirectNet(device=device, dtype=dtype, **onsite_config)
         else:
+            # only support the uniform for this mode.
             assert onsite_types is not None, f"for {onsitemode} mode, onsiteE_types can not be None!"
             assert onsite_index_dict is not None, f"for {onsitemode} mode, onsiteE_index_dict can not be None!"
 

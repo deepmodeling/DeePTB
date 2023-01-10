@@ -9,10 +9,11 @@ from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types, all
 from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.loadparas import load_paras
-from dptb.nnsktb.init_from_model import init_from_model_
+from dptb.nnsktb.init_from_model import init_from_model_, init_from_json_
 from dptb.utils.constants import dtype_dict
 from dptb.utils.tools import update_dict, checkdict, update_dict_with_warning
 from dptb.utils.argcheck import nnsk_model_config_checklist, nnsk_model_config_updatelist
+from dptb.utils.tools import j_loader
 
 log = logging.getLogger(__name__)
 
@@ -137,10 +138,40 @@ class InitSKModel(Plugin):
         onsitemode = common_and_model_and_run_options['onsitemode']
         skformula = common_and_model_and_run_options['skfunction']['skformula']
         soc = common_and_model_and_run_options['soc']
-        # ----------------------------------------------------------------------------------------------------------
         
-        ckpt_list = [torch.load(ckpt) for ckpt in checkpoint]
+        if checkpoint[0].split('.')[-1] == 'json':
+            modeltype = "json"
+        elif checkpoint[0].split('.')[-1] == 'pth':
+            modeltype = "ckpt"
+        else:
+            raise NotImplementedError("Only support json and ckpt file as checkpoint")
+        
+        #modeltype = common_and_model_and_run_options['modeltype']
 
+        # ----------------------------------------------------------------------------------------------------------
+        json_model_types = ["onsite", "hopping","soc"]
+        if modeltype == "ckpt":
+            ckpt_list = [torch.load(ckpt) for ckpt in checkpoint]
+        elif modeltype == "json":
+            # 只用一个文件包含所有的键积分参数：
+            assert len(checkpoint) ==1
+            json_dict = j_loader(checkpoint[0])
+            assert 'onsite'  in json_dict, "onsite paras is not in the json file, or key err, check the key onsite in json fle"
+            assert 'hopping' in json_dict, "hopping paras is not in the json file, or key err, check the key hopping in json file"
+            if soc:
+                assert 'soc' in json_dict, "soc parameters not found in json file, or key err, check the soc key in json file"
+            
+            json_model_list = {}
+            for ikey in json_model_types:
+                json_model_i ={}
+                if ikey in json_dict.keys():
+                    for itype in json_dict[ikey]:
+                        json_model_i[itype] = torch.tensor(json_dict[ikey][itype],dtype=dtype,device=device)
+                    json_model_list[ikey] = json_model_i
+        else:
+            raise NotImplementedError("modeltype {} not implemented".format(modeltype))
+
+        # ----------------------------------------------------------------------------------------------------------
         # load params from model_config and make sure the key param doesn't conflict
         # ----------------------------------------------------------------------------------------------------------
         num_hopping_hidden = common_and_model_and_run_options['sknetwork']['sk_hop_nhidden']
@@ -148,36 +179,36 @@ class InitSKModel(Plugin):
         num_soc_hidden = common_and_model_and_run_options['sknetwork']['sk_soc_nhidden']
         unit = common_and_model_and_run_options["unit"]
         
+        if modeltype == "ckpt":
+            for ckpt in ckpt_list:
+                model_config = ckpt["model_config"]
+                checkdict(
+                    dict_prototype=common_and_model_and_run_options,
+                    dict_update=model_config,
+                    checklist=nnsk_model_config_checklist
+                    )
 
-        for ckpt in ckpt_list:
-            model_config = ckpt["model_config"]
-            checkdict(
-                dict_prototype=common_and_model_and_run_options,
-                dict_update=model_config,
-                checklist=nnsk_model_config_checklist
-                )
-
-            num_hopping_hidden = max(num_hopping_hidden, model_config['sknetwork']['sk_hop_nhidden'])
-            num_onsite_hidden = max(num_onsite_hidden ,model_config['sknetwork']['sk_onsite_nhidden'])
-            if soc:
-                if not 'soc' in model_config.keys():
-                    log.warning('Warning, the model is non-soc. Transferring it into soc case.')
-                elif not ckpt["model_config"]["soc"]:
-                    log.warning('Warning, the model is non-soc. Transferring it into soc case.')
+                num_hopping_hidden = max(num_hopping_hidden, model_config['sknetwork']['sk_hop_nhidden'])
+                num_onsite_hidden = max(num_onsite_hidden ,model_config['sknetwork']['sk_onsite_nhidden'])
+                if soc:
+                    if not 'soc' in model_config.keys():
+                        log.warning('Warning, the model is non-soc. Transferring it into soc case.')
+                    elif not ckpt["model_config"]["soc"]:
+                        log.warning('Warning, the model is non-soc. Transferring it into soc case.')
+                    else:
+                        num_soc_hidden = max(num_soc_hidden ,model_config['sknetwork']['sk_soc_nhidden'])
                 else:
-                    num_soc_hidden = max(num_soc_hidden ,model_config['sknetwork']['sk_soc_nhidden'])
-            else:
-                if 'soc' in model_config.keys() and model_config['soc']:
-                    log.warning('Warning, the model is with soc, but this run job soc is turned off. Transferring it into non-soc case.')
+                    if 'soc' in model_config.keys() and model_config['soc']:
+                        log.warning('Warning, the model is with soc, but this run job soc is turned off. Transferring it into non-soc case.')
         
-        # update common_and_model_and_run_options
-        # ----------------------------------------------------------------------------------------------------------
-        common_and_model_and_run_options = update_dict_with_warning(
-            dict_input=common_and_model_and_run_options,
-            update_list=nnsk_model_config_updatelist,
-            update_value=[num_hopping_hidden, num_onsite_hidden, num_soc_hidden]
-            )
-
+            # update common_and_model_and_run_options
+            # ----------------------------------------------------------------------------------------------------------
+            common_and_model_and_run_options = update_dict_with_warning(
+                dict_input=common_and_model_and_run_options,
+                update_list=nnsk_model_config_updatelist,
+                update_value=[num_hopping_hidden, num_onsite_hidden, num_soc_hidden]
+                )
+        
         # computing onsite/hopping/soc types to init model
         IndMap = Index_Mapings()
         IndMap.update(proj_atom_anglr_m=proj_atom_anglr_m)
@@ -222,9 +253,13 @@ class InitSKModel(Plugin):
                                    # to determine the number of output neurons of the onsite network.
                                    onsite_index_dict=onsiteE_ind_dict
                                    )
-        self.host.model = init_from_model_(SKNet=model, checkpoint_list=ckpt_list, interpolate=interpolate)
-
-        # _, state_dict = load_paras(model_config=model_config, state_dict=ckpt['model_state_dict'], proj_atom_anglr_m=proj_atom_anglr_m, onsitemode=onsitemode, soc=soc)
+    
+        if modeltype == 'ckpt':
+            self.host.model = init_from_model_(SKNet=model, checkpoint_list=ckpt_list, interpolate=interpolate)
+        elif modeltype == 'json':
+            self.host.model = init_from_json_(SKNet=model, json_model=json_model_list)
+        else:
+            raise NotImplementedError("modeltype {} not implemented".format(modeltype))
 
         
 
