@@ -6,6 +6,7 @@ from dptb.utils.tools import get_uniq_symbol, \
     get_lr_scheduler, get_optimizer, j_must_have
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
 from dptb.nnops.trainloss import lossfunction
+import json
 
 log = logging.getLogger(__name__)
 
@@ -107,6 +108,15 @@ class NNSKTrainer(Trainer):
         else:
             batch_soc_lambdas = None
             # call sktb to get the sktb hoppings and onsites
+        # with open("/root/dptb_exp/MoS2/ucell/hopping.json", "w") as f:
+        #     for i in coeffdict:
+        #         coeffdict[i] = coeffdict[i].tolist()
+        #     json.dump(coeffdict, f, indent=4)
+        # with open("/root/dptb_exp/MoS2/ucell/onsite_strain.json", "w") as f:
+        #     for i in onsite_coeffdict:
+        #         onsite_coeffdict[i] = onsite_coeffdict[i].tolist()
+        #     json.dump(onsite_coeffdict, f, indent=4)
+        
         pred = []
         label = []
         for ii in range(len(structs)):
@@ -157,7 +167,6 @@ class NNSKTrainer(Trainer):
             label = torch.from_numpy(eigenvalues.astype(float)).float()
             pred = torch.stack(pred)
         return pred, label
-        
     
     def train(self) -> None:
         data_set_seq = np.random.choice(self.n_train_sets, size=self.n_train_sets, replace=False)
@@ -174,6 +183,7 @@ class NNSKTrainer(Trainer):
                     # calculate eigenvalues.
                     self.optimizer.zero_grad()
                     pred, label = self.calc(*data, decompose=self.decompose)
+
                     loss = self.train_lossfunc(pred, label, **self.loss_options)
 
                     if self.use_reference:

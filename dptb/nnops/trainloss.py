@@ -68,6 +68,10 @@ class lossfunction(object):
         #eig_pred_cut = eig_pred_cut - eig_pred_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
         #eig_label_cut = eig_label_cut - eig_label_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
 
+        random_mask = th.rand_like(eig_pred_cut) > 0.3
+        eig_pred_cut = eig_pred_cut.masked_fill(random_mask, 0)
+        eig_label_cut = eig_label_cut.masked_fill(random_mask, 0)
+
         if emax != None and emin != None:
             mask_in = eig_label_cut.lt(emax) * eig_label_cut.gt(emin)
             mask_out = eig_label_cut.gt(emax) + eig_label_cut.lt(emin)
@@ -91,6 +95,10 @@ class lossfunction(object):
         # eig_label_soft = th.reshape(eig_label_soft, [batch_size, num_kp, num_bands])
         eig_pred_soft = eig_pred_cut
         eig_label_soft = eig_label_cut
+
+        
+
+        
         
         loss = 0
         if mask_in is not None:
