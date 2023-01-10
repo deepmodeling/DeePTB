@@ -40,13 +40,30 @@ class NNSKHost(PluginUser):
         if init_type == "json":
             jdata = j_loader(checkpoint)
             jdata = normalize(jdata)
+            #self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
+
+            common_options = j_must_have(jdata, "common_options")
+            data_options = j_must_have(jdata,"data_options")
+            model_options = j_must_have(jdata, "model_options")
+            init_opts = j_must_have(jdata, "init_model")
+            run_opt = {
+                "init_model": init_opts,
+                "freeze": False,
+                "train_soc": False}
+            model_config={}
+            model_config.update(common_options)
+            model_config.update(data_options)
+            model_config.update(model_options)
+            model_config.update(run_opt)
+
+
         else:
             ckpt = torch.load(checkpoint)
-            jdata = ckpt["model_config"]
-            jdata.update({"init_model": {"path": checkpoint,"interpolate": False}})
-        jdata["dtype"] = dtype_dict[jdata["dtype"]]
+            model_config = ckpt["model_config"]
+            model_config.update({"init_model": {"path": checkpoint,"interpolate": False}})
+        model_config["dtype"] = dtype_dict[model_config["dtype"]]
         
-        self.__init_params(**jdata)
+        self.__init_params(**model_config)
 
     def __init_params(self, **model_config):
         self.model_config = model_config        

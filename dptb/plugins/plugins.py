@@ -52,23 +52,24 @@ class Saver(Plugin):
         torch.save(obj, f=f_path)
 
         # json_model_types = ["onsite", "hopping","soc"]
-        json_data = {}
-        onsitecoeff = {}
-        hoppingcoeff = {}
-        for i in self.trainer.onsite_coeff:
-            onsitecoeff[i] = self.trainer.onsite_coeff[i].tolist()
-        json_data["onsite"] = onsitecoeff
-        for i in self.trainer.hopping_coeff:
-            hoppingcoeff[i] = self.trainer.hopping_coeff[i].tolist()
-        json_data["hopping"] = hoppingcoeff
-        if hasattr(self.trainer,'soc_coeff'):
-            soccoeff = {}
-            for i in self.trainer.soc_coeff:
-                soccoeff[i] = self.trainer.soc_coeff[i].tolist()
-            json_data["soc"] = soccoeff
-        json_path = os.path.join(self.checkpoint_path, name+".json")
-        with open(json_path, "w") as f:
-            json.dump(json_data, f, indent=4)
+        if  self.trainer.name == "nnsk":
+            json_data = {}
+            onsitecoeff = {}
+            hoppingcoeff = {}
+            for i in self.trainer.onsite_coeff:
+                onsitecoeff[i] = self.trainer.onsite_coeff[i].tolist()
+            json_data["onsite"] = onsitecoeff
+            for i in self.trainer.hopping_coeff:
+                hoppingcoeff[i] = self.trainer.hopping_coeff[i].tolist()
+            json_data["hopping"] = hoppingcoeff
+            if hasattr(self.trainer,'soc_coeff'):
+                soccoeff = {}
+                for i in self.trainer.soc_coeff:
+                    soccoeff[i] = self.trainer.soc_coeff[i].tolist()
+                json_data["soc"] = soccoeff
+            json_path = os.path.join(self.checkpoint_path, name+".json")
+            with open(json_path, "w") as f:
+                json.dump(json_data, f, indent=4)
             
         log.info(msg="checkpoint saved as {}".format(name))
 
