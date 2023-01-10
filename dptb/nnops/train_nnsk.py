@@ -135,8 +135,8 @@ class NNSKTrainer(Trainer):
                                         bonds_hoppings=bond_hoppings, 
                                         onsite_envs=onsitenvs)
             if decompose:
-                if self.run_opt["freeze"]:
-                    kpoints = np.array([[0,0,0]])
+                #if self.run_opt["freeze"]:
+                #    kpoints = np.array([[0,0,0]])
                 eigenvalues_ii, _ = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"], unit=self.common_options["unit"])
                 pred.append(eigenvalues_ii)
             else:
@@ -151,10 +151,10 @@ class NNSKTrainer(Trainer):
                 label.append(l)
 
         if decompose:
-            if self.run_opt["freeze"]:
-                label = torch.from_numpy(eigenvalues.astype(float))[:,[0],:].float()
-            else:
-                label = torch.from_numpy(eigenvalues.astype(float)).float()
+            #if self.run_opt["freeze"]:
+            #    label = torch.from_numpy(eigenvalues.astype(float))[:,[0],:].float()
+            #else:
+            label = torch.from_numpy(eigenvalues.astype(float)).float()
             pred = torch.stack(pred)
         return pred, label
         

@@ -335,8 +335,16 @@ class BaseStruct(AbstractStructure):
                 proj_env[kk] = np.asarray(envdict[kk], dtype=float)
         
         elif sorted == None:
-            env_all_arrs[:, 1] = self.atom_to_proj_atom_id[env_all_arrs[:, 1].astype(int)]
-            proj_env = env_all_arrs
+            env_all_arrs_ = []
+            for ii in range(len(env_all_arrs)):
+                iatomtype = self.atom_symbols[env_all_arrs[ii][1].astype(int)]
+                jatomtype = self.atom_symbols[env_all_arrs[ii][3].astype(int)]
+                if iatomtype in self.proj_atomtype:
+                    env_all_arrs_.append(env_all_arrs[ii])
+            env_all_arrs_ = np.array(env_all_arrs_,dtype=float)
+            env_all_arrs_[:, 1] = self.atom_to_proj_atom_id[env_all_arrs_[:, 1].astype(int)]
+            proj_env = env_all_arrs_
+            proj_env = np.asarray(proj_env, dtype=float)
         
         return proj_env # (itype, i, jtype, j, Rx, Ry, Rz, s(r), rx, ry, rz) or the dict of it
 

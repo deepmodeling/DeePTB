@@ -96,7 +96,7 @@ class DPTBTrainer(Trainer):
         self.criterion = torch.nn.MSELoss(reduction='mean')
 
         self.train_lossfunc = getattr(lossfunction(self.criterion), self.loss_options['losstype'])
-        self.validation_lossfunc = getattr(lossfunction(self.criterion), 'l2eig')
+        self.validation_lossfunc = getattr(lossfunction(self.criterion), 'eigs_l2')
 
         self.hamileig = HamilEig(dtype=self.dtype, device=self.device)
 

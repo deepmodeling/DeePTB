@@ -30,8 +30,8 @@ class lossfunction(object):
 
         batch_size, num_kp, num_bands = eig_pred_cut.shape
 
-        eig_pred_cut -= eig_pred_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
-        eig_label_cut -= eig_label_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
+        #eig_pred_cut -= eig_pred_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
+        #eig_label_cut -= eig_label_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
 
         loss = self.criterion(eig_pred_cut,eig_label_cut)
 
@@ -65,8 +65,8 @@ class lossfunction(object):
         eig_label_cut = eig_label[:,kmin:kmax,band_min:band_max]
         batch_size, num_kp, num_bands = eig_pred_cut.shape
 
-        eig_pred_cut = eig_pred_cut - eig_pred_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
-        eig_label_cut = eig_label_cut - eig_label_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
+        #eig_pred_cut = eig_pred_cut - eig_pred_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
+        #eig_label_cut = eig_label_cut - eig_label_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
 
         if emax != None and emin != None:
             mask_in = eig_label_cut.lt(emax) * eig_label_cut.gt(emin)
