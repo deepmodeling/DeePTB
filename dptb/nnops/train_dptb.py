@@ -96,11 +96,15 @@ class DPTBTrainer(Trainer):
         self.criterion = torch.nn.MSELoss(reduction='mean')
 
         self.train_lossfunc = getattr(lossfunction(self.criterion), self.loss_options['losstype'])
+        if self.loss_options['losstype'].startswith("eigs"):
+            self.decompose = True
+        else:
+            self.decompose = False
         self.validation_lossfunc = getattr(lossfunction(self.criterion), 'eigs_l2')
 
         self.hamileig = HamilEig(dtype=self.dtype, device=self.device)
 
-    def calc(self, batch_bond, batch_bond_onsites, batch_env, batch_onsitenvs, structs, kpoints):
+    def calc(self, batch_bond, batch_bond_onsites, batch_env, batch_onsitenvs, structs, kpoints, eigenvalues, wannier_blocks, decompose=True):
         '''
         conduct one step forward computation, used in train, test and validation.
         '''
@@ -125,11 +129,12 @@ class DPTBTrainer(Trainer):
 
         # ToDo: Advance the correction process before onsite_fun and hops_fun
         # call sktb to get the sktb hoppings and onsites
-        eigenvalues_pred = []
-        eigenvector_pred = []
         onsiteVs = None
         onsitenvs = None
+        pred = []
+        label = []
         for ii in range(len(structs)):
+            l = []
             if not self.run_opt.get("use_correction", False):
                 onsiteEs, hoppings = batch_onsiteEs[ii], batch_hoppings[ii]
                 soc_lambdas = None
@@ -157,17 +162,34 @@ class DPTBTrainer(Trainer):
                     onsiteVs = batch_nnsk_onsiteVs[ii]
                     onsitenvs = np.asarray(batch_onsitenvs[ii][:,1:])
             # call hamiltonian block
-            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
-            self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
-                                        bonds_hoppings=np.asarray(batch_bond_hoppings[ii][:,1:]),
-                                        onsite_envs=onsitenvs)
-            eigenvalues_ii, eigvec = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"],unit=self.common_options["unit"])
-            eigenvalues_pred.append(eigenvalues_ii)
-            eigenvector_pred.append(eigvec)
-        eigenvalues_pred = torch.stack(eigenvalues_pred)
-        eigenvector_pred = torch.stack(eigenvector_pred)
 
-        return eigenvalues_pred, eigenvector_pred
+            bond_onsites = np.asarray(batch_bond_onsites[ii][:,1:])
+            bond_hoppings = np.asarray(batch_bond_hoppings[ii][:,1:])
+
+            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
+            self.hamileig.get_hs_blocks(bonds_onsite=bond_onsites,
+                                        bonds_hoppings=bond_hoppings,
+                                        onsite_envs=onsitenvs)
+            
+            if decompose:
+                eigenvalues_ii, _ = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"],unit=self.common_options["unit"])
+                pred.append(eigenvalues_ii)
+            else:
+                assert not self.soc, "soc should not open when using wannier blocks to fit."
+                pred.append(self.hamileig.hamil_blocks) # in order of [batch_bond_onsite, batch_bonds]
+                for bo in bond_onsites:
+                    key = str(int(bo[1])) +"_"+ str(int(bo[3])) +"_"+ str(int(bo[4])) +"_"+ str(int(bo[5])) +"_"+ str(int(bo[6]))
+                    l.append(torch.tensor(wannier_blocks[ii][key], dtype=self.dtype, device=self.device))
+                for bo in bond_hoppings:
+                    key = str(int(bo[1])) +"_"+ str(int(bo[3])) +"_"+ str(int(bo[4])) +"_"+ str(int(bo[5])) +"_"+ str(int(bo[6]))
+                    l.append(torch.tensor(wannier_blocks[ii][key], dtype=self.dtype, device=self.device))
+                label.append(l)
+
+        if decompose:
+            label = torch.from_numpy(eigenvalues.astype(float)).float()
+            pred = torch.stack(pred)
+
+        return pred, label
 
 # 
 
@@ -184,40 +206,19 @@ class DPTBTrainer(Trainer):
                 def closure():
                     # calculate eigenvalues.
                     self.optimizer.zero_grad()
-                    batch_bond, batch_bond_onsite, batch_env, batch_onsitenvs, structs, kpoints, eigenvalues = data[0], data[1], data[2], \
-                                                                                              data[3], data[4], data[5], data[6]
-                    eigenvalues_pred, eigenvector_pred = self.calc(batch_bond, batch_bond_onsite, batch_env, batch_onsitenvs, structs, kpoints)
-                    eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
+                    pred, label = self.calc(*data, decompose=self.decompose)
+                    loss = self.train_lossfunc(pred, label, **self.loss_options)
 
                     if self.use_reference:
-                        ref_eig = []
-                        ref_kp_el = []
-
                         for irefset in range(self.n_reference_sets):
                             ref_processor = self.ref_processor_list[irefset]
-                            for refdata in ref_processor:
-                                batch_bond, _, batch_env, batch_onsitenvs, structs, kpoints, eigenvalues = refdata[0], refdata[1], \
-                                                                                          refdata[2], refdata[3], \
-                                                                                          refdata[4], refdata[5], refdata[6]
-                                ref_eig_pred = self.calc(batch_bond, batch_bond_onsite, batch_env, batch_onsitenvs, structs, kpoints)
-                                ref_eig_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
-                                num_kp_ref = kpoints.shape[0]
-                                num_el_ref = np.sum(structs[0].proj_atom_neles_per)
-
-                                ref_eig.append([ref_eig_pred, ref_eig_lbl])
-                                ref_kp_el.append([num_kp_ref, num_el_ref])
-
-                    loss = self.train_lossfunc(eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, **self.loss_options)
-                    
-                    if self.use_reference:
-                        for irefset in range(self.n_reference_sets):
-                            ref_eig_pred, ref_eig_lbl = ref_eig[irefset]
                             self.reference_loss_options.update(self.ref_processor_list[irefset].bandinfo)
-                            loss += (self.batch_size * 1.0 / (self.reference_batch_size * (1+self.n_reference_sets))) * \
-                                            self.train_lossfunc(eig_pred=eigenvalues_pred, eig_label=eigenvalues_lbl, **self.reference_loss_options)
-
+                            for refdata in ref_processor:
+                                ref_pred, ref_label = self.calc(*refdata, decompose=self.decompose)
+                                loss += (self.batch_size * 1.0 / (self.reference_batch_size * (1+self.n_reference_sets))) * \
+                                            self.train_lossfunc(ref_pred, ref_label, **self.reference_loss_options)
+                    
                     loss.backward()
-
                     self.train_loss = loss.detach()
                     return loss
 
@@ -236,14 +237,12 @@ class DPTBTrainer(Trainer):
             for processor in self.validation_processor_list:
                 self.validation_loss_options.update(processor.bandinfo)
                 for data in processor:
-                    batch_bond, batch_bond_onsite, batch_env, batch_onsitenvs, structs, kpoints, eigenvalues = data[0],data[1],data[2], data[3], data[4], data[5], data[6]
-                    eigenvalues_pred, _ = self.calc(batch_bond, batch_bond_onsite, batch_env, batch_onsitenvs, structs, kpoints)
-                    eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
-
+                    eigenvalues_pred, eigenvalues_lbl = self.calc(*data)
                     total_loss += self.validation_lossfunc(eig_pred=eigenvalues_pred,eig_label=eigenvalues_lbl,**self.validation_loss_options)
                     if quick:
                         break
-
+                    
+        with torch.enable_grad():
             return total_loss
 
 
