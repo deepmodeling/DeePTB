@@ -1,6 +1,7 @@
 import torch 
 import torch.nn as nn
 
+
 class DirectNet(nn.Module):
     def __init__(self, nin, nhidden, nout, device='cpu', dtype=torch.float32, ini_std=0.5, **kwargs):
         super().__init__()

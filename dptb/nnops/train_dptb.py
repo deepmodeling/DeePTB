@@ -243,7 +243,7 @@ class DPTBTrainer(Trainer):
                         break
                     
         with torch.enable_grad():
-            return total_loss
+            return total_loss.detach()
 
 
 
