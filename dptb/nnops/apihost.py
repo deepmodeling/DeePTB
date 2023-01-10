@@ -1,8 +1,9 @@
 import logging
 import torch
-from dptb.utils.tools import get_uniq_bond_type,  j_must_have
+from dptb.utils.tools import get_uniq_bond_type,  j_must_have, j_loader
 from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.integralFunc import SKintHops
+from dptb.utils.argcheck import normalize
 from dptb.utils.constants import dtype_dict
 from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 from dptb.plugins.base_plugin import PluginUser
@@ -35,11 +36,17 @@ class DPTBHost(PluginUser):
 class NNSKHost(PluginUser):
     def __init__(self, checkpoint):
         super(NNSKHost, self).__init__()
-        ckpt = torch.load(checkpoint)
-        model_config = ckpt["model_config"]
-        model_config["dtype"] = dtype_dict[model_config["dtype"]]
-        model_config.update({"init_model": {"path": checkpoint,"interpolate": False}})
-        self.__init_params(**model_config)
+        init_type = checkpoint.split(".")[-1]
+        if init_type == "json":
+            jdata = j_loader(checkpoint)
+            jdata = normalize(jdata)
+        else:
+            ckpt = torch.load(checkpoint)
+            jdata = ckpt["model_config"]
+            jdata.update({"init_model": {"path": checkpoint,"interpolate": False}})
+        jdata["dtype"] = dtype_dict[jdata["dtype"]]
+        
+        self.__init_params(**jdata)
 
     def __init_params(self, **model_config):
         self.model_config = model_config        
