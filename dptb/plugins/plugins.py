@@ -56,8 +56,15 @@ class Saver(Plugin):
             json_data = {}
             onsitecoeff = {}
             hoppingcoeff = {}
-            for i in self.trainer.onsite_coeff:
-                onsitecoeff[i] = self.trainer.onsite_coeff[i].tolist()
+            if self.trainer.onsitemode ==  "strain":
+                for i in self.trainer.onsite_coeff:
+                    onsitecoeff[i] = self.trainer.onsite_coeff[i].tolist()
+            elif self.trainer.onsitemode in ['uniform','split']:
+                for ia in self.trainer.onsite_coeff:
+                    for iikey in range(len(self.trainer.onsite_index_dict[ia])):
+                        onsitecoeff[self.trainer.onsite_index_dict[ia][iikey]] = \
+                                        [self.trainer.onsite_coeff[ia].tolist()[iikey]]
+
             json_data["onsite"] = onsitecoeff
             for i in self.trainer.hopping_coeff:
                 hoppingcoeff[i] = self.trainer.hopping_coeff[i].tolist()

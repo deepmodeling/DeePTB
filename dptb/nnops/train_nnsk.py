@@ -116,7 +116,8 @@ class NNSKTrainer(Trainer):
         #     for i in onsite_coeffdict:
         #         onsite_coeffdict[i] = onsite_coeffdict[i].tolist()
         #     json.dump(onsite_coeffdict, f, indent=4)
-        
+        # print(self.onsitemode, self.model.onsite_index_dict)
+        self.onsite_index_dict = self.model.onsite_index_dict
         self.hopping_coeff = coeffdict
         if self.onsitemode == 'strain':
             self.onsite_coeff = onsite_coeffdict

@@ -74,7 +74,7 @@ def onsiteFunc(batch_bonds_onsite, onsite_db: dict, nn_onsiteE: dict=None):
         if nn_onsiteE is not None:
             onsiteEs = []
             for x in ia_list:
-                onsite = nn_onsiteE[x]
+                onsite = nn_onsiteE[x].clone()
                 onsite[:len(onsite_db[x])] += onsite_db[x]
                 onsiteEs.append(onsite)
         else:
