@@ -11,13 +11,14 @@ from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types, all
 from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.loadparas import load_paras
-from dptb.nnsktb.init_from_model import init_from_model_
+from dptb.nnsktb.init_from_model import init_from_model_,init_from_json_
 from dptb.utils.constants import dtype_dict
 from dptb.utils.argcheck import dptb_model_config_checklist, nnsk_model_config_updatelist, nnsk_model_config_checklist
 from dptb.utils.tools import get_uniq_symbol, \
     get_lr_scheduler, get_uniq_bond_type, get_uniq_env_bond_type, \
     get_env_neuron_config, get_bond_neuron_config, get_onsite_neuron_config, \
     get_optimizer, nnsk_correction, j_must_have, update_dict, checkdict, update_dict_with_warning
+from dptb.utils.tools import j_loader
 
 log = logging.getLogger(__name__)
 
@@ -157,28 +158,60 @@ class InitDPTBModel(Plugin):
         onsitemode = options['onsitemode']
         skformula = options['skfunction']['skformula']
         soc = options["soc"]
-        # -------------------------------------------------------------------------------------------
+        unit = options["unit"]
 
-        ckpt_list = [torch.load(ckpt) for ckpt in checkpoint]
-        model_config = ckpt_list[0]["model_config"]
-
-        # load params from model_config and make sure the key param doesn't conflict
-        # ----------------------------------------------------------------------------------------------------------
-        num_hopping_hidden = model_config['sknetwork']['sk_hop_nhidden']
-        num_onsite_hidden = model_config['sknetwork']['sk_onsite_nhidden']
-        num_soc_hidden = model_config['sknetwork']['sk_soc_nhidden']
-        unit = model_config["unit"]
-
-        if soc:
-            if not 'soc' in model_config.keys():
-                log.warning('Warning, the model is non-soc. Transferring it into soc case.')
-            else:
-                if not model_config['soc']:
-                    log.warning('Warning, the model is non-soc. Transferring it into soc case.')
-
+        if checkpoint[0].split('.')[-1] == 'json':
+            modeltype = "json"
+        elif checkpoint[0].split('.')[-1] == 'pth':
+            modeltype = "ckpt"
         else:
-            if 'soc' in model_config.keys() and model_config['soc']:
-                log.warning('Warning, the model is with soc, but this run job soc is turned off. Transferring it into non-soc case.')
+            raise NotImplementedError("Only support json and ckpt file as checkpoint")
+
+        # -------------------------------------------------------------------------------------------
+        if modeltype == "ckpt":
+            ckpt_list = [torch.load(ckpt) for ckpt in checkpoint]
+            model_config = ckpt_list[0]["model_config"]
+
+            # load params from model_config and make sure the key param doesn't conflict
+            # ----------------------------------------------------------------------------------------------------------
+            num_hopping_hidden = model_config['sknetwork']['sk_hop_nhidden']
+            num_onsite_hidden = model_config['sknetwork']['sk_onsite_nhidden']
+            num_soc_hidden = model_config['sknetwork']['sk_soc_nhidden']
+            assert unit == model_config['unit']
+        
+            if soc:
+                if not 'soc' in model_config.keys():
+                    log.warning('Warning, the model is non-soc. Transferring it into soc case.')
+                else:
+                    if not model_config['soc']:
+                        log.warning('Warning, the model is non-soc. Transferring it into soc case.')
+            else:
+                if 'soc' in model_config.keys() and model_config['soc']:
+                    log.warning('Warning, the model is with soc, but this run job soc is turned off. Transferring it into non-soc case.')
+
+        elif modeltype == "json":
+            # 只用一个文件包含所有的键积分参数：
+            json_model_types = ["onsite", "hopping","soc"]
+            assert len(checkpoint) ==1
+            json_dict = j_loader(checkpoint[0])
+            assert 'onsite'  in json_dict, "onsite paras is not in the json file, or key err, check the key onsite in json fle"
+            assert 'hopping' in json_dict, "hopping paras is not in the json file, or key err, check the key hopping in json file"
+            if soc:
+                assert 'soc' in json_dict, "soc parameters not found in json file, or key err, check the soc key in json file"
+            
+            json_model_list = {}
+            for ikey in json_model_types:
+                json_model_i ={}
+                if ikey in json_dict.keys():
+                    for itype in json_dict[ikey]:
+                        json_model_i[itype] = torch.tensor(json_dict[ikey][itype],dtype=dtype,device=device)
+                    json_model_list[ikey] = json_model_i
+            
+            num_hopping_hidden = 1
+            num_onsite_hidden = 1
+            num_soc_hidden = 1
+        else:
+            raise NotImplementedError("modeltype {} not implemented".format(modeltype))
         
         IndMap = Index_Mapings()
         IndMap.update(proj_atom_anglr_m=proj_atom_anglr_m)
@@ -225,8 +258,15 @@ class InitDPTBModel(Plugin):
                                    onsite_index_dict=onsiteE_ind_dict
                                    )
 
-        self.host.sknet = init_from_model_(SKNet=sknet, checkpoint_list=ckpt_list, interpolate=False)
-        self.host.sknet_config  = model_config
+        if modeltype == 'ckpt':
+            self.host.sknet = init_from_model_(SKNet=sknet, checkpoint_list=ckpt_list, interpolate=False)
+            self.host.sknet_config  = model_config
+        elif modeltype == 'json':
+            self.host.sknet = init_from_json_(SKNet=sknet, json_model=json_model_list)
+            self.host.sknet_config  = options
+        else:
+            raise NotImplementedError("modeltype {} not implemented".format(modeltype))
+            
         
         self.host.sknet.train()
 
