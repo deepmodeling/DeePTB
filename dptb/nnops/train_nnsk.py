@@ -90,7 +90,13 @@ class NNSKTrainer(Trainer):
     
 
     def calc(self, batch_bonds, batch_bond_onsites, batch_envs, batch_onsitenvs, structs, kpoints, eigenvalues, wannier_blocks, decompose=True):
-        assert len(kpoints.shape) == 2, "kpoints should have shape of [num_kp, 3]."
+        if len(kpoints.shape) != 2: 
+            log.error(msg="kpoints should have shape of [num_kp, 3].")
+            raise ValueError
+        if (wannier_blocks[0] is None) and not (self.decompose):
+            log.error(msg="The wannier_blocks from processor is None, but the losstype wannier, please check the input data, maybe the wannier.npy is not there.")
+            raise ValueError
+
         coeffdict = self.model(mode='hopping')
         batch_hoppings = self.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, 
             rcut=self.model_options["skfunction"]["sk_cutoff"], w=self.model_options["skfunction"]["sk_decay_w"])
@@ -107,16 +113,7 @@ class NNSKTrainer(Trainer):
             batch_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_soc=nn_soc_lambdas)
         else:
             batch_soc_lambdas = None
-            # call sktb to get the sktb hoppings and onsites
-        # with open("/root/dptb_exp/MoS2/ucell/hopping.json", "w") as f:
-        #     for i in coeffdict:
-        #         coeffdict[i] = coeffdict[i].tolist()
-        #     json.dump(coeffdict, f, indent=4)
-        # with open("/root/dptb_exp/MoS2/ucell/onsite_strain.json", "w") as f:
-        #     for i in onsite_coeffdict:
-        #         onsite_coeffdict[i] = onsite_coeffdict[i].tolist()
-        #     json.dump(onsite_coeffdict, f, indent=4)
-        # print(self.onsitemode, self.model.onsite_index_dict)
+        # call sktb to get the sktb hoppings and onsites
         self.onsite_index_dict = self.model.onsite_index_dict
         self.hopping_coeff = coeffdict
         if self.onsitemode == 'strain':
