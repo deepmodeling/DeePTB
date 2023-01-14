@@ -263,10 +263,12 @@ def model_options():
 def loss_options():
     doc_losstype = ""
     doc_sortstrength = ""
+    doc_nkratio = ""
 
     args = [
         Argument("losstype", str, optional=True, doc=doc_losstype, default='l2eig_deig_sf'),
         Argument("sortstrength", list, optional=True, doc=doc_sortstrength,default=[0.01,0.01]),
+        Argument("nkratio", [float,None], optional=True, doc=doc_nkratio, default=None)
     ]
 
     doc_loss_options = ""
