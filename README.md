@@ -24,7 +24,9 @@ Deep learning on quantum transport simulations with NEGF method.
 - ase
 - torch
 - torchsort==0.1.7
-
+- pyyaml
+- future
+- dargs
 
 ## **installation**
 1. install torch following the instruction in : [PyTorch: Get Started](https://pytorch.org/get-started/locally)
