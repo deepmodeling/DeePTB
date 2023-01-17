@@ -63,7 +63,8 @@ class SKNet(nn.Module):
         bond_config = {
             'nin': len(self.skint_types),
             'nhidden': bond_neurons.get('nhidden',1),
-            'nout': bond_neurons.get('nout')}
+            'nout': bond_neurons.get('nout'),
+            'ini_std':0.01}
         self.bond_net = DirectNet(device=device, dtype=dtype, **bond_config)
         
         if self.onsitemode.lower() == 'none':
