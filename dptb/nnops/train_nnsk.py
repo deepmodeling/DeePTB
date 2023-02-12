@@ -41,7 +41,7 @@ class NNSKTrainer(Trainer):
         self.proj_atom_anglr_m = common_options.get('proj_atom_anglr_m')
         self.proj_atom_neles = common_options.get('proj_atom_neles')
         self.onsitemode = common_options.get('onsitemode','none')
-        self.atomtype = common_options["atomtype"]
+        self.atomtype = get_uniq_symbol(common_options["atomtype"])
         self.proj_atomtype = get_uniq_symbol(list(self.proj_atom_anglr_m.keys()))
 
         self.soc = common_options['soc']

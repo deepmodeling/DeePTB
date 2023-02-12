@@ -87,6 +87,7 @@ def init_from_json_(SKNet, json_model:dict):
     model_state_dict = SKNet.state_dict()
     
     types_list = [onsite_types, skint_types, soc_types]
+    types_list_names = ['onsite_types', 'skint_types', 'soc_types']
     layers_list = [["onsite_net.layer1", "onsite_net.layer2"], ["bond_net.layer1", "bond_net.layer2"], ["soc_net.layer1", "soc_net.layer2"]]
 
     json_model_types = ["onsite", "hopping","soc"]
@@ -98,18 +99,19 @@ def init_from_json_(SKNet, json_model:dict):
                 and json_model_types[i] in json_model:
 
             types = types_list[i] # the list of net key, types. as N-N-2s-2s-0, or N-B-2s-2p-1
+            typename = types_list_names[i]
             layers = [model_state_dict[layers_list[i][0]], model_state_dict[layers_list[i][1]]] 
             json_model_i = json_model[json_model_types[i]]
 
             if layers[0] is not None:
-                layers = init_para_from_out(types=types, layers=layers, json_model=json_model_i)
+                layers = init_para_from_out(typename=typename, types=types, layers=layers, json_model=json_model_i)
 
                 model_state_dict[layers_list[i][0]], model_state_dict[layers_list[i][1]] = layers[0], layers[1]
 
     SKNet.load_state_dict(model_state_dict)
     return SKNet
 
-def init_para_from_out(types, layers, json_model):
+def init_para_from_out(typename, types, layers, json_model):
     """ json中保存了网络对应的输出参数的数值。现在根据输出数值，逆向对网络参数进行初始化，在不影响网络性质及使用范围的情况下，设置nhidden=1，
     从而方便从输出数值进行反向初始化网络参数。
 
@@ -135,9 +137,9 @@ def init_para_from_out(types, layers, json_model):
             assert layers2.shape[1] == len(json_model[type]), 'the output of the json model is not match the net output.'
             layers2[i] = torch.reshape(json_model[type],[-1,1])
         else:
-            log.warning(msg="<><><><><><><><><><><><><><><><><><><><><><><><><><><><><>")
-            log.warning(msg="The type {} is not in the json model.".format(type))
-            log.warning(msg="<><><><><><><><><><><><><><><><><><><><><><><><><><><><><>")
+            log.warning(msg= "<><><><><><><><><><><><><><><><><><><><><><><><><><><><><>")
+            log.warning(msg= f"The type {type} for {typename} is not in the json model.")
+            log.warning(msg= "<><><><><><><><><><><><><><><><><><><><><><><><><><><><><>")
 
 
     layers = [layers1, layers2]
