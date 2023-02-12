@@ -1,10 +1,10 @@
 {
     "init_model": {
-        "path": "./checkpoint/best_nnsk_c1.5w0.3.pth",
+        "path": null,
         "interpolate": true
     },
     "common_options": {
-        "onsitemode": "strain",
+        "onsitemode": "none",
         "onsite_cutoff": 2.6,
         "bond_cutoff": 1.5,
         "env_cutoff": 3.5,

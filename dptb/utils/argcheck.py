@@ -48,7 +48,7 @@ def common_options():
         Argument("sk_file_path", str, optional = True, default="./", doc = doc_sk_file_path),
         Argument("time_symm", bool, optional = True, default=True, doc = doc_time_symm),
         Argument("soc", bool, optional=True, default=False, doc=doc_soc),
-        Argument("unit", str, optional=True, default="Hatree", doc=doc_soc)
+        Argument("unit", str, optional=True, default="Hartree", doc=doc_soc)
     ]
 
     doc_common_options = ""
@@ -266,7 +266,7 @@ def loss_options():
     doc_nkratio = ""
 
     args = [
-        Argument("losstype", str, optional=True, doc=doc_losstype, default='l2eig_deig_sf'),
+        Argument("losstype", str, optional=True, doc=doc_losstype, default='eigs_l2dsf'),
         Argument("sortstrength", list, optional=True, doc=doc_sortstrength,default=[0.01,0.01]),
         Argument("nkratio", [float,None], optional=True, doc=doc_nkratio, default=None)
     ]
