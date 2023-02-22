@@ -194,42 +194,51 @@ class DPTBTrainer(Trainer):
 # 
 
     def train(self) -> None:
+        
+        total_batch = 0
+        # reset processor:
+        data_set_seq = []
+        for ip in range(self.n_train_sets):
+            self.train_processor_list[ip] = iter(self.train_processor_list[ip])
+            data_set_seq += [ip] * self.train_processor_list[ip].n_batch
+            total_batch += self.train_processor_list[ip].n_batch
 
-        data_set_seq = np.random.choice(self.n_train_sets, size=self.n_train_sets, replace=False)
+        data_set_seq = np.array(data_set_seq)[np.random.choice(total_batch, size=total_batch, replace=False)]
+
         for iset in data_set_seq:
             processor = self.train_processor_list[iset]
             self.loss_options.update(processor.bandinfo)
             # iter with different structure
-            for data in processor:
+            data = next(processor)
                 # iter with samples from the same structure
 
-                def closure():
-                    # calculate eigenvalues.
-                    self.optimizer.zero_grad()
-                    pred, label = self.calc(*data, decompose=self.decompose)
-                    loss = self.train_lossfunc(pred, label, **self.loss_options)
+            def closure():
+                # calculate eigenvalues.
+                self.optimizer.zero_grad()
+                pred, label = self.calc(*data, decompose=self.decompose)
+                loss = self.train_lossfunc(pred, label, **self.loss_options)
 
-                    if self.use_reference:
-                        for irefset in range(self.n_reference_sets):
-                            ref_processor = self.ref_processor_list[irefset]
-                            self.reference_loss_options.update(self.ref_processor_list[irefset].bandinfo)
-                            for refdata in ref_processor:
-                                ref_pred, ref_label = self.calc(*refdata, decompose=self.decompose)
-                                loss += (self.batch_size * 1.0 / (self.reference_batch_size * (1+self.n_reference_sets))) * \
-                                            self.train_lossfunc(ref_pred, ref_label, **self.reference_loss_options)
-                    
-                    loss.backward()
-                    self.train_loss = loss.detach()
-                    return loss
+                if self.use_reference:
+                    for irefset in range(self.n_reference_sets):
+                        ref_processor = self.ref_processor_list[irefset]
+                        self.reference_loss_options.update(self.ref_processor_list[irefset].bandinfo)
+                        for refdata in ref_processor:
+                            ref_pred, ref_label = self.calc(*refdata, decompose=self.decompose)
+                            loss += (self.batch_size * 1.0 / (self.reference_batch_size * (1+self.n_reference_sets))) * \
+                                        self.train_lossfunc(ref_pred, ref_label, **self.reference_loss_options)
+                
+                loss.backward()
+                self.train_loss = loss.detach()
+                return loss
 
-                self.optimizer.step(closure)
-                state = {'field':'iteration', "train_loss": self.train_loss, "lr": self.optimizer.state_dict()["param_groups"][0]['lr']}
+            self.optimizer.step(closure)
+            state = {'field':'iteration', "train_loss": self.train_loss, "lr": self.optimizer.state_dict()["param_groups"][0]['lr']}
 
-                self.call_plugins(queue_name='iteration', time=self.iteration, **state)
-                # self.lr_scheduler.step() # 在epoch 加入 scheduler.
+            self.call_plugins(queue_name='iteration', time=self.iteration, **state)
+            # self.lr_scheduler.step() # 在epoch 加入 scheduler.
 
 
-                self.iteration += 1
+            self.iteration += 1
 
     def validation(self, quick=False):
         with torch.no_grad():
