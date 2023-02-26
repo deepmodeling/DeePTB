@@ -40,7 +40,7 @@ class DPTBTester(Tester):
         self.proj_atom_anglr_m = common_options.get('proj_atom_anglr_m')
         self.proj_atom_neles = common_options.get('proj_atom_neles')
         self.onsitemode = common_options.get('onsitemode','none')
-        self.atomtype = common_options["atomtype"]
+        self.atomtype = get_uniq_symbol(common_options["atomtype"])
         self.soc = common_options['soc']
         self.proj_atomtype = get_uniq_symbol(list(self.proj_atom_anglr_m.keys()))
 
@@ -51,7 +51,7 @@ class DPTBTester(Tester):
         # ---------------------------------------------------------------- init onsite and hopping functions  ----------------------------------------------------------------
         self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
         self.criterion = torch.nn.MSELoss(reduction='mean')
-        self.test_lossfunc = getattr(lossfunction(self.criterion), 'l2eig')
+        self.test_lossfunc = getattr(lossfunction(self.criterion), 'eigs_l2')
         self.hamileig = HamilEig(dtype=self.dtype, device=self.device)
     
 
