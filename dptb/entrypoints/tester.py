@@ -56,6 +56,28 @@ def validation(
         else:
             log.error("ValueError: Missing init_model file path.")
             raise ValueError
+        jdata = j_loader(INPUT)
+        jdata = normalize(jdata)
+        
+        if all((jdata["init_model"]["path"], run_opt["init_model"])):
+            raise RuntimeError(
+                "init-model in config and command line is in conflict, turn off one of then to avoid this error !"
+            )
+        else:
+            if jdata["init_model"]["path"] is not None:
+                assert mode == "from_scratch"
+                run_opt["init_model"] = jdata["init_model"]
+                mode = "init_model"
+                if isinstance(run_opt["init_model"]["path"], str):
+                    skconfig_path = os.path.join(str(Path(run_opt["init_model"]["path"]).parent.absolute()), "config_nnsktb.json")
+                else: # list
+                    skconfig_path = [os.path.join(str(Path(path).parent.absolute()), "config_nnsktb.json") for path in run_opt["init_model"]["path"]]
+            else:
+                if run_opt["init_model"] is not None:
+                    assert mode == "init_model"
+                    path = run_opt["init_model"]
+                    run_opt["init_model"] = jdata["init_model"]
+                    run_opt["init_model"]["path"] = path
     else:
         if init_model:
             dptbconfig_path = os.path.join(str(Path(init_model).parent.absolute()), "config_dptbtb.json")
@@ -68,6 +90,9 @@ def validation(
             skconfig_path = os.path.join(str(Path(use_correction).parent.absolute()), "config_nnsktb.json")
         else:
             skconfig_path = None
+
+        jdata = j_loader(INPUT)
+        jdata = normalize(jdata)
     
     # setup output path
     if output:
@@ -99,8 +124,6 @@ def validation(
         })
     set_log_handles(log_level, Path(log_path) if log_path else None)
 
-    jdata = j_loader(INPUT)
-    jdata = normalize(jdata)
     setup_seed(seed=jdata["train_options"]["seed"])
 
 
@@ -149,3 +172,4 @@ def validation(
 
     end_time = time.time()
     log.info("finished testing")
+    log.info(f"wall time: {(end_time - start_time):.3f} s")
