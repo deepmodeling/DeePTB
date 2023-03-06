@@ -52,10 +52,11 @@ class DPTBTester(Tester):
         self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
         self.criterion = torch.nn.MSELoss(reduction='mean')
         self.test_lossfunc = getattr(lossfunction(self.criterion), 'eigs_l2')
+        self.decompose = True
         self.hamileig = HamilEig(dtype=self.dtype, device=self.device)
     
 
-    def calc(self, batch_bond, batch_bond_onsites, batch_env, batch_onsitenvs, structs, kpoints):
+    def calc(self, batch_bond, batch_bond_onsites, batch_env, batch_onsitenvs, structs, kpoints, eigenvalues, wannier_blocks, decompose=True):
         '''
         conduct one step forward computation, used in train, test and validation.
         '''
@@ -77,14 +78,15 @@ class DPTBTester(Tester):
             if self.soc:
                 nnsk_soc_lambdas, _ = self.sknet(mode="soc")
                 batch_nnsk_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_soc=nnsk_soc_lambdas)
-            
+
         # ToDo: Advance the correction process before onsite_fun and hops_fun
         # call sktb to get the sktb hoppings and onsites
-        eigenvalues_pred = []
-        eigenvector_pred = []
         onsiteVs = None
         onsitenvs = None
+        pred = []
+        label = []
         for ii in range(len(structs)):
+            l = []
             if not self.run_opt.get("use_correction", False):
                 onsiteEs, hoppings = batch_onsiteEs[ii], batch_hoppings[ii]
                 soc_lambdas = None
@@ -112,41 +114,56 @@ class DPTBTester(Tester):
                     onsiteVs = batch_nnsk_onsiteVs[ii]
                     onsitenvs = np.asarray(batch_onsitenvs[ii][:,1:])
             # call hamiltonian block
-            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
-            self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[ii][:,1:]),
-                                        bonds_hoppings=np.asarray(batch_bond_hoppings[ii][:,1:]),
-                                        onsite_envs=onsitenvs)
-            eigenvalues_ii, eigvec = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"], unit=self.common_options.get("unit",'Hartree'))
-            eigenvalues_pred.append(eigenvalues_ii)
-            eigenvector_pred.append(eigvec)
-        eigenvalues_pred = torch.stack(eigenvalues_pred)
-        eigenvector_pred = torch.stack(eigenvector_pred)
 
-        return eigenvalues_pred, eigenvector_pred
+            bond_onsites = np.asarray(batch_bond_onsites[ii][:,1:])
+            bond_hoppings = np.asarray(batch_bond_hoppings[ii][:,1:])
+
+            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
+            self.hamileig.get_hs_blocks(bonds_onsite=bond_onsites,
+                                        bonds_hoppings=bond_hoppings,
+                                        onsite_envs=onsitenvs)
+            
+            if decompose:
+                eigenvalues_ii, _ = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"],unit=self.common_options["unit"])
+                pred.append(eigenvalues_ii)
+            else:
+                assert not self.soc, "soc should not open when using wannier blocks to fit."
+                pred.append(self.hamileig.hamil_blocks) # in order of [batch_bond_onsite, batch_bonds]
+                for bo in bond_onsites:
+                    key = str(int(bo[1])) +"_"+ str(int(bo[3])) +"_"+ str(int(bo[4])) +"_"+ str(int(bo[5])) +"_"+ str(int(bo[6]))
+                    l.append(torch.tensor(wannier_blocks[ii][key], dtype=self.dtype, device=self.device))
+                for bo in bond_hoppings:
+                    key = str(int(bo[1])) +"_"+ str(int(bo[3])) +"_"+ str(int(bo[4])) +"_"+ str(int(bo[5])) +"_"+ str(int(bo[6]))
+                    l.append(torch.tensor(wannier_blocks[ii][key], dtype=self.dtype, device=self.device))
+                label.append(l)
+
+        if decompose:
+            label = torch.from_numpy(eigenvalues.astype(float)).float()
+            pred = torch.stack(pred)
+
+        return pred, label
 
     def test(self) -> None:
         with torch.no_grad():
             iprocess =0
             for processor in self.test_processor_list:
                 idata = 0
+                self.loss_options.update(processor.bandinfo)
                 for data in processor:
-                    batch_bond, batch_bond_onsite, batch_env, batch_onsitenvs, structs, kpoints, eigenvalues = \
-                                                            data[0],data[1],data[2], data[3], data[4], data[5], data[6]
-                    eigenvalues_pred, _ = self.calc(batch_bond, batch_bond_onsite, batch_env, batch_onsitenvs, structs, kpoints)
-                    eigenvalues_lbl = torch.from_numpy(eigenvalues.astype(float)).float()
+                    pred, label = self.calc(*data, decompose=self.decompose)
                     
                     if idata ==0:
-                        eigenvalues_pred_collect = eigenvalues_pred.clone()
-                        eigenvalues_lbel_collect = eigenvalues_lbl.clone()
+                        eigenvalues_pred_collect = pred.clone()
+                        eigenvalues_lbel_collect = label.clone()
                     else:
-                        eigenvalues_pred_collect = torch.cat([eigenvalues_pred_collect,eigenvalues_pred],dim=0)
-                        eigenvalues_lbel_collect = torch.cat([eigenvalues_lbel_collect,eigenvalues_lbl],dim=0)
+                        eigenvalues_pred_collect = torch.cat([eigenvalues_pred_collect,pred],dim=0)
+                        eigenvalues_lbel_collect = torch.cat([eigenvalues_lbel_collect,label],dim=0)
 
-                    num_kp = kpoints.shape[0]
-                    num_el = np.sum(structs[0].proj_atom_neles_per)
+                    # num_kp = kpoints.shape[0]
+                    # num_el = np.sum(structs[0].proj_atom_neles_per)
 
-                    self.loss_options.update({'num_el':num_el})
-                    loss = self.test_lossfunc(eig_pred=eigenvalues_pred,eig_label=eigenvalues_lbl,**self.loss_options)
+                    #self.loss_options.update({'num_el':num_el})
+                    loss = self.test_lossfunc(eig_pred=pred, eig_label=label,**self.loss_options)
 
                     self.test_loss = loss.detach()
                     state = {'field': 'iteration', "test_loss": self.test_loss}
