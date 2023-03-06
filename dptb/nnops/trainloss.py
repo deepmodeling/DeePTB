@@ -117,21 +117,26 @@ class lossfunction(object):
         if gap_penalty:
             gap1 = eig_pred_soft[:,:,fermi_band+1] - eig_pred_soft[:,:,fermi_band]
             gap2 = eig_label_soft[:,:,fermi_band+1] - eig_label_soft[:,:,fermi_band]
-            loss_gap = self.criterion(1.0/(gap1+eta), 1.0/(gap2+eta)) 
+            loss_gap = self.criterion(1.0/(gap1+eta), 1.0/(gap2+eta))
 
         if num_kp > 1:
             # randon choose nk_diff kps' eigenvalues to gen Delta eig.
             # nk_diff = max(nkps//4,1)     
-            nk_diff = num_kp        
+            nk_diff = num_kp
             k_diff_i = np.random.choice(num_kp,nk_diff,replace=False)
             k_diff_j = np.random.choice(num_kp,nk_diff,replace=False)
             while (k_diff_i==k_diff_j).all():
                 k_diff_j = np.random.choice(num_kp, nk_diff, replace=False)
-            eig_diff_lbl = eig_label_soft[:,k_diff_i,:] - eig_label_soft[:,k_diff_j,:]
-            eig_ddiff_pred = eig_pred_soft[:,k_diff_i,:]  - eig_pred_soft[:,k_diff_j,:]
+
+            if mask_in is not None:
+                eig_diff_lbl = eig_label_soft.masked_fill(mask_in, 0.)[:, k_diff_i,:] - eig_label_soft.masked_fill(mask_in, 0.)[:,k_diff_j,:]
+                eig_ddiff_pred = eig_pred_soft.masked_fill(mask_in, 0.)[:,k_diff_i,:] - eig_pred_soft.masked_fill(mask_in, 0.)[:,k_diff_j,:]
+            else:
+                eig_diff_lbl = eig_label_soft[:,k_diff_i,:] - eig_label_soft[:,k_diff_j,:]
+                eig_ddiff_pred = eig_pred_soft[:,k_diff_i,:]  - eig_pred_soft[:,k_diff_j,:]
             loss_diff =  self.criterion(eig_diff_lbl, eig_ddiff_pred) 
 
-            loss = (1*loss + 1*loss_diff)/2 
+            loss = (1*loss + 1*loss_diff)/2
         
         if gap_penalty:
             loss = loss + 0.1*loss_gap 
