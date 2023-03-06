@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Any
 from dptb.plugins.train_logger import Logger
 from dptb.plugins.init_nnsk import InitSKModel
 from dptb.plugins.init_dptb import InitDPTBModel
-from dptb.utils.argcheck import normalize
+from dptb.utils.argcheck import normalize, normalize_bandplot
 from dptb.utils.tools import j_loader
 from dptb.utils.loggers import set_log_handles
 from dptb.utils.tools import j_must_have
@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 def postrun(
         INPUT: str,
-        model_ckpt: str,
+        init_model: str,
         output: str,
         run_sk: bool,
         structure: str,
@@ -35,13 +35,43 @@ def postrun(
     
     run_opt = {
         "run_sk": run_sk,
-        "model_ckpt":model_ckpt,
+        "init_model":init_model,
         "structure":structure,
         "log_path": log_path,
         "log_level": log_level,
         "use_correction":use_correction
     }
 
+    if all((use_correction, run_sk)):
+        log.error(msg="--use-correction and --train_sk should not be set at the same time")
+        raise RuntimeError
+    
+    jdata = j_loader(INPUT)
+    #jdata = normalize(jdata)
+    #if run_sk:
+    if run_opt["init_model"] is None:
+        log.info(msg="model_ckpt is not set in run option, read from input config file.")
+
+        if "init_model" in jdata and "path" in jdata["init_model"] and jdata["init_model"]["path"] is not None:
+            run_opt["init_model"] = jdata["init_model"]["path"]
+        else:
+            log.error(msg="init_model is not set in config file and command line.")
+            raise RuntimeError
+
+    task = j_must_have(jdata, "task")
+
+    if  run_opt['structure'] is None:
+        log.info(msg="structure is not set in run option, read from input config file.")
+        structure = j_must_have(jdata, "structure")
+        run_opt.update({"structure":structure})
+
+    model_ckpt = run_opt["init_model"]
+
+    if run_opt['use_correction'] is None and jdata.get('use_correction',None) != None:
+        use_correction = jdata['use_correction']
+        run_opt.update({"use_correction":use_correction})
+        log.info(msg="use_correction is not set in run option, read from input config file.")
+    
     # output folder.
     if output:
         Path(output).parent.mkdir(exist_ok=True, parents=True)
@@ -59,26 +89,8 @@ def postrun(
                         })
     
     set_log_handles(log_level, Path(log_path) if log_path else None)
-    jdata = j_loader(INPUT)
-    # jdata = normalize(jdata)
+
     
-    task = j_must_have(jdata, "task")
-
-    if  run_opt['structure'] == None:
-        log.info(msg="structure is not set in run option, read from input config file.")
-        structure = j_must_have(jdata, "structure")
-        run_opt.update({"structure":structure})
-
-    if run_opt['model_ckpt'] == None:
-        log.info(msg="model_ckpt is not set in run option, read from input config file.")
-        model_ckpt = j_must_have(jdata, "model_ckpt")
-    
-    if run_opt['use_correction'] == None and jdata.get('use_correction',None) != None:
-        use_correction = jdata['use_correction']
-        run_opt.update({"use_correction":use_correction})
-        log.info(msg="use_correction is set in run option, read from input config file.")
-
-
     if run_sk:
         apihost = NNSKHost(checkpoint=model_ckpt)
         apihost.register_plugin(InitSKModel())
@@ -92,12 +104,20 @@ def postrun(
         
     # one can just add his own function to calculate properties by add a task, and its code to calculate.
 
-    if task=='eigenvalues':
-        bcal = bandcalc(apiHrk, run_opt, jdata)
+    if task=='bandstructure':
+        plot_opt = j_must_have(jdata, "bandstructure")
+        plot_opt = normalize_bandplot(plot_opt)
+        plot_jdata = {"bandstructure":plot_opt}
+        # plot_jdata = normalize_bandplot(plot_jdata)
+        jdata.update(plot_jdata)
+        
+        with open(os.path.join(output, "run_config.json"), "w") as fp:
+            json.dump(jdata, fp, indent=4)
+
+        bcal = bandcalc(apiHrk, run_opt, plot_jdata)
         bcal.get_bands()
         bcal.band_plot()
         log.info(msg='band calculation successfully completed.')
-
 
 
     

@@ -1,6 +1,6 @@
 import numpy as np
 
-def interp_kpath(structase, kpath):
+def abscus_kpath(structase, kpath):
     kpath = np.asarray(kpath)
     assert kpath.shape[-1] == 4
     assert  len(kpath.shape) == 2

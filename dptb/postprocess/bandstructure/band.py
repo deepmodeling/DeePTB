@@ -1,6 +1,6 @@
 import numpy as np
 from dptb.utils.tools import j_must_have
-from dptb.utils.make_kpoints  import ase_kpath, interp_kpath
+from dptb.utils.make_kpoints  import ase_kpath, abscus_kpath
 from ase.io import read
 import ase
 import matplotlib.pyplot as plt
@@ -20,24 +20,28 @@ class bandcalc (object):
         self.apiH.update_struct(self.structase)
     
     def get_bands(self):
-        self.band_plot_options = j_must_have(self.jdata, 'band_plot')
-        kmode = self.band_plot_options['kmode']
+        self.band_plot_options = j_must_have(self.jdata, 'bandstructure')
+        kline_type = self.band_plot_options['kline_type']
 
         
-        if kmode == 'ase_kpath':
+        if kline_type == 'ase_kpath':
             kpath = self.band_plot_options['kpath']
             nkpoints = self.band_plot_options['nkpoints']
             self.klist, self.xlist, self.high_sym_kpoints, self.labels = ase_kpath(structase=self.structase,
                                                  pathstr=kpath, total_nkpoints=nkpoints)
-        elif kmode == 'line_mode':
+        elif kline_type == 'abscus':
             kpath = self.band_plot_options['kpath']
             self.labels = self.band_plot_options['klabels']
-            self.klist, self.xlist, self.high_sym_kpoints  = interp_kpath(structase=self.structase, kpath=kpath)
+            self.klist, self.xlist, self.high_sym_kpoints  = abscus_kpath(structase=self.structase, kpath=kpath)
 
 
         all_bonds, hamil_blocks, overlap_blocks = self.apiH.get_HR()
-        self.eigenvalues, self.E_fermi = self.apiH.get_eigenvalues(self.klist)
+        self.eigenvalues, self.estimated_E_fermi = self.apiH.get_eigenvalues(self.klist)
 
+        if self.jdata.get('E_fermi',None) != None:
+            self.E_fermi = self.jdata['E_fermi']
+        else:
+            self.E_fermi = 0.0
 
         eigenstatus = {'klist': self.klist,
                         'xlist': self.xlist,

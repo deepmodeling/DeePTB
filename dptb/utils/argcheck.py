@@ -292,6 +292,20 @@ def normalize(data):
 
     return data
 
+def host_normalize(data):
+
+    ini = init_model()
+    co = common_options()
+    mo = model_options()
+
+    base = Argument("base", dict, [ini, co, mo])
+    data = base.normalize_value(data)
+    # data = base.normalize_value(data, trim_pattern="_*")
+    base.check_value(data, strict=False)
+
+    return data
+
+
 def normalize_bandinfo(data):
     doc_band_min = ""
     doc_band_max = ""
@@ -318,3 +332,29 @@ def normalize_bandinfo(data):
 
     return data
 
+
+def normalize_bandplot(data):
+    doc_kmode = ""
+    doc_kpath = ""
+    doc_klabels = ""
+    doc_emin=""
+    doc_emax=""
+    doc_E_fermi = ""
+    doc_bandstructure = ""
+    
+    args = [
+        Argument("kmode", str, optional=True, default="line_mode", doc=doc_kmode),
+        Argument("kpath", list, optional=True, default=[[]], doc=doc_kpath),
+        Argument("klabels", list, optional=True, default=[''], doc=doc_klabels),
+        Argument("E_fermi", [float, int, None], optional=True, doc=doc_E_fermi, default=None),
+        Argument("emin", [float, int, None], optional=True, doc=doc_emin, default=None),
+        Argument("emax", [float, int, None], optional=True, doc=doc_emax, default=None)
+    ]
+
+
+
+    bs_options = Argument("bandstructure", dict, sub_fields=args, sub_variants=[], doc=doc_bandstructure)
+    data = bs_options.normalize_value(data)
+    bs_options.check_value(data, strict=False)
+
+    return data
