@@ -1,9 +1,11 @@
 import numpy as np
 from dptb.utils.tools import j_must_have
-from dptb.utils.make_kpoints  import ase_kpath, abacus_kpath
+from dptb.utils.make_kpoints  import ase_kpath, abacus_kpath, vasp_kpath
 from ase.io import read
 import ase
 import matplotlib.pyplot as plt
+import logging
+log = logging.getLogger(__name__)
 
 class bandcalc (object):
     def __init__ (self, apiHrk, run_opt, jdata):
@@ -33,8 +35,17 @@ class bandcalc (object):
             kpath = self.band_plot_options['kpath']
             self.labels = self.band_plot_options['klabels']
             self.klist, self.xlist, self.high_sym_kpoints  = abacus_kpath(structase=self.structase, kpath=kpath)
-
-
+        
+        elif kline_type == 'vasp':
+            pathstr = self.band_plot_options['pathstr']
+            high_sym_kpoints_dict = self.band_plot_options['high_sym_kpoints']
+            number_in_line = self.band_plot_options['number_in_line']
+            self.klist, self.xlist, self.high_sym_kpoints, self.labels = vasp_kpath(structase=self.structase,
+                                                 pathstr=pathstr, high_sym_kpoints_dict=high_sym_kpoints_dict, number_in_line=number_in_line)
+        else:
+            log.error('Error, now, kline_type only support ase_kpath, abacus, or vasp.')
+            raise ValueError
+        
         all_bonds, hamil_blocks, overlap_blocks = self.apiH.get_HR()
         self.eigenvalues, self.estimated_E_fermi = self.apiH.get_eigenvalues(self.klist)
 

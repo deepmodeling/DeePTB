@@ -1,6 +1,24 @@
 import numpy as np
 
 def abacus_kpath(structase, kpath):
+    '''> The function `abacus_kpath` takes in a structure and a list of high symmetry points. It returns a list of k-points, a list of x-values, and a list of high symmetry k-points.
+    
+    Parameters
+    ----------
+    structase : ase.Atoms
+        The structure in ASE format.
+    kpath : list
+        A list of high symmetry points. Each high symmetry point is a list of 4 elements: [kx, ky, kz, nk], where nk is the number of k-points to be used in the path between this high symmetry point and the next one.
+
+    Returns
+    -------
+    kpath_list : list
+        A list of k-points.
+    kdist_list : list
+        A list of x-values.
+    high_sym_kpoints : list
+        A list of high symmetry k-points.
+    '''
     kpath = np.asarray(kpath)
     assert kpath.shape[-1] == 4
     assert  len(kpath.shape) == 2
@@ -61,3 +79,65 @@ def ase_kpath(structase, pathstr:str, total_nkpoints:int):
     klist = kpath.kpts
     return klist, xlist, high_sym_kpoints, labels
 
+def vasp_kpath(structase, pathstr:str, high_sym_kpoints_dict:dict, number_in_line:int):
+    """The function `vasp_kpath` takes in a structure, a string of high symmetry points, a dictionary of high symmetry points, and the number of k-points in each line. 
+    It returns a list of k-points, a list of x-values, a list of high symmetry k-points, and a list of labels.
+
+    Parameters:
+    -----------
+    structase: ase structure object
+    pathstr: str
+        a string that defines the path in reciprocal space.
+    high_sym_kpoints: dict
+        a dictionary of high symmetry points
+    number_in_line: int
+        the number of k-points in each line
+
+    Returns:
+    --------
+    klist: np.array, float, shape [N,3]
+        a list of k-points
+    xlist: np.array, float, shape [N]
+        a list of x-values
+    xlist_label: list[float]
+        a list of high symmetry k-points
+    klabels: list[str]
+    """
+
+    kpath = []
+    klist = []
+
+    for i  in range(len(pathstr)):
+        kline = (pathstr[i].split('-'))
+        kpath.append([high_sym_kpoints_dict[kline[0]],high_sym_kpoints_dict[kline[1]]])
+        kline_list = np.linspace(high_sym_kpoints_dict[kline[0]], high_sym_kpoints_dict[kline[1]], number_in_line)
+        klist.append(kline_list)
+        if i == 0:  
+            klabels = [(pathstr[i].split('-')[0])]
+        else:
+            if pathstr[i].split('-')[0] == pathstr[i-1].split('-')[1]:
+                klabels.append(pathstr[i].split('-')[0])
+            else:
+                klabels.append(pathstr[i-1].split('-')[1] + '|' + pathstr[i].split('-')[0])
+            if i == len(pathstr)-1:
+                klabels.append(pathstr[i].split('-')[1])
+
+    kpath = np.asarray(kpath)
+    klist = np.concatenate(klist)
+
+
+    rev_latt = np.mat(structase.cell).I.T
+    #rev_latt = 2*np.pi*np.mat(ase_struct.cell).I
+    kdiff = kpath[:,1] - kpath[:,0]
+    kdiff_cart = np.asarray(kdiff * rev_latt)
+    kdist  = np.linalg.norm(kdiff_cart,axis=1)
+
+    xlist_label = [0] 
+    for i in range(len(kdist)):
+        if i == 0:
+            xlist = np.linspace(0,kdist[i],number_in_line)
+        else:
+            xlist = np.concatenate([xlist, xlist[-1] + np.linspace(0,kdist[i],number_in_line)])
+        xlist_label.append(xlist[-1])
+    
+    return klist, xlist, xlist_label, klabels
