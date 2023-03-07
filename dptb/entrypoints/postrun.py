@@ -111,7 +111,8 @@ def postrun(
 
     if task=='bandstructure':
         plot_opt = j_must_have(jdata, "bandstructure")
-        plot_opt = normalize_bandplot(plot_opt)
+        # TODO: add argcheck for bandstructure, with different options. see, kline_mode: ase, vasp, abacus, etc. 
+        # plot_opt = normalize_bandplot(plot_opt)
         plot_jdata = {"bandstructure":plot_opt}
         # plot_jdata = normalize_bandplot(plot_jdata)
         jdata.update(plot_jdata)

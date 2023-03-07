@@ -26,7 +26,7 @@ class bandcalc (object):
         kline_type = self.band_plot_options['kline_type']
 
         
-        if kline_type == 'ase_kpath':
+        if kline_type == 'ase':
             kpath = self.band_plot_options['kpath']
             nkpoints = self.band_plot_options['nkpoints']
             self.klist, self.xlist, self.high_sym_kpoints, self.labels = ase_kpath(structase=self.structase,
