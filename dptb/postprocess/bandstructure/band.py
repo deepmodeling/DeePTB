@@ -1,6 +1,6 @@
 import numpy as np
 from dptb.utils.tools import j_must_have
-from dptb.utils.make_kpoints  import ase_kpath, abscus_kpath
+from dptb.utils.make_kpoints  import ase_kpath, abacus_kpath
 from ase.io import read
 import ase
 import matplotlib.pyplot as plt
@@ -29,10 +29,10 @@ class bandcalc (object):
             nkpoints = self.band_plot_options['nkpoints']
             self.klist, self.xlist, self.high_sym_kpoints, self.labels = ase_kpath(structase=self.structase,
                                                  pathstr=kpath, total_nkpoints=nkpoints)
-        elif kline_type == 'abscus':
+        elif kline_type == 'abacus':
             kpath = self.band_plot_options['kpath']
             self.labels = self.band_plot_options['klabels']
-            self.klist, self.xlist, self.high_sym_kpoints  = abscus_kpath(structase=self.structase, kpath=kpath)
+            self.klist, self.xlist, self.high_sym_kpoints  = abacus_kpath(structase=self.structase, kpath=kpath)
 
 
         all_bonds, hamil_blocks, overlap_blocks = self.apiH.get_HR()
