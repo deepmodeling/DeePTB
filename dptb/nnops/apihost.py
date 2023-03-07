@@ -34,28 +34,32 @@ class DPTBHost(PluginUser):
         self.model_config.update({'use_correction':self.use_correction})
 
 class NNSKHost(PluginUser):
-    def __init__(self, checkpoint):
+    def __init__(self, checkpoint, config=None):
         super(NNSKHost, self).__init__()
         init_type = checkpoint.split(".")[-1]
+
         if init_type == "json":
-            jdata = j_loader(checkpoint)
-            jdata = host_normalize(jdata)
+            # config is only used when init from json file.
+            if config is None:
+                log.error(msg="config is not set when init from json file.")
+                raise RuntimeError
+            
+            # jdata = j_loader(checkpoint)
+            jdata = host_normalize(config)
             #self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
 
             common_options = j_must_have(jdata, "common_options")
-            # data_options = j_must_have(jdata,"data_options")
             model_options = j_must_have(jdata, "model_options")
-            init_opts = j_must_have(jdata, "init_model")
-            run_opt = {
-                "init_model": init_opts,
-                "freeze": False,
-                "train_soc": False}
+            # init_options = j_must_have(jdata, "init_model") # The init model is not necessarily set in the config file. since the model ckpt is already provided.
+            init_options = {"init_model": {"path": checkpoint,"interpolate": False}}
             model_config={}
+            # model_config.update(jdata)
             model_config.update(common_options)
-            # model_config.update(data_options)
             model_config.update(model_options)
-            model_config.update(run_opt)
-
+            model_config.update(init_options)
+            # freeze and train_soc is the run opt for init_model. we here we use the same init model function. 
+            # so we must provided it formally. in fact, these two options have no effect in this situation. 
+            model_config.update({"freeze":False,"train_soc":False})  
 
         else:
             ckpt = torch.load(checkpoint)

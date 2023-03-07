@@ -53,7 +53,7 @@ def common_options():
 
     doc_common_options = ""
 
-    return Argument("common_options", dict, sub_fields=args, sub_variants=[], doc=doc_common_options)
+    return Argument("common_options", dict, optional=False, sub_fields=args, sub_variants=[], doc=doc_common_options)
 
 
 def train_options():

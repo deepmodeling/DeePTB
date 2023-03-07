@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Any
 from dptb.plugins.train_logger import Logger
 from dptb.plugins.init_nnsk import InitSKModel
 from dptb.plugins.init_dptb import InitDPTBModel
-from dptb.utils.argcheck import normalize, normalize_bandplot
+from dptb.utils.argcheck import normalize, normalize_bandplot, host_normalize
 from dptb.utils.tools import j_loader
 from dptb.utils.loggers import set_log_handles
 from dptb.utils.tools import j_must_have
@@ -47,7 +47,9 @@ def postrun(
         raise RuntimeError
     
     jdata = j_loader(INPUT)
-    #jdata = normalize(jdata)
+
+    jdata = host_normalize(jdata)
+
     #if run_sk:
     if run_opt["init_model"] is None:
         log.info(msg="model_ckpt is not set in run option, read from input config file.")
@@ -55,13 +57,13 @@ def postrun(
         if "init_model" in jdata and "path" in jdata["init_model"] and jdata["init_model"]["path"] is not None:
             run_opt["init_model"] = jdata["init_model"]["path"]
         else:
-            log.error(msg="init_model is not set in config file and command line.")
+            log.error(msg="Error! init_model is not set in config file and command line.")
             raise RuntimeError
 
     task = j_must_have(jdata, "task")
 
     if  run_opt['structure'] is None:
-        log.info(msg="structure is not set in run option, read from input config file.")
+        log.warning(msg="Warning! structure is not set in run option, read from input config file.")
         structure = j_must_have(jdata, "structure")
         run_opt.update({"structure":structure})
 
@@ -90,9 +92,12 @@ def postrun(
     
     set_log_handles(log_level, Path(log_path) if log_path else None)
 
-    
+    init_type = model_ckpt.split(".")[-1]
+    if init_type == "json":
+        jdata.update({"init_model": {"path": model_ckpt,"interpolate": False}})
+
     if run_sk:
-        apihost = NNSKHost(checkpoint=model_ckpt)
+        apihost = NNSKHost(checkpoint=model_ckpt, config=jdata)
         apihost.register_plugin(InitSKModel())
         apihost.build()
         apiHrk = NN2HRK(apihost=apihost, mode='nnsk')
