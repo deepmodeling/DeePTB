@@ -1,4 +1,83 @@
 import numpy as np
+import ase
+import logging
+log = logging.getLogger(__name__)
+
+def monkhorst_pack(meshgrid=[1,1,1]):
+    """ Generate k-points using Monkhorst-Pack method based on given meshgrid.
+    
+    Parameters
+    ----------
+    meshgrid : list. [N1, N2, N3]
+        A list of 3 integers, the number of k-points in each direction.
+    
+    Returns
+    -------
+    kpoints : numpy.ndarray
+        A numpy array of k-points.
+
+    """
+    if len(meshgrid) != 3  or not (np.array(meshgrid,dtype=int) > 0).all():
+        log.error("Error! meshgrid must be a list of 3 positive integers!")
+        raise ValueError
+
+    kpoints = np.indices(meshgrid).transpose((1, 2, 3, 0)).reshape((-1, 3))
+    kpoints = (kpoints + 0.5) / meshgrid - 0.5
+    return kpoints
+
+def gamma_center(meshgrid=[1,1,1]):
+    """ Generates a gamma centered k-point mesh based on the given meshgrid.
+
+    Parameters
+    ----------
+    meshgrid : list. [N1, N2, N3]
+        A list of 3 integers, the number of k-points in each direction.
+
+    Returns
+    -------
+    kpoints : numpy.ndarray
+        A numpy array of k-points.
+    """
+    if len(meshgrid) != 3  or not (np.array(meshgrid,dtype=int) > 0).all():
+        log.error("Error! meshgrid must be a list of 3 positive integers!")
+        raise ValueError
+
+    kpoints = np.indices(meshgrid).transpose((1, 2, 3, 0)).reshape((-1, 3))
+    kpoints = (kpoints) / meshgrid
+    return kpoints
+
+def kgrid_spacing(structase,kspacing:float,sampling='MP'):
+    """Generate k-points based on the given k-spacing and sampling method.
+    
+    Parameters
+    ----------
+    structase : ase.Atoms
+        The structure in ASE format.
+    kspacing : float
+        The k-spacing.
+    sampling : str
+        The sampling method. 'MP' for Monkhorst-Pack method, 'Gamma' for gamma centered method.
+
+    Returns
+    -------
+    kpoints : numpy.ndarray
+        A numpy array of k-points.
+    """
+    
+    assert isinstance(structase,ase.Atoms)
+    rev_latt = 2*np.pi*np.mat(structase.cell).I
+    meshgrid = np.ceil(np.dot(rev_latt.T, np.array([1/kspacing, 1/kspacing, 1/kspacing]))).astype(int)
+
+    if sampling == 'MP':
+        kpoints = monkhorst_pack(meshgrid)
+    elif sampling == 'Gamma':
+        kpoints = gamma_center(meshgrid)
+    else:
+        log.error("Error! sampling must be either 'MP' or 'Gamma'!, by default it is MP using the monkhorst_pack method.")
+        raise ValueError
+
+    return kpoints
+
 
 def abacus_kpath(structase, kpath):
     '''> The function `abacus_kpath` takes in a structure and a list of high symmetry points. It returns a list of k-points, a list of x-values, and a list of high symmetry k-points.
