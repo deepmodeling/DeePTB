@@ -85,9 +85,10 @@ class bandcalc (object):
         if not (emin is None or emax is None):
             plt.ylim(emin,emax)
         plt.xlim(self.xlist.min(),self.xlist.max())
-        plt.ylabel('E - EF (eV)',fontsize=12)
-        plt.yticks(fontsize=12)
-        plt.xticks(self.high_sym_kpoints, self.labels, fontsize=12)
+        plt.ylabel('E - EF (eV)',fontsize=8)
+        plt.yticks(fontsize=8)
+        plt.xticks(self.high_sym_kpoints, self.labels, fontsize=8)
+        plt.tight_layout()
         plt.savefig(f'{self.results_path}/band.png',dpi=300)
         plt.show()
 

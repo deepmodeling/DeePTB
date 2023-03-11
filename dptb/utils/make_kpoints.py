@@ -15,7 +15,8 @@ def monkhorst_pack(meshgrid=[1,1,1]):
     -------
     kpoints : numpy.ndarray
         A numpy array of k-points.
-
+    
+    This function is modified from ASE.
     """
     if len(meshgrid) != 3  or not (np.array(meshgrid,dtype=int) > 0).all():
         log.error("Error! meshgrid must be a list of 3 positive integers!")
@@ -45,6 +46,21 @@ def gamma_center(meshgrid=[1,1,1]):
     kpoints = np.indices(meshgrid).transpose((1, 2, 3, 0)).reshape((-1, 3))
     kpoints = (kpoints) / meshgrid
     return kpoints
+
+
+def kmesh_sampling(meshgrid=[1,1,1], is_gamma_center=True):
+    """ Generate k-points using Monkhorst-Pack method based on given meshgrid. The k-points are centered at Gamma point by default.
+     
+    """
+
+    kpoints = np.indices(meshgrid).transpose((1, 2, 3, 0)).reshape((-1, 3))
+
+    if is_gamma_center:
+        kpoints = gamma_center(meshgrid)
+    else:
+        kpoints = monkhorst_pack(meshgrid)
+    return kpoints
+
 
 def kgrid_spacing(structase,kspacing:float,sampling='MP'):
     """Generate k-points based on the given k-spacing and sampling method.
