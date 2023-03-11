@@ -334,7 +334,7 @@ def normalize_bandinfo(data):
 
 
 def normalize_bandplot(data):
-    doc_kmode = ""
+    doc_kline_type = ""
     doc_kpath = ""
     doc_klabels = ""
     doc_emin=""
@@ -343,8 +343,8 @@ def normalize_bandplot(data):
     doc_bandstructure = ""
     
     args = [
-        Argument("kmode", str, optional=True, default="line_mode", doc=doc_kmode),
-        Argument("kpath", list, optional=True, default=[[]], doc=doc_kpath),
+        Argument("kline_type", str, optional=False, default="abacus", doc=doc_kline_type),
+        Argument("kpath", list, optional=False, default=[[]], doc=doc_kpath),
         Argument("klabels", list, optional=True, default=[''], doc=doc_klabels),
         Argument("E_fermi", [float, int, None], optional=True, doc=doc_E_fermi, default=None),
         Argument("emin", [float, int, None], optional=True, doc=doc_emin, default=None),
@@ -355,6 +355,6 @@ def normalize_bandplot(data):
 
     bs_options = Argument("bandstructure", dict, sub_fields=args, sub_variants=[], doc=doc_bandstructure)
     data = bs_options.normalize_value(data)
-    bs_options.check_value(data, strict=False)
+    bs_options.check_value(data, strict=True)
 
     return data

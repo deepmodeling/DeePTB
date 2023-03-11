@@ -16,6 +16,7 @@ from dptb.nnops.apihost import NNSKHost, DPTBHost
 from dptb.nnops.NN2HRK import NN2HRK
 from ase.io import read,write
 from dptb.postprocess.bandstructure.band import bandcalc
+from dptb.postprocess.bandstructure.dos import doscalc
 
 __all__ = ["run"]
 
@@ -47,27 +48,42 @@ def postrun(
         raise RuntimeError
     
     jdata = j_loader(INPUT)
-
-    jdata = host_normalize(jdata)
-
-    #if run_sk:
+    
     if run_opt["init_model"] is None:
         log.info(msg="model_ckpt is not set in run option, read from input config file.")
 
-        if "init_model" in jdata and "path" in jdata["init_model"] and jdata["init_model"]["path"] is not None:
-            run_opt["init_model"] = jdata["init_model"]["path"]
+        if run_sk:
+            if "init_model" in jdata and "path" in jdata["init_model"] and jdata["init_model"]["path"] is not None:
+                run_opt["init_model"] = jdata["init_model"]["path"]
+            else:
+                log.error(msg="Error! init_model is not set in config file and command line.")
+                raise RuntimeError
         else:
-            log.error(msg="Error! init_model is not set in config file and command line.")
-            raise RuntimeError
+            if "init_model" in jdata and jdata["init_model"] is not None:
+                run_opt["init_model"] = jdata["init_model"]
+            else:
+                log.error(msg="Error! init_model is not set in config file and command line.")
+                raise RuntimeError
 
     task = j_must_have(jdata, "task")
+    model_ckpt = run_opt["init_model"]
+    init_type = model_ckpt.split(".")[-1]
+    if init_type not in ["json", "pth"]:
+        log.error(msg="Error! the model file should be a json or pth file.")
+        raise RuntimeError
+    
+    if init_type == "json":
+        jdata = host_normalize(jdata)
+        if run_sk:
+            jdata.update({"init_model": {"path": model_ckpt,"interpolate": False}})
+        else:
+            jdata.update({"init_model": model_ckpt})
 
     if  run_opt['structure'] is None:
         log.warning(msg="Warning! structure is not set in run option, read from input config file.")
         structure = j_must_have(jdata, "structure")
         run_opt.update({"structure":structure})
 
-    model_ckpt = run_opt["init_model"]
 
     if run_opt['use_correction'] is None and jdata.get('use_correction',None) != None:
         use_correction = jdata['use_correction']
@@ -92,9 +108,7 @@ def postrun(
     
     set_log_handles(log_level, Path(log_path) if log_path else None)
 
-    init_type = model_ckpt.split(".")[-1]
-    if init_type == "json":
-        jdata.update({"init_model": {"path": model_ckpt,"interpolate": False}})
+
 
     if run_sk:
         apihost = NNSKHost(checkpoint=model_ckpt, config=jdata)
@@ -112,7 +126,7 @@ def postrun(
     if task=='bandstructure':
         plot_opt = j_must_have(jdata, "bandstructure")
         # TODO: add argcheck for bandstructure, with different options. see, kline_mode: ase, vasp, abacus, etc. 
-        # plot_opt = normalize_bandplot(plot_opt)
+        plot_opt = normalize_bandplot(plot_opt)
         plot_jdata = {"bandstructure":plot_opt}
         # plot_jdata = normalize_bandplot(plot_jdata)
         jdata.update(plot_jdata)
@@ -126,4 +140,15 @@ def postrun(
         log.info(msg='band calculation successfully completed.')
 
 
-    
+    if task=='dos':
+        plot_opt = j_must_have(jdata, "dos")
+        plot_jdata = {"dos":plot_opt}
+        jdata.update(plot_jdata)
+        
+        with open(os.path.join(output, "run_config.json"), "w") as fp:
+            json.dump(jdata, fp, indent=4)
+
+        bcal = doscalc(apiHrk, run_opt, plot_jdata)
+        bcal.get_dos()
+        bcal.dos_plot()
+        log.info(msg='dos calculation successfully completed.')

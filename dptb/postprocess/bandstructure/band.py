@@ -49,10 +49,12 @@ class bandcalc (object):
         all_bonds, hamil_blocks, overlap_blocks = self.apiH.get_HR()
         self.eigenvalues, self.estimated_E_fermi = self.apiH.get_eigenvalues(self.klist)
 
-        if self.jdata.get('E_fermi',None) != None:
-            self.E_fermi = self.jdata['E_fermi']
+        if self.band_plot_options.get('E_fermi',None) != None:
+            self.E_fermi = self.band_plot_options['E_fermi']
+            log.info(f'set E_fermi from jdata: {self.E_fermi}, While the estimated value in line-mode is {self.estimated_E_fermi}')
         else:
             self.E_fermi = 0.0
+            log.info(f'set E_fermi = 0.0, While the estimated value in line-mode is {self.estimated_E_fermi}')
 
         eigenstatus = {'klist': self.klist,
                         'xlist': self.xlist,
@@ -61,7 +63,7 @@ class bandcalc (object):
                         'eigenvalues': self.eigenvalues,
                         'E_fermi': self.E_fermi }
 
-        np.save(f'{self.results_path}/eigenstatus',eigenstatus)
+        np.save(f'{self.results_path}/bandstructure',eigenstatus)
 
         return  eigenstatus
 
