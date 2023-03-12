@@ -16,7 +16,7 @@ from dptb.nnops.apihost import NNSKHost, DPTBHost
 from dptb.nnops.NN2HRK import NN2HRK
 from ase.io import read,write
 from dptb.postprocess.bandstructure.band import bandcalc
-from dptb.postprocess.bandstructure.dos import doscalc
+from dptb.postprocess.bandstructure.dos import doscalc, pdoscalc
 
 __all__ = ["run"]
 
@@ -151,4 +151,17 @@ def postrun(
         bcal = doscalc(apiHrk, run_opt, plot_jdata)
         bcal.get_dos()
         bcal.dos_plot()
+        log.info(msg='dos calculation successfully completed.')
+
+    if task=='pdos':
+        plot_opt = j_must_have(jdata, "pdos")
+        plot_jdata = {"pdos":plot_opt}
+        jdata.update(plot_jdata)
+        
+        with open(os.path.join(output, "run_config.json"), "w") as fp:
+            json.dump(jdata, fp, indent=4)
+
+        bcal = pdoscalc(apiHrk, run_opt, plot_jdata)
+        bcal.get_pdos()
+        bcal.pdos_plot()
         log.info(msg='dos calculation successfully completed.')
