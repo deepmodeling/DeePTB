@@ -183,13 +183,13 @@ def main_parser() -> argparse.ArgumentParser:
     )
 
     parser_run.add_argument(
-        "-ckpt", 
-        "--model_ckpt",
-        help="the checkpointfile for postprocess run in json format, prior to the model_ckpt tags in the input json. ",
+        "-i",
+        "--init-model",
         type=str,
-        default=None
+        default=None,
+        help="Initialize the model by the provided checkpoint.",
     )
-    
+
     parser_run.add_argument(
         "-str",
         "--structure",
@@ -220,8 +220,6 @@ def main_parser() -> argparse.ArgumentParser:
         default=None,
         help="Use nnsktb correction when training dptb",
     )
-
-
 
     return parser
 

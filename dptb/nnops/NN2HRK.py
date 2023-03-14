@@ -60,17 +60,21 @@ class NN2HRK(object):
             skmat = torch.eye(hkmat.shape[1], dtype=torch.complex64).unsqueeze(0).repeat(hkmat.shape[0], 1, 1)
         return hkmat, skmat
     
-    def get_eigenvalues(self,kpoints,spindeg=2):
+    def get_eigenvalues(self,kpoints,spindeg=2, eigvec=False):
         assert self.if_nn_HR_ready or self.if_dp_HR_ready, "The HR shoule be calcualted before call for HK." 
-        eigenvalues,_ = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm, unit =self.unit)
+        eigenvalues,eigenvectors = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm, unit =self.unit)
         eigks = eigenvalues.detach().numpy()
-
+        eigvecks = eigenvectors.detach().numpy()
+        
         num_el = np.sum(self.structure.proj_atom_neles_per)
         nk = len(kpoints)
         numek = num_el * nk // spindeg
         sorteigs =  np.sort(np.reshape(eigks,[-1]))
         EF=(sorteigs[numek] + sorteigs[numek-1])/2
-        return eigks, EF
+        if eigvec:
+            return eigks, EF, eigvecks
+        else:
+            return eigks, EF
 
     def _get_nnsk_HR(self):
         assert isinstance(self.structure, BaseStruct)
