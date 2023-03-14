@@ -471,6 +471,26 @@ def read_wannier_hr(Filename='wannier90_hr.dat'):
     return Rlatt, hopps, indR0
 
 
+def LorentzSmearing(x, x0, sigma=0.02):
+    '''
+    Simulate the Delta function by a Lorentzian shape function
+
+        \Delta(x) = \lim_{\sigma\to 0}  Lorentzian
+    '''
+
+    return 1. / np.pi * sigma**2 / ((x - x0)**2 + sigma**2)
+
+
+def GaussianSmearing(x, x0, sigma=0.02):
+    '''
+    Simulate the Delta function by a Lorentzian shape function
+
+        \Delta(x) = \lim_{\sigma\to 0} Gaussian
+    '''
+
+    return 1. / (np.sqrt(2*np.pi) * sigma) * np.exp(-(x - x0)**2 / (2*sigma**2))
+
+
 
 if __name__ == '__main__':
     print(get_neuron_config(nl=[0,1,2,3,4,5,6,7]))

@@ -17,6 +17,7 @@ from dptb.nnops.NN2HRK import NN2HRK
 from ase.io import read,write
 from dptb.postprocess.bandstructure.band import bandcalc
 from dptb.postprocess.bandstructure.dos import doscalc, pdoscalc
+from dptb.postprocess.bandstructure.fermisurface import fs2dcalc
 
 __all__ = ["run"]
 
@@ -164,4 +165,17 @@ def postrun(
         bcal = pdoscalc(apiHrk, run_opt, plot_jdata)
         bcal.get_pdos()
         bcal.pdos_plot()
-        log.info(msg='dos calculation successfully completed.')
+        log.info(msg='pdos calculation successfully completed.')
+    
+    if task=='FS2D':
+        plot_opt = j_must_have(jdata, "FS2D")
+        plot_jdata = {"FS2D":plot_opt}
+        jdata.update(plot_jdata)
+        
+        with open(os.path.join(output, "run_config.json"), "w") as fp:
+            json.dump(jdata, fp, indent=4)
+
+        fs2dcal = fs2dcalc(apiHrk, run_opt, plot_jdata)
+        fs2dcal.get_fs()
+        fs2dcal.fs2d_plot()
+        log.info(msg='2dFS calculation successfully completed.')
