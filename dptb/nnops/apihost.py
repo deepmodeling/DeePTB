@@ -59,7 +59,7 @@ class NNSKHost(PluginUser):
             model_config.update(init_options)
             # freeze and train_soc is the run opt for init_model. we here we use the same init model function. 
             # so we must provided it formally. in fact, these two options have no effect in this situation. 
-            model_config.update({"freeze":False,"train_soc":False})  
+            model_config.update({"freeze":False,"train_soc":False})
 
         else:
             ckpt = torch.load(checkpoint)

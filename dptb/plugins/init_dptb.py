@@ -94,7 +94,7 @@ class InitDPTBModel(Plugin):
     def init_from_model(self, **options):
         # TODO: env_cutoff 按照input file 更新checkpoint.
         if self.mode == "init_model":
-            checkpoint = options['init_model']
+            checkpoint = options['init_model']['path']
         elif self.mode == "restart":
             checkpoint = options["restart"]
         ckpt = torch.load(checkpoint)

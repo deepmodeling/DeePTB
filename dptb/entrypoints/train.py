@@ -70,10 +70,7 @@ def train(
     '''
     # init all paths
     # if init_model, restart or init_frez, findout the input configure file
-    if all((init_model, restart)):
-        raise RuntimeError(
-            "--init-model and --restart should not be set at the same time"
-        )
+    
     if all((use_correction, train_sk)):
         raise RuntimeError(
             "--use-correction and --train_sk should not be set at the same time"
@@ -99,26 +96,28 @@ def train(
         jdata = j_loader(INPUT)
         jdata = normalize(jdata)
 
+        # check if init_model in commandline and input json are in conflict.
+
         if all((jdata["init_model"]["path"], run_opt["init_model"])) or \
         all((jdata["init_model"]["path"], run_opt["restart"])):
             raise RuntimeError(
                 "init-model in config and command line is in conflict, turn off one of then to avoid this error !"
             )
-        else:
-            if jdata["init_model"]["path"] is not None:
-                assert mode == "from_scratch"
-                run_opt["init_model"] = jdata["init_model"]
-                mode = "init_model"
-                if isinstance(run_opt["init_model"]["path"], str):
-                    skconfig_path = os.path.join(str(Path(run_opt["init_model"]["path"]).parent.absolute()), "config_nnsktb.json")
-                else: # list
-                    skconfig_path = [os.path.join(str(Path(path).parent.absolute()), "config_nnsktb.json") for path in run_opt["init_model"]["path"]]
-            else:
-                if run_opt["init_model"] is not None:
-                    assert mode == "init_model"
-                    path = run_opt["init_model"]
-                    run_opt["init_model"] = jdata["init_model"]
-                    run_opt["init_model"]["path"] = path
+        
+        if jdata["init_model"]["path"] is not None:
+            assert mode == "from_scratch"
+            run_opt["init_model"] = jdata["init_model"]
+            mode = "init_model"
+            if isinstance(run_opt["init_model"]["path"], str):
+                skconfig_path = os.path.join(str(Path(run_opt["init_model"]["path"]).parent.absolute()), "config_nnsktb.json")
+            else: # list
+                skconfig_path = [os.path.join(str(Path(path).parent.absolute()), "config_nnsktb.json") for path in run_opt["init_model"]["path"]]
+        elif run_opt["init_model"] is not None:
+            # format run_opt's init model to the format of jdata
+            assert mode == "init_model"
+            path = run_opt["init_model"]
+            run_opt["init_model"] = jdata["init_model"]
+            run_opt["init_model"]["path"] = path
 
     else:
         if init_model:
@@ -145,9 +144,33 @@ def train(
         jdata = j_loader(INPUT)
         jdata = normalize(jdata)
 
-    
-    
+        if all((jdata["init_model"]["path"], run_opt["init_model"])) or \
+        all((jdata["init_model"]["path"], run_opt["restart"])):
+            raise RuntimeError(
+                "init-model in config and command line is in conflict, turn off one of then to avoid this error !"
+            )
+        
+        if jdata["init_model"]["path"] is not None:
+            assert mode == "from_scratch"
+            run_opt["init_model"] = jdata["init_model"]
+            mode = "init_model"
+            if isinstance(run_opt["init_model"]["path"], str):
+                dptbconfig_path = os.path.join(str(Path(run_opt["init_model"]["path"]).parent.absolute()), "config_dptb.json")
+            else: # list
+                raise RuntimeError(
+                "init_dptb doesnot support loading series of checkpoints !"
+            )
+        elif run_opt["init_model"] is not None:
+            assert mode == "init_model"
+            path = run_opt["init_model"]
+            run_opt["init_model"] = jdata["init_model"]
+            run_opt["init_model"]["path"] = path
 
+    if all((run_opt["init_model"], restart)):
+        raise RuntimeError(
+            "--init-model and --restart should not be set at the same time"
+        )
+    
     # setup output path
     if output:
         Path(output).parent.mkdir(exist_ok=True, parents=True)
@@ -187,8 +210,8 @@ def train(
     # setup seed
     setup_seed(seed=jdata["train_options"]["seed"])
 
-    with open(os.path.join(output, "train_config.json"), "w") as fp:
-            json.dump(jdata, fp, indent=4)
+    # with open(os.path.join(output, "train_config.json"), "w") as fp:
+    #     json.dump(jdata, fp, indent=4)
     
     str_dtype = jdata["common_options"]["dtype"]
     jdata["common_options"]["dtype"] = dtype_dict[jdata["common_options"]["dtype"]]
