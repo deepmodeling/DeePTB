@@ -25,7 +25,7 @@ class NN2HRK(object):
         self.sorted_bond="st"
         self.sorted_env="itype-jtype"
 
-    def update_struct(self,structure):
+    def update_struct(self, structure):
         # update status is the structure is update.
         if isinstance(structure, BaseStruct):
             self.structure = structure

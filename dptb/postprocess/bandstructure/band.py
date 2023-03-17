@@ -9,7 +9,7 @@ import logging
 log = logging.getLogger(__name__)
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
-class bandcalc (object):
+class bandcalc(object):
     def __init__ (self, apiHrk, run_opt, jdata):
         self.apiH = apiHrk
         if isinstance(run_opt['structure'],str):
