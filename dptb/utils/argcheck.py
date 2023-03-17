@@ -300,7 +300,7 @@ def task_options():
             Argument("pdos", dict, pdos()),
             Argument("FS2D", dict, FS2D()),
             Argument("FS3D", dict, FS3D()),
-            Argument("sktrans", dict, sktrans())
+            Argument("write_sk", dict, write_sk())
         ],optional=True, default_tag="band", doc=doc_task)
 
 def normalize_run(data):
@@ -427,8 +427,15 @@ def FS2D():
 def FS3D():
     pass
 
-def sktrans():
-    pass
+def write_sk():
+    doc_thr = ""
+    doc_format = ""
+
+    return [
+        Argument("format", str, optional=True, default="sktable",  doc=doc_format),
+        Argument("thr", float, optional=True, default=1e-3, doc=doc_thr)
+    ]
+
 
 def host_normalize(data):
 

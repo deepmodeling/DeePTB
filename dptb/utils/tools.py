@@ -3,7 +3,7 @@ import re
 import numpy as np
 import torch
 import torch.nn.functional as F
-from dptb.utils.constants import atomic_num_dict, anglrMId
+from dptb.utils.constants import atomic_num_dict, anglrMId, SKBondType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -16,11 +16,14 @@ from typing import (
     Union,
 )
 import json
+from dptb.nnsktb.formula import SKFormula
 from pathlib import Path
 import yaml
 import torch.optim as optim
 import logging
 import random
+from ase.neighborlist import neighbor_list
+import ase
 
 
 log = logging.getLogger(__name__)
@@ -520,55 +523,62 @@ def write_skparam(
     # onsites
     if onsitemode ==  "strain":
         for i in onsite_coeff.keys():
-            if format is "DeePTB":
+            if format == "DeePTB":
                 onsite[i] = onsite_coeff[i].tolist()
-            elif format is "sktable":
+            elif format == "sktable":
                 rijs = r_onsites.get(i[:3], None)
                 if rijs is None:
-                    rijs = r_onsites.get(i[:3:-1], None)
+                    rijs = r_onsites.get(i[:3][::-1], None)
                 assert rijs is not None
 
                 paraArray = onsite_coeff[i]
-                iatomtype = i[0]
-                jatomtype = i[2]
-                skparam = onsite.setdefault(i, [])
+                iatomtype, jatomtype, iorb, jorb, lm = i.split("-")
+                ijbond_param = hopping.setdefault(iatomtype+"-"+jatomtype, {})
+                ijorb_param = ijbond_param.setdefault(iorb+"-"+jorb, {})
+                skparam = ijorb_param.setdefault(SKBondType[int(lm)], [])
 
                 for rij in rijs:
                     params = {
-                        'paraArray':paraArray,'rij':rij, 'iatomtype':iatomtype,
+                        'paraArray':paraArray,'rij':torch.scalar_tensor(rij), 'iatomtype':iatomtype,
                         'jatomtype':jatomtype
                         }
-                    skparam.append(skformula.skhij(*params))
+                    with torch.no_grad():
+                        skparam.append(skformula.skhij(**params).tolist()[0])
     elif onsitemode in ['uniform','split']:
         for ia in onsite_coeff:
             for iikey in range(len(onsite_index_dict[ia])):
                 onsite[onsite_index_dict[ia][iikey]] = \
                                         [onsite_coeff[ia].tolist()[iikey]]
+    elif onsitemode == "none":
+        jdata["onsite"] = {}
     else:
         log.error(msg="The onsite mode is incorrect!")
         raise ValueError
     jdata["onsite"] = onsite
 
     for i in hopping_coeff.keys():
-        if format is "DeePTB":
+        if format == "DeePTB":
             hopping[i] = hopping_coeff[i].tolist()
-        elif format is "sktable":
+        elif format == "sktable":
+
             rijs = r_bonds.get(i[:3], None)
             if rijs is None:
-                rijs = r_onsites.get(i[:3:-1], None)
+                rijs = r_onsites.get(i[:3][::-1], None)
             assert rijs is not None
 
             paraArray = hopping_coeff[i]
-            iatomtype = i[0]
-            jatomtype = i[2]
-            skparam = hopping.setdefault(i, [])
+            iatomtype, jatomtype, iorb, jorb, lm = i.split("-")
+            ijbond_param = hopping.setdefault(iatomtype+"-"+jatomtype, {})
+            ijorb_param = ijbond_param.setdefault(iorb+"-"+jorb, {})
+            skparam = ijorb_param.setdefault(SKBondType[int(lm)], [])
 
             for rij in rijs:
                 params = {
-                    'paraArray':paraArray,'rij':rij, 'iatomtype':iatomtype,
+                    'paraArray':paraArray,'rij':torch.scalar_tensor(rij), 'iatomtype':iatomtype,
                     'jatomtype':jatomtype, 'rcut':rcut,'w':w
                     }
-                skparam.append(skformula.skhij(*params))
+                with torch.no_grad():
+                    skparam.append(skformula.skhij(**params).tolist()[0])
 
     jdata["hopping"] = hopping
     
@@ -578,10 +588,46 @@ def write_skparam(
 
         jdata["soc"] = soc
 
-    with open(outPath, "w") as f:
+    with open(f'{outPath}/skparam.json', "w") as f:
         json.dump(jdata, f, indent=4)
 
     return True
+
+def get_neighbours(atom: ase.Atom, cutoff: float =10., thr: float =1e-3):
+    """
+        Generating bond-wise distance dict, where key is the bond symbol such as "A-B", "A-A".
+        and the value is a list containing the first, second, third ... bond distance.
+
+    Args:
+        atom (ase.Atom): ase atom type structure
+        cutoff (float, optional): cutoff on bond distance, control how far the bonds need to be included. Defaults to 10..
+        thr (float, optional): control the threshold of bond length difference, within which we assume two bond are the same. Defaults to 1e-3.
+
+    Returns:
+        dict: a bond-wise distance dict
+    """
+
+    neighbours = {}
+    i,j,d = neighbor_list(quantities=["i","j","d"], a=atom, cutoff=cutoff)
+    atom_symbols = np.array(atom.get_chemical_symbols(), dtype=str)
+    for idx in range(len(i)):
+        symbol = get_uniq_symbol([atom_symbols[i[idx]], atom_symbols[j[idx]]])
+        if len(symbol) == 2:
+            symbol = symbol[0]+"-"+symbol[1]
+        else:
+            symbol = symbol[0]+"-"+symbol[0]
+
+        nns = neighbours.setdefault(symbol, [])
+        if len(nns) >= 1:
+            if not (np.abs(d[idx]-np.array(nns)) < thr).any():
+                nns.append(d[idx])
+        else:
+            nns.append(d[idx])
+
+    for kk in neighbours.keys():
+        neighbours[kk] = sorted(neighbours[kk])
+    
+    return neighbours
 
 
 

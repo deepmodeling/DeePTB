@@ -20,6 +20,7 @@ from ase.io import read,write
 from dptb.postprocess.bandstructure.band import bandcalc
 from dptb.postprocess.bandstructure.dos import doscalc, pdoscalc
 from dptb.postprocess.bandstructure.fermisurface import fs2dcalc, fs3dcalc
+from dptb.postprocess.write_skparam import WriteNNSKParam
 
 __all__ = ["run"]
 
@@ -184,6 +185,14 @@ def postrun(
         fs3dcal.get_fs()
         fs3dcal.fs_plot()
         log.info(msg='3dFS calculation successfully completed.')
+    
+    if task == 'write_sk':
+        if not run_sk:
+            raise RuntimeError("write_sk can only perform on nnsk model !")
+        write_sk = WriteNNSKParam(apiHrk, run_opt, task_options)
+        write_sk.write()
+        log.info(msg='write_sk calculation successfully completed.')
+
 
     if output:
         with open(os.path.join(output, "run_config.json"), "w") as fp:
