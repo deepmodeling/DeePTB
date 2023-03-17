@@ -18,6 +18,7 @@ from ase.io import read,write
 from dptb.postprocess.bandstructure.band import bandcalc
 from dptb.postprocess.bandstructure.dos import doscalc, pdoscalc
 from dptb.postprocess.bandstructure.fermisurface import fs2dcalc, fs3dcalc
+from dptb.postprocess.bandstructure.ifermi_api import ifermiapi
 
 __all__ = ["run"]
 
@@ -192,3 +193,17 @@ def postrun(
         fs3dcal.get_fs()
         fs3dcal.fs_plot()
         log.info(msg='3dFS calculation successfully completed.')
+    
+    if task == 'ifermi':
+        plot_opt = j_must_have(jdata, "ifermi")
+        plot_jdata = {"ifermi":plot_opt}
+        jdata.update(plot_jdata)
+        
+        with open(os.path.join(output, "run_config.json"), "w") as fp:
+            json.dump(jdata, fp, indent=4)
+        
+        ifermi = ifermiapi(apiHrk, run_opt, plot_jdata)
+        bs = ifermi.get_band_structure()
+        fs = ifermi.get_fs(bs)
+        ifermi.fs_plot(fs)
+        log.info(msg='Ifermi calculation successfully completed.')
