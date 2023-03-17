@@ -48,7 +48,7 @@ def common_options():
         Argument("sk_file_path", str, optional = True, default="./", doc = doc_sk_file_path),
         Argument("time_symm", bool, optional = True, default=True, doc = doc_time_symm),
         Argument("soc", bool, optional=True, default=False, doc=doc_soc),
-        Argument("unit", str, optional=True, default="Hartree", doc=doc_soc)
+        Argument("unit", str, optional=True, default="Hartree", doc=doc_unit)
     ]
 
     doc_common_options = ""
@@ -320,7 +320,9 @@ def normalize_run(data):
     doc_soc = ""
     doc_unit = ""
     doc_common_options = ""
-
+    doc_structure = ""
+    doc_use_correction = ""
+ 
     args = [
         Argument("onsite_cutoff", float, optional = False, doc = doc_onsite_cutoff),
         Argument("bond_cutoff", float, optional = False, doc = doc_bond_cutoff),
@@ -334,7 +336,7 @@ def normalize_run(data):
         Argument("sk_file_path", str, optional = True, default="./", doc = doc_sk_file_path),
         Argument("time_symm", bool, optional = True, default=True, doc = doc_time_symm),
         Argument("soc", bool, optional=True, default=False, doc=doc_soc),
-        Argument("unit", str, optional=True, default="Hartree", doc=doc_soc)
+        Argument("unit", str, optional=True, default="Hartree", doc=doc_unit)
     ]
 
     co = Argument("common_options", dict, optional=True, sub_fields=args, sub_variants=[], doc=doc_common_options)
@@ -345,6 +347,8 @@ def normalize_run(data):
         ini,
         co,
         mo,
+        Argument("structure", [str,None], optional=True, default=None, doc = doc_structure),
+        Argument("use_correction", [str,None], optional=True, default=None, doc = doc_use_correction),
         Argument("task_options", dict, sub_fields=[], optional=True, sub_variants=[task_options()], doc = doc_property)
     ]
 

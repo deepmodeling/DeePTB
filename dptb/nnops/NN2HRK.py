@@ -164,7 +164,7 @@ class NN2HRK(object):
                                     sk_onsiteEs=batch_nnsk_onsiteEs[0], sk_hoppings=batch_nnsk_hoppings[0],
                                     sk_onsiteSs=None, sk_overlaps=None, nn_soc_lambdas=nn_soc_lambdas, sk_soc_lambdas=sk_soc_lambdas)
         else:
-             onsiteEs, hoppings, soc_lambdas = batch_onsiteEs[0], batch_hoppings[0], None
+            onsiteEs, hoppings, soc_lambdas, onsiteVs, onsitenvs = batch_onsiteEs[0], batch_hoppings[0], None, None, None
 
         
         self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)

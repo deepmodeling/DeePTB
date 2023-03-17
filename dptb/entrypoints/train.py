@@ -119,6 +119,12 @@ def train(
             run_opt["init_model"] = jdata["init_model"]
             run_opt["init_model"]["path"] = path
 
+        # handling exceptions when init_model path in config file is [] and [single file]
+        if mode == "init_model":
+            if isinstance(run_opt["init_model"]["path"], list):
+                if len(run_opt["init_model"]["path"])==0:
+                    raise RuntimeError("Error! list mode init_model in config file cannot be empty!")
+
     else:
         if init_model:
             dptbconfig_path = os.path.join(str(Path(init_model).parent.absolute()), "config_dptbtb.json")
@@ -152,13 +158,14 @@ def train(
         
         if jdata["init_model"]["path"] is not None:
             assert mode == "from_scratch"
+            print("Init model is read from config rile.")
             run_opt["init_model"] = jdata["init_model"]
             mode = "init_model"
             if isinstance(run_opt["init_model"]["path"], str):
                 dptbconfig_path = os.path.join(str(Path(run_opt["init_model"]["path"]).parent.absolute()), "config_dptb.json")
             else: # list
                 raise RuntimeError(
-                "init_dptb doesnot support loading series of checkpoints !"
+                "loading lists of checkpoints is only supported in init_nnsk!"
             )
         elif run_opt["init_model"] is not None:
             assert mode == "init_model"
@@ -166,11 +173,20 @@ def train(
             run_opt["init_model"] = jdata["init_model"]
             run_opt["init_model"]["path"] = path
 
+        if mode == "init_model":
+            if isinstance(run_opt["init_model"]["path"], list):
+                if len(run_opt["init_model"]["path"])==0 or len(run_opt["init_model"]["path"])>1:
+                    raise RuntimeError("Error! list mode init_model in config only support single file in DPTB!")
+
     if all((run_opt["init_model"], restart)):
         raise RuntimeError(
             "--init-model and --restart should not be set at the same time"
         )
     
+    if mode == "init_model":
+        if isinstance(run_opt["init_model"]["path"], list):
+            if len(run_opt["init_model"]["path"]) == 1:
+                run_opt["init_model"]["path"] = run_opt["init_model"]["path"][0]
     # setup output path
     if output:
         Path(output).parent.mkdir(exist_ok=True, parents=True)

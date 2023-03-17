@@ -21,13 +21,12 @@ class fs3dcalc(object):
         else:
             raise ValueError('structure must be ase.Atoms or str')
         
-        self.jdata = jdata
+        self.fs_plot_options = jdata
         self.results_path = run_opt.get('results_path')
         self.apiH.update_struct(self.structase)
 
     def get_fs(self):
 
-        self.fs_plot_options = j_must_have(self.jdata, 'FS3D')
         mesh_grid = self.fs_plot_options['mesh_grid']
         assert len(mesh_grid)==3, 'mesh_grid must have 3 elements'
         E0 = self.fs_plot_options.get('E0',0)

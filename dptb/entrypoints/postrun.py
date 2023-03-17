@@ -3,6 +3,7 @@ import json
 import os
 import struct
 import time
+import torch
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dptb.plugins.train_logger import Logger
@@ -66,20 +67,36 @@ def postrun(
             else:
                 log.error(msg="Error! init_model is not set in config file and command line.")
                 raise RuntimeError
+            if isinstance(run_opt["init_model"]["path"], list):
+                if len(run_opt["init_model"]["path"])==0:
+                    log.error("Error! list mode init_model in config file cannot be empty!")
+                    raise RuntimeError
         else:
             if jdata["init_model"]["path"] is not None:
                 run_opt["init_model"] = jdata["init_model"]
             else:
                 log.error(msg="Error! init_model is not set in config file and command line.")
                 raise RuntimeError
+            if isinstance(run_opt["init_model"]["path"], list):
+                raise RuntimeError(
+                "loading lists of checkpoints is only supported in init_nnsk!"
+            )
+        if isinstance(run_opt["init_model"]["path"], list):
+            if len(run_opt["init_model"]["path"]) == 1:
+                run_opt["init_model"]["path"] = run_opt["init_model"]["path"][0]
+    else:
+        path = run_opt["init_model"]
+        run_opt["init_model"] = jdata["init_model"]
+        run_opt["init_model"]["path"] = path
 
+    
     task_options = j_must_have(jdata, "task_options")
     task = task_options["task"]
     model_ckpt = run_opt["init_model"]["path"]
-    init_type = model_ckpt.split(".")[-1]
-    if init_type not in ["json", "pth"]:
-        log.error(msg="Error! the model file should be a json or pth file.")
-        raise RuntimeError
+    # init_type = model_ckpt.split(".")[-1]
+    # if init_type not in ["json", "pth"]:
+    #     log.error(msg="Error! the model file should be a json or pth file.")
+    #     raise RuntimeError
     
     # if init_type == "json":
     #     jdata = host_normalize(jdata)
@@ -117,8 +134,11 @@ def postrun(
                         })
     
     set_log_handles(log_level, Path(log_path) if log_path else None)
-    str_dtype = jdata["common_options"]["dtype"]
-    jdata["common_options"]["dtype"] = dtype_dict[jdata["common_options"]["dtype"]]
+
+    if jdata.get("common_options", None):
+        # in this case jdata must have common options
+        str_dtype = jdata["common_options"]["dtype"]
+        jdata["common_options"]["dtype"] = dtype_dict[jdata["common_options"]["dtype"]]
 
     if run_sk:
         apihost = NNSKHost(checkpoint=model_ckpt, config=jdata)
@@ -134,7 +154,7 @@ def postrun(
         
     # one can just add his own function to calculate properties by add a task, and its code to calculate.
 
-    if task=='bandstructure':
+    if task=='band':
         # TODO: add argcheck for bandstructure, with different options. see, kline_mode: ase, vasp, abacus, etc. 
         bcal = bandcalc(apiHrk, run_opt, task_options)
         bcal.get_bands()
@@ -167,5 +187,6 @@ def postrun(
 
     if output:
         with open(os.path.join(output, "run_config.json"), "w") as fp:
-            jdata["common_options"]["dtype"] = str_dtype
+            if jdata.get("common_options", None):
+                jdata["common_options"]["dtype"] = str_dtype
             json.dump(jdata, fp, indent=4)
