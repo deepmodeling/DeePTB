@@ -15,7 +15,7 @@
         "emax":10
     },
     "init_model": {
-        "path": "checkpoint/best_dptb_c1.5w0.3.pth",
+        "path": "checkpoint/best_nnsk_c3.5w0.3.pth",
         "interpolate": false
     }
 }
