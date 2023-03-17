@@ -490,6 +490,99 @@ def GaussianSmearing(x, x0, sigma=0.02):
 
     return 1. / (np.sqrt(2*np.pi) * sigma) * np.exp(-(x - x0)**2 / (2*sigma**2))
 
+def write_skparam(
+        onsite_coeff, 
+        hopping_coeff, 
+        onsite_index_dict, 
+        rcut=None, 
+        w=None,
+        atom=None,
+        onsite_cutoff=None, 
+        bond_cutoff=None, 
+        soc_coeff=None,
+        thr=1e-3, 
+        onsitemode="none", 
+        functype="varTang96", 
+        format="sktable",
+        outPath="./"
+        ):
+    onsite = {}
+    hopping = {}
+    soc = {}
+
+    if format == 'sktable':
+        r_bonds = get_neighbours(atom, cutoff=bond_cutoff, thr=thr)
+        r_onsites = get_neighbours(atom, cutoff=onsite_cutoff, thr=thr)
+        skformula = SKFormula(functype=functype)
+
+    jdata = {}
+
+    # onsites
+    if onsitemode ==  "strain":
+        for i in onsite_coeff.keys():
+            if format is "DeePTB":
+                onsite[i] = onsite_coeff[i].tolist()
+            elif format is "sktable":
+                rijs = r_onsites.get(i[:3], None)
+                if rijs is None:
+                    rijs = r_onsites.get(i[:3:-1], None)
+                assert rijs is not None
+
+                paraArray = onsite_coeff[i]
+                iatomtype = i[0]
+                jatomtype = i[2]
+                skparam = onsite.setdefault(i, [])
+
+                for rij in rijs:
+                    params = {
+                        'paraArray':paraArray,'rij':rij, 'iatomtype':iatomtype,
+                        'jatomtype':jatomtype
+                        }
+                    skparam.append(skformula.skhij(*params))
+    elif onsitemode in ['uniform','split']:
+        for ia in onsite_coeff:
+            for iikey in range(len(onsite_index_dict[ia])):
+                onsite[onsite_index_dict[ia][iikey]] = \
+                                        [onsite_coeff[ia].tolist()[iikey]]
+    else:
+        log.error(msg="The onsite mode is incorrect!")
+        raise ValueError
+    jdata["onsite"] = onsite
+
+    for i in hopping_coeff.keys():
+        if format is "DeePTB":
+            hopping[i] = hopping_coeff[i].tolist()
+        elif format is "sktable":
+            rijs = r_bonds.get(i[:3], None)
+            if rijs is None:
+                rijs = r_onsites.get(i[:3:-1], None)
+            assert rijs is not None
+
+            paraArray = hopping_coeff[i]
+            iatomtype = i[0]
+            jatomtype = i[2]
+            skparam = hopping.setdefault(i, [])
+
+            for rij in rijs:
+                params = {
+                    'paraArray':paraArray,'rij':rij, 'iatomtype':iatomtype,
+                    'jatomtype':jatomtype, 'rcut':rcut,'w':w
+                    }
+                skparam.append(skformula.skhij(*params))
+
+    jdata["hopping"] = hopping
+    
+    if soc_coeff is not None:
+        for i in soc_coeff:
+            soc[i] = soc_coeff[i].tolist()
+
+        jdata["soc"] = soc
+
+    with open(outPath, "w") as f:
+        json.dump(jdata, f, indent=4)
+
+    return True
+
 
 
 if __name__ == '__main__':

@@ -23,5 +23,9 @@ class WriteSKParam(object):
         self.results_path = run_opt.get('results_path')
         self.apiH.update_struct(self.structase)
 
-    def write_(self):
+    def write(self):
+        # step 1: get neighbours of structure.
+        # step 2: fake bonds onsite and bond hopping fake it !
+        # step 3: get nnsk and dptb calculation result, do the correction
+        # step 4: format the output
         pass
