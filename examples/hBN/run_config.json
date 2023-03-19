@@ -1,0 +1,13 @@
+{
+    "structure": "/root/deeptb/dptb/tests/data/hBN/hBN.vasp",
+    "task_options": {
+        "task": "write_sk",
+        "format": "sktable",
+        "thr": 0.001
+    },
+    "init_model": {
+        "path": "checkpoint/best_nnsk_c3.5w0.3.pth",
+        "interpolate": false
+    },
+    "use_correction": null
+}

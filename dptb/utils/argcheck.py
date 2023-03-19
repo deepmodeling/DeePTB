@@ -48,7 +48,7 @@ def common_options():
         Argument("sk_file_path", str, optional = True, default="./", doc = doc_sk_file_path),
         Argument("time_symm", bool, optional = True, default=True, doc = doc_time_symm),
         Argument("soc", bool, optional=True, default=False, doc=doc_soc),
-        Argument("unit", str, optional=True, default="Hartree", doc=doc_soc)
+        Argument("unit", str, optional=True, default="Hartree", doc=doc_unit)
     ]
 
     doc_common_options = ""
@@ -292,6 +292,151 @@ def normalize(data):
 
     return data
 
+def task_options():
+    doc_task = ""
+    return Variant("task", [
+            Argument("band", dict, band()),
+            Argument("dos", dict, dos()),
+            Argument("pdos", dict, pdos()),
+            Argument("FS2D", dict, FS2D()),
+            Argument("FS3D", dict, FS3D()),
+            Argument("write_sk", dict, write_sk())
+        ],optional=True, default_tag="band", doc=doc_task)
+
+def normalize_run(data):
+    doc_property = ""
+    doc_model_options = ""
+    doc_device = ""
+    doc_dtype = ""
+    doc_onsitemode = ""
+    doc_onsite_cutoff = ""
+    doc_bond_cutoff = ""
+    doc_env_cutoff = ""
+    doc_sk_file_path = ""
+    doc_proj_atom_neles = ""
+    doc_proj_atom_anglr_m = ""
+    doc_atomtype = ""
+    doc_time_symm = ""
+    doc_soc = ""
+    doc_unit = ""
+    doc_common_options = ""
+    doc_structure = ""
+    doc_use_correction = ""
+ 
+    args = [
+        Argument("onsite_cutoff", float, optional = False, doc = doc_onsite_cutoff),
+        Argument("bond_cutoff", float, optional = False, doc = doc_bond_cutoff),
+        Argument("env_cutoff", float, optional = False, doc = doc_env_cutoff),
+        Argument("atomtype", list, optional = False, doc = doc_atomtype),
+        Argument("proj_atom_neles", dict, optional = False, doc = doc_proj_atom_neles),
+        Argument("proj_atom_anglr_m", dict, optional = False, doc = doc_proj_atom_anglr_m),
+        Argument("device", str, optional = True, default="cpu", doc = doc_device),
+        Argument("dtype", str, optional = True, default="float32", doc = doc_dtype),
+        Argument("onsitemode", str, optional = True, default = "none", doc = doc_onsitemode),
+        Argument("sk_file_path", str, optional = True, default="./", doc = doc_sk_file_path),
+        Argument("time_symm", bool, optional = True, default=True, doc = doc_time_symm),
+        Argument("soc", bool, optional=True, default=False, doc=doc_soc),
+        Argument("unit", str, optional=True, default="Hartree", doc=doc_unit)
+    ]
+
+    co = Argument("common_options", dict, optional=True, sub_fields=args, sub_variants=[], doc=doc_common_options)
+    ini = init_model()
+    mo = Argument("model_options", dict, sub_fields=[skfunction(), sknetwork(), dptb()], sub_variants=[], optional=True, doc=doc_model_options)
+
+    args = [
+        ini,
+        co,
+        mo,
+        Argument("structure", [str,None], optional=True, default=None, doc = doc_structure),
+        Argument("use_correction", [str,None], optional=True, default=None, doc = doc_use_correction),
+        Argument("task_options", dict, sub_fields=[], optional=True, sub_variants=[task_options()], doc = doc_property)
+    ]
+
+    base = Argument("base", dict, args)
+    data = base.normalize_value(data)
+    base.check_value(data, strict=True)
+    
+    return data
+    
+
+def band():
+    doc_kline_type = ""
+    doc_kpath = ""
+    doc_klabels = ""
+    doc_emin=""
+    doc_emax=""
+    doc_E_fermi = ""
+    
+    return [
+        Argument("kline_type", str, optional=False, doc=doc_kline_type),
+        Argument("kpath", list, optional=False, doc=doc_kpath),
+        Argument("klabels", list, optional=True, default=[''], doc=doc_klabels),
+        Argument("E_fermi", [float, int, None], optional=True, doc=doc_E_fermi, default=None),
+        Argument("emin", [float, int, None], optional=True, doc=doc_emin, default=None),
+        Argument("emax", [float, int, None], optional=True, doc=doc_emax, default=None)
+    ]
+
+
+def dos():
+    doc_mesh_grid = ""
+    doc_gamma_center = ""
+    doc_sigma = ""
+    doc_npoints = ""
+    doc_width = ""
+
+    return [
+        Argument("mesh_grid", list, optional=False, doc=doc_mesh_grid),
+        Argument("sigma", float, optional=False, doc=doc_sigma),
+        Argument("npoints", int, optional=False, doc=doc_npoints),
+        Argument("width", list, optional=False, doc=doc_width),
+        Argument("gamma_center", bool, optional=True, default=False, doc=doc_gamma_center)
+    ]
+
+def pdos():
+    doc_mesh_grid = ""
+    doc_gamma_center = ""
+    doc_sigma = ""
+    doc_npoints = ""
+    doc_width = ""
+    doc_atom_index = ""
+    doc_orbital_index = ""
+
+    return [
+        Argument("mesh_grid", list, optional=False, doc=doc_mesh_grid),
+        Argument("sigma", float, optional=False, doc=doc_sigma),
+        Argument("npoints", int, optional=False, doc=doc_npoints),
+        Argument("width", list, optional=False, doc=doc_width),
+        Argument("atom_index", list, optional=False, doc=doc_atom_index),
+        Argument("orbital_index", list, optional=False, doc=doc_orbital_index),
+        Argument("gamma_center", bool, optional=True, default=False, doc=doc_gamma_center)
+    ]
+
+def FS2D():
+    doc_mesh_grid = ""
+    doc_E0 = ""
+    doc_sigma = ""
+    doc_intpfactor = ""
+
+    return [
+        Argument("mesh_grid", list, optional=False, doc=doc_mesh_grid),
+        Argument("sigma", float, optional=False, doc=doc_sigma),
+        Argument("E0", int, optional=False, doc=doc_E0),
+        Argument("intpfactor", int, optional=False, doc=doc_intpfactor)
+    ]
+
+def FS3D():
+    pass
+
+def write_sk():
+    doc_thr = ""
+    doc_format = ""
+
+    return [
+        Argument("format", str, optional=True, default="sktable",  doc=doc_format),
+        Argument("thr", float, optional=True, default=1e-3, doc=doc_thr)
+    ]
+
+
 def host_normalize(data):
 
     ini = init_model()
@@ -332,29 +477,3 @@ def normalize_bandinfo(data):
 
     return data
 
-
-def normalize_bandplot(data):
-    doc_kline_type = ""
-    doc_kpath = ""
-    doc_klabels = ""
-    doc_emin=""
-    doc_emax=""
-    doc_E_fermi = ""
-    doc_bandstructure = ""
-    
-    args = [
-        Argument("kline_type", str, optional=False, default="abacus", doc=doc_kline_type),
-        Argument("kpath", list, optional=False, default=[[]], doc=doc_kpath),
-        Argument("klabels", list, optional=True, default=[''], doc=doc_klabels),
-        Argument("E_fermi", [float, int, None], optional=True, doc=doc_E_fermi, default=None),
-        Argument("emin", [float, int, None], optional=True, doc=doc_emin, default=None),
-        Argument("emax", [float, int, None], optional=True, doc=doc_emax, default=None)
-    ]
-
-
-
-    bs_options = Argument("bandstructure", dict, sub_fields=args, sub_variants=[], doc=doc_bandstructure)
-    data = bs_options.normalize_value(data)
-    bs_options.check_value(data, strict=True)
-
-    return data

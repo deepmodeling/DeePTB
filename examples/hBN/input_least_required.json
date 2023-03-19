@@ -4,9 +4,9 @@
         "interpolate": true
     },
     "common_options": {
-        "onsitemode": "none",
-        "onsite_cutoff": 2.6,
-        "bond_cutoff": 1.5,
+        "onsitemode": "split",
+        "onsite_cutoff": 3.6,
+        "bond_cutoff": 3.5,
         "env_cutoff": 3.5,
         "atomtype": [
             "N",
@@ -56,7 +56,7 @@
             "sk_onsite_nhidden": 20
         },
         "skfunction": {
-            "sk_cutoff": 1.5,
+            "sk_cutoff": 3.5,
             "sk_decay_w": 0.3
         }
     }

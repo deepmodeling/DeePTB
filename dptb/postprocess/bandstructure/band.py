@@ -4,10 +4,12 @@ from dptb.utils.make_kpoints  import ase_kpath, abacus_kpath, vasp_kpath
 from ase.io import read
 import ase
 import matplotlib.pyplot as plt
+import matplotlib
 import logging
 log = logging.getLogger(__name__)
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
-class bandcalc (object):
+class bandcalc(object):
     def __init__ (self, apiHrk, run_opt, jdata):
         self.apiH = apiHrk
         if isinstance(run_opt['structure'],str):
@@ -17,12 +19,11 @@ class bandcalc (object):
         else:
             raise ValueError('structure must be ase.Atoms or str')
         
-        self.jdata = jdata
+        self.band_plot_options = jdata
         self.results_path = run_opt.get('results_path')
         self.apiH.update_struct(self.structase)
     
     def get_bands(self):
-        self.band_plot_options = j_must_have(self.jdata, 'bandstructure')
         kline_type = self.band_plot_options['kline_type']
 
         
@@ -74,21 +75,56 @@ class bandcalc (object):
         return all_bonds, hamil_blocks, overlap_blocks
 
     def band_plot(self):
+        matplotlib.rcParams['font.size'] = 7
+        matplotlib.rcParams['pdf.fonttype'] = 42
+        # plt.rcParams['font.sans-serif'] = ['Times New Roman']
+
         emin = self.band_plot_options.get('emin')
         emax = self.band_plot_options.get('emax')
 
-        plt.figure(figsize=(5,5),dpi=100)
-        plt.plot(self.xlist, self.eigenvalues - self.E_fermi, 'r-',lw=1)
-        for ii in self.high_sym_kpoints:
-            plt.axvline(ii,color='gray',lw=1,ls='--')
-        plt.tick_params(direction='in')
+        fig = plt.figure(figsize=(4.5,4),dpi=100)
+
+        ax = fig.add_subplot(111)
+
+        band_color = '#5d5d5d'
+        # plot the line
+        ax.plot(self.xlist, self.eigenvalues - self.E_fermi, color=band_color,lw=1.5, alpha=0.8)
+
+        # add verticle line
+        for ii in self.high_sym_kpoints[1:-1]:
+            ax.axvline(ii, color='gray', lw=1,ls='--')
+
+        # add shadow
+        # for i in range(self.eigenvalues.shape[1]):
+        #     ax.fill_between(self.xlist, self.eigenvalues[:,i] - self.E_fermi, -2, alpha=0.05, color=band_color)
+
+        # add ticks
+        
         if not (emin is None or emax is None):
-            plt.ylim(emin,emax)
-        plt.xlim(self.xlist.min(),self.xlist.max())
-        plt.ylabel('E - EF (eV)',fontsize=12)
-        plt.yticks(fontsize=12)
-        plt.xticks(self.high_sym_kpoints, self.labels, fontsize=12)
+            ax.set_ylim(emin,emax)
+
+        ax.set_xlim(self.xlist.min()-0.03,self.xlist.max()+0.03)
+        ax.set_ylabel('E - EF (eV)',fontsize=12)
+        ax.yaxis.set_minor_locator(MultipleLocator(1.0))
+        ax.tick_params(which='both', direction='in', labelsize=12, width=1.5)
+        ax.tick_params(which='major', length=6)
+        ax.tick_params(which='minor', length=4, color='gray')
+        
+        # ax.set_yticks(None, fontsize=12)
+        ax.set_xticks(self.high_sym_kpoints, self.labels, fontsize=12)
+
+        ax.grid(color='gray', alpha=0.2, linestyle='-', linewidth=1)
+        ax.set_axisbelow(True)
+
+        fig.patch.set_facecolor('#f2f2f2')
+        fig.patch.set_alpha(1)
+        for spine in ax.spines.values():
+            spine.set_edgecolor('#5d5d5d')
+            spine.set_linewidth(1.5)
+        
         plt.tight_layout()
+        # remove the box around the plot
+        ax.set_frame_on(False)
         plt.savefig(f'{self.results_path}/band.png',dpi=300)
         plt.show()
 

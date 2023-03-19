@@ -15,17 +15,18 @@ log = logging.getLogger(__name__)
 
 class DPTBHost(PluginUser):
     def __init__(self, dptbmodel, use_correction=False):
+        # dptbmodel: str
         super(DPTBHost, self).__init__()
         ckpt = torch.load(dptbmodel)
         model_config = ckpt["model_config"]
         model_config["dtype"] = dtype_dict[model_config["dtype"]]
-        model_config.update({'init_model':dptbmodel,'use_correction':use_correction})
+        model_config.update({'init_model':{"path":dptbmodel, "interpolation":False},'use_correction':use_correction})
         self.use_correction = use_correction
+        # print(model_config)
         self.__init_params(**model_config)
     
     def __init_params(self, **model_config):
-        self.model_config = model_config      
-
+        self.model_config = model_config
     
     def build(self):
         if not 'soc' in self.model_config.keys():
@@ -35,13 +36,13 @@ class DPTBHost(PluginUser):
 
 class NNSKHost(PluginUser):
     def __init__(self, checkpoint, config=None):
+        # checkpoint: [str, List[str]]
         super(NNSKHost, self).__init__()
-        init_type = checkpoint.split(".")[-1]
 
-        if init_type == "json":
+        if isinstance(checkpoint, list):
             # config is only used when init from json file.
             if config is None:
-                log.error(msg="config is not set when init from json file.")
+                log.error(msg="config is not set when init from multiple of checkpoints.")
                 raise RuntimeError
             
             # jdata = j_loader(checkpoint)
@@ -59,14 +60,40 @@ class NNSKHost(PluginUser):
             model_config.update(init_options)
             # freeze and train_soc is the run opt for init_model. we here we use the same init model function. 
             # so we must provided it formally. in fact, these two options have no effect in this situation. 
-            model_config.update({"freeze":False,"train_soc":False})  
+            model_config.update({"freeze":False,"train_soc":False})
 
         else:
-            ckpt = torch.load(checkpoint)
-            model_config = ckpt["model_config"]
-            model_config.update({"init_model": {"path": checkpoint,"interpolate": False}})
+            init_type = checkpoint.split(".")[-1]
+            if init_type == "json":
+                if config is None:
+                    log.error(msg="config is not set when init from json file.")
+                    raise RuntimeError
+            
+                # jdata = j_loader(checkpoint)
+                jdata = host_normalize(config)
+                #self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
+
+                common_options = j_must_have(jdata, "common_options")
+                model_options = j_must_have(jdata, "model_options")
+                # init_options = j_must_have(jdata, "init_model") # The init model is not necessarily set in the config file. since the model ckpt is already provided.
+                init_options = {"init_model": {"path": checkpoint,"interpolate": False}}
+                model_config={}
+                # model_config.update(jdata)
+                model_config.update(common_options)
+                model_config.update(model_options)
+                model_config.update(init_options)
+                # freeze and train_soc is the run opt for init_model. we here we use the same init model function. 
+                # so we must provided it formally. in fact, these two options have no effect in this situation. 
+                model_config.update({"freeze":False,"train_soc":False})
+
+            elif init_type == "pth":
+                ckpt = torch.load(checkpoint)
+                model_config = ckpt["model_config"]
+                model_config.update({"init_model": {"path": checkpoint,"interpolate": False}})
+            else:
+                log.error(msg="Error! the model file should be one or one list of json/pth file.")
+
         model_config["dtype"] = dtype_dict[model_config["dtype"]]
-        
         self.__init_params(**model_config)
 
     def __init_params(self, **model_config):

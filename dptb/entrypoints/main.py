@@ -191,7 +191,7 @@ def main_parser() -> argparse.ArgumentParser:
     )
 
     parser_run.add_argument(
-        "-str",
+        "-stu",
         "--structure",
         type=str,
         default=None,
