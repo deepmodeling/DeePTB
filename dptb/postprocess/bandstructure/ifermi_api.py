@@ -57,7 +57,7 @@ class ifermiapi (object):
 
     
     def _pass_paras(self,jdata):
-        self.ifermi_plot_options = j_must_have(jdata, 'ifermi')
+        self.ifermi_plot_options = jdata
         self.fs_plot_options = j_must_have(self.ifermi_plot_options , 'fermisurface')
         self.property_options = self.ifermi_plot_options.get('property',None)
 

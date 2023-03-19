@@ -300,7 +300,8 @@ def task_options():
             Argument("pdos", dict, pdos()),
             Argument("FS2D", dict, FS2D()),
             Argument("FS3D", dict, FS3D()),
-            Argument("write_sk", dict, write_sk())
+            Argument("write_sk", dict, write_sk()),
+            Argument("ifermi", dict, ifermi())
         ],optional=True, default_tag="band", doc=doc_task)
 
 def normalize_run(data):
@@ -426,6 +427,15 @@ def FS2D():
 
 def FS3D():
     pass
+
+def ifermi():
+    doc_fermi = ""
+    doc_prop = ""
+
+    fermiarg = Argument("fermisurface", dict, optional=True, sub_fields=[], sub_variants=[], default={}, doc=doc_fermi)
+    prop = Argument("property", dict, optional=True, sub_fields=[], sub_variants=[], default={}, doc=doc_prop)
+
+    return [fermiarg, prop]
 
 def write_sk():
     doc_thr = ""
