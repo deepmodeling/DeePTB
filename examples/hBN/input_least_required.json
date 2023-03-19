@@ -4,7 +4,7 @@
         "interpolate": true
     },
     "common_options": {
-        "onsitemode": "strain",
+        "onsitemode": "split",
         "onsite_cutoff": 3.6,
         "bond_cutoff": 3.5,
         "env_cutoff": 3.5,

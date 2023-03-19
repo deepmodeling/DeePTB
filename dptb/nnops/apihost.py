@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 
 class DPTBHost(PluginUser):
     def __init__(self, dptbmodel, use_correction=False):
+        # dptbmodel: str
         super(DPTBHost, self).__init__()
         ckpt = torch.load(dptbmodel)
         model_config = ckpt["model_config"]
@@ -25,8 +26,7 @@ class DPTBHost(PluginUser):
         self.__init_params(**model_config)
     
     def __init_params(self, **model_config):
-        self.model_config = model_config      
-
+        self.model_config = model_config
     
     def build(self):
         if not 'soc' in self.model_config.keys():
@@ -36,12 +36,13 @@ class DPTBHost(PluginUser):
 
 class NNSKHost(PluginUser):
     def __init__(self, checkpoint, config=None):
+        # checkpoint: [str, List[str]]
         super(NNSKHost, self).__init__()
 
         if isinstance(checkpoint, list):
             # config is only used when init from json file.
             if config is None:
-                log.error(msg="config is not set when init from json file.")
+                log.error(msg="config is not set when init from multiple of checkpoints.")
                 raise RuntimeError
             
             # jdata = j_loader(checkpoint)
@@ -90,7 +91,7 @@ class NNSKHost(PluginUser):
                 model_config = ckpt["model_config"]
                 model_config.update({"init_model": {"path": checkpoint,"interpolate": False}})
             else:
-                log.error(msg="Error! the model file should be a json or pth file.")
+                log.error(msg="Error! the model file should be one or one list of json/pth file.")
 
         model_config["dtype"] = dtype_dict[model_config["dtype"]]
         self.__init_params(**model_config)

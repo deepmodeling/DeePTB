@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from dptb.utils.constants import atomic_num_dict, anglrMId, SKBondType
+from dptb.nnsktb.onsiteDB import onsite_energy_database
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -544,11 +545,26 @@ def write_skparam(
                         }
                     with torch.no_grad():
                         skparam.append(skformula.skhij(**params).tolist()[0])
+            else:
+                log.error(msg="Wrong format, please choose from [DeePTB] for checkpoint format, or [sktable] for hopping and onsite table.")
+                raise ValueError
+            
     elif onsitemode in ['uniform','split']:
-        for ia in onsite_coeff:
-            for iikey in range(len(onsite_index_dict[ia])):
-                onsite[onsite_index_dict[ia][iikey]] = \
-                                        [onsite_coeff[ia].tolist()[iikey]]
+        if format == "DeePTB":
+            for ia in onsite_coeff:
+                for iikey in range(len(onsite_index_dict[ia])):
+                    onsite[onsite_index_dict[ia][iikey]] = \
+                                            [onsite_coeff[ia].tolist()[iikey]]
+        elif format == "sktable":
+            for ia in onsite_coeff:
+                iatom_param = onsite.setdefault(ia, {})
+                for iikey in range(len(onsite_index_dict[ia])):
+                    iatomtype, iorb, index = onsite_index_dict[ia][iikey].split("-")
+                    iorb_param = iatom_param.setdefault(iorb, {})
+                    iorb_param[index] = onsite_coeff[iatomtype].tolist()[iikey]+onsite_energy_database[iatomtype][iorb]
+                    # onsite[onsite_index_dict[ia][iikey]] = \
+                    #                         [onsite_coeff[iatomtype].tolist()[iikey]+onsite_energy_database[iatomtype][iorb]]
+                    
     elif onsitemode == "none":
         jdata["onsite"] = {}
     else:

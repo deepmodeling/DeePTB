@@ -11,8 +11,8 @@
         ],
         "klabels":["G","X", "K","G"],
         "E_fermi":-7.5,
-        "emin":-15,
-        "emax":10
+        "emin":-18,
+        "emax":12
     },
     "init_model": {
         "path": "checkpoint/best_nnsk_c3.5w0.3.pth",

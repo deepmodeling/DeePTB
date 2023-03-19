@@ -158,7 +158,7 @@ def train(
         
         if jdata["init_model"]["path"] is not None:
             assert mode == "from_scratch"
-            print("Init model is read from config rile.")
+            log.info(msg="Init model is read from config rile.")
             run_opt["init_model"] = jdata["init_model"]
             mode = "init_model"
             if isinstance(run_opt["init_model"]["path"], str):
@@ -175,8 +175,12 @@ def train(
 
         if mode == "init_model":
             if isinstance(run_opt["init_model"]["path"], list):
-                if len(run_opt["init_model"]["path"])==0 or len(run_opt["init_model"]["path"])>1:
-                    raise RuntimeError("Error! list mode init_model in config only support single file in DPTB!")
+                if len(run_opt["init_model"]["path"])==0:
+                    log.error(msg="Error, no checkpoint supplied!")
+                    raise RuntimeError
+                elif len(run_opt["init_model"]["path"])>1:
+                    log.error(msg="Error! list mode init_model in config only support single file in DPTB!")
+                    raise RuntimeError
 
     if all((run_opt["init_model"], restart)):
         raise RuntimeError(
