@@ -75,9 +75,9 @@ def kmesh_fs(meshgrid=[1,1,1]):
     Nx, Ny, Nz = meshgrid
     lx, ly, lz = np.linspace(0, 1, Nx), np.linspace(0, 1, Ny), np.linspace(0, 1, Nz)
     xx, yy, zz = np.meshgrid(lx, ly, lz, indexing='ij')
-    kpoints = np.array([xx.reshape(-1), yy.reshape(-1), zz.reshape(-1)]).T
+    kgrids  = np.array([xx.reshape(-1), yy.reshape(-1), zz.reshape(-1)]).T
 
-    return kpoints
+    return (lx,ly,lz), kgrids
 
 
 def monkhorst_pack(meshgrid=[1,1,1]):
