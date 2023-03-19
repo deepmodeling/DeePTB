@@ -97,11 +97,14 @@ class NNSKTrainer(Trainer):
             log.error(msg="The wannier_blocks from processor is None, but the losstype wannier, please check the input data, maybe the wannier.npy is not there.")
             raise ValueError
 
+        # get sk param (model format)
         coeffdict = self.model(mode='hopping')
+        nn_onsiteE, onsite_coeffdict = self.model(mode='onsite')
+
+
+        # get sk param (of each bond or onsite)
         batch_hoppings = self.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, 
             rcut=self.model_options["skfunction"]["sk_cutoff"], w=self.model_options["skfunction"]["sk_decay_w"])
-        
-        nn_onsiteE, onsite_coeffdict = self.model(mode='onsite')
         batch_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nn_onsiteE)
         if self.onsitemode == 'strain':
             batch_onsiteVs = self.onsitestrain_fun.get_skhops(batch_bonds=batch_onsitenvs, coeff_paras=onsite_coeffdict)
@@ -113,7 +116,9 @@ class NNSKTrainer(Trainer):
             batch_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_soc=nn_soc_lambdas)
         else:
             batch_soc_lambdas = None
-        # call sktb to get the sktb hoppings and onsites
+
+
+        # copy sk param for writing json checkpoint
         self.onsite_index_dict = self.model.onsite_index_dict
         self.hopping_coeff = coeffdict
         if self.onsitemode == 'strain':
@@ -123,6 +128,8 @@ class NNSKTrainer(Trainer):
         if self.soc:    
             self.soc_coeff = nn_soc_lambdas
 
+        
+        # constructing hamiltonians and decomposition
         pred = []
         label = []
         for ii in range(len(structs)):

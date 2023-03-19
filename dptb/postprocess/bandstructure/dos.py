@@ -18,13 +18,12 @@ class doscalc (object):
         else:
             raise ValueError('structure must be ase.Atoms or str')
         
-        self.jdata = jdata
+        self.dos_plot_options = jdata
         self.results_path = run_opt.get('results_path')
         self.apiH.update_struct(self.structase)
 
 
     def get_dos(self):
-        self.dos_plot_options = j_must_have(self.jdata, 'dos')
         self.mesh_grid = self.dos_plot_options['mesh_grid']
         self.isgamma = self.dos_plot_options['gamma_center']
         self.kpoints = kmesh_sampling(meshgrid= self.mesh_grid,is_gamma_center=self.isgamma)

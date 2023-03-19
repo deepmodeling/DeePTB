@@ -110,15 +110,20 @@ class DPTBTrainer(Trainer):
         '''
         assert len(kpoints.shape) == 2, "kpoints should have shape of [num_kp, 3]."
 
+        # get sk param (of each bond or onsite)
         batch_bond_hoppings, batch_hoppings, \
         batch_bond_onsites, batch_onsiteEs, batch_soc_lambdas = self.nntb.calc(batch_bond, batch_env)
 
         if self.run_opt.get("use_correction", False):
+            # get sk param (dptb-0)
             coeffdict = self.sknet(mode='hopping')
+            nnsk_onsiteE, onsite_coeffdict = self.sknet(mode='onsite')
+
+            # get sk param (of each bond or onsite, dptb-0)
             batch_nnsk_hoppings = self.hops_fun.get_skhops(
                 batch_bond_hoppings, coeffdict, rcut=self.model_options["skfunction"]["sk_cutoff"],
                 w=self.model_options["skfunction"]["sk_decay_w"])
-            nnsk_onsiteE, onsite_coeffdict = self.sknet(mode='onsite')
+            
             batch_nnsk_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nnsk_onsiteE)
             
             if self.onsitemode == "strain":
@@ -127,7 +132,7 @@ class DPTBTrainer(Trainer):
                 nnsk_soc_lambdas, _ = self.sknet(mode="soc")
                 batch_nnsk_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_soc=nnsk_soc_lambdas)
 
-        # ToDo: Advance the correction process before onsite_fun and hops_fun
+        # ToDo: Advance the correction process before onsite_fun and hops_fun (this seems impossible?)
         # call sktb to get the sktb hoppings and onsites
         onsiteVs = None
         onsitenvs = None
@@ -152,11 +157,13 @@ class DPTBTrainer(Trainer):
                     else:
                         sk_soc_lambdas = None
 
-                onsiteEs, hoppings, _, _, soc_lambdas = nnsk_correction(nn_onsiteEs=batch_onsiteEs[ii], nn_hoppings=batch_hoppings[ii],
-                                    sk_onsiteEs=batch_nnsk_onsiteEs[ii], sk_hoppings=batch_nnsk_hoppings[ii],
-                                    sk_onsiteSs=None, sk_overlaps=None, 
-                                    nn_soc_lambdas=nn_soc_lambdas, 
-                                    sk_soc_lambdas=sk_soc_lambdas)
+                onsiteEs, hoppings, _, _, soc_lambdas = nnsk_correction(
+                    nn_onsiteEs=batch_onsiteEs[ii], nn_hoppings=batch_hoppings[ii],
+                    sk_onsiteEs=batch_nnsk_onsiteEs[ii], sk_hoppings=batch_nnsk_hoppings[ii],
+                    sk_onsiteSs=None, sk_overlaps=None, 
+                    nn_soc_lambdas=nn_soc_lambdas, 
+                    sk_soc_lambdas=sk_soc_lambdas
+                    )
 
                 if self.onsitemode == "strain":
                     onsiteVs = batch_nnsk_onsiteVs[ii]

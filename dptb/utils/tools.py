@@ -3,7 +3,8 @@ import re
 import numpy as np
 import torch
 import torch.nn.functional as F
-from dptb.utils.constants import atomic_num_dict, anglrMId
+from dptb.utils.constants import atomic_num_dict, anglrMId, SKBondType
+from dptb.nnsktb.onsiteDB import onsite_energy_database
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -16,11 +17,14 @@ from typing import (
     Union,
 )
 import json
+from dptb.nnsktb.formula import SKFormula
 from pathlib import Path
 import yaml
 import torch.optim as optim
 import logging
 import random
+from ase.neighborlist import neighbor_list
+import ase
 
 
 log = logging.getLogger(__name__)
@@ -489,6 +493,157 @@ def GaussianSmearing(x, x0, sigma=0.02):
     '''
 
     return 1. / (np.sqrt(2*np.pi) * sigma) * np.exp(-(x - x0)**2 / (2*sigma**2))
+
+def write_skparam(
+        onsite_coeff, 
+        hopping_coeff, 
+        onsite_index_dict, 
+        rcut=None, 
+        w=None,
+        atom=None,
+        onsite_cutoff=None, 
+        bond_cutoff=None, 
+        soc_coeff=None,
+        thr=1e-3, 
+        onsitemode="none", 
+        functype="varTang96", 
+        format="sktable",
+        outPath="./"
+        ):
+    onsite = {}
+    hopping = {}
+    soc = {}
+
+    if format == 'sktable':
+        r_bonds = get_neighbours(atom, cutoff=bond_cutoff, thr=thr)
+        r_onsites = get_neighbours(atom, cutoff=onsite_cutoff, thr=thr)
+        skformula = SKFormula(functype=functype)
+
+    jdata = {}
+
+    # onsites
+    if onsitemode ==  "strain":
+        for i in onsite_coeff.keys():
+            if format == "DeePTB":
+                onsite[i] = onsite_coeff[i].tolist()
+            elif format == "sktable":
+                rijs = r_onsites.get(i[:3], None)
+                if rijs is None:
+                    rijs = r_onsites.get(i[:3][::-1], None)
+                assert rijs is not None
+
+                paraArray = onsite_coeff[i]
+                iatomtype, jatomtype, iorb, jorb, lm = i.split("-")
+                ijbond_param = hopping.setdefault(iatomtype+"-"+jatomtype, {})
+                ijorb_param = ijbond_param.setdefault(iorb+"-"+jorb, {})
+                skparam = ijorb_param.setdefault(SKBondType[int(lm)], [])
+
+                for rij in rijs:
+                    params = {
+                        'paraArray':paraArray,'rij':torch.scalar_tensor(rij), 'iatomtype':iatomtype,
+                        'jatomtype':jatomtype
+                        }
+                    with torch.no_grad():
+                        skparam.append(skformula.skhij(**params).tolist()[0])
+            else:
+                log.error(msg="Wrong format, please choose from [DeePTB] for checkpoint format, or [sktable] for hopping and onsite table.")
+                raise ValueError
+            
+    elif onsitemode in ['uniform','split']:
+        if format == "DeePTB":
+            for ia in onsite_coeff:
+                for iikey in range(len(onsite_index_dict[ia])):
+                    onsite[onsite_index_dict[ia][iikey]] = \
+                                            [onsite_coeff[ia].tolist()[iikey]]
+        elif format == "sktable":
+            for ia in onsite_coeff:
+                iatom_param = onsite.setdefault(ia, {})
+                for iikey in range(len(onsite_index_dict[ia])):
+                    iatomtype, iorb, index = onsite_index_dict[ia][iikey].split("-")
+                    iorb_param = iatom_param.setdefault(iorb, {})
+                    iorb_param[index] = onsite_coeff[iatomtype].tolist()[iikey]+onsite_energy_database[iatomtype][iorb]
+                    # onsite[onsite_index_dict[ia][iikey]] = \
+                    #                         [onsite_coeff[iatomtype].tolist()[iikey]+onsite_energy_database[iatomtype][iorb]]
+                    
+    elif onsitemode == "none":
+        jdata["onsite"] = {}
+    else:
+        log.error(msg="The onsite mode is incorrect!")
+        raise ValueError
+    jdata["onsite"] = onsite
+
+    for i in hopping_coeff.keys():
+        if format == "DeePTB":
+            hopping[i] = hopping_coeff[i].tolist()
+        elif format == "sktable":
+
+            rijs = r_bonds.get(i[:3], None)
+            if rijs is None:
+                rijs = r_onsites.get(i[:3][::-1], None)
+            assert rijs is not None
+
+            paraArray = hopping_coeff[i]
+            iatomtype, jatomtype, iorb, jorb, lm = i.split("-")
+            ijbond_param = hopping.setdefault(iatomtype+"-"+jatomtype, {})
+            ijorb_param = ijbond_param.setdefault(iorb+"-"+jorb, {})
+            skparam = ijorb_param.setdefault(SKBondType[int(lm)], [])
+
+            for rij in rijs:
+                params = {
+                    'paraArray':paraArray,'rij':torch.scalar_tensor(rij), 'iatomtype':iatomtype,
+                    'jatomtype':jatomtype, 'rcut':rcut,'w':w
+                    }
+                with torch.no_grad():
+                    skparam.append(skformula.skhij(**params).tolist()[0])
+
+    jdata["hopping"] = hopping
+    
+    if soc_coeff is not None:
+        for i in soc_coeff:
+            soc[i] = soc_coeff[i].tolist()
+
+        jdata["soc"] = soc
+
+    with open(f'{outPath}/skparam.json', "w") as f:
+        json.dump(jdata, f, indent=4)
+
+    return True
+
+def get_neighbours(atom: ase.Atom, cutoff: float =10., thr: float =1e-3):
+    """
+        Generating bond-wise distance dict, where key is the bond symbol such as "A-B", "A-A".
+        and the value is a list containing the first, second, third ... bond distance.
+
+    Args:
+        atom (ase.Atom): ase atom type structure
+        cutoff (float, optional): cutoff on bond distance, control how far the bonds need to be included. Defaults to 10..
+        thr (float, optional): control the threshold of bond length difference, within which we assume two bond are the same. Defaults to 1e-3.
+
+    Returns:
+        dict: a bond-wise distance dict
+    """
+
+    neighbours = {}
+    i,j,d = neighbor_list(quantities=["i","j","d"], a=atom, cutoff=cutoff)
+    atom_symbols = np.array(atom.get_chemical_symbols(), dtype=str)
+    for idx in range(len(i)):
+        symbol = get_uniq_symbol([atom_symbols[i[idx]], atom_symbols[j[idx]]])
+        if len(symbol) == 2:
+            symbol = symbol[0]+"-"+symbol[1]
+        else:
+            symbol = symbol[0]+"-"+symbol[0]
+
+        nns = neighbours.setdefault(symbol, [])
+        if len(nns) >= 1:
+            if not (np.abs(d[idx]-np.array(nns)) < thr).any():
+                nns.append(d[idx])
+        else:
+            nns.append(d[idx])
+
+    for kk in neighbours.keys():
+        neighbours[kk] = sorted(neighbours[kk])
+    
+    return neighbours
 
 
 
