@@ -19,24 +19,23 @@ try:
     from ifermi.plot import FermiSurfacePlotter
     from ifermi.plot import FermiSlicePlotter
     from ifermi.plot import show_plot, save_plot
-
-
-
-
+    ifermi_installed = True
 
 except ImportError:
     log.error('ifermi is not installed. Thus the ifermiaip is not available, Please install it first.')
-    sys.exit()
+    ifermi_installed = False
 
 try:
     from pymatgen.electronic_structure.bandstructure import BandStructure
     from pymatgen.io.ase import AseAtomsAdaptor as ase2pmg
     from pymatgen.core import Lattice, Structure, Molecule
     from pymatgen.electronic_structure.core import Spin
+    pymatgen_installed = True
 
 except:
     log.error('pymatgen is not installed. Thus the ifermiaip is not available, Please install it first.')
-    sys.exit()
+    pymatgen_installed = False
+
 
 
 class ifermiapi (object):
