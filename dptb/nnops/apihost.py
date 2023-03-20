@@ -22,7 +22,7 @@ class DPTBHost(PluginUser):
         model_config["dtype"] = dtype_dict[model_config["dtype"]]
         model_config.update({'init_model':{"path":dptbmodel, "interpolation":False},'use_correction':use_correction})
         self.use_correction = use_correction
-        print(model_config)
+        # print(model_config)
         self.__init_params(**model_config)
     
     def __init_params(self, **model_config):

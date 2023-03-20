@@ -300,7 +300,8 @@ def task_options():
             Argument("pdos", dict, pdos()),
             Argument("FS2D", dict, FS2D()),
             Argument("FS3D", dict, FS3D()),
-            Argument("write_sk", dict, write_sk())
+            Argument("write_sk", dict, write_sk()),
+            Argument("ifermi", dict, ifermi())
         ],optional=True, default_tag="band", doc=doc_task)
 
 def normalize_run(data):
@@ -425,7 +426,131 @@ def FS2D():
     ]
 
 def FS3D():
-    pass
+    doc_mesh_grid = ""
+    doc_E0 = ""
+    doc_sigma = ""
+    doc_intpfactor = ""
+
+    return [
+        Argument("mesh_grid", list, optional=False, doc=doc_mesh_grid),
+        Argument("sigma", float, optional=False, doc=doc_sigma),
+        Argument("E0", int, optional=False, doc=doc_E0),
+        Argument("intpfactor", int, optional=False, doc=doc_intpfactor)
+    ]
+
+
+def ifermi():
+    doc_fermi = ""
+    doc_prop = ""
+    doc_mesh_grid = ""
+    doc_mu = ""
+    doc_sigma = ""
+    doc_intpfactor = ""
+    doc_wigner_seitz = ""
+    doc_nworkers = ""
+    doc_plot_type = "plot_type: Method used for plotting. Valid options are: matplotlib, plotly, mayavi, crystal_toolkit."
+    doc_use_gui=""
+    doc_plot_fs_bands = ""
+    doc_fs_plane = ""
+    doc_fs_distanc= ""
+    doc_color_properties ="""color_properties: Whether to use the properties to color the Fermi surface.
+                If the properties is a vector then the norm of the properties will be
+                used. Note, this will only take effect if the Fermi surface has
+                properties. If set to True, the viridis colormap will be used.
+                Alternative colormaps can be selected by setting ``color_properties``
+                to a matplotlib colormap name. This setting will override the ``colors``
+                option. For vector properties, the arrows are colored according to the
+                norm of the properties by default. If used in combination with the
+                ``projection_axis`` option, the color will be determined by the dot
+                product of the properties with the projection axis."""
+    doc_fs_plot_options=""
+    doc_projection_axis = """projection_axis: Projection axis that can be used to calculate the color of
+                vector properties. If None, the norm of the properties will be used,
+                otherwise the color will be determined by the dot product of the
+                properties with the projection axis. Only has an effect when used with
+                the ``vector_properties`` option."""
+
+    doc_velocity = ""
+    doc_colormap = ""
+    doc_prop_plane = ""
+    doc_prop_distance=""
+    doc_prop_plot_options=""
+    doc_hide_surface = """hide_surface: Whether to hide the Fermi surface. Only recommended in combination with the ``vector_properties`` option."""
+    doc_hide_labels ="""hide_labels: Whether to show the high-symmetry k-point labels."""
+    doc_hide_cell = """hide_cell: Whether to show the reciprocal cell boundary."""
+    doc_vector_spacing="""vector_spacing: The rough spacing between arrows. Uses a custom algorithm
+                for resampling the Fermi surface to ensure that arrows are not too close
+                together. Only has an effect when used with the ``vector_properties``
+                option."""
+    doc_azimuth="azimuth: The azimuth of the viewpoint in degrees. i.e. the angle subtended by the position vector on a sphere projected on to the x-y plane."
+    doc_elevation="The zenith angle of the viewpoint in degrees, i.e. the angle subtended by the position vector and the z-axis."
+    doc_colors ="""The color specification for the iso-surfaces. Valid options are:
+                - A single color to use for all Fermi surfaces, specified as a tuple of
+                  rgb values from 0 to 1. E.g., red would be ``(1, 0, 0)``.
+                - A list of colors, specified as above.
+                - A dictionary of ``{Spin.up: color1, Spin.down: color2}``, where the
+                  colors are specified as above.
+                - A string specifying which matplotlib colormap to use. See
+                  https://matplotlib.org/tutorials/colors/colormaps.html for more
+                  information.
+                - ``None``, in which case the default colors will be used.
+                """
+
+    """Defaults."""
+
+    AZIMUTH = 45.0
+    ELEVATION = 35.0
+    VECTOR_SPACING = 0.2
+    COLORMAP = "viridis"
+    SYMPREC = 1e-3
+    KTOL = 1e-5
+    SCALE = 4
+
+
+    plot_options=[
+        Argument("colors", [str,dict,list,None], optional=True, default=None, doc=doc_colors),
+        Argument("projection_axis", [list,None], optional=True, default=None, doc=doc_projection_axis),
+        Argument("hide_surface", bool, optional=True, default=False, doc=doc_hide_surface),
+        Argument("hide_labels", bool, optional=True, default=False, doc=doc_hide_labels),
+        Argument("hide_cell", bool, optional=True, default=False, doc=doc_hide_cell),
+        Argument("vector_spacing",float, optional=True, default=VECTOR_SPACING, doc=doc_vector_spacing),
+        Argument("azimuth", float, optional=True, default=AZIMUTH, doc=doc_azimuth),
+        Argument("elevation", float, optional=True, default=ELEVATION, doc=doc_elevation),
+    ]
+
+
+    plot_options_fs=[
+        Argument("projection_axis", [list,None], optional=True, default=None, doc=doc_projection_axis)
+    ]
+    args_fermi = [
+        Argument("mesh_grid", list, optional = False, default=[2,2,2], doc = doc_mesh_grid),
+        Argument("mu", [float,int], optional = False, default=0.0, doc = doc_mu),
+        Argument("sigma", float, optional = False, default=0.1, doc = doc_sigma),
+        Argument("intpfactor", int, optional = False, default=1, doc = doc_intpfactor),
+        Argument("wigner_seitz", bool, optional = True, default=True, doc = doc_wigner_seitz),
+        Argument("nworkers", int, optional = True, default=-1, doc = doc_nworkers),
+        Argument("plot_type", str, optional = True, default="plotly", doc = doc_plot_type),
+        Argument("use_gui", bool, optional = True, default=False, doc = doc_use_gui),
+        Argument("plot_fs_bands", bool, optional = True, default = False, doc = doc_plot_fs_bands),
+        Argument("fs_plane", list, optional = True, default=[0,0,1], doc = doc_fs_plane),
+        Argument("fs_distance", [int,float], optional = True, default=0, doc = doc_fs_distanc),
+        Argument("color_properties", bool, optional = True, default=False, doc = doc_color_properties),
+        Argument("plot_options", dict, optional=True, sub_fields=plot_options, sub_variants=[], default={}, doc=doc_fs_plot_options)
+    ]
+
+
+    args_prop = [
+        Argument("velocity", bool, optional = True, default=True, doc = doc_velocity),
+        Argument("colormap", str, optional = True,default="viridis",doc = doc_colormap),
+        Argument("prop_plane", list, optional = True, default=[0,0,1],doc = doc_prop_plane),
+        Argument("prop_distance", [int,float], optional = True, default=0, doc = doc_prop_distance),
+        Argument("plot_options", dict, optional = True, sub_fields=plot_options, sub_variants=[], default={}, doc = doc_prop_plot_options)
+    ]
+
+    fermiarg = Argument("fermisurface", dict, optional=False, sub_fields=args_fermi, sub_variants=[], default={}, doc=doc_fermi)
+    prop = Argument("property", dict, optional=True, sub_fields=args_prop, sub_variants=[], default={}, doc=doc_prop)
+
+    return [fermiarg, prop]
 
 def write_sk():
     doc_thr = ""

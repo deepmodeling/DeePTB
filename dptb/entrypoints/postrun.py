@@ -20,6 +20,7 @@ from ase.io import read,write
 from dptb.postprocess.bandstructure.band import bandcalc
 from dptb.postprocess.bandstructure.dos import doscalc, pdoscalc
 from dptb.postprocess.bandstructure.fermisurface import fs2dcalc, fs3dcalc
+from dptb.postprocess.bandstructure.ifermi_api import ifermiapi, ifermi_installed, pymatgen_installed
 from dptb.postprocess.write_skparam import WriteNNSKParam
 
 __all__ = ["run"]
@@ -186,6 +187,16 @@ def postrun(
         fs3dcal.fs_plot()
         log.info(msg='3dFS calculation successfully completed.')
     
+    if task == 'ifermi':
+        if not(ifermi_installed and pymatgen_installed):
+            log.error(msg="ifermi and pymatgen are required to perform ifermi calculation !")
+            raise RuntimeError
+
+        ifermi = ifermiapi(apiHrk, run_opt, task_options)
+        bs = ifermi.get_band_structure()
+        fs = ifermi.get_fs(bs)
+        ifermi.fs_plot(fs)
+        log.info(msg='Ifermi calculation successfully completed.')
     if task == 'write_sk':
         if not run_sk:
             raise RuntimeError("write_sk can only perform on nnsk model !")
