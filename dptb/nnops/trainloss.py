@@ -6,7 +6,7 @@ class lossfunction(object):
     def __init__(self,criterion):
         self.criterion =criterion
 
-    def eigs_l2(self, eig_pred, eig_label, band_min=0, band_max=None, spin_deg=2, **kwargs):
+    def eigs_l2(self, eig_pred, eig_label, band_min=0, band_max=None, emax=None, emin=None, spin_deg=2, **kwargs):
         norbs = eig_pred.shape[-1]
         nbanddft = eig_label.shape[-1]
         num_kp = eig_label.shape[-2]
@@ -28,12 +28,27 @@ class lossfunction(object):
         eig_pred_cut = eig_pred[:,:,band_min:band_max]
         eig_label_cut = eig_label[:,:,band_min:band_max]
 
+
         batch_size, num_kp, num_bands = eig_pred_cut.shape
 
         eig_pred_cut = eig_pred_cut - eig_pred_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
         eig_label_cut = eig_label_cut - eig_label_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
 
-        loss = self.criterion(eig_pred_cut,eig_label_cut)
+        
+        if emax != None and emin != None:
+            mask_in = eig_label_cut.lt(emax) * eig_label_cut.gt(emin)
+        elif emax != None:
+            mask_in = eig_label_cut.lt(emax)
+        elif emin != None:
+            mask_in = eig_label_cut.gt(emin)
+        else:
+            mask_in = None
+
+        if mask_in is not None:
+            if th.any(mask_in).item():
+                loss = self.criterion(eig_pred_cut.masked_select(mask_in), eig_label_cut.masked_select(mask_in))
+        else:
+            loss = self.criterion(eig_pred_cut, eig_label_cut)
 
         return loss
 
