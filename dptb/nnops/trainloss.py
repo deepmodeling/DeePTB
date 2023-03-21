@@ -46,7 +46,7 @@ class lossfunction(object):
 
         if mask_in is not None:
             if th.any(mask_in).item():
-                loss = loss + self.criterion(eig_pred_cut.masked_select(mask_in), eig_label_cut.masked_select(mask_in))
+                loss = self.criterion(eig_pred_cut.masked_select(mask_in), eig_label_cut.masked_select(mask_in))
         else:
             loss = self.criterion(eig_pred_cut, eig_label_cut)
 
