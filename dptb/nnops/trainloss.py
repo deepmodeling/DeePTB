@@ -1,7 +1,6 @@
 import torch as th
 import numpy as np
 
-
 class lossfunction(object):
     def __init__(self,criterion):
         self.criterion =criterion

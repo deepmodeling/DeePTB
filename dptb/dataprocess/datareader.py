@@ -33,6 +33,7 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
     for ii in range(len(data_dirs)):
         struct_list = []
         asetrajs = Trajectory(filename=data_dirs[ii] + "/" + filenames['xdat_file'], mode='r')
+        assert len(asetrajs) > 0, "DataPath is not correct!"
         kpoints = np.load(data_dirs[ii] + "/" + filenames['kpoints_file'])
         eigs = np.load(data_dirs[ii] + "/" + filenames['eigen_file'])
         bandinfo = j_loader(data_dirs[ii] + "/" + filenames['bandinfo_file'])
