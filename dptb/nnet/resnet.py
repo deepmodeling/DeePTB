@@ -51,6 +51,8 @@ class ResNet(nn.Module):
 
         if config[-1].get('n_hidden') is None:
             self.out_layer = nn.Linear(in_features=config[-1]['n_in'], out_features=config[-1]['n_out'], device=device, dtype=dtype)
+            # nn.init.normal_(self.out_layer.weight, mean=0, std=1e-3)
+            # nn.init.normal_(self.out_layer.bias, mean=0, std=1e-3)
         else:
             self.out_layer = MLP(**config[-1],  if_batch_normalized=False, activation=activation, device=device, dtype=dtype)
 
