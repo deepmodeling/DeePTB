@@ -43,6 +43,7 @@ class lossfunction(object):
         else:
             mask_in = None
 
+        loss = 0.0
         if mask_in is not None:
             if th.any(mask_in).item():
                 loss = self.criterion(eig_pred_cut.masked_select(mask_in), eig_label_cut.masked_select(mask_in))

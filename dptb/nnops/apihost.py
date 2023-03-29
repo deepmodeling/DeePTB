@@ -47,7 +47,6 @@ class NNSKHost(PluginUser):
             
             # jdata = j_loader(checkpoint)
             jdata = host_normalize(j_loader(config))
-            print(jdata)
             #self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
 
             common_options = j_must_have(jdata, "common_options")
