@@ -85,6 +85,8 @@ class InitSKModel(Plugin):
                 soc_neurons = {"nhidden":num_soc_hidden}
             else:
                 soc_neurons = {"nhidden": num_hopping_hideen}
+                # update model options
+                common_and_model_options['sknetwork']['sk_soc_nhidden'] = num_hopping_hideen
         else:
             soc_neurons=None
 
