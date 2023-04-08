@@ -142,6 +142,7 @@ class SKNet(nn.Module):
             return self.hop_coeffdict
         elif mode == 'soc':
             out = self.soc_net()
+            out = out.abs()
             self.soc_values = dict(zip(self.soc_types, out))
 
             self.soc_value = {}

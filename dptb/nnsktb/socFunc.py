@@ -1,6 +1,8 @@
 import torch as th
 from dptb.utils.constants import atomic_num_dict_r
 from dptb.nnsktb.socDB import soc_strength_database
+import logging
+log = logging.getLogger(__name__)
 
 # define the function for output all the onsites Es for given i.
 
@@ -57,7 +59,12 @@ def socFunc(batch_bonds_onsite, soc_db: dict, nn_soc: dict=None):
         if nn_soc is not None:
             socs = []
             for x in ia_list:
-                soc = nn_soc[x]
+                soc_tmp_value = nn_soc[x]
+                if (soc_tmp_value <0).any():
+                    log.warning(f'nn_soc[{x}] is negative, use the use its absoulte value.')
+                    soc_tmp_value = soc_tmp_value.abs()
+
+                soc = soc_tmp_value
                 soc[:len(soc_db[x])] += soc_db[x]
                 socs.append(soc)
         else:
