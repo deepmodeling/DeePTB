@@ -600,9 +600,22 @@ def write_skparam(
     jdata["hopping"] = hopping
     
     if soc_coeff is not None:
-        for i in soc_coeff:
-            soc[i] = soc_coeff[i].tolist()
 
+        if format == "DeePTB":
+            for ia in soc_coeff:
+                for iikey in range(len(onsite_index_dict[ia])):
+                    soc[onsite_index_dict[ia][iikey]] = \
+                                            [soc_coeff[ia].tolist()[iikey]]
+        elif format == "sktable":
+            for ia in onsite_coeff:
+                iatom_param = soc.setdefault(ia, {})
+                for iikey in range(len(onsite_index_dict[ia])):
+                    iatomtype, iorb, index = onsite_index_dict[ia][iikey].split("-")
+
+                    iorb_param = iatom_param.setdefault(iorb, {})
+                    iorb_param[index] = soc_coeff[iatomtype].tolist()[iikey]
+                    # onsite[onsite_index_dict[ia][iikey]] = \
+                    #                         [onsite_coeff[iatomtype].tolist()[iikey]+onsite_energy_database[iatomtype][iorb]]
         jdata["soc"] = soc
 
     with open(f'{outPath}/skparam.json', "w") as f:
