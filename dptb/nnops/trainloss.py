@@ -52,7 +52,7 @@ class lossfunction(object):
 
         return loss
 
-    def eigs_l2dsf(self, eig_pred, eig_label, strength=0.5, kmax=None, kmin=0, band_min=0, band_max=None, emax=None, emin=None, spin_deg=2, gap_penalty=False, fermi_band=0, eta=1e-2, eout_weight=0, nkratio=None, **kwarg):
+    def eigs_l2dsf(self, eig_pred, eig_label, strength=0.5, kmax=None, kmin=0, band_min=0, band_max=None, emax=None, emin=None, spin_deg=2, gap_penalty=False, fermi_band=0, eta=1e-2, eout_weight=0, nkratio=None, weight=1., **kwarg):
         norbs = eig_pred.shape[-1]
         nbanddft = eig_label.shape[-1]
         num_kp = eig_label.shape[-2]
@@ -72,6 +72,16 @@ class lossfunction(object):
         band_min = int(band_min)
         band_max = int(band_max)
 
+        if isinstance(weight, list):
+            assert len(weight) < up_nband, "band weight is overlength!"
+        elif isinstance(weight, float) or isinstance(weight, int):
+            if abs(weight - 1) < 1e-6:
+                weight = 1.
+            else:
+                weight = [weight]*(band_max-band_min)
+        else:
+            raise TypeError
+
         assert band_min < band_max
         # shape of eigs [batch_size, num_kp, num_bands]
         assert len(eig_pred.shape) == 3 and len(eig_label.shape) == 3
@@ -79,6 +89,12 @@ class lossfunction(object):
         eig_pred_cut = eig_pred[:,kmin:kmax,band_min:band_max]
         eig_label_cut = eig_label[:,kmin:kmax,band_min:band_max]
         batch_size, num_kp, num_bands = eig_pred_cut.shape
+
+        if isinstance(weight, list):
+            if len(weight) < num_bands:
+                weight = weight + (num_bands - len(weight))*[1.]
+            weight = th.tensor(weight).reshape(1,1,-1)
+        
 
         eig_pred_cut = eig_pred_cut - eig_pred_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
         eig_label_cut = eig_label_cut - eig_label_cut.reshape(batch_size,-1).min(dim=1)[0].reshape(batch_size,1,1)
@@ -110,28 +126,26 @@ class lossfunction(object):
         # eig_label_soft = torchsort.soft_sort(eig_label_cut,regularization_strength=strength)
        
         # eig_pred_soft = th.reshape(eig_pred_soft, [batch_size, num_kp, num_bands])
-        # eig_label_soft = th.reshape(eig_label_soft, [batch_size, num_kp, num_bands])
-        eig_pred_soft = eig_pred_cut
-        eig_label_soft = eig_label_cut
+        # eig_label_soft = th.reshape(eig_label_soft, [batch_size, num_kp, num_bands])        
 
-        
+        if not isinstance(weight, float):
+            eig_pred_cut = eig_pred_cut * weight
+            eig_label_cut = eig_label_cut * weight
 
-        
-        
         loss = 0
         if mask_in is not None:
             if th.any(mask_in).item():
-                loss = loss + self.criterion(eig_pred_soft.masked_select(mask_in), eig_label_soft.masked_select(mask_in))
+                loss = loss + self.criterion(eig_pred_cut.masked_select(mask_in), eig_label_cut.masked_select(mask_in))
             if th.any(mask_out).item():
-                loss = loss + eout_weight * self.criterion(eig_pred_soft.masked_select(mask_out), eig_label_soft.masked_select(mask_out))
+                loss = loss + eout_weight * self.criterion(eig_pred_cut.masked_select(mask_out), eig_label_cut.masked_select(mask_out))
         else:
-            loss = self.criterion(eig_pred_soft, eig_label_soft)
+            loss = self.criterion(eig_pred_cut, eig_label_cut)
 
         #print(loss)
 
         if gap_penalty:
-            gap1 = eig_pred_soft[:,:,fermi_band+1] - eig_pred_soft[:,:,fermi_band]
-            gap2 = eig_label_soft[:,:,fermi_band+1] - eig_label_soft[:,:,fermi_band]
+            gap1 = eig_pred_cut[:,:,fermi_band+1] - eig_pred_cut[:,:,fermi_band]
+            gap2 = eig_label_cut[:,:,fermi_band+1] - eig_label_cut[:,:,fermi_band]
             loss_gap = self.criterion(1.0/(gap1+eta), 1.0/(gap2+eta))
 
         if num_kp > 1:
@@ -144,11 +158,11 @@ class lossfunction(object):
                 k_diff_j = np.random.choice(num_kp, nk_diff, replace=False)
 
             if mask_in is not None:
-                eig_diff_lbl = eig_label_soft.masked_fill(mask_in, 0.)[:, k_diff_i,:] - eig_label_soft.masked_fill(mask_in, 0.)[:,k_diff_j,:]
-                eig_ddiff_pred = eig_pred_soft.masked_fill(mask_in, 0.)[:,k_diff_i,:] - eig_pred_soft.masked_fill(mask_in, 0.)[:,k_diff_j,:]
+                eig_diff_lbl = eig_label_cut.masked_fill(mask_in, 0.)[:, k_diff_i,:] - eig_label_cut.masked_fill(mask_in, 0.)[:,k_diff_j,:]
+                eig_ddiff_pred = eig_pred_cut.masked_fill(mask_in, 0.)[:,k_diff_i,:] - eig_pred_cut.masked_fill(mask_in, 0.)[:,k_diff_j,:]
             else:
-                eig_diff_lbl = eig_label_soft[:,k_diff_i,:] - eig_label_soft[:,k_diff_j,:]
-                eig_ddiff_pred = eig_pred_soft[:,k_diff_i,:]  - eig_pred_soft[:,k_diff_j,:]
+                eig_diff_lbl = eig_label_cut[:,k_diff_i,:] - eig_label_cut[:,k_diff_j,:]
+                eig_ddiff_pred = eig_pred_cut[:,k_diff_i,:]  - eig_pred_cut[:,k_diff_j,:]
             loss_diff =  self.criterion(eig_diff_lbl, eig_ddiff_pred) 
 
             loss = (1*loss + 1*loss_diff)/2
