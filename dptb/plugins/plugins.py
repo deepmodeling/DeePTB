@@ -71,8 +71,10 @@ class Saver(Plugin):
             json_data["hopping"] = hoppingcoeff
             if hasattr(self.trainer,'soc_coeff'):
                 soccoeff = {}
-                for i in self.trainer.soc_coeff:
-                    soccoeff[i] = self.trainer.soc_coeff[i].tolist()
+                for ia in self.trainer.soc_coeff:
+                    for iikey in range(len(self.trainer.onsite_index_dict[ia])):
+                        soccoeff[self.trainer.onsite_index_dict[ia][iikey]] = \
+                            [self.trainer.soc_coeff[ia].tolist()[iikey]]
                 json_data["soc"] = soccoeff
             json_path = os.path.join(self.checkpoint_path, name+".json")
             with open(json_path, "w") as f:

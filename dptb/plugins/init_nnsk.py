@@ -84,7 +84,8 @@ class InitSKModel(Plugin):
             if num_soc_hidden is not None:
                 soc_neurons = {"nhidden":num_soc_hidden}
             else:
-                soc_neurons = {"nhidden": num_hopping_hideen}
+                log.err(msg="Please specify the number of hidden layers for soc network. please set the key `sk_soc_nhidden` in `sknetwork` in `model_options`.")
+                raise ValueError
         else:
             soc_neurons=None
 
@@ -178,6 +179,11 @@ class InitSKModel(Plugin):
         num_onsite_hidden = common_and_model_and_run_options['sknetwork']['sk_onsite_nhidden']
         num_soc_hidden = common_and_model_and_run_options['sknetwork']['sk_soc_nhidden']
         unit = common_and_model_and_run_options["unit"]
+
+
+        if soc and num_soc_hidden is None:
+            log.err(msg="Please specify the number of hidden layers for soc network. please set the key `sk_soc_nhidden` in `sknetwork` in `model_options`.")
+            raise ValueError
         
         if modeltype == "ckpt":
             for ckpt in ckpt_list:
@@ -191,12 +197,11 @@ class InitSKModel(Plugin):
                 num_hopping_hidden = max(num_hopping_hidden, model_config['sknetwork']['sk_hop_nhidden'])
                 num_onsite_hidden = max(num_onsite_hidden ,model_config['sknetwork']['sk_onsite_nhidden'])
                 if soc:
-                    if not 'soc' in model_config.keys():
-                        log.warning('Warning, the model is non-soc. Transferring it into soc case.')
-                    elif not ckpt["model_config"]["soc"]:
-                        log.warning('Warning, the model is non-soc. Transferring it into soc case.')
-                    else:
+                    if  model_config.get('soc',False):
                         num_soc_hidden = max(num_soc_hidden ,model_config['sknetwork']['sk_soc_nhidden'])
+                    else:
+                        log.warning('Warning, the model is non-soc. Transferring it into soc case.')
+                        
                 else:
                     if 'soc' in model_config.keys() and model_config['soc']:
                         log.warning('Warning, the model is with soc, but this run job soc is turned off. Transferring it into non-soc case.')

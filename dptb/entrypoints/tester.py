@@ -34,6 +34,7 @@ def validation(
         use_correction: Optional[str],
         **kwargs
 ):
+    # TODO: permit commandline init_model and config file init.
     run_opt = {
         "init_model": init_model,
         "log_path": log_path,

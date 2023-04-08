@@ -24,6 +24,7 @@ import torch.optim as optim
 import logging
 import random
 from ase.neighborlist import neighbor_list
+from ase.io.trajectory import Trajectory
 import ase
 
 
@@ -599,9 +600,22 @@ def write_skparam(
     jdata["hopping"] = hopping
     
     if soc_coeff is not None:
-        for i in soc_coeff:
-            soc[i] = soc_coeff[i].tolist()
 
+        if format == "DeePTB":
+            for ia in soc_coeff:
+                for iikey in range(len(onsite_index_dict[ia])):
+                    soc[onsite_index_dict[ia][iikey]] = \
+                                            [soc_coeff[ia].tolist()[iikey]]
+        elif format == "sktable":
+            for ia in onsite_coeff:
+                iatom_param = soc.setdefault(ia, {})
+                for iikey in range(len(onsite_index_dict[ia])):
+                    iatomtype, iorb, index = onsite_index_dict[ia][iikey].split("-")
+
+                    iorb_param = iatom_param.setdefault(iorb, {})
+                    iorb_param[index] = soc_coeff[iatomtype].tolist()[iikey]
+                    # onsite[onsite_index_dict[ia][iikey]] = \
+                    #                         [onsite_coeff[iatomtype].tolist()[iikey]+onsite_energy_database[iatomtype][iorb]]
         jdata["soc"] = soc
 
     with open(f'{outPath}/skparam.json', "w") as f:
@@ -644,6 +658,40 @@ def get_neighbours(atom: ase.Atom, cutoff: float =10., thr: float =1e-3):
         neighbours[kk] = sorted(neighbours[kk])
     
     return neighbours
+
+def bn_stast(traj_path: str, cutoff: float =10., nns=[3.0, 4.5], first=False):
+    """
+        Generating bond-wise distance dict, where key is the bond symbol such as "A-B", "A-A".
+        and the value is a list containing the first, second, third ... bond distance.
+
+    Args:
+        atom (ase.Atom): ase atom type structure
+        cutoff (float, optional): cutoff on bond distance, control how far the bonds need to be included. Defaults to 10..
+        thr (float, optional): control the threshold of bond length difference, within which we assume two bond are the same. Defaults to 1e-3.
+
+    Returns:
+        dict: a bond-wise distance dict
+    """
+    from tqdm import tqdm
+
+    d = []
+
+
+    stast = []
+    xdat = Trajectory(filename=traj_path, mode='r')
+    for atom in tqdm(xdat):
+        d = np.append(d, neighbor_list(quantities=["d"], a=atom, cutoff=cutoff))
+
+    if first:
+        return d
+    
+    for i in range(len(nns)):
+        if i > 0:
+            stast.append(d[d.__gt__(nns[i-1]) * d.__lt__(nns[i])])
+        else:
+            stast.append(d[d.__lt__(nns[i])])
+    
+    return stast
 
 
 
