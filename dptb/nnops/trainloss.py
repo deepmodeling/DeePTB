@@ -52,7 +52,8 @@ class lossfunction(object):
 
         return loss
 
-    def eigs_l2dsf(self, eig_pred, eig_label, strength=0.5, kmax=None, kmin=0, band_min=0, band_max=None, emax=None, emin=None, spin_deg=2, gap_penalty=False, fermi_band=0, eta=1e-2, eout_weight=0, nkratio=None, weight=1., **kwarg):
+    def eigs_l2dsf(self, eig_pred, eig_label, strength=0.5, kmax=None, kmin=0, band_min=0, band_max=None, emax=None, emin=None, 
+                   spin_deg=2, gap_penalty=False, fermi_band=0, eta=1e-2, eout_weight=0, nkratio=None, weight=1., **kwarg):
         norbs = eig_pred.shape[-1]
         nbanddft = eig_label.shape[-1]
         num_kp = eig_label.shape[-2]
