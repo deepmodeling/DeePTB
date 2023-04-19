@@ -1,7 +1,11 @@
-# **DeepNEGF**
-Deep learning on quantum transport simulations with NEGF method.
+# **DeePTB**
+Electronic, atomic, and spin are the three degrees of freedom involved in material simulation, corresponding to the three main levels of material properties. The cornerstone of accurately simulating material properties is describing the most fundamental interactions in a system based on the principles of quantum mechanics. Traditional simulation methods, such as DFT methods, provide relatively accurate quantum mechanical descriptions of materials' electrons, atoms, and spins, making them indispensable tools in modern scientific research. However, the high computational demand of traditional DFT methods remains a challenge for large-scale and long-term material simulations, even with the rapid development of supercomputers today.
 
-- [**DeepNEGF**](#deepnegf)
+The development of artificial intelligence (AI) offers a new approach to solve traditional problems. DeePTB aims to create a universal and applicable representation method for the electronic interaction Hamiltonian at the electronic degree of freedom level. It is a machine learning method that accurately and efficiently describes the electronic system's interaction and Hamiltonian, playing a crucial role in fundamentally accelerating the material's electronic-related properties.
+
+The DeePTB method uses a neural network to predictively represent the tight-binding model (TB) model, which enables the model to have first-principles accuracy while maintaining high computational efficiency. It provides an efficient way to obtain the electronic Hamiltonian for large or complex systems, enabling rapid modeling for simulating material electronic properties and revolutionizing the method for simulating electronic properties.
+
+- [**DeePTB**](#DeePTB)
   - [**dependency**:](#dependency)
   - [**installation**](#installation)
   - [**usage**:](#usage)
@@ -9,21 +13,18 @@ Deep learning on quantum transport simulations with NEGF method.
       - [1.1 **Data prepare**:](#11-data-prepare)
       - [1.2 **input**](#12-input)
       - [1.3 **Training**](#13-training)
-    - [2. **the NEGF calculations.**](#2-the-negf-calculations)
-      - [2.1. **Device structure**](#21-device-structure)
-      - [2.2. **input**](#22-input)
-    - [3. **Transport calculations.**](#3-transport-calculations)
+      - [1.4 **Ploting**](#14-ploting)
 
 
 ## **dependency**:
 - python >= 3.8
+- pytest = ">=7.2.0"
 - numpy
 - scipy
 - spglib
 - matplotlib
 - ase
-- torch
-- torchsort==0.1.7
+- torch >= 1.13.0
 - pyyaml
 - future
 - dargs
@@ -31,8 +32,9 @@ Deep learning on quantum transport simulations with NEGF method.
 ## **installation**
 1. install torch following the instruction in : [PyTorch: Get Started](https://pytorch.org/get-started/locally)
 
+2. located to the repository root
 
-2.  ```python setup.py install```
+3. running ```pip install .```
 
 
 ## **usage**:
@@ -42,7 +44,33 @@ Will be added gradually
 
 #### 1.1 **Data prepare**:
         
-To train the TB model, one should supply the atomic structures and electronic structures.  The **atomic structures** data are in the format of ASE traj binary format, where each structure are stored using an **Atom** class defined  in ASE package. The **electronic structures** data contains the kpoints list and eigenvalues are in the binary format of npy. The shape of kpoints data is [nk,3] and eigenvalues is [nsnaps,nk,nbands]. nsnaps is the number of snapshots, nk is the number of kpoints and nbands is the number of bands. In the  example. we proved a script to transfer the txt data file into binary file for training.
+To train the TB model, one should supply the atomic structures and electronic structures.  The **atomic structures** data are in the format of ASE traj binary format, where each structure are stored using an **Atom** class defined  in ASE package. The **electronic structures** data contains the kpoints list and eigenvalues are in the binary format of npy. The shape of kpoints data is **[num_kpoint,3]** and eigenvalues is **[num_frame,nk,nbands]**. nsnaps is the number of snapshots, nk is the number of kpoints and nbands is the number of bands. In the  example. we proved a script to transfer the txt data file into binary file for training.
+
+The dataset of one structure is recommended to formulate as following format:
+```
+data/
+-- set.x
+-- -- eigs.npy         # numpy array of shape [num_frame, num_kpoint, num_band]
+-- -- kpoints.npy      # numpy array of shape [num_kpoint, 3]
+-- -- xdat.traj        # ase trajectory file with num_frame
+-- -- bandinfo.json    # defining the training objective of this bandstructure
+```
+
+The bandinfo defines the settings of the training objective of each structure, basicly you can have specific settings for different structure, which allow training across structures across diffrent atom number and atom type.
+
+The **bandinfo.json** file looks like:
+```json
+{
+    "band_min": 0,
+    "band_max": 4,
+    "gap_penalty": false,
+    "fermi_band": 3,
+    "loss_gap_eta": 0.1,
+    "emin": null,
+    "emax": null,
+    "weight": [1]
+}
+```
 
  **Note**: the electronic structures data for training calculated on the irreducible Brillouin zone are high recommended. Besides, the electronic structures data can be obtained from any DFT package.
     
@@ -51,95 +79,70 @@ To train the TB model, one should supply the atomic structures and electronic st
 We explain the input file with the hBN example.
 
 ```json
-    {
-        "_comment":"general paras.",
-        "AtomType" : ["N","B"],
-        "ProjAtomType" : ["N","B"],
-        "ProjAnglrM" : {"N":["s","p"],"B":["s","p"]},
-        "ValElec" : {"N":5,"B":3},
-        "EnvCutOff" : 3.5,
-        "NumEnv" : [8,8],
-        "CutOff" : 4,
-        "SKFilePath" :	"./slakos",
-        "Separator" : "-" ,
-        "Suffix" : ".skf",
-    
-        "_comment" : "NN paras",
-        "Task" : "NNTB",
-        "Envnet" : [10,20,40],
-        "Envout" : 10,
-        "Bondnet" : [100,100,100],
-        "onsite_net" : [100,100,100],
-        "active_func": "tanh",
-        "train_data_path" : "../data",
-        "prefix"  : "set",
-        "valddir" : "../data/set.0",
-        "withref" : false,
-        "refdir"  : "none",
-        "ref_ratio": 0.5,
-        "xdatfile" : "xdat.traj",
-        "eigfile"  : "eigs.npy",
-        "kpfile"   : "kpoints.npy",
-        "num_epoch" : 200,
-        "batch_size": 1,
-        "valid_size": 1,
-        "start_learning_rate": 0.0001,
-        "decay_rate":0.99,
-        "decay_step":2,
-        "savemodel":true,
-        "save_epoch":4,
-        "save_checkpoint":"./checkpoint.pl",
-        "display_epoch": 1,
-        "read_checkpoint": "./checkpoint.pl",
-    	"use_E_win":false,
-    	"energy_max":8,
-    	"energy_min":-20,
-    	"use_I_win":true,
-    	"band_max":4,
-    	"band_min":0,
-        "sort_strength":[0.01,0.01],
-        "corr_strength":[1, 1]
+{
+    "init_model": {
+        "path": null,
+        "interpolate": true
+    },
+    "common_options": {
+        "onsitemode": "split",
+        "onsite_cutoff": 3.6,
+        "bond_cutoff": 3.5,
+        "env_cutoff": 3.5,
+        "atomtype": [
+            "N",
+            "B"
+        ],
+        "proj_atom_neles": {
+            "N": 5,
+            "B": 3
+        },
+        "proj_atom_anglr_m": {
+            "N": [
+                "2s",
+                "2p"
+            ],
+            "B": [
+                "2s",
+                "2p"
+            ]
+        }
+    },
+    "train_options": {
+        "seed":120478,
+        "num_epoch": 1000,
+        "optimizer": {"lr":1e-2}
+    },
+    "data_options": {
+        "use_reference": true,
+        "train": {
+            "batch_size": 1,
+            "path": "./dptb/tests/data/hBN/data",
+            "prefix": "set"
+        },
+        "validation": {
+            "batch_size": 1,
+            "path": "./dptb/tests/data/hBN/data",
+            "prefix": "set"
+        },
+        "reference": {
+            "batch_size": 1,
+            "path": "./dptb/tests/data/hBN/data",
+            "prefix": "set"
+        }
+    },
+    "model_options": {
+        "sknetwork": {
+            "sk_hop_nhidden": 20,
+            "sk_onsite_nhidden": 20
+        },
+        "skfunction": {
+            "sk_cutoff": 3.5,
+            "sk_decay_w": 0.3
+        }
     }
-
- ```
-- **AtomType**: the atoms types in the structure.
-- **ProjAtomType**: the atoms types where the local orbitals are used to construct TB.
-- **ProjAnglrM**: local orbitals type on the ProjAtomType.
-- **ValElec**: num of valence electrons in the selected energy window. this is used to calculated Fermi energy. be carefully, this doesn'tmean the total valence electrons, only the valence electrons in the selected energy/band window.
-- **EnvCutOff**: the cut-off for local environment.
-- **NumEnv**: maximum of number of atoms inside the cut-off. 
-- **CutOff**: the cut-off for the maximum distance where hopping is finite.
-- **SKFilePath**: the path for slater koster files.
-- **Separator**: Separator for the name of slater koster files.
-- **Suffix**:  Suffix for slater koster files.
-- **Envnet**: neural network for environment embeding.
-- **Envout**: output size of local environment.
-- **Bondnet**: neural network for hoppings.
-- **onsite_net**: neural network for on-site energy.
-- **train_data_path**: the path for training data.
-- **valddir**: validation data path.
-- **withref**: train TB model with a reference or not. if true, one should set the **refdir** for the path of ref data and **ref_ratio**for the ratio in loss of reference data.
-- **xdatfile**, **eigfile**, **kpfile** : the data file name.
-- **use_E_win**: use energy to define the selected band window. if true, one should set the **energy_min** and **energy_max**.
-- **use_I_win**: use band index to define the selected band window. if true, one should set the **band_min** and **band_max**.
-- **sort_strength**: [start_value,final_value] soft sort strength, in the training the process, the strength exponentially changes fromstart_value to final_value.
-- **corr_strength**: only take effect when correction_mode=2.  by default correction_mode=1.
-
+}
+```
 
 #### 1.3 **Training**
-See the example.
-,
-
-
-
-
-### 2. **the NEGF calculations.**
-
-#### 2.1. **Device structure**
-
-#### 2.2. **input**
-
-### 3. **Transport calculations.**
-
----
-
+See the example hBN.

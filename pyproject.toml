@@ -19,6 +19,8 @@ matplotlib = "*"
 torch = ">=1.13.0"
 ase = "*"
 yaml = "*"
+future = "*"
+dargs = "*"
 
 [tool.poetry.group.3Dfermi]
 optional = true
