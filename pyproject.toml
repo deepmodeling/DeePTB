@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dptb"
-version = "0.0.0"
+version = "0.2.0.dev20230420024515"
 license = "MIT"
 description = "A deep learning package for emperical tight-binding approach with first-principle accuracy."
 authors = ["Q. Gu <guqq@pku.edu.cn>", "Z. Zhanghao <zhouyinzhanghao@gmail.com>"]
@@ -29,7 +29,8 @@ optional = true
 ifermi = "*"
 pymatgen = "*"
 
-
+[tool.poetry.scripts]
+dptb = 'dptb.__main__:main'
 
 [build-system]
 requires = ["poetry-core", "poetry-dynamic-versioning"]
@@ -37,7 +38,7 @@ build-backend = "poetry_dynamic_versioning.backend"
 
 
 [tool.poetry-dynamic-versioning]
-enable = true
+enable = false
 vcs = "git"
 strict = true
 format-jinja = """
