@@ -659,7 +659,7 @@ def get_neighbours(atom: ase.Atom, cutoff: float =10., thr: float =1e-3):
     
     return neighbours
 
-def bn_stast(traj_path: str, cutoff: float =10., nns=[3.0, 4.5], first=False):
+def bn_stast(traj_path: str, cutoff: float =10., nns=[3.0, 4.5], first=False, remove_self=True):
     """
         Generating bond-wise distance dict, where key is the bond symbol such as "A-B", "A-A".
         and the value is a list containing the first, second, third ... bond distance.
@@ -680,7 +680,11 @@ def bn_stast(traj_path: str, cutoff: float =10., nns=[3.0, 4.5], first=False):
     stast = []
     xdat = Trajectory(filename=traj_path, mode='r')
     for atom in tqdm(xdat):
-        d = np.append(d, neighbor_list(quantities=["d"], a=atom, cutoff=cutoff))
+        i,j,S,new_d = neighbor_list(quantities=["i","j","S","d"], a=atom, cutoff=cutoff)
+        if remove_self:
+            d = np.append(d, new_d[i!=j])
+        else:
+            d = np.append(d, new_d)
 
     if first:
         return d
