@@ -1,11 +1,11 @@
 {
     "init_model": {
         "path": null,
-        "interpolate": true
+        "interpolate": false
     },
     "common_options": {
-        "onsitemode": "split",
-        "onsite_cutoff": 3.6,
+        "onsitemode": "strain",
+        "onsite_cutoff": 2.6,
         "bond_cutoff": 3.5,
         "env_cutoff": 3.5,
         "atomtype": [
@@ -19,34 +19,38 @@
         "proj_atom_anglr_m": {
             "N": [
                 "2s",
-                "2p"
+                "2p",
+                "s*",
+                "p*"
             ],
             "B": [
                 "2s",
-                "2p"
+                "2p",
+                "s*",
+                "p*"
             ]
         }
     },
     "train_options": {
         "seed":120478,
-        "num_epoch": 1000,
-        "optimizer": {"lr":1e-2}
+        "num_epoch": 4000,
+        "optimizer": {"lr":5e-3}
     },
     "data_options": {
         "use_reference": true,
         "train": {
             "batch_size": 1,
-            "path": "../../dptb/tests/data/hBN/data",
+            "path": "./data",
             "prefix": "set"
         },
         "validation": {
             "batch_size": 1,
-            "path": "../../dptb/tests/data/hBN/data",
+            "path": "./data",
             "prefix": "set"
         },
         "reference": {
             "batch_size": 1,
-            "path": "../../dptb/tests/data/hBN/data",
+            "path": "./data",
             "prefix": "set"
         }
     },

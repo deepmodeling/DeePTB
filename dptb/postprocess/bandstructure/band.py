@@ -22,6 +22,8 @@ class bandcalc(object):
         self.band_plot_options = jdata
         self.results_path = run_opt.get('results_path')
         self.apiH.update_struct(self.structase)
+
+        self.ref_band = self.band_plot_options.get("ref_band", None)
     
     def get_bands(self):
         kline_type = self.band_plot_options['kline_type']
@@ -38,11 +40,11 @@ class bandcalc(object):
             self.klist, self.xlist, self.high_sym_kpoints  = abacus_kpath(structase=self.structase, kpath=kpath)
         
         elif kline_type == 'vasp':
-            pathstr = self.band_plot_options['pathstr']
+            kpath = self.band_plot_options['kpath']
             high_sym_kpoints_dict = self.band_plot_options['high_sym_kpoints']
             number_in_line = self.band_plot_options['number_in_line']
             self.klist, self.xlist, self.high_sym_kpoints, self.labels = vasp_kpath(structase=self.structase,
-                                                 pathstr=pathstr, high_sym_kpoints_dict=high_sym_kpoints_dict, number_in_line=number_in_line)
+                                                 pathstr=kpath, high_sym_kpoints_dict=high_sym_kpoints_dict, number_in_line=number_in_line)
         else:
             log.error('Error, now, kline_type only support ase_kpath, abacus, or vasp.')
             raise ValueError
@@ -88,7 +90,25 @@ class bandcalc(object):
 
         band_color = '#5d5d5d'
         # plot the line
-        ax.plot(self.xlist, self.eigenvalues - self.E_fermi, color=band_color,lw=1.5, alpha=0.8)
+        
+        if self.ref_band:
+            ref_eigenvalues = np.load(self.ref_band)
+            if len(ref_eigenvalues.shape) == 3:
+                ref_eigenvalues = ref_eigenvalues.reshape(ref_eigenvalues.shape[1:])
+            elif len(ref_eigenvalues.shape) != 2:
+                log.error("Reference Eigenvalues' shape mismatch.")
+                raise ValueError
+
+            if ref_eigenvalues.shape[0] != self.eigenvalues.shape[0]:
+                log.error("Reference Eigenvalues' should have sampled from the sample kpath as model's prediction.")
+                raise ValueError
+            ref_eigenvalues = ref_eigenvalues - (np.min(ref_eigenvalues) - np.min(self.eigenvalues))
+        
+            band_pre = ax.plot(self.xlist, self.eigenvalues - self.E_fermi, color=band_color,lw=1.5, alpha=0.8, label="DeePTB")
+            band_ref = ax.plot(self.xlist, ref_eigenvalues - self.E_fermi, color="tab:red",lw=1.5, alpha=0.8, ls="--", label="Ref")
+
+        else:
+            ax.plot(self.xlist, self.eigenvalues - self.E_fermi, color=band_color,lw=1.5, alpha=0.8)
 
         # add verticle line
         for ii in self.high_sym_kpoints[1:-1]:
@@ -122,19 +142,10 @@ class bandcalc(object):
             spine.set_edgecolor('#5d5d5d')
             spine.set_linewidth(1.5)
         
+        plt.legend(handles=[band_pre[0], band_ref[0]], loc="best")
+        
         plt.tight_layout()
         # remove the box around the plot
         ax.set_frame_on(False)
         plt.savefig(f'{self.results_path}/band.png',dpi=300)
         plt.show()
-
-
-
-    
-
-        
-    
-        
-
-    
-

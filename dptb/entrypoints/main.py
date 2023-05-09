@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 from dptb.entrypoints.train import train
+from dptb.entrypoints.config import config
 from dptb.entrypoints.tester import validation
 from dptb.entrypoints.postrun import postrun
 from dptb.utils.loggers import set_log_handles
@@ -56,6 +57,27 @@ def main_parser() -> argparse.ArgumentParser:
         default=None,
         help="set log file to log messages to disk, if not specified, the logs will "
              "only be output to console",
+    )
+
+    # config parser
+    parser_config = subparsers.add_parser(
+        "config",
+        parents=[parser_log],
+        help="get config templete",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser_config.add_argument(
+        "PATH", help="the path you want to put the config templete in",
+        type=str,
+        default="./input_templete.json"
+    )
+
+    parser_config.add_argument(
+        "-full",
+        "--full_config",
+        action="store_true",
+        help="get the config templete with all input parameters.",
     )
 
     # train parser
@@ -253,6 +275,9 @@ def main():
         set_log_handles(args.log_level, Path(args.log_path) if args.log_path else None)
 
     dict_args = vars(args)
+    
+    if args.command == 'config':
+        config(**dict_args)
 
     if args.command == 'train':
         train(**dict_args)
