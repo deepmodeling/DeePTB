@@ -112,6 +112,8 @@ def postrun(
         structure = j_must_have(jdata, "structure")
         run_opt.update({"structure":structure})
 
+        print(run_opt["structure"])
+
     if not run_sk:
         if run_opt['use_correction'] is None and jdata.get('use_correction',None) != None:
             use_correction = jdata['use_correction']

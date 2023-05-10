@@ -12,7 +12,7 @@ The full document can be found in [readthedoc page](https://deeptb-doc.readthedo
     - [3.2 **input**](#32-input)
     - [3.3 **Training**](#33-training)
     - [3.4 **Testing**](#34-testing)
-    - [3.5 **Ploting**](#35-ploting)
+    - [3.5 **Processing**](#35-processing)
 - [4. **Gallary**](#4-gallary)
 
 # 1. **installation**
@@ -135,7 +135,7 @@ The **bandinfo.json** file looks like:
 ## 3.2 **input**
 **DeePTB** probide input config templete for quick setup. User can run:
 ```bash
-dptb config ./input.json
+dptb config <generated input config path> [-full]
 ```
 The templete config file will be generated at the path `./input.json`.
 For full document about the input parameters, we refer to the detail [document](https://deeptb-doc.readthedocs.io/en/latest/index.html). For now, we only need to consider a few vital parameters that can setup the training:
@@ -151,7 +151,10 @@ For full document about the input parameters, we refer to the detail [document](
     }
 }
 ```
-
+We can get the bond cutoff by `DeePTB`'s bond analysis function, using:
+```bash
+dptb bond <structure path> [[-c] <cutoff>] [[-acc] <accuracy>]
+```
 
 ```json
 "model_options": {
@@ -187,24 +190,22 @@ For full document about the input parameters, we refer to the detail [document](
 When data and input config file is prepared, we are ready to train the model.
 To train a neural network parameterized Slater-Koster Tight-Binding model (nnsk) with Gradient Based Optimization method, we can run:
 ```bash
-dptb train -sk input.json -o ./xxx
+dptb train -sk <input config> [[-o] <output directory>] [[-i|-r] <nnsk checkpoint path>]
 ```
 For training a environmental dependent Tight-Binding model (dptb), we can run:
 ```bash
-dptb train input.json -o ./xxx
+dptb train <input config> [[-o] <output directory>] [[-i|-r] <dptb checkpoint path>]
 ```
 But the suggested procedure is first train a nnsk model, and use environment dependent neural network as a correction, as proposed in our paper: xxx:
 ```bash
-dptb train input.json -o ./xxx -crt <nnsk checkpoint path>
+dptb train <input config> -crt <nnsk checkpoint path> [[-o] <output directory>]
 ```
 
 ## 3.4 **Testing**
 After the model is converged, the testing function can be used to do the model test, or compute the eigenvalues for other analysis. 
-First we copy the input file and change it to test file, which is:
-```bash
-cp ./input.json test.json
-```
-Then delete the `train_options` since it is not useful when testing the model. And we delete all lines contains in `data_options`, and add the `test` dataset config:
+
+Test config is just attained by a little modification of the train config. 
+Delete the `train_options` since it is not useful when testing the model. And we delete all lines contains in `data_options`, and add the `test` dataset config:
 ```json
 "test": {
     "batch_size": 1,  
@@ -214,10 +215,21 @@ Then delete the `train_options` since it is not useful when testing the model. A
 ```
 Then we can run:
 ```bash
-dptb test <-sk> test.json -o ./test -i <nnsk checkpoint path>
+dptb test [-sk] <test config> -i <nnsk/dptb checkpoint path> [[-o] <output directory>]
 ```
-## 3.5 **Plotting**
-See the example hBN.
+## 3.5 **Processing**
+**DeePTB** integrates multiple post processing functionalities in `dptb run` command, includesincludes:
+- band structure plotting
+- density of states plotting
+- fermi surface plotting
+- slater-koster parameter transcription
+
+Please see the templete config file in `examples/hBN/run/`, and the running command is:
+```bash
+dptb run [-sk] <run config> [[-o] <output directory>] -i <nnsk/dptb checkpoint path> [[-crt] <nnsk checkpoint path>]
+```
+
+For detail document, please see our [Document page](https://deeptb-doc.readthedocs.io/en/latest/index.html).
 
 # 4. **Gallary**
-See the example hBN.
+Will be added later when the paper is ready.

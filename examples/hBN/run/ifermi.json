@@ -1,4 +1,5 @@
 {
+    "structure":"./data/struct.vasp",
     "task_options":{
         "task": "ifermi",    
         "fermisurface":{
