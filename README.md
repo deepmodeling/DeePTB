@@ -87,7 +87,7 @@ dptb train -sk input_short.json -o ./first -i ./first/checkpoint/best_nnsk_c1.5w
 ```
 After training finished, plot the result again and see (above right):
 
-It already looks good, we can further improve the accuracy by adding more neighbours, or more orbitals, and training for longer time. We just train the model for more epoch, and the results gives:
+It already looks good, we can further improve the accuracy by adding more neighbours, or more orbitals, and training for longer time. Here we gives our very accurate fitting of both conduction and valance bands:
 <div align=center>
 <img src="./doc/img/band_2.png" width = "70%" height = "70%" alt="hBN Bands" align=center />
 </div>
