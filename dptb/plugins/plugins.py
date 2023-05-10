@@ -20,17 +20,19 @@ class Saver(Plugin):
         self.trainer = trainer
 
     def iteration(self, **kwargs):
-        suffix = "_c"+str(self.trainer.model_options["skfunction"]["sk_cutoff"])+"w"+str(self.trainer.model_options["skfunction"]["sk_decay_w"])
+        suffix = "_b"+"%.3f"%self.trainer.common_options["bond_cutoff"]+"_c"+"%.3f"%self.trainer.model_options["skfunction"]["sk_cutoff"]+"w"+\
+                "%.3f"%self.trainer.model_options["skfunction"]["sk_decay_w"]
         self._save(name="latest_"+self.trainer.name+suffix,model=self.trainer.model,model_config=self.trainer.model_config)
         if self.trainer.name == "dptb" \
                 and self.trainer.run_opt["use_correction"] \
                     and not self.trainer.run_opt["freeze"]:
 
-            self._save(name="latest_"+self.trainer.name+'_nnsk_'+suffix,model=self.trainer.sknet, model_config=self.trainer.sknet_config)
+            self._save(name="latest_"+self.trainer.name+'_nnsk'+suffix,model=self.trainer.sknet, model_config=self.trainer.sknet_config)
 
     def epoch(self, **kwargs):
         if self.trainer.stats.get('validation_loss').get('last',1e6) < self.best_loss:
-            suffix = "_c"+str(self.trainer.model_options["skfunction"]["sk_cutoff"])+"w"+str(self.trainer.model_options["skfunction"]["sk_decay_w"])
+            suffix = "_b"+"%.3f"%self.trainer.common_options["bond_cutoff"]+"_c"+"%.3f"%self.trainer.model_options["skfunction"]["sk_cutoff"]+"w"+\
+                "%.3f"%self.trainer.model_options["skfunction"]["sk_decay_w"]
             self._save(name="best_"+self.trainer.name+suffix,model=self.trainer.model,model_config=self.trainer.model_config)
             self.best_loss = self.trainer.stats['validation_loss'].get('last',1e6)
 
@@ -38,7 +40,7 @@ class Saver(Plugin):
                 and self.trainer.run_opt["use_correction"] \
                     and not self.trainer.run_opt["freeze"]:
 
-                self._save(name="best_"+self.trainer.name+'_nnsk_'+suffix,model=self.trainer.sknet, model_config=self.trainer.sknet_config)
+                self._save(name="best_"+self.trainer.name+'_nnsk'+suffix,model=self.trainer.sknet, model_config=self.trainer.sknet_config)
 
             # log.info(msg="checkpoint saved as {}".format("best_epoch"))
 

@@ -4,9 +4,9 @@
         "interpolate": false
     },
     "common_options": {
-        "onsitemode": "strain",
+        "onsitemode": "none",
         "onsite_cutoff": 2.6,
-        "bond_cutoff": 1.5,
+        "bond_cutoff": 1.6,
         "env_cutoff": 3.5,
         "atomtype": [
             "N",

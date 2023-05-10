@@ -54,9 +54,23 @@ class DPTBTrainer(Trainer):
         if self.use_reference:
             self.reference_loss_options = loss_options.copy()
 
-        sortstrength = loss_options['sortstrength']
-        self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(sortstrength[0]), end=np.log(sortstrength[1]), steps=self.num_epoch))
-
+        # sortstrength = loss_options['sortstrength']
+        # self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(sortstrength[0]), end=np.log(sortstrength[1]), steps=self.num_epoch))
+        sk_cutoff = self.model_options["skfunction"]["sk_cutoff"]
+        sk_decay_w = self.model_options["skfunction"]["sk_decay_w"]
+        if isinstance(sk_cutoff, list):
+            assert len(sk_cutoff) == 2
+            self.skcut_step = (sk_cutoff[1] - sk_cutoff[0]) / (self.num_epoch - self.epoch + 1)
+            self.model_options["skfunction"]["sk_cutoff"] = sk_cutoff[0]
+        else:
+            self.skcut_step = 0
+        if isinstance(sk_decay_w, list):
+            assert len(sk_decay_w) == 2
+            self.skdecay_step = (sk_decay_w[1] - sk_decay_w[0]) / (self.num_epoch - self.epoch + 1)
+            self.model_options["skfunction"]["sk_decay_w"] = sk_decay_w[0]
+        else:
+            self.skdecay_step = 0
+        
 
     def build(self):
         '''
@@ -108,7 +122,12 @@ class DPTBTrainer(Trainer):
         '''
         conduct one step forward computation, used in train, test and validation.
         '''
-        assert len(kpoints.shape) == 2, "kpoints should have shape of [num_kp, 3]."
+        if len(kpoints.shape) != 2: 
+            log.error(msg="kpoints should have shape of [num_kp, 3].")
+            raise ValueError
+        if (wannier_blocks[0] is None) and not (decompose):
+            log.error(msg="The wannier_blocks from processor is None, but the losstype wannier, please check the input data, maybe the wannier.npy is not there.")
+            raise ValueError
 
         # get sk param (of each bond or onsite)
         batch_bond_hoppings, batch_hoppings, \
@@ -246,6 +265,10 @@ class DPTBTrainer(Trainer):
 
 
             self.iteration += 1
+
+    def update(self, **kwargs):
+        self.model_options["skfunction"]["sk_cutoff"] += self.skcut_step
+        self.model_options["skfunction"]["sk_decay_w"] += self.skdecay_step
 
     def validation(self, quick=False):
         with torch.no_grad():

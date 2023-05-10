@@ -23,8 +23,8 @@ If you are installing from source, you will need:
 - torch 1.13.0 or later, following the instruction on [PyTorch: Get Started](https://pytorch.org/get-started/locally) if GPU support is required, otherwise this can be installed with the building procedure.
 - ifermi (optional, install only when 3D fermi-surface plotting is needed.)
 
-
-then, located to the repository root and running ```pip install .```
+First clone or download the source code from website.
+Then, located to the repository root and running ```pip install .```
 
 ## **From Pypi**
 
