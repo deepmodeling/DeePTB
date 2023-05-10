@@ -16,7 +16,7 @@ from dptb.utils.constants import dtype_dict
 from dptb.plugins.init_nnsk import InitSKModel
 from dptb.plugins.init_dptb import InitDPTBModel
 from dptb.plugins.init_data import InitTestData
-from dptb.utils.argcheck import normalize
+from dptb.utils.argcheck import normalize_test
 from dptb.plugins.monitor import TestLossMonitor
 from dptb.plugins.train_logger import Logger
 
@@ -58,7 +58,7 @@ def validation(
             log.error("ValueError: Missing init_model file path.")
             raise ValueError
         jdata = j_loader(INPUT)
-        jdata = normalize(jdata)
+        jdata = normalize_test(jdata)
         
         if all((jdata["init_model"]["path"], run_opt["init_model"])):
             raise RuntimeError(
@@ -93,7 +93,7 @@ def validation(
             skconfig_path = None
 
         jdata = j_loader(INPUT)
-        jdata = normalize(jdata)
+        jdata = normalize_test(jdata)
 
         if all((jdata["init_model"]["path"], run_opt["init_model"])):
             raise RuntimeError(
@@ -162,7 +162,7 @@ def validation(
 
     set_log_handles(log_level, Path(log_path) if log_path else None)
 
-    setup_seed(seed=jdata["train_options"]["seed"])
+    # setup_seed(seed=jdata["train_options"]["seed"])
 
 
     # with open(os.path.join(output, "test_config.json"), "w") as fp:
@@ -184,7 +184,7 @@ def validation(
     tester.register_plugin(InitTestData())
     tester.register_plugin(TestLossMonitor())
     tester.register_plugin(Logger(["test_loss"], 
-        interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
+        interval=[(1, 'iteration'), (1, 'epoch')]))
     
     for q in tester.plugin_queues.values():
         heapq.heapify(q)

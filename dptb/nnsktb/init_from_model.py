@@ -228,7 +228,6 @@ def interpolate_init(skint_types, skint_layers, skint_types_ckpt_list, skint_lay
             t4 = "-".join([type[1],type[1]]+[type[3], type[2], type[4]])
             for (skint_layers_ckpt, skint_types_ckpt) in zip(skint_layers_ckpt_list, skint_types_ckpt_list):
                 nhidden_ckpt = skint_layers_ckpt[0].shape[2]
-                print(skint_types_ckpt)
                 if t1 in skint_types_ckpt:
                     index = skint_types_ckpt.index(t1)
                     layer1_[i][:,:nhidden_ckpt] = skint_layers_ckpt[0][index]
@@ -256,7 +255,6 @@ def interpolate_init(skint_types, skint_layers, skint_types_ckpt_list, skint_lay
             layer2[i] = layer2_[i] * 0.5
     
     skint_layers = [layer1, layer2]
-    print(count)
 
     return skint_layers
 

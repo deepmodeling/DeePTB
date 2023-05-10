@@ -10,6 +10,7 @@ get_optimizer, nnsk_correction, j_must_have
 from dptb.nnops.trainloss import lossfunction
 from dptb.nnops.base_tester import Tester
 
+log = logging.getLogger(__name__)
 
 class DPTBTester(Tester):
 
@@ -21,13 +22,11 @@ class DPTBTester(Tester):
     
     def _init_param(self, jdata):
         common_options = j_must_have(jdata, "common_options")
-        train_options = j_must_have(jdata, "train_options")
         data_options = j_must_have(jdata,"data_options")
         model_options = j_must_have(jdata, "model_options")
         loss_options = j_must_have(jdata, "loss_options")
 
         self.common_options = common_options
-        self.train_options = train_options
         self.data_options = data_options
         self.model_options = model_options
         self.loss_options = loss_options
@@ -35,7 +34,7 @@ class DPTBTester(Tester):
 
 
 
-        self.batch_size = data_options["train"]['batch_size']
+        self.batch_size = data_options["test"]['batch_size']
 
         self.proj_atom_anglr_m = common_options.get('proj_atom_anglr_m')
         self.proj_atom_neles = common_options.get('proj_atom_neles')

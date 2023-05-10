@@ -142,25 +142,80 @@ For full document about the input parameters, we refer to the detail [document](
 
 ```json
 "common_options": {
-        "onsitemode": "strain",
-        "onsite_cutoff": 2.6,
-        "bond_cutoff": 3.5,
-        "env_cutoff": 3.5,
-        "atomtype": ["A","B"],
-        "proj_atom_neles": {"A": 5,"B": 3},
-        "proj_atom_anglr_m": {
-            "A": ["2s","2p"],
-            "B": ["2s","2p"]
-        }
+    "onsitemode": "none",
+    "bond_cutoff": 3.2,
+    "atomtype": ["A","B"],
+    "proj_atom_anglr_m": {
+        "A": ["2s","2p"],
+        "B": ["2s","2p"]
+    }
+}
+```
+
+
+```json
+"model_options": {
+    "skfunction": {
+        "sk_cutoff": 3.5,
+        "sk_decay_w": 0.3,
+    }
+}
+```
+
+```json
+"data_options": {
+    "use_reference": true,
+    "train": {
+        "batch_size": 1,
+        "path": "./data",
+        "prefix": "set"
     },
+    "validation": {
+        "batch_size": 1,
+        "path": "./data",
+        "prefix": "set"
+    },
+    "reference": {
+        "batch_size": 1,
+        "path": "./data",
+        "prefix": "set"
+    }
+}
 ```
 
 ## 3.3 **Training**
-See the example hBN.
+When data and input config file is prepared, we are ready to train the model.
+To train a neural network parameterized Slater-Koster Tight-Binding model (nnsk) with Gradient Based Optimization method, we can run:
+```bash
+dptb train -sk input.json -o ./xxx
+```
+For training a environmental dependent Tight-Binding model (dptb), we can run:
+```bash
+dptb train input.json -o ./xxx
+```
+But the suggested procedure is first train a nnsk model, and use environment dependent neural network as a correction, as proposed in our paper: xxx:
+```bash
+dptb train input.json -o ./xxx -crt <nnsk checkpoint path>
+```
 
 ## 3.4 **Testing**
-See the example hBN.
-
+After the model is converged, the testing function can be used to do the model test, or compute the eigenvalues for other analysis. 
+First we copy the input file and change it to test file, which is:
+```bash
+cp ./input.json test.json
+```
+Then delete the `train_options` since it is not useful when testing the model. And we delete all lines contains in `data_options`, and add the `test` dataset config:
+```json
+"test": {
+    "batch_size": 1,  
+    "path": "./data", # dataset path
+    "prefix": "set"   # prefix of the data folder
+}
+```
+Then we can run:
+```bash
+dptb test <-sk> test.json -o ./test -i <nnsk checkpoint path>
+```
 ## 3.5 **Plotting**
 See the example hBN.
 

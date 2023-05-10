@@ -19,13 +19,11 @@ class NNSKTester(Tester):
         self._init_param(jdata)
     def _init_param(self, jdata):
         common_options = j_must_have(jdata, "common_options")
-        train_options = j_must_have(jdata, "train_options")
         data_options = j_must_have(jdata,"data_options")
         model_options = j_must_have(jdata, "model_options")
         loss_options = j_must_have(jdata, "loss_options")
 
         self.common_options = common_options
-        self.train_options = train_options
         self.data_options = data_options
         self.model_options = model_options
         self.loss_options = loss_options
@@ -35,7 +33,7 @@ class NNSKTester(Tester):
 
         # initialize loss options
         # ----------------------------------------------------------------------------------------------------------------------------------------------
-        self.batch_size = data_options["train"]['batch_size']
+        self.batch_size = data_options["test"]['batch_size']
         
         self.soc = common_options['soc']
         self.proj_atom_anglr_m = common_options.get('proj_atom_anglr_m')

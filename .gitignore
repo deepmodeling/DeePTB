@@ -14,8 +14,6 @@ asserts
 band.png
 *.pth
 *log*
-*.npy
-*.traj
 checkpoint.pl
 # Byte-compiled / optimized / DLL files
 __pycache__/

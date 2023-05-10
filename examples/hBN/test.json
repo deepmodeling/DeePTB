@@ -27,24 +27,8 @@
             ]
         }
     },
-    "train_options": {
-        "seed":120478,
-        "num_epoch": 200,
-        "optimizer": {"lr":5e-3}
-    },
     "data_options": {
-        "use_reference": true,
-        "train": {
-            "batch_size": 1,
-            "path": "./data",
-            "prefix": "set"
-        },
-        "validation": {
-            "batch_size": 1,
-            "path": "./data",
-            "prefix": "set"
-        },
-        "reference": {
+        "test": {
             "batch_size": 1,
             "path": "./data",
             "prefix": "set"

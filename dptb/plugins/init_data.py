@@ -89,7 +89,7 @@ class InitTestData(Plugin):
             sorted_env="itype-jtype",
             if_shuffle = False,
             **common_and_data_options,
-            **common_and_data_options["train"]
+            **common_and_data_options["test"]
         )
 
         self.data_stats()

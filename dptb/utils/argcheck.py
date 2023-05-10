@@ -169,6 +169,22 @@ def reference_data_sub():
     
     return Argument("reference", dict, optional=False, sub_fields=args, sub_variants=[], doc=doc_reference)
 
+def test_data_sub():
+    doc_batch_size = ""
+    doc_path = ""
+    doc_prefix = ""
+
+    args = [
+        Argument("batch_size", int, optional=False, doc=doc_batch_size),
+        Argument("path", str, optional=False, doc=doc_path),
+        Argument("prefix", str, optional=False, doc=doc_prefix)
+    ]
+
+    doc_reference = ""
+    
+    return Argument("test", dict, optional=False, sub_fields=args, default={}, sub_variants=[], doc=doc_reference)
+
+
 def data_options():
     doc_use_reference = ""
 
@@ -181,7 +197,18 @@ def data_options():
     doc_data_options = ""
 
     return Argument("data_options", dict, sub_fields=args, sub_variants=[], optional=False, doc=doc_data_options)
-        
+
+def test_data_options():
+    doc_use_reference = ""
+
+    args = [
+        test_data_sub()
+    ]
+
+    doc_test_data_options = ""
+
+    return Argument("data_options", dict, sub_fields=args, sub_variants=[], optional=False, doc=doc_test_data_options)
+
 
 def sknetwork():
     doc_sk_hop_nhidden = ""
@@ -286,6 +313,22 @@ def normalize(data):
     lo = loss_options()
 
     base = Argument("base", dict, [ini, co, tr, da, mo, lo])
+    data = base.normalize_value(data)
+    # data = base.normalize_value(data, trim_pattern="_*")
+    base.check_value(data, strict=True)
+
+    return data
+
+def normalize_test(data):
+
+    ini = init_model()
+
+    co = common_options()
+    da = test_data_options()
+    mo = model_options()
+    lo = loss_options()
+
+    base = Argument("base", dict, [ini, co, da, mo, lo])
     data = base.normalize_value(data)
     # data = base.normalize_value(data, trim_pattern="_*")
     base.check_value(data, strict=True)
