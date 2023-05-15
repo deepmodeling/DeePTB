@@ -95,8 +95,12 @@ class NNSKTrainer(Trainer):
         self.train_lossfunc = getattr(lossfunction(self.criterion), self.loss_options['losstype'])
         if self.loss_options['losstype'].startswith("eigs"):
             self.decompose = True
-        else:
+        elif self.loss_options['losstype'].startswith("block"):
             self.decompose = False
+        else:
+            log.error(msg="loss function is defined wrongly.")
+            raise ValueError("loss function is defined wrongly.")
+        
 
         self.validation_lossfunc = getattr(lossfunction(self.criterion), 'eigs_l2')
 

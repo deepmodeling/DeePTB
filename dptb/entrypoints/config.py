@@ -163,7 +163,7 @@ FULL_CONFIG={
                 256,
                 256
             ],
-            "bond_net_neuron": [
+            "hopping_net_neuron": [
                 128,
                 128,
                 256,
@@ -171,11 +171,11 @@ FULL_CONFIG={
             ],
             "onsite_net_activation": "tanh",
             "env_net_activation": "tanh",
-            "bond_net_activation": "tanh",
+            "hopping_net_activation": "tanh",
             "soc_net_activation": "tanh",
             "onsite_net_type": "res",
             "env_net_type": "res",
-            "bond_net_type": "res",
+            "hopping_net_type": "res",
             "soc_net_type": "res",
             "if_batch_normalized": False
         }

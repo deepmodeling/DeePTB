@@ -20,7 +20,7 @@ class DirectNet(nn.Module):
 
 
 class SKNet(nn.Module):
-    def __init__(self, skint_types: list, onsite_types:dict, soc_types: dict, bond_neurons: dict, onsite_neurons: dict, soc_neurons: dict=None, 
+    def __init__(self, skint_types: list, onsite_types:dict, soc_types: dict, hopping_neurons: dict, onsite_neurons: dict, soc_neurons: dict=None, 
                         onsite_index_dict:dict=None, onsitemode:str='none', device='cpu', dtype=torch.float32, **kwargs):
         ''' define the nn.parameters for fittig sktb.
 
@@ -36,7 +36,7 @@ class SKNet(nn.Module):
         onsiteint_types: list   
             the independent/reduced sk-like onsite integral types. like [''N-N-2s-2s-0',...]
         
-        bond_neurons: dict
+        hopping_neurons: dict
             {'nhidden':int, 'nout':int}
         # Note: nout 是拟合公式中的待定参数。比如varTang96 formula nout = 4. 
 
@@ -60,12 +60,12 @@ class SKNet(nn.Module):
         self.onsite_index_dict = onsite_index_dict
 
 
-        bond_config = {
+        hopping_config = {
             'nin': len(self.skint_types),
-            'nhidden': bond_neurons.get('nhidden',1),
-            'nout': bond_neurons.get('nout'),
+            'nhidden': hopping_neurons.get('nhidden',1),
+            'nout': hopping_neurons.get('nout'),
             'ini_std':0.001}
-        self.bond_net = DirectNet(device=device, dtype=dtype, **bond_config)
+        self.hopping_net = DirectNet(device=device, dtype=dtype, **hopping_config)
         
         if self.onsitemode.lower() == 'none':
             pass
@@ -73,8 +73,8 @@ class SKNet(nn.Module):
             assert onsite_types is not None, "for strain mode, the onsiteint_types can not be None!"
             onsite_config = {
                 'nin': len(self.onsite_types),
-                'nhidden': bond_neurons.get('nhidden',1),
-                'nout': bond_neurons.get('nout'),
+                'nhidden': hopping_neurons.get('nhidden',1),
+                'nout': hopping_neurons.get('nout'),
                 'ini_std':0.01}
             
             # Note: 这里onsite integral 选取和bond integral一样的公式，因此是相同的 nout.
@@ -137,7 +137,7 @@ class SKNet(nn.Module):
         '''
         
         if mode == 'hopping':
-            out = self.bond_net()
+            out = self.hopping_net()
             self.hop_coeffdict = dict(zip(self.skint_types, out))
             return self.hop_coeffdict
         elif mode == 'soc':

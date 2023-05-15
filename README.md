@@ -81,7 +81,7 @@ Where `band.png` is the bandstructure of the trained model. Which looks like (le
 <img src="./doc/img/band_1.png" width = "40%" height = "40%" alt="hBN Bands" align=center />
 </div>
 
-It shows that the fitting has learn the shape of the bandstructure, but not very accurate. We can further improve the accuracy by incooperating more function, for example the onsite correction. There are three kind of onsite correction supported: `split`, `uniform` and `strain`. We use `strain` for now to see the effect. Now change the `onsitemode` in `input_sort.json` from `none` to `strain`, `num_epoch` to `400` and using the command:
+It shows that the fitting has learn the shape of the bandstructure, but not very accurate. We can further improve the accuracy by incooperating more function, for example the onsite correction. There are three kind of onsite correction supported: `uniform` and `strain`. We use `strain` for now to see the effect. Now change the `onsitemode` in `input_sort.json` from `none` to `strain`, `num_epoch` to `400` and using the command:
 ```bash
 dptb train -sk input_short.json -o ./first -i ./first/checkpoint/best_nnsk_c1.5w0.3.pth
 ```
@@ -121,7 +121,7 @@ One should prepare the **atomic structures** and **electronic band structures**.
 `bandinfo.json` defines the settings of the training objective of each structure, basicly you can have specific settings for different structure, which allow training across structures across diffrent atom number and atom type.
 
 The **bandinfo.json** file looks like:
-```json
+```bash
 {
     "band_min": 0,
     "band_max": 4,

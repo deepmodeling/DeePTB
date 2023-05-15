@@ -20,7 +20,7 @@ class Saver(Plugin):
         self.trainer = trainer
 
     def iteration(self, **kwargs):
-        suffix = "_b"+"%.3f"%self.trainer.common_options["bond_cutoff"]+"_c"+"%.3f"%self.trainer.model_options["skfunction"]["sk_cutoff"]+"w"+\
+        suffix = "_b"+"%.3f"%self.trainer.common_options["bond_cutoff"]+"_c"+"%.3f"%self.trainer.model_options["skfunction"]["sk_cutoff"]+"_w"+\
                 "%.3f"%self.trainer.model_options["skfunction"]["sk_decay_w"]
         self._save(name="latest_"+self.trainer.name+suffix,model=self.trainer.model,model_config=self.trainer.model_config)
         if self.trainer.name == "dptb" \
@@ -31,7 +31,7 @@ class Saver(Plugin):
 
     def epoch(self, **kwargs):
         if self.trainer.stats.get('validation_loss').get('last',1e6) < self.best_loss:
-            suffix = "_b"+"%.3f"%self.trainer.common_options["bond_cutoff"]+"_c"+"%.3f"%self.trainer.model_options["skfunction"]["sk_cutoff"]+"w"+\
+            suffix = "_b"+"%.3f"%self.trainer.common_options["bond_cutoff"]+"_c"+"%.3f"%self.trainer.model_options["skfunction"]["sk_cutoff"]+"_w"+\
                 "%.3f"%self.trainer.model_options["skfunction"]["sk_decay_w"]
             self._save(name="best_"+self.trainer.name+suffix,model=self.trainer.model,model_config=self.trainer.model_config)
             self.best_loss = self.trainer.stats['validation_loss'].get('last',1e6)

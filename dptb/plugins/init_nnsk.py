@@ -66,7 +66,7 @@ class InitSKModel(Plugin):
         
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
         _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
-        bond_neurons = {"nhidden": num_hopping_hideen,  "nout": hops_fun.num_paras}
+        hopping_neurons = {"nhidden": num_hopping_hideen,  "nout": hops_fun.num_paras}
 
 
         options = {"onsitemode": onsitemode}
@@ -92,7 +92,7 @@ class InitSKModel(Plugin):
         self.host.model = SKNet(skint_types=reducted_skint_types,
                                 onsite_types=onsite_types,
                                 soc_types=reduced_onsiteE_types,
-                                bond_neurons=bond_neurons,
+                                hopping_neurons=hopping_neurons,
                                 onsite_neurons=onsite_neurons,
                                 soc_neurons=soc_neurons,
                                 device=device,
@@ -230,7 +230,7 @@ class InitSKModel(Plugin):
 
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
         _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
-        bond_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras}
+        hopping_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras}
 
         if onsitemode == 'strain':
             onsite_neurons = {"nhidden":num_onsite_hidden,"nout":onsitestrain_fun.num_paras}
@@ -248,7 +248,7 @@ class InitSKModel(Plugin):
         model = SKNet(skint_types=reducted_skint_types,
                                    onsite_types=onsite_types,
                                    soc_types=reduced_onsiteE_types,
-                                   bond_neurons=bond_neurons,
+                                   bond_neurons=hopping_neurons,
                                    onsite_neurons=onsite_neurons,
                                    soc_neurons=soc_neurons,
                                    device=device,
