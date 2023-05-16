@@ -1,5 +1,5 @@
 import pytest
-from dptb.utils.make_kpoints import interp_kpath, ase_kpath
+from dptb.utils.make_kpoints import abacus_kpath, ase_kpath
 from ase.io import read
 import numpy as np
 
@@ -34,7 +34,7 @@ def test_intpkpath(root_directory):
            [0.00000000, 0.00000000, 0.00000000, 1]]
     klabels = ['G','M','K','G']
     struct = read(hbn_file)
-    klist, xlist, high_sym_kpoints = interp_kpath(structase=struct, kpath=kpath)
+    klist, xlist, high_sym_kpoints = abacus_kpath(structase=struct, kpath=kpath)
     assert (np.abs(klist -  true_klist) < 1e-6).all()
     assert (np.abs(xlist -  true_xlist) < 1e-6).all()
     assert (np.abs(high_sym_kpoints - true_hskp)< 1e-6).all()
@@ -63,7 +63,7 @@ def test_intpkpath2(root_directory):
            [0.00000000, 0.00000000, 0.00000000, 1]]
     klabels = ['G','M','K','G']
     struct = read(hbn_file)
-    klist, xlist, high_sym_kpoints = interp_kpath(structase=struct, kpath=kpath)
+    klist, xlist, high_sym_kpoints = abacus_kpath(structase=struct, kpath=kpath)
     assert (np.abs(klist -  true_klist2) < 1e-6).all()
     assert (np.abs(xlist -  true_xlist2) < 1e-6).all()
     assert (np.abs(high_sym_kpoints - true_hskp2)< 1e-6).all()

@@ -76,7 +76,8 @@ def checkdict(dict_prototype, dict_update, checklist):
     flatten_dict_update = flatten_dict(dict_update)
     for cid in checklist:
         if flatten_dict_prototype.get(cid) != flatten_dict_update.get(cid):
-            raise ValueError
+            log.error(msg="the {0} in input config is not align with it in checkpoint.".format(cid))
+            raise ValueError("the {0} in input config is not align with it in checkpoint.".format(cid))
 
     return True
     

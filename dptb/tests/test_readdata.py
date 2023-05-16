@@ -30,13 +30,13 @@ eig000=np.array([-22.51867585, -10.28791391,  -6.41103909,  -6.40648338,
 
 def test_read_data(root_directory):
     read2bin(root_directory)
-    filepath = root_directory + '/examples/TBmodel/hBN/data'
+    filepath = root_directory + '/dptb/tests/data/hBN/data'
     prefix = 'set'
     cutoff=4
     proj_atom_anglr_m = {"N":["s","p"],"B":["s","p"]}
     proj_atom_neles =  {"N":5,"B":3}
 
-    struct_list_sets, kpoints_sets, eigens_sets = read_data(filepath, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles)
+    struct_list_sets, kpoints_sets, eigens_sets, bandinfo_sets, wannier_sets = read_data(filepath, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles)
 
     assert len(struct_list_sets) == len(kpoints_sets) == len(eigens_sets) == 1
     assert len(struct_list_sets[0]) == 1
@@ -46,7 +46,7 @@ def test_read_data(root_directory):
     assert (np.abs(eigens_sets[0][0,0] - eig000) < 1e-6).all()
 
 def read2bin(root_directory):
-    in_dir = root_directory + '/examples/TBmodel/hBN/data/set.0'
+    in_dir = root_directory + '/dptb/tests/data/hBN/data/set.0'
     eig_file ='eigenvalues.dat'
     kpoints_file = 'kpoints.dat'
     struct_file='struct.vasp'

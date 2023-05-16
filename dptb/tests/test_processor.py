@@ -16,7 +16,7 @@ def test_env():
 
 def test_atomtype(root_directory):
     filename = root_directory
-    filename += '/examples/TBmodel/hBN/check/hBN.vasp'
+    filename += '/dptb/tests/data/hBN/hBN.vasp'
     proj_atom_anglr_m = {"N": ["s", "p"], "B": ["s", "p"]}
     proj_atom_neles = {"N": 5, "B": 3}
     CutOff = 4
@@ -34,7 +34,7 @@ def test_atomtype(root_directory):
 
 def test_proj_atomtype(root_directory):
     filename = root_directory
-    filename +=  '/examples/TBmodel/hBN/check/hBN.vasp'
+    filename +=  '/dptb/tests/data/hBN/hBN.vasp'
     proj_atom_anglr_m = {"N": ["s", "p"], "B": ["s", "p"]}
     proj_atom_neles = {"N": 5, "B": 3}
     CutOff = 4
@@ -56,7 +56,7 @@ def test_getbond(root_directory):
 
 def test_iter(root_directory):
     filename = root_directory
-    filename += '/examples/TBmodel/hBN/check/hBN.vasp'
+    filename += '/dptb/tests/data/hBN/hBN.vasp'
     proj_atom_anglr_m = {"N": ["s", "p"], "B": ["s", "p"]}
     proj_atom_neles = {"N": 5, "B": 3}
 

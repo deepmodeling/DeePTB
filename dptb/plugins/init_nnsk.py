@@ -248,7 +248,7 @@ class InitSKModel(Plugin):
         model = SKNet(skint_types=reducted_skint_types,
                                    onsite_types=onsite_types,
                                    soc_types=reduced_onsiteE_types,
-                                   bond_neurons=hopping_neurons,
+                                   hopping_neurons=hopping_neurons,
                                    onsite_neurons=onsite_neurons,
                                    soc_neurons=soc_neurons,
                                    device=device,

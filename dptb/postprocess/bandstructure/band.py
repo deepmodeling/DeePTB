@@ -142,7 +142,8 @@ class bandcalc(object):
             spine.set_edgecolor('#5d5d5d')
             spine.set_linewidth(1.5)
         
-        plt.legend(handles=[band_pre[0], band_ref[0]], loc="best")
+        if self.ref_band:
+            plt.legend(handles=[band_pre[0], band_ref[0]], loc="best")
         
         plt.tight_layout()
         # remove the box around the plot
