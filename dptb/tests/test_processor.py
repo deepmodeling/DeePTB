@@ -70,7 +70,8 @@ def test_iter(root_directory):
     struct_list = [struct, basestruct, struct, basestruct]
     kpoints_list = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
     eig_list = np.array([np.zeros([2,10]), np.zeros([2,10]),np.zeros([2,10]),np.zeros([2,10])])
-    processor = Processor(structure_list=struct_list, kpoint=kpoints_list, eigen_list=eig_list, batchsize=1, env_cutoff=5)
+    processor = Processor(structure_list=struct_list, kpoint=kpoints_list, eigen_list=eig_list, 
+                          wannier_list=[None for _ in range(len(struct_list))], batchsize=1, env_cutoff=5)
     processor.get_env()
 
     i = 0
