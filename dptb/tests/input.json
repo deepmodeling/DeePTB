@@ -1,92 +1,64 @@
 {
-  "device": "cpu",
+  "init_model": {
+      "path": null,
+      "interpolate": false
+  },
+  "common_options": {
+      "onsitemode": "none",
+      "onsite_cutoff": 2.6,
+      "bond_cutoff": 1.6,
+      "env_cutoff": 3.5,
+      "atomtype": [
+          "N",
+          "B"
+      ],
+      "proj_atom_neles": {
+          "N": 5,
+          "B": 3
+      },
+      "proj_atom_anglr_m": {
+          "N": [
+              "2s",
+              "2p"
+          ],
+          "B": [
+              "2s",
+              "2p"
+          ]
+      }
+  },
   "train_options": {
-    "num_epoch": 3000,
-    "display_epoch": 1,
-    "use_reference": false
-  },
-  "optimizer_options": {
-    "lr": 1e-1,
-    "opt_type": "Adam"
-  },
-  "sch_options": {
-    "sch_type": "Expo",
-    "gamma": 0.998
+      "seed":120478,
+      "num_epoch": 4000,
+      "optimizer": {"lr":1e-2}
   },
   "data_options": {
-    "batch_size": 1,
-    "sk_file_path": "../examples/slakos/",
-    "bond_cutoff": 4,
-    "env_cutoff": 3.5,
-    "train_data_path": "../examples/TBmodel/hBN/data/",
-    "train_data_prefix": "set",
-    "test_data_path": "../examples/TBmodel/hBN/data/",
-    "test_data_prefix": "set",
-    "ref_data_path": "../examples/TBmodel/hBN/data/",
-    "ref_data_prefix": "set",
-    "proj_atom_neles": {
-      "N": 5,
-      "B": 3
-    },
-    "proj_atom_anglr_m": {
-      "N": [
-        "2s",
-        "2p"
-      ],
-      "B": [
-        "2s",
-        "2p"
-      ]
-    },
-    "time_symm": true
+      "use_reference": true,
+      "train": {
+          "batch_size": 1,
+          "path": "./data/hBN/data/",
+          "prefix": "set"
+      },
+      "validation": {
+          "batch_size": 1,
+          "path": "./data/hBN/data/",
+          "prefix": "set"
+      },
+      "reference": {
+          "batch_size": 1,
+          "path": "./data/hBN/data/",
+          "prefix": "set"
+      }
   },
   "model_options": {
-    "onsitemode": "uniform",
-    "nhidden": 10,
-    "axis_neuron": 10,
-    "onsite_net_neuron": [
-      128,
-      128,
-      256,
-      256
-    ],
-    "env_net_neuron": [
-      128,
-      128,
-      256,
-      256
-    ],
-    "bond_net_neuron": [
-      128,
-      128,
-      256,
-      256
-    ],
-    "onsite_net_activation": "tanh",
-    "env_net_activation": "tanh",
-    "bond_net_activation": "tanh",
-    "onsite_net_type": "ffn",
-    "env_net_type": "res",
-    "bond_net_type": "ffn",
-    "if_batch_normalized": false
-  },
-  "sk_options":{
-    "skformula":"varTang96",
-    "sk_cutoff": 3.5,
-    "sk_decay_w":0.5
-  },
-  "loss_options":{
-    "emin": -25,
-    "emax": 10,
-    "band_min": 0,
-    "band_max": 4,
-    "ref_band_min": 0,
-    "ref_band_max": 4,
-    "sigma":2,
-    "num_omega":3000,
-    "sortstrength":[0.01,0.01],
-    "gap_penalty": false,
-    "fermi_band":3,
-    "loss_gap_eta":1e-2
+      "sknetwork": {
+          "sk_hop_nhidden": 1,
+          "sk_onsite_nhidden": 1
+      },
+      "skfunction": {
+          "sk_formula": "varTrang96",
+          "sk_cutoff": 1.6,
+          "sk_decay_w": 0.3
+      }
   }
 }

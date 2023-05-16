@@ -5,7 +5,7 @@
     },
     "common_options": {
         "onsitemode": "none",
-        "onsite_cutoff": 2.6,
+        "onsite_cutoff": 3.6,
         "bond_cutoff": 1.6,
         "env_cutoff": 3.5,
         "atomtype": [

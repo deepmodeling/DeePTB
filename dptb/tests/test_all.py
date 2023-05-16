@@ -1,5 +1,5 @@
 from dptb.entrypoints.train import train
-from dptb.entrypoints.tester import validation
+from dptb.entrypoints.test import _test
 from dptb.entrypoints.main import parse_args
 import os
 from pathlib import Path
@@ -8,6 +8,9 @@ import logging
 INPUT = os.path.join(Path(os.path.abspath(__file__)).parent, "data/input.json")
 INPUT_nnsk = os.path.join(Path(os.path.abspath(__file__)).parent, "data/input_nnsk.json")
 INPUT_adding_orbital = os.path.join(Path(os.path.abspath(__file__)).parent, "data/input_nnsk_d.json")
+
+INPUT_nnsk_test = os.path.join(Path(os.path.abspath(__file__)).parent, "data/input_nnsk_test.json")
+INPUT_dptb_test = os.path.join(Path(os.path.abspath(__file__)).parent, "data/input_dptb_test.json")
 
 test_data_path = os.path.join(Path(os.path.abspath(__file__)).parent, "data/")
 
@@ -146,8 +149,8 @@ def test_train_nnsk_adding_orbital():
     )
 
 def test_tester_nnsk():
-    validation(
-        INPUT=INPUT,
+    _test(
+        INPUT=INPUT_nnsk_test,
         init_model=test_data_path+"/hBN/checkpoint/best_nnsk.pth",
         output=test_data_path+"/test_all",
         log_level=2,
@@ -157,8 +160,8 @@ def test_tester_nnsk():
     )
 
 def test_tester_dptb():
-    validation(
-        INPUT=INPUT,
+    _test(
+        INPUT=INPUT_dptb_test,
         init_model=test_data_path+"/hBN/checkpoint/best_dptb.pth",
         output=test_data_path+"/test_all",
         log_level=2,

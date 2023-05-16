@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from dptb.entrypoints.train import train
 from dptb.entrypoints.config import config
-from dptb.entrypoints.tester import validation
-from dptb.entrypoints.postrun import postrun
+from dptb.entrypoints.test import _test
+from dptb.entrypoints.run import run
 from dptb.entrypoints.bond import bond
 from dptb.utils.loggers import set_log_handles
 
@@ -317,7 +317,7 @@ def main():
         train(**dict_args)
 
     elif args.command == 'test':
-        validation(**dict_args)
+        _test(**dict_args)
 
     elif args.command == 'run':
-        postrun(**dict_args)
+        run(**dict_args)

@@ -1,0 +1,49 @@
+{
+    "init_model": {
+        "path": null,
+        "interpolate": false
+    },
+    "common_options": {
+        "onsitemode": "strain",
+        "onsite_cutoff": 3.0,
+        "bond_cutoff": 4.0,
+        "env_cutoff": 3.5,
+        "atomtype": [
+            "N",
+            "B"
+        ],
+        "proj_atom_neles": {
+            "N": 5,
+            "B": 3
+        },
+        "proj_atom_anglr_m": {
+            "N": [
+                "2s",
+                "2p"
+            ],
+            "B": [
+                "2s",
+                "2p"
+            ]
+        }
+    },
+    "data_options": {
+        "test": {
+            "batch_size": 1,
+            "path": "./dptb/tests/data/hBN/data/",
+            "prefix": "set"
+        }
+    },
+    "model_options": {
+        "sknetwork": {
+            "sk_hop_nhidden": 1,
+            "sk_onsite_nhidden": 1
+        },
+        "skfunction": {
+            "skformula": "powerlaw",
+            "sk_cutoff": 4.0,
+            "sk_decay_w": 0.3
+        }
+    }
+  }
+  
