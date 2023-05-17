@@ -35,7 +35,7 @@ def init_from_model_(SKNet, checkpoint_list, interpolate=False):
 
     # direct update:
     types_list = [onsite_types, skint_types, soc_types]
-    layers_list = [["onsite_net.layer1", "onsite_net.layer2"], ["bond_net.layer1", "bond_net.layer2"], ["soc_net.layer1", "soc_net.layer2"]]
+    layers_list = [["onsite_net.layer1", "onsite_net.layer2"], ["hopping_net.layer1", "hopping_net.layer2"], ["soc_net.layer1", "soc_net.layer2"]]
 
     skint_types_ckpt_list = []
     skint_layers_ckpt_list = []

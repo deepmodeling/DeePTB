@@ -150,7 +150,7 @@ class InitSKModel(Plugin):
         #modeltype = common_and_model_and_run_options['modeltype']
 
         # ----------------------------------------------------------------------------------------------------------
-        json_model_types = ["onsite", "hopping","soc"]
+        json_model_types = ["onsite", "hopping", "soc"]
         if modeltype == "ckpt":
             ckpt_list = [torch.load(ckpt) for ckpt in checkpoint]
         elif modeltype == "json":
