@@ -176,7 +176,6 @@ class HamilEig(RotationSK):
                 direction_vec = env[8:11].astype(np.float32)
 
                 sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[iatype]], dtype=self.dtype, device=self.device)
-            
                 envtype = iatype + '-' + jatype
 
                 ist = 0

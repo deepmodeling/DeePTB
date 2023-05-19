@@ -88,7 +88,7 @@ def init_from_json_(SKNet, json_model:dict):
     
     types_list = [onsite_types, skint_types, soc_types]
     types_list_names = ['onsite_types', 'skint_types', 'soc_types']
-    layers_list = [["onsite_net.layer1", "onsite_net.layer2"], ["bond_net.layer1", "bond_net.layer2"], ["soc_net.layer1", "soc_net.layer2"]]
+    layers_list = [["onsite_net.layer1", "onsite_net.layer2"], ["hopping_net.layer1", "hopping_net.layer2"], ["soc_net.layer1", "soc_net.layer2"]]
 
     json_model_types = ["onsite", "hopping","soc"]
     #assert "onsite" in json_model.keys() and "hopping" in json_model.keys()
