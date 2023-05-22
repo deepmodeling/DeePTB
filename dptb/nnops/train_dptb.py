@@ -56,20 +56,9 @@ class DPTBTrainer(Trainer):
 
         # sortstrength = loss_options['sortstrength']
         # self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(sortstrength[0]), end=np.log(sortstrength[1]), steps=self.num_epoch))
-        sk_cutoff = self.model_options["skfunction"]["sk_cutoff"]
-        sk_decay_w = self.model_options["skfunction"]["sk_decay_w"]
-        if isinstance(sk_cutoff, list):
-            assert len(sk_cutoff) == 2
-            self.skcut_step = (sk_cutoff[1] - sk_cutoff[0]) / (self.num_epoch - self.epoch + 1)
-            self.model_options["skfunction"]["sk_cutoff"] = sk_cutoff[0]
-        else:
-            self.skcut_step = 0
-        if isinstance(sk_decay_w, list):
-            assert len(sk_decay_w) == 2
-            self.skdecay_step = (sk_decay_w[1] - sk_decay_w[0]) / (self.num_epoch - self.epoch + 1)
-            self.model_options["skfunction"]["sk_decay_w"] = sk_decay_w[0]
-        else:
-            self.skdecay_step = 0
+        self.sk_cutoff = self.model_options["skfunction"]["sk_cutoff"]
+        self.sk_decay_w = self.model_options["skfunction"]["sk_decay_w"]
+        
         
 
     def build(self):
@@ -93,6 +82,19 @@ class DPTBTrainer(Trainer):
             model_param = self.model.parameters()
         self.optimizer = get_optimizer(model_param=model_param, **self.train_options["optimizer"])
         self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **self.train_options["lr_scheduler"])
+
+        if isinstance(self.sk_cutoff, list):
+            assert len(self.sk_cutoff) == 2
+            self.skcut_step = (self.sk_cutoff[1] - self.sk_cutoff[0]) / (self.num_epoch - self.epoch + 1)
+            self.model_options["skfunction"]["sk_cutoff"] = self.sk_cutoff[0]
+        else:
+            self.skcut_step = 0
+        if isinstance(self.sk_decay_w, list):
+            assert len(self.sk_decay_w) == 2
+            self.skdecay_step = (self.sk_decay_w[1] - self.sk_decay_w[0]) / (self.num_epoch - self.epoch + 1)
+            self.model_options["skfunction"]["sk_decay_w"] = self.sk_decay_w[0]
+        else:
+            self.skdecay_step = 0
 
         if self.run_opt["mode"] == "restart":
             ckpt = torch.load(self.run_opt["restart"])

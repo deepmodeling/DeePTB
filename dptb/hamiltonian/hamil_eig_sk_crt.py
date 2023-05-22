@@ -264,7 +264,7 @@ class HamilEig(RotationSK):
                             sub_over_block[ist:ist+norbi, jst:jst+norbj] = tmpS
                 
                     jst = jst + norbj 
-                ist = ist + norbi   
+                ist = ist + norbi
             
             hoppingH_blocks.append(sub_hamil_block)
             if not self.use_orthogonal_basis:
