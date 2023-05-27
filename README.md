@@ -52,10 +52,10 @@ Here ``-sk`` indicate to fit the sk like parameters, and ``-o`` indicate the out
 ```
 first/
 -- checkpoint/
--- -- best_nnsk_c3.5w0.3.json
--- -- best_nnsk_c3.5w0.3.pth
--- -- latest_nnsk_c3.5w0.3.json
--- -- latest_nnsk_c3.5w0.3.pth
+-- -- best_nnsk_c1.5w0.3.json
+-- -- best_nnsk_c1.5w0.3.pth
+-- -- latest_nnsk_c1.5w0.3.json
+-- -- latest_nnsk_c1.5w0.3.pth
 -- log/
 -- -- log.txt
 -- train_config.json
