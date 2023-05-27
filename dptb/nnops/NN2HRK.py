@@ -64,7 +64,9 @@ class NN2HRK(object):
         assert self.if_nn_HR_ready or self.if_dp_HR_ready, "The HR shoule be calcualted before call for HK." 
         eigenvalues,eigenvectors = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm, unit =self.unit)
         eigks = eigenvalues.detach().numpy()
-        eigvecks = eigenvectors.detach().numpy()
+
+        if eigvec:
+            eigvecks = eigenvectors.detach().numpy()
         
         num_el = np.sum(self.structure.proj_atom_neles_per)
         nk = len(kpoints)
