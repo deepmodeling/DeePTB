@@ -1,7 +1,7 @@
 from dptb.dataprocess.datareader import read_data
 import numpy as np
 import pytest
-from dptb.utils.tools import get_env_neuron_config, get_bond_neuron_config, get_onsite_neuron_config
+from dptb.utils.tools import get_env_neuron_config, get_hopping_neuron_config, get_onsite_neuron_config
 
 
 def test_envnet():
@@ -21,19 +21,19 @@ def test_bondnet():
     bond_type = ['N-N', 'N-B', 'B-B']
 
     bond_nnl = [10,20]
-    bond_net_config = get_bond_neuron_config(bond_nnl, bond_num_hops, bond_type, env_axisnn,  env_nnl_out)
+    bond_net_config = get_hopping_neuron_config(bond_nnl, bond_num_hops, bond_type, env_axisnn,  env_nnl_out)
     assert bond_net_config == {'N-N': [{'n_in': 321, 'n_hidden': 10, 'n_out': 20}, {'n_in': 20, 'n_out': 4}],
                         'N-B': [{'n_in': 321, 'n_hidden': 10, 'n_out': 20}, {'n_in': 20, 'n_out': 5}],
                         'B-B': [{'n_in': 321, 'n_hidden': 10, 'n_out': 20}, {'n_in': 20, 'n_out': 4}]}
     
     bond_nnl = [10,20,40]
-    bond_net_config = get_bond_neuron_config(bond_nnl, bond_num_hops, bond_type, env_axisnn,  env_nnl_out)
+    bond_net_config = get_hopping_neuron_config(bond_nnl, bond_num_hops, bond_type, env_axisnn,  env_nnl_out)
     assert bond_net_config == {'N-N': [{'n_in': 321, 'n_hidden': 10, 'n_out': 20}, {'n_in': 20, 'n_hidden': 40, 'n_out': 4}],
                         'N-B': [{'n_in': 321, 'n_hidden': 10, 'n_out': 20}, {'n_in': 20, 'n_hidden': 40, 'n_out': 5}],
                         'B-B': [{'n_in': 321, 'n_hidden': 10, 'n_out': 20}, {'n_in': 20, 'n_hidden': 40, 'n_out': 4}]}
 
     bond_nnl = [10,20,40,80]
-    bond_net_config = get_bond_neuron_config(bond_nnl, bond_num_hops, bond_type, env_axisnn,  env_nnl_out)
+    bond_net_config = get_hopping_neuron_config(bond_nnl, bond_num_hops, bond_type, env_axisnn,  env_nnl_out)
     assert bond_net_config ==  {'N-N': [{'n_in': 321, 'n_hidden': 10, 'n_out': 20}, {'n_in': 20, 'n_hidden': 40, 'n_out': 80}, {'n_in': 80, 'n_out': 4}],
                          'N-B': [{'n_in': 321, 'n_hidden': 10, 'n_out': 20}, {'n_in': 20, 'n_hidden': 40, 'n_out': 80}, {'n_in': 80, 'n_out': 5}],
                          'B-B': [{'n_in': 321, 'n_hidden': 10, 'n_out': 20}, {'n_in': 20, 'n_hidden': 40, 'n_out': 80}, {'n_in': 80, 'n_out': 4}]}

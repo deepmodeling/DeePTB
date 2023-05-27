@@ -54,7 +54,7 @@ def root_directory(request):
 
 def test_SKHSLists(root_directory):
     sk_file_path = root_directory + '/examples/slakos'
-    filename = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
+    filename = root_directory + '/dptb/tests/data/hBN/hBN.vasp'
     proj_atom_anglr_m = {"N":["s","p"],"B":["s","p"]}
     proj_atom_neles = {"N": 5,"B":3}
     CutOff = 4

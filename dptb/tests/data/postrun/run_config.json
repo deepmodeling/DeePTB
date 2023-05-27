@@ -1,0 +1,21 @@
+{
+    "structure": "./dptb/tests/data/hBN/hBN.vasp",
+    "task_options": {
+        "task": "band",
+        "kline_type": "ase",
+        "kpath": "GMKG",
+        "nkpoints": 120,
+        "emin": -10,
+        "emax": 10,
+        "klabels": [
+            ""
+        ],
+        "E_fermi": null,
+        "ref_band": null
+    },
+    "init_model": {
+        "path": "/root/deeptb/dptb/tests/data/hBN/checkpoint/best_dptb.pth",
+        "interpolate": false
+    },
+    "use_correction": null
+}

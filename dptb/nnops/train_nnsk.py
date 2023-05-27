@@ -50,8 +50,11 @@ class NNSKTrainer(Trainer):
         if self.use_reference:
             self.reference_loss_options = loss_options.copy()
 
-        sortstrength = loss_options['sortstrength']
-        self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(sortstrength[0]), end=np.log(sortstrength[1]), steps=self.num_epoch))
+        # sortstrength = loss_options['sortstrength']
+        # self.sortstrength_epoch = torch.exp(torch.linspace(start=np.log(sortstrength[0]), end=np.log(sortstrength[1]), steps=self.num_epoch))
+        self.sk_cutoff = self.model_options["skfunction"]["sk_cutoff"]
+        self.sk_decay_w = self.model_options["skfunction"]["sk_decay_w"]
+        
 
 
         
@@ -77,12 +80,28 @@ class NNSKTrainer(Trainer):
                     plugin = (getattr(self, unit) + plugin[0], plugin[1], plugin[2])
 
         self.criterion = torch.nn.MSELoss(reduction='mean')
+        if isinstance(self.sk_cutoff, list):
+            assert len(self.sk_cutoff) == 2
+            self.skcut_step = (self.sk_cutoff[1] - self.sk_cutoff[0]) / (self.num_epoch - self.epoch + 1)
+            self.model_options["skfunction"]["sk_cutoff"] = self.sk_cutoff[0]
+        else:
+            self.skcut_step = 0
+        if isinstance(self.sk_decay_w, list):
+            assert len(self.sk_decay_w) == 2
+            self.skdecay_step = (self.sk_decay_w[1] - self.sk_decay_w[0]) / (self.num_epoch - self.epoch + 1)
+            self.model_options["skfunction"]["sk_decay_w"] = self.sk_decay_w[0]
+        else:
+            self.skdecay_step = 0
 
         self.train_lossfunc = getattr(lossfunction(self.criterion), self.loss_options['losstype'])
         if self.loss_options['losstype'].startswith("eigs"):
             self.decompose = True
-        else:
+        elif self.loss_options['losstype'].startswith("block"):
             self.decompose = False
+        else:
+            log.error(msg="loss function is defined wrongly.")
+            raise ValueError("loss function is defined wrongly.")
+        
 
         self.validation_lossfunc = getattr(lossfunction(self.criterion), 'eigs_l2')
 
@@ -93,7 +112,7 @@ class NNSKTrainer(Trainer):
         if len(kpoints.shape) != 2: 
             log.error(msg="kpoints should have shape of [num_kp, 3].")
             raise ValueError
-        if (wannier_blocks[0] is None) and not (self.decompose):
+        if (wannier_blocks[0] is None) and not (decompose):
             log.error(msg="The wannier_blocks from processor is None, but the losstype wannier, please check the input data, maybe the wannier.npy is not there.")
             raise ValueError
 
@@ -228,6 +247,10 @@ class NNSKTrainer(Trainer):
             # self.lr_scheduler.step() # 在epoch 加入 scheduler.
 
             self.iteration += 1
+
+    def update(self, **kwargs):
+        self.model_options["skfunction"]["sk_cutoff"] += self.skcut_step
+        self.model_options["skfunction"]["sk_decay_w"] += self.skdecay_step
 
     def validation(self, **kwargs):
         with torch.no_grad():

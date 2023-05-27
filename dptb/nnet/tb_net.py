@@ -19,15 +19,15 @@ class TBNet(nn.Module):
                  atomtype,
                  env_net_config,
                  onsite_net_config,
-                 bond_net_config,
+                 hopping_net_config,
                  onsite_net_activation,
                  env_net_activation,
-                 bond_net_activation,
+                 hopping_net_activation,
                  soc_net_config=None,
                  soc_net_activation=None,
                  onsite_net_type='res',
                  env_net_type='res',
-                 bond_net_type='res',
+                 hopping_net_type='res',
                  soc_net_type='res',
                  if_batch_normalized=False,
                  device='cpu',
@@ -38,7 +38,7 @@ class TBNet(nn.Module):
         self.atom_type = get_uniq_symbol(atomtype)
         self.bond_type = get_uniq_bond_type(proj_atomtype)
         self.env_bond_type = get_uniq_env_bond_type(proj_atomtype, atomtype)
-        self.bond_nets = nn.ModuleDict({})
+        self.hopping_nets = nn.ModuleDict({})
         self.onsite_nets = nn.ModuleDict({})
         self.env_nets = nn.ModuleDict({})
         if soc_net_config:
@@ -87,12 +87,12 @@ class TBNet(nn.Module):
             })
         #ToDo: add bond type specific net_config.
         for bond in self.bond_type:
-            self.bond_nets.update({
+            self.hopping_nets.update({
                 bond:_get_network(
-                config=bond_net_config[bond],
-                activation=bond_net_activation,
+                config=hopping_net_config[bond],
+                activation=hopping_net_activation,
                 if_batch_normalized=if_batch_normalized,
-                type=bond_net_type,
+                type=hopping_net_type,
                 device=device,
                 dtype=dtype
                 )
@@ -138,7 +138,7 @@ class TBNet(nn.Module):
         elif mode == 'hopping':
             # x : [f,itype,i,jtype,j,R,|rij|,rij_hat,emb_fij] --> [f, itype, i, jtype,j,R, |rij|, rij_hat,hopping]
             emb = torch.cat((x[:,[8]], x[:,12:]), dim=1)
-            out = self.bond_nets[flag](emb)
+            out = self.hopping_nets[flag](emb)
             out = torch.cat((x[:,:12], out), dim=1)
         else:
             return RuntimeError("mode should be emb/onsite/hopping, not {}".format(mode))

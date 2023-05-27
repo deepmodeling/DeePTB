@@ -28,16 +28,16 @@ class TestSKnet:
     all_onsiteE_types_dict, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
     all_skint_types_dict, reducted_skint_types, sk_bond_ind_dict = all_skint_types(bond_index_map=bond_index_map)
 
-    modelstrain = SKNet(skint_types=reducted_skint_types, onsite_types=reducted_onsiteint_types, soc_types=reduced_onsiteE_types, bond_neurons=bond_neurons, 
+    modelstrain = SKNet(skint_types=reducted_skint_types, onsite_types=reducted_onsiteint_types, soc_types=reduced_onsiteE_types, hopping_neurons=bond_neurons, 
                     onsite_neurons=onsite_neurons, onsite_index_dict=onsiteE_ind_dict, onsitemode='strain')
 
-    modeluniform = SKNet(skint_types=reducted_skint_types, onsite_types=reduced_onsiteE_types, soc_types=reduced_onsiteE_types, bond_neurons=bond_neurons, 
+    modeluniform = SKNet(skint_types=reducted_skint_types, onsite_types=reduced_onsiteE_types, soc_types=reduced_onsiteE_types, hopping_neurons=bond_neurons, 
                     onsite_neurons=onsite_neurons,  onsite_index_dict=onsiteE_ind_dict, onsitemode='uniform')
     
     soc_neurons = {'nhidden':6}
-    modelstrainsoc = SKNet(skint_types=reducted_skint_types,  onsite_types=reducted_onsiteint_types, soc_types=reduced_onsiteE_types, bond_neurons=bond_neurons, onsite_neurons=onsite_neurons, 
+    modelstrainsoc = SKNet(skint_types=reducted_skint_types,  onsite_types=reducted_onsiteint_types, soc_types=reduced_onsiteE_types, hopping_neurons=bond_neurons, onsite_neurons=onsite_neurons, 
                         soc_neurons=soc_neurons, onsite_index_dict=onsiteE_ind_dict, onsitemode='strain')
-    modeluniformsoc = SKNet(skint_types=reducted_skint_types, onsite_types=reduced_onsiteE_types, soc_types=reduced_onsiteE_types, bond_neurons=bond_neurons, 
+    modeluniformsoc = SKNet(skint_types=reducted_skint_types, onsite_types=reduced_onsiteE_types, soc_types=reduced_onsiteE_types, hopping_neurons=bond_neurons, 
                     onsite_neurons=onsite_neurons,soc_neurons=soc_neurons, onsite_index_dict=onsiteE_ind_dict, onsitemode='uniform')
 
     
@@ -49,10 +49,10 @@ class TestSKnet:
 
     def test_bond(self):
 
-        paras = list(self.modeluniform.bond_net.parameters())
+        paras = list(self.modeluniform.hopping_net.parameters())
         assert len(paras) == 2
-        assert paras[0].shape == torch.Size([len(self.reducted_skint_types), self.bond_neurons['nhidden']])
-        assert paras[1].shape == torch.Size([self.bond_neurons['nhidden'], self.bond_neurons['nout']])
+        assert paras[0].shape == torch.Size([len(self.reducted_skint_types), 1, self.bond_neurons['nhidden']])
+        assert paras[1].shape == torch.Size([len(self.reducted_skint_types), self.bond_neurons['nout'], self.bond_neurons['nhidden']])
 
         coeff = self.modeluniform(mode='hopping')
         assert len(coeff) == len(self.reducted_skint_types)
@@ -63,7 +63,7 @@ class TestSKnet:
 
     def test_onsite_uniform(self):
         sknet = SKNet(skint_types=self.reducted_skint_types,onsite_types=self.reduced_onsiteE_types,soc_types=self.reduced_onsiteE_types,onsite_index_dict=self.onsiteE_ind_dict,
-                        bond_neurons=self.bond_neurons, onsite_neurons=self.onsite_neurons, onsitemode='uniform')
+                        hopping_neurons=self.bond_neurons, onsite_neurons=self.onsite_neurons, onsitemode='uniform')
         onsite_values, _ = sknet(mode = 'onsite')
 
         assert onsite_values['N'].shape == torch.Size([2])
@@ -74,8 +74,8 @@ class TestSKnet:
 
         paras = list(self.modelstrain.onsite_net.parameters())
         assert len(paras) == 2
-        assert paras[0].shape == torch.Size([len(self.reducted_onsiteint_types), self.bond_neurons['nhidden']])
-        assert paras[1].shape == torch.Size([self.bond_neurons['nhidden'], self.bond_neurons['nout']])
+        assert paras[0].shape == torch.Size([len(self.reducted_onsiteint_types), 1, self.bond_neurons['nhidden']])
+        assert paras[1].shape == torch.Size([len(self.reducted_onsiteint_types), self.bond_neurons['nout'], self.bond_neurons['nhidden']])
 
         _, coeff = self.modelstrain(mode='onsite')
         assert len(coeff) == len(self.reducted_onsiteint_types)

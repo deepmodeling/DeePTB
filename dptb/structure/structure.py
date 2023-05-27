@@ -36,8 +36,8 @@ class BaseStruct(AbstractStructure):
     def init_desciption(self):
         # init description
         self.atom_symbols = None
-        self.atomtype = None
-        # self.atom_anglr_m = None
+        self.aomtype = None
+        # self.atomt_anglr_m = None
         self.proj_atomtype = None
         # self.proj_atom_anglr_m = None
         self.proj_atomtype_norbs = None

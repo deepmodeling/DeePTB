@@ -1,76 +1,66 @@
 {
-    "common_options":{
-    "device": "cpu",
-    "dtype": "float32",
-    "onsite_cutoff":3.0,
-    "onsitemode":"strain",
-    "bond_cutoff": 4.0,
-    "env_cutoff": 3.5,
-    "sk_file_path": "./examples/slakos/",
-    "atomtype": ["N", "B"],
-    "proj_atom_neles": {"N":5,"B":3},
-    "proj_atom_anglr_m": {"N":["2s",  "2p", "d*"],"B":["2s","2p", "d*"]}
-    },
-    
-    "train_options":{
-      "num_epoch":1,
-      "optimizer": {
-        "lr": 1e-3,
-        "type": "Adam"
+  "init_model": {
+      "path": null,
+      "interpolate": false
+  },
+  "common_options": {
+      "onsitemode": "strain",
+      "onsite_cutoff": 3.0,
+      "bond_cutoff": 4.0,
+      "env_cutoff": 3.5,
+      "atomtype": [
+          "N",
+          "B"
+      ],
+      "proj_atom_neles": {
+          "N": 5,
+          "B": 3
       },
-      "lr_scheduler": {
-        "type": "Exp",
-        "gamma": 0.999
+      "proj_atom_anglr_m": {
+          "N": [
+              "2s",
+              "2p",
+              "d*"
+          ],
+          "B": [
+              "2s",
+              "2p",
+              "d*"
+          ]
       }
-    },
-    "data_options": {
-      "use_reference":true,
-      "train":{
-        "batch_size": 1,
-        "path": "./dptb/tests/data/hBN/data",
-        "prefix": "set"
-      }, 
-      "validation":{
-        "batch_size": 1,
-        "path":"./dptb/tests/data/hBN/data",
-        "prefix": "set"
-      }, 
-      "reference":{
-        "batch_size": 1,
-        "path": "./dptb/tests/data/hBN/data",
-        "prefix": "set"
-      }
-    },
-    "model_options": {
-      "sknetwork":{
-        "sk_hop_nhidden":50,
-        "sk_onsite_nhidden":50,
-        "sk_soc_nhidden":50
+  },
+  "train_options": {
+      "seed":120478,
+      "num_epoch": 4,
+      "optimizer": {"lr":1e-2}
+  },
+  "data_options": {
+      "use_reference": true,
+      "train": {
+          "batch_size": 1,
+          "path": "./dptb/tests/data/hBN/data/",
+          "prefix": "set"
       },
-      "skfunction":{
-        "skformula":"varTang96",
-        "sk_cutoff": 3.5,
-        "sk_decay_w":0.5    
+      "validation": {
+          "batch_size": 1,
+          "path": "./dptb/tests/data/hBN/data/",
+          "prefix": "set"
       },
-      "dptb":{
-        
+      "reference": {
+          "batch_size": 1,
+          "path": "./dptb/tests/data/hBN/data/",
+          "prefix": "set"
       }
-    },
-    
-    "loss_options":{
-      "band_min":0,
-      "band_max":6,
-      "ref_band_min":0,
-      "ref_band_max":4,
-      "emin": -25,   
-      "emax": 10,  
-      "sigma":2, 
-      "num_omega":3000, 
-      "sortstrength":[0.01,0.01],
-      "gap_penalty": false,
-      "fermi_band":3,
-      "loss_gap_eta":1e-2
-    }
+  },
+  "model_options": {
+      "sknetwork": {
+          "sk_hop_nhidden": 1,
+          "sk_onsite_nhidden": 1
+      },
+      "skfunction": {
+          "skformula": "powerlaw",
+          "sk_cutoff": 4.0,
+          "sk_decay_w": 0.3
+      }
   }
-  
-  
+}

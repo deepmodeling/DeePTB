@@ -27,7 +27,7 @@ __all__ = ["run"]
 
 log = logging.getLogger(__name__)
 
-def postrun(
+def run(
         INPUT: str,
         init_model: str,
         output: str,
@@ -111,6 +111,8 @@ def postrun(
         log.warning(msg="Warning! structure is not set in run option, read from input config file.")
         structure = j_must_have(jdata, "structure")
         run_opt.update({"structure":structure})
+
+        print(run_opt["structure"])
 
     if not run_sk:
         if run_opt['use_correction'] is None and jdata.get('use_correction',None) != None:

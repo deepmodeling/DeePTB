@@ -4,8 +4,9 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from dptb.entrypoints.train import train
 from dptb.entrypoints.config import config
-from dptb.entrypoints.tester import validation
-from dptb.entrypoints.postrun import postrun
+from dptb.entrypoints.test import _test
+from dptb.entrypoints.run import run
+from dptb.entrypoints.bond import bond
 from dptb.utils.loggers import set_log_handles
 
 def get_ll(log_level: str) -> int:
@@ -78,6 +79,36 @@ def main_parser() -> argparse.ArgumentParser:
         "--full_config",
         action="store_true",
         help="get the config templete with all input parameters.",
+    )
+
+    # neighbour
+    parser_bond = subparsers.add_parser(
+        "bond",
+        parents=[parser_log],
+        help="using DeePTB tools",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser_bond.add_argument(
+        "struct", help="the structure input, must be ase readable structure format",
+        type=str,
+        default="./POSCAR"
+    )
+
+    parser_bond.add_argument(
+        "-acc",
+        "--accuracy",
+        type=float,
+        default=1e-3,
+        help="The accuracy to judge whether two bond are the same.",
+    )
+
+    parser_bond.add_argument(
+        "-c",
+        "--cutoff",
+        type=float,
+        default=6.0,
+        help="The cutoff radius of bond search.",
     )
 
     # train parser
@@ -279,11 +310,14 @@ def main():
     if args.command == 'config':
         config(**dict_args)
 
-    if args.command == 'train':
+    elif args.command == 'bond':
+        bond(**dict_args)
+
+    elif args.command == 'train':
         train(**dict_args)
 
-    if args.command == 'test':
-        validation(**dict_args)
+    elif args.command == 'test':
+        _test(**dict_args)
 
-    if args.command == 'run':
-        postrun(**dict_args)
+    elif args.command == 'run':
+        run(**dict_args)

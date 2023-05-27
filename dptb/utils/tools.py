@@ -76,7 +76,8 @@ def checkdict(dict_prototype, dict_update, checklist):
     flatten_dict_update = flatten_dict(dict_update)
     for cid in checklist:
         if flatten_dict_prototype.get(cid) != flatten_dict_update.get(cid):
-            raise ValueError
+            log.error(msg="the {0} in input config is not align with it in checkpoint.".format(cid))
+            raise ValueError("the {0} in input config is not align with it in checkpoint.".format(cid))
 
     return True
     
@@ -132,12 +133,14 @@ def get_optimizer(type: str, model_param, lr: float, **options: dict):
     return optimizer
 
 def get_lr_scheduler(type: str, optimizer: optim.Optimizer, **sch_options):
-    if type == 'Exp':
-        schedular = optim.lr_scheduler.ExponentialLR(optimizer=optimizer, **sch_options)
+    if type == 'exp':
+        scheduler = optim.lr_scheduler.ExponentialLR(optimizer=optimizer, **sch_options)
+    elif type == 'linear':
+        scheduler = optim.lr_scheduler.LinearLR(optimizer=optimizer, **sch_options)
     else:
-        raise RuntimeError("Scheduler should be Expo/..., not {}".format(type))
+        raise RuntimeError("Scheduler should be exp/linear/..., not {}".format(type))
 
-    return schedular
+    return scheduler
 
 def j_must_have(
     jdata: Dict[str, "_DICT_VAL"], key: str, deprecated_key: List[str] = []
@@ -248,7 +251,7 @@ def get_env_neuron_config(neuron_list):
 
     return config
 
-def get_bond_neuron_config(neuron_list, bond_num_hops, bond_type, axis_neuron, env_out):
+def get_hopping_neuron_config(neuron_list, bond_num_hops, bond_type, axis_neuron, env_out):
     # neuron_list: a list of neuron number in each layer
     # return: a list of dict of neuron config
     config = {}

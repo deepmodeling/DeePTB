@@ -246,7 +246,7 @@ class lossfunction(object):
 
         return loss
 
-    def wannier(self, pred, label, **kwargs):
+    def block_l2(self, pred, label, **kwargs):
         """wannier fixing loss function, just a deviation function of two list
         of tensors.
 

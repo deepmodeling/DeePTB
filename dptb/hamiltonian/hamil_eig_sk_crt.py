@@ -176,7 +176,6 @@ class HamilEig(RotationSK):
                 direction_vec = env[8:11].astype(np.float32)
 
                 sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[iatype]], dtype=self.dtype, device=self.device)
-            
                 envtype = iatype + '-' + jatype
 
                 ist = 0
@@ -265,7 +264,7 @@ class HamilEig(RotationSK):
                             sub_over_block[ist:ist+norbi, jst:jst+norbj] = tmpS
                 
                     jst = jst + norbj 
-                ist = ist + norbi   
+                ist = ist + norbi
             
             hoppingH_blocks.append(sub_hamil_block)
             if not self.use_orthogonal_basis:
@@ -377,12 +376,16 @@ class HamilEig(RotationSK):
         else:
             skmat = torch.eye(hkmat.shape[1], dtype=self.cdtype).unsqueeze(0).repeat(hkmat.shape[0], 1, 1)
 
-        chklowt = th.linalg.cholesky(skmat)
-        chklowtinv = th.linalg.inv(chklowt)
-        Heff = (chklowtinv @ hkmat @ th.transpose(chklowtinv,dim0=1,dim1=2).conj())
+        if self.use_orthogonal_basis:
+            Heff = hkmat
+        else:
+            chklowt = th.linalg.cholesky(skmat)
+            chklowtinv = th.linalg.inv(chklowt)
+            Heff = (chklowtinv @ hkmat @ th.transpose(chklowtinv,dim0=1,dim1=2).conj())
         # the factor 13.605662285137 * 2 from Hartree to eV.
         # eigks = th.linalg.eigvalsh(Heff) * 13.605662285137 * 2
-        eigks, Q = th.linalg.eigh(Heff)
+        eigks = th.linalg.eigvalsh(Heff)
+        
         if unit == "Hartree":
             factor = 13.605662285137 * 2
         elif unit == "eV":
@@ -393,7 +396,7 @@ class HamilEig(RotationSK):
             log.error("The unit name is not correct !")
             raise ValueError
         eigks = eigks * factor
-        Qres = Q.detach()
+        # Qres = Q.detach()
         # else:
         #     chklowt = np.linalg.cholesky(skmat)
         #     chklowtinv = np.linalg.inv(chklowt)
@@ -401,4 +404,6 @@ class HamilEig(RotationSK):
         #     eigks = np.linalg.eigvalsh(Heff) * 13.605662285137 * 2
         #     Qres = 0
 
-        return eigks, Qres
+        return eigks, None
+
+        # return eigks, Qres

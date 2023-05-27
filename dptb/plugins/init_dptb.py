@@ -16,7 +16,7 @@ from dptb.utils.constants import dtype_dict
 from dptb.utils.argcheck import dptb_model_config_checklist, nnsk_model_config_updatelist, nnsk_model_config_checklist
 from dptb.utils.tools import get_uniq_symbol, \
     get_lr_scheduler, get_uniq_bond_type, get_uniq_env_bond_type, \
-    get_env_neuron_config, get_bond_neuron_config, get_onsite_neuron_config, \
+    get_env_neuron_config, get_hopping_neuron_config, get_onsite_neuron_config, \
     get_optimizer, nnsk_correction, j_must_have, update_dict, checkdict, update_dict_with_warning
 from dptb.utils.tools import j_loader
 
@@ -55,7 +55,7 @@ class InitDPTBModel(Plugin):
         soc_nnl = options["dptb"]['soc_net_neuron']
         env_axisnn = options["dptb"]['axis_neuron']
         onsite_nnl = options["dptb"]['onsite_net_neuron']
-        bond_nnl = options["dptb"]['bond_net_neuron']
+        hopping_nnl = options["dptb"]['hopping_net_neuron']
         proj_atom_anglr_m = options["proj_atom_anglr_m"]
         onsitemode = options["onsitemode"]
         skformula = options['skfunction']['skformula']
@@ -73,7 +73,7 @@ class InitDPTBModel(Plugin):
         env_net_config = get_env_neuron_config(env_nnl)
         onsite_net_config = get_onsite_neuron_config(onsite_nnl, onsite_num, proj_atomtype, env_axisnn,
                                                         env_nnl[-1])
-        bond_net_config = get_bond_neuron_config(bond_nnl, bond_num_hops, bond_type, env_axisnn,
+        hopping_net_config = get_hopping_neuron_config(hopping_nnl, bond_num_hops, bond_type, env_axisnn,
                                                     env_nnl[-1])
         if soc_env:
             # here the number of soc should equals to numbers of onsite E, so onsite_num can reused?
@@ -82,7 +82,7 @@ class InitDPTBModel(Plugin):
         else:
             soc_net_config = None
         self.host.nntb = NNTB(proj_atomtype=proj_atomtype, soc_net_config=soc_net_config, env_net_config=env_net_config, 
-                    bond_net_config=bond_net_config, onsite_net_config=onsite_net_config, **options, **options["dptb"])
+                    hopping_net_config=hopping_net_config, onsite_net_config=onsite_net_config, **options, **options["dptb"])
         self.host.model = self.host.nntb.tb_net
         self.host.model_config = options
 
@@ -108,7 +108,7 @@ class InitDPTBModel(Plugin):
         soc_nnl = model_config["dptb"]['soc_net_neuron']
         env_axisnn = model_config["dptb"]['axis_neuron']
         onsite_nnl = model_config["dptb"]['onsite_net_neuron']
-        bond_nnl = model_config["dptb"]['bond_net_neuron']
+        hopping_nnl = model_config["dptb"]['hopping_net_neuron']
         proj_atom_anglr_m = model_config["proj_atom_anglr_m"]
         onsitemode = model_config["onsitemode"]
         skformula = model_config['skfunction']['skformula']
@@ -125,7 +125,7 @@ class InitDPTBModel(Plugin):
         env_net_config = get_env_neuron_config(env_nnl)
         onsite_net_config = get_onsite_neuron_config(onsite_nnl, onsite_num, proj_atomtype, env_axisnn,
                                                         env_nnl[-1])
-        bond_net_config = get_bond_neuron_config(bond_nnl, bond_num_hops, bond_type, env_axisnn,
+        hopping_net_config = get_hopping_neuron_config(hopping_nnl, bond_num_hops, bond_type, env_axisnn,
                                                     env_nnl[-1])
         if soc_env:
             soc_net_config = get_onsite_neuron_config(soc_nnl, onsite_num, proj_atomtype, env_axisnn,
@@ -134,7 +134,7 @@ class InitDPTBModel(Plugin):
             soc_net_config = None
         
         self.host.nntb = NNTB(proj_atomtype=proj_atomtype, env_net_config=env_net_config, 
-                    bond_net_config=bond_net_config, soc_net_config=soc_net_config, 
+                    hopping_net_config=hopping_net_config, soc_net_config=soc_net_config, 
                     onsite_net_config=onsite_net_config, **model_config, **model_config["dptb"])
         self.host.nntb.tb_net.load_state_dict(ckpt["model_state_dict"])
         self.host.model = self.host.nntb.tb_net
@@ -227,7 +227,7 @@ class InitDPTBModel(Plugin):
             onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m, atomtype=atomtype)
 
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
-        bond_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras}
+        hopping_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras}
 
         _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
         if onsitemode == 'strain':
@@ -249,7 +249,7 @@ class InitDPTBModel(Plugin):
         sknet = SKNet(skint_types=reducted_skint_types,
                                    onsite_types=onsite_types,
                                    soc_types=reduced_onsiteE_types,
-                                   bond_neurons=bond_neurons,
+                                   hopping_neurons=hopping_neurons,
                                    onsite_neurons=onsite_neurons,
                                    soc_neurons=soc_neurons,
                                    device=device,

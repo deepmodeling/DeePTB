@@ -12,7 +12,7 @@ The full document can be found in [readthedoc page](https://deeptb-doc.readthedo
     - [3.2 **input**](#32-input)
     - [3.3 **Training**](#33-training)
     - [3.4 **Testing**](#34-testing)
-    - [3.5 **Ploting**](#35-ploting)
+    - [3.5 **Processing**](#35-processing)
 - [4. **Gallary**](#4-gallary)
 
 # 1. **installation**
@@ -23,8 +23,8 @@ If you are installing from source, you will need:
 - torch 1.13.0 or later, following the instruction on [PyTorch: Get Started](https://pytorch.org/get-started/locally) if GPU support is required, otherwise this can be installed with the building procedure.
 - ifermi (optional, install only when 3D fermi-surface plotting is needed.)
 
-
-then, located to the repository root and running ```pip install .```
+First clone or download the source code from website.
+Then, located to the repository root and running ```pip install .```
 
 ## **From Pypi**
 
@@ -81,13 +81,13 @@ Where `band.png` is the bandstructure of the trained model. Which looks like (le
 <img src="./doc/img/band_1.png" width = "40%" height = "40%" alt="hBN Bands" align=center />
 </div>
 
-It shows that the fitting has learn the shape of the bandstructure, but not very accurate. We can further improve the accuracy by incooperating more function, for example the onsite correction. There are three kind of onsite correction supported: `split`, `uniform` and `strain`. We use `strain` for now to see the effect. Now change the `onsitemode` in `input_sort.json` from `none` to `strain`, `num_epoch` to `400` and using the command:
+It shows that the fitting has learn the shape of the bandstructure, but not very accurate. We can further improve the accuracy by incooperating more function, for example the onsite correction. There are three kind of onsite correction supported: `uniform` and `strain`. We use `strain` for now to see the effect. Now change the `onsitemode` in `input_sort.json` from `none` to `strain`, `num_epoch` to `400` and using the command:
 ```bash
 dptb train -sk input_short.json -o ./first -i ./first/checkpoint/best_nnsk_c1.5w0.3.pth
 ```
 After training finished, plot the result again and see (above right):
 
-It already looks good, we can further improve the accuracy by adding more neighbours, or more orbitals, and training for longer time. We just train the model for more epoch, and the results gives:
+It already looks good, we can further improve the accuracy by adding more neighbours, or more orbitals, and training for longer time. Here we gives our very accurate fitting of both conduction and valance bands:
 <div align=center>
 <img src="./doc/img/band_2.png" width = "70%" height = "70%" alt="hBN Bands" align=center />
 </div>
@@ -121,7 +121,7 @@ One should prepare the **atomic structures** and **electronic band structures**.
 `bandinfo.json` defines the settings of the training objective of each structure, basicly you can have specific settings for different structure, which allow training across structures across diffrent atom number and atom type.
 
 The **bandinfo.json** file looks like:
-```json
+```bash
 {
     "band_min": 0,
     "band_max": 4,
@@ -135,7 +135,7 @@ The **bandinfo.json** file looks like:
 ## 3.2 **input**
 **DeePTB** probide input config templete for quick setup. User can run:
 ```bash
-dptb config ./input.json
+dptb config <generated input config path> [-full]
 ```
 The templete config file will be generated at the path `./input.json`.
 For full document about the input parameters, we refer to the detail [document](https://deeptb-doc.readthedocs.io/en/latest/index.html). For now, we only need to consider a few vital parameters that can setup the training:
@@ -151,7 +151,10 @@ For full document about the input parameters, we refer to the detail [document](
     }
 }
 ```
-
+We can get the bond cutoff by `DeePTB`'s bond analysis function, using:
+```bash
+dptb bond <structure path> [[-c] <cutoff>] [[-acc] <accuracy>]
+```
 
 ```json
 "model_options": {
@@ -187,24 +190,22 @@ For full document about the input parameters, we refer to the detail [document](
 When data and input config file is prepared, we are ready to train the model.
 To train a neural network parameterized Slater-Koster Tight-Binding model (nnsk) with Gradient Based Optimization method, we can run:
 ```bash
-dptb train -sk input.json -o ./xxx
+dptb train -sk <input config> [[-o] <output directory>] [[-i|-r] <nnsk checkpoint path>]
 ```
 For training a environmental dependent Tight-Binding model (dptb), we can run:
 ```bash
-dptb train input.json -o ./xxx
+dptb train <input config> [[-o] <output directory>] [[-i|-r] <dptb checkpoint path>]
 ```
 But the suggested procedure is first train a nnsk model, and use environment dependent neural network as a correction, as proposed in our paper: xxx:
 ```bash
-dptb train input.json -o ./xxx -crt <nnsk checkpoint path>
+dptb train <input config> -crt <nnsk checkpoint path> [[-o] <output directory>]
 ```
 
 ## 3.4 **Testing**
 After the model is converged, the testing function can be used to do the model test, or compute the eigenvalues for other analysis. 
-First we copy the input file and change it to test file, which is:
-```bash
-cp ./input.json test.json
-```
-Then delete the `train_options` since it is not useful when testing the model. And we delete all lines contains in `data_options`, and add the `test` dataset config:
+
+Test config is just attained by a little modification of the train config. 
+Delete the `train_options` since it is not useful when testing the model. And we delete all lines contains in `data_options`, and add the `test` dataset config:
 ```json
 "test": {
     "batch_size": 1,  
@@ -214,10 +215,21 @@ Then delete the `train_options` since it is not useful when testing the model. A
 ```
 Then we can run:
 ```bash
-dptb test <-sk> test.json -o ./test -i <nnsk checkpoint path>
+dptb test [-sk] <test config> -i <nnsk/dptb checkpoint path> [[-o] <output directory>]
 ```
-## 3.5 **Plotting**
-See the example hBN.
+## 3.5 **Processing**
+**DeePTB** integrates multiple post processing functionalities in `dptb run` command, includesincludes:
+- band structure plotting
+- density of states plotting
+- fermi surface plotting
+- slater-koster parameter transcription
+
+Please see the templete config file in `examples/hBN/run/`, and the running command is:
+```bash
+dptb run [-sk] <run config> [[-o] <output directory>] -i <nnsk/dptb checkpoint path> [[-crt] <nnsk checkpoint path>]
+```
+
+For detail document, please see our [Document page](https://deeptb-doc.readthedocs.io/en/latest/index.html).
 
 # 4. **Gallary**
-See the example hBN.
+Will be added later when the paper is ready.

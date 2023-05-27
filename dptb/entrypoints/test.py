@@ -20,11 +20,11 @@ from dptb.utils.argcheck import normalize_test
 from dptb.plugins.monitor import TestLossMonitor
 from dptb.plugins.train_logger import Logger
 
-__all__ = ["validation"]
+__all__ = ["test"]
 
 log = logging.getLogger(__name__)
 
-def validation(
+def _test(
         INPUT: str,
         init_model: str,
         output: str,

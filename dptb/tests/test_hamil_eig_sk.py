@@ -275,7 +275,7 @@ eigenvalues =    np.array([[-22.440512  , -11.348884  ,  -8.129092  ,  -8.129089
      dtype=np.float32)
     
 def test_HamilRSK(root_directory):
-    structname = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
+    structname = root_directory + '/dptb/tests/data/hBN/hBN.vasp'
     sk_file_path = root_directory + '/examples/slakos'
 
     proj_atom_anglr_m = {"N":["s","p"],"B":["s","p"]}
@@ -337,7 +337,7 @@ def test_HamilRSK(root_directory):
 
 
 def test_HamilRSK_SplitOnsite(root_directory):
-    structname = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
+    structname = root_directory + '/dptb/tests/data/hBN/hBN.vasp'
     sk_file_path = root_directory + '/examples/slakos'
 
     proj_atom_anglr_m = {"N":["s","p"],"B":["s","p"]}

@@ -29,7 +29,7 @@ def generate_system():
 
 
 def test_BaseStruct(root_directory):
-    filename = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
+    filename = root_directory + '/dptb/tests/data/hBN/hBN.vasp'
     proj_atom_anglr_m = {"N":["s","p"],"B":["s","p"]}
     proj_atom_neles = {"N":5,"B":3}
     CutOff = 4
@@ -105,7 +105,7 @@ def test_BaseStruct(root_directory):
     assert struct.onsite_num == {'N': 4, 'B': 4}
 
 def test_Struct_IndMap_case1(root_directory):
-    filename = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
+    filename = root_directory + '/dptb/tests/data/hBN/hBN.vasp'
     proj_atom_anglr_m = {"N":["s","p"],"B":["s","p"]}
     proj_atom_neles = {"N":5,"B":3}
     CutOff = 4
@@ -137,7 +137,7 @@ def test_Struct_IndMap_case1(root_directory):
 
 
 def test_Struct_IndMap_case2(root_directory):
-    filename = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
+    filename = root_directory + '/dptb/tests/data/hBN/hBN.vasp'
     proj_atom_anglr_m = {"N":["2s","2p"],"B":["2s","2p"]}
     proj_atom_neles = {"N":5,"B":3}
     CutOff = 4
@@ -170,7 +170,7 @@ def test_Struct_IndMap_case2(root_directory):
     assert struct.onsite_num == {'N': 4, 'B': 4}
 
 def test_Struct_IndMap_case3(root_directory):
-    filename = root_directory + '/examples/TBmodel/hBN/check/hBN.vasp'
+    filename = root_directory + '/dptb/tests/data/hBN/hBN.vasp'
     proj_atom_anglr_m = {"N":["2s","2p",'s*'],"B":["2s","2p"]}
     proj_atom_neles = {"N":5,"B":3}
     CutOff = 4

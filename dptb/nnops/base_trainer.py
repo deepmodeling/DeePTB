@@ -53,6 +53,7 @@ class Trainer(with_metaclass(ABCMeta, PluginUser)):
             # run plugins of epoch events.
             self.call_plugins(queue_name='epoch', time=i)
             self.lr_scheduler.step()  # modify the lr at each epoch (should we add it to pluggins so we could record the lr scheduler process?)
+            self.update()
             self.epoch += 1
 
 
@@ -69,6 +70,10 @@ class Trainer(with_metaclass(ABCMeta, PluginUser)):
 
     @abstractmethod
     def validation(self, **kwargs):
+        pass
+
+    @abstractmethod
+    def update(self, **kwargs):
         pass
 
 

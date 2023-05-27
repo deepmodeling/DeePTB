@@ -1,12 +1,13 @@
 {
+    "init_model": {
+        "path": "/root/deeptb/dptb/tests/data//hBN/checkpoint/best_dptb.pth",
+        "interpolate": false
+    },
     "common_options": {
-        "device": "cpu",
-        "dtype": "float32",
-        "onsite_cutoff": 3.0,
         "onsitemode": "strain",
+        "onsite_cutoff": 3.0,
         "bond_cutoff": 4.0,
         "env_cutoff": 3.5,
-        "sk_file_path": "./examples/slakos/",
         "atomtype": [
             "N",
             "B"
@@ -25,117 +26,75 @@
                 "2p"
             ]
         },
+        "device": "cpu",
+        "dtype": "float32",
+        "sk_file_path": "./",
         "time_symm": true,
-        "soc": false
-    },
-    "train_options": {
-        "num_epoch": 1,
-        "optimizer": {
-            "lr": 0.001,
-            "type": "Adam",
-            "betas": [
-                0.9,
-                0.999
-            ],
-            "eps": 1e-08,
-            "weight_decay": 0,
-            "amsgrad": false
-        },
-        "lr_scheduler": {
-            "type": "Exp",
-            "gamma": 0.999
-        },
-        "seed": 3982377700,
-        "save_freq": 10,
-        "validation_freq": 10,
-        "display_freq": 1
+        "soc": false,
+        "unit": "Hartree"
     },
     "data_options": {
-        "use_reference": true,
-        "train": {
+        "test": {
             "batch_size": 1,
-            "path": "./dptb/tests/data/hBN/data",
-            "prefix": "set"
-        },
-        "validation": {
-            "batch_size": 1,
-            "path": "./dptb/tests/data/hBN/data",
-            "prefix": "set"
-        },
-        "reference": {
-            "batch_size": 1,
-            "path": "./dptb/tests/data/hBN/data",
+            "path": "./dptb/tests/data/hBN/data/",
             "prefix": "set"
         }
     },
     "model_options": {
         "sknetwork": {
-            "sk_hop_nhidden": 50,
-            "sk_onsite_nhidden": 50,
-            "sk_soc_nhidden": 50
+            "sk_hop_nhidden": 1,
+            "sk_onsite_nhidden": 1,
+            "sk_soc_nhidden": null
         },
         "skfunction": {
-            "skformula": "varTang96",
-            "sk_cutoff": 3.5,
-            "sk_decay_w": 0.5
+            "skformula": "powerlaw",
+            "sk_cutoff": 4.0,
+            "sk_decay_w": 0.3
         },
         "dptb": {
+            "soc_env": false,
             "axis_neuron": 10,
             "onsite_net_neuron": [
-                2,
-                4,
-                8
+                128,
+                128,
+                256,
+                256
             ],
-            "env_net_neuron": [
-                3,
-                6,
-                12
-            ],
-            "bond_net_neuron": [
-                4,
-                8,
-                16
-            ],
-            "onsite_net_activation": "tanh",
-            "env_net_activation": "tanh",
-            "bond_net_activation": "tanh",
-            "onsite_net_type": "res",
-            "env_net_type": "res",
-            "bond_net_type": "res",
-            "if_batch_normalized": false,
-            "soc_env": false,
             "soc_net_neuron": [
                 128,
                 128,
                 256,
                 256
             ],
+            "env_net_neuron": [
+                128,
+                128,
+                256,
+                256
+            ],
+            "hopping_net_neuron": [
+                128,
+                128,
+                256,
+                256
+            ],
+            "onsite_net_activation": "tanh",
+            "env_net_activation": "tanh",
+            "hopping_net_activation": "tanh",
             "soc_net_activation": "tanh",
-            "soc_net_type": "res"
+            "onsite_net_type": "res",
+            "env_net_type": "res",
+            "hopping_net_type": "res",
+            "soc_net_type": "res",
+            "if_batch_normalized": false
         }
     },
     "loss_options": {
-        "band_min": 0,
-        "band_max": 6,
-        "ref_band_min": 0,
-        "ref_band_max": 4,
-        "emin": -25,
-        "emax": 10,
-        "sigma": 2,
-        "num_omega": 3000,
+        "losstype": "eigs_l2dsf",
         "sortstrength": [
             0.01,
             0.01
         ],
-        "gap_penalty": false,
-        "fermi_band": 3,
-        "loss_gap_eta": 0.01,
-        "losstype": "l2eig_deig_sf",
-        "val_band_min": null,
-        "val_band_max": null,
-        "ref_gap_penalty": null,
-        "ref_fermi_band": null,
-        "ref_loss_gap_eta": null,
-        "eout_weight": 0.0
+        "nkratio": null
     }
 }
