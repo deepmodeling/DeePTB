@@ -2,6 +2,9 @@ import numpy as np
 import torch as th
 from dptb.utils.constants import h_all_types
 
+'''
+The rotation matrix can be constructed as a batch form according to each orbital binding
+'''
 
 class RotationSK(object):
     ''' rotate the SK parameters into the tight binding paras.
@@ -72,7 +75,7 @@ class RotationSK(object):
         z = Angvec[2]
 
         s3 = th.sqrt(th.scalar_tensor(3.0, dtype=self.rot_type, device=self.device))
-        rot_mat = th.tensor([s3 * x *y, s3 * y *z, 1.5 * z**2 -0.5, \
+        rot_mat = th.tensor([s3 * x * y, s3 * y *z, 1.5 * z**2 -0.5, \
                             s3 * x * z, s3 * (2.0 * x ** 2 - 1.0 + z ** 2) / 2.0], dtype=self.rot_type, device=self.device)
         rot_mat = rot_mat.reshape([5, 1])
         # [5,1]*[1,1] => [5,1]

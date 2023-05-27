@@ -1,0 +1,32 @@
+{
+    "structure":"./data/struct.vasp",
+    "task_options":{
+        "task": "ifermi",    
+        "fermisurface":{
+            "mesh_grid":[8,8,8],
+            "mu":-2,
+            "sigma":0.05,
+            "intpfactor":3,
+            "wigner_seitz":true,
+            "nworkers":4,
+            "plot_type":"plotly",
+            "use_gui": false,
+            "plot_fs_bands":true,
+            "fs_plane":[0,0,1],
+            "fs_distance":0.0,
+            "color_properties":true,
+            "plot_options":{}
+        },
+        "property":{
+            "velocity":true,
+            "colormap":"RdBu",
+            "prop_plane":[0,0,1],
+            "prop_distance":0.0,
+            "plot_options":{
+                "projection_axis": [0,0,1],
+                "hide_surface": true,
+                "hide_labels": true
+            }
+        }
+    }
+}
