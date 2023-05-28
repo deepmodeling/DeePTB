@@ -3,7 +3,7 @@
 - Environmental correction with symmetry preserving neural networks.
 - Efficient gradient-based fitting algorithm from autograd implementation.
 
-
+ 
 The full document can be found in [readthedoc page](https://deeptb-doc.readthedocs.io/en/latest/index.html).
 - [1. **installation**](#1-installation)
   - [**From Source**](#from-source)
