@@ -252,6 +252,10 @@ class NNSKTrainer(Trainer):
         self.model_options["skfunction"]["sk_cutoff"] += self.skcut_step
         self.model_options["skfunction"]["sk_decay_w"] += self.skdecay_step
 
+        self.model_config["skfunction"]["sk_cutoff"] = self.model_options["skfunction"]["sk_cutoff"]
+        self.model_config["skfunction"]["sk_decay_w"] = self.model_options["skfunction"]["sk_decay_w"]
+
+
     def validation(self, **kwargs):
         with torch.no_grad():
             total_loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)

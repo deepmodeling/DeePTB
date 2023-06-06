@@ -5,7 +5,7 @@
     },
     "common_options": {
         "onsitemode": "none",
-        "onsite_cutoff": 1.6,
+        "onsite_cutoff": 2.6,
         "bond_cutoff": 1.6,
         "env_cutoff": 3.5,
         "atomtype": [
@@ -37,17 +37,17 @@
         "train": {
             "batch_size": 1,
             "path": "./data",
-            "prefix": "set"
+            "prefix": "kpath"
         },
         "validation": {
             "batch_size": 1,
             "path": "./data",
-            "prefix": "set"
+            "prefix": "kpath"
         },
         "reference": {
             "batch_size": 1,
             "path": "./data",
-            "prefix": "set"
+            "prefix": "kpath"
         }
     },
     "model_options": {
@@ -56,7 +56,7 @@
             "sk_onsite_nhidden": 1
         },
         "skfunction": {
-            "sk_cutoff": 1.6,
+            "sk_cutoff": 3.6,
             "sk_decay_w": 0.3
         }
     }

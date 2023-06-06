@@ -1,6 +1,6 @@
 {
     "band_min": 0,
     "band_max": 6,
-    "emin": null,
-    "emax": null
+    "emin": -0.1,
+    "emax": 28.0
 }
