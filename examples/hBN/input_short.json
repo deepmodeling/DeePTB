@@ -56,7 +56,7 @@
             "sk_onsite_nhidden": 1
         },
         "skfunction": {
-            "sk_cutoff": 3.6,
+            "sk_cutoff": 1.6,
             "sk_decay_w": 0.3
         }
     }
