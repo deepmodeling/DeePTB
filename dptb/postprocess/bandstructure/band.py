@@ -104,11 +104,15 @@ class bandcalc(object):
                 raise ValueError
             ref_eigenvalues = ref_eigenvalues - (np.min(ref_eigenvalues) - np.min(self.eigenvalues))
         
-            band_pre = ax.plot(self.xlist, self.eigenvalues - self.E_fermi, color=band_color,lw=1.5, alpha=0.8, label="DeePTB")
-            band_ref = ax.plot(self.xlist, ref_eigenvalues - self.E_fermi, color="tab:red",lw=1.5, alpha=0.8, ls="--", label="Ref")
+            nintp = len(self.xlist)//50 
+            if nintp == 0:
+                nintp = 1
+            band_ref = ax.plot(self.xlist[::nintp], ref_eigenvalues[::nintp] - self.E_fermi, 'o', ms=4, color=band_color, alpha=0.8, label="Ref")
+            band_pre = ax.plot(self.xlist, self.eigenvalues - self.E_fermi, color="tab:red", lw=1.5, alpha=0.8, label="DeePTB")
+
 
         else:
-            ax.plot(self.xlist, self.eigenvalues - self.E_fermi, color=band_color,lw=1.5, alpha=0.8)
+            ax.plot(self.xlist, self.eigenvalues - self.E_fermi, color="tab:red",lw=1.5, alpha=0.8)
 
         # add verticle line
         for ii in self.high_sym_kpoints[1:-1]:
@@ -117,7 +121,6 @@ class bandcalc(object):
         # add shadow
         # for i in range(self.eigenvalues.shape[1]):
         #     ax.fill_between(self.xlist, self.eigenvalues[:,i] - self.E_fermi, -2, alpha=0.05, color=band_color)
-
         # add ticks
         
         if not (emin is None or emax is None):
