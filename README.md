@@ -44,7 +44,7 @@ pip install .
 # 2. **Getting Started.**
 
 ## 2.1 **Data**
-The dataset of one structure is recommended to prepare as following format:
+The dataset of one structure is recommended to prepare as the following format:
 ```
 data/
 -- set.x
@@ -53,11 +53,11 @@ data/
 -- -- xdat.traj        # ase trajectory file with num_frame
 -- -- bandinfo.json    # defining the training objective of this bandstructure
 ```
-One should prepare the **atomic structures** and **electronic band structures**. The **atomic structures** data are saved the format of ASE traj binary format, where each structure are stored using an **Atom** class defined in ASE package. The **band structures** data contains the kpoints list and eigenvalues are in the binary format of npy. The shape of kpoints data is **[num_kpoint,3]** and eigenvalues is **[num_frame,nk,nbands]**. nsnaps is the number of snapshots, nk is the number of kpoints and nbands is the number of bands.
+One should prepare the **atomic structures** and **electronic band structures**. The **atomic structures** data is in ASE traj binary format, where each structure are stored using an **Atom** class defined in ASE package. The **band structures** data contains the kpoints list and eigenvalues are in the binary format of npy. The shape of kpoints data is **[num_kpoint,3]** and eigenvalues is **[num_frame,nk,nbands]**. nsnaps is the number of snapshots, nk is the number of kpoints and nbands is the number of bands.
 
 ### **Bandinfo**
 
-`bandinfo.json` defines the settings of the training objective of each structure, basicly you can have specific settings for different structure, which allow training across structures across diffrent atom number and atom type.
+`bandinfo.json` defines the settings of the training objective of each structure, basicly you can have specific settings for different structure, which enables the flexible training objectives for various structures with diffrent atom number and atom type.
 
 The **bandinfo.json** file looks like:
 ```bash
@@ -179,8 +179,8 @@ For detail document, please see our [Document page](https://deeptb-doc.readthedo
 # 3. **Example: hBN.**
 hBN is a binary coumpond made of equal numbers of boron (B) and nitrogen (N), we present this as a quick hands-on example. The prepared files are located in:
 ```
-deeptb/examples/hBN
--- data/set.0/
+deeptb/examples/hBN/
+-- data/kpath.0/
 -- -- bandinfo.json
 -- -- xdat.traj
 -- -- kpoints.npy
@@ -188,9 +188,9 @@ deeptb/examples/hBN
 -- run/
 -- input_short.json
 ```
-The ```input_short.json``` file contains the least numbers of parameters that required to start training the **DeePTB** model. ```data``` folder contains the bandstructure data ```set.0```, where another important configuration file ```bandinfo.json``` is located.
+The ```input_short.json``` file contains the least numbers of parameters that required to start training the **DeePTB** model. ```data``` folder contains the bandstructure data ```kpath.0```, where another important configuration file ```bandinfo.json``` is located.
 
-Having the data file and input parameter these files, we can start training our first **DeePTB** model by:
+Having the data file and input parameter, we can start training our first **DeePTB** model by:
 ```bash
 cd deeptb/examples/hBN
 dptb train -sk input_short.json -o ./first
