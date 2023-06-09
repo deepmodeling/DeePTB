@@ -20,6 +20,7 @@ class NN2HRK(object):
         self.device = apihost.model_config['device']
         self.dtype =  apihost.model_config['dtype']
         self.unit = apihost.model_config['unit']
+        self.if_soc = apihost.model_config['soc']
             
         self.sorted_onsite="st"
         self.sorted_bond="st"
@@ -70,6 +71,8 @@ class NN2HRK(object):
         
         num_el = np.sum(self.structure.proj_atom_neles_per)
         nk = len(kpoints)
+        if self.if_soc:
+            spindeg = 1
         numek = num_el * nk // spindeg
         sorteigs =  np.sort(np.reshape(eigks,[-1]))
         EF=(sorteigs[numek] + sorteigs[numek-1])/2
