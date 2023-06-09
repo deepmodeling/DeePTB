@@ -1,0 +1,108 @@
+{
+    "common_options": {
+        "device": "cpu",
+        "dtype": "float32",
+        "onsite_cutoff": 3.0,
+        "bond_cutoff": 6.0,
+        "env_cutoff": 5.0,
+        "atomtype": [
+            "Sn"
+        ],
+        "proj_atom_neles": {
+            "Sn": 4
+        },
+        "proj_atom_anglr_m": {
+            "Sn": ["5s","5p","d*"]
+        },
+        "onsitemode": "strain",
+        "time_symm": true,
+        "soc":true
+    },
+    "train_options": {
+        "num_epoch": 300,
+        "optimizer": {
+            "lr": 5e-4,
+            "type": "Adam",
+            "betas": [
+                0.9,
+                0.9995
+            ],
+            "eps": 1e-08,
+            "weight_decay": 0,
+            "amsgrad": false
+        },
+        "lr_scheduler": {
+            "type": "exp",
+            "gamma": 0.9995
+        },
+        "seed": 222,
+        "save_freq": 10,
+        "validation_freq": 10,
+        "display_freq": 1
+    },
+    "data_options": {
+        "use_reference": false,
+        "train": {
+            "batch_size": 1,
+            "path": "../data/soc/",
+            "prefix": "set"
+        },
+        "validation": {
+            "batch_size": 1,
+            "path": "../data/soc/",
+            "prefix": "set"
+        },
+        "reference": {
+            "batch_size": 1,
+            "path": "../data/soc/",
+            "prefix": "set"
+        }
+    },
+    "model_options": {
+        "sknetwork": {
+            "sk_hop_nhidden": 1,
+            "sk_onsite_nhidden": 1,
+            "sk_soc_nhidden":1
+        },
+        "skfunction": {
+            "skformula": "powerlaw",
+            "sk_cutoff": 6.0,
+            "sk_decay_w": 0.1
+        },
+        "dptb": {
+            "soc_env":false,
+            "axis_neuron": 20,
+            "onsite_net_neuron": [
+                40,
+                40,
+                40
+            ],
+            "soc_net_neuron": [
+                40,
+                40,
+                40
+            ],
+            "env_net_neuron": [
+                20,
+                40,
+                80
+            ],
+            "hopping_net_neuron": [
+                100,
+                100,
+                100
+            ],
+            "onsite_net_activation": "tanh",
+            "soc_net_activation": "tanh",
+            "env_net_activation": "tanh",
+            "hopping_net_activation": "tanh",
+            "onsite_net_type": "ffn",
+            "env_net_type": "res",
+            "hopping_net_type": "ffn",
+            "if_batch_normalized": false
+        }
+    },
+    "loss_options": {
+        "losstype": "eigs_l2dsf"
+    }
+}
