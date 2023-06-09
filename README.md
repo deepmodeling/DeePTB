@@ -193,16 +193,16 @@ The ```input_short.json``` file contains the least numbers of parameters that re
 Having the data file and input parameter, we can start training our first **DeePTB** model by:
 ```bash
 cd deeptb/examples/hBN
-dptb train -sk input_short.json -o ./first
+dptb train -sk ./ckpt/3-1_input.json -o ./first
 ```
 Here ``-sk`` indicate to fit the sk like parameters, and ``-o`` indicate the output directory. During the fitting procedure, we can see the loss curve of hBN is decrease consistently. When finished, we get the fitting results in folders ```first```:
 ```
 first/
 -- checkpoint/
--- -- best_nnsk_c1.6w0.3.json
--- -- best_nnsk_c1.6w0.3.pth
--- -- latest_nnsk_c1.6w0.3.json
--- -- latest_nnsk_c1.6w0.3.pth
+-- -- best_nnsk_c1.8w0.3.json
+-- -- best_nnsk_c1.8w0.3.pth
+-- -- latest_nnsk_c1.8w0.3.json
+-- -- latest_nnsk_c1.8w0.3.pth
 -- log/
 -- -- log.txt
 -- train_config.json
@@ -228,9 +228,9 @@ Where `band.png` is the bandstructure of the trained model. Which looks like (le
 <img src="./doc/img/band_1.png" width = "40%" height = "40%" alt="hBN Bands" align=center />
 </div>
 
-It shows that the fitting has learn the shape of the bandstructure, but not very accurate. We can further improve the accuracy by incooperating more feature of our code, for example the onsite correction. There are two kind of onsite correction supported: `uniform` and `strain`. We use `strain` for now to see the effect. Now change the `onsitemode` in `input_sort.json` from `none` to `strain`, `num_epoch` to `400` and using the command:
+It shows that the fitting has learn the shape of the bandstructure, but not very accurate. We can further improve the accuracy by incooperating more feature of our code, for example the onsite correction. There are two kind of onsite correction supported: `uniform` and `strain`. We use `strain` for now to see the effect. Now change the `onsitemode` in `input_sort.json` from `none` to `strain`, `num_epoch` to `400`. We give the template input file in `ckpt`, we can run:
 ```bash
-dptb train -sk input_short.json -o ./first -i ./first/checkpoint/best_nnsk_c1.6w0.3.pth
+dptb train -sk 3-2_input.json -o ./first -i ./first/checkpoint/best_nnsk_c1.8w0.3.pth
 ```
 After training finished, plot the result again and see (above right):
 
