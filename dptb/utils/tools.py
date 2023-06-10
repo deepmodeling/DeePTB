@@ -528,17 +528,18 @@ def write_skparam(
     # onsites
     if onsitemode ==  "strain":
         for i in onsite_coeff.keys():
+            kk = "-".join(i.split("-")[:2])
             if format == "DeePTB":
                 onsite[i] = onsite_coeff[i].tolist()
             elif format == "sktable":
-                rijs = r_onsites.get(i[:3], None)
+                rijs = r_onsites.get(kk, None)
                 if rijs is None:
-                    rijs = r_onsites.get(i[:3][::-1], None)
+                    kkr = "-".join(i.split("-")[:2][::-1])
+                    rijs = r_onsites.get(kkr, None)
                 assert rijs is not None
-
                 paraArray = onsite_coeff[i]
                 iatomtype, jatomtype, iorb, jorb, lm = i.split("-")
-                ijbond_param = hopping.setdefault(iatomtype+"-"+jatomtype, {})
+                ijbond_param = onsite.setdefault(iatomtype+"-"+jatomtype, {})
                 ijorb_param = ijbond_param.setdefault(iorb+"-"+jorb, {})
                 skparam = ijorb_param.setdefault(SKBondType[int(lm)], [])
 
@@ -580,10 +581,12 @@ def write_skparam(
         if format == "DeePTB":
             hopping[i] = hopping_coeff[i].tolist()
         elif format == "sktable":
+            kk = "-".join(i.split("-")[:2])
 
-            rijs = r_bonds.get(i[:3], None)
+            rijs = r_bonds.get(kk, None)
             if rijs is None:
-                rijs = r_onsites.get(i[:3][::-1], None)
+                kkr = "-".join(i.split("-")[:2][::-1])
+                rijs = r_onsites.get(kkr, None)
             assert rijs is not None
 
             paraArray = hopping_coeff[i]

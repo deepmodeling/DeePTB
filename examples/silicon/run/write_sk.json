@@ -1,11 +1,11 @@
 {   
-    "structure":"./data/struct.vasp",
+    "structure":"./data/silicon.vasp",
     "task_options": {
         "task": "write_sk",
 	"format": "sktable"
     },
     "init_model": {
-        "path": ["./first/checkpoint/best_nnsk_c1.5w0.3.pth"],
+        "path": ["./ckpt/2-2-2_best_nnsk_b5.000_c5.000_w0.100.pth"],
         "interpolate": false
     }
 }
