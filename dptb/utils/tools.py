@@ -536,20 +536,22 @@ def write_skparam(
                 if rijs is None:
                     kkr = "-".join(i.split("-")[:2][::-1])
                     rijs = r_onsites.get(kkr, None)
-                assert rijs is not None
-                paraArray = onsite_coeff[i]
-                iatomtype, jatomtype, iorb, jorb, lm = i.split("-")
-                ijbond_param = onsite.setdefault(iatomtype+"-"+jatomtype, {})
-                ijorb_param = ijbond_param.setdefault(iorb+"-"+jorb, {})
-                skparam = ijorb_param.setdefault(SKBondType[int(lm)], [])
+                # assert rijs is not None
 
-                for rij in rijs:
-                    params = {
-                        'paraArray':paraArray,'rij':torch.scalar_tensor(rij), 'iatomtype':iatomtype,
-                        'jatomtype':jatomtype
-                        }
-                    with torch.no_grad():
-                        skparam.append(skformula.skhij(**params).tolist()[0])
+                if rijs is not None:
+                    paraArray = onsite_coeff[i]
+                    iatomtype, jatomtype, iorb, jorb, lm = i.split("-")
+                    ijbond_param = onsite.setdefault(iatomtype+"-"+jatomtype, {})
+                    ijorb_param = ijbond_param.setdefault(iorb+"-"+jorb, {})
+                    skparam = ijorb_param.setdefault(SKBondType[int(lm)], [])
+
+                    for rij in rijs:
+                        params = {
+                            'paraArray':paraArray,'rij':torch.scalar_tensor(rij), 'iatomtype':iatomtype,
+                            'jatomtype':jatomtype
+                            }
+                        with torch.no_grad():
+                            skparam.append(skformula.skhij(**params).tolist()[0])
             else:
                 log.error(msg="Wrong format, please choose from [DeePTB] for checkpoint format, or [sktable] for hopping and onsite table.")
                 raise ValueError
@@ -587,21 +589,22 @@ def write_skparam(
             if rijs is None:
                 kkr = "-".join(i.split("-")[:2][::-1])
                 rijs = r_onsites.get(kkr, None)
-            assert rijs is not None
+            
+            if rijs is not None:
 
-            paraArray = hopping_coeff[i]
-            iatomtype, jatomtype, iorb, jorb, lm = i.split("-")
-            ijbond_param = hopping.setdefault(iatomtype+"-"+jatomtype, {})
-            ijorb_param = ijbond_param.setdefault(iorb+"-"+jorb, {})
-            skparam = ijorb_param.setdefault(SKBondType[int(lm)], [])
+                paraArray = hopping_coeff[i]
+                iatomtype, jatomtype, iorb, jorb, lm = i.split("-")
+                ijbond_param = hopping.setdefault(iatomtype+"-"+jatomtype, {})
+                ijorb_param = ijbond_param.setdefault(iorb+"-"+jorb, {})
+                skparam = ijorb_param.setdefault(SKBondType[int(lm)], [])
 
-            for rij in rijs:
-                params = {
-                    'paraArray':paraArray,'rij':torch.scalar_tensor(rij), 'iatomtype':iatomtype,
-                    'jatomtype':jatomtype, 'rcut':rcut,'w':w
-                    }
-                with torch.no_grad():
-                    skparam.append(skformula.skhij(**params).tolist()[0])
+                for rij in rijs:
+                    params = {
+                        'paraArray':paraArray,'rij':torch.scalar_tensor(rij), 'iatomtype':iatomtype,
+                        'jatomtype':jatomtype, 'rcut':rcut,'w':w
+                        }
+                    with torch.no_grad():
+                        skparam.append(skformula.skhij(**params).tolist()[0])
 
     jdata["hopping"] = hopping
     

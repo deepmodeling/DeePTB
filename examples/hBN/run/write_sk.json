@@ -5,7 +5,7 @@
 	"format": "sktable"
     },
     "init_model": {
-        "path": ["./first/checkpoint/best_nnsk_c1.5w0.3.pth"],
+        "path": ["./ckpt/3-2_strain_best_nnsk_b1.800_c1.800_w0.300.pth"],
         "interpolate": false
     }
 }
