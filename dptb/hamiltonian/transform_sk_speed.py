@@ -37,6 +37,10 @@ class RotationSK(object):
         self.pd = th.jit.trace(pd, [epAngvec, ep2])
         self.dd = th.jit.trace(dd, [epAngvec, ep3])
 
+        # self.sd = sd
+        # self.pd = pd
+        # self.dd = dd
+
     def rot_HS(self, Htype, Hvalue, Angvec):
         assert Htype in h_all_types, "Wrong hktypes"
 
@@ -63,13 +67,13 @@ def sp(Angvec: th.Tensor, SKsp: th.Tensor):
     return hs[[1,2,0]].reshape(3,1)
 
 def sd(Angvec: th.Tensor, SKsd: th.Tensor):
-    x = Angvec[0].item()
-    y = Angvec[1].item()
-    z = Angvec[2].item()
+    x = Angvec[0]
+    y = Angvec[1]
+    z = Angvec[2]
 
-    s3 = th.sqrt(th.scalar_tensor(3.)).item()
+    s3 = 3**0.5
 
-    rot_mat = th.tensor([s3 * x * y, s3 * y *z, 1.5 * z**2 -0.5, \
+    rot_mat = th.stack([s3 * x * y, s3 * y *z, 1.5 * z**2 -0.5, \
                         s3 * x * z, s3 * (2.0 * x ** 2 - 1.0 + z ** 2) / 2.0])
     # [5,1]*[1,1] => [5,1]
     hs = rot_mat * SKsd.view(-1)
@@ -88,12 +92,11 @@ def pp(Angvec: th.Tensor, SKpp: th.Tensor):
 
 def pd(Angvec: th.Tensor, SKpd: th.Tensor):
     p = Angvec[[1,2,0]].reshape(1,3)
-    x,y,z = Angvec
+    x,y,z = Angvec[0], Angvec[1], Angvec[2]
     s3 = 3**0.5
     d = th.stack([s3*x*y, s3*y*z, 0.5*(3*z*z-1), s3*x*z, 0.5*s3*(x*x-y*y)]).reshape(5,1)
-    x,y,z = x.item(), y.item(), z.item()
     pd = th.matmul(d,p)
-    fm = th.tensor([[x,0,y],[z,y,0],[-s3/3*y,2*s3/3*z,-s3/3*x],[0,x,z],[-y,0,x]])
+    fm = th.stack([x,0*x,y,z,y,0*x,-s3/3*y,2*s3/3*z,-s3/3*x,0*x,x,z,-y,0*x,x]).reshape(5,3)
     rot_mat = th.stack([pd, fm-2*s3/3*pd], dim=-1)
 
     hs = th.matmul(rot_mat, SKpd)
@@ -103,20 +106,20 @@ def pd(Angvec: th.Tensor, SKpd: th.Tensor):
 
 def dd(Angvec, SKdd):
 
-    x,y,z = Angvec
+    x,y,z = Angvec[0], Angvec[1], Angvec[2]
     x2, y2, z2 = x**2, y**2, z**2
     xy, yz, zx = x*y, y*z, z*x
     s3 = 3**0.5
     d = th.stack([s3*xy, s3*yz, 0.5*(3*z2-1), s3*zx, 0.5*s3*(x2-y2)]).reshape(5,1)
     dd0 = d @ d.T
     dd2 = 1/3 * dd0
-    dd2 = dd2 + th.tensor([
-        [z2,-zx,2/s3*xy,-yz,0],
-        [-zx,x2, -s3/3*yz,-xy,yz],
-        [2/s3*xy,-s3/3*yz,2/3-z2,-s3/3*zx,s3/3*(x2-y2)],
-        [-yz,-xy,-s3/3*zx,y2,-zx],
-        [0,yz,s3/3*(x2-y2),-zx,z2]
-    ])
+    dd2 = dd2 + th.stack([
+        z2,-zx,2/s3*xy,-yz,0*x, \
+        -zx,x2, -s3/3*yz,-xy,yz, \
+        2/s3*xy,-s3/3*yz,2/3-z2,-s3/3*zx,s3/3*(x2-y2), \
+        -yz,-xy,-s3/3*zx,y2,-zx, \
+        0*x,yz,s3/3*(x2-y2),-zx,z2
+    ]).reshape(5,5)
     rot_mat = th.stack([dd0, th.eye(5)-dd0-dd2, dd2], dim=-1)
 
     hs = th.matmul(rot_mat, SKdd.view(-1))
