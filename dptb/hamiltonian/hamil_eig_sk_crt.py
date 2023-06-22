@@ -3,7 +3,7 @@ import torch as th
 import numpy as np
 import logging
 import re
-from dptb.hamiltonian.transform_sk import RotationSK
+from dptb.hamiltonian.transform_sk_speed import RotationSK
 from dptb.nnsktb.formula import SKFormula
 from dptb.utils.constants import anglrMId
 from dptb.hamiltonian.soc import creat_basis_lm, get_soc_matrix_cubic_basis
@@ -103,7 +103,7 @@ class HamilEig(RotationSK):
             self.__struct__.soc_atom_updown = soc_atom_updown
         
         for ib in range(len(bonds_onsite)):
-            ibond = bonds_onsite[ib].astype(int)
+            ibond = bonds_onsite[ib].int()
             iatom = ibond[1]
             ist = int(np.sum(numOrbs[0:iatom]))
             ied = int(np.sum(numOrbs[0:iatom+1]))
@@ -139,10 +139,10 @@ class HamilEig(RotationSK):
         
         iatom_to_onsite_index = {}
         for ib in range(len(bonds_onsite)):
-            ibond = bonds_onsite[ib].astype(int)
-            iatom = ibond[1]
+            ibond = bonds_onsite[ib].int()
+            iatom = int(ibond[1])
             iatom_to_onsite_index.update({iatom:ib})
-            jatom = ibond[3]
+            jatom = int(ibond[3])
             iatype = self.__struct__.proj_atom_symbols[iatom]
             jatype = self.__struct__.proj_atom_symbols[jatom]
             assert iatype == jatype, "i type should equal j type."
@@ -172,8 +172,8 @@ class HamilEig(RotationSK):
             assert self.onsiteVs is not None
             for ib, env in enumerate(onsite_envs):
                 
-                iatype, iatom, jatype, jatom = self.__struct__.proj_atom_symbols[int(env[1])], env[1], self.__struct__.atom_symbols[int(env[3])], env[3]
-                direction_vec = env[8:11].astype(np.float32)
+                iatype, iatom, jatype, jatom = self.__struct__.proj_atom_symbols[int(env[1])], int(env[1]), self.__struct__.atom_symbols[int(env[3])], int(env[3])
+                direction_vec = env[8:11].float()
 
                 sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[iatype]], dtype=self.dtype, device=self.device)
                 envtype = iatype + '-' + jatype
@@ -219,15 +219,15 @@ class HamilEig(RotationSK):
         
         for ib in range(len(bonds_hoppings)):
             
-            ibond = bonds_hoppings[ib,0:7].astype(int)
+            ibond = bonds_hoppings[ib,0:7].int()
             #direction_vec = (self.__struct__.projected_struct.positions[ibond[3]]
             #          - self.__struct__.projected_struct.positions[ibond[1]]
             #          + np.dot(ibond[4:], self.__struct__.projected_struct.cell))
             #dist = np.linalg.norm(direction_vec)
             #direction_vec = direction_vec/dist
-            direction_vec = bonds_hoppings[ib,8:11].astype(np.float32)
-            iatype = self.__struct__.proj_atom_symbols[ibond[1]]
-            jatype = self.__struct__.proj_atom_symbols[ibond[3]]
+            direction_vec = bonds_hoppings[ib,8:11].float()
+            iatype = self.__struct__.proj_atom_symbols[int(ibond[1])]
+            jatype = self.__struct__.proj_atom_symbols[int(ibond[3])]
 
             sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
             if not self.use_orthogonal_basis:
@@ -276,8 +276,8 @@ class HamilEig(RotationSK):
         onsiteH, onsiteS, bonds_onsite = self.get_hs_onsite(bonds_onsite=bonds_onsite, onsite_envs=onsite_envs)
         hoppingH, hoppingS, bonds_hoppings = self.get_hs_hopping(bonds_hoppings=bonds_hoppings)
 
-        self.all_bonds = np.concatenate([bonds_onsite[:,0:7],bonds_hoppings[:,0:7]],axis=0)
-        self.all_bonds = self.all_bonds.astype(int)
+        self.all_bonds = torch.cat([bonds_onsite[:,0:7],bonds_hoppings[:,0:7]],dim=0)
+        self.all_bonds = self.all_bonds.int()
         onsiteH.extend(hoppingH)
         self.hamil_blocks = onsiteH
         if not self.use_orthogonal_basis:
@@ -326,9 +326,9 @@ class HamilEig(RotationSK):
             k = kpoints[ik]
             hk = th.zeros([totalOrbs,totalOrbs],dtype = self.cdtype, device=self.device)
             for ib in range(len(self.all_bonds)):
-                Rlatt = self.all_bonds[ib,4:7].astype(int)
-                i = self.all_bonds[ib,1].astype(int)
-                j = self.all_bonds[ib,3].astype(int)
+                Rlatt = self.all_bonds[ib,4:7].int()
+                i = self.all_bonds[ib,1].int()
+                j = self.all_bonds[ib,3].int()
                 ist = int(np.sum(numOrbs[0:i]))
                 ied = int(np.sum(numOrbs[0:i+1]))
                 jst = int(np.sum(numOrbs[0:j]))
