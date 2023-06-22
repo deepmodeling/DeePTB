@@ -87,7 +87,9 @@ class TBPLaS(object):
         # onsite part
         orbcount = 0
         elecount = 0
-        for ix, (itype, i, jtype, j, Rx, Ry, Rz) in enumerate(self.all_bonds):
+        for ix, bond in enumerate(self.all_bonds):
+            itype, i, jtype, j, Rx, Ry, Rz = int(bond[0]), int(bond[1]), int(bond[2]), int(bond[3]), \
+                                                int(bond[4]), int(bond[5]), int(bond[6])
             # accum_norbs.append(norbs[label])
             if i == j and (abs(Rx)+abs(Ry)+abs(Rz)) < 1e-14:
                 label = self.apiH.structure.proj_atom_symbols[i] # label is the atom type.
@@ -105,7 +107,8 @@ class TBPLaS(object):
         # accum_norbs = np.cumsum(accum_norbs)
         # off-diagonal part
         
-        for ix, (itype, i, jtype, j, Rx, Ry, Rz) in enumerate(self.all_bonds):
+        for ix, bond in enumerate(self.all_bonds):
+            itype, i, jtype, j, Rx, Ry, Rz = int(bond[0]), int(bond[1]), int(bond[2]), int(bond[3]), int(bond[4]), int(bond[5]), int(bond[6])
             block = self.hamil_blocks[ix] * factor
             ilabel = self.apiH.structure.proj_atom_symbols[i]
             jlabel = self.apiH.structure.proj_atom_symbols[j]
