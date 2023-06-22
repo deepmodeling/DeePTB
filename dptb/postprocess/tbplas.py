@@ -150,5 +150,7 @@ class TBPLaS(object):
             d1, d2 = dos[len(area)], dos[len(area)+1]
             e_fermi = e1 + (e2-e1) / (d2-d1) * (elecount-d1)
         # compute fermi-level
+        else:
+            e_fermi = self.jdata.get("e_fermi", 0)
         
         return tbplus_cell, e_fermi
