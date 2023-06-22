@@ -102,7 +102,7 @@ class NN2HRK(object):
             batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
             batch_onsiteVs = self.apihost.onsitestrain_fun.get_skhops(batch_bonds=batch_onsite_envs, coeff_paras=onsite_coeffdict)
             onsiteEs, hoppings, onsiteVs = batch_onsiteEs[0], batch_hoppings[0], batch_onsiteVs[0]
-            onsitenvs = np.asarray(batch_onsite_envs[0][:,1:])
+            onsitenvs = batch_onsite_envs[0][:,1:]
         else:
             onsiteEs, hoppings, onsiteVs = batch_onsiteEs[0], batch_hoppings[0],  None
             onsitenvs = None
@@ -113,7 +113,7 @@ class NN2HRK(object):
             soc_lambdas = None
 
         self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
-        self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[0][:,1:]), bonds_hoppings=np.asarray(batch_bonds[0][:,1:]), 
+        self.hamileig.get_hs_blocks(bonds_onsite=batch_bond_onsites[0][:,1:], bonds_hoppings=batch_bonds[0][:,1:], 
                                     onsite_envs=onsitenvs)
         
         # 同一个类实例, 只能计算一种TB hamiltonian. 
@@ -149,7 +149,7 @@ class NN2HRK(object):
                 batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
                 batch_nnsk_onsiteVs = self.apihost.onsitestrain_fun.get_skhops(batch_bonds=batch_onsite_envs, coeff_paras=onsite_coeffdict)
                 onsiteVs = batch_nnsk_onsiteVs[0]
-                onsitenvs = np.asarray(batch_onsite_envs[0][:,1:])
+                onsitenvs = batch_onsite_envs[0][:,1:]
             else:
                 onsiteVs = None
                 onsitenvs = None
@@ -173,7 +173,7 @@ class NN2HRK(object):
 
         
         self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
-        self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[0][:,1:]), bonds_hoppings=np.asarray(batch_bond_hoppings[0][:,1:]),
+        self.hamileig.get_hs_blocks(bonds_onsite=batch_bond_onsites[0][:,1:], bonds_hoppings=batch_bond_hoppings[0][:,1:],
                                     onsite_envs=onsitenvs)
 
         # 同一个类实例, 只能计算一种TB hamiltonian. 
