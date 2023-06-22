@@ -1,0 +1,24 @@
+{
+    "structure": "../data/struct.vasp",
+    "task_options": {
+        "task": "dos",
+        "mesh_grid": [
+            10,
+            10,
+            10
+        ],
+        "gamma_center": false,
+        "sigma": 0.1,
+        "npoints": 800,
+        "width": [
+            -25,
+            15
+        ],
+        "E_fermi": null
+    },
+    "init_model": {
+        "path": "./4.longtrain/checkpoint/latest_nnsk_b3.600_c3.600_w0.300.pth",
+        "interpolate": false
+    },
+    "use_correction": null
+}

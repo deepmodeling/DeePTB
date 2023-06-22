@@ -1,11 +1,7 @@
 {
-    "init_model": {
-        "path": null,
-        "interpolate": false
-    },
     "common_options": {
         "onsitemode": "none",
-        "onsite_cutoff": 2.6,
+        "onsite_cutoff": 1.6,
         "bond_cutoff": 1.6,
         "env_cutoff": 3.5,
         "atomtype": [
@@ -37,17 +33,17 @@
         "train": {
             "batch_size": 1,
             "path": "./data",
-            "prefix": "kpath"
+            "prefix": "kpath_sparse"
         },
         "validation": {
             "batch_size": 1,
             "path": "./data",
-            "prefix": "kpath"
+            "prefix": "kpath_sparse"
         },
         "reference": {
             "batch_size": 1,
             "path": "./data",
-            "prefix": "kpath"
+            "prefix": "kpath_sparse"
         }
     },
     "model_options": {

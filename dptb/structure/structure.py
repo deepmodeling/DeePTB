@@ -219,12 +219,20 @@ class BaseStruct(AbstractStructure):
         nbonds = bonds_.shape[0]
         if time_symm:
             bonds_rd = []
+            bonds_rd_dict = {}
             for inb in range(nbonds):
                 atomi, atomj, R = bonds_[inb, 0], bonds_[inb, 1], bonds_[inb, 2:]
                 bond_tmp = [atomi, atomj, R[0], R[1], R[2]]
                 bond_tmp_xc = [atomj, atomi, -R[0], -R[1], -R[2]]
-                if not (bond_tmp_xc in bonds_rd) and not (bond_tmp in bonds_rd):
+                
+                bond_tmp_key = f'{atomi}_{atomj}_{R[0]}_{R[1]}_{R[2]}'
+                bond_tmp_xc_key = f'{atomj}_{atomi}_{-R[0]}_{-R[1]}_{-R[2]}'
+
+                if not (bond_tmp_xc_key in bonds_rd_dict) and not (bond_tmp_key in bonds_rd_dict):
+                    bonds_rd_dict[bond_tmp_key] = ''
                     bonds_rd.append(bond_tmp)
+                #if not (bond_tmp_xc in bonds_rd) and not (bond_tmp in bonds_rd):
+                #    bonds_rd.append(bond_tmp)
 
             out_bonds = np.asarray(bonds_rd)
         else:

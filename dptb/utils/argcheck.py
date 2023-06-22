@@ -485,12 +485,14 @@ def dos():
     doc_sigma = ""
     doc_npoints = ""
     doc_width = ""
+    doc_E_fermi=""
 
     return [
         Argument("mesh_grid", list, optional=False, doc=doc_mesh_grid),
         Argument("sigma", float, optional=False, doc=doc_sigma),
         Argument("npoints", int, optional=False, doc=doc_npoints),
         Argument("width", list, optional=False, doc=doc_width),
+        Argument("E_fermi", [float, int, None], optional=True, doc=doc_E_fermi, default=None),
         Argument("gamma_center", bool, optional=True, default=False, doc=doc_gamma_center)
     ]
 
@@ -500,6 +502,7 @@ def pdos():
     doc_sigma = ""
     doc_npoints = ""
     doc_width = ""
+    doc_E_fermi=""
     doc_atom_index = ""
     doc_orbital_index = ""
 
@@ -508,6 +511,7 @@ def pdos():
         Argument("sigma", float, optional=False, doc=doc_sigma),
         Argument("npoints", int, optional=False, doc=doc_npoints),
         Argument("width", list, optional=False, doc=doc_width),
+        Argument("E_fermi", [float, int, None], optional=True, doc=doc_E_fermi, default=None),
         Argument("atom_index", list, optional=False, doc=doc_atom_index),
         Argument("orbital_index", list, optional=False, doc=doc_orbital_index),
         Argument("gamma_center", bool, optional=True, default=False, doc=doc_gamma_center)

@@ -1,12 +1,8 @@
 {
-    "init_model": {
-        "path": null,
-        "interpolate": false
-    },
     "common_options": {
         "onsitemode": "strain",
-        "onsite_cutoff": 1.8,
-        "bond_cutoff": 1.8,
+        "onsite_cutoff": 1.6,
+        "bond_cutoff": 1.6,
         "env_cutoff": 3.5,
         "atomtype": [
             "N",
@@ -29,25 +25,25 @@
     },
     "train_options": {
         "seed":120478,
-        "num_epoch": 400,
-        "optimizer": {"lr":1e-3}
+        "num_epoch": 800,
+        "optimizer": {"lr":1e-2}
     },
     "data_options": {
         "use_reference": true,
         "train": {
             "batch_size": 1,
             "path": "./data",
-            "prefix": "kpath"
+            "prefix": "kpath_sparse"
         },
         "validation": {
             "batch_size": 1,
             "path": "./data",
-            "prefix": "kpath"
+            "prefix": "kpath_sparse"
         },
         "reference": {
             "batch_size": 1,
             "path": "./data",
-            "prefix": "kpath"
+            "prefix": "kpath_sparse"
         }
     },
     "model_options": {
@@ -56,7 +52,7 @@
             "sk_onsite_nhidden": 1
         },
         "skfunction": {
-            "sk_cutoff": 1.8,
+            "sk_cutoff": 1.6,
             "sk_decay_w": 0.3
         }
     }
