@@ -1,5 +1,5 @@
 {   
-    "structure":"./data/struct.vasp",
+    "structure":"../data/struct.vasp",
     "task_options": {
         "task": "band",
         "kline_type":"abacus",
@@ -13,7 +13,7 @@
         "klabels":["G", "M", "K", "G"],
         "E_fermi":-7.5,
         "emin":-23,
-        "emax":12,
-        "ref_band": "./data/kpath.0/eigs.npy"
+        "emax":15,
+        "ref_band": "../data/kpath.0/eigs.npy"
     }
 }
