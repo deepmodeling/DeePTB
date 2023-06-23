@@ -31,6 +31,8 @@ class TBPLaS(object):
             raise ValueError('structure must be ase.Atoms or str')
         
         self.results_path = run_opt.get('results_path')
+        if not os.path.exists(self.results_path):
+            os.mkdir(self.results_path)
         self.apiH.update_struct(self.structase)
         self.model_config = self.apiH.apihost.model_config
         self.jdata = jdata
@@ -82,16 +84,15 @@ class TBPLaS(object):
         # orbs for example.  {'C':[s, y, z, x, "xy ", "yz", "z2", "xz", "x2-y2"]}
         # norbs for example. {'C': 9} for use all the  s, p  and d orbitals. if only s, p {'C': 4}.
 
-        accum_norbs = [0]
         orbsidict = {}
         # onsite part
         orbcount = 0
         elecount = 0
+        R_bonds = self.all_bonds[:,4:7].abs().sum(dim=-1)
         for ix, bond in enumerate(self.all_bonds):
-            itype, i, jtype, j, Rx, Ry, Rz = int(bond[0]), int(bond[1]), int(bond[2]), int(bond[3]), \
-                                                int(bond[4]), int(bond[5]), int(bond[6])
+            itype, i, j = int(bond[0]), int(bond[1]), int(bond[3])
             # accum_norbs.append(norbs[label])
-            if i == j and (abs(Rx)+abs(Ry)+abs(Rz)) < 1e-14:
+            if i == j and R_bonds[ix] < 1e-14:
                 label = self.apiH.structure.proj_atom_symbols[i] # label is the atom type.
                 onsite_blocks = self.hamil_blocks[ix] * factor - self.jdata.get("e_fermi", 0) # this is only for 
                 assert atomic_num_dict_r[itype] == label
@@ -108,7 +109,7 @@ class TBPLaS(object):
         # off-diagonal part
         
         for ix, bond in enumerate(self.all_bonds):
-            itype, i, jtype, j, Rx, Ry, Rz = int(bond[0]), int(bond[1]), int(bond[2]), int(bond[3]), int(bond[4]), int(bond[5]), int(bond[6])
+            i, j, Rx, Ry, Rz = int(bond[1]), int(bond[3]), int(bond[4]), int(bond[5]), int(bond[6])
             block = self.hamil_blocks[ix] * factor
             ilabel = self.apiH.structure.proj_atom_symbols[i]
             jlabel = self.apiH.structure.proj_atom_symbols[j]
@@ -116,13 +117,17 @@ class TBPLaS(object):
 
             for xo in range(nx):
                 for yo in range(ny):
-                    if abs(block[xo, yo]) > 1e-14 and not \
-                    (((abs(Rx)+abs(Ry)+abs(Rz)) < 1e-14) & (orbsidict[str(i)+"-"+orbs[ilabel][xo]]==orbsidict[str(j)+"-"+orbs[jlabel][yo]])):
-                        tbplus_cell.add_hopping(rn=[Rx, Ry, Rz], 
-                                                orb_i=orbsidict[str(i)+"-"+orbs[ilabel][xo]],
-                                                orb_j=orbsidict[str(j)+"-"+orbs[jlabel][yo]],
-                                                energy=block[xo,yo].item()
-                                                )
+                    energy = block[xo,yo].item()
+                    idx = orbsidict[str(i)+"-"+orbs[ilabel][xo]]
+                    idy = orbsidict[str(j)+"-"+orbs[jlabel][yo]]
+                    if abs(energy) > 1e-7 and not \
+                    ((R_bonds[ix] < 1e-14) & (idx==idy)):
+                        # tbplus_cell.add_hopping(rn=[Rx, Ry, Rz], 
+                        #                         orb_i=orbsidict[str(i)+"-"+orbs[ilabel][xo]],
+                        #                         orb_j=orbsidict[str(j)+"-"+orbs[jlabel][yo]],
+                        #                         energy=energy
+                        #                         )
+                        tbplus_cell._hopping_dict.add_hopping(rn=(Rx, Ry, Rz), orb_i=idx, orb_j=idy, energy=energy)
         
         if self.jdata["cal_fermi"]:
             
