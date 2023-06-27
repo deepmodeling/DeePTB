@@ -363,7 +363,7 @@ class HamilEig(RotationSK):
             
         return Hk
 
-    def Eigenvalues(self, kpoints, time_symm=True, unit="Hartree"):
+    def Eigenvalues(self, kpoints, time_symm=True, unit="Hartree",if_eigvec=False):
         """ using the tight-binding H and S matrix calculate eigenvalues at kpoints.
         
         Args:
@@ -384,7 +384,10 @@ class HamilEig(RotationSK):
             Heff = (chklowtinv @ hkmat @ th.transpose(chklowtinv,dim0=1,dim1=2).conj())
         # the factor 13.605662285137 * 2 from Hartree to eV.
         # eigks = th.linalg.eigvalsh(Heff) * 13.605662285137 * 2
-        eigks = th.linalg.eigvalsh(Heff)
+        if if_eigvec:
+            eigks, eigvec = th.linalg.eigh(Heff)
+        else:
+            eigks = th.linalg.eigvalsh(Heff)
         
         if unit == "Hartree":
             factor = 13.605662285137 * 2
@@ -403,7 +406,9 @@ class HamilEig(RotationSK):
         #     Heff = (chklowtinv @ hkmat @ np.transpose(chklowtinv,(0,2,1)).conj())
         #     eigks = np.linalg.eigvalsh(Heff) * 13.605662285137 * 2
         #     Qres = 0
+        
+        if if_eigvec:
+            return eigks, eigvec
+        else:
+            return eigks, None
 
-        return eigks, None
-
-        # return eigks, Qres

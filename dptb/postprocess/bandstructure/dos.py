@@ -115,7 +115,7 @@ class pdoscalc (object):
         else:
             raise ValueError('structure must be ase.Atoms or str')
         
-        self.jdata = jdata
+        self.pdos_plot_options = jdata
         self.results_path = run_opt.get('results_path')
         self.apiH.update_struct(self.structase)
 
@@ -125,7 +125,6 @@ class pdoscalc (object):
             self.num_orbs_per_atom.append(norbs)
 
     def get_pdos(self):
-        self.pdos_plot_options = j_must_have(self.jdata, 'pdos')
         self.mesh_grid = self.pdos_plot_options['mesh_grid']
         self.isgamma = self.pdos_plot_options['gamma_center']
         self.kpoints = kmesh_sampling(meshgrid= self.mesh_grid,is_gamma_center=self.isgamma)
@@ -223,7 +222,7 @@ class pdoscalc (object):
     
     def get_eigenvalues(self, kpoints):
         all_bonds, hamil_blocks, overlap_blocks = self.apiH.get_HR()
-        self.eigenvalues, self.estimated_E_fermi, self.eigenvectors = self.apiH.get_eigenvalues(kpoints, eigvec=True)
+        self.eigenvalues, self.estimated_E_fermi, self.eigenvectors = self.apiH.get_eigenvalues(kpoints, if_eigvec=True)
         if self.pdos_plot_options.get('E_fermi',None) != None:
             self.E_fermi = self.pdos_plot_options['E_fermi']
             log.info(f'set E_fermi from jdata: {self.E_fermi} , While the estimated value is {self.estimated_E_fermi} .')
