@@ -14,8 +14,8 @@
                 ],
         "klabels":["G","X","X/U","K","G","L","W","X"],
         "E_fermi":-7.5,
-        "emin":-20,
-        "emax":8,
+        "emin":-15,
+        "emax":10,
         "ref_band": "./data/kpath.0/eigs.npy"
     }
 }

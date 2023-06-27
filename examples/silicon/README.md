@@ -60,6 +60,39 @@ Let's plot the converged `nnsk` model in last step, using `band.json` in `run/`,
 ```bash
 dptb run -sk run/band.json -i ./ckpt/2-1_best_nnsk_b2.600_c2.600_w0.300.pth -o ./band
 ```
+The file `band.json` includes the parameters to plot the band structure. 
+```json
+
+{   
+    "structure":"./data/silicon.vasp",
+    "task_options": {
+        "task": "band",
+        "kline_type":"abacus",
+        "kpath":[[0.0000000000,  0.0000000000,   0.0000000000,  50],   
+                [0.5000000000,   0.0000000000,   0.5000000000,  50],               
+                [0.6250000000,   0.2500000000,   0.6250000000,  1],    
+                [0.3750000000,   0.3750000000,   0.7500000000,  50],     
+                [0.0000000000,   0.0000000000,   0.0000000000,  50],    
+                [0.5000000000,   0.5000000000,   0.5000000000,  50],                
+                [0.5000000000,   0.2500000000,   0.7500000000,  50],               
+                [0.5000000000,   0.0000000000,   0.5000000000,  1 ]
+                ],
+        "klabels":["G","X","X/U","K","G","L","W","X"],
+        "E_fermi":-7.5,
+        "emin":-12,
+        "emax":12,
+        "ref_band": "./data/kpath.0/eigs.npy"
+    }
+}
+```
+- `task`: the task to run, here we plot the band structure.
+- `kline_type`: the type of kpath, here we use the abacus kpath.
+- `kpath`: shape (:,4), here [:,:3] is the kpath, using the kpoints at the high symmetry points to define kpath, [:,3] is the number of kpoints in between two high symmetry points.
+- `klabels`: the labels of high symmetry points.
+- `E_fermi`: the fermi energy of the system.
+- `emin`: the minimum energy of the bandstructure.
+- `emax`: the maximum energy of the bandstructure.
+- `ref_band`: the reference bandstructure, here we use the bandstructure of the primary cell calculated by abacus with the same kpath setting.
 
 we can see, the fitted model has already captured the shape of the valance bands. However, the conductance band is less accurate since the orbitals `3s` and `3p` is not complete for the space spaned by the considered valance and conductance band. Therefore we need to include more orbitals in the model. 
 
@@ -86,7 +119,11 @@ dptb train -sk ./ckpt/2-2-1_input.json -i ./ckpt/2-1_best_nnsk_b2.600_c2.600_w0.
 ```
 
 In this way, the parameters in `nnsk` model corresponding to `3s` and `3p` orbitals can be reloaded. 
-When convergence is achieved, we can plot the band structure, which shows that both the valance and conductance band are fitted well:
+When convergence is achieved, we can plot the band structure, using the command:
+```bash
+dptb run -sk run/band.json -i ./ckpt/2-2-1_best_nnsk_b2.600_c2.600_w0.300.pth -o ./band
+```
+which shows that both the valance and conductance band are fitted well:
 
 <div align=center>
 <img src="./img/2_band.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
