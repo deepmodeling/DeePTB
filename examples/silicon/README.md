@@ -194,3 +194,164 @@ dptb run band_md.json -i ./ckpt/md/2-3-300K_best_dptb_b5.000_c5.000_w0.100.pth -
 </div>
 
 Now you know how to train a **DeePTB** model, congratulations !
+
+
+
+## **4. Properties calculations**
+### 4.1 Bandstructure.
+ Already introduced in the previous section.  for example use the checkpoit ` `ckpt/2-2-2_best_nnsk_b5.000_c5.000_w0.100.pth`
+```bash
+dptb run -sk ./run/band.json -i ./ckpt/2-2-2_best_nnsk_b5.000_c5.000_w0.100.pth -o ./property/band
+```
+<div align=center>
+<img src="./property/band.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
+
+### 4.2 Density of States (DOS).
+#### 4.2.1 Total DOS.
+
+we use the checkpoint `ckpt/2-2-2_best_nnsk_b5.000_c5.000_w0.100.pth` as an example.
+using the json input file  `./run/dos.json` for dos plot.
+```json
+{   
+    "structure":"./data/silicon.vasp",
+    "task_options": {
+        "task": "dos",
+        "mesh_grid":[20,20,20],
+        "gamma_center":false,
+        "sigma":0.05,
+        "npoints":800,
+        "E_fermi":-9.307,
+        "width":[-15,10]
+    }
+}
+```
+
+```bash
+dptb run -sk ./run/dos.json -i ./ckpt/2-2-2_best_nnsk_b5.000_c5.000_w0.100.pth -o ./property/dos
+```
+
+<div align=center>
+<img src="./property/dos.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
+
+
+#### 4.2.1 Projected DOS.
+using the json input file  `./run/pdos.json` for projected dos plot.
+
+```json
+{
+    "structure":"./data/silicon.vasp",
+    "task_options":{
+        "task": "pdos",
+        "mesh_grid":[20,20,20],
+        "gamma_center":true,
+        "E_fermi":-9.307,
+        "sigma":0.08,
+        "npoints":800,
+        "width":[-15,10],
+        "atom_index":[0],
+        "orbital_index":[0,1,2,3]
+    }
+}
+```
+
+command:
+```bash
+dptb run -sk ./run/pdos.json -i ./ckpt/2-2-2_best_nnsk_b5.000_c5.000_w0.100.pth -o ./property/pdos
+```
+
+<div align=center>
+<img src="./property/proj_dos.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
+
+### 4.3 Fermi Surface.
+For fermi surface, you can use the api to IFermi. For example, we use the ifermi.json to use dptb to call ifermi to plot fermi surface.
+```json
+{
+    "structure":"./data/silicon.vasp",
+    "task_options":{
+        "task": "ifermi",    
+        "fermisurface":{
+            "mesh_grid":[8,8,8],
+            "mu":-2,
+            "intpfactor":3,
+            "wigner_seitz":true,
+            "nworkers":4,
+            "plot_type":"plotly",
+            "use_gui": false,
+            "plot_fs_bands":false,
+            "fs_plane":[0,0,1],
+            "fs_distance":0.0,
+            "plot_options":{}
+        }
+    }
+}
+```
+- `mesh_grid`: the mesh grid of the fermi surface.
+- `mu`: the shift of fermi energy. mu=0 no shift. mu<0 shift to lower energy, which corresponds to electron doping. mu>0 shift to higher energy, which corresponds to hole doping.
+- `intpfactor`: the interpolation factor of the fermi surface. The larger the intpfactor, the smoother the fermi surface.
+- `wigner_seitz`: whether to use wigner_seitz cell to plot the fermi surface.
+- `nworkers`: the number of workers for parallelization to calculate the fermi surface.
+- `plot_type`: the type of the fermi surface plot. `plotly` or `matplotlib`.
+- `use_gui`: whether to use gui to plot the fermi surface. for server without gui, use `false`.
+- `plot_fs_bands`: whether to plot the fermi surface of each band.
+- `fs_plane`: plot the fermi surface on the plane with normal vector `fs_plane`.
+- `fs_distance`: the distance from the origin to the plane.
+- `plot_options`: other plot options for the fermi surface. 
+
+run command:
+```bash
+dptb run -sk ./run/ifermi.json -i ./ckpt/2-2-2_best_nnsk_b5.000_c5.000_w0.100.pth -o ./property/ifermi
+```
+we can see the fermi surface and fermi slice:
+<div align=center>
+<img src="./property/ifermi/Ifermi_FS.png" width = "52%" height = "60%" alt="hBN Bands" align=center />
+<img src="./property/ifermi/Ifermi_FS_slice.png" width = "40%" height = "60%" alt="hBN Bands" align=center />
+</div>
+
+### 4.4 Fermi velocity.
+For fermi surface, you can use the api to IFermi. For example, we use the ifermi.json to use dptb to call ifermi to plot fermi surface.
+```bash
+{
+    "structure":"./data/silicon.vasp",
+    "task_options":{
+        "task": "ifermi",    
+        "fermisurface":{
+            "mesh_grid":[8,8,8],
+            "mu":-2,
+            "intpfactor":3,
+            "wigner_seitz":true,
+            "nworkers":4,
+            "plot_type":"plotly",
+            "use_gui": false,
+            "plot_fs_bands":false,
+            "fs_plane":[0,0,1],
+            "fs_distance":0.0,
+            "plot_options":{}
+        },
+        "property":{
+            "velocity":true,
+            "color_properties":true,
+            "colormap":"RdBu",
+            "prop_plane":[0,0,1],
+            "prop_distance":0.0,
+            "plot_options":{
+                "projection_axis": [0,0,1],
+                "hide_surface": true,
+                "hide_labels": true
+            }
+        }
+    }
+}
+```
+
+<div align=center>
+<img src="./property/ifermi_velocity/Ifermi_FS.png" width = "52%" height = "50%" alt="hBN Bands" align=center />
+<img src="./property/ifermi_velocity/Ifermi_FS_slice.png" width = "40%" height = "50%" alt="hBN Bands" align=center />
+</div>
+
+<div align=center>
+<img src="./property/ifermi_velocity/Ifermi_FS_velocity.png" width = "52%" height = "50%" alt="hBN Bands" align=center />
+<img src="./property/ifermi_velocity/Ifermi_FS_velcoity_slice.png" width = "40%" height = "50%" alt="hBN Bands" align=center />
+</div>
