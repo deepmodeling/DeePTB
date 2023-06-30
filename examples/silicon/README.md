@@ -204,7 +204,7 @@ Now you know how to train a **DeePTB** model, congratulations !
 dptb run -sk ./run/band.json -i ./ckpt/2-2-2_best_nnsk_b5.000_c5.000_w0.100.pth -o ./property/band
 ```
 <div align=center>
-<img src="./property/band.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+<img src="./property/band.png" width = "60%" height = "60%" alt="Silicon Bands" align=center />
 </div>
 
 ### 4.2 Density of States (DOS).
@@ -232,7 +232,7 @@ dptb run -sk ./run/dos.json -i ./ckpt/2-2-2_best_nnsk_b5.000_c5.000_w0.100.pth -
 ```
 
 <div align=center>
-<img src="./property/dos.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+<img src="./property/dos.png" width = "60%" height = "60%" alt="Silicon DOS" align=center />
 </div>
 
 
@@ -262,7 +262,7 @@ dptb run -sk ./run/pdos.json -i ./ckpt/2-2-2_best_nnsk_b5.000_c5.000_w0.100.pth 
 ```
 
 <div align=center>
-<img src="./property/proj_dos.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+<img src="./property/proj_dos.png" width = "60%" height = "60%" alt="Silicon PDOS" align=center />
 </div>
 
 ### 4.3 Fermi Surface.
@@ -306,8 +306,8 @@ dptb run -sk ./run/ifermi.json -i ./ckpt/2-2-2_best_nnsk_b5.000_c5.000_w0.100.pt
 ```
 we can see the fermi surface and fermi slice:
 <div align=center>
-<img src="./property/ifermi/Ifermi_FS.png" width = "52%" height = "60%" alt="hBN Bands" align=center />
-<img src="./property/ifermi/Ifermi_FS_slice.png" width = "40%" height = "60%" alt="hBN Bands" align=center />
+<img src="./property/ifermi/Ifermi_FS.png" width = "52%" height = "60%" alt="Silicon FS" align=center />
+<img src="./property/ifermi/Ifermi_FS_slice.png" width = "40%" height = "60%" alt="Silicon FS_slice" align=center />
 </div>
 
 ### 4.4 Fermi velocity.
@@ -347,11 +347,11 @@ For fermi surface, you can use the api to IFermi. For example, we use the ifermi
 ```
 
 <div align=center>
-<img src="./property/ifermi_velocity/Ifermi_FS.png" width = "52%" height = "50%" alt="hBN Bands" align=center />
-<img src="./property/ifermi_velocity/Ifermi_FS_slice.png" width = "40%" height = "50%" alt="hBN Bands" align=center />
+<img src="./property/ifermi_velocity/Ifermi_FS.png" width = "52%" height = "50%" alt="Silicon FS velocity" align=center />
+<img src="./property/ifermi_velocity/Ifermi_FS_slice.png" width = "40%" height = "50%" alt="Silicon FS slice velocity" align=center />
 </div>
 
 <div align=center>
-<img src="./property/ifermi_velocity/Ifermi_FS_velocity.png" width = "52%" height = "50%" alt="hBN Bands" align=center />
-<img src="./property/ifermi_velocity/Ifermi_FS_velcoity_slice.png" width = "40%" height = "50%" alt="hBN Bands" align=center />
+<img src="./property/ifermi_velocity/Ifermi_FS_velocity.png" width = "52%" height = "50%" alt="Silicon FS velocity arrow" align=center />
+<img src="./property/ifermi_velocity/Ifermi_FS_velcoity_slice.png" width = "40%" height = "50%" alt="Silicon FS slice velocity arrow" align=center />
 </div>
