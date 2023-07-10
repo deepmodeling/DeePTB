@@ -311,7 +311,7 @@ we can see the fermi surface and fermi slice:
 </div>
 
 ### 4.4 Fermi velocity.
-For Fermi surface, you can use the api to IFermi. For example, we use the ifermi.json to use dptb to call ifermi to plot the fermi surface.
+For Fermi velocity, you can also use IFermi through our API. The detail configuration is illustrated bellow.
 ```bash
 {
     "structure":"./data/silicon.vasp",
