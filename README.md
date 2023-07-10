@@ -1,10 +1,10 @@
-**DeePTB** is a Python package for tight-binding model. It has a few highlight features:
-- Slater Koster like parameterization with a wide range of functions.
+**DeePTB** is a Python package for tight-binding models. It has a few highlight features:
+- Slater-Koster-like parameterization with a wide range of functions.
 - Environmental correction with symmetry preserving neural networks.
 - Efficient gradient-based fitting algorithm from autograd implementation.
 
  
-The full document can be found in [readthedoc page](https://deeptb-doc.readthedocs.io/en/latest/index.html).
+The full document can be found on [readthedoc page](https://deeptb-doc.readthedocs.io/en/latest/index.html).
 - [1. **installation**](#1-installation)
   - [**From Source**](#from-source)
   - [**From Pypi**](#from-pypi)
@@ -28,8 +28,8 @@ If you are installing from source, you will need:
 - torch 1.13.0 or later, following the instruction on [PyTorch: Get Started](https://pytorch.org/get-started/locally) if GPU support is required, otherwise this can be installed with the building procedure.
 - ifermi (optional, install only when 3D fermi-surface plotting is needed.)
 
-First clone or download the source code from website.
-Then, located to the repository root and running 
+First clone or download the source code from the website.
+Then, located in the repository root and running 
 
 ```bash
 cd path/deeptb
@@ -44,7 +44,7 @@ pip install .
 # 2. **Getting Started.**
 
 ## 2.1 **Data**
-The dataset of one structure is recommended to prepare as the following format:
+The dataset of one structure is recommended to prepare in the following format:
 ```
 data/
 -- set.x
@@ -53,31 +53,31 @@ data/
 -- -- xdat.traj        # ase trajectory file with num_frame
 -- -- bandinfo.json    # defining the training objective of this bandstructure
 ```
-One should prepare the **atomic structures** and **electronic band structures**. The **atomic structures** data is in ASE traj binary format, where each structure are stored using an **Atom** class defined in ASE package. The **band structures** data contains the kpoints list and eigenvalues are in the binary format of npy. The shape of kpoints data is **[num_kpoint,3]** and eigenvalues is **[num_frame,nk,nbands]**. nsnaps is the number of snapshots, nk is the number of kpoints and nbands is the number of bands.
+One should prepare the **atomic structures** and **electronic band structures**. The **atomic structures** data is in ASE trade binary format, where each structure is stored using an **Atom** class defined in ASE package. The **band structures** data contains the kpoints list and eigenvalues in the binary format of npy. The shape of kpoints data is **[num_kpoint,3]** and eigenvalues is **[num_frame,nk,nbands]**. nsnaps is the number of snapshots, nk is the number of kpoints and nbands is the number of bands.
 
 ### **Bandinfo**
 
-`bandinfo.json` defines the settings of the training objective of each structure, basicly you can have specific settings for different structure, which enables the flexible training objectives for various structures with diffrent atom number and atom type.
+`bandinfo.json` defines the settings of the training objective of each structure, basicly you can have specific settings for different structures, which enables flexible training objectives for various structures with different atom numbers and atom types.
 
-The **bandinfo.json** file looks like:
+The **bandinfo.json** file looks like this:
 ```bash
 {
     "band_min": 0,
     "band_max": 4,
     "emin": null, # minimum of fitting energy window
     "emax": null, # maximum of fitting energy window
-    "weight": [1] # optional, indicating the weight for each band seperatly
+    "weight": [1] # optional, indicating the weight for each band separately
 }
 ```
-**note:** the `0` energy point is located at the lowest energy eigenvalues of the data files, to generalize bandstructure data compute by different DFT packages.
+**note:** The `0` energy point is located at the lowest energy eigenvalues of the data files, to generalize bandstructure data compute by different DFT packages.
 
 ## 2.2 **input json**
-**DeePTB** probide input config templete for quick setup. User can run:
+**DeePTB** provides input config templates for quick setup. User can run:
 ```bash
 dptb config <generated input config path> [-full]
 ```
-The templete config file will be generated at the path `./input.json`.
-For full document about the input parameters, we refer to the detail [document](https://deeptb-doc.readthedocs.io/en/latest/index.html). For now, we only need to consider a few vital parameters that can setup the training:
+The template config file will be generated at the path `./input.json`.
+For the full document about the input parameters, we refer to the detail [document](https://deeptb-doc.readthedocs.io/en/latest/index.html). For now, we only need to consider a few vital parameters that can setup the training:
 
 ```json
 "common_options": {
@@ -127,26 +127,26 @@ dptb bond <structure path> [[-c] <cutoff>] [[-acc] <accuracy>]
 
 ## 2.3 **Training**
 When data and input config file is prepared, we are ready to train the model.
-To train a neural network parameterized Slater-Koster Tight-Binding model (**nnsk**) with Gradient Based Optimization method, we can run:
+To train a neural network parameterized Slater-Koster Tight-Binding model (**nnsk**) with Gradient-Based Optimization method, we can run:
 ```bash
 dptb train -sk <input config> [[-o] <output directory>] [[-i|-r] <nnsk checkpoint path>]
 ```
 <!--
-For training a environmental dependent Tight-Binding model (**dptb**), we can run:
+For training a environmentally dependent Tight-Binding model (**dptb**), we can run:
 ```bash
 dptb train <input config> [[-o] <output directory>] [[-i|-r] <dptb checkpoint path>]
 ```
 -->
-For training a environmental dependent Tight-Binding model (**dptb**), the suggested procedure is first train a **nnsk** model, and use environment dependent neural network as a correction with the command **"-crt"** as proposed in our paper: xxx:
+For training an environmental dependent Tight-Binding model (**dptb**), the suggested procedure is first to train a **nnsk** model, and use environment dependent neural network as a correction with the command **"-crt"** as proposed in our paper: xxx:
 ```bash
 dptb train <input config> -crt <nnsk checkpoint path> [[-i|-r] <dptb checkpoint path>] [[-o] <output directory>]
 ```
 
 ## 2.4 **Testing**
-After the model is converged, the testing function can be used to do the model test, or compute the eigenvalues for other analysis. 
+After the model is converged, the testing function can be used to do the model test or compute the eigenvalues for other analyses. 
 
 Test config is just attained by a little modification of the train config. 
-Delete the `train_options` since it is not useful when testing the model. And we delete all lines contains in `data_options`, and add the `test` dataset config:
+Delete the `train_options` since it is not useful when testing the model. And we delete all lines contained in `data_options`, and add the `test` dataset config:
 ```json
 "test": {
     "batch_size": 1,  
@@ -163,21 +163,21 @@ if test **dptb** model, we can run:
 dptb test <test config> -crt <nnsk checkpoint path> -i <dptb checkpoint path> [[-o] <output directory>]
 ```
 ## 2.5 **Processing**
-**DeePTB** integrates multiple post processing functionalities in `dptb run` command, includesincludes:
+**DeePTB** integrates multiple post-processing functionalities in `dptb run` command, including:
 - band structure plotting
 - density of states plotting
 - fermi surface plotting
 - slater-koster parameter transcription
 
-Please see the templete config file in `examples/hBN/run/`, and the running command is:
+Please see the template config file in `examples/hBN/run/`, and the running command is:
 ```bash
 dptb run [-sk] <run config> [[-o] <output directory>] -i <nnsk/dptb checkpoint path> [[-crt] <nnsk checkpoint path>]
 ```
 
-For detail document, please see our [Document page](https://deeptb-doc.readthedocs.io/en/latest/index.html).
+For detailed documents, please see our [Document page](https://deeptb-doc.readthedocs.io/en/latest/index.html).
 
 # 3. **Example: hBN.**
-hBN is a binary coumpond made of equal numbers of boron (B) and nitrogen (N), we present this as a quick hands-on example. The prepared files are located in:
+hBN is a binary compound made of equal numbers of boron (B) and nitrogen (N), we present this as a quick hands-on example. The prepared files are located in:
 ```
 deeptb/examples/hBN/
 -- data/kpath.0/
@@ -188,7 +188,7 @@ deeptb/examples/hBN/
 -- run/
 -- input_short.json
 ```
-The ```input_short.json``` file contains the least numbers of parameters that required to start training the **DeePTB** model. ```data``` folder contains the bandstructure data ```kpath.0```, where another important configuration file ```bandinfo.json``` is located.
+The ```input_short.json``` file contains the least number of parameters that are required to start training the **DeePTB** model. ```data``` folder contains the bandstructure data ```kpath.0```, where another important configuration file ```bandinfo.json``` is located.
 
 ```bash
 cd deeptb/examples/hBN/data
@@ -240,12 +240,12 @@ first/
 |   `-- log.txt
 `-- train_config.json
 ```
-Here checkpoint saves our fitting files, where best indicate the one in fitting procedure which has lowest validation loss. The latest is the most recent results.
+Here checkpoint saves our fitting files, which best indicate the one in the fitting procedure which has the lowest validation loss. The latest is the most recent results.
 we can plot the fitting bandstructure as:
 ```bash
 dptb run -sk band.json  -i ./first/checkpoint/best_nnsk_b1.600_c1.600_w0.300.pth -o ./band
 ```
-``-i`` states initialize the model from the checkpoint file `./first/checkpoint/best_nnsk_b1.600_c1.600_w0.300.pth`. results will be saved in directory `band`:
+``-i`` states initialize the model from the checkpoint file `./first/checkpoint/best_nnsk_b1.600_c1.600_w0.300.pth`. results will be saved in the directory `band`:
 ```
 band/
 -- log/
@@ -254,12 +254,12 @@ band/
 -- -- band.png
 -- -- bandstructure.npy
 ```
-Where `band.png` is the bandstructure of the trained model. Which looks like:
+Where `band.png` is the band structure of the trained model. Which looks like this:
 <div align=center>
 <img src="./examples/hBN/reference/1.start/results/band.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
 </div>
 
-It shows that the fitting has learn the rough shape of the bandstructure, but not very accurate. We can further improve the accuracy by incooperating more feature of our code, for example the onsite correction. There are two kind of onsite correction supported: `uniform` or `strain`. We use `strain` for now to see the effect. Now change the `input_short.json` by the parasmeters:
+It shows that the fitting has learned the rough shape of the bandstructure, but not very accurate. We can further improve the accuracy by incorporating more features of our code, for example, the onsite correction. There are two kinds of onsite correction supported: `uniform` or `strain`. We use `strain` for now to see the effect. Now change the `input_short.json` by the parameters:
 ```json
     "common_options": {
         "onsitemode": "strain",
@@ -273,7 +273,7 @@ see the input file `hBN/reference/2.strain/input_short.json` for detail. Then we
 ```bash
 dptb train -sk input_short.json -o ./strain -i ./first/checkpoint/best_nnsk_b1.600_c1.600_w0.300.pth
 ```
-After training finished, you can get the strain folder with:
+After the training is finished, you can get the strain folder with:
 ```shell
 strain
 |-- checkpoint
@@ -293,7 +293,7 @@ dptb run -sk band.json  -i ./strain/checkpoint/best_nnsk_b1.600_c1.600_w0.300.pt
 <img src="./examples/hBN/reference/2.strain/results/band.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
 </div>
 
-It looks ok, we can further improve the accuracy by adding more neighbours, and training for longer time. We can gradually increase the `sk_cutoff` from 1st to 3rd neighbour. change the `input_short.json` by the parasmeters:
+It looks ok, we can further improve the accuracy by adding more neighbours, and training for a longer time. We can gradually increase the `sk_cutoff` from 1st to 3rd neighbour. change the `input_short.json` by the parameters:
 ```json
     "common_options": {
         "onsitemode": "strain",
@@ -314,7 +314,7 @@ This means that we use up to 3rd nearest neighbour for bonding, and we train for
 dptb train -sk input_short.json -o ./varycutoff -i ./strain/checkpoint/best_nnsk_b1.600_c1.600_w0.300.pth
 ```
 
-After training finished, you can get the strain folder with:
+After the training is finished, you can get the strain folder with:
 ```shell
 varycutoff
 |-- checkpoint
@@ -336,7 +336,7 @@ dptb run -sk band.json  -i ./varycutoff/checkpoint/latest_nnsk_b3.600_c3.599_w0.
 <img src="./examples/hBN/reference/3.varycutoff/results/band.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
 </div>
 
-We can again increase more training epochs, using the larger cutoff checkpoint, change the input using 
+We can again increase more training epochs, using the larger cutoff checkpoint, and change the input using 
 ```json
     "train_options": {
         "num_epoch": 10000,
@@ -358,13 +358,13 @@ We can get a better fitting result:
 <img src="./examples/hBN/reference/4.longtrain/results/band.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
 </div>
 
-Now you have learnt the basis use of **DeePTB**, however, the advanced functions are still need to be explored for accurate and flexible electron structure representation, such as:
+Now you have learnt the basis use of **DeePTB**, however, the advanced functions still need to be explored for accurate and flexible electron structure representation, such as:
 - atomic orbitals
 - environmental correction
 - spin-orbit coupling (SOC)
 - ...
 
-Altogether, we can simulate the electronic structure of a crystal system in a dynamic trajectory. **DeePTB** is capable of handeling atom movement, volume change under stress, SOC effect and can using DFT eigenvalues with differnet orbitals and xc functionals as training target. More results can be found in the [Gallary](#4-gallary).
+Altogether, we can simulate the electronic structure of a crystal system in a dynamic trajectory. **DeePTB** is capable of handling atom movement, volume change under stress, SOC effect and can use DFT eigenvalues with different orbitals and xc functionals as training targets. More results can be found in the [Gallary](#4-gallary).
 
 
 
