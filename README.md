@@ -14,7 +14,8 @@ In summary, **DeePTB** offers the following key features:
 - Efficient and accurate finite temperature simulations through integration with molecular dynamics.
 
  
-The full document can be found on [readthedoc page](https://deeptb-doc.readthedocs.io/en/latest/index.html).
+ <!--The full document can be found on [readthedoc page](https://deeptb-doc.readthedocs.io/en/latest/index.html).--> 
+ 
 - [1. **installation**](#1-installation)
   - [**From Source**](#from-source)
   - [**From Pypi**](#from-pypi)
