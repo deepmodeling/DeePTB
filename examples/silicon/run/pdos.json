@@ -1,0 +1,15 @@
+{
+    "structure":"./data/silicon.vasp",
+    "task_options":{
+        "task": "pdos",
+        "mesh_grid":[10,10,10],
+        "gamma_center":true,
+        "E_fermi":-9.307,
+        "sigma":0.08,
+        "npoints":800,
+        "width":[-15,10],
+        "atom_index":[0],
+        "orbital_index":[0,1,2,3]
+    }
+}
+

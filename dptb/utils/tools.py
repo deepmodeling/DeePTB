@@ -528,27 +528,30 @@ def write_skparam(
     # onsites
     if onsitemode ==  "strain":
         for i in onsite_coeff.keys():
+            kk = "-".join(i.split("-")[:2])
             if format == "DeePTB":
                 onsite[i] = onsite_coeff[i].tolist()
             elif format == "sktable":
-                rijs = r_onsites.get(i[:3], None)
+                rijs = r_onsites.get(kk, None)
                 if rijs is None:
-                    rijs = r_onsites.get(i[:3][::-1], None)
-                assert rijs is not None
+                    kkr = "-".join(i.split("-")[:2][::-1])
+                    rijs = r_onsites.get(kkr, None)
+                # assert rijs is not None
 
-                paraArray = onsite_coeff[i]
-                iatomtype, jatomtype, iorb, jorb, lm = i.split("-")
-                ijbond_param = hopping.setdefault(iatomtype+"-"+jatomtype, {})
-                ijorb_param = ijbond_param.setdefault(iorb+"-"+jorb, {})
-                skparam = ijorb_param.setdefault(SKBondType[int(lm)], [])
+                if rijs is not None:
+                    paraArray = onsite_coeff[i]
+                    iatomtype, jatomtype, iorb, jorb, lm = i.split("-")
+                    ijbond_param = onsite.setdefault(iatomtype+"-"+jatomtype, {})
+                    ijorb_param = ijbond_param.setdefault(iorb+"-"+jorb, {})
+                    skparam = ijorb_param.setdefault(SKBondType[int(lm)], [])
 
-                for rij in rijs:
-                    params = {
-                        'paraArray':paraArray,'rij':torch.scalar_tensor(rij), 'iatomtype':iatomtype,
-                        'jatomtype':jatomtype
-                        }
-                    with torch.no_grad():
-                        skparam.append(skformula.skhij(**params).tolist()[0])
+                    for rij in rijs:
+                        params = {
+                            'paraArray':paraArray,'rij':torch.scalar_tensor(rij), 'iatomtype':iatomtype,
+                            'jatomtype':jatomtype
+                            }
+                        with torch.no_grad():
+                            skparam.append(skformula.skhij(**params).tolist()[0])
             else:
                 log.error(msg="Wrong format, please choose from [DeePTB] for checkpoint format, or [sktable] for hopping and onsite table.")
                 raise ValueError
@@ -580,25 +583,28 @@ def write_skparam(
         if format == "DeePTB":
             hopping[i] = hopping_coeff[i].tolist()
         elif format == "sktable":
+            kk = "-".join(i.split("-")[:2])
 
-            rijs = r_bonds.get(i[:3], None)
+            rijs = r_bonds.get(kk, None)
             if rijs is None:
-                rijs = r_onsites.get(i[:3][::-1], None)
-            assert rijs is not None
+                kkr = "-".join(i.split("-")[:2][::-1])
+                rijs = r_onsites.get(kkr, None)
+            
+            if rijs is not None:
 
-            paraArray = hopping_coeff[i]
-            iatomtype, jatomtype, iorb, jorb, lm = i.split("-")
-            ijbond_param = hopping.setdefault(iatomtype+"-"+jatomtype, {})
-            ijorb_param = ijbond_param.setdefault(iorb+"-"+jorb, {})
-            skparam = ijorb_param.setdefault(SKBondType[int(lm)], [])
+                paraArray = hopping_coeff[i]
+                iatomtype, jatomtype, iorb, jorb, lm = i.split("-")
+                ijbond_param = hopping.setdefault(iatomtype+"-"+jatomtype, {})
+                ijorb_param = ijbond_param.setdefault(iorb+"-"+jorb, {})
+                skparam = ijorb_param.setdefault(SKBondType[int(lm)], [])
 
-            for rij in rijs:
-                params = {
-                    'paraArray':paraArray,'rij':torch.scalar_tensor(rij), 'iatomtype':iatomtype,
-                    'jatomtype':jatomtype, 'rcut':rcut,'w':w
-                    }
-                with torch.no_grad():
-                    skparam.append(skformula.skhij(**params).tolist()[0])
+                for rij in rijs:
+                    params = {
+                        'paraArray':paraArray,'rij':torch.scalar_tensor(rij), 'iatomtype':iatomtype,
+                        'jatomtype':jatomtype, 'rcut':rcut,'w':w
+                        }
+                    with torch.no_grad():
+                        skparam.append(skformula.skhij(**params).tolist()[0])
 
     jdata["hopping"] = hopping
     

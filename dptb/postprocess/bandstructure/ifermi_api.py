@@ -78,7 +78,7 @@ class ifermiapi (object):
         self.extra_plot_fs_options = self.fs_plot_options.get('plot_options',{})
         
         if self.property_options is not None:
-            self.color_properties = self.fs_plot_options.get('color_properties',False) 
+            self.color_properties = self.property_options.get('color_properties',False) 
             self.plot_velocity = self.property_options.get('velocity',False)
             self.prop_colormap = self.property_options.get('colormap','viridis')
             self.plot_prop_options = self.property_options.get('plot_options',{})

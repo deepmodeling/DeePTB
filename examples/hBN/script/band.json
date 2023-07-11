@@ -1,0 +1,13 @@
+{   
+    "structure":"./data/struct.vasp",
+    "task_options": {
+        "task": "band",
+        "kline_type":"ase",
+        "kpath":"GMKG",
+        "nkpoints":119,
+        "E_fermi":-7.5,
+        "emin":-19,
+        "emax":12,
+        "ref_band": "./data/eigs_band.npy"
+    }
+}

@@ -20,6 +20,7 @@ class NN2HRK(object):
         self.device = apihost.model_config['device']
         self.dtype =  apihost.model_config['dtype']
         self.unit = apihost.model_config['unit']
+        self.if_soc = apihost.model_config['soc']
             
         self.sorted_onsite="st"
         self.sorted_bond="st"
@@ -60,20 +61,22 @@ class NN2HRK(object):
             skmat = torch.eye(hkmat.shape[1], dtype=torch.complex64).unsqueeze(0).repeat(hkmat.shape[0], 1, 1)
         return hkmat, skmat
     
-    def get_eigenvalues(self,kpoints,spindeg=2, eigvec=False):
+    def get_eigenvalues(self,kpoints,spindeg=2, if_eigvec=False):
         assert self.if_nn_HR_ready or self.if_dp_HR_ready, "The HR shoule be calcualted before call for HK." 
-        eigenvalues,eigenvectors = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm, unit =self.unit)
+        eigenvalues,eigenvectors = self.hamileig.Eigenvalues(kpoints, time_symm=self.time_symm, unit =self.unit, if_eigvec=if_eigvec)
         eigks = eigenvalues.detach().numpy()
 
-        if eigvec:
+        if if_eigvec:
             eigvecks = eigenvectors.detach().numpy()
         
         num_el = np.sum(self.structure.proj_atom_neles_per)
         nk = len(kpoints)
+        if self.if_soc:
+            spindeg = 1
         numek = num_el * nk // spindeg
         sorteigs =  np.sort(np.reshape(eigks,[-1]))
         EF=(sorteigs[numek] + sorteigs[numek-1])/2
-        if eigvec:
+        if if_eigvec:
             return eigks, EF, eigvecks
         else:
             return eigks, EF
@@ -99,7 +102,7 @@ class NN2HRK(object):
             batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
             batch_onsiteVs = self.apihost.onsitestrain_fun.get_skhops(batch_bonds=batch_onsite_envs, coeff_paras=onsite_coeffdict)
             onsiteEs, hoppings, onsiteVs = batch_onsiteEs[0], batch_hoppings[0], batch_onsiteVs[0]
-            onsitenvs = np.asarray(batch_onsite_envs[0][:,1:])
+            onsitenvs = batch_onsite_envs[0][:,1:]
         else:
             onsiteEs, hoppings, onsiteVs = batch_onsiteEs[0], batch_hoppings[0],  None
             onsitenvs = None
@@ -110,7 +113,7 @@ class NN2HRK(object):
             soc_lambdas = None
 
         self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
-        self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[0][:,1:]), bonds_hoppings=np.asarray(batch_bonds[0][:,1:]), 
+        self.hamileig.get_hs_blocks(bonds_onsite=batch_bond_onsites[0][:,1:], bonds_hoppings=batch_bonds[0][:,1:], 
                                     onsite_envs=onsitenvs)
         
         # 同一个类实例, 只能计算一种TB hamiltonian. 
@@ -146,7 +149,7 @@ class NN2HRK(object):
                 batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
                 batch_nnsk_onsiteVs = self.apihost.onsitestrain_fun.get_skhops(batch_bonds=batch_onsite_envs, coeff_paras=onsite_coeffdict)
                 onsiteVs = batch_nnsk_onsiteVs[0]
-                onsitenvs = np.asarray(batch_onsite_envs[0][:,1:])
+                onsitenvs = batch_onsite_envs[0][:,1:]
             else:
                 onsiteVs = None
                 onsitenvs = None
@@ -170,7 +173,7 @@ class NN2HRK(object):
 
         
         self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
-        self.hamileig.get_hs_blocks(bonds_onsite=np.asarray(batch_bond_onsites[0][:,1:]), bonds_hoppings=np.asarray(batch_bond_hoppings[0][:,1:]),
+        self.hamileig.get_hs_blocks(bonds_onsite=batch_bond_onsites[0][:,1:], bonds_hoppings=batch_bond_hoppings[0][:,1:],
                                     onsite_envs=onsitenvs)
 
         # 同一个类实例, 只能计算一种TB hamiltonian. 

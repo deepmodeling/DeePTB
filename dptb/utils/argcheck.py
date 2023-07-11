@@ -485,12 +485,14 @@ def dos():
     doc_sigma = ""
     doc_npoints = ""
     doc_width = ""
+    doc_E_fermi=""
 
     return [
         Argument("mesh_grid", list, optional=False, doc=doc_mesh_grid),
         Argument("sigma", float, optional=False, doc=doc_sigma),
         Argument("npoints", int, optional=False, doc=doc_npoints),
         Argument("width", list, optional=False, doc=doc_width),
+        Argument("E_fermi", [float, int, None], optional=True, doc=doc_E_fermi, default=None),
         Argument("gamma_center", bool, optional=True, default=False, doc=doc_gamma_center)
     ]
 
@@ -500,6 +502,7 @@ def pdos():
     doc_sigma = ""
     doc_npoints = ""
     doc_width = ""
+    doc_E_fermi=""
     doc_atom_index = ""
     doc_orbital_index = ""
 
@@ -508,6 +511,7 @@ def pdos():
         Argument("sigma", float, optional=False, doc=doc_sigma),
         Argument("npoints", int, optional=False, doc=doc_npoints),
         Argument("width", list, optional=False, doc=doc_width),
+        Argument("E_fermi", [float, int, None], optional=True, doc=doc_E_fermi, default=None),
         Argument("atom_index", list, optional=False, doc=doc_atom_index),
         Argument("orbital_index", list, optional=False, doc=doc_orbital_index),
         Argument("gamma_center", bool, optional=True, default=False, doc=doc_gamma_center)
@@ -607,7 +611,7 @@ def ifermi():
     KTOL = 1e-5
     SCALE = 4
 
-
+ 
     plot_options=[
         Argument("colors", [str,dict,list,None], optional=True, default=None, doc=doc_colors),
         Argument("projection_axis", [list,None], optional=True, default=None, doc=doc_projection_axis),
@@ -626,7 +630,7 @@ def ifermi():
     args_fermi = [
         Argument("mesh_grid", list, optional = False, default=[2,2,2], doc = doc_mesh_grid),
         Argument("mu", [float,int], optional = False, default=0.0, doc = doc_mu),
-        Argument("sigma", float, optional = False, default=0.1, doc = doc_sigma),
+        Argument("sigma", float, optional = True, default=0.1, doc = doc_sigma),
         Argument("intpfactor", int, optional = False, default=1, doc = doc_intpfactor),
         Argument("wigner_seitz", bool, optional = True, default=True, doc = doc_wigner_seitz),
         Argument("nworkers", int, optional = True, default=-1, doc = doc_nworkers),
@@ -635,13 +639,13 @@ def ifermi():
         Argument("plot_fs_bands", bool, optional = True, default = False, doc = doc_plot_fs_bands),
         Argument("fs_plane", list, optional = True, default=[0,0,1], doc = doc_fs_plane),
         Argument("fs_distance", [int,float], optional = True, default=0, doc = doc_fs_distanc),
-        Argument("color_properties", bool, optional = True, default=False, doc = doc_color_properties),
         Argument("plot_options", dict, optional=True, sub_fields=plot_options, sub_variants=[], default={}, doc=doc_fs_plot_options)
     ]
 
 
     args_prop = [
-        Argument("velocity", bool, optional = True, default=True, doc = doc_velocity),
+        Argument("velocity", bool, optional = True, default=False, doc = doc_velocity),
+        Argument("color_properties", [str,bool], optional = True, default=False, doc = doc_color_properties),
         Argument("colormap", str, optional = True,default="viridis",doc = doc_colormap),
         Argument("prop_plane", list, optional = True, default=[0,0,1],doc = doc_prop_plane),
         Argument("prop_distance", [int,float], optional = True, default=0, doc = doc_prop_distance),

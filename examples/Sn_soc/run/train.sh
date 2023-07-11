@@ -1,0 +1,1 @@
+dptb train input.json -sk -i ./nonsoc_model/best_nnsk_c6.0w0.1.pth -o ./soc_model

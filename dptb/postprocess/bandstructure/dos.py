@@ -54,7 +54,7 @@ class doscalc (object):
         plt.xticks(np.linspace(self.omega.min(),self.omega.max(),5),fontsize=8)
         plt.yticks(fontsize=8)
         plt.ylabel('Density of states',fontsize=8)
-        plt.xlabel('Energy (eV)',fontsize=8)
+        plt.xlabel('E - EF (eV)',fontsize=8)
 
         plt.tick_params(direction='in')
         plt.tight_layout()
@@ -63,18 +63,18 @@ class doscalc (object):
 
 
     def _calc_dos(self, sigma=0.1, npoints=100,  width=None, updata=False, kpoints=None):
+        if kpoints is not None:
+            kpoint_use = kpoints
+        else:
+            kpoint_use = self.kpoints
+        nkp = len(kpoint_use)
+
         if updata:
-            if kpoints is not None:
-                self.eigenvalues, self.E_fermi = self.get_eigenvalues(kpoints=kpoints)
-            else:
-                self.eigenvalues, self.E_fermi = self.get_eigenvalues(kpoints=self.kpoints)
+            self.eigenvalues, self.E_fermi = self.get_eigenvalues(kpoints=kpoint_use)
         else:
             if not hasattr(self, 'eigenvalues'):
-                if kpoints is not None:
-                    self.eigenvalues, self.E_fermi = self.get_eigenvalues(kpoints=kpoints)
-                else:
-                    self.eigenvalues, self.E_fermi = self.get_eigenvalues(kpoints=self.kpoints)
-        
+                self.eigenvalues, self.E_fermi = self.get_eigenvalues(kpoints=kpoint_use)
+
         if width is not None:
             emin,emax = width                
             if emin is None:
@@ -87,7 +87,7 @@ class doscalc (object):
         self.omega = np.linspace(emin, emax, npoints)
         
         xx = self.eigenvalues.reshape(-1,1) - self.E_fermi - self.omega.reshape(1,-1)
-        self.dos = np.sum(np.exp(-(xx)**2 / (2 * sigma**2)), axis=0) / (sigma * np.sqrt(2 * np.pi))
+        self.dos = np.sum(np.exp(-(xx)**2 / (2 * sigma**2)), axis=0) / (sigma * np.sqrt(2 * np.pi)) / nkp
 
         return self.omega, self.dos
 
@@ -115,7 +115,7 @@ class pdoscalc (object):
         else:
             raise ValueError('structure must be ase.Atoms or str')
         
-        self.jdata = jdata
+        self.pdos_plot_options = jdata
         self.results_path = run_opt.get('results_path')
         self.apiH.update_struct(self.structase)
 
@@ -125,7 +125,6 @@ class pdoscalc (object):
             self.num_orbs_per_atom.append(norbs)
 
     def get_pdos(self):
-        self.pdos_plot_options = j_must_have(self.jdata, 'pdos')
         self.mesh_grid = self.pdos_plot_options['mesh_grid']
         self.isgamma = self.pdos_plot_options['gamma_center']
         self.kpoints = kmesh_sampling(meshgrid= self.mesh_grid,is_gamma_center=self.isgamma)
@@ -188,17 +187,17 @@ class pdoscalc (object):
 
 
     def _calc_pdos(self, sigma=0.1, npoints=100,  width=None, updata=False, kpoints=None):
+        if kpoints is not None:
+            kpoint_use = kpoints
+        else:
+            kpoint_use = self.kpoints
+        nkp = len(kpoint_use)
+
         if updata:
-            if kpoints is not None:
-                self.eigenvalues, self.E_fermi, self.eigenvectors = self.get_eigenvalues(kpoints=kpoints)
-            else:
-                self.eigenvalues, self.E_fermi, self.eigenvectors = self.get_eigenvalues(kpoints=self.kpoints)
+            self.eigenvalues, self.E_fermi, self.eigenvectors = self.get_eigenvalues(kpoints=kpoint_use)
         else:
             if not hasattr(self, 'eigenvalues'):
-                if kpoints is not None:
-                    self.eigenvalues, self.E_fermi, self.eigenvectors = self.get_eigenvalues(kpoints=kpoints)
-                else:
-                    self.eigenvalues, self.E_fermi, self.eigenvectors = self.get_eigenvalues(kpoints=self.kpoints)
+                self.eigenvalues, self.E_fermi, self.eigenvectors = self.get_eigenvalues(kpoints=kpoint_use)
         
         if width is not None:
             emin,emax = width                
@@ -216,14 +215,14 @@ class pdoscalc (object):
         xx = (self.omega[np.newaxis,np.newaxis,:] - self.eigenvalues[:,:,np.newaxis] + self.E_fermi)
         dos_e_k = np.exp(-(xx)**2 / (2 * sigma**2)) / (sigma * np.sqrt(2 * np.pi))
         pdos_e_k = prob[:,:,:,np.newaxis]  * dos_e_k[:,:,np.newaxis,:]
-        self.pdos = np.sum(np.sum(pdos_e_k,axis=0),axis=0)
+        self.pdos = np.sum(np.sum(pdos_e_k,axis=0),axis=0) / nkp
 
         return self.omega, self.pdos
 
     
     def get_eigenvalues(self, kpoints):
         all_bonds, hamil_blocks, overlap_blocks = self.apiH.get_HR()
-        self.eigenvalues, self.estimated_E_fermi, self.eigenvectors = self.apiH.get_eigenvalues(kpoints, eigvec=True)
+        self.eigenvalues, self.estimated_E_fermi, self.eigenvectors = self.apiH.get_eigenvalues(kpoints, if_eigvec=True)
         if self.pdos_plot_options.get('E_fermi',None) != None:
             self.E_fermi = self.pdos_plot_options['E_fermi']
             log.info(f'set E_fermi from jdata: {self.E_fermi} , While the estimated value is {self.estimated_E_fermi} .')

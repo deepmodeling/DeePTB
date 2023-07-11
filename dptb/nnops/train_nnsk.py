@@ -156,7 +156,8 @@ class NNSKTrainer(Trainer):
             if self.onsitemode == 'strain':
                 onsiteEs, onsiteVs, hoppings = batch_onsiteEs[ii], batch_onsiteVs[ii], batch_hoppings[ii]
                 # TODO: 这里的numpy 是否要改为tensor 方便之后为了GPU的加速。
-                onsitenvs = np.asarray(batch_onsitenvs[ii][:,1:])
+                # onsitenvs = np.asarray(batch_onsitenvs[ii][:,1:])
+                onsitenvs = batch_onsitenvs[ii][:,1:]
                 # call hamiltonian block
             else:
                 onsiteEs, hoppings = batch_onsiteEs[ii], batch_hoppings[ii]
@@ -169,8 +170,10 @@ class NNSKTrainer(Trainer):
             else:
                 soc_lambdas = None
 
-            bond_onsites = np.asarray(batch_bond_onsites[ii][:,1:])
-            bond_hoppings = np.asarray(batch_bonds[ii][:,1:])
+            # bond_onsites = np.asarray(batch_bond_onsites[ii][:,1:])
+            # bond_hoppings = np.asarray(batch_bonds[ii][:,1:])
+            bond_onsites = batch_bond_onsites[ii][:,1:]
+            bond_hoppings = batch_bonds[ii][:,1:]
 
             self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs,soc_lambdas=soc_lambdas)
             self.hamileig.get_hs_blocks(bonds_onsite=bond_onsites,
@@ -251,6 +254,10 @@ class NNSKTrainer(Trainer):
     def update(self, **kwargs):
         self.model_options["skfunction"]["sk_cutoff"] += self.skcut_step
         self.model_options["skfunction"]["sk_decay_w"] += self.skdecay_step
+
+        self.model_config["skfunction"]["sk_cutoff"] = self.model_options["skfunction"]["sk_cutoff"]
+        self.model_config["skfunction"]["sk_decay_w"] = self.model_options["skfunction"]["sk_decay_w"]
+
 
     def validation(self, **kwargs):
         with torch.no_grad():

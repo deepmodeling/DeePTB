@@ -1,0 +1,77 @@
+{
+    "structure": "../../data/soc/Sn.vasp",
+    "task_options": {
+        "task": "band",
+        "kline_type": "abacus",
+        "kpath": [
+            [
+                0.0,
+                0.0,
+                0.0,
+                30
+            ],
+            [
+                0.5,
+                0.0,
+                0.5,
+                30
+            ],
+            [
+                0.625,
+                0.25,
+                0.625,
+                30
+            ],
+            [
+                0.375,
+                0.375,
+                0.75,
+                30
+            ],
+            [
+                0.0,
+                0.0,
+                0.0,
+                30
+            ],
+            [
+                0.5,
+                0.5,
+                0.5,
+                30
+            ],
+            [
+                0.5,
+                0.25,
+                0.75,
+                30
+            ],
+            [
+                0.5,
+                0.0,
+                0.5,
+                1
+            ]
+        ],
+        "klabels": [
+            "G",
+            "X",
+            "U",
+            "K",
+            "G",
+            "L",
+            "W",
+            "X"
+        ],
+        "E_fermi": -8.317,
+        "emin": -12,
+        "emax": 8,
+        "ref_band": "../../data/soc/ref_eig_band.npy",
+        "nkpoints": 0
+    },
+    "init_model": {
+        "path": "./checkpoint/best_nnsk_c6.0w0.1.pth",
+        "interpolate": false
+    },
+    "use_correction": null
+}

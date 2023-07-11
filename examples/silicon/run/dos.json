@@ -1,15 +1,12 @@
 {   
-    "structure":"./data/struct.vasp",
+    "structure":"./data/silicon.vasp",
     "task_options": {
         "task": "dos",
         "mesh_grid":[10,10,10],
         "gamma_center":false,
         "sigma":0.1,
         "npoints":800,
+        "E_fermi":-9.307,
         "width":[-15,10]
-    },
-    "init_model": {
-        "path": ["./first/checkpoint/best_nnsk_c1.5w0.3.pth"],
-        "interpolate": false
     }
 }

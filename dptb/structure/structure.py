@@ -3,6 +3,7 @@ import warnings
 import logging
 import ase.neighborlist
 from ase import Atoms
+import torch
 import numpy  as np
 import re
 from itertools import accumulate
@@ -218,12 +219,20 @@ class BaseStruct(AbstractStructure):
         nbonds = bonds_.shape[0]
         if time_symm:
             bonds_rd = []
+            bonds_rd_dict = {}
             for inb in range(nbonds):
                 atomi, atomj, R = bonds_[inb, 0], bonds_[inb, 1], bonds_[inb, 2:]
                 bond_tmp = [atomi, atomj, R[0], R[1], R[2]]
                 bond_tmp_xc = [atomj, atomi, -R[0], -R[1], -R[2]]
-                if not (bond_tmp_xc in bonds_rd) and not (bond_tmp in bonds_rd):
+                
+                bond_tmp_key = f'{atomi}_{atomj}_{R[0]}_{R[1]}_{R[2]}'
+                bond_tmp_xc_key = f'{atomj}_{atomi}_{-R[0]}_{-R[1]}_{-R[2]}'
+
+                if not (bond_tmp_xc_key in bonds_rd_dict) and not (bond_tmp_key in bonds_rd_dict):
+                    bonds_rd_dict[bond_tmp_key] = ''
                     bonds_rd.append(bond_tmp)
+                #if not (bond_tmp_xc in bonds_rd) and not (bond_tmp in bonds_rd):
+                #    bonds_rd.append(bond_tmp)
 
             out_bonds = np.asarray(bonds_rd)
         else:
@@ -246,6 +255,7 @@ class BaseStruct(AbstractStructure):
 
         # bonds stores the bonds in the form of [i_atom_num, i, j_atom_num, j, Rx, Ry, Rz, |rj-ri|, \hat{rij: x, y, z}].
         bonds = np.concatenate((iatom_nums,out_bonds[:,[0]],jatom_nums,out_bonds[:,[1]],out_bonds[:,2:5], norm, dircetion_cosine),axis=1)
+        bonds = torch.from_numpy(bonds)
         
         # on site bond
         for ii in range(len(self.proj_atom_symbols)):
@@ -253,7 +263,7 @@ class BaseStruct(AbstractStructure):
             bonds_onsite.append([atomic_num_dict[self.proj_atom_symbols[ii]], ii, 
                                       atomic_num_dict[self.proj_atom_symbols[ii]], ii, 0, 0, 0])
 
-        bonds_onsite = np.asarray(bonds_onsite, dtype=int)
+        bonds_onsite = torch.tensor(bonds_onsite, dtype=torch.int32)
 
         return bonds, bonds_onsite # [itype, i, jtype, j, Rx, Ry, Rz, |rj-ri|, \hat{rij: x, y, z}]
 
@@ -315,7 +325,7 @@ class BaseStruct(AbstractStructure):
             for kk in envdict:
                 envdict[kk] = np.asarray(envdict[kk], dtype=float)
                 envdict[kk][:, 1] = self.atom_to_proj_atom_id[envdict[kk][:, 1].astype(int)]
-                proj_env[kk] = np.asarray(envdict[kk], dtype=float)
+                proj_env[kk] = torch.from_numpy(np.asarray(envdict[kk], dtype=float))
         
         elif sorted == 'iatom':
             envdict = {}
@@ -332,7 +342,7 @@ class BaseStruct(AbstractStructure):
             for kk in envdict:
                 envdict[kk] = np.asarray(envdict[kk], dtype=float)
                 envdict[kk][:, 1] = self.atom_to_proj_atom_id[envdict[kk][:, 1].astype(int)]
-                proj_env[kk] = np.asarray(envdict[kk], dtype=float)
+                proj_env[kk] = torch.from_numpy(np.asarray(envdict[kk], dtype=float))
         
         elif sorted == None:
             env_all_arrs_ = []
@@ -344,7 +354,7 @@ class BaseStruct(AbstractStructure):
             env_all_arrs_ = np.array(env_all_arrs_,dtype=float)
             env_all_arrs_[:, 1] = self.atom_to_proj_atom_id[env_all_arrs_[:, 1].astype(int)]
             proj_env = env_all_arrs_
-            proj_env = np.asarray(proj_env, dtype=float)
+            proj_env = torch.from_numpy(np.asarray(proj_env, dtype=float))
         
         return proj_env # (itype, i, jtype, j, Rx, Ry, Rz, s(r), rx, ry, rz) or the dict of it
 
