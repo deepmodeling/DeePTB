@@ -111,11 +111,11 @@ class DPTBTester(Tester):
 
                 if self.onsitemode == "strain":
                     onsiteVs = batch_nnsk_onsiteVs[ii]
-                    onsitenvs = np.asarray(batch_onsitenvs[ii][:,1:])
+                    onsitenvs = batch_onsitenvs[ii][:,1:]
             # call hamiltonian block
 
-            bond_onsites = np.asarray(batch_bond_onsites[ii][:,1:])
-            bond_hoppings = np.asarray(batch_bond_hoppings[ii][:,1:])
+            bond_onsites = batch_bond_onsites[ii][:,1:]
+            bond_hoppings = batch_bond_hoppings[ii][:,1:]
 
             self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
             self.hamileig.get_hs_blocks(bonds_onsite=bond_onsites,

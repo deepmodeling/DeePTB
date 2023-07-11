@@ -2,6 +2,7 @@ import pytest
 import ase
 from ase.build import graphene_nanoribbon
 import ase.neighborlist
+import torch
 import os
 import sys
 import logging
@@ -33,9 +34,9 @@ def test_BaseStruct(root_directory):
     proj_atom_anglr_m = {"N":["s","p"],"B":["s","p"]}
     proj_atom_neles = {"N":5,"B":3}
     CutOff = 4
-    onsitelist = np.array([[7, 0, 7, 0, 0, 0, 0],
+    onsitelist = torch.tensor([[7, 0, 7, 0, 0, 0, 0],
        [5, 1, 5, 1, 0, 0, 0]])
-    bondlist = np.array([[ 7,  0,  5,  1, -2,  0,  0],
+    bondlist = torch.tensor([[ 7,  0,  5,  1, -2,  0,  0],
        [ 7,  0,  7,  0, -1,  0,  0],
        [ 7,  0,  5,  1, -1,  0,  0],
        [ 7,  0,  5,  1,  1,  0,  0],
@@ -54,7 +55,7 @@ def test_BaseStruct(root_directory):
        [ 5,  1,  5,  1,  0, -1,  0],
        [ 5,  1,  5,  1, -1,  0,  0]])
     
-    bond_dist_vec = np.array([[ 3.8249233e+00, -9.8198050e-01, -1.8898225e-01,  0.0000000e+00],
+    bond_dist_vec = torch.tensor([[ 3.8249233e+00, -9.8198050e-01, -1.8898225e-01,  0.0000000e+00],
        [ 2.5039999e+00, -1.0000000e+00,  0.0000000e+00,  0.0000000e+00],
        [ 1.4456851e+00, -8.6602539e-01, -5.0000000e-01,  0.0000000e+00],
        [ 3.8249230e+00,  9.8198050e-01, -1.8898226e-01,  0.0000000e+00],
@@ -72,7 +73,7 @@ def test_BaseStruct(root_directory):
        [ 2.5039999e+00,  5.0000000e-01,  8.6602539e-01,  0.0000000e+00],
        [ 2.5039999e+00,  5.0000000e-01, -8.6602539e-01,  0.0000000e+00],
        [ 2.5039999e+00, -1.0000000e+00,  0.0000000e+00,  0.0000000e+00]],
-      dtype=np.float32)
+      dtype=torch.float32)
     struct = BaseStruct(atom=filename,format='vasp',
         cutoff=CutOff,proj_atom_anglr_m=proj_atom_anglr_m,proj_atom_neles=proj_atom_neles, onsitemode='uniform')
     bonds, bonds_onsite = struct.get_bond()
@@ -82,8 +83,8 @@ def test_BaseStruct(root_directory):
     assert struct.proj_atomtype_norbs == {'N':4,'B':4}
     assert (struct.proj_atom_symbols == ['N','B'])
     assert (struct.atom_symbols == ['N','B']).all()
-    assert (struct.__bonds__[:,0:7].astype(int) == bondlist).all()
-    assert (np.abs(struct.__bonds__[:,7:11].astype(np.float32)-bond_dist_vec) < 1e-6).all()
+    assert (struct.__bonds__[:,0:7].int() == bondlist).all()
+    assert (np.abs(struct.__bonds__[:,7:11].float()-bond_dist_vec) < 1e-6).all()
     assert (struct.__bonds_onsite__ == onsitelist).all()
 
     bond_index_map = {'N-N': {'s-s': [0], 's-p': [1], 'p-s': [1], 'p-p': [2, 3]},

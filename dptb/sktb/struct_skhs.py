@@ -34,7 +34,7 @@ class SKHSLists(object):
         self.onsiteSs = []
 
         for ib in range(len(bonds_onsite)):
-            ibond = bonds_onsite[ib].astype(int)
+            ibond = bonds_onsite[ib].int()
             iatype = self.__struct__.proj_atom_symbols[ibond[1]]
             jatype = self.__struct__.proj_atom_symbols[ibond[3]]
             assert iatype == jatype, "i type should equal j type."
@@ -57,13 +57,13 @@ class SKHSLists(object):
 
         for ib in range(len(bonds_hoppings)):
 
-            ibond = bonds_hoppings[ib,0:7].astype(int)
+            ibond = bonds_hoppings[ib,0:7].int()
             #dirvec = (self.__struct__.projected_struct.positions[ibond[3]]
             #          - self.__struct__.projected_struct.positions[ibond[1]]
             #          + np.dot(ibond[4:], self.__struct__.projected_struct.cell))
             #dist = np.linalg.norm(dirvec)
             #dist = dist / au2Ang  # the sk files is written in atomic unit
-            dist = bonds_hoppings[ib,7].astype(np.float32) / au2Ang
+            dist = bonds_hoppings[ib,7].float() / au2Ang
 
             iatype = self.__struct__.proj_atom_symbols[ibond[1]]
             jatype = self.__struct__.proj_atom_symbols[ibond[3]]
