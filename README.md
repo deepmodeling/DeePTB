@@ -380,4 +380,44 @@ Altogether, we can simulate the electronic structure of a crystal system in a dy
 
 
 # 4. **Gallary**
-Will be added later when the paper is ready.
+## Property Calculation
+### Density of States (DOS)
+<div align=center>
+<img src="./examples/silicon/property/dos.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
+
+### Projected Density of States (PDOS)
+<div align=center>
+<img src="./examples/silicon/property/pdos.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
+
+### Fermi Surface of Bulk Silicon
+<div align=center>
+<img src="./examples/silicon/property/pdos.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
+
+### Fermi Velocity of Bulk Silicon
+# 4. **Gallary**
+## Property Calculation
+### Density of States (DOS)
+<div align=center>
+<img src="./examples/silicon/property/dos.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
+
+### Projected Density of States (PDOS)
+<div align=center>
+<img src="./examples/silicon/property/ifermi/Ifermi_FS.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
+
+<div align=center>
+<img src="./examples/silicon/property/ifermi/Ifermi_FS_slice.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
+
+### Fermi Surface of Bulk Silicon
+<div align=center>
+<img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velocity.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
+
+<div align=center>
+<img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velocity_slice.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
