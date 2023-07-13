@@ -400,5 +400,5 @@ Altogether, we can simulate the electronic structure of a crystal system in a dy
 </div>
 
 <div align=center>
-<img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velocity_slice.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+<img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velcoity_slice.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
 </div>
