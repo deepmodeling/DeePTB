@@ -387,7 +387,7 @@ Altogether, we can simulate the electronic structure of a crystal system in a dy
 
 ### Projected Density of States (PDOS)
 <div align=center>
-<img src="./examples/silicon/property/pdos.png" width = "60%" height = "60%" alt="silicon pdos" align=center />
+<img src="./examples/silicon/property/proj_dos.png" width = "60%" height = "60%" alt="silicon pdos" align=center />
 </div>
 
 ### Fermi Surface of Bulk Silicon
