@@ -378,25 +378,6 @@ Now you have learnt the basis use of **DeePTB**, however, the advanced functions
 Altogether, we can simulate the electronic structure of a crystal system in a dynamic trajectory. **DeePTB** is capable of handling atom movement, volume change under stress, SOC effect and can use DFT eigenvalues with different orbitals and xc functionals as training targets. More results can be found in the [Gallary](#4-gallary).
 
 
-
-# 4. **Gallary**
-## Property Calculation
-### Density of States (DOS)
-<div align=center>
-<img src="./examples/silicon/property/dos.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
-</div>
-
-### Projected Density of States (PDOS)
-<div align=center>
-<img src="./examples/silicon/property/pdos.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
-</div>
-
-### Fermi Surface of Bulk Silicon
-<div align=center>
-<img src="./examples/silicon/property/pdos.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
-</div>
-
-### Fermi Velocity of Bulk Silicon
 # 4. **Gallary**
 ## Property Calculation
 ### Density of States (DOS)
