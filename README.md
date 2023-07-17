@@ -4,6 +4,9 @@ This feature enables efficient simulations of large-size systems under structura
 These capabilities make **DeePTB** adaptable to various research scenarios, extending its applicability to a wide range of materials and phenomena and offering a powerful and versatile tool for accurate and efficient simulations.
 
 
+See more details in our DeePTB paper: [arXiv:2307.04638](http://arxiv.org/abs/2307.04638)
+
+
 In summary, **DeePTB** offers the following key features:
 - Slater-Koster-like parameterization with customizable radial dependence.
 - Orthogonal basis tight-binding Hamiltonian with a customizable number of basis and bond neighbours.
