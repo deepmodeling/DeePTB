@@ -3,7 +3,6 @@ With a neural network environmental correction scheme, **DeePTB** can efficientl
 This feature enables efficient simulations of large-size systems under structural perturbations such as strain, which is crucial for semiconductor band gap engineering. Furthermore, DeePTB offers the ability to perform efficient and accurate finite temperature simulations, incorporating both atomic and electronic behaviour through the integration of molecular dynamics (MD). Another significant advantage is that using eigenvalues as the training labels makes DeePTB much more flexible and independent of the choice of various bases (PW or LCAO) and the exchange-correlation (XC) functionals (LDA, GGA and even HSE) used in preparing the training labels. In addition, **DeePTB** can handle systems with strong spin-orbit coupling (SOC) effects.
 These capabilities make **DeePTB** adaptable to various research scenarios, extending its applicability to a wide range of materials and phenomena and offering a powerful and versatile tool for accurate and efficient simulations.
 
-See the parper for more details: [arXiv:2307.04638](http://arxiv.org/abs/2307.04638)
 
 In summary, **DeePTB** offers the following key features:
 - Slater-Koster-like parameterization with customizable radial dependence.
@@ -30,11 +29,9 @@ In summary, **DeePTB** offers the following key features:
   - [2.5 **Processing**](#25-processing)
 - [3. **Example: hBN.**](#3-example-hbn)
 - [4. **Gallary**](#4-gallary)
-  - [Property Calculation](#property-calculation)
-    - [Density of States (DOS)](#density-of-states-dos)
-    - [Projected Density of States (PDOS)](#projected-density-of-states-pdos)
-    - [Fermi Surface of Bulk Silicon](#fermi-surface-of-bulk-silicon)
-    - [Fermi Velocity of Bulk Silicon](#fermi-velocity-of-bulk-silicon)
+  - [Density of States (DOS)](#density-of-states-dos)
+  - [Fermi Surface of Bulk Silicon](#fermi-surface-of-bulk-silicon)
+  - [Fermi Velocity of Bulk Silicon](#fermi-velocity-of-bulk-silicon)
 
 
 # 1. **installation**
@@ -385,31 +382,24 @@ Altogether, we can simulate the electronic structure of a crystal system in a dy
 
 
 # 4. **Gallary**
-## Property Calculation
-### Density of States (DOS)
+## Density of States (DOS)
 <div align=center>
 <img src="./examples/silicon/property/dos.png" width = "60%" height = "60%" alt="silicon dos" align=center />
 </div>
 
-### Projected Density of States (PDOS)
-<div align=center>
-<img src="./examples/silicon/property/proj_dos.png" width = "60%" height = "60%" alt="silicon pdos" align=center />
-</div>
-
-### Fermi Surface of Bulk Silicon
-<div align=center>
-<img src="./examples/silicon/property/ifermi/Ifermi_FS.png" width = "60%" height = "60%" alt="fermi surface" align=center />
-</div>
+## Fermi Surface of Bulk Silicon
 
 <div align=center>
-<img src="./examples/silicon/property/ifermi/Ifermi_FS_slice.png" width = "60%" height = "60%" alt="fermi surface slice" align=center />
+<img src="./examples/silicon/property/ifermi/Ifermi_FS.png" width = "52%" height = "50%" alt="Silicon FS" align=center />
+<img src="./examples/silicon/property/ifermi/Ifermi_FS_slice.png" width = "40%" height = "50%" alt="Silicon FS slice" align=center />
 </div>
 
-### Fermi Velocity of Bulk Silicon
-<div align=center>
-<img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velocity.png" width = "60%" height = "60%" alt="fermi velocity" align=center />
-</div>
+
+
+
+## Fermi Velocity of Bulk Silicon
 
 <div align=center>
-<img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velcoity_slice.png" width = "60%" height = "60%" alt="fermi velocity slice" align=center />
+<img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velocity.png" width = "52%" height = "50%" alt="Silicon FS velocity arrow" align=center />
+<img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velcoity_slice.png" width = "40%" height = "50%" alt="Silicon FS slice velocity arrow" align=center />
 </div>
