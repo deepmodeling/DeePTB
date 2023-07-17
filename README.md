@@ -32,7 +32,6 @@ In summary, **DeePTB** offers the following key features:
 - [4. **Gallary**](#4-gallary)
   - [Property Calculation](#property-calculation)
     - [Density of States (DOS)](#density-of-states-dos)
-    - [Projected Density of States (PDOS)](#projected-density-of-states-pdos)
     - [Fermi Surface of Bulk Silicon](#fermi-surface-of-bulk-silicon)
     - [Fermi Velocity of Bulk Silicon](#fermi-velocity-of-bulk-silicon)
 
@@ -391,25 +390,19 @@ Altogether, we can simulate the electronic structure of a crystal system in a dy
 <img src="./examples/silicon/property/dos.png" width = "60%" height = "60%" alt="silicon dos" align=center />
 </div>
 
-### Projected Density of States (PDOS)
-<div align=center>
-<img src="./examples/silicon/property/proj_dos.png" width = "60%" height = "60%" alt="silicon pdos" align=center />
-</div>
-
 ### Fermi Surface of Bulk Silicon
-<div align=center>
-<img src="./examples/silicon/property/ifermi/Ifermi_FS.png" width = "60%" height = "60%" alt="fermi surface" align=center />
-</div>
 
 <div align=center>
-<img src="./examples/silicon/property/ifermi/Ifermi_FS_slice.png" width = "60%" height = "60%" alt="fermi surface slice" align=center />
+<img src="./examples/silicon/property/ifermi/Ifermi_FS.png" width = "52%" height = "50%" alt="Silicon FS" align=center />
+<img src="./examples/silicon/property/ifermi/Ifermi_FS_slice.png" width = "40%" height = "50%" alt="Silicon FS slice" align=center />
 </div>
+
+
+
 
 ### Fermi Velocity of Bulk Silicon
-<div align=center>
-<img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velocity.png" width = "60%" height = "60%" alt="fermi velocity" align=center />
-</div>
 
 <div align=center>
-<img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velcoity_slice.png" width = "60%" height = "60%" alt="fermi velocity slice" align=center />
+<img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velocity.png" width = "52%" height = "50%" alt="Silicon FS velocity arrow" align=center />
+<img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velcoity_slice.png" width = "40%" height = "50%" alt="Silicon FS slice velocity arrow" align=center />
 </div>
