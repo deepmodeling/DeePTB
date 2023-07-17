@@ -390,7 +390,7 @@ Altogether, we can simulate the electronic structure of a crystal system in a dy
 <img src="./examples/silicon/property/dos.png" width = "60%" height = "60%" alt="silicon dos" align=center />
 </div>
 
-## Fermi Surface of Bulk Silicon
+## Fermi Surface of Bulk Silicon (ifermi API)
 
 <div align=center>
 <img src="./examples/silicon/property/ifermi/Ifermi_FS.png" width = "52%" height = "50%" alt="Silicon FS" align=center />
@@ -400,7 +400,7 @@ Altogether, we can simulate the electronic structure of a crystal system in a dy
 
 
 
-## Fermi Velocity of Bulk Silicon
+## Fermi Velocity of Bulk Silicon (ifermi API)
 
 <div align=center>
 <img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velocity.png" width = "52%" height = "50%" alt="Silicon FS velocity arrow" align=center />
