@@ -7,7 +7,7 @@
         "onsitemode": "strain",
         "onsite_cutoff": 2.5,
         "bond_cutoff": 5.0,
-        "env_cutoff": 3.5,
+        "env_cutoff": 4.1,
         "atomtype": [
             "Si"
         ],

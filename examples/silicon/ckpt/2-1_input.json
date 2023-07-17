@@ -7,7 +7,7 @@
         "onsitemode": "none",
         "onsite_cutoff": 2.5,
         "bond_cutoff": 2.6,
-        "env_cutoff": 3.5,
+        "env_cutoff": 4.1,
         "atomtype": [
             "Si"
         ],
@@ -23,7 +23,7 @@
     },
     "train_options": {
         "seed":120478,
-        "num_epoch": 200,
+        "num_epoch": 100,
         "optimizer": {"lr":1e-2}
     },
     "data_options": {
@@ -31,17 +31,17 @@
         "train": {
             "batch_size": 1,
             "path": "./data",
-            "prefix": "kpath"
+            "prefix": "kpath_spk"
         },
         "validation": {
             "batch_size": 1,
             "path": "./data",
-            "prefix": "kpath"
+            "prefix": "kpath_spk"
         },
         "reference": {
             "batch_size": 1,
             "path": "./data",
-            "prefix": "kpath"
+            "prefix": "kpath_spk"
         }
     },
     "model_options": {

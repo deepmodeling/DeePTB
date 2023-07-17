@@ -1,8 +1,4 @@
 {
-    "init_model": {
-        "path": null,
-        "interpolate": false
-    },
     "common_options": {
         "onsitemode": "strain",
         "onsite_cutoff": 2.5,
@@ -22,27 +18,11 @@
             ]
         }
     },
-    "train_options": {
-        "seed":120478,
-        "num_epoch": 2000,
-        "optimizer": {"lr":1e-3}
-    },
     "data_options": {
-        "use_reference": true,
-        "train": {
+        "test": {
             "batch_size": 1,
             "path": "./data",
-            "prefix": "kpath_spk"
-        },
-        "validation": {
-            "batch_size": 1,
-            "path": "./data",
-            "prefix": "kpath_spk"
-        },
-        "reference": {
-            "batch_size": 1,
-            "path": "./data",
-            "prefix": "kpath_spk"
+            "prefix": "kpathmd300_test"
         }
     },
     "model_options": {
@@ -51,8 +31,8 @@
             "sk_onsite_nhidden": 1
         },
         "skfunction": {
-            "sk_cutoff": [2.6, 5.0],
-            "sk_decay_w": 0.3
+            "sk_cutoff": 5.0,
+            "sk_decay_w": 0.1
         }
     }
 }
