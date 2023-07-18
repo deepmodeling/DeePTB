@@ -406,3 +406,9 @@ Altogether, we can simulate the electronic structure of a crystal system in a dy
 <img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velocity.png" width = "52%" height = "50%" alt="Silicon FS velocity arrow" align=center />
 <img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velcoity_slice.png" width = "40%" height = "50%" alt="Silicon FS slice velocity arrow" align=center />
 </div>
+
+## Large-scale simulations (TBPLaS API)
+<div align=center>
+<img src="./doc/img/million_atoms.png" width = "80%" height = "50%" alt="Silicon FS velocity arrow" align=center />
+</div>
+
