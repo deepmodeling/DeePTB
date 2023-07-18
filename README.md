@@ -35,6 +35,7 @@ In summary, **DeePTB** offers the following key features:
   - [Density of States (DOS)](#density-of-states-dos)
   - [Fermi Surface of Bulk Silicon](#fermi-surface-of-bulk-silicon)
   - [Fermi Velocity of Bulk Silicon](#fermi-velocity-of-bulk-silicon)
+  - [Large-scale simulations](#large-scale-simulations)
 
 
 # 1. **installation**
@@ -390,7 +391,8 @@ Altogether, we can simulate the electronic structure of a crystal system in a dy
 <img src="./examples/silicon/property/dos.png" width = "60%" height = "60%" alt="silicon dos" align=center />
 </div>
 
-## Fermi Surface of Bulk Silicon (ifermi API)
+## Fermi Surface of Bulk Silicon
+This is done with api to Ifermi.
 
 <div align=center>
 <img src="./examples/silicon/property/ifermi/Ifermi_FS.png" width = "52%" height = "50%" alt="Silicon FS" align=center />
@@ -400,14 +402,15 @@ Altogether, we can simulate the electronic structure of a crystal system in a dy
 
 
 
-## Fermi Velocity of Bulk Silicon (ifermi API)
-
+## Fermi Velocity of Bulk Silicon
+This is done with api to Ifermi.
 <div align=center>
 <img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velocity.png" width = "52%" height = "50%" alt="Silicon FS velocity arrow" align=center />
 <img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velcoity_slice.png" width = "40%" height = "50%" alt="Silicon FS slice velocity arrow" align=center />
 </div>
 
-## Large-scale simulations (TBPLaS API)
+## Large-scale simulations
+This is done with api to TBPLaS.
 <div align=center>
 <img src="./doc/img/million_atoms.png" width = "80%" height = "50%" alt="Silicon FS velocity arrow" align=center />
 </div>
