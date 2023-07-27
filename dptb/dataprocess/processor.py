@@ -5,7 +5,6 @@ from dptb.utils.constants import dtype_dict
 from dptb.structure.abstract_stracture import AbstractStructure
 
 class Processor(object):
-    # TODO: 现在strain的env 是通过get_env 获得，但是在dptb中的env是有另外的含义。是否已经考虑。
     def __init__(self, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, wannier_list = None, env_cutoff: float = 3.0, onsitemode=None, 
     onsite_cutoff=None, sorted_bond=None, sorted_onsite=None, sorted_env=None, bandinfo=None, device='cpu', dtype=torch.float32, if_shuffle=True):
         super(Processor, self).__init__()
@@ -141,7 +140,7 @@ class Processor(object):
         if cutoff is None:
             cutoff = self.onsite_cutoff
         else:
-            assert isinstance(cutoff, float)
+            assert isinstance(cutoff, float), "The cutoff should be a float number."
         
         if sorted is None:
             batch_env = []
@@ -267,7 +266,7 @@ class Processor(object):
             self.shuffle()
             bond, bond_onsite = self.get_bond(self.sorted_bond)
 
-            if not self.onsitemode == 'strain':
+            if not self.onsitemode in ['strain','NRL']:  # for NRL - TB we also need the onsite env.
                 data = (bond, bond_onsite, self.get_env(sorted=self.sorted_env), None,  self.__struct_workspace__,
                     self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float), self.wannier_list[self.__struct_idx_workspace__])
             else:

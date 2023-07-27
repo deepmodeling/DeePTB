@@ -185,6 +185,7 @@ class BaseStruct(AbstractStructure):
             logging.error("onsite_cutoff:ValueError, onsite_cutoff for bond is not positive'")
             raise ValueError
         else:
+             # note: the onsite env is not smoothed. norm is |rij| not 1/|rij| or s(|rij|).
             self.__onsitenv__ = self.cal_env(env_cutoff=onsite_cutoff, sorted=sorted)
             self.onsite_cutoff = onsite_cutoff
             self.if_onsitenv_ready = True
