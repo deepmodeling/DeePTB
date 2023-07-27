@@ -242,7 +242,7 @@ The ```onsitemode``` is set to ```none``` which means we do not use onsite corre
 
 using the command to train the first model:
 ```bash
-cd deeptb/examples/hBN/run
+cd deeptb/examples/hBN
 dptb train -sk input_short.json -o ./first
 ```
 Here ``-sk`` indicate to fit the sk parameters, and ``-o`` indicate the output directory. During the fitting procedure, we can see the loss curve of hBN is decrease consistently. When finished, we get the fitting results in folders ```first```:
