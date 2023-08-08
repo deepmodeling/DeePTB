@@ -8,9 +8,9 @@ class TestSKnet:
     reducted_skint_types = ['N-N-2s-2s-0', 'N-B-2s-2p-0', 'B-B-2p-2p-0', 'B-B-2p-2p-1']
     onsite_num = {'N':4,'B':3}
     bond_neurons = {'nhidden':5,'nout':4}
-    onsite_neurons = {'nhidden':6}
-    
-
+    onsite_neurons = {'nhidden':6,'nout':1}
+    onsite_strian_neurons = {'nhidden':6,'nout':4}
+                             
     onsite_num2 = {'N':2,'B':1}
 
     reducted_onsiteint_types = ['N-N-2s-2s-0',
@@ -29,7 +29,7 @@ class TestSKnet:
     all_skint_types_dict, reducted_skint_types, sk_bond_ind_dict = all_skint_types(bond_index_map=bond_index_map)
 
     modelstrain = SKNet(skint_types=reducted_skint_types, onsite_types=reducted_onsiteint_types, soc_types=reduced_onsiteE_types, hopping_neurons=bond_neurons, 
-                    onsite_neurons=onsite_neurons, onsite_index_dict=onsiteE_ind_dict, onsitemode='strain')
+                    onsite_neurons=onsite_strian_neurons, onsite_index_dict=onsiteE_ind_dict, onsitemode='strain')
 
     modeluniform = SKNet(skint_types=reducted_skint_types, onsite_types=reduced_onsiteE_types, soc_types=reduced_onsiteE_types, hopping_neurons=bond_neurons, 
                     onsite_neurons=onsite_neurons,  onsite_index_dict=onsiteE_ind_dict, onsitemode='uniform')
@@ -74,8 +74,8 @@ class TestSKnet:
 
         paras = list(self.modelstrain.onsite_net.parameters())
         assert len(paras) == 2
-        assert paras[0].shape == torch.Size([len(self.reducted_onsiteint_types), 1, self.bond_neurons['nhidden']])
-        assert paras[1].shape == torch.Size([len(self.reducted_onsiteint_types), self.bond_neurons['nout'], self.bond_neurons['nhidden']])
+        assert paras[0].shape == torch.Size([len(self.reducted_onsiteint_types), 1, self.onsite_strian_neurons['nhidden']])
+        assert paras[1].shape == torch.Size([len(self.reducted_onsiteint_types), self.onsite_strian_neurons['nout'], self.onsite_strian_neurons['nhidden']])
 
         _, coeff = self.modelstrain(mode='onsite')
         assert len(coeff) == len(self.reducted_onsiteint_types)
