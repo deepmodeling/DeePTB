@@ -70,6 +70,7 @@ def onsiteFunc(batch_bonds_onsite, onsite_db: dict, nn_onsiteE: dict=None):
 
 class orbitalEs(onsiteFormula):
     """ This calss is to get the onsite energies for given bonds_onsite.
+     
     """
     def __init__(self, functype='none') -> None:
         super().__init__(functype)

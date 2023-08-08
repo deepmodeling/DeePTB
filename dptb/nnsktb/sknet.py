@@ -73,8 +73,8 @@ class SKNet(nn.Module):
             assert onsite_types is not None, "for strain mode, the onsiteint_types can not be None!"
             onsite_config = {
                 'nin': len(self.onsite_types),
-                'nhidden': hopping_neurons.get('nhidden',1),
-                'nout': hopping_neurons.get('nout'),
+                'nhidden': onsite_neurons.get('nhidden',1),
+                'nout': onsite_neurons.get('nout'),
                 'ini_std':0.01}
             
             # Note: 这里onsite integral 选取和bond integral一样的公式，因此是相同的 nout.
@@ -88,7 +88,7 @@ class SKNet(nn.Module):
             onsite_config = {
                 'nin': len(self.onsite_types),
                 'nhidden': onsite_neurons.get('nhidden',1),
-                'nout': 1,
+                'nout': onsite_neurons.get('nout',1),
                 'ini_std':0.01}
 
             self.onsite_net = DirectNet(**onsite_config)

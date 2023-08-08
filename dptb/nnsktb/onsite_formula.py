@@ -57,7 +57,6 @@ class onsiteFormula(BaseOnsite):
         assert onsite_db[xtype].shape == nn_onsiteE[xtype].shape, f'{xtype} onsite_db and nn_onsiteE have different shape.'
         return onsite_db[xtype] + nn_onsiteE[xtype]
 
-
         
 
 

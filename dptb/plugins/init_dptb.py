@@ -238,7 +238,7 @@ class InitDPTBModel(Plugin):
             _, reducted_onsiteint_types, _ = all_onsite_intgrl_types(onsite_strain_index_map)
             onsite_types = reducted_onsiteint_types
         else:
-            onsite_neurons = {"nhidden":num_onsite_hidden}
+            onsite_neurons = {"nhidden":num_onsite_hidden,"nout":onsite_fun.num_paras}
             onsite_types = reduced_onsiteE_types
 
         if soc:
