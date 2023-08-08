@@ -5,7 +5,6 @@ from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.utils.argcheck import normalize, host_normalize
 from dptb.utils.constants import dtype_dict
-from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 from dptb.plugins.base_plugin import PluginUser
 
 log = logging.getLogger(__name__)

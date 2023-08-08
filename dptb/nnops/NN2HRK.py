@@ -92,7 +92,7 @@ class NN2HRK(object):
         coeffdict = self.apihost.model(mode='hopping')
         batch_hoppings = self.apihost.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, rcut=self.apihost.model_config['skfunction']['sk_cutoff'], w=self.apihost.model_config['skfunction']['sk_decay_w'])
         nn_onsiteE, onsite_coeffdict = self.apihost.model(mode='onsite')
-        batch_onsiteEs = self.apihost.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.apihost.onsite_db, nn_onsiteE=nn_onsiteE)
+        batch_onsiteEs = self.apihost.onsite_fun.get_onsiteEs(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.apihost.onsite_db, nn_onsiteE=nn_onsiteE)
 
         if self.apihost.model_config['soc']:
             nn_soc_lambdas, _ = self.apihost.model(mode='soc')
@@ -140,7 +140,7 @@ class NN2HRK(object):
             batch_nnsk_hoppings = self.apihost.hops_fun.get_skhops( batch_bond_hoppings, coeffdict, 
                             rcut=self.apihost.model_config["skfunction"]["sk_cutoff"], w=self.apihost.model_config["skfunction"]["sk_decay_w"])
             nnsk_onsiteE, onsite_coeffdict = self.apihost.sknet(mode='onsite')
-            batch_nnsk_onsiteEs = self.apihost.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.apihost.onsite_db, nn_onsiteE=nnsk_onsiteE)
+            batch_nnsk_onsiteEs = self.apihost.onsite_fun.get_onsiteEs(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.apihost.onsite_db, nn_onsiteE=nnsk_onsiteE)
             if self.apihost.model_config["soc"]:
                 nnsk_soc_lambdas, _ = self.apihost.sknet(mode="soc")
                 batch_nnsk_soc_lambdas = self.apihost.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.apihost.soc_db, nn_soc=nnsk_soc_lambdas)

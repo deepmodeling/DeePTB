@@ -3,7 +3,7 @@ import torch
 from dptb.plugins.base_plugin import Plugin
 import logging
 from dptb.nnsktb.sknet import SKNet
-from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
+from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite, orbitalEs
 from dptb.nnsktb.socFunc import socFunc, loadSoc
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types, all_onsite_ene_types
 from dptb.utils.index_mapping import Index_Mapings
@@ -57,17 +57,22 @@ class InitSKModel(Plugin):
         onsite_strain_index_map, onsite_strain_num, onsite_index_map, onsite_num = \
                 IndMap.Onsite_Ind_Mapings(onsitemode, atomtype=atomtype)
 
-        onsite_fun = onsiteFunc
+        # onsite_fun = onsiteFunc
         hops_fun = SKintHops(mode='hopping',functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m)
         if soc:
             soc_fun = socFunc
         if onsitemode == 'strain':
             onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m, atomtype=atomtype)
-        
+            # for strain mode the onsite_fun will use none mode to add the onsite_db.
+            onsite_fun = orbitalEs(functype='none')
+        else:
+            onsite_fun = orbitalEs(functype=onsitemode)
+
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
         _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
         hopping_neurons = {"nhidden": num_hopping_hideen,  "nout": hops_fun.num_paras}
 
+# TODO: modify onsite_neurons, to have nout for other modes.
 
         options = {"onsitemode": onsitemode}
         if onsitemode == 'strain':
@@ -221,13 +226,16 @@ class InitSKModel(Plugin):
         onsite_strain_index_map, onsite_strain_num, onsite_index_map, onsite_num = \
                 IndMap.Onsite_Ind_Mapings(onsitemode, atomtype=atomtype)
 
-        onsite_fun = onsiteFunc
+        # onsite_fun = onsiteFunc
         hops_fun = SKintHops(mode='hopping',functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m)
         if soc:
             soc_fun = socFunc
         if onsitemode == 'strain':
             onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m, atomtype=atomtype)
-
+            onsite_fun = orbitalEs(functype='none')
+        else:
+            onsite_fun = orbitalEs(functype=onsitemode)
+            
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
         _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
         hopping_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras}

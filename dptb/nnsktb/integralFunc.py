@@ -53,6 +53,7 @@ class SKintHops(SKFormula):
                 ibond = batch_bonds[fi][ib,1:8]
                 rij = batch_bonds[fi][ib,8]
                 ia, ja = atomic_num_dict_r[int(ibond[0])], atomic_num_dict_r[int(ibond[2])]
+                # take all the coeffient parameters for the bond type.
                 paraArray = th.stack([coeff_paras[isk] for isk in self.bond_index_dict[f'{ia}-{ja}']])
 
                 paras = {'paraArray':paraArray,'rij':rij, 'iatomtype':ia, 'jatomtype':ja, 'rcut':rcut,'w':w}

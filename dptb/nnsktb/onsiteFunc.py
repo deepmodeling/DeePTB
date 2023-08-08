@@ -4,6 +4,7 @@ import torch as th
 from dptb.utils.constants import atomic_num_dict_r
 from dptb.nnsktb.onsiteDB import onsite_energy_database
 from dptb.nnsktb.formula import SKFormula
+from dptb.nnsktb.onsite_formula import onsiteFormula
 import logging
 
 # define the function for output all the onsites Es for given i.
@@ -50,22 +51,7 @@ def loadOnsite(onsite_map: dict, unit="Hartree"):
     return onsite_db
 
 def onsiteFunc(batch_bonds_onsite, onsite_db: dict, nn_onsiteE: dict=None):
-    """ This function is to get the onsite energies for given bonds_onsite.
-
-    Parameters:
-    -----------
-        batch_bonds_onsite: list
-            e.g.:  dict(f: [[f, 7, 0, 7, 0, 0, 0, 0],
-                            [f, 5, 1, 5, 1, 0, 0, 0]])
-        onsite_db: dict from function loadOnsite
-            e.g.: {'N':tensor[es,ep], 'B': tensor[es,ep]} or {'N':tensor[es,ep1,ep2,ep3], 'B': tensor[es,ep1,ep2,ep3]}
-    
-    Return:
-    ------
-    batch_onsiteEs:
-        dict. 
-        e.g.: {f: [tensor[es,ep], tensor[es,ep]]} or {f: [tensor[es,ep1,ep2,ep3], tensor[es,ep1,ep2,ep3]]}.
-    """
+# this function is not used anymore.
     batch_onsiteEs = {}
     for kf in list(batch_bonds_onsite.keys()):  # kf is the index of frame number.
         bonds_onsite = batch_bonds_onsite[kf][:,1:]
@@ -81,6 +67,43 @@ def onsiteFunc(batch_bonds_onsite, onsite_db: dict, nn_onsiteE: dict=None):
         batch_onsiteEs[kf] = list(onsiteEs)
 
     return batch_onsiteEs
+
+class orbitalEs(onsiteFormula):
+    """ This calss is to get the onsite energies for given bonds_onsite.
+    """
+    def __init__(self, functype='none') -> None:
+        super().__init__(functype)
+
+    def get_onsiteEs(self,batch_bonds_onsite, onsite_db: dict, nn_onsiteE: dict=None, **kwargs):
+        """
+        Parameters:
+        -----------
+            batch_bonds_onsite: list
+                e.g.:  dict(f: [[f, 7, 0, 7, 0, 0, 0, 0],
+                                [f, 5, 1, 5, 1, 0, 0, 0]])
+            onsite_db: dict from function loadOnsite
+                e.g.: {'N':tensor[es,ep], 'B': tensor[es,ep]}
+        
+        Return:
+        ------
+        batch_onsiteEs:
+            dict. 
+            e.g.: {f: [tensor[es,ep], tensor[es,ep]]}
+        """
+        batch_onsiteEs = {}
+        for kf in list(batch_bonds_onsite.keys()):  # kf is the index of frame number.
+            bonds_onsite = batch_bonds_onsite[kf][:,1:]
+            ia_list = map(lambda x: atomic_num_dict_r[int(x)], bonds_onsite[:,0]) # itype
+            if self.functype == 'none':
+                onsiteEs = map(lambda x: onsite_db[x], ia_list)
+            else:
+                onsiteEs = []
+                for x in ia_list:
+                    onsiteEs.append(self.skEs(xtype=x, onsite_db=onsite_db, nn_onsiteE=nn_onsiteE, **kwargs))
+                
+            batch_onsiteEs[kf] = list(onsiteEs)
+        return batch_onsiteEs
+    
 
 if __name__ == '__main__':
     onsite = loadOnsite({'N': {'2s': [0], '2p': [1,2,3]}, 'B': {'2s': [0], '2p': [1,2,3]}})
