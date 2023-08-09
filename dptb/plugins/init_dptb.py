@@ -168,6 +168,13 @@ class InitDPTBModel(Plugin):
             raise NotImplementedError("Only support json and ckpt file as checkpoint")
 
         # -------------------------------------------------------------------------------------------
+        if onsitemode == 'NRL':
+            onsite_func_cutoff = options['onsitefuncion']['onsite_func_cutoff']
+            onsite_func_decay_w = options['onsitefuncion']['onsite_func_decay_w']
+            onsite_func_lambda = options['onsitefuncion']['onsite_func_lambda']
+        #-----------------------------------------------------------------------------------------------------------
+
+        # -------------------------------------------------------------------------------------------
         if modeltype == "ckpt":
             ckpt_list = [torch.load(ckpt) for ckpt in checkpoint]
             model_config = ckpt_list[0]["model_config"]
@@ -226,6 +233,9 @@ class InitDPTBModel(Plugin):
         if onsitemode == 'strain':
             onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m, atomtype=atomtype)
             onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype='none',unit=unit)
+        elif onsitemode == 'NRL':
+            onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype=onsitemode,unit=unit,
+                                   onsite_func_cutoff=onsite_func_cutoff,onsite_func_decay_w=onsite_func_decay_w,onsite_func_lambda=onsite_func_lambda)
         else:
             onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype=onsitemode,unit=unit)
 

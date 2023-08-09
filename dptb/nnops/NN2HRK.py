@@ -92,14 +92,19 @@ class NN2HRK(object):
         coeffdict = self.apihost.model(mode='hopping')
         batch_hoppings = self.apihost.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, rcut=self.apihost.model_config['skfunction']['sk_cutoff'], w=self.apihost.model_config['skfunction']['sk_decay_w'])
         nn_onsiteE, onsite_coeffdict = self.apihost.model(mode='onsite')
-        batch_onsiteEs = self.apihost.onsite_fun.get_onsiteEs(batch_bonds_onsite=batch_bond_onsites, nn_onsite_paras=nn_onsiteE)
+
+        if self.apihost.model_config['onsitemode'] in ['strain','NRL']:
+            batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
+        else:
+            batch_onsite_envs = None
+
+        batch_onsiteEs = self.apihost.onsite_fun.get_onsiteEs(batch_bonds_onsite=batch_bond_onsites, onsite_env=batch_onsite_envs, nn_onsite_paras=nn_onsiteE)
 
         if self.apihost.model_config['soc']:
             nn_soc_lambdas, _ = self.apihost.model(mode='soc')
             batch_soc_lambdas = self.apihost.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.apihost.soc_db, nn_soc=nn_soc_lambdas)
         
         if self.apihost.model_config['onsitemode'] == 'strain':
-            batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
             batch_onsiteVs = self.apihost.onsitestrain_fun.get_skhops(batch_bonds=batch_onsite_envs, coeff_paras=onsite_coeffdict)
             onsiteEs, hoppings, onsiteVs = batch_onsiteEs[0], batch_hoppings[0], batch_onsiteVs[0]
             onsitenvs = batch_onsite_envs[0][:,1:]
@@ -140,13 +145,19 @@ class NN2HRK(object):
             batch_nnsk_hoppings = self.apihost.hops_fun.get_skhops( batch_bond_hoppings, coeffdict, 
                             rcut=self.apihost.model_config["skfunction"]["sk_cutoff"], w=self.apihost.model_config["skfunction"]["sk_decay_w"])
             nnsk_onsiteE, onsite_coeffdict = self.apihost.sknet(mode='onsite')
-            batch_nnsk_onsiteEs = self.apihost.onsite_fun.get_onsiteEs(batch_bonds_onsite=batch_bond_onsites, nn_onsite_paras=nnsk_onsiteE)
+
+            if self.apihost.model_config['onsitemode'] in ['strain','NRL']:
+                batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
+            else:
+                batch_onsite_envs = None
+
+            batch_nnsk_onsiteEs = self.apihost.onsite_fun.get_onsiteEs(batch_bonds_onsite=batch_bond_onsites, onsite_env=batch_onsite_envs, nn_onsite_paras=nnsk_onsiteE)
+
             if self.apihost.model_config["soc"]:
                 nnsk_soc_lambdas, _ = self.apihost.sknet(mode="soc")
                 batch_nnsk_soc_lambdas = self.apihost.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.apihost.soc_db, nn_soc=nnsk_soc_lambdas)
 
             if self.apihost.model_config['onsitemode'] == "strain":
-                batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
                 batch_nnsk_onsiteVs = self.apihost.onsitestrain_fun.get_skhops(batch_bonds=batch_onsite_envs, coeff_paras=onsite_coeffdict)
                 onsiteVs = batch_nnsk_onsiteVs[0]
                 onsitenvs = batch_onsite_envs[0][:,1:]

@@ -282,6 +282,21 @@ def skfunction():
 
     return Argument("skfunction", dict, optional=True, sub_fields=args, sub_variants=[], default={}, doc=doc_skfunction)
 
+def  onsitefuncion():
+    doc_onsite_func_cutoff = r"The decay param controls the range of the decay defined in NRL TB."
+    doc_onsite_func_decay_w = r"The decay param control how smooth the decay function is defined in NRL TB."
+    doc_onsite_func_lambda = r"the onstie para in NRL TB."
+
+    args = [
+        Argument("onsite_func_cutoff", [float], optional=True,  default=6.0, doc=doc_onsite_func_cutoff),
+        Argument("onsite_func_decay_w", [float], optional=True, default=0.5, doc=doc_onsite_func_decay_w),
+        Argument("onsite_func_lambda", [float], optional=True,  default=1.0, doc=doc_onsite_func_lambda)
+    ]
+
+    doc_onsitefuncion = "The parameter to define the analytic function formula of the onsite smoth function"
+
+    return Argument("onsitefuncion", dict, optional=True, sub_fields=args, sub_variants=[], default={}, doc=doc_onsitefuncion)
+
 def dptb():
     doc_soc_env = "button that allow environmental correction for soc parameters, used only when soc is open, Default: False"
     doc_axis_neuron = "The axis_neuron specifies the size of the submatrix of the embedding matrix, the axis matrix as explained in the [DeepPot-SE paper](https://arxiv.org/abs/1805.09003)."
@@ -328,7 +343,7 @@ def model_options():
 
     doc_model_options = "The parameters to define the `nnsk` and `dptb` model."
 
-    return Argument("model_options", dict, sub_fields=[skfunction(), sknetwork(), dptb()], sub_variants=[], optional=False, doc=doc_model_options)
+    return Argument("model_options", dict, sub_fields=[skfunction(), sknetwork(), onsitefuncion(), dptb()], sub_variants=[], optional=False, doc=doc_model_options)
 
 
 def loss_options():

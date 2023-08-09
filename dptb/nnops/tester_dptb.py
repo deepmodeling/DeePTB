@@ -70,7 +70,7 @@ class DPTBTester(Tester):
                 batch_bond_hoppings, coeffdict, rcut=self.model_options["skfunction"]["sk_cutoff"],
                 w=self.model_options["skfunction"]["sk_decay_w"])
             nnsk_onsiteE, onsite_coeffdict = self.sknet(mode='onsite')
-            batch_nnsk_onsiteEs = self.onsite_fun.get_onsiteEs(batch_bonds_onsite=batch_bond_onsites, nn_onsite_paras=nnsk_onsiteE)
+            batch_nnsk_onsiteEs = self.onsite_fun.get_onsiteEs(batch_bonds_onsite=batch_bond_onsites, onsite_env=batch_onsitenvs, nn_onsite_paras=nnsk_onsiteE)
             
             if self.onsitemode == "strain":
                 batch_nnsk_onsiteVs = self.onsitestrain_fun.get_skhops(batch_bonds=batch_onsitenvs, coeff_paras=onsite_coeffdict)

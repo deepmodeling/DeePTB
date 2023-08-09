@@ -51,7 +51,13 @@ class InitSKModel(Plugin):
         soc = common_and_model_options["soc"]
         unit=common_and_model_options["unit"]
         # ----------------------------------------------------------------------------------------------------------
-        
+        # new add for NRL
+
+        onsite_func_cutoff = common_and_model_options['onsitefuncion']['onsite_func_cutoff']
+        onsite_func_decay_w = common_and_model_options['onsitefuncion']['onsite_func_decay_w']
+        onsite_func_lambda = common_and_model_options['onsitefuncion']['onsite_func_lambda']
+
+        #-----------------------------------------------------------------------------------------------------------
         IndMap = Index_Mapings()
         IndMap.update(proj_atom_anglr_m=proj_atom_anglr_m)
         bond_index_map, bond_num_hops = IndMap.Bond_Ind_Mapings()
@@ -66,9 +72,13 @@ class InitSKModel(Plugin):
             onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m, atomtype=atomtype)
             # for strain mode the onsite_fun will use none mode to add the onsite_db.
             onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype='none',unit=unit)
+        elif onsitemode == 'NRL':
+            onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype=onsitemode,unit=unit,
+                                   onsite_func_cutoff=onsite_func_cutoff,onsite_func_decay_w=onsite_func_decay_w,onsite_func_lambda=onsite_func_lambda)
         else:
             onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype=onsitemode,unit=unit)
 
+            
 
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
         _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
@@ -87,6 +97,7 @@ class InitSKModel(Plugin):
         
         options.update({"onsite_types":onsite_types})
 
+        # TODO: generate soc types. here temporarily use the same as onsite types.
         if soc:
             if num_soc_hidden is not None:
                 soc_neurons = {"nhidden":num_soc_hidden}
@@ -187,6 +198,12 @@ class InitSKModel(Plugin):
         num_soc_hidden = common_and_model_and_run_options['sknetwork']['sk_soc_nhidden']
         unit = common_and_model_and_run_options["unit"]
 
+        # ----------------------------------------------------------------------------------------------------------
+        if onsitemode == 'NRL':
+            onsite_func_cutoff = common_and_model_and_run_options['onsitefuncion']['onsite_func_cutoff']
+            onsite_func_decay_w = common_and_model_and_run_options['onsitefuncion']['onsite_func_decay_w']
+            onsite_func_lambda = common_and_model_and_run_options['onsitefuncion']['onsite_func_lambda']
+        #-----------------------------------------------------------------------------------------------------------
 
         if soc and num_soc_hidden is None:
             log.err(msg="Please specify the number of hidden layers for soc network. please set the key `sk_soc_nhidden` in `sknetwork` in `model_options`.")
@@ -235,6 +252,9 @@ class InitSKModel(Plugin):
         if onsitemode == 'strain':
             onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m, atomtype=atomtype)
             onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype='none',unit=unit)
+        elif onsitemode == 'NRL':
+            onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype=onsitemode,unit=unit,
+                                   onsite_func_cutoff=onsite_func_cutoff,onsite_func_decay_w=onsite_func_decay_w,onsite_func_lambda=onsite_func_lambda)
         else:
             onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype=onsitemode,unit=unit)
 
@@ -248,7 +268,8 @@ class InitSKModel(Plugin):
             _, reducted_onsiteint_types, _ = all_onsite_intgrl_types(onsite_strain_index_map)
             onsite_types = reducted_onsiteint_types
         else:
-            onsite_neurons = {"nhidden":num_onsite_hidden}
+            # onsite_neurons = {"nhidden":num_onsite_hidden}
+            onsite_neurons = {"nhidden":num_onsite_hidden, "nout": onsite_fun.num_paras}
             onsite_types = reduced_onsiteE_types
 
         if soc:

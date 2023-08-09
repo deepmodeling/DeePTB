@@ -152,22 +152,42 @@ class SKNet(nn.Module):
             return self.soc_value, None
 
         elif mode == 'onsite':
+            """ two outputs, 1: for orbital enegy 2: for onsite integral.
+                - the onsite integral is used to calculate the onsite matrix through SK transformation.
+                - the orbital energy is just the onsite energy which is the diagonal elements of the onsite matrix.
+                - for uniform mode, the output of nn is directly used as the onsite value.
+                - for strain mode, the output of nn is used as the coefficient to multiply the onsite integral formula like the sk integral.
+                - for other modes, the output of nn is used as a coefficient to multiply the onsite energy using a formula.
+            """
             if self.onsitemode.lower() == 'none':
                 return None, None
             elif self.onsitemode.lower() == 'strain':
+                # in strain mode, the output of nn is used as the coefficient to multiply the onsite integral formula like the sk integral.
                 out = self.onsite_net()
                 self.onsite_coeffdict = dict(zip(self.onsite_types, out))
                 return None, self.onsite_coeffdict
-            else:
+            elif self.onsitemode.lower() in ['uniform','split']:
+                # the out put of nn is directly used as the onsite value.
+                # output format e.g.: {'N':[es,ep],'B':[es,ep]}
                 out = self.onsite_net()
-                self.onsite_values = dict(zip(self.onsite_types, out))
+                self.onsite_paras = dict(zip(self.onsite_types, out))
 
                 self.onsite_value_formated = {}
                 for ia in self.onsite_index_dict:
-                    self.onsite_value_formated[ia] = torch.stack([self.onsite_values[itag][0]  for itag in self.onsite_index_dict[ia]])
-                    #self.onsite_value_formated[ia] = torch.reshape(out,[-1]) # {"N":[s, p, ...]}
+                    self.onsite_value_formated[ia] = torch.stack([self.onsite_paras[itag][0]  for itag in self.onsite_index_dict[ia]])
                 return self.onsite_value_formated, None
-            
+            else:
+                # the output of nn is used as a coefficient to multiply the onsite energy using a formula.
+                # this formula is different from the onsite integral formula. and it directly gives the onsite energy.
+                # the onsite integral will still need to sk transformation to be onsite matrix. 
+                # output format e.g.: {'N-2s-0':[...],
+                #                      'N-2s-0':[...],
+                #                      'B-2s-0':[...],
+                #                      'B-2p-0':[...]}
+                # [...] vector: means the output coefficients for the orbital energy formula.
+                out = self.onsite_net()
+                self.onsite_paras = dict(zip(self.onsite_types, out))
+                return self.onsite_paras, None     
         else:
             raise ValueError(f'Invalid mode: {mode}')
         
