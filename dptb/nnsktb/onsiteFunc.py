@@ -4,6 +4,7 @@ import torch as th
 from dptb.utils.constants import atomic_num_dict_r
 from dptb.nnsktb.onsiteDB import onsite_energy_database
 from dptb.nnsktb.formula import SKFormula
+from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.onsite_formula import onsiteFormula
 import logging
 
@@ -72,10 +73,16 @@ class orbitalEs(onsiteFormula):
     """ This calss is to get the onsite energies for given bonds_onsite.
      
     """
-    def __init__(self, functype='none') -> None:
+    def __init__(self, proj_atom_anglr_m,  atomtype=None, functype='none',unit='Hartree') -> None:
         super().__init__(functype)
+        IndMap = Index_Mapings()
+        IndMap.update(proj_atom_anglr_m=proj_atom_anglr_m)
+        onsite_strain_index_map, onsite_strain_num, onsite_index_map, onsite_num = \
+                IndMap.Onsite_Ind_Mapings(onsitemode=functype, atomtype=atomtype)
+        assert functype != 'strain', 'The onsite mode strain is not from this modula.'
+        self.onsite_db =  loadOnsite(onsite_index_map, unit= unit)
 
-    def get_onsiteEs(self,batch_bonds_onsite, onsite_db: dict, nn_onsiteE: dict=None, **kwargs):
+    def get_onsiteEs(self,batch_bonds_onsite, nn_onsite_paras: dict=None, **kwargs):
         """
         Parameters:
         -----------
@@ -96,12 +103,13 @@ class orbitalEs(onsiteFormula):
             bonds_onsite = batch_bonds_onsite[kf][:,1:]
             ia_list = map(lambda x: atomic_num_dict_r[int(x)], bonds_onsite[:,0]) # itype
             if self.functype == 'none':
-                onsiteEs = map(lambda x: onsite_db[x], ia_list)
+                onsiteEs = map(lambda x: self.onsite_db[x], ia_list)
+            
             else:
                 onsiteEs = []
                 for x in ia_list:
-                    onsiteEs.append(self.skEs(xtype=x, onsite_db=onsite_db, nn_onsiteE=nn_onsiteE, **kwargs))
-                
+                    onsiteEs.append(self.skEs(xtype=x, onsite_db= self.onsite_db, nn_onsite_paras=nn_onsite_paras, **kwargs))
+            
             batch_onsiteEs[kf] = list(onsiteEs)
         return batch_onsiteEs
     

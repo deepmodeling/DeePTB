@@ -49,6 +49,7 @@ class InitSKModel(Plugin):
         onsitemode = common_and_model_options['onsitemode']
         skformula = common_and_model_options['skfunction']['skformula']
         soc = common_and_model_options["soc"]
+        unit=common_and_model_options["unit"]
         # ----------------------------------------------------------------------------------------------------------
         
         IndMap = Index_Mapings()
@@ -64,9 +65,10 @@ class InitSKModel(Plugin):
         if onsitemode == 'strain':
             onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m, atomtype=atomtype)
             # for strain mode the onsite_fun will use none mode to add the onsite_db.
-            onsite_fun = orbitalEs(functype='none')
+            onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype='none',unit=unit)
         else:
-            onsite_fun = orbitalEs(functype=onsitemode)
+            onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype=onsitemode,unit=unit)
+
 
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
         _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
@@ -107,8 +109,8 @@ class InitSKModel(Plugin):
 
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
-        #self.host.onsite_index_map = onsite_index_map
-        self.host.onsite_db = loadOnsite(onsite_index_map, unit=common_and_model_options["unit"])
+        # self.host.onsite_index_map = onsite_index_map
+        # self.host.onsite_db = loadOnsite(onsite_index_map, unit=common_and_model_options["unit"])
         if soc:
             self.host.soc_fun = soc_fun
             self.host.soc_db = loadSoc(onsite_index_map)
@@ -232,9 +234,10 @@ class InitSKModel(Plugin):
             soc_fun = socFunc
         if onsitemode == 'strain':
             onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m, atomtype=atomtype)
-            onsite_fun = orbitalEs(functype='none')
+            onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype='none',unit=unit)
         else:
-            onsite_fun = orbitalEs(functype=onsitemode)
+            onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype=onsitemode,unit=unit)
+
             
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
         _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
@@ -279,7 +282,7 @@ class InitSKModel(Plugin):
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
         #self.host.onsite_index_map = onsite_index_map
-        self.host.onsite_db = loadOnsite(onsite_index_map, unit=unit)
+        #self.host.onsite_db = loadOnsite(onsite_index_map, unit=unit)
         if soc:
             self.host.soc_fun = soc_fun
             self.host.soc_db = loadSoc(onsite_index_map)

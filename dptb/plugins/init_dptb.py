@@ -225,9 +225,9 @@ class InitDPTBModel(Plugin):
             soc_fun = socFunc
         if onsitemode == 'strain':
             onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m, atomtype=atomtype)
-            onsite_fun = orbitalEs(functype='none')
+            onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype='none',unit=unit)
         else:
-            onsite_fun = orbitalEs(functype=onsitemode)
+            onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype=onsitemode,unit=unit)
 
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
         hopping_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras}
@@ -275,7 +275,7 @@ class InitDPTBModel(Plugin):
 
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
-        self.host.onsite_db = loadOnsite(onsite_index_map, unit=unit)
+        # self.host.onsite_db = loadOnsite(onsite_index_map, unit=unit)
         if onsitemode == 'strain':
             self.host.onsitestrain_fun = onsitestrain_fun
         if soc:

@@ -44,7 +44,7 @@ class onsiteFormula(BaseOnsite):
         if self.functype == 'uniform':
             return self.uniform(**kwargs)
     
-    def uniform(self,xtype, onsite_db, nn_onsiteE,**kwargs):
+    def uniform(self,xtype, onsite_db, nn_onsite_paras, **kwargs):
         '''This is a wrap function for a self-defined formula of onsite energies. one can easily modify it into whatever form they want.
         
         Returns
@@ -53,10 +53,9 @@ class onsiteFormula(BaseOnsite):
         
         '''
         assert xtype in onsite_db.keys(), f'{xtype} is not in the onsite_db.'
-        assert xtype in nn_onsiteE.keys(), f'{xtype} is not in the nn_onsiteE.'
-        assert onsite_db[xtype].shape == nn_onsiteE[xtype].shape, f'{xtype} onsite_db and nn_onsiteE have different shape.'
-        return onsite_db[xtype] + nn_onsiteE[xtype]
-
+        assert xtype in nn_onsite_paras.keys(), f'{xtype} is not in the nn_onsite_paras.'
+        assert onsite_db[xtype].shape == nn_onsite_paras[xtype].shape, f'{xtype} onsite_db and nn_onsite_paras have different shape.'
+        return onsite_db[xtype] + nn_onsite_paras[xtype]
         
 
 
