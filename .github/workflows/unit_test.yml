@@ -29,6 +29,6 @@ jobs:
         cd ./DeePTB
         pip install .
         pip install pytest
-    - name Run Test
+    - name: Run Test
       run: |
         pytest ./dptb/tests/
