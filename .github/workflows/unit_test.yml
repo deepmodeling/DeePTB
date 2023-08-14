@@ -29,21 +29,6 @@ jobs:
         cd ./DeePTB
         pip install .
         pip install pytest
-    - name: Test morph_util
+    - name Run Test
       run: |
-        source $CONDA/bin/activate
-        export PATH="$CONDA/bin:$PATH"
-        cd unittest && pytest test_morph_util.py -v
-    - name: Test lig_prep
-      run: |
-        source $CONDA/bin/activate
-        cd unittest && pytest test_ligprep.py -v
-    - name: Test mapping
-      run: |
-        source $CONDA/bin/activate
-        export PATH="$CONDA/bin:$PATH"
-        cd unittest && pytest -n auto test_mapping.py -v
-    - name: codecov
-      run: |
-        source $CONDA/bin/activate
-        codecov
+        pytest ./dptb/tests/
