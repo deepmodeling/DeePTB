@@ -26,7 +26,7 @@ jobs:
         conda install pip
         conda update pip
         git clone https://github.com/deepmodeling/DeePTB.git
-        pip install scipy == 1.9.1
+        pip install scipy==1.9.1
         cd ./DeePTB
         pip install .
         pip install pytest
