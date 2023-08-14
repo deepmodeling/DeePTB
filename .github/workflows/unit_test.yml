@@ -26,8 +26,8 @@ jobs:
         conda install pip
         conda update pip
         git clone https://github.com/deepmodeling/DeePTB.git
+        apt-get install libopenblas-dev
         cd ./DeePTB
-        apt install libopenblas-dev pkg-config libopenblas64-dev
         pip install .
         pip install pytest
     - name: Run Test
