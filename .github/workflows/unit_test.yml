@@ -25,7 +25,8 @@ jobs:
         source $CONDA/bin/activate
         conda install pip
         conda update pip
-        conda install -c conda-forge libopenblas libopenblas-dev
+        conda install -c conda-forge libopenblas
+        codna install libopenblas-dev
         git clone https://github.com/deepmodeling/DeePTB.git
         cd ./DeePTB
         pip install .
