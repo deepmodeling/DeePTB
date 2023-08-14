@@ -26,7 +26,6 @@ jobs:
         conda install pip
         conda update pip
         git clone https://github.com/deepmodeling/DeePTB.git
-        conda install openblas
         cd ./DeePTB
         pip install .
         pip install pytest
