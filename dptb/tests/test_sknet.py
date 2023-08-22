@@ -54,9 +54,10 @@ class TestSKnet:
         assert paras[0].shape == torch.Size([len(self.reducted_skint_types), 1, self.bond_neurons['nhidden']])
         assert paras[1].shape == torch.Size([len(self.reducted_skint_types), self.bond_neurons['nout'], self.bond_neurons['nhidden']])
 
-        coeff = self.modeluniform(mode='hopping')
+        coeff, ovelap_coeff = self.modeluniform(mode='hopping')
         assert len(coeff) == len(self.reducted_skint_types)
-
+        if ovelap_coeff is not None:
+            assert len(ovelap_coeff) == len(self.reducted_skint_types)
         for ikey in coeff.keys():
             assert ikey in self.reducted_skint_types
             assert coeff[ikey].shape == torch.Size([self.bond_neurons['nout']])
