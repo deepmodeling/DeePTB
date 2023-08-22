@@ -66,11 +66,23 @@ class Saver(Plugin):
                     for iikey in range(len(self.trainer.onsite_index_dict[ia])):
                         onsitecoeff[self.trainer.onsite_index_dict[ia][iikey]] = \
                                         [self.trainer.onsite_coeff[ia].tolist()[iikey]]
-
+            elif self.trainer.onsitemode == 'NRL':
+                for i in self.trainer.onsite_coeff:
+                    onsitecoeff[i] = self.trainer.onsite_coeff[i].tolist()   
+            else:
+                raise NotImplementedError
+            
             json_data["onsite"] = onsitecoeff
             for i in self.trainer.hopping_coeff:
                 hoppingcoeff[i] = self.trainer.hopping_coeff[i].tolist()
             json_data["hopping"] = hoppingcoeff
+
+            if self.trainer.overlap_coeff is not None:
+                overlapcoeff = {}
+                for i in self.trainer.overlap_coeff:
+                    overlapcoeff[i] = self.trainer.overlap_coeff[i].tolist()
+                json_data["overlap"] = overlapcoeff
+                
             if hasattr(self.trainer,'soc_coeff'):
                 soccoeff = {}
                 for ia in self.trainer.soc_coeff:
