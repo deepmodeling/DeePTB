@@ -45,6 +45,7 @@ class NNSKTrainer(Trainer):
         self.proj_atomtype = get_uniq_symbol(list(self.proj_atom_anglr_m.keys()))
 
         self.soc = common_options['soc']
+        self.overlap = common_options['overlap']
         
         self.validation_loss_options = loss_options.copy()
         if self.use_reference:

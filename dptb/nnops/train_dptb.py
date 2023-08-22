@@ -45,6 +45,7 @@ class DPTBTrainer(Trainer):
         self.onsitemode = common_options.get('onsitemode','none')
         self.atomtype = get_uniq_symbol(common_options["atomtype"])
         self.soc = common_options['soc']
+        self.overlap = common_options['overlap']
         self.proj_atomtype = get_uniq_symbol(list(self.proj_atom_anglr_m.keys()))
 
         self.band_min = loss_options.get('band_min', 0)
