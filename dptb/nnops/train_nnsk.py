@@ -117,7 +117,7 @@ class NNSKTrainer(Trainer):
             raise ValueError
 
         # get sk param (model format)
-        coeffdict = self.model(mode='hopping')
+        coeffdict, overlap_coeffdict = self.model(mode='hopping')
         nn_onsiteE, onsite_coeffdict = self.model(mode='onsite')
 
 
@@ -125,6 +125,12 @@ class NNSKTrainer(Trainer):
         batch_hoppings = self.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, 
             rcut=self.model_options["skfunction"]["sk_cutoff"], w=self.model_options["skfunction"]["sk_decay_w"])
         batch_onsiteEs = self.onsite_fun.get_onsiteEs(batch_bonds_onsite=batch_bond_onsites, onsite_env=batch_onsitenvs, nn_onsite_paras=nn_onsiteE)
+        
+        if self.overlap:
+            assert overlap_coeffdict is not None, "The overlap_coeffdict should be provided if overlap is True."
+            batch_overlaps = self.overlap_fun.get_skoverlaps(batch_bonds=batch_bonds, coeff_paras=overlap_coeffdict, 
+                rcut=self.model_options["skfunction"]["sk_cutoff"], w=self.model_options["skfunction"]["sk_decay_w"])
+
         if self.onsitemode == 'strain':
             batch_onsiteVs = self.onsitestrain_fun.get_skhops(batch_bonds=batch_onsitenvs, coeff_paras=onsite_coeffdict)
         else:
@@ -140,6 +146,7 @@ class NNSKTrainer(Trainer):
         # copy sk param for writing json checkpoint
         self.onsite_index_dict = self.model.onsite_index_dict
         self.hopping_coeff = coeffdict
+        self.overlap_coeff = overlap_coeffdict
         if self.onsitemode == 'strain':
             self.onsite_coeff = onsite_coeffdict
         else:
@@ -164,6 +171,10 @@ class NNSKTrainer(Trainer):
                 onsiteVs = None
                 onsitenvs = None
                 # call hamiltonian block
+            if self.overlap:
+                overlaps = batch_overlaps[ii]
+            else:
+                overlaps = None
 
             if self.soc:
                 soc_lambdas = batch_soc_lambdas[ii]
@@ -175,7 +186,7 @@ class NNSKTrainer(Trainer):
             bond_onsites = batch_bond_onsites[ii][:,1:]
             bond_hoppings = batch_bonds[ii][:,1:]
 
-            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs,soc_lambdas=soc_lambdas)
+            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs,overlaps=overlaps, soc_lambdas=soc_lambdas)
             self.hamileig.get_hs_blocks(bonds_onsite=bond_onsites,
                                         bonds_hoppings=bond_hoppings, 
                                         onsite_envs=onsitenvs)

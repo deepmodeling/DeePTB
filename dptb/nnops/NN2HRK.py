@@ -89,9 +89,13 @@ class NN2HRK(object):
                                         env_cutoff=self.apihost.model_config['env_cutoff'], onsitemode=self.apihost.model_config['onsitemode'], onsite_cutoff=self.apihost.model_config['onsite_cutoff'], sorted_onsite="st", sorted_bond="st", sorted_env="st")
 
         batch_bonds, batch_bond_onsites = predict_process.get_bond(sorted=self.sorted_bond)
-        coeffdict = self.apihost.model(mode='hopping')
+        coeffdict, overlap_coeffdict = self.apihost.model(mode='hopping')
         batch_hoppings = self.apihost.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, rcut=self.apihost.model_config['skfunction']['sk_cutoff'], w=self.apihost.model_config['skfunction']['sk_decay_w'])
         nn_onsiteE, onsite_coeffdict = self.apihost.model(mode='onsite')
+        if self.apihost.overlap:
+            assert overlap_coeffdict is not None, "The overlap_coeffdict should be provided if overlap is True."
+            batch_overlaps = self.apihost.overlap_fun.get_skoverlaps(batch_bonds=batch_bonds, coeff_paras=overlap_coeffdict, rcut=self.apihost.model_config['skfunction']['sk_cutoff'], w=self.apihost.model_config['skfunction']['sk_decay_w'])
+    
 
         if self.apihost.model_config['onsitemode'] in ['strain','NRL']:
             batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
@@ -112,12 +116,17 @@ class NN2HRK(object):
             onsiteEs, hoppings, onsiteVs = batch_onsiteEs[0], batch_hoppings[0],  None
             onsitenvs = None
         
+        if self.apihost.overlap:
+            overlaps = batch_overlaps[0]
+        else:
+            overlaps = None
+
         if self.apihost.model_config["soc"]:
             soc_lambdas = batch_soc_lambdas[0]
         else:
             soc_lambdas = None
 
-        self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
+        self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, overlaps=overlaps, soc_lambdas=soc_lambdas)
         self.hamileig.get_hs_blocks(bonds_onsite=batch_bond_onsites[0][:,1:], bonds_hoppings=batch_bonds[0][:,1:], 
                                     onsite_envs=onsitenvs)
         
@@ -141,10 +150,17 @@ class NN2HRK(object):
         batch_bond_hoppings, batch_hoppings, batch_bond_onsites, batch_onsiteEs, batch_soc_lambdas = self.apihost.nntb.calc(batch_bonds, batch_env)
 
         if  self.apihost.model_config['use_correction']:
-            coeffdict = self.apihost.sknet(mode='hopping')
+            coeffdict, overlap_coeffdict = self.apihost.sknet(mode='hopping')
             batch_nnsk_hoppings = self.apihost.hops_fun.get_skhops( batch_bond_hoppings, coeffdict, 
                             rcut=self.apihost.model_config["skfunction"]["sk_cutoff"], w=self.apihost.model_config["skfunction"]["sk_decay_w"])
             nnsk_onsiteE, onsite_coeffdict = self.apihost.sknet(mode='onsite')
+
+            if self.apihost.overlap:
+                assert overlap_coeffdict is not None, "The overlap_coeffdict should be provided if overlap is True."
+                batch_nnsk_overlaps = self.apihost.overlap_fun.get_skoverlaps(batch_bonds=batch_bonds, coeff_paras=overlap_coeffdict, 
+                            rcut=self.apihost.model_config['skfunction']['sk_cutoff'], w=self.apihost.model_config['skfunction']['sk_decay_w'])
+
+
 
             if self.apihost.model_config['onsitemode'] in ['strain','NRL']:
                 batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
@@ -164,6 +180,10 @@ class NN2HRK(object):
             else:
                 onsiteVs = None
                 onsitenvs = None
+            if self.apihost.overlap:
+                nnsk_overlaps = batch_nnsk_overlaps[0]
+            else:
+                nnsk_overlaps = None
 
             if self.apihost.model_config["soc"] and self.apihost.model_config["dptb"]["soc_env"]:
                 nn_soc_lambdas = batch_soc_lambdas[0]
@@ -176,14 +196,15 @@ class NN2HRK(object):
                     sk_soc_lambdas = None
                 
 
-            onsiteEs, hoppings, _, _, soc_lambdas = nnsk_correction(nn_onsiteEs=batch_onsiteEs[0], nn_hoppings=batch_hoppings[0],
+            onsiteEs, hoppings, onsiteSs, overlaps, soc_lambdas = nnsk_correction(nn_onsiteEs=batch_onsiteEs[0], nn_hoppings=batch_hoppings[0],
                                     sk_onsiteEs=batch_nnsk_onsiteEs[0], sk_hoppings=batch_nnsk_hoppings[0],
-                                    sk_onsiteSs=None, sk_overlaps=None, nn_soc_lambdas=nn_soc_lambdas, sk_soc_lambdas=sk_soc_lambdas)
+                                    sk_onsiteSs=None, sk_overlaps=nnsk_overlaps, nn_soc_lambdas=nn_soc_lambdas, sk_soc_lambdas=sk_soc_lambdas)
         else:
-            onsiteEs, hoppings, soc_lambdas, onsiteVs, onsitenvs = batch_onsiteEs[0], batch_hoppings[0], None, None, None
+            assert not self.apihost.overlap, "The overlap should be False if use_correction is False."
+            onsiteEs, hoppings, soc_lambdas, onsiteVs, onsitenvs, onsiteSs, overlaps = batch_onsiteEs[0], batch_hoppings[0], None, None, None, None, None
 
         
-        self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
+        self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs,overlaps=overlaps, soc_lambdas=soc_lambdas)
         self.hamileig.get_hs_blocks(bonds_onsite=batch_bond_onsites[0][:,1:], bonds_hoppings=batch_bond_hoppings[0][:,1:],
                                     onsite_envs=onsitenvs)
 
