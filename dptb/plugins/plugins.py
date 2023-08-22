@@ -69,8 +69,6 @@ class Saver(Plugin):
             elif self.trainer.onsitemode == 'NRL':
                 for i in self.trainer.onsite_coeff:
                     onsitecoeff[i] = self.trainer.onsite_coeff[i].tolist()   
-            else:
-                raise NotImplementedError
             
             json_data["onsite"] = onsitecoeff
             for i in self.trainer.hopping_coeff:
