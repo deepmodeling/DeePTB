@@ -172,6 +172,8 @@ class InitDPTBModel(Plugin):
             onsite_func_cutoff = options['onsitefuncion']['onsite_func_cutoff']
             onsite_func_decay_w = options['onsitefuncion']['onsite_func_decay_w']
             onsite_func_lambda = options['onsitefuncion']['onsite_func_lambda']
+        
+        overlap = options['skfunction'].get('overlap',False)
         #-----------------------------------------------------------------------------------------------------------
 
         # -------------------------------------------------------------------------------------------
@@ -228,6 +230,8 @@ class InitDPTBModel(Plugin):
 
         # onsite_fun = onsiteFunc
         hops_fun = SKintHops(mode='hopping',functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m)
+        if overlap:
+            overlap_fun = SKintHops(mode='hopping',functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m,overlap=overlap)
         if soc:
             soc_fun = socFunc
         if onsitemode == 'strain':
@@ -240,7 +244,10 @@ class InitDPTBModel(Plugin):
             onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype=onsitemode,unit=unit)
 
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
-        hopping_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras}
+        if overlap:
+            hopping_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras, "nout_overlap": overlap_fun.num_paras}
+        else:
+            hopping_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras}
 
         _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
         if onsitemode == 'strain':
@@ -268,7 +275,8 @@ class InitDPTBModel(Plugin):
                                    device=device,
                                    dtype=dtype,
                                    onsitemode=onsitemode,
-                                   onsite_index_dict=onsiteE_ind_dict
+                                   onsite_index_dict=onsiteE_ind_dict,
+                                   overlap=overlap
                                    )
 
         if modeltype == 'ckpt':
@@ -285,7 +293,10 @@ class InitDPTBModel(Plugin):
 
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
+        self.host.overlap = overlap
         # self.host.onsite_db = loadOnsite(onsite_index_map, unit=unit)
+        if overlap:
+            self.host.overlap_fun = overlap_fun
         if onsitemode == 'strain':
             self.host.onsitestrain_fun = onsitestrain_fun
         if soc:

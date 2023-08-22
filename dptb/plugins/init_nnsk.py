@@ -57,6 +57,8 @@ class InitSKModel(Plugin):
         onsite_func_decay_w = common_and_model_options['onsitefuncion']['onsite_func_decay_w']
         onsite_func_lambda = common_and_model_options['onsitefuncion']['onsite_func_lambda']
 
+        overlap = common_and_model_options['skfunction'].get('overlap',False)
+
         #-----------------------------------------------------------------------------------------------------------
         IndMap = Index_Mapings()
         IndMap.update(proj_atom_anglr_m=proj_atom_anglr_m)
@@ -66,6 +68,9 @@ class InitSKModel(Plugin):
 
         # onsite_fun = onsiteFunc
         hops_fun = SKintHops(mode='hopping',functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m)
+        if overlap:
+            overlap_fun = SKintHops(mode='hopping',functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m,overlap=overlap)
+
         if soc:
             soc_fun = socFunc
         if onsitemode == 'strain':
@@ -74,7 +79,7 @@ class InitSKModel(Plugin):
             onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype='none',unit=unit)
         elif onsitemode == 'NRL':
             onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype=onsitemode,unit=unit,
-                                   onsite_func_cutoff=onsite_func_cutoff,onsite_func_decay_w=onsite_func_decay_w,onsite_func_lambda=onsite_func_lambda)
+                    onsite_func_cutoff=onsite_func_cutoff,onsite_func_decay_w=onsite_func_decay_w,onsite_func_lambda=onsite_func_lambda)
         else:
             onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype=onsitemode,unit=unit)
 
@@ -82,7 +87,11 @@ class InitSKModel(Plugin):
 
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
         _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
-        hopping_neurons = {"nhidden": num_hopping_hideen,  "nout": hops_fun.num_paras}
+        if overlap:
+            hopping_neurons = {"nhidden": num_hopping_hideen,  "nout": hops_fun.num_paras, "nout_overlap": overlap_fun.num_paras}
+        else:
+            hopping_neurons = {"nhidden": num_hopping_hideen,  "nout": hops_fun.num_paras}
+
 
 # TODO: modify onsite_neurons, to have nout for other modes.
 
@@ -116,10 +125,14 @@ class InitSKModel(Plugin):
                                 device=device,
                                 dtype=dtype,
                                 onsitemode=onsitemode,
-                                onsite_index_dict=onsiteE_ind_dict)
+                                onsite_index_dict=onsiteE_ind_dict,
+                                overlap=overlap)
 
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
+        self.host.overlap = overlap
+        if overlap:
+            self.host.overlap_fun = overlap_fun
         # self.host.onsite_index_map = onsite_index_map
         # self.host.onsite_db = loadOnsite(onsite_index_map, unit=common_and_model_options["unit"])
         if soc:
@@ -168,7 +181,7 @@ class InitSKModel(Plugin):
         #modeltype = common_and_model_and_run_options['modeltype']
 
         # ----------------------------------------------------------------------------------------------------------
-        json_model_types = ["onsite", "hopping", "soc"]
+        json_model_types = ["onsite", "hopping", "overlap", "soc"]
         if modeltype == "ckpt":
             ckpt_list = [torch.load(ckpt) for ckpt in checkpoint]
         elif modeltype == "json":
@@ -187,6 +200,12 @@ class InitSKModel(Plugin):
                     for itype in json_dict[ikey]:
                         json_model_i[itype] = torch.tensor(json_dict[ikey][itype],dtype=dtype,device=device)
                     json_model_list[ikey] = json_model_i
+
+            assert 'onsite' in json_model_list and 'hopping' in json_model_list, "onsite and hopping must be in json_model_list"
+            if 'overlap' in json_model_list:
+                for ikey in json_model_list['hopping']:
+                    json_model_list['hopping'][ikey] = torch.cat((json_model_list['hopping'][ikey],json_model_list['overlap'][ikey]),dim=0)
+                json_model_list.pop('overlap')
         else:
             raise NotImplementedError("modeltype {} not implemented".format(modeltype))
 
@@ -203,6 +222,10 @@ class InitSKModel(Plugin):
             onsite_func_cutoff = common_and_model_and_run_options['onsitefuncion']['onsite_func_cutoff']
             onsite_func_decay_w = common_and_model_and_run_options['onsitefuncion']['onsite_func_decay_w']
             onsite_func_lambda = common_and_model_and_run_options['onsitefuncion']['onsite_func_lambda']
+        
+        
+        overlap = common_and_model_and_run_options['skfunction'].get('overlap',False)
+
         #-----------------------------------------------------------------------------------------------------------
 
         if soc and num_soc_hidden is None:
@@ -247,6 +270,8 @@ class InitSKModel(Plugin):
 
         # onsite_fun = onsiteFunc
         hops_fun = SKintHops(mode='hopping',functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m)
+        if overlap:
+            overlap_fun = SKintHops(mode='hopping',functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m,overlap=overlap)
         if soc:
             soc_fun = socFunc
         if onsitemode == 'strain':
@@ -261,8 +286,10 @@ class InitSKModel(Plugin):
             
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
         _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
-        hopping_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras}
-
+        if overlap:
+            hopping_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras, "nout_overlap": overlap_fun.num_paras}
+        else:
+            hopping_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras}
         if onsitemode == 'strain':
             onsite_neurons = {"nhidden":num_onsite_hidden,"nout":onsitestrain_fun.num_paras}
             _, reducted_onsiteint_types, _ = all_onsite_intgrl_types(onsite_strain_index_map)
@@ -288,7 +315,8 @@ class InitSKModel(Plugin):
                                    onsitemode=onsitemode,
                                    # Onsiteint_types is a list of onsite integral types, which is used
                                    # to determine the number of output neurons of the onsite network.
-                                   onsite_index_dict=onsiteE_ind_dict
+                                   onsite_index_dict=onsiteE_ind_dict,
+                                   overlap=overlap
                                    )
     
         if modeltype == 'ckpt':
@@ -304,6 +332,10 @@ class InitSKModel(Plugin):
         self.host.hops_fun = hops_fun
         #self.host.onsite_index_map = onsite_index_map
         #self.host.onsite_db = loadOnsite(onsite_index_map, unit=unit)
+        self.host.overlap = overlap
+
+        if overlap:
+            self.host.overlap_fun = overlap_fun
         if soc:
             self.host.soc_fun = soc_fun
             self.host.soc_db = loadSoc(onsite_index_map)
