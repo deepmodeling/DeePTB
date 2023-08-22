@@ -30,6 +30,7 @@ class DPTBHost(PluginUser):
     def build(self):
         if not 'soc' in self.model_config.keys():
             self.model_config.update({'soc':False})
+        self.overlap =  self.model_config.get('overlap', False)
         self.call_plugins(queue_name='disposable', time=0, mode='init_model', **self.model_config)
         self.model_config.update({'use_correction':self.use_correction})
 
@@ -101,6 +102,7 @@ class NNSKHost(PluginUser):
     def build(self):
         if not 'soc' in self.model_config.keys():
             self.model_config.update({'soc':False})
+        self.overlap =  self.model_config.get('overlap', False)
         # ---------------------------       init network model        -----------------------
         self.call_plugins(queue_name='disposable', time=0, mode='init_model', **self.model_config)
         
