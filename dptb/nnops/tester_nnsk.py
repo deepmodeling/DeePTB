@@ -36,6 +36,7 @@ class NNSKTester(Tester):
         self.batch_size = data_options["test"]['batch_size']
         
         self.soc = common_options['soc']
+        self.overlap = common_options['overlap']
         self.proj_atom_anglr_m = common_options.get('proj_atom_anglr_m')
         self.proj_atom_neles = common_options.get('proj_atom_neles')
         self.onsitemode = common_options.get('onsitemode','none')
@@ -58,12 +59,18 @@ class NNSKTester(Tester):
             log.error(msg="The wannier_blocks from processor is None, but the losstype wannier, please check the input data, maybe the wannier.npy is not there.")
             raise ValueError
 
-        coeffdict = self.model(mode='hopping')
+        coeffdict, overlap_coeffdict = self.model(mode='hopping')
         batch_hoppings = self.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, 
             rcut=self.model_options["skfunction"]["sk_cutoff"], w=self.model_options["skfunction"]["sk_decay_w"])
         
         nn_onsiteE, onsite_coeffdict = self.model(mode='onsite')
         batch_onsiteEs = self.onsite_fun.get_onsiteEs(batch_bonds_onsite=batch_bond_onsites, onsite_env=batch_onsitenvs, nn_onsite_paras=nn_onsiteE)
+        
+        if self.overlap:
+            assert overlap_coeffdict is not None, "The overlap_coeffdict should be provided if overlap is True."
+            batch_overlaps = self.overlap_fun.get_skoverlaps(batch_bonds=batch_bonds, coeff_paras=overlap_coeffdict, 
+                rcut=self.model_options["skfunction"]["sk_cutoff"], w=self.model_options["skfunction"]["sk_decay_w"])
+        
         if self.onsitemode == 'strain':
             batch_onsiteVs = self.onsitestrain_fun.get_skhops(batch_bonds=batch_onsitenvs, coeff_paras=onsite_coeffdict)
         else:
@@ -74,9 +81,11 @@ class NNSKTester(Tester):
             batch_soc_lambdas = self.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.soc_db, nn_soc=nn_soc_lambdas)
         else:
             batch_soc_lambdas = None
+       
         # call sktb to get the sktb hoppings and onsites
         self.onsite_index_dict = self.model.onsite_index_dict
         self.hopping_coeff = coeffdict
+        self.overlap_coeff = overlap_coeffdict
         if self.onsitemode == 'strain':
             self.onsite_coeff = onsite_coeffdict
         else:
@@ -98,6 +107,10 @@ class NNSKTester(Tester):
                 onsiteVs = None
                 onsitenvs = None
                 # call hamiltonian block
+            if self.overlap:
+                overlaps = batch_overlaps[ii]
+            else:
+                overlaps = None
 
             if self.soc:
                 soc_lambdas = batch_soc_lambdas[ii]
@@ -107,7 +120,7 @@ class NNSKTester(Tester):
             bond_onsites = batch_bond_onsites[ii][:,1:]
             bond_hoppings = batch_bonds[ii][:,1:]
 
-            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs,soc_lambdas=soc_lambdas)
+            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs,overlaps=overlaps, soc_lambdas=soc_lambdas)
             self.hamileig.get_hs_blocks(bonds_onsite=bond_onsites,
                                         bonds_hoppings=bond_hoppings, 
                                         onsite_envs=onsitenvs)
