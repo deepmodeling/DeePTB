@@ -21,7 +21,7 @@ class DirectNet(nn.Module):
 
 class SKNet(nn.Module):
     def __init__(self, skint_types: list, onsite_types:dict, soc_types: dict, hopping_neurons: dict, onsite_neurons: dict, soc_neurons: dict=None, 
-                        onsite_index_dict:dict=None, onsitemode:str='none', device='cpu', dtype=torch.float32, **kwargs):
+                        onsite_index_dict:dict=None, onsitemode:str='none', overlap=False, device='cpu', dtype=torch.float32, **kwargs):
         ''' define the nn.parameters for fittig sktb.
 
         Paras 
@@ -38,7 +38,7 @@ class SKNet(nn.Module):
         
         hopping_neurons: dict
             {'nhidden':int, 'nout':int}
-        # Note: nout 是拟合公式中的待定参数。比如varTang96 formula nout = 4. 
+        # Note: nout 是拟合公式中的待定参数。比如 varTang96 formula nout = 4. 
 
         onsite_neurons:dict
             {'nhidden':int}
@@ -58,13 +58,23 @@ class SKNet(nn.Module):
         self.onsite_types = onsite_types
         self.soc_types = soc_types
         self.onsite_index_dict = onsite_index_dict
+        self.overlap = overlap
 
+        self.nhop_paras = hopping_neurons.get('nout')
+        self.noverlap_paras = hopping_neurons.get('nout_overlap',0)
 
-        hopping_config = {
-            'nin': len(self.skint_types),
-            'nhidden': hopping_neurons.get('nhidden',1),
-            'nout': hopping_neurons.get('nout'),
-            'ini_std':0.001}
+        if overlap:
+            hopping_config = {
+                'nin': len(self.skint_types),
+                'nhidden': hopping_neurons.get('nhidden',1),
+                'nout': self.nhop_paras + self.noverlap_paras,
+                'ini_std':0.001}
+        else:
+            hopping_config = {
+                'nin': len(self.skint_types),
+                'nhidden': hopping_neurons.get('nhidden',1),
+                'nout': hopping_neurons.get('nout'),
+                'ini_std':0.001}
         self.hopping_net = DirectNet(device=device, dtype=dtype, **hopping_config)
         
         if self.onsitemode.lower() == 'none':
@@ -138,8 +148,14 @@ class SKNet(nn.Module):
         
         if mode == 'hopping':
             out = self.hopping_net()
-            self.hop_coeffdict = dict(zip(self.skint_types, out))
-            return self.hop_coeffdict
+            if self.overlap:
+                self.hop_coeffdict = dict(zip(self.skint_types, out[:,:self.nhop_paras]))
+                self.overlap_coeffdict = dict(zip(self.skint_types, out[:,self.nhop_paras:self.nhop_paras+self.noverlap_paras]))
+            else:
+                self.hop_coeffdict = dict(zip(self.skint_types, out))
+                self.overlap_coeffdict = None
+            return self.hop_coeffdict, self.overlap_coeffdict
+        
         elif mode == 'soc':
             out = self.soc_net()
             out = out.abs()
