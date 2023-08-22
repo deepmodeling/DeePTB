@@ -173,7 +173,7 @@ class InitDPTBModel(Plugin):
             onsite_func_decay_w = options['onsitefuncion']['onsite_func_decay_w']
             onsite_func_lambda = options['onsitefuncion']['onsite_func_lambda']
         
-        overlap = options['skfunction'].get('overlap',False)
+        overlap = options.get('overlap',False)
         #-----------------------------------------------------------------------------------------------------------
 
         # -------------------------------------------------------------------------------------------

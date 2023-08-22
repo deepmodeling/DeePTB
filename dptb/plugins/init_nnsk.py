@@ -57,7 +57,7 @@ class InitSKModel(Plugin):
         onsite_func_decay_w = common_and_model_options['onsitefuncion']['onsite_func_decay_w']
         onsite_func_lambda = common_and_model_options['onsitefuncion']['onsite_func_lambda']
 
-        overlap = common_and_model_options['skfunction'].get('overlap',False)
+        overlap = common_and_model_options.get('overlap',False)
 
         #-----------------------------------------------------------------------------------------------------------
         IndMap = Index_Mapings()
@@ -224,7 +224,7 @@ class InitSKModel(Plugin):
             onsite_func_lambda = common_and_model_and_run_options['onsitefuncion']['onsite_func_lambda']
         
         
-        overlap = common_and_model_and_run_options['skfunction'].get('overlap',False)
+        overlap = common_and_model_and_run_options.get('overlap',False)
 
         #-----------------------------------------------------------------------------------------------------------
 
