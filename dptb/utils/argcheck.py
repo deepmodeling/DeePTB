@@ -271,11 +271,12 @@ def skfunction():
             "
     doc_sk_cutoff = r"The decay param $r_c$ in $f(r)=1+exp((r_{ij}-r_c)/\omega)$, controls the range of the decay, support list input to move the boundary of devaying function from near to afar. Default: 6.0."
     doc_sk_decay_w = r"The decay param $\omega$ in $f(r)=1+exp((r_{ij}-r_c)/\omega)$, control how smooth the decay function is, support list input to move the decaying function from soft to hard. Default: 0.1."
-
+    doc_overlap = r"Whether to use overlap matrix to define the SK like integrals. Default: False"
     args = [
         Argument("skformula", str, optional=True, default="powerlaw", doc=doc_skformula),
         Argument("sk_cutoff", [float,int,list], optional=True, default=6.0, doc=doc_sk_cutoff),
-        Argument("sk_decay_w", [float, list], optional=True, default=0.1, doc=doc_sk_decay_w)
+        Argument("sk_decay_w", [float, list], optional=True, default=0.1, doc=doc_sk_decay_w),
+        Argument("overlap", bool, optional=True, default=False, doc=doc_overlap)
     ]
 
     doc_skfunction = "The parameter to define the analytic function formula of the SK like integrals."
