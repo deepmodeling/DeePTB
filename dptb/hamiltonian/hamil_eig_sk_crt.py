@@ -149,7 +149,9 @@ class HamilEig(RotationSK):
 
             sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
             if not self.use_orthogonal_basis:
-                sub_over_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
+                #sub_over_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
+                sub_over_block = th.eye(self.__struct__.proj_atomtype_norbs[iatype], dtype=self.dtype, device=self.device)
+
             
             ist = 0
             for ish in self.__struct__.proj_atom_anglr_m[iatype]:     # ['s','p',..]
@@ -159,8 +161,8 @@ class HamilEig(RotationSK):
 
                 indx = self.__struct__.onsite_index_map[iatype][ish] # change onsite index map from {N:{s:}} to {N:{ss:, sp:}}
                 sub_hamil_block[ist:ist+norbi, ist:ist+norbi] = th.eye(norbi, dtype=self.dtype, device=self.device) * self.onsiteEs[ib][indx]
-                if not self.use_orthogonal_basis:
-                    sub_over_block[ist:ist+norbi, ist:ist+norbi] = th.eye(norbi, dtype=self.dtype, device=self.device) * self.onsiteSs[ib][indx]
+                #if not self.use_orthogonal_basis:
+                #    sub_over_block[ist:ist+norbi, ist:ist+norbi] = th.eye(norbi, dtype=self.dtype, device=self.device) * self.onsiteSs[ib][indx]
                 ist = ist + norbi
 
             onsiteH_blocks.append(sub_hamil_block)
