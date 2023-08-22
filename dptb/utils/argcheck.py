@@ -43,6 +43,7 @@ def common_options():
     doc_time_symm = "Determine whether time symmetry is conserved, if set to be True, the eigenvalues on -k and k point is considered equal. Default: `True`"
     doc_soc = "Determine whether soc effect is modeled. If True, the soc network setting in model options need to be setted. Default: `False`"
     doc_unit = "Determine the unit of Tight-Binding parameters learned in DeePTB. Can be `eV`, `Hartree` or `Rothberg`. It will not affect the eigenvalues output form DeePTB, which is always in the unit of eV. Default: `Hartree`"
+    doc_overlap = r"Whether to use overlap matrix to define the SK like integrals. Default: False"
 
     args = [
         Argument("onsite_cutoff", float, optional = False, doc = doc_onsite_cutoff),
@@ -56,7 +57,8 @@ def common_options():
         Argument("onsitemode", str, optional = True, default = "none", doc = doc_onsitemode),
         Argument("sk_file_path", str, optional = True, default="./", doc = doc_sk_file_path),
         Argument("time_symm", bool, optional = True, default=True, doc = doc_time_symm),
-        Argument("soc", bool, optional=True, default=False, doc=doc_soc),
+        Argument("soc", bool, optional=True, default=False, doc=doc_soc),        
+        Argument("overlap", bool, optional=True, default=False, doc=doc_overlap),
         Argument("unit", str, optional=True, default="Hartree", doc=doc_unit)
     ]
 
@@ -271,12 +273,10 @@ def skfunction():
             "
     doc_sk_cutoff = r"The decay param $r_c$ in $f(r)=1+exp((r_{ij}-r_c)/\omega)$, controls the range of the decay, support list input to move the boundary of devaying function from near to afar. Default: 6.0."
     doc_sk_decay_w = r"The decay param $\omega$ in $f(r)=1+exp((r_{ij}-r_c)/\omega)$, control how smooth the decay function is, support list input to move the decaying function from soft to hard. Default: 0.1."
-    doc_overlap = r"Whether to use overlap matrix to define the SK like integrals. Default: False"
     args = [
         Argument("skformula", str, optional=True, default="powerlaw", doc=doc_skformula),
         Argument("sk_cutoff", [float,int,list], optional=True, default=6.0, doc=doc_sk_cutoff),
-        Argument("sk_decay_w", [float, list], optional=True, default=0.1, doc=doc_sk_decay_w),
-        Argument("overlap", bool, optional=True, default=False, doc=doc_overlap)
+        Argument("sk_decay_w", [float, list], optional=True, default=0.1, doc=doc_sk_decay_w)
     ]
 
     doc_skfunction = "The parameter to define the analytic function formula of the SK like integrals."
