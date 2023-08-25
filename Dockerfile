@@ -14,7 +14,7 @@ ENV PATH=/opt/miniconda/bin:$PATH
 RUN conda create -n deeptb python=3.8 -c conda-forge -y && \
     conda init && \
     source activate deeptb && \
-    conda install git && \
+    conda install git -c anaconda && \
     git clone git@github.com:deepmodeling/DeePTB.git && \
     cd ./deeptb && \
     pip install . && \
