@@ -12,11 +12,12 @@ RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh &
 
 ENV PATH=/opt/miniconda/bin:$PATH
 
-RUN git clone https://github.com/deepmodeling/DeePTB.git
-RUN conda create -n deeptb python=3.8 -c conda-forge -y
-RUN conda init
-RUN source activate deeptb
-RUN cd ./DeePTB && pip install .
-RUN conda clean --all -y
-RUN rm -rf /root/.cache/pip
-RUN echo "source activate deeptb" >> ~/.bashrc
+RUN git clone https://github.com/deepmodeling/DeePTB.git && \
+    conda create -n deeptb python=3.8 -c conda-forge -y && \
+    conda init && \
+    source activate deeptb && \
+    cd ./DeePTB && \
+    pip install . && \
+    conda clean --all -y && \
+    rm -rf /root/.cache/pip && \
+    echo "source activate deeptb" >> ~/.bashrc
