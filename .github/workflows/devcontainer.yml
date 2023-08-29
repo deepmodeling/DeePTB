@@ -5,7 +5,7 @@ on:
     paths-ignore:
       - 'docs/**'
     branches:
-      - main
+      - dev
 
 jobs:
   build_container_and_push:
