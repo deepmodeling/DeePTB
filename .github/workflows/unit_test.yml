@@ -5,7 +5,7 @@ on:
   push:
   pull_request:
 
-jobs:
+jobs: 
   build:
     runs-on: self-hosted
     if: github.repository_owner == 'deepmodeling'
