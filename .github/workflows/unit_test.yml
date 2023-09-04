@@ -7,7 +7,7 @@ on:
 
 jobs: 
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: github.repository_owner == 'deepmodeling'
     container: ghcr.io/deepmodeling/deeptb:latest
     steps:
@@ -16,7 +16,9 @@ jobs:
         with:
           ref: "refs/pull/${{ github.event.number }}/merge"
       - name: Set up environment
-        run: /opt/miniconda/bin/conda init bash
+        run: |
+          /opt/miniconda/bin/conda init bash
+          source $CONDA/bin/activate
       - name: Install DeePTB
         run: |
           conda activate deeptb
