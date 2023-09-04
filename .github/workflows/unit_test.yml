@@ -19,7 +19,7 @@ jobs:
         run: /opt/miniconda/bin/conda init bash
       - name: Install DeePTB
         run: |
-          source activate deeptb
+          conda activate deeptb
           pip install .
           pip install pytest
       - name: Run Test
