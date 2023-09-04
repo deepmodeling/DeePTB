@@ -15,11 +15,9 @@ jobs:
         uses: actions/checkout@v3
         with:
           ref: "refs/pull/${{ github.event.number }}/merge"
-      - name: Set up environment
-        run: |
-          exec bash
       - name: Install DeePTB
         run: |
+          exec bash
           conda activate deeptb
           pip install .
           pip install pytest
