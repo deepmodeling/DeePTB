@@ -18,6 +18,8 @@ RUN git clone https://github.com/deepmodeling/DeePTB.git && \
     source activate deeptb && \
     cd ./DeePTB && \
     pip install . && \
+    cd .. && \
+    rm ./DeePTB -r && \
     conda clean --all -y && \
     rm -rf /root/.cache/pip && \
     echo "source activate deeptb" >> ~/.bashrc
