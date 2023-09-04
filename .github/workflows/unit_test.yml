@@ -23,5 +23,5 @@ jobs:
           pip install pytest
       - name: Run Test
         run: |
-          source $CONDA/bin/activate
+          exec bash
           pytest ./dptb/tests/
