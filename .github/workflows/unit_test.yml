@@ -17,8 +17,7 @@ jobs:
           ref: "refs/pull/${{ github.event.number }}/merge"
       - name: Set up environment
         run: |
-          ls -l /bin/sh
-          /opt/miniconda/bin/conda init bash
+          exec bash
       - name: Install DeePTB
         run: |
           conda activate deeptb
