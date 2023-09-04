@@ -17,6 +17,7 @@ jobs:
           ref: "refs/pull/${{ github.event.number }}/merge" 
       - name: Install DeePTB
         run: |
+          conda activate deeptb
           pip install .
           pip install pytest
       - name: Run Test
