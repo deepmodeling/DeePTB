@@ -18,7 +18,6 @@ jobs:
       - name: Set up environment
         run: |
           /opt/miniconda/bin/conda init bash
-          source $CONDA/bin/activate
       - name: Install DeePTB
         run: |
           conda activate deeptb
