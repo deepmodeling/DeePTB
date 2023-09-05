@@ -18,6 +18,7 @@ jobs:
       - name: Install DeePTB
         run: |
           exec bash
+          ls
           conda activate deeptb
           pip install .
           pip install pytest
