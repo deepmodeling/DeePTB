@@ -33,3 +33,12 @@ jobs:
         run: |
           exec bash
           pytest ./dptb/tests/
+  job2:
+    runs-on: self-hosted
+    needs: build
+    steps:
+      - env:
+          OUTPUT1: ${{needs.build.outputs.output1}}
+          OUTPUT2: ${{needs.build.outputs.output2}}
+          OUTPUT2: ${{needs.build.outputs.output2}}
+        run: echo "$OUTPUT1 $OUTPUT2 $OUTPUT3"
