@@ -44,4 +44,4 @@ jobs:
         run: |
           echo "I am here!"
           echo "What the hell is happening!"
-          echo "$OUTPUT1 $OUTPUT2 $OUTPUT3"
+          echo "$OUTPUT1 $OUTPUT2 $OUTPUT3 ????"
