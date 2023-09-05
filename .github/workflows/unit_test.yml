@@ -40,5 +40,5 @@ jobs:
       - env:
           OUTPUT1: ${{needs.build.outputs.output1}}
           OUTPUT2: ${{needs.build.outputs.output2}}
-          OUTPUT2: ${{needs.build.outputs.output2}}
+          OUTPUT3: ${{needs.build.outputs.output3}}
         run: echo "$OUTPUT1 $OUTPUT2 $OUTPUT3"
