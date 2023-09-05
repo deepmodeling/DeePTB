@@ -11,9 +11,9 @@ jobs:
     if: github.repository_owner == 'deepmodeling'
     container: ghcr.io/deepmodeling/deeptb:latest
     outputs:
-      output1: ${{ steps.step1.outputs.test }}
-      output2: ${{ steps.step2.outputs.test }}
-      output3: ${{ steps.step3.outputs.test }}
+      output1: ${{ steps.Checkout.outputs.test }}
+      output2: ${{ steps.Install DeePTB.outputs.test }}
+      output3: ${{ steps.Run Test.outputs.test }}
     steps: 
       - name: Checkout
         uses: actions/checkout@v3
@@ -30,11 +30,3 @@ jobs:
         run: |
           exec bash
           pytest ./dptb/tests/
-  output:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - env:
-          OUTPUT1: ${{needs.job1.outputs.output1}}
-          OUTPUT2: ${{needs.job1.outputs.output2}}
-        run: echo "$OUTPUT1 $OUTPUT2"
