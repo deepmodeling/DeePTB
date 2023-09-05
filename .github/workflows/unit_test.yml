@@ -10,12 +10,18 @@ jobs:
     runs-on: self-hosted
     if: github.repository_owner == 'deepmodeling'
     container: ghcr.io/deepmodeling/deeptb:latest
+    outputs:
+      output1: ${{ steps.1.outputs.test }}
+      output2: ${{ steps.2 DeePTB.outputs.test }}
+      output3: ${{ steps.3.outputs.test }}
     steps: 
       - name: Checkout
+        id: 1
         uses: actions/checkout@v3
         with:
           ref: "refs/pull/${{ github.event.number }}/merge"
       - name: Install DeePTB
+        id: 2
         run: |
           exec bash
           ls >> "$GITHUB_OUTPUT"
@@ -23,6 +29,7 @@ jobs:
           pip install . >> "$GITHUB_OUTPUT"
           pip install pytest
       - name: Run Test
+        id: 3
         run: |
           exec bash
           pytest ./dptb/tests/
