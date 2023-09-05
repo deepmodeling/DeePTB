@@ -8,12 +8,12 @@ on:
 jobs: 
   build:
     runs-on: self-hosted
-    if: github.repository_owner == 'deepmodeling'
-    container: ghcr.io/deepmodeling/deeptb:latest
     outputs:
       output1: ${{ steps.1.outputs.test }}
       output2: ${{ steps.2 DeePTB.outputs.test }}
       output3: ${{ steps.3.outputs.test }}
+    if: github.repository_owner == 'deepmodeling'
+    container: ghcr.io/deepmodeling/deeptb:latest
     steps: 
       - name: Checkout
         id: 1
