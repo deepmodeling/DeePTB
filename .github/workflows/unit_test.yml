@@ -10,10 +10,6 @@ jobs:
     runs-on: self-hosted
     if: github.repository_owner == 'deepmodeling'
     container: ghcr.io/deepmodeling/deeptb:latest
-    outputs:
-      output1: ${{ steps.Checkout.outputs.test }}
-      output2: ${{ steps.Install DeePTB.outputs.test }}
-      output3: ${{ steps.Run Test.outputs.test }}
     steps: 
       - name: Checkout
         uses: actions/checkout@v3
@@ -22,7 +18,7 @@ jobs:
       - name: Install DeePTB
         run: |
           exec bash
-          ls echo >> "$GITHUB_OUTPUT"
+          ls >> "$GITHUB_OUTPUT"
           conda activate deeptb
           pip install . >> "$GITHUB_OUTPUT"
           pip install pytest
