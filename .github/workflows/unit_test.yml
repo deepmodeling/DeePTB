@@ -20,6 +20,9 @@ jobs:
         uses: actions/checkout@v3
         with:
           ref: "refs/pull/${{ github.event.number }}/merge"
+      - name: checkout current directory
+        id: s4
+        run: exec bash && ls
       - name: Install DeePTB
         id: s2
         run: |
