@@ -23,19 +23,14 @@ jobs:
       - name: Install DeePTB
         id: s2
         run: |
-          ls
           exec bash
-          ls >> "$GITHUB_OUTPUT"
-          echo "I am here!" >> "$GITHUB_OUTPUT"
           conda activate deeptb
-          cd ./DeePTB
-          pip install . >> "$GITHUB_OUTPUT"
+          pip install .
           pip install pytest
       - name: Run Test
         id: s3
         run: |
           exec bash
-          cd ./DeePTB
           pytest ./dptb/tests/
   job2:
     runs-on: self-hosted
