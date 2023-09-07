@@ -5,21 +5,40 @@ on:
   push:
   pull_request:
 
-jobs:
+jobs: 
   build:
     runs-on: self-hosted
+    outputs:
+      output1: ${{ steps.s1.outputs.test }}
+      output2: ${{ steps.s2.outputs.test }}
+      output3: ${{ steps.s3.outputs.test }}
     if: github.repository_owner == 'deepmodeling'
     container: ghcr.io/deepmodeling/deeptb:latest
-    steps:
+    steps: 
       - name: Checkout
+        id: s1
         uses: actions/checkout@v3
         with:
           ref: "refs/pull/${{ github.event.number }}/merge"
       - name: Install DeePTB
+        id: s2
         run: |
+          exec bash
+          conda activate deeptb
           pip install .
           pip install pytest
       - name: Run Test
+        id: s3
         run: |
-          source $CONDA/bin/activate
+          exec bash
+          conda activate deeptb
           pytest ./dptb/tests/
+  job2:
+    runs-on: self-hosted
+    needs: build
+    steps:
+      - env:
+          OUTPUT1: ${{needs.build.outputs.output1}}
+          OUTPUT2: ${{needs.build.outputs.output2}}
+          OUTPUT3: ${{needs.build.outputs.output3}}
+        run: echo "$OUTPUT1 $OUTPUT2 $OUTPUT3 ????"
