@@ -31,6 +31,7 @@ jobs:
         id: s3
         run: |
           exec bash
+          conda activate deeptb
           pytest ./dptb/tests/
   job2:
     runs-on: self-hosted
