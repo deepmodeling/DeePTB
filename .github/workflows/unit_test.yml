@@ -1,9 +1,9 @@
 name: DeePTB tests.
 
 on:
-  workflow_dispatch:
-  push:
   pull_request:
+    paths-ignore:
+      - 'docs/**'
 
 jobs: 
   build:
