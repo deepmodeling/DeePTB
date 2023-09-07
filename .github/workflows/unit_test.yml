@@ -23,6 +23,7 @@ jobs:
       - name: Install DeePTB
         id: s2
         run: |
+          ls
           exec bash
           ls >> "$GITHUB_OUTPUT"
           echo "I am here!" >> "$GITHUB_OUTPUT"
