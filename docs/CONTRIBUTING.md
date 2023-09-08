@@ -1,8 +1,8 @@
-# Contributing to ABACUS
+# Contributing to DeePTB
 
-First of all, thank you for taking time to make contributions to ABACUS!
+First of all, thank you for taking time to make contributions to DeePTB!
 This file provides the more technical guidelines on how to realize it.
-For more non-technical aspects, please refer to the [ABACUS Contribution Guide](./community/contribution_guide.md)
+For more non-technical aspects, please refer to the [DeePTB Contribution Guide](./community/contribution_guide.md)
 
 ## Table of Contents
 

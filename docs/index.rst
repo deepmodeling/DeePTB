@@ -4,22 +4,13 @@
    contain the root `toctree` directive.
 
 =================================================
-ABACUS Documentation
+DeePTB Documentation
 =================================================
 
-ABACUS (Atomic-orbital Based Ab-initio Computation at UStc) is 
-an open-source computer code package based on density functional 
-theory (DFT). The package utilizes both plane wave and numerical 
-atomic basis sets with the usage of norm-conserving pseudopotentials 
-to describe the interactions between nuclear ions and valence electrons. 
-ABACUS supports LDA, GGA, meta-GGA, and hybrid functionals. Apart from 
-single-point calculations, the package allows geometry optimizations 
-and ab-initio molecular dynamics with various ensembles. The package 
-also provides a variety of advanced functionalities for simulating materials, 
-including the DFT+U, VdW corrections, and implicit solvation model, etc. 
-In addition, ABACUS strives to provide a general infrastructure to facilitate 
-the developments and applications of novel machine-learning-assisted DFT methods 
-(DeePKS, DP-GEN, DeepH, etc.) in molecular and material simulations. 
+**DeePTB** is a Python package that adopts the deep learning method to construct electronic tight-binding (TB) Hamiltonians using a minimal basis.
+With a neural network environmental correction scheme, **DeePTB** can efficiently predict TB Hamiltonians for large-size unseen structures with *ab initio* accuracy after training with *ab initio* eigenvalues from smaller sizes. 
+This feature enables efficient simulations of large-size systems under structural perturbations such as strain, which is crucial for semiconductor band gap engineering. Furthermore, DeePTB offers the ability to perform efficient and accurate finite temperature simulations, incorporating both atomic and electronic behaviour through the integration of molecular dynamics (MD). Another significant advantage is that using eigenvalues as the training labels makes DeePTB much more flexible and independent of the choice of various bases (PW or LCAO) and the exchange-correlation (XC) functionals (LDA, GGA and even HSE) used in preparing the training labels. In addition, **DeePTB** can handle systems with strong spin-orbit coupling (SOC) effects.
+These capabilities make **DeePTB** adaptable to various research scenarios, extending its applicability to a wide range of materials and phenomena and offering a powerful and versatile tool for accurate and efficient simulations.
 
 .. toctree::
    :maxdepth: 2
