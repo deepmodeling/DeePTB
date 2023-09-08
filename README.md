@@ -35,6 +35,7 @@ In summary, **DeePTB** offers the following key features:
   - [Density of States (DOS)](#density-of-states-dos)
   - [Fermi Surface of Bulk Silicon](#fermi-surface-of-bulk-silicon)
   - [Fermi Velocity of Bulk Silicon](#fermi-velocity-of-bulk-silicon)
+  - [Large-scale simulations](#large-scale-simulations)
 
 
 # 1. **installation**
@@ -241,7 +242,7 @@ The ```onsitemode``` is set to ```none``` which means we do not use onsite corre
 
 using the command to train the first model:
 ```bash
-cd deeptb/examples/hBN/run
+cd deeptb/examples/hBN
 dptb train -sk input_short.json -o ./first
 ```
 Here ``-sk`` indicate to fit the sk parameters, and ``-o`` indicate the output directory. During the fitting procedure, we can see the loss curve of hBN is decrease consistently. When finished, we get the fitting results in folders ```first```:
@@ -391,6 +392,7 @@ Altogether, we can simulate the electronic structure of a crystal system in a dy
 </div>
 
 ## Fermi Surface of Bulk Silicon
+This is done with api to Ifermi.
 
 <div align=center>
 <img src="./examples/silicon/property/ifermi/Ifermi_FS.png" width = "52%" height = "50%" alt="Silicon FS" align=center />
@@ -401,8 +403,15 @@ Altogether, we can simulate the electronic structure of a crystal system in a dy
 
 
 ## Fermi Velocity of Bulk Silicon
-
+This is done with api to Ifermi.
 <div align=center>
 <img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velocity.png" width = "52%" height = "50%" alt="Silicon FS velocity arrow" align=center />
 <img src="./examples/silicon/property/ifermi_velocity/Ifermi_FS_velcoity_slice.png" width = "40%" height = "50%" alt="Silicon FS slice velocity arrow" align=center />
 </div>
+
+## Large-scale simulations
+This is done with api to TBPLaS.
+<div align=center>
+<img src="./doc/img/million_atoms.png" width = "80%" height = "50%" alt="Silicon FS velocity arrow" align=center />
+</div>
+
