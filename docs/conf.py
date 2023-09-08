@@ -17,9 +17,9 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'ABACUS'
-copyright = '2022, ABACUS'
-author = 'ABACUS'
+project = 'DeePTB'
+copyright = '2023, DeePTB'
+author = 'DeePTB'
 
 # The full version, including alpha/beta/rc tags
 # release = '2.3.5'
