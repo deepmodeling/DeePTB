@@ -70,7 +70,8 @@ class NNSKHost(PluginUser):
                     raise RuntimeError
             
                 # jdata = j_loader(checkpoint)
-                jdata = host_normalize(j_loader(config))
+                # jdata = host_normalize(config)
+                jdata = config
                 #self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
 
                 common_options = j_must_have(jdata, "common_options")
@@ -93,7 +94,10 @@ class NNSKHost(PluginUser):
             else:
                 log.error(msg="Error! the model file should be one or one list of json/pth file.")
 
-        model_config["dtype"] = dtype_dict[model_config["dtype"]]
+        if isinstance(model_config["dtype"], str):
+            model_config["dtype"] = dtype_dict[model_config["dtype"]]
+        else:
+            model_config["dtype"] = model_config["dtype"]
         self.__init_params(**model_config)
 
     def __init_params(self, **model_config):

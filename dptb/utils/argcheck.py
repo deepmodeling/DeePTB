@@ -437,6 +437,7 @@ def normalize_run(data):
     doc_common_options = ""
     doc_structure = ""
     doc_use_correction = ""
+    doc_overlap = ""
  
     args = [
         Argument("onsite_cutoff", float, optional = False, doc = doc_onsite_cutoff),
@@ -451,12 +452,13 @@ def normalize_run(data):
         Argument("sk_file_path", str, optional = True, default="./", doc = doc_sk_file_path),
         Argument("time_symm", bool, optional = True, default=True, doc = doc_time_symm),
         Argument("soc", bool, optional=True, default=False, doc=doc_soc),
+        Argument("overlap", bool, optional=True, default=False, doc=doc_overlap),
         Argument("unit", str, optional=True, default="Hartree", doc=doc_unit)
     ]
 
     co = Argument("common_options", dict, optional=True, sub_fields=args, sub_variants=[], doc=doc_common_options)
     ini = init_model()
-    mo = Argument("model_options", dict, sub_fields=[skfunction(), sknetwork(), dptb()], sub_variants=[], optional=True, doc=doc_model_options)
+    mo = Argument("model_options", dict, sub_fields=[skfunction(), sknetwork(),onsitefuncion(), dptb()], sub_variants=[], optional=True, doc=doc_model_options)
 
     args = [
         ini,
