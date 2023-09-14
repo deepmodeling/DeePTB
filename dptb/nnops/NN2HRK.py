@@ -136,7 +136,7 @@ class NN2HRK(object):
         self.use_orthogonal_basis = self.hamileig.use_orthogonal_basis
         self.allbonds, self.hamil_blocks = self.hamileig.all_bonds, self.hamileig.hamil_blocks
         
-        if not self.hamileig.use_orthogonal_basis:
+        if self.hamileig.use_orthogonal_basis:
             self.overlap_blocks = None
         else:
             self.overlap_blocks = self.hamileig.overlap_blocks
@@ -214,7 +214,7 @@ class NN2HRK(object):
         self.use_orthogonal_basis = self.hamileig.use_orthogonal_basis
         self.allbonds, self.hamil_blocks = self.hamileig.all_bonds, self.hamileig.hamil_blocks
 
-        if not self.hamileig.use_orthogonal_basis:
+        if self.hamileig.use_orthogonal_basis:
             self.overlap_blocks = None
         else:
             self.overlap_blocks = self.hamileig.overlap_blocks
