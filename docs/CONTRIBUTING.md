@@ -20,13 +20,13 @@ For more non-technical aspects, please refer to the [DeePTB Contribution Guide](
 
 ## Got a question?
 
-Please referring to our GitHub [issue tracker](https://github.com/deepmodeling/abacus-develop/issues), and our developers are willing to help.
+Please referring to our GitHub [issue tracker](https://github.com/deepmodeling/DeePTB/issues), and our developers are willing to help.
 If you find a bug, you can help us by submitting an issue to our GitHub Repository. Even better, you can submit a Pull Request with a patch. You can request a new feature by submitting an issue to our GitHub Repository.
 If you would like to implement a new feature, please submit an issue with a proposal for your work first, and that ensures your work collaborates with our development road map well. For a major feature, first open an issue and outline your proposal so that it can be discussed. This will also allow us to better coordinate our efforts, prevent duplication of work, and help you to craft the change so that it is successfully accepted into the project.
 
 ## Structure of the package
 
-Please refer to [our instructions](./quick_start/easy_install.md) on how to installing ABACUS.
+Please refer to [our instructions](./quick_start/easy_install.md) on how to installing DeePTB.
 The source code of ABACUS is based on several modules. Under the ABACUS root directory, there are the following folders:
 
 - `cmake`: relevant files for finding required packages when compiling the code with cmake;
@@ -90,7 +90,7 @@ For those who are interested in the source code, the following figure shows the 
 
 ## Submitting an Issue
 
-Before you submit an issue, please search the issue tracker, and maybe your problem has been discussed and fixed. You can [submit new issues](https://github.com/deepmodeling/abacus-develop/issues/new/choose) by filling our issue forms.
+Before you submit an issue, please search the issue tracker, and maybe your problem has been discussed and fixed. You can [submit new issues](https://github.com/deepmodeling/DeePTB/issues/new/choose) by filling our issue forms.
 To help us reproduce and confirm a bug, please provide a test case and building environment in your issue.
 
 ## Comment style for documentation
