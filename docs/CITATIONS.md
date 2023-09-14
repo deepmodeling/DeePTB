@@ -1,6 +1,6 @@
 # How to Cite
 
-The following references are required to be cited when using ABACUS. Specifically:
+The following references are required to be cited when using DeePTB. Specifically:
 
 - **For general purpose:**
 
