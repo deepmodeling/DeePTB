@@ -22,10 +22,10 @@ jobs:
       - name: Install DeePTB & Run Test
         id: s2
         run: |
-          exec bash
-          conda activate deeptb
-          pip install .
-          pip install pytest
+          exec bash && \
+          conda activate deeptb && \
+          pip install . && \
+          pip install pytest && \
           pytest ./dptb/tests/
           
   job2:
