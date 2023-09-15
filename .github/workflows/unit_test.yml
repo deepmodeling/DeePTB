@@ -22,7 +22,7 @@ jobs:
       - name: Install DeePTB & Run Test
         id: s2
         run: |
-         bash ut.sh >> "$GITHUB_OUTPUT"
+         bash ut.sh
           
           
   job2:
