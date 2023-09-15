@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 conda activate deeptb
 pip install .
 pip install pytest
