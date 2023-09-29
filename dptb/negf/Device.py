@@ -195,12 +195,7 @@ class Device(object):
     
     @property
     def current_nscf(self):
-        if not hasattr(self, "__CURRENT_NSCF__"):
-            self._cal_current_nscf_()
-            return self.__V_NSCF__, self.__CURRENT_NSCF__
-        
-        else:
-            return self.__V_NSCF__, self.__CURRENT_NSCF__
+        return self._cal_current_nscf_()
 
 
     @property
@@ -209,34 +204,19 @@ class Device(object):
         
     @property
     def current(self):
-        if not hasattr(self, "__CURRENT__"):
-            self._cal_current_()
-            return self.__CURRENT__
-        
-        else:
-            return self.__CURRENT__
+        return self._cal_current_()
     
     @property
     def ldos(self):
-        if not hasattr(self, "__LDOS__"):
-            self._cal_ldos_()
-            return self.__LDOS__
-           
-        else:
-            return self.__LDOS__
-            
+        return self._cal_ldos_()
+
     @property
     def tc(self):
         return self._cal_tc_()
         
     @property
     def lcurrent(self):
-        if not hasattr(self, "__LCURRENT__"):
-            self._cal_local_current_()
-
-            return self.__LCURRENT__
-        else:
-            return self.__LCURRENT__
+        return self._cal_local_current_()
 
 
     @property

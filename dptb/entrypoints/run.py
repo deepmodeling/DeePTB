@@ -22,6 +22,7 @@ from dptb.postprocess.bandstructure.dos import doscalc, pdoscalc
 from dptb.postprocess.bandstructure.fermisurface import fs2dcalc, fs3dcalc
 from dptb.postprocess.bandstructure.ifermi_api import ifermiapi, ifermi_installed, pymatgen_installed
 from dptb.postprocess.write_skparam import WriteNNSKParam
+from dptb.postprocess.NEGF import NEGF
 
 __all__ = ["run"]
 
@@ -205,6 +206,11 @@ def run(
         write_sk = WriteNNSKParam(apiHrk, run_opt, task_options)
         write_sk.write()
         log.info(msg='write_sk calculation successfully completed.')
+
+    if task == 'negf':
+        negf = NEGF(apiHrk, run_opt, task_options)
+        negf.compute()
+        log.info(msg='NEGF calculation successfully completed.')
 
 
     if output:
