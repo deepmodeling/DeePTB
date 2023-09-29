@@ -1,4 +1,65 @@
 {
+    "common_options": {
+        "device": "cpu",
+        "dtype": "float32",
+        "onsite_cutoff": 1.6,
+        "bond_cutoff": 3.0,
+        "unit": "Hartree",
+        "env_cutoff": 3.0,
+        "sk_file_path": "./examples/slakos/",
+        "atomtype": [
+            "C"
+        ],
+        "proj_atom_neles": {
+            "C": 4
+        },
+        "proj_atom_anglr_m": {
+            "C": [
+                "2s",
+                "2p",
+                "s*"
+            ]
+        },
+        "onsitemode": "strain",
+        "time_symm": true
+    },
+    "model_options": {
+        "sknetwork": {
+            "sk_hop_nhidden":1,
+            "sk_onsite_nhidden": 1
+        },
+        "skfunction": {
+            "skformula": "varTang96",
+            "sk_cutoff": 3.0,
+            "sk_decay_w": 0.001
+        },
+        "dptb": {
+            "axis_neuron": 10,
+            "onsite_net_neuron": [
+                40,
+                40,
+                40
+            ],
+            "env_net_neuron": [
+                10,
+                20,
+                40
+            ],
+            "hopping_net_neuron": [
+                40,
+                40,
+                40
+            ],
+            "onsite_net_activation": "tanh",
+            "env_net_activation": "tanh",
+            "hopping_net_activation": "tanh",
+            "onsite_net_type": "ffn",
+            "env_net_type": "res",
+            "hopping_net_type": "ffn",
+            "if_batch_normalized": false
+        }
+    },
+    "structure":"./C.vasp",
 	"task_options":
         {
             "task": "negf",
