@@ -140,9 +140,9 @@ def run(
     
     set_log_handles(log_level, Path(log_path) if log_path else None)
 
-    # if jdata.get("common_options", None):
-    #     # in this case jdata must have common options
-    #     str_dtype = jdata["common_options"]["dtype"]
+    if jdata.get("common_options", None):
+        # in this case jdata must have common options
+        str_dtype = jdata["common_options"]["dtype"]
     #     jdata["common_options"]["dtype"] = dtype_dict[jdata["common_options"]["dtype"]]
 
     if run_sk:

@@ -142,9 +142,11 @@ class NEGF(object):
         
         # computing output properties
         for k in self.kpoints:
+            log.info(msg="Properties computation at k = [{:.4f},{:.4f},{:.4f}]".format(float(k[0]),float(k[1]),float(k[2])))
 
             if hasattr(self, "uni_grid"):
                 for e in self.uni_grid:
+                    log.info(msg="computing green's function at e = {:.3f}".format(float(e)))
                     leads = self.stru_options.keys()
                     for ll in leads:
                         if ll.startswith("lead"):

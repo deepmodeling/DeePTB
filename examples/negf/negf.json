@@ -106,6 +106,6 @@
             },
             "eta_lead":1e-5,
             "eta_device":0.0,
-            "properties":["DOS", "TC", "density"]
+            "properties":["DOS", "TC"]
     }
 }
