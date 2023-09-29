@@ -132,11 +132,16 @@ class NEGF(object):
             self.int_grid, self.int_weight = gauss_xw(xl=xl, xu=xu, n=int(self.density_options["n_gauss"]))
 
     def compute(self):
-        for k in self.kpoints:
-            
-            # check if scf is required
-            if self.scf:
+
+        # check if scf is required
+        if self.scf:
+            for k in self.kpoints:
                 pass
+        else:
+            pass
+        
+        # computing output properties
+        for k in self.kpoints:
 
             if hasattr(self, "uni_grid"):
                 for e in self.uni_grid:
@@ -157,29 +162,26 @@ class NEGF(object):
                         block_tridiagonal=self.block_tridiagonal
                         )
         
-        self.compute_properties()
+                    self.compute_properties(k, self.property)
     
     def fermi_dirac(self, x) -> torch.Tensor:
         return 1 / (1 + torch.exp(x / self.kBT))
     
-    def compute_properties(self):
+    def compute_properties(self, kpoint, properties):
         
         out = {}
-        for k in self.kpoints:
-            ik = update_kmap(self.results_path, kpoint=k)
-            for p in self.properties:
-                log.info(msg="Computing {0} at k = {1}".format(p, k))
-                out[p] = getattr(self, "compute_"+p)(k)
+        # for k in self.kpoints:
+        #     ik = update_kmap(self.results_path, kpoint=k)
+        for p in properties:
+            # log.info(msg="Computing {0} at k = {1}".format(p, k))
+            prop = out.setdefault(p, [])
+            prop.append(getattr(self, "compute_"+p)(kpoint))
 
-            out["ee"] = self.uni_grid
-            torch.save(obj=out, f=os.path.join(self.results_path, "./properties_k"+str(ik)+".pth"))
 
     def compute_DOS(self, kpoint):
-        self.device.green_function(ee=self.uni_grid, kpoint=kpoint, block_tridiagonal=self.block_tridiagonal)
         return self.device.dos
     
     def compute_TC(self, kpoint):
-        self.device.green_function(ee=self.uni_grid, kpoint=kpoint, block_tridiagonal=self.block_tridiagonal)
         return self.device.tc
     
     def compute_density(self, kpoint):

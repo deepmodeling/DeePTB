@@ -441,6 +441,94 @@ def negf():
         Argument("properties", list, optional=True, doc=doc_properties)
     ]
 
+def stru_options():
+    doc_kmesh = ""
+    doc_pbc = ""
+    doc_device = ""
+    doc_lead_L = ""
+    doc_lead_R = ""
+    return [
+        Argument("device", dict, optional=False, sub_fields=device(), doc=doc_device),
+        Argument("lead_L", dict, optional=False, sub_fields=lead(), doc=doc_lead_L),
+        Argument("lead_R", dict, optional=False, sub_fields=lead(), doc=doc_lead_R),
+        Argument("kmesh", list, optional=True, default=[1,1,1], doc=doc_kmesh),
+        Argument("pbc", list, optional=True, default=[False, False, False], doc=doc_pbc)
+    ]
+
+def device():
+    doc_id=""
+    doc_sort=""
+
+    return [
+        Argument("id", str, optional=False, doc=doc_id),
+        Argument("sort", bool, optional=True, default=True, doc=doc_sort)
+    ]
+
+def lead():
+    doc_id=""
+    doc_voltage=""
+
+    return [
+        Argument("id", str, optional=False, doc=doc_id),
+        Argument("voltage", [int, float], optional=False, doc=doc_voltage)
+    ]
+
+def scf_options():
+    doc_mode = ""
+    doc_PDIIS = ""
+
+    return Variant("mode", [
+        Argument("PDIIS", dict, PDIIS(), doc=doc_PDIIS)
+        ], optional=True, default_tag="PDIIS", doc=doc_mode)
+
+def PDIIS():
+    doc_mixing_period = ""
+    doc_step_size = ""
+    doc_n_history = ""
+    doc_abs_err = ""
+    doc_rel_err = ""
+    doc_max_iter = ""
+
+    return [
+        Argument("mixing_period", int, optional=True, default=3, doc=doc_mixing_period),
+        Argument("step_size", [int, float], optional=True, default=0.05, doc=doc_step_size),
+        Argument("n_history", int, optional=True, default=6, doc=doc_n_history),
+        Argument("abs_err", [int, float], optional=True, default=1e-6, doc=doc_abs_err),
+        Argument("rel_err", [int, float], optional=True, default=1e-4, doc=doc_rel_err),
+        Argument("max_iter", int, optional=True, default=100, doc=doc_max_iter)
+    ]
+
+def poisson_options():
+    doc_solver = ""
+    doc_fmm = ""
+    return Variant("solver", [
+        Argument("fmm", dict, fmm(), doc=doc_fmm)
+    ], optional=True, default_tag="fmm", doc=doc_solver)
+
+def density_options():
+    doc_method = ""
+    doc_Ozaki = ""
+    return Variant("method", [
+        Argument("Ozaki", dict, Ozaki(), doc=doc_method)
+    ], optional=True, default_tag="Ozaki", doc=doc_Ozaki)
+
+def Ozaki():
+    doc_M_cut = ""
+    doc_R = ""
+    doc_n_gauss = ""
+    return [
+        Argument("R", [int, float], optional=True, default=1e6, doc=doc_R),
+        Argument("M_cut", int, optional=True, default=30, doc=doc_M_cut),
+        Argument("n_gauss", int, optional=True, default=10, doc=doc_n_gauss),
+    ]
+
+def fmm():
+    doc_err = ""
+
+    return [
+        Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err)
+    ]
+
 def normalize_run(data):
     doc_property = ""
     doc_model_options = ""

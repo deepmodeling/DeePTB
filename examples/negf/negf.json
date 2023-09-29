@@ -1,0 +1,41 @@
+{
+        "task": "negf",
+        "scf": true,
+        "ele_T": 500,
+        "scf_options":{
+            "mode": "PDIIS",
+            "mixing_period": 3,
+            "step_size": 0.05,
+            "n_history": 6,
+            "abs_err": 1e-6,
+            "rel_err": 1e-4,
+            "max_iter": 100
+        },
+        "stru_options":{
+            "pbc":[false, false, false],
+            "device":{
+                "id":"0-160",
+                "sort": true
+            },
+            "lead_L":{
+                "id":"160-320",
+                "voltage":0.0
+            },
+            "lead_R":{
+                "id":"320-480",
+                "voltage":0.0
+            },
+            "d_trains":"z"
+        },
+        "poisson_options": {
+            "solver": "fmm",
+            "err": 1e-5
+        },
+        "sgf_solver": "Sancho-Rubio",
+        "espacing": 0.1,
+        "emin": -3,
+        "emax": 3,
+        "eta_lead":1e-5,
+        "eta_device":0.0,
+        "properties":["DOS", "TC", "density"]
+}
