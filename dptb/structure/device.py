@@ -28,7 +28,7 @@ class Device(BaseStruct):
     def update_struct(self, atom, format, onsitemode:str='none'):
         self.init_description()
         self.onsitemode = onsitemode
-        self._read_struct_(atom,format=format)
+        self.read_struct(atom,format=format)
 
         # sort the atom in device part. only implementing sorting along z direction for now.
         device_id = [int(x) for x in self.device_options["id"].split("-")]
@@ -42,7 +42,7 @@ class Device(BaseStruct):
         self.atom_symbols = np.array(self.struct.get_chemical_symbols(), dtype=str)
         self.atom_numbers = np.array(self.struct.get_atomic_numbers(), dtype=int)
         self.atomtype = get_uniq_symbol(atomsymbols=self.atom_symbols)
-        self._projection_()
+        self.projection()
         
         self.proj_atom_symbols = self.projected_struct.get_chemical_symbols()
         self.proj_atom_numbers = self.projected_struct.get_atomic_numbers()
@@ -64,7 +64,7 @@ class Device(BaseStruct):
     def cal_env(self, env_cutoff=None, sorted="iatom", smooth=False):
         return super().cal_env(env_cutoff, sorted, smooth)
     
-    def _projection_(self):
-        out = super()._projection_()
+    def projection(self):
+        out = super().projection()
         self.projected_struct.pbc = self.pbc
         return out

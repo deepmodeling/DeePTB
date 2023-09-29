@@ -112,6 +112,7 @@ class Hamiltonian(object):
                 h, s = self.apiH.get_HK(kpoints=kpoints)
                 nL = int(h.shape[1] / 2)
                 HLL, SLL = h[:, :nL, nL:], s[:, :nL, nL:] # H_{L_first2L_second}
+
                 assert (h[:, :nL, :nL] - HL).abs().max() < 1e-7 # check the lead hamiltonian get from device and lead calculation matches each other
                 HS_leads.update({
                     "HLL":HLL.cdouble()*self.h_factor, 

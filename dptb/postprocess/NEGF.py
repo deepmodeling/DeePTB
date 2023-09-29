@@ -149,20 +149,20 @@ class NEGF(object):
                     for ll in leads:
                         if ll.startswith("lead"):
                             getattr(self.device, ll).self_energy(
-                                ee=e, 
+                                e=e, 
                                 kpoint=k, 
-                                etaLead=self.jdata["eta_lead"],
+                                eta_lead=self.jdata["eta_lead"],
                                 method=self.jdata["sgf_solver"]
                                 )
                             
                     self.device.green_function(
-                        ee=e, 
+                        e=e, 
                         kpoint=k, 
-                        etaDevice=self.jdata["eta_device"], 
+                        eta_device=self.jdata["eta_device"], 
                         block_tridiagonal=self.block_tridiagonal
                         )
         
-                    self.compute_properties(k, self.property)
+                    self.compute_properties(k, self.properties)
     
     def fermi_dirac(self, x) -> torch.Tensor:
         return 1 / (1 + torch.exp(x / self.kBT))
@@ -190,11 +190,11 @@ class NEGF(object):
         return DM_eq, DM_neq
 
     def compute_current(self, kpoint):
-        self.device.green_function(ee=self.int_grid, kpoint=kpoint, block_tridiagonal=self.block_tridiagonal)
+        self.device.green_function(e=self.int_grid, kpoint=kpoint, block_tridiagonal=self.block_tridiagonal)
         return self.device.current
     
     def compute_current_nscf(self, kpoint):
-        self.device.green_function(ee=self.uni_grid, kpoint=kpoint, block_tridiagonal=self.block_tridiagonal)
+        self.device.green_function(e=self.uni_grid, kpoint=kpoint, block_tridiagonal=self.block_tridiagonal)
         return self.device.current_nscf
 
 

@@ -30,7 +30,7 @@ class Device(object):
         self.lead_R = lead_R
         self.mu = self.efermi - 0.5*(self.lead_L.voltage + self.lead_R.voltage)
 
-    def green_function(self, e, kpoint, etaDevice=0., block_tridiagonal=True):
+    def green_function(self, e, kpoint, eta_device=0., block_tridiagonal=True):
         assert len(np.array(kpoint).reshape(-1)) == 3
         if not isinstance(e, torch.Tensor):
             e = torch.tensor(e, dtype=torch.complex128)
@@ -80,7 +80,7 @@ class Device(object):
         ans = recursive_gf(e, hl=[], hd=self.hd, hu=[],
                             sd=self.sd, su=[], sl=[], 
                             left_se=seL, right_se=seR, seP=None, s_in=s_in,
-                            s_out=None, eta=etaDevice, chemiPot=self.mu)
+                            s_out=None, eta=eta_device, chemiPot=self.mu)
         s_in[0][:idx0,:idy0] = s_in[0][:idx0,:idy0] - seinL[:idx0,:idy0]
         s_in[-1][-idx1:,-idy1:] = s_in[-1][-idx1:,-idy1:] - seinR[-idx1:,-idy1:]
             # green shape [[g_trans, grd, grl,...],[g_trans, ...]]

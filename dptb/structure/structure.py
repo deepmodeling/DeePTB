@@ -32,9 +32,9 @@ class BaseStruct(AbstractStructure):
         self.__projenv__ = {}
         self.__onsitenv__ = {}
         self.IndMap = Index_Mapings()
-        self.updata_struct(self.atom, format=format, onsitemode=onsitemode)
+        self.update_struct(self.atom, format=format, onsitemode=onsitemode)
 
-    def init_desciption(self):
+    def init_description(self):
         # init description
         self.atom_symbols = None
         self.aomtype = None
@@ -48,8 +48,9 @@ class BaseStruct(AbstractStructure):
         self.if_onsitenv_ready = False
         self.onsite_cutoff = None
 
-    def updata_struct(self, atom, format, onsitemode:str='none'):
-        self.init_desciption()
+    def update_struct(self, atom, format, onsitemode:str='none'):
+        print("hello")
+        self.init_description()
         self.onsitemode = onsitemode
         self.read_struct(atom,format=format)
         self.atom_symbols = np.array(self.struct.get_chemical_symbols(), dtype=str)

@@ -26,7 +26,7 @@ class Lead(BaseStruct):
     def update_struct(self, atom, format, onsitemode:str='none'):
         self.init_description()
         self.onsitemode = onsitemode
-        self._read_struct_(atom, format=format)
+        self.read_struct(atom, format=format)
         
         # get the cell, elements and positions and construct the lead lattice
         cell = np.array(self.struct.cell)[:2]
@@ -46,7 +46,7 @@ class Lead(BaseStruct):
         self.atom_symbols = np.array(self.struct.get_chemical_symbols(), dtype=str)
         self.atom_numbers = np.array(self.struct.get_atomic_numbers(), dtype=int)
         self.atomtype = get_uniq_symbol(atomsymbols=self.atom_symbols)
-        self._projection_()
+        self.projection()
         self.proj_atom_symbols = self.projected_struct.get_chemical_symbols()
         self.proj_atom_numbers = self.projected_struct.get_atomic_numbers()
         self.proj_atom_neles_per = np.array([self.proj_atom_neles[ii] for ii in self.proj_atom_symbols])
@@ -71,7 +71,7 @@ class Lead(BaseStruct):
     def get_env(self, env_cutoff=None, sorted='iatom-jatom'):
         return super().get_env(env_cutoff, sorted)
     
-    def _projection_(self):
-        out = super()._projection_()
+    def projection(self):
+        out = super().projection()
         self.projected_struct.pbc = self.pbc
         return out

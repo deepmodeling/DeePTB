@@ -28,27 +28,27 @@ class NN2HRK(object):
         self.sorted_bond="st"
         self.sorted_env="itype-jtype"
 
-    def update_struct(self, structure):
-        # update status is the structure is update.
-        if isinstance(structure, BaseStruct):
-            self.structure = structure
-        elif isinstance(structure,Atoms):
-            struct = BaseStruct(
-                atom=structure, 
-                format='ase', 
-                cutoff=self.apihost.model_config['bond_cutoff'], 
-                proj_atom_anglr_m=self.apihost.model_config['proj_atom_anglr_m'], 
-                proj_atom_neles=self.apihost.model_config['proj_atom_neles'], 
-                onsitemode=self.apihost.model_config['onsitemode'], 
-                time_symm=self.apihost.model_config['time_symm']
-                )
-            self.structure = struct
-        else:
-            raise ValueError("Invalid structure type: %s" % type(structure))
+    # def update_struct(self, structure):
+    #     # update status is the structure is update.
+    #     if isinstance(structure, BaseStruct):
+    #         self.structure = structure
+    #     elif isinstance(structure,Atoms):
+    #         struct = BaseStruct(
+    #             atom=structure, 
+    #             format='ase', 
+    #             cutoff=self.apihost.model_config['bond_cutoff'], 
+    #             proj_atom_anglr_m=self.apihost.model_config['proj_atom_anglr_m'], 
+    #             proj_atom_neles=self.apihost.model_config['proj_atom_neles'], 
+    #             onsitemode=self.apihost.model_config['onsitemode'], 
+    #             time_symm=self.apihost.model_config['time_symm']
+    #             )
+    #         self.structure = struct
+    #     else:
+    #         raise ValueError("Invalid structure type: %s" % type(structure))
         
-        self.time_symm = self.structure.time_symm
-        self.if_dp_HR_ready = False
-        self.if_nn_HR_ready = False
+    #     self.time_symm = self.structure.time_symm
+    #     self.if_dp_HR_ready = False
+    #     self.if_nn_HR_ready = False
 
     def update_struct(self, structure, mode="base", stru_options={}, pbc=[False, False, False]):
         # update status is the structure is update.
