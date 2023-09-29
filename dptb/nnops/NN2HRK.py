@@ -1,6 +1,8 @@
 import torch
 import numpy as np
 from dptb.structure.structure import BaseStruct
+from dptb.structure.lead import Lead
+from dptb.structure.device import Device
 from dptb.dataprocess.processor import Processor
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
 from ase import Atoms
@@ -31,8 +33,63 @@ class NN2HRK(object):
         if isinstance(structure, BaseStruct):
             self.structure = structure
         elif isinstance(structure,Atoms):
-            struct = BaseStruct(atom=structure, format='ase', cutoff=self.apihost.model_config['bond_cutoff'], proj_atom_anglr_m=self.apihost.model_config['proj_atom_anglr_m'], proj_atom_neles=self.apihost.model_config['proj_atom_neles'], onsitemode=self.apihost.model_config['onsitemode'], time_symm=self.apihost.model_config['time_symm'])
+            struct = BaseStruct(
+                atom=structure, 
+                format='ase', 
+                cutoff=self.apihost.model_config['bond_cutoff'], 
+                proj_atom_anglr_m=self.apihost.model_config['proj_atom_anglr_m'], 
+                proj_atom_neles=self.apihost.model_config['proj_atom_neles'], 
+                onsitemode=self.apihost.model_config['onsitemode'], 
+                time_symm=self.apihost.model_config['time_symm']
+                )
             self.structure = struct
+        else:
+            raise ValueError("Invalid structure type: %s" % type(structure))
+        
+        self.time_symm = self.structure.time_symm
+        self.if_dp_HR_ready = False
+        self.if_nn_HR_ready = False
+
+    def update_struct(self, structure, mode="base", stru_options={}, pbc=[False, False, False]):
+        # update status is the structure is update.
+        if isinstance(structure, BaseStruct):
+            self.structure = structure
+        elif isinstance(structure,Atoms):
+            if mode == "base":
+                self.structure = BaseStruct(
+                    atom=structure, 
+                    format='ase', 
+                    cutoff=self.apihost.model_config['bond_cutoff'], 
+                    proj_atom_anglr_m=self.apihost.model_config['proj_atom_anglr_m'], 
+                    proj_atom_neles=self.apihost.model_config['proj_atom_neles'], 
+                    onsitemode=self.apihost.model_config['onsitemode'], 
+                    time_symm=self.apihost.model_config['time_symm']
+                    )
+            elif mode == "device":
+                self.structure = Device(
+                    atom=structure, 
+                    format='ase', 
+                    cutoff=self.apihost.model_config['bond_cutoff'], 
+                    proj_atom_anglr_m=self.apihost.model_config['proj_atom_anglr_m'], 
+                    proj_atom_neles=self.apihost.model_config['proj_atom_neles'], 
+                    onsitemode=self.apihost.model_config['onsitemode'], 
+                    time_symm=self.apihost.model_config['time_symm'], 
+                    device_options=stru_options, 
+                    pbc=pbc
+                    )
+            elif mode == "lead":
+                self.structure = Lead(
+                    atom=structure, 
+                    format='ase', 
+                    cutoff=self.apihost.model_config['bond_cutoff'], 
+                    proj_atom_anglr_m=self.apihost.model_config['proj_atom_anglr_m'], 
+                    proj_atom_neles=self.apihost.model_config['proj_atom_neles'], 
+                    onsitemode=self.apihost.model_config['onsitemode'], 
+                    time_symm=self.apihost.model_config['time_symm'], 
+                    lead_options=stru_options, 
+                    pbc=pbc
+                    )
+
         else:
             raise ValueError("Invalid structure type: %s" % type(structure))
         

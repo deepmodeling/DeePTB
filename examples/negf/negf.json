@@ -31,7 +31,7 @@
         "skfunction": {
             "skformula": "varTang96",
             "sk_cutoff": 3.0,
-            "sk_decay_w": 0.001
+            "sk_decay_w": 0.01
         },
         "dptb": {
             "axis_neuron": 10,
