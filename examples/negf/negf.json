@@ -97,10 +97,10 @@
                 "err": 1e-5
             },
             "sgf_solver": "Sancho-Rubio",
-            "espacing": 0.5,
-            "emin": -3,
-            "emax": 3,
-            "e_fermi": 0.0,
+            "espacing": 0.1,
+            "emin": -2,
+            "emax": 2,
+            "e_fermi": -8.5,
             "density_options":{
                 "method": "Ozaki"
             },

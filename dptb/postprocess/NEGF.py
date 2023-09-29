@@ -94,6 +94,8 @@ class NEGF(object):
             self.density = Ozaki(R=self.density_options["R"], M_cut=self.density_options["M_cut"], n_gauss=self.density_options["n_gauss"])
         else:
             raise ValueError
+        
+        self.out = {}
 
 
     def generate_energy_grid(self):
@@ -141,10 +143,11 @@ class NEGF(object):
             pass
         
         # computing output properties
-        for k in self.kpoints:
+        for ik, k in enumerate(self.kpoints):
             log.info(msg="Properties computation at k = [{:.4f},{:.4f},{:.4f}]".format(float(k[0]),float(k[1]),float(k[2])))
 
             if hasattr(self, "uni_grid"):
+                self.out["k"] = k
                 for e in self.uni_grid:
                     log.info(msg="computing green's function at e = {:.3f}".format(float(e)))
                     leads = self.stru_options.keys()
@@ -165,18 +168,18 @@ class NEGF(object):
                         )
         
                     self.compute_properties(k, self.properties)
+                torch.save(self.out, self.results_path+"/negf.k{}.out.pth".format(ik))
     
     def fermi_dirac(self, x) -> torch.Tensor:
         return 1 / (1 + torch.exp(x / self.kBT))
     
     def compute_properties(self, kpoint, properties):
         
-        out = {}
         # for k in self.kpoints:
         #     ik = update_kmap(self.results_path, kpoint=k)
         for p in properties:
             # log.info(msg="Computing {0} at k = {1}".format(p, k))
-            prop = out.setdefault(p, [])
+            prop = self.out.setdefault(p, [])
             prop.append(getattr(self, "compute_"+p)(kpoint))
 
 
