@@ -158,6 +158,7 @@ class BaseStruct(AbstractStructure):
         return self.__bonds__, self.__bonds_onsite__
 
     def get_env(self, env_cutoff=None, sorted='iatom-jatom'):
+        # for get env the default is turn on the smooth option.
         if self.if_env_ready:
             if env_cutoff == self.env_cutoff or env_cutoff == None:
                 return self.__projenv__
