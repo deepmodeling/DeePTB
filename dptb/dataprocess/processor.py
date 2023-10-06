@@ -68,10 +68,19 @@ class Processor(object):
             self.__struct_unsampled__ = self.__struct_unsampled__[self.batchsize:]
     
     def get_env(self, cutoff=None, sorted=None):
-        # TODO: the sorted mode should be explained here, in which case, we should use.
         '''It takes the environment of each structure in the workspace and concatenates them into one big
         environment
         
+        Parameters
+        ----------
+        cutoff float : the cutoff radius for the onsite environment.
+        sorted str : the sorted mode for the onsite environment.
+            None: not sorted, return torch tensors.
+            'st': sorted by structure, return a dictionary of tensors. eg. {0: tensor, 1: tensor, ...}
+            'itype-jtype': sorted by itype and jtype, return a dictionary of tensors. eg. {'C-B': tensor, ...}
+        
+        for env sorted="st".
+
         Returns
         -------
             A dictionary of the environment for ent type for all the strucutes in  the works sapce.
@@ -124,10 +133,18 @@ class Processor(object):
         return batch_env # {env_type: (f, itype, i, jtype, j, jtype, Rx, Ry, Rz, s(r), rx, ry, rz)} or [(f, itype, i, jtype, j, jtype, Rx, Ry, Rz, s(r), rx, ry, rz)]
 
     def get_onsitenv(self, cutoff=None, sorted=None):
-        # TODO: the sorted mode should be explained here, in which case, we should use.
         '''It takes the environment of each structure in the workspace and concatenates them into one big
         environment
         
+        Parameters
+        ----------
+        cutoff float : the cutoff radius for the onsite environment.
+        sorted str : the sorted mode for the onsite environment.
+            None: not sorted, return torch tensors.
+            'st': sorted by structure, return a dictionary of tensors. eg. {0: tensor, 1: tensor, ...}
+            'itype-jtype': sorted by itype and jtype, return a dictionary of tensors. eg. {'C-B': tensor, ...}
+        
+        for onsiteenv sorted_env="itype-jtype".
         Returns
         -------
             A dictionary of the environment for ent type for all the strucutes in  the works sapce.
@@ -182,6 +199,14 @@ class Processor(object):
     def get_bond(self, sorted=None):
         '''It takes the bonds of each structure in the workspace and concatenates them into one big dictionary.
         
+        Parameters
+        ----------
+        sorted str : the sorted mode for the onsite environment.
+            None: not sorted, return torch tensors.
+            'st': sorted by structure, return a dictionary of tensors. eg. {0: tensor, 1: tensor, ...}
+        
+        For bond sorted="st". 
+
         Returns
         -------
             A Tensor of the bonds lists for bond type for all the strucutes in the works space.
