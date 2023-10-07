@@ -46,6 +46,14 @@ def test_nnsk2HRK(root_directory):
     nnskapi.build()
     nnHrk = NN2HRK(apihost=nnskapi, mode='nnsk')
 
+def test_nnsk2HRK_pth(root_directory):
+    checkfile = f'{root_directory}/examples/NRL-TB/silicon/ckpt/nrl_ckpt.pth'
+    nnskapi = NNSKHost(checkpoint=checkfile)
+    nnskapi.register_plugin(InitSKModel())
+    nnskapi.build()
+    nnHrk = NN2HRK(apihost=nnskapi, mode='nnsk')
+
+
 def test_dptb2HRK(root_directory):
     checkfile = f'{root_directory}/dptb/tests/data/hBN/checkpoint/best_dptb.pth'
     use_correction = f'{root_directory}/dptb/tests/data/hBN/checkpoint/best_nnsk.pth'
