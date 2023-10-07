@@ -24,6 +24,20 @@ def test_nnskhost(root_directory):
     nnskapi.register_plugin(InitSKModel())
     nnskapi.build()
 
+def test_nnsk_nrl_json(root_directory):
+    checkfile = f'{root_directory}/examples/NRL-TB/silicon/ckpt/nrl_ckpt.json'
+    config=f'{root_directory}/examples/NRL-TB/silicon/input_nrl.json'
+
+    nnskapi = NNSKHost(checkpoint=checkfile, config=config)
+    nnskapi.register_plugin(InitSKModel())
+    nnskapi.build()
+
+def test_nnsk_nrl_pth(root_directory):
+    checkfile = f'{root_directory}/examples/NRL-TB/silicon/ckpt/nrl_ckpt.pth'
+    nnskapi = NNSKHost(checkpoint=checkfile)
+    nnskapi.register_plugin(InitSKModel())
+    nnskapi.build()
+
 
 def test_nnsk2HRK(root_directory):
     checkfile = f'{root_directory}/dptb/tests/data/hBN/checkpoint/best_nnsk.pth'
