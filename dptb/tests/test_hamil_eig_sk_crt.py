@@ -417,5 +417,9 @@ def test_HamilRSK_SplitOnsite(root_directory):
 
 
 def  test_HamilRSK_Strain(root_directory):
-    #TODO: to be added!
+    #TODO: add test for HamilRSK for strain onsite mode.
+    pass
+
+def  test_HamilRSK_Strain(root_directory):
+    #TODO: add test for HamilRSK for SOC case.
     pass
