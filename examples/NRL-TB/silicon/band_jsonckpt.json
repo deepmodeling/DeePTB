@@ -28,7 +28,7 @@
             "onsite_func_lambda":1.5170852322629031
         }
     },
-    "structure":"./silicon.vasp",
+    "structure":"./data/silicon.vasp",
     "task_options": {
         "task": "band",
         "kline_type":"abacus",
@@ -45,6 +45,6 @@
         "E_fermi":5.78493595123291,
         "emin":-15,
         "emax":10,
-        "ref_band": "ref_eigs.npy"
+        "ref_band": "./data/kpath.0/eigs.npy"
     }
 }
