@@ -46,7 +46,12 @@ class NNSKHost(PluginUser):
                 raise RuntimeError
             
             # jdata = j_loader(checkpoint)
-            jdata = host_normalize(j_loader(config))
+            if isinstance(config, dict):
+                jdata = config
+            elif isinstance(config, str):
+                jdata = host_normalize(j_loader(config))
+            else:
+                raise RuntimeError("config must be a dict or a str.")
             #self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
 
             common_options = j_must_have(jdata, "common_options")
@@ -69,10 +74,12 @@ class NNSKHost(PluginUser):
                     log.error(msg="config is not set when init from json file.")
                     raise RuntimeError
             
-                # jdata = j_loader(checkpoint)
-                # jdata = host_normalize(config)
-                jdata = config
-                #self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
+                if isinstance(config, dict):
+                    jdata = config
+                elif isinstance(config, str):
+                    jdata = host_normalize(j_loader(config))
+                else:
+                    raise RuntimeError("config must be a dict or a str.")
 
                 common_options = j_must_have(jdata, "common_options")
                 model_options = j_must_have(jdata, "model_options")
