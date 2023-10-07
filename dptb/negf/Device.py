@@ -158,12 +158,18 @@ class Device(object):
 
     def _cal_ldos_(self):
         ldos = []
-        sd = self.hamiltonian.get_hs_device(kpoint=self.kpoint, V=self.V, block_tridiagonal=self.block_tridiagonal)[1]
+        # sd = self.hamiltonian.get_hs_device(kpoint=self.kpoint, V=self.V, block_tridiagonal=self.block_tridiagonal)[1]
         for jj in range(len(self.grd)):
-            temp = self.grd[jj] @ sd[jj] # taking each diagonal block with all energy e together
+            temp = self.grd[jj] @ self.sd[jj] # taking each diagonal block with all energy e together
             ldos.append(-temp.imag.diag() / pi) # shape(Nd(diagonal elements))
 
-        return torch.cat(ldos, dim=0).contiguous()
+        ldos = torch.cat(ldos, dim=0).contiguous()
+
+        norbs = [0]+self.norbs_per_atom
+        accmap = np.cumsum(norbs)
+        ldos = torch.stack([ldos[accmap[i]:accmap[i+1]].sum() for i in range(len(accmap)-1)])
+
+        return ldos
 
     def _cal_local_current_(self):
         # current only support non-block-triagonal format
@@ -193,9 +199,9 @@ class Device(object):
 
         return DM_eq, DM_neq
     
-    @property
-    def current_nscf(self):
-        return self._cal_current_nscf_()
+    # @property
+    # def current_nscf(self):
+    #     return self._cal_current_nscf_()
 
 
     @property

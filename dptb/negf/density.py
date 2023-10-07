@@ -65,7 +65,7 @@ class Ozaki(Density):
         self.R = R
         self.n_gauss = n_gauss
 
-    def integrate(self, device, kpoint):
+    def integrate(self, device, kpoint, eta_lead=1e-5, eta_device=0.):
         kBT = device.kBT
         # add 0th order moment
         poles = 1j* self.poles * kBT + device.lead_L.mu - device.mu # left lead expression for rho_eq
@@ -75,9 +75,9 @@ class Ozaki(Density):
         g0 = device.grd[0]
         DM_eq = 1.0j * self.R * g0
         for i, e in enumerate(poles):
-            device.lead_L.self_energy(kpoint=kpoint, e=e)
-            device.lead_R.self_energy(kpoint=kpoint, e=e)
-            device.green_function(e=e, kpoint=kpoint, block_tridiagonal=False)
+            device.lead_L.self_energy(kpoint=kpoint, e=e, eta_lead=eta_lead)
+            device.lead_R.self_energy(kpoint=kpoint, e=e, eta_lead=eta_lead)
+            device.green_function(e=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
             term = ((-4 * 1j * kBT) * device.grd[0] * self.residues[i]).imag
             DM_eq -= term
         

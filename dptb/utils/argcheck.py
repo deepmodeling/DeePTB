@@ -419,8 +419,15 @@ def negf():
     doc_e_fermi = ""
     doc_eta_lead = ""
     doc_eta_device = ""
-    doc_properties = ""
+    doc_out_dos = ""
+    doc_out_tc = ""
+    doc_out_current = ""
+    doc_out_current_nscf = ""
+    doc_out_ldos = ""
+    doc_out_density = ""
+    doc_out_lcurrent = ""
     doc_density_options = ""
+    doc_out_potential = ""
 
     return [
         Argument("scf", bool, optional=True, default=False, doc=doc_scf),
@@ -438,7 +445,14 @@ def negf():
         Argument("density_options", dict, optional=True, default={}, sub_fields=[], sub_variants=[density_options()], doc=doc_density_options),
         Argument("eta_lead", [int, float], optional=True, default=1e-5, doc=doc_eta_lead),
         Argument("eta_device", [int, float], optional=True, default=0., doc=doc_eta_device),
-        Argument("properties", list, optional=True, doc=doc_properties)
+        Argument("out_dos", bool, optional=True, default=False, doc=doc_out_dos),
+        Argument("out_tc", bool, optional=True, default=False, doc=doc_out_tc),
+        Argument("out_density", bool, optional=True, default=False, doc=doc_out_density),
+        Argument("out_potential", bool, optional=True, default=False, doc=doc_out_potential),
+        Argument("out_current", bool, optional=True, default=False, doc=doc_out_current),
+        Argument("out_current_nscf", bool, optional=True, default=False, doc=doc_out_current_nscf),
+        Argument("out_ldos", bool, optional=True, default=False, doc=doc_out_ldos),
+        Argument("out_lcurrent", bool, optional=True, default=False, doc=doc_out_lcurrent)
     ]
 
 def stru_options():

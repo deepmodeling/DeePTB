@@ -98,14 +98,19 @@
             },
             "sgf_solver": "Sancho-Rubio",
             "espacing": 0.1,
-            "emin": -2,
-            "emax": 2,
+            "emin": -1,
+            "emax": 1,
             "e_fermi": -8.5,
             "density_options":{
                 "method": "Ozaki"
             },
             "eta_lead":1e-5,
             "eta_device":0.0,
-            "properties":["DOS", "TC"]
+            "out_dos": true,
+            "out_tc": true,
+            "out_ldos": true,
+            "out_current_nscf": true,
+            "out_density": true,
+            "out_lcurrent": true
     }
 }
