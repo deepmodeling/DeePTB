@@ -159,11 +159,16 @@ class SKFormula(BaseSK):
         """
         if isinstance(paraArray, list):
             paraArray = th.tensor(paraArray)
+        if isinstance(paraconst, list):
+            paraconst = th.tensor(paraconst)
+
         assert len(paraArray.shape) in {2, 1}, 'paraArray should be a 2d tensor or 1d tensor'
         assert paraconst is not None, 'paraconst should not be None'
         assert len(paraconst.shape) in {2, 1}, 'paraconst should be a 2d tensor or 1d tensor'
         
         paraArray = paraArray.view(-1, self.num_paras)
+        paraconst = paraconst.view(-1, 1)
+
         a, b, c, d = paraArray[:, 0], paraArray[:, 1], paraArray[:, 2], paraArray[:, 3]
         delta_ll = paraconst[:,0]
 
