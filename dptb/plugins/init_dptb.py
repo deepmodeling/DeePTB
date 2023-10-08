@@ -200,7 +200,7 @@ class InitDPTBModel(Plugin):
 
         elif modeltype == "json":
             # 只用一个文件包含所有的键积分参数：
-            json_model_types = ["onsite", "hopping","soc"]
+            json_model_types = ["onsite", "hopping", "overlap", "soc"]
             assert len(checkpoint) ==1
             json_dict = j_loader(checkpoint[0])
             assert 'onsite'  in json_dict, "onsite paras is not in the json file, or key err, check the key onsite in json fle"
@@ -216,6 +216,12 @@ class InitDPTBModel(Plugin):
                         json_model_i[itype] = torch.tensor(json_dict[ikey][itype],dtype=dtype,device=device)
                     json_model_list[ikey] = json_model_i
             
+            assert 'onsite' in json_model_list and 'hopping' in json_model_list, "onsite and hopping must be in json_model_list"
+            if 'overlap' in json_model_list:
+                for ikey in json_model_list['hopping']:
+                    json_model_list['hopping'][ikey] = torch.cat((json_model_list['hopping'][ikey],json_model_list['overlap'][ikey]),dim=0)
+                json_model_list.pop('overlap')
+                
             num_hopping_hidden = 1
             num_onsite_hidden = 1
             num_soc_hidden = 1
