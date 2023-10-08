@@ -1,7 +1,6 @@
 import torch.linalg as tLA
 import torch
 
-
 def _recursive_gf(energy, mat_l_list, mat_d_list, mat_u_list, sd, su, sl, s_in=0, s_out=0, eta=1e-5):
     """The recursive Green's function algorithm is taken from
     M. P. Anantram, M. S. Lundstrom and D. E. Nikonov, Proceedings of the IEEE, 96, 1511 - 1550 (2008)

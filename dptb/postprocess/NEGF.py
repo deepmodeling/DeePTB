@@ -138,7 +138,7 @@ class NEGF(object):
             self.uni_grid = torch.linspace(start=self.jdata["emin"], end=self.jdata["emax"], steps=int((self.jdata["emax"]-self.jdata["emin"])/self.jdata["espacing"]))
 
         if cal_pole:
-            self.poles, self.residues = ozaki_residues(M_cut=self.jdata["M_cut"])
+            self.poles, self.residues = ozaki_residues(M_cut=self.jdata["density_options"]["M_cut"])
             self.poles = 1j* self.poles * self.kBT + self.device.lead_L.mu - self.device.mu
 
         if cal_int_grid:
@@ -236,6 +236,9 @@ class NEGF(object):
                 self.out["LOCAL_CURRENT"] = lcurrent
 
             torch.save(self.out, self.results_path+"/negf.k{}.out.pth".format(ik))
+
+            # plotting
+            
     
     def fermi_dirac(self, x) -> torch.Tensor:
         return 1 / (1 + torch.exp(x / self.kBT))

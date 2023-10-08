@@ -85,7 +85,7 @@
                 },
                 "lead_L":{
                     "id":"160-320",
-                    "voltage":0.5
+                    "voltage":0.0
                 },
                 "lead_R":{
                     "id":"320-480",
@@ -97,9 +97,9 @@
                 "err": 1e-5
             },
             "sgf_solver": "Sancho-Rubio",
-            "espacing": 0.1,
-            "emin": -1,
-            "emax": 1,
+            "espacing": 0.05,
+            "emin": -2,
+            "emax": 2,
             "e_fermi": -8.5,
             "density_options":{
                 "method": "Ozaki"
