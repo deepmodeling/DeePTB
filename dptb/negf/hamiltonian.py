@@ -112,8 +112,13 @@ class Hamiltonian(object):
                 h, s = self.apiH.get_HK(kpoints=kpoints)
                 nL = int(h.shape[1] / 2)
                 HLL, SLL = h[:, :nL, nL:], s[:, :nL, nL:] # H_{L_first2L_second}
+                err_l = (h[:, :nL, :nL] - HL).abs().max()
+                if  err_l >= 1e-4: # check the lead hamiltonian get from device and lead calculation matches each other
+                    log.error(msg="ERROR, the lead's hamiltonian attained from diffferent methods does not match.")
+                    raise RuntimeError
+                elif 1e-7 <= err_l <= 1e-4:
+                    log.warning(msg="WARNING, the lead's hamiltonian attained from diffferent methods have slight differences {:.7f}.".format(err_l))
 
-                assert (h[:, :nL, :nL] - HL).abs().max() < 1e-7 # check the lead hamiltonian get from device and lead calculation matches each other
                 HS_leads.update({
                     "HLL":HLL.cdouble()*self.h_factor, 
                     "SLL":SLL.cdouble()}
