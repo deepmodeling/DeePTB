@@ -1,0 +1,50 @@
+{
+    "common_options": {
+        "unit": "Ry",
+        "onsitemode": "NRL",
+        "onsite_cutoff": 6.61475,
+        "bond_cutoff": 5.0,
+        "env_cutoff": 4.1,
+        "atomtype": ["Si"],
+        "proj_atom_neles": {"Si": 4},
+        "proj_atom_anglr_m": {
+            "Si": ["3s","3p"]
+        },
+        "overlap": true
+    },
+    "model_options": {
+        "sknetwork": {
+            "sk_hop_nhidden": 1,
+            "sk_onsite_nhidden": 1
+        },
+        "skfunction": {
+            "sk_cutoff": 6.61475,
+            "sk_decay_w": 0.26459,
+            "skformula": "NRL"
+        },
+        "onsitefuncion":{
+            "onsite_func_cutoff": 6.61475,
+            "onsite_func_decay_w": 0.26459,
+            "onsite_func_lambda":1.5170852322629031
+        }
+    },
+    "structure":"./examples/NRL-TB/silicon/data/silicon.vasp",
+    "task_options": {
+        "task": "band",
+        "kline_type":"abacus",
+        "kpath":[[0.0000000000,  0.0000000000,   0.0000000000,   50],   
+                [0.5000000000,   0.0000000000,   0.5000000000,   50],               
+                [0.6250000000,   0.2500000000,   0.6250000000,   1],    
+                [0.3750000000,   0.3750000000,   0.7500000000,   50],     
+                [0.0000000000,   0.0000000000,   0.0000000000,   50],    
+                [0.5000000000,   0.5000000000,   0.5000000000,   50],                
+                [0.5000000000,   0.2500000000,   0.7500000000,   50],               
+                [0.5000000000,   0.0000000000,   0.5000000000,   1 ]
+                ],
+        "klabels":["G","X","X/U","K","G","L","W","X"],
+        "E_fermi":5.78493595123291,
+        "emin":-15,
+        "emax":10,
+        "ref_band": "./examples/NRL-TB/silicon/data/kpath.0/eigs.npy"
+    }
+}
