@@ -5,6 +5,10 @@ import scipy.linalg as SLA
 import matplotlib.pyplot as plt
 from xitorch.grad.jachess import jac
 from torch.autograd.functional import jvp
+import logging
+
+log = logging.getLogger(__name__)
+
 
 class surface_green(torch.autograd.Function):
 
@@ -40,21 +44,19 @@ class surface_green(torch.autograd.Function):
                 LopezConvTest = torch.max(alpha.abs() + beta.abs())
 
                 if iteration == 101:
-                    print("Lopez-scheme not converged after 100 iteration.")
+                    log.error("Lopez-scheme not converged after 100 iteration.")
 
                 if LopezConvTest < 1.0e-40:
                     gs = (ee * S - epss).inverse()
 
                     test = ee * S - H - torch.mm(ee * s01 - h01, gs.mm(ee * s10 - h10))
                     myConvTest = torch.max((test.mm(gs) - torch.eye(H.shape[0], dtype=h01.dtype)).abs())
-                    if myConvTest < 1.0e-8:
+                    if myConvTest < 1.0e-6:
                         converged = True
-                        if myConvTest > 1.0e-10:
-                            print(
-                                "WARNING: Lopez-scheme not-so-well converged at E = %.4f eV:" % ee.real.item(),
-                                myConvTest.item())
+                        if myConvTest > 1.0e-8:
+                            log.warning("Lopez-scheme not-so-well converged at E = %.4f eV:" % ee.real.item() + str(myConvTest.item()))
                     else:
-                        print("Lopez-Sancho %.8f " % myConvTest.item(),
+                        log.error("Lopez-Sancho %.8f " % myConvTest.item() +
                               "Error: gs iteration {0}".format(iteration))
                         raise ArithmeticError("Criteria not met. Please check output...")
                     

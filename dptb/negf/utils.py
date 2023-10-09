@@ -1234,7 +1234,7 @@ def write_vesta_lcurrent(positions, vesta_file, lcurrent, current):
     for i in range(0,N):
         for j in range(i+1,M):
             net_current = lcurrent[i,j]-lcurrent[j,i]
-            if abs(net_current) > 1e-6:
+            if abs(net_current) / abs(current) > 1e-6:
                 if net_current > 0:
                     pos = positions[j]-positions[i]
                     line = [count] + list(pos / np.sqrt((pos**2).sum()) * (net_current/abs(current)))+[1]
