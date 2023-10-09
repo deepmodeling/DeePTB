@@ -51,3 +51,10 @@ class TestIndexMap:
         assert onsite_strain_num == {'N-N': 4, 'N-B': 4, 'B-N': 4, 'B-B': 4}
         assert onsite_index_map == {'N': {'2s': [0], '2p': [1]}, 'B': {'3s': [0], '3p': [1]}}
         assert onsite_num == {'N': 2, 'B': 2}
+
+    def test_onsite_nrl_mappings(self):
+        # since for now nrl use the same as uniform and none.
+        _, _, onsite_map, onsite_num = self.indmap.Onsite_Ind_Mapings(onsitemode="NRL")
+        
+        assert onsite_map == {'N': {'2s': [0], '2p': [1]}, 'B': {'3s': [0], '3p': [1]}}
+        assert onsite_num == {'N': 2, 'B': 2}
