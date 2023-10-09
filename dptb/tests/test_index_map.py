@@ -52,6 +52,11 @@ class TestIndexMap:
         assert onsite_index_map == {'N': {'2s': [0], '2p': [1]}, 'B': {'3s': [0], '3p': [1]}}
         assert onsite_num == {'N': 2, 'B': 2}
 
+        _, _, onsite_index_map_unifrom, onsite_num_uniform = self.indmap.Onsite_Ind_Mapings(onsitemode="uniform")
+
+        assert onsite_index_map_unifrom == onsite_index_map
+        assert onsite_num_uniform == onsite_num
+
     def test_onsite_nrl_mappings(self):
         # since for now nrl use the same as uniform and none.
         _, _, onsite_map, onsite_num = self.indmap.Onsite_Ind_Mapings(onsitemode="NRL")
