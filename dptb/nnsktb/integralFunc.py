@@ -23,7 +23,7 @@ class SKintHops(SKFormula):
             if functype == 'NRL':
                 self.para_Consts = NRL_skint_type_constants(reducted_skint_types)
                 # call to get the para constants!
-
+        # special onsite mode for strain, which use same sk strategy as hopping.
         elif mode == 'onsite':
             onsite_strain_index_map, _,  _, _ = IndMap.Onsite_Ind_Mapings(onsitemode='strain', atomtype=atomtype)
             _, _, onsite_strain_ind_dict = all_onsite_intgrl_types(onsite_strain_index_map)
