@@ -86,7 +86,7 @@ class NN2HRK(object):
         assert self.structure.onsitemode == self.apihost.model_config['onsitemode']
         # TODO: 注意检查 processor 关于 env_cutoff 和 onsite_cutoff.
         predict_process = Processor(structure_list=self.structure, batchsize=1, kpoint=None, eigen_list=None, device=self.device, dtype=self.dtype, 
-                                        env_cutoff=self.apihost.model_config['env_cutoff'], onsitemode=self.apihost.model_config['onsitemode'], onsite_cutoff=self.apihost.model_config['onsite_cutoff'], sorted_onsite="st", sorted_bond="st", sorted_env="st")
+                                        env_cutoff=self.apihost.model_config['env_cutoff'], onsitemode=self.apihost.model_config['onsitemode'], onsite_cutoff=self.apihost.model_config['onsite_cutoff'], sorted_onsite=self.sorted_onsite, sorted_bond=self.sorted_bond, sorted_env=self.sorted_env)
 
         batch_bonds, batch_bond_onsites = predict_process.get_bond(sorted=self.sorted_bond)
         coeffdict, overlap_coeffdict = self.apihost.model(mode='hopping')
@@ -143,7 +143,7 @@ class NN2HRK(object):
     
     def _get_dptb_HR(self):
         predict_process = Processor(structure_list=self.structure, batchsize=1, kpoint=None, eigen_list=None, device=self.device, dtype=self.dtype, 
-                                        env_cutoff=self.apihost.model_config['env_cutoff'], onsitemode=self.apihost.model_config['onsitemode'], onsite_cutoff=self.apihost.model_config['onsite_cutoff'], sorted_onsite="st", sorted_bond="st", sorted_env="st")
+                                        env_cutoff=self.apihost.model_config['env_cutoff'], onsitemode=self.apihost.model_config['onsitemode'], onsite_cutoff=self.apihost.model_config['onsite_cutoff'], sorted_onsite=self.sorted_onsite, sorted_bond=self.sorted_bond, sorted_env=self.sorted_env)
         
         batch_bonds, batch_bond_onsites = predict_process.get_bond(sorted=self.sorted_bond)
         batch_env = predict_process.get_env(cutoff=self.apihost.model_config['env_cutoff'], sorted=self.sorted_env)
