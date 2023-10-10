@@ -86,7 +86,7 @@ class Ozaki(Density):
         if abs(device.lead_L.voltage - device.lead_R.voltage) > 1e-14:
             # calculating Non-equilibrium density
             xl, xu = min(device.lead_L.voltage, device.lead_R.voltage), max(device.lead_L.voltage, device.lead_R.voltage)
-            xl, xu = xl - 4*kBT, xu + 4*kBT
+            xl, xu = xl - 8*kBT, xu + 8*kBT
             xs, wlg = gauss_xw(xl=torch.scalar_tensor(xl), xu=torch.scalar_tensor(xu), n=self.n_gauss)
             DM_neq = 0.
             for i, e in enumerate(xs):

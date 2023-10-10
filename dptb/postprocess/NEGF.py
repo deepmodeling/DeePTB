@@ -142,8 +142,8 @@ class NEGF(object):
             self.poles = 1j* self.poles * self.kBT + self.device.lead_L.mu - self.device.mu
 
         if cal_int_grid:
-            xl = torch.tensor(min(v_list)-4*self.kBT)
-            xu = torch.tensor(max(v_list)+4*self.kBT)
+            xl = torch.tensor(min(v_list)-8*self.kBT)
+            xu = torch.tensor(max(v_list)+8*self.kBT)
             self.int_grid, self.int_weight = gauss_xw(xl=xl, xu=xu, n=int(self.density_options["n_gauss"]))
 
     def compute(self):

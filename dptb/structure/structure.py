@@ -49,7 +49,6 @@ class BaseStruct(AbstractStructure):
         self.onsite_cutoff = None
 
     def update_struct(self, atom, format, onsitemode:str='none'):
-        print("hello")
         self.init_description()
         self.onsitemode = onsitemode
         self.read_struct(atom,format=format)

@@ -1218,7 +1218,7 @@ def interp_sk_gridvalues(skfile_types, grid_distance, num_grids, HSintgrl):
 
 
 
-def write_vesta_lcurrent(positions, vesta_file, lcurrent, current):
+def write_vesta_lcurrent(positions, vesta_file, lcurrent, current, outpath):
     with open(vesta_file, "r") as f:
         data = f.read()
         f.close()
@@ -1258,5 +1258,5 @@ def write_vesta_lcurrent(positions, vesta_file, lcurrent, current):
 
     data = data[:replace_start]+text+data[replace_end:]
 
-    with open(vesta_file, "w") as f:
+    with open(outpath, "w") as f:
         f.write(data)
