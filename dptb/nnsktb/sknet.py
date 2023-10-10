@@ -61,9 +61,11 @@ class SKNet(nn.Module):
         self.overlap = overlap
 
         self.nhop_paras = hopping_neurons.get('nout')
-        self.noverlap_paras = hopping_neurons.get('nout_overlap',0)
 
         if overlap:
+
+            self.noverlap_paras = hopping_neurons['nout_overlap']
+
             hopping_config = {
                 'nin': len(self.skint_types),
                 'nhidden': hopping_neurons.get('nhidden',1),
