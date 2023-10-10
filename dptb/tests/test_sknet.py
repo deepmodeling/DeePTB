@@ -11,7 +11,7 @@ class TestSKnet:
     bond_neurons = {'nhidden':5,'nout':4}
     onsite_neurons = {'nhidden':6,'nout':1}
     onsite_strian_neurons = {'nhidden':8,'nout':5}
-    soc_neurons = {'nhidden':6}
+    soc_neurons = {'nhidden':7}
                          
     reducted_onsiteint_types = ['N-N-2s-2s-0',
                                       'N-B-2s-2s-0',
