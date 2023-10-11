@@ -147,5 +147,48 @@ class TestorbitalEs:
             for i in range(len(batch_onsite[kf])):
                 assert torch.allclose(batch_onsite[kf][i], batch_onsite_true[kf][i])
 
-#    def test_onsite_nrl(self):
+    def test_onsite_nrl(self):
+        batch_onsite_envs = {0: torch.tensor([[ 0.0000000000e+00,  7.0000000000e+00,  0.0000000000e+00,
+                                                5.0000000000e+00,  1.0000000000e+00, -1.0000000000e+00,
+                                                0.0000000000e+00,  0.0000000000e+00,  1.4456851482e+00,
+                                               -8.6602538824e-01, -5.0000000000e-01,  0.0000000000e+00],
+                                              [ 0.0000000000e+00,  7.0000000000e+00,  0.0000000000e+00,
+                                                5.0000000000e+00,  1.0000000000e+00,  0.0000000000e+00,
+                                                1.0000000000e+00,  0.0000000000e+00,  1.4456849098e+00,
+                                               -5.0252534578e-08,  1.0000000000e+00,  0.0000000000e+00],
+                                              [ 0.0000000000e+00,  7.0000000000e+00,  0.0000000000e+00,
+                                                5.0000000000e+00,  1.0000000000e+00,  0.0000000000e+00,
+                                                0.0000000000e+00,  0.0000000000e+00,  1.4456850290e+00,
+                                                8.6602538824e-01, -5.0000005960e-01,  0.0000000000e+00],
+                                              [ 0.0000000000e+00,  5.0000000000e+00,  1.0000000000e+00,
+                                                7.0000000000e+00,  0.0000000000e+00,  0.0000000000e+00,
+                                               -1.0000000000e+00,  0.0000000000e+00,  1.4456849098e+00,
+                                                5.0252534578e-08, -1.0000000000e+00,  0.0000000000e+00],
+                                              [ 0.0000000000e+00,  5.0000000000e+00,  1.0000000000e+00,
+                                                7.0000000000e+00,  0.0000000000e+00,  0.0000000000e+00,
+                                                0.0000000000e+00,  0.0000000000e+00,  1.4456850290e+00,
+                                               -8.6602538824e-01,  5.0000005960e-01,  0.0000000000e+00],
+                                              [ 0.0000000000e+00,  5.0000000000e+00,  1.0000000000e+00,
+                                                7.0000000000e+00,  0.0000000000e+00,  1.0000000000e+00,
+                                                0.0000000000e+00,  0.0000000000e+00,  1.4456851482e+00,
+                                                8.6602538824e-01,  5.0000000000e-01,  0.0000000000e+00]])}
         
+        nn_onsiteE = {'N-2s-0': torch.tensor([ 0.0039564464, -0.0055190362,  0.0041887821, -0.0018826023]),
+                      'N-2p-0': torch.tensor([-0.0001931502, -0.0003207834,  0.0007209170, -0.0004175970]),
+                      'B-2s-0': torch.tensor([-0.0040726629,  0.0048060226,  0.0017231141,  0.0074217431])}
+        
+        onsite_fun = orbitalEs(proj_atom_anglr_m=self.proj_atom_anglr_m, atomtype=['N','B'], functype='NRL', unit='Hartree',
+                                    onsite_func_cutoff=3.0, onsite_func_decay_w=0.3, onsite_func_lambda=1.0)  
+
+        batch_nnsk_onsiteEs = onsite_fun.get_onsiteEs(batch_bonds_onsite=self.batch_bond_onsites, onsite_env=batch_onsite_envs, nn_onsite_paras=nn_onsiteE)
+
+        batch_nnsk_onsiteEs_true = {0: [torch.tensor([ 0.0019290929, -0.0002228779]), torch.tensor([5.6795310229e-05])]}
+
+        assert isinstance(batch_nnsk_onsiteEs,dict)
+        assert len(batch_nnsk_onsiteEs) == len(batch_nnsk_onsiteEs_true)
+
+        for kf in batch_nnsk_onsiteEs.keys():
+            assert len(batch_nnsk_onsiteEs[kf]) == len(batch_nnsk_onsiteEs_true[kf])
+            assert len(batch_nnsk_onsiteEs[kf]) == len(self.batch_bond_onsites[kf])
+            for i in range(len(batch_nnsk_onsiteEs[kf])):
+                assert torch.allclose(batch_nnsk_onsiteEs[kf][i], batch_nnsk_onsiteEs_true[kf][i])
