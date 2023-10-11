@@ -1,8 +1,9 @@
 import pytest
 import torch as th
+import torch
 import numpy as np
 from dptb.nnsktb.onsiteFunc import loadOnsite, onsiteFunc
-
+from dptb.nnsktb.onsiteFunc import orbitalEs
 
 class TestOnsiteUniform:
     batch_bonds_onsite= {0: np.array([[0, 7, 0, 7, 0, 0, 0, 0],
@@ -79,3 +80,72 @@ class TestOnsiteSplit:
 
         assert (th.abs(onsitesEdict[0][0] - th.tensor([-0.6582242 , -0.17576692, -0.12046692, -0.11136693])) < 1e-6).all()
         assert (th.abs(onsitesEdict[0][1] - th.tensor([-0.27451998,  0.08331999, -0.13108   , -0.17748001])) < 1e-6).all()
+
+
+
+class TestorbitalEs:
+    envtype = ['N','B']
+    bondtype = ['N','B']
+    proj_atom_anglr_m={'B': ['2s'], 'N': ['2s', '2p']}
+    batch_bond_onsites = {0: torch.tensor([[0., 7., 0., 7., 0., 0., 0., 0.],
+         [0., 5., 1., 5., 1., 0., 0., 0.]])}
+    
+    def test_onsite_none(self):
+        nn_onsiteE, onsite_coeffdict  = None, None
+        onsitfunc = orbitalEs(proj_atom_anglr_m=self.proj_atom_anglr_m,atomtype=None, functype='none')
+        
+        batch_onsite_true = {0: [torch.tensor([-0.6769242287, -0.2659669220]), torch.tensor([-0.3448199928])]}
+
+        with torch.no_grad():
+            batch_onsite = onsitfunc.get_onsiteEs(batch_bonds_onsite=self.batch_bond_onsites, nn_onsite_paras=nn_onsiteE)
+
+        assert isinstance(batch_onsite, dict)
+        assert len(batch_onsite) == len(batch_onsite_true)
+        assert len(batch_onsite) == len(self.batch_bond_onsites)
+
+        for kf in batch_onsite.keys():
+            assert len(batch_onsite[kf]) == len(batch_onsite_true[kf])
+            assert len(batch_onsite[kf]) == len(self.batch_bond_onsites[kf])
+            for i in range(len(batch_onsite[kf])):
+                assert torch.allclose(batch_onsite[kf][i], batch_onsite_true[kf][i])
+
+        
+        assert isinstance(onsitfunc.onsite_db, dict)
+        assert len(onsitfunc.onsite_db) == 2
+        assert len(onsitfunc.onsite_db['N']) == 2
+        assert len(onsitfunc.onsite_db['B']) == 1
+        assert th.allclose(onsitfunc.onsite_db['N'], batch_onsite_true[0][0]) 
+        assert th.allclose(onsitfunc.onsite_db['B'], batch_onsite_true[0][1]) 
+
+        
+        nn_onsiteE2 = {'N': torch.tensor([0.0019521093, 0.0031471925]), 'B': torch.tensor([0.0053026341])}
+
+        with torch.no_grad():
+            batch_onsite2 = onsitfunc.get_onsiteEs(batch_bonds_onsite=self.batch_bond_onsites, nn_onsite_paras=nn_onsiteE2)
+
+        for kf in batch_onsite2.keys():
+            assert len(batch_onsite2[kf]) == len(batch_onsite_true[kf])
+            assert len(batch_onsite[kf]) == len(self.batch_bond_onsites[kf])
+            for i in range(len(batch_onsite2[kf])):
+                assert torch.allclose(batch_onsite2[kf][i], batch_onsite_true[kf][i])
+
+    def test_onsite_uniform(self):
+        nn_onsiteE = {'N': torch.tensor([0.0019521093, 0.0031471925]), 'B': torch.tensor([0.0053026341])}
+        onsitfunc = orbitalEs(proj_atom_anglr_m=self.proj_atom_anglr_m,atomtype=None, functype='uniform')
+
+        batch_onsite_true = {0: [torch.tensor([-0.6749721169, -0.2628197372]), torch.tensor([-0.3395173550])]}
+        with torch.no_grad():
+            batch_onsite = onsitfunc.get_onsiteEs(batch_bonds_onsite=self.batch_bond_onsites, nn_onsite_paras=nn_onsiteE)
+
+        assert isinstance(batch_onsite, dict)
+        assert len(batch_onsite) == len(batch_onsite_true)
+        assert len(batch_onsite) == len(self.batch_bond_onsites)
+
+        for kf in batch_onsite.keys():
+            assert len(batch_onsite[kf]) == len(batch_onsite_true[kf])
+            assert len(batch_onsite[kf]) == len(self.batch_bond_onsites[kf])
+            for i in range(len(batch_onsite[kf])):
+                assert torch.allclose(batch_onsite[kf][i], batch_onsite_true[kf][i])
+
+#    def test_onsite_nrl(self):
+        
