@@ -141,3 +141,91 @@ class TestSKintHops:
             assert len(overlap[kf]) == len(self.batch_bonds[kf])
             for i in range(len(overlap[kf])):
                 assert torch.allclose(overlap[kf][i], overlap_true[kf][i])
+
+    def test_strain_func(self):
+        batch_onsite_envs = {0: torch.tensor([[ 0.0000000000e+00,  7.0000000000e+00,  0.0000000000e+00,
+                                                5.0000000000e+00,  1.0000000000e+00, -1.0000000000e+00,
+                                                0.0000000000e+00,  0.0000000000e+00,  1.4456851482e+00,
+                                               -8.6602538824e-01, -5.0000000000e-01,  0.0000000000e+00],
+                                              [ 0.0000000000e+00,  7.0000000000e+00,  0.0000000000e+00,
+                                                5.0000000000e+00,  1.0000000000e+00,  0.0000000000e+00,
+                                                1.0000000000e+00,  0.0000000000e+00,  1.4456849098e+00,
+                                               -5.0252534578e-08,  1.0000000000e+00,  0.0000000000e+00],
+                                              [ 0.0000000000e+00,  7.0000000000e+00,  0.0000000000e+00,
+                                                5.0000000000e+00,  1.0000000000e+00,  0.0000000000e+00,
+                                                0.0000000000e+00,  0.0000000000e+00,  1.4456850290e+00,
+                                                8.6602538824e-01, -5.0000005960e-01,  0.0000000000e+00],
+                                              [ 0.0000000000e+00,  5.0000000000e+00,  1.0000000000e+00,
+                                                7.0000000000e+00,  0.0000000000e+00,  0.0000000000e+00,
+                                               -1.0000000000e+00,  0.0000000000e+00,  1.4456849098e+00,
+                                                5.0252534578e-08, -1.0000000000e+00,  0.0000000000e+00],
+                                              [ 0.0000000000e+00,  5.0000000000e+00,  1.0000000000e+00,
+                                                7.0000000000e+00,  0.0000000000e+00,  0.0000000000e+00,
+                                                0.0000000000e+00,  0.0000000000e+00,  1.4456850290e+00,
+                                               -8.6602538824e-01,  5.0000005960e-01,  0.0000000000e+00],
+                                              [ 0.0000000000e+00,  5.0000000000e+00,  1.0000000000e+00,
+                                                7.0000000000e+00,  0.0000000000e+00,  1.0000000000e+00,
+                                                0.0000000000e+00,  0.0000000000e+00,  1.4456851482e+00,
+                                                8.6602538824e-01,  5.0000000000e-01,  0.0000000000e+00]])}
+        onsite_coeffdict = {'N-N-2s-2s-0': torch.tensor([ 0.0025671565, -0.0027151953, -0.0072337165, -0.0036522869]),
+                            'N-N-2s-2p-0': torch.tensor([-0.0026088906,  0.0074979444, -0.0018805307,  0.0049024108]),
+                            'N-N-2p-2p-0': torch.tensor([-0.0021992344,  0.0005415757,  0.0074515659,  0.0005947181]),
+                            'N-N-2p-2p-1': torch.tensor([ 0.0006261438,  0.0040115905,  0.0030314110, -0.0021249305]),
+                            'N-B-2s-2s-0': torch.tensor([ 0.0014238179, -0.0051248297, -0.0042115971,  0.0004388580]),
+                            'N-B-2s-2p-0': torch.tensor([-8.0363824964e-05, -2.5551870931e-03,  4.3248436414e-03,-3.4857757855e-03]),
+                            'N-B-2p-2p-0': torch.tensor([0.0041363067, 0.0031877954, 0.0045313733, 0.0014461600]),
+                            'N-B-2p-2p-1': torch.tensor([-0.0005239337,  0.0010525688,  0.0015451497, -0.0023277309]),
+                            'B-N-2s-2s-0': torch.tensor([-0.0049433187,  0.0042366427, -0.0033636224, -0.0009209875]),
+                            'B-B-2s-2s-0': torch.tensor([-1.0215900838e-03, -2.8351407964e-03, -2.7579604648e-05,2.8069603723e-03])}
+
+        skformula='varTang96'
+        onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=self.proj_atom_anglr_m, atomtype=['N','B'])
+        with torch.no_grad():
+            batch_onsiteVs =onsitestrain_fun.get_skhops(batch_bonds=batch_onsite_envs, coeff_paras=onsite_coeffdict)
+        
+        batch_onsiteVs_true = {0: [torch.tensor([ 1.4151573414e-03, -7.9941251897e-05,  4.1127605364e-03, -5.2292115288e-04]),
+                                   torch.tensor([ 1.4151573414e-03, -7.9941251897e-05,  4.1127605364e-03,-5.2292115288e-04]),
+                                   torch.tensor([ 1.4151573414e-03, -7.9941251897e-05,  4.1127605364e-03,-5.2292115288e-04]),
+                                   torch.tensor([-0.0049190260]),
+                                   torch.tensor([-0.0049190260]),
+                                   torch.tensor([-0.0049190260])]}
+
+        assert isinstance(batch_onsiteVs, dict)
+        assert len(batch_onsiteVs) == len(batch_onsiteVs_true)
+
+        for kf in batch_onsiteVs.keys():
+            assert len(batch_onsiteVs[kf]) == len(batch_onsiteVs_true[kf])
+            assert len(batch_onsiteVs[kf]) == len(batch_onsite_envs[kf])
+            for i in range(len(batch_onsiteVs[kf])):
+                assert torch.allclose(batch_onsiteVs[kf][i], batch_onsiteVs_true[kf][i])
+
+        onsite_coeffdict2 = {'N-N-2s-2s-0': torch.tensor([ 0.0001323542, -0.0032066212]),
+                             'N-N-2s-2p-0': torch.tensor([-0.0028324928, -0.0036035071]),
+                             'N-N-2p-2p-0': torch.tensor([0.0047816746, 0.0008005045]),
+                             'N-N-2p-2p-1': torch.tensor([-0.0028289773, -0.0045819557]),
+                             'N-B-2s-2s-0': torch.tensor([0.0018732958, 0.0017035947]),
+                             'N-B-2s-2p-0': torch.tensor([ 0.0033274870, -0.0047116517]),
+                             'N-B-2p-2p-0': torch.tensor([ 0.0029182180, -0.0006305461]),
+                             'N-B-2p-2p-1': torch.tensor([0.0076054428, 0.0004497740]),
+                             'B-N-2s-2s-0': torch.tensor([-0.0049679796, -0.0019069859]),
+                             'B-B-2s-2s-0': torch.tensor([-0.0006824296, -0.0017509166])}
+        
+        skformula='powerlaw'
+        onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=self.proj_atom_anglr_m, atomtype=['N','B'])
+        with torch.no_grad():
+            batch_onsiteVs2 =onsitestrain_fun.get_skhops(batch_bonds=batch_onsite_envs, coeff_paras=onsite_coeffdict2)
+        batch_onsiteVs_true2 = {0: [torch.tensor([0.0021948295, 0.0039004742, 0.0034185229, 0.0089090792]),
+                                    torch.tensor([0.0021948298, 0.0039004746, 0.0034185234, 0.0089090802]),
+                                    torch.tensor([0.0021948298, 0.0039004746, 0.0034185234, 0.0089090802]),
+                                    torch.tensor([-0.0058208751]),
+                                    torch.tensor([-0.0058208751]),
+                                    torch.tensor([-0.0058208746])]}
+    
+        assert isinstance(batch_onsiteVs2, dict)
+        assert len(batch_onsiteVs2) == len(batch_onsiteVs_true2)
+
+        for kf in batch_onsiteVs2.keys():
+            assert len(batch_onsiteVs2[kf]) == len(batch_onsiteVs_true2[kf])
+            assert len(batch_onsiteVs2[kf]) == len(batch_onsiteVs_true2[kf])
+            for i in range(len(batch_onsiteVs2[kf])):
+                assert torch.allclose(batch_onsiteVs2[kf][i], batch_onsiteVs_true2[kf][i])
