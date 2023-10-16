@@ -94,7 +94,7 @@ class Ozaki(Density):
                 device.lead_R.self_energy(kpoint=kpoint, e=e, eta_lead=eta_lead)
                 device.green_function(e=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
                 ggg = torch.mm(torch.mm(device.grd[0], device.lead_R.gamma), device.grd[0].conj().T).real
-                ggg = ggg * (device.lead_R.fermi_dirac(e+device.mu) - device.lead_R.fermi_dirac(e+device.mu))
+                ggg = ggg * (device.lead_R.fermi_dirac(e+device.mu) - device.lead_L.fermi_dirac(e+device.mu))
                 DM_neq = DM_neq + wlg[i] * ggg
         else:
             DM_neq = 0.
