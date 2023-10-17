@@ -1,5 +1,4 @@
-.. ABACUS documentation master file, created by
-   sphinx-quickstart on Fri Mar 11 10:42:27 2022.
+.. DeePTB documentation master file.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
@@ -17,8 +16,9 @@ These capabilities make **DeePTB** adaptable to various research scenarios, exte
    :caption: Quick Start
 
    quick_start/easy_install
-   quick_start/hands_on
    quick_start/input
+   quick_start/hands_on
+
 
 .. toctree::
    :maxdepth: 2

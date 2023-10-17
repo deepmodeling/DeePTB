@@ -1,239 +1,191 @@
-# Two Quick Examples
+# A quick Example
 
-## Running SCF Calculation
+## h-BN model
 
-### A quick LCAO example
+DeePTB is a package that utilizes machine-learning method to train TB models for target systems with the DFT training data. Here, h-BN monolayer  has been chosen as a quick start example. 
 
-ABACUS is well known for its support of LCAO (Linear Combination of Atomic Orbital) basis set in calculating periodic condensed matter systems, so it's a good choice to start from a LCAO example of self-consistent field (SCF) calculation. Here, FCC MgO has been chosen as a quick start example. The default name of a structure file in ABACUS is `STRU`. The `STRU` file for FCC MgO in a LCAO calculation is shown below:
-
+hBN is a binary compound made of equal numbers of boron (B) and nitrogen (N), we present this as a quick hands-on example. The prepared files are located in:
 ```
-#This is the atom file containing all the information
-#about the lattice structure.
-
-ATOMIC_SPECIES
-Mg 24.305  Mg_ONCV_PBE-1.0.upf  # element name, atomic mass, pseudopotential file
-O  15.999 O_ONCV_PBE-1.0.upf
-
-NUMERICAL_ORBITAL
-Mg_gga_8au_100Ry_4s2p1d.orb
-O_gga_8au_100Ry_2s2p1d.orb
-
-LATTICE_CONSTANT
-1.8897259886 		# 1.8897259886 Bohr =  1.0 Angstrom
-
-LATTICE_VECTORS
-4.25648 0.00000 0.00000  
-0.00000 4.25648 0.00000
-0.00000 0.00000 4.25648
-
-ATOMIC_POSITIONS
-Direct                  #Cartesian(Unit is LATTICE_CONSTANT)
-Mg                      #Name of element        
-0.0                     #Magnetic for this element.
-4                       #Number of atoms
-0.0  0.0  0.0  0 0 0    #x,y,z, move_x, move_y, move_z
-0.0  0.5  0.5  0 0 0    #x,y,z, move_x, move_y, move_z
-0.5  0.0  0.5  0 0 0    #x,y,z, move_x, move_y, move_z
-0.5  0.5  0.0  0 0 0    #x,y,z, move_x, move_y, move_z
-O                       #Name of element        
-0.0                     #Magnetic for this element.
-4                       #Number of atoms
-0.5  0.0  0.0  0 0 0    #x,y,z, move_x, move_y, move_z
-0.5  0.5  0.5  0 0 0    #x,y,z, move_x, move_y, move_z
-0.0  0.0  0.5  0 0 0    #x,y,z, move_x, move_y, move_z
-0.0  0.5  0.0  0 0 0    #x,y,z, move_x, move_y, move_z
+deeptb/examples/hBN/
+-- data/kpath.0/
+-- -- bandinfo.json
+-- -- xdat.traj
+-- -- kpoints.npy
+-- -- eigs.npy
+-- run/
+-- input_short.json
 ```
+The ```input_short.json``` file contains the least number of parameters that are required to start training the **DeePTB** model. ```data``` folder contains the bandstructure data ```kpath.0```, where another important configuration file ```bandinfo.json``` is located.
 
-Next, the `INPUT` file is required, which sets all key parameters to direct ABACUS how to calculte and what to output:
+```bash
+cd deeptb/examples/hBN/data
+# to see the bond length
+dptb bond struct.vasp  
+# output:
+Bond Type         1         2         3         4         5
+------------------------------------------------------------------------
+       N-N      2.50      4.34      5.01
+       N-B      1.45      2.89      3.82      5.21      5.78
+       B-B      2.50      4.34      5.01
 ```
-INPUT_PARAMETERS
-suffix                  MgO
-ntype                   2
-pseudo_dir              ./
-orbital_dir		./
-ecutwfc                 100             # Rydberg
-scf_thr                 1e-4		# Rydberg
-basis_type              lcao            
-calculation             scf		# this is the key parameter telling abacus to do a scf calculation
+Having the data file and input parameter, we can start training our first **DeePTB** model, the first step using the parameters defined in ```input_short.json```:
+Here list some important parameters:
+```json
+    "common_options": {
+        "onsitemode": "none",
+        "bond_cutoff": 1.6,
+    }
+    
+    "proj_atom_anglr_m": {
+            "N": [
+                "2s",
+                "2p"
+            ],
+            "B": [
+                "2s",
+                "2p"
+            ]
+        }
 ```
+The ```onsitemode``` is set to ```none``` which means we do not use onsite correction. The ```bond_cutoff``` is set to ```1.6``` which means we use the 1st nearest neighbour for bonding. The ```proj_atom_anglr_m``` is set to ```2s``` and ```2p``` which means we use $s$ and $p$ orbitals as basis. 
 
-The pseudopotential files of `Mg_ONCV_PBE-1.0.upf` and `O_ONCV_PBE-1.0.upf` should be provided under the directory of `pseudo_dir`, and the orbital files `Mg_gga_8au_100Ry_4s2p1d.orb` and `O_gga_8au_100Ry_2s2p1d.orb` under the directory of `orbital_dir`. The pseudopotential and orbital files can be downloaded from the [ABACUS website](http://abacus.ustc.edu.cn/pseudo/list.htm).
-
-The final mandatory input file is called `KPT`, which sets the reciprocal space k-mesh. Below is an example:
-
+using the command to train the first model:
+```bash
+cd deeptb/examples/hBN
+dptb train -sk input_short.json -o ./first
 ```
-K_POINTS
-0 
-Gamma
-4 4 4 0 0 0
+Here ``-sk`` indicate to fit the sk parameters, and ``-o`` indicate the output directory. During the fitting procedure, we can see the loss curve of hBN is decrease consistently. When finished, we get the fitting results in folders ```first```:
+```shell
+first/
+|-- checkpoint
+|   |-- best_nnsk_b1.600_c1.600_w0.300.json
+|   |-- best_nnsk_b1.600_c1.600_w0.300.pth
+|   |-- latest_nnsk_b1.600_c1.600_w0.300.json
+|   `-- latest_nnsk_b1.600_c1.600_w0.300.pth
+|-- input_short.json
+|-- log
+|   `-- log.txt
+`-- train_config.json
 ```
-
-After all the above input files have been set, one should be able to run the first quick example. The simplest way is to use the command line, e.g.:
-
+Here checkpoint saves our fitting files, which best indicate the one in the fitting procedure which has the lowest validation loss. The latest is the most recent results.
+we can plot the fitting bandstructure as:
+```bash
+dptb run -sk band.json  -i ./first/checkpoint/best_nnsk_b1.600_c1.600_w0.300.pth -o ./band
 ```
-mpirun -np 2 abacus
+``-i`` states initialize the model from the checkpoint file `./first/checkpoint/best_nnsk_b1.600_c1.600_w0.300.pth`. results will be saved in the directory `band`:
 ```
-
-The main output information is stored in the file `OUT.MgO/running_scf.log`, which starts with
-
+band/
+-- log/
+-- -- log.txt
+-- results/
+-- -- band.png
+-- -- bandstructure.npy
 ```
-                             WELCOME TO ABACUS v3.2
+Where `band.png` is the band structure of the trained model. Which looks like this:
 
-               'Atomic-orbital Based Ab-initio Computation at UStc'
-
-                     Website: http://abacus.ustc.edu.cn/
-
-    Version: Parallel, in development
-    Processor Number is 2
-    Start Time is Mon Oct 24 01:47:54 2022
-
- ------------------------------------------------------------------------------------
-
- READING GENERAL INFORMATION
-                           global_out_dir = OUT.MgO/
-                           global_in_card = INPUT
-                               pseudo_dir =
-                              orbital_dir =
-                                    DRANK = 1
-                                    DSIZE = 2
-                                   DCOLOR = 1
-                                    GRANK = 1
-                                    GSIZE = 1
- The esolver type has been set to : ksdft_lcao
+<div align=center>
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/band_0.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
 
 
-
-
- >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
- |                                                                    |
- | Reading atom information in unitcell:                              |
- | From the input file and the structure file we know the number of   |
- | different elments in this unitcell, then we list the detail        |
- | information for each element, especially the zeta and polar atomic |
- | orbital number for each element. The total atom number is counted. |
- | We calculate the nearest atom distance for each atom and show the  |
- | Cartesian and Direct coordinates for each atom. We list the file   |
- | address for atomic orbitals. The volume and the lattice vectors    |
- | in real and reciprocal space is also shown.                        |
- |                                                                    |
- <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-......
-
+It shows that the fitting has learned the rough shape of the bandstructure, but not very accurate. We can further improve the accuracy by incorporating more features of our code, for example, the onsite correction. There are two kinds of onsite correction supported: `uniform` or `strain`. We use `strain` for now to see the effect. Now change the `input_short.json` by the parameters:
+```json
+    "common_options": {
+        "onsitemode": "strain",
+        "bond_cutoff": 1.6,
+    }
+    "train_options": {
+        "num_epoch": 800,
+    }
 ```
-
-If ABAUCS finishes successfully, the total energy will be output in `OUT.MgO/running_scf.log`:
-
+After the training is finished, you can get the strain folder with:
+```shell
+strain
+|-- checkpoint
+|   |-- best_nnsk_b1.600_c1.600_w0.300.json
+|   |-- best_nnsk_b1.600_c1.600_w0.300.pth
+|   |-- latest_nnsk_b1.600_c1.600_w0.300.json
+|   `-- latest_nnsk_b1.600_c1.600_w0.300.pth
+|-- log
+|   `-- log.txt
+`-- train_config.json
 ```
- --------------------------------------------
- !FINAL_ETOT_IS -7663.897267807250 eV
- --------------------------------------------
+plot the result again:
+```bash
+dptb run -sk band.json  -i ./strain/checkpoint/best_nnsk_b1.600_c1.600_w0.300.pth -o ./band
 ```
-
-### A quick PW example
-
-In order to run a SCF calculation with PW (Plane Wave) basis set, one has only to change the tag `basis_type` from `lcao` to `pw` in the `INPUT` file, and no longer needs to provide orbital files under `NUMERICAL_ORBITAL` in the `STRU` file.
-
-The `INPUT` file follows as:
+<div align=center>
+<img src="./examples/hBN/reference/2.strain/results/band.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
+It looks ok, we can further improve the accuracy by adding more neighbours, and training for a longer time. We can gradually increase the `sk_cutoff` from 1st to 3rd neighbour. change the `input_short.json` by the parameters:
+```json
+    "common_options": {
+        "onsitemode": "strain",
+        "bond_cutoff": 3.6,
+    }
+    "train_options": {
+        "num_epoch": 2000,
+    }
+    "model_options": {
+        "skfunction": {
+            "sk_cutoff": [1.6,3.6],
+            "sk_decay_w": 0.3,
+        }
+    }
 ```
-INPUT_PARAMETERS
-suffix                  MgO
-ntype                   2
-pseudo_dir              ./
-ecutwfc                 100             # Rydberg
-scf_thr                 1e-4		# Rydberg
-basis_type              pw              # changes the type of basis set
-calculation             scf		# this is the key parameter telling abacus to do a scf calculation
+This means that we use up to 3rd nearest neighbour for bonding, and we train for 2000 epochs. see the input file `hBN/reference/3.varycutoff/input_short.json` for detail. Then we can run the training again:
+```bash
+dptb train -sk input_short.json -o ./varycutoff -i ./strain/checkpoint/best_nnsk_b1.600_c1.600_w0.300.pth
 ```
 
-And the `STRU` file will be:
-
+After the training is finished, you can get the strain folder with:
+```shell
+varycutoff
+|-- checkpoint
+|   |-- best_nnsk_b3.600_c1.600_w0.300.json
+|   |-- best_nnsk_b3.600_c1.600_w0.300.pth
+|   |-- ... ...
+|   |-- latest_nnsk_b3.600_c3.599_w0.300.json
+|   `-- latest_nnsk_b3.600_c3.599_w0.300.pth
+|-- log
+|   `-- log.txt
+`-- train_config.json
 ```
-#This is the atom file containing all the information
-#about the lattice structure.
-
-ATOMIC_SPECIES
-Mg 24.305  Mg_ONCV_PBE-1.0.upf  # element name, atomic mass, pseudopotential file
-O  15.999 O_ONCV_PBE-1.0.upf
-
-LATTICE_CONSTANT
-1.8897259886 		# 1.8897259886 Bohr =  1.0 Angstrom
-
-LATTICE_VECTORS
-4.25648 0.00000 0.00000  
-0.00000 4.25648 0.00000
-0.00000 0.00000 4.25648
-
-ATOMIC_POSITIONS
-Direct                  #Cartesian(Unit is LATTICE_CONSTANT)
-Mg                      #Name of element        
-0.0                     #Magnetic for this element.
-4                       #Number of atoms
-0.0  0.0  0.0  0 0 0    #x,y,z, move_x, move_y, move_z
-0.0  0.5  0.5  0 0 0    #x,y,z, move_x, move_y, move_z
-0.5  0.0  0.5  0 0 0    #x,y,z, move_x, move_y, move_z
-0.5  0.5  0.0  0 0 0    #x,y,z, move_x, move_y, move_z
-O                       #Name of element        
-0.0                     #Magnetic for this element.
-4                       #Number of atoms
-0.5  0.0  0.0  0 0 0    #x,y,z, move_x, move_y, move_z
-0.5  0.5  0.5  0 0 0    #x,y,z, move_x, move_y, move_z
-0.0  0.0  0.5  0 0 0    #x,y,z, move_x, move_y, move_z
-0.0  0.5  0.0  0 0 0    #x,y,z, move_x, move_y, move_z
+We finally get the `latest_nnsk_b3.600_c3.599_w0.300.pth` with more neighbours.
+plot the result again:
+```bash
+dptb run -sk band.json  -i ./varycutoff/checkpoint/latest_nnsk_b3.600_c3.599_w0.300.pth -o ./band
 ```
+<div align=center>
+<img src="./examples/hBN/reference/3.varycutoff/results/band.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
 
-Use the same pseudopotential and `KPT` files as the above LCAO example. The final total energy will be output:
-
+We can again increase more training epochs, using the larger cutoff checkpoint, and change the input using 
+```json
+    "train_options": {
+        "num_epoch": 10000,
+        "optimizer": {"lr":1e-3},
+        "lr_scheduler": {
+            "type": "exp",
+            "gamma": 0.9995
+        }
+    }
+    "model_options": {
+        "skfunction": {
+            "sk_cutoff": 3.6,
+            "sk_decay_w": 0.3
+        }
+    }
 ```
- --------------------------------------------
- !FINAL_ETOT_IS -7665.688319476949 eV
- --------------------------------------------
-```
+We can get a better fitting result:
+<div align=center>
+<img src="./examples/hBN/reference/4.longtrain/results/band.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+</div>
 
-## Running Geometry Optimization
+Now you have learnt the basis use of **DeePTB**, however, the advanced functions still need to be explored for accurate and flexible electron structure representation, such as:
+- atomic orbitals
+- environmental correction
+- spin-orbit coupling (SOC)
+- ...
 
-In order to run a full geometry optimization in ABACUS, the tag `calculation` in `INPUT` should be set to `cell-relax`. In addition, the convergence criteria for atomics force and cell stress can be set through the tags `force_thr_ev` and `stress_thr`, respectively. The maximum number of ionc steps is controlled by `relax_nmax`.
-
-### A quick LCAO example
-
-The `INPUT` is provided as follows:
-
-```
-INPUT_PARAMETERS
-suffix                  MgO
-ntype                   2
-nelec                   0.0
-pseudo_dir              ./
-orbital_dir             ./
-ecutwfc                 100             # Rydberg
-scf_thr                 1e-4		# Rydberg
-basis_type              lcao 
-calculation             cell-relax	# this is the key parameter telling abacus to do a optimization calculation
-force_thr_ev		0.01		# the threshold of the force convergence, in unit of eV/Angstrom
-stress_thr		5		# the threshold of the stress convergence, in unit of kBar
-relax_nmax		100		# the maximal number of ionic iteration steps
-out_stru		1
-```
-Use the same `KPT`, `STRU`, pseudopotential, and orbital files as in the above SCF-LCAO example. The final optimized structure can be found in `STRU_NOW.cif` and `OUT.MgO/running_cell-relax.log`.
-
-### A quick PW example
-
-The `INPUT` is provided as follows:
-
-```
-INPUT_PARAMETERS
-suffix                  MgO
-ntype                   2
-nelec                   0.0
-pseudo_dir              ./
-ecutwfc                 100             # Rydberg
-scf_thr                 1e-4		# Rydberg
-basis_type              pw
-calculation             cell-relax	# this is the key parameter telling abacus to do a optimization calculation
-force_thr_ev		0.01		# the threshold of the force convergence, in unit of eV/Angstrom
-stress_thr		5		# the threshold of the stress convergence, in unit of kBar
-relax_nmax		100		# the maximal number of ionic iteration steps
-out_stru		1
-```
-
-Use the same `KPT`, `STRU`, and pseudopotential files as in the above SCF-PW examples. The final optimized structure can be found in `STRU_NOW.cif` and `OUT.MgO/running_cell-relax.log`.
+Altogether, we can simulate the electronic structure of a crystal system in a dynamic trajectory. **DeePTB** is capable of handling atom movement, volume change under stress, SOC effect and can use DFT eigenvalues with different orbitals and xc functionals as training targets.
