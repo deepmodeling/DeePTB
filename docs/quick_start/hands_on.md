@@ -84,7 +84,7 @@ band/
 Where `band.png` is the band structure of the trained model. Which looks like this:
 
 <div align=center>
-<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/band_0.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hBN_band_start.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
 </div>
 
 
@@ -115,7 +115,7 @@ plot the result again:
 dptb run -sk band.json  -i ./strain/checkpoint/best_nnsk_b1.600_c1.600_w0.300.pth -o ./band
 ```
 <div align=center>
-<img src="./examples/hBN/reference/2.strain/results/band.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hBN_band_strain.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
 </div>
 It looks ok, we can further improve the accuracy by adding more neighbours, and training for a longer time. We can gradually increase the `sk_cutoff` from 1st to 3rd neighbour. change the `input_short.json` by the parameters:
 ```json
@@ -151,13 +151,13 @@ varycutoff
 |   `-- log.txt
 `-- train_config.json
 ```
-We finally get the `latest_nnsk_b3.600_c3.599_w0.300.pth` with more neighbours.
+We finally get the `latest_nnsk_b3.600_c3.599_w0.300.pth` with more neighbors.
 plot the result again:
 ```bash
 dptb run -sk band.json  -i ./varycutoff/checkpoint/latest_nnsk_b3.600_c3.599_w0.300.pth -o ./band
 ```
 <div align=center>
-<img src="./examples/hBN/reference/3.varycutoff/results/band.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hBN_band_varycutoff.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
 </div>
 
 We can again increase more training epochs, using the larger cutoff checkpoint, and change the input using 
@@ -179,10 +179,10 @@ We can again increase more training epochs, using the larger cutoff checkpoint, 
 ```
 We can get a better fitting result:
 <div align=center>
-<img src="./examples/hBN/reference/4.longtrain/results/band.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hBN_band_longtrain.png" width = "60%" height = "60%" alt="hBN Bands" align=center />
 </div>
 
-Now you have learnt the basis use of **DeePTB**, however, the advanced functions still need to be explored for accurate and flexible electron structure representation, such as:
+Now you have learned the basis use of **DeePTB**, however, the advanced functions still need to be explored for accurate and flexible electron structure representation, such as:
 - atomic orbitals
 - environmental correction
 - spin-orbit coupling (SOC)
