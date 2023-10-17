@@ -19,7 +19,6 @@ from dptb.negf.utils import leggauss
 import logging
 import os
 from dptb.utils.tools import j_must_have
-from tqdm import tqdm
 import numpy as np
 from dptb.utils.make_kpoints import kmesh_sampling
 
