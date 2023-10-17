@@ -43,6 +43,7 @@ def common_options():
     doc_time_symm = "Determine whether time symmetry is conserved, if set to be True, the eigenvalues on -k and k point is considered equal. Default: `True`"
     doc_soc = "Determine whether soc effect is modeled. If True, the soc network setting in model options need to be setted. Default: `False`"
     doc_unit = "Determine the unit of Tight-Binding parameters learned in DeePTB. Can be `eV`, `Hartree` or `Rothberg`. It will not affect the eigenvalues output form DeePTB, which is always in the unit of eV. Default: `Hartree`"
+    doc_overlap = r"Whether to use overlap matrix to define the SK like integrals. Default: False"
 
     args = [
         Argument("onsite_cutoff", float, optional = False, doc = doc_onsite_cutoff),
@@ -56,7 +57,8 @@ def common_options():
         Argument("onsitemode", str, optional = True, default = "none", doc = doc_onsitemode),
         Argument("sk_file_path", str, optional = True, default="./", doc = doc_sk_file_path),
         Argument("time_symm", bool, optional = True, default=True, doc = doc_time_symm),
-        Argument("soc", bool, optional=True, default=False, doc=doc_soc),
+        Argument("soc", bool, optional=True, default=False, doc=doc_soc),        
+        Argument("overlap", bool, optional=True, default=False, doc=doc_overlap),
         Argument("unit", str, optional=True, default="Hartree", doc=doc_unit)
     ]
 
@@ -271,7 +273,6 @@ def skfunction():
             "
     doc_sk_cutoff = r"The decay param $r_c$ in $f(r)=1+exp((r_{ij}-r_c)/\omega)$, controls the range of the decay, support list input to move the boundary of devaying function from near to afar. Default: 6.0."
     doc_sk_decay_w = r"The decay param $\omega$ in $f(r)=1+exp((r_{ij}-r_c)/\omega)$, control how smooth the decay function is, support list input to move the decaying function from soft to hard. Default: 0.1."
-
     args = [
         Argument("skformula", str, optional=True, default="powerlaw", doc=doc_skformula),
         Argument("sk_cutoff", [float,int,list], optional=True, default=6.0, doc=doc_sk_cutoff),
@@ -281,6 +282,21 @@ def skfunction():
     doc_skfunction = "The parameter to define the analytic function formula of the SK like integrals."
 
     return Argument("skfunction", dict, optional=True, sub_fields=args, sub_variants=[], default={}, doc=doc_skfunction)
+
+def  onsitefuncion():
+    doc_onsite_func_cutoff = r"The decay param controls the range of the decay defined in NRL TB."
+    doc_onsite_func_decay_w = r"The decay param control how smooth the decay function is defined in NRL TB."
+    doc_onsite_func_lambda = r"the onstie para in NRL TB."
+
+    args = [
+        Argument("onsite_func_cutoff", [float], optional=True,  default=6.0, doc=doc_onsite_func_cutoff),
+        Argument("onsite_func_decay_w", [float], optional=True, default=0.5, doc=doc_onsite_func_decay_w),
+        Argument("onsite_func_lambda", [float], optional=True,  default=1.0, doc=doc_onsite_func_lambda)
+    ]
+
+    doc_onsitefuncion = "The parameter to define the analytic function formula of the onsite smoth function"
+
+    return Argument("onsitefuncion", dict, optional=True, sub_fields=args, sub_variants=[], default={}, doc=doc_onsitefuncion)
 
 def dptb():
     doc_soc_env = "button that allow environmental correction for soc parameters, used only when soc is open, Default: False"
@@ -328,7 +344,7 @@ def model_options():
 
     doc_model_options = "The parameters to define the `nnsk` and `dptb` model."
 
-    return Argument("model_options", dict, sub_fields=[skfunction(), sknetwork(), dptb()], sub_variants=[], optional=False, doc=doc_model_options)
+    return Argument("model_options", dict, sub_fields=[skfunction(), sknetwork(), onsitefuncion(), dptb()], sub_variants=[], optional=False, doc=doc_model_options)
 
 
 def loss_options():
@@ -562,6 +578,7 @@ def normalize_run(data):
     doc_common_options = ""
     doc_structure = ""
     doc_use_correction = ""
+    doc_overlap = ""
  
     args = [
         Argument("onsite_cutoff", float, optional = False, doc = doc_onsite_cutoff),
@@ -576,12 +593,13 @@ def normalize_run(data):
         Argument("sk_file_path", str, optional = True, default="./", doc = doc_sk_file_path),
         Argument("time_symm", bool, optional = True, default=True, doc = doc_time_symm),
         Argument("soc", bool, optional=True, default=False, doc=doc_soc),
+        Argument("overlap", bool, optional=True, default=False, doc=doc_overlap),
         Argument("unit", str, optional=True, default="Hartree", doc=doc_unit)
     ]
 
     co = Argument("common_options", dict, optional=True, sub_fields=args, sub_variants=[], doc=doc_common_options)
     ini = init_model()
-    mo = Argument("model_options", dict, sub_fields=[skfunction(), sknetwork(), dptb()], sub_variants=[], optional=True, doc=doc_model_options)
+    mo = Argument("model_options", dict, sub_fields=[skfunction(), sknetwork(),onsitefuncion(), dptb()], sub_variants=[], optional=True, doc=doc_model_options)
 
     args = [
         ini,
