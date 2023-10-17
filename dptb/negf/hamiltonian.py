@@ -16,7 +16,6 @@ import logging
 import os
 import torch.optim as optim
 from dptb.utils.tools import j_must_have
-from tqdm import tqdm
 import numpy as np
 from dptb.utils.make_kpoints import kmesh_sampling
 
