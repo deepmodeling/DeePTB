@@ -143,20 +143,29 @@ class NN2HRK(object):
         assert self.structure.onsitemode == self.apihost.model_config['onsitemode']
         # TODO: 注意检查 processor 关于 env_cutoff 和 onsite_cutoff.
         predict_process = Processor(structure_list=self.structure, batchsize=1, kpoint=None, eigen_list=None, device=self.device, dtype=self.dtype, 
-                                        env_cutoff=self.apihost.model_config['env_cutoff'], onsitemode=self.apihost.model_config['onsitemode'], onsite_cutoff=self.apihost.model_config['onsite_cutoff'], sorted_onsite="st", sorted_bond="st", sorted_env="st")
+                                        env_cutoff=self.apihost.model_config['env_cutoff'], onsitemode=self.apihost.model_config['onsitemode'], onsite_cutoff=self.apihost.model_config['onsite_cutoff'], sorted_onsite=self.sorted_onsite, sorted_bond=self.sorted_bond, sorted_env=self.sorted_env)
 
         batch_bonds, batch_bond_onsites = predict_process.get_bond(sorted=self.sorted_bond)
-        coeffdict = self.apihost.model(mode='hopping')
+        coeffdict, overlap_coeffdict = self.apihost.model(mode='hopping')
         batch_hoppings = self.apihost.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, rcut=self.apihost.model_config['skfunction']['sk_cutoff'], w=self.apihost.model_config['skfunction']['sk_decay_w'])
         nn_onsiteE, onsite_coeffdict = self.apihost.model(mode='onsite')
-        batch_onsiteEs = self.apihost.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.apihost.onsite_db, nn_onsiteE=nn_onsiteE)
+        if self.apihost.overlap:
+            assert overlap_coeffdict is not None, "The overlap_coeffdict should be provided if overlap is True."
+            batch_overlaps = self.apihost.overlap_fun.get_skoverlaps(batch_bonds=batch_bonds, coeff_paras=overlap_coeffdict, rcut=self.apihost.model_config['skfunction']['sk_cutoff'], w=self.apihost.model_config['skfunction']['sk_decay_w'])
+    
+
+        if self.apihost.model_config['onsitemode'] in ['strain','NRL']:
+            batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
+        else:
+            batch_onsite_envs = None
+
+        batch_onsiteEs = self.apihost.onsite_fun.get_onsiteEs(batch_bonds_onsite=batch_bond_onsites, onsite_env=batch_onsite_envs, nn_onsite_paras=nn_onsiteE)
 
         if self.apihost.model_config['soc']:
             nn_soc_lambdas, _ = self.apihost.model(mode='soc')
             batch_soc_lambdas = self.apihost.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.apihost.soc_db, nn_soc=nn_soc_lambdas)
         
         if self.apihost.model_config['onsitemode'] == 'strain':
-            batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
             batch_onsiteVs = self.apihost.onsitestrain_fun.get_skhops(batch_bonds=batch_onsite_envs, coeff_paras=onsite_coeffdict)
             onsiteEs, hoppings, onsiteVs = batch_onsiteEs[0], batch_hoppings[0], batch_onsiteVs[0]
             onsitenvs = batch_onsite_envs[0][:,1:]
@@ -164,12 +173,17 @@ class NN2HRK(object):
             onsiteEs, hoppings, onsiteVs = batch_onsiteEs[0], batch_hoppings[0],  None
             onsitenvs = None
         
+        if self.apihost.overlap:
+            overlaps = batch_overlaps[0]
+        else:
+            overlaps = None
+
         if self.apihost.model_config["soc"]:
             soc_lambdas = batch_soc_lambdas[0]
         else:
             soc_lambdas = None
 
-        self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
+        self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, overlaps=overlaps, soc_lambdas=soc_lambdas)
         self.hamileig.get_hs_blocks(bonds_onsite=batch_bond_onsites[0][:,1:], bonds_hoppings=batch_bonds[0][:,1:], 
                                     onsite_envs=onsitenvs)
         
@@ -179,37 +193,54 @@ class NN2HRK(object):
         self.use_orthogonal_basis = self.hamileig.use_orthogonal_basis
         self.allbonds, self.hamil_blocks = self.hamileig.all_bonds, self.hamileig.hamil_blocks
         
-        if not self.hamileig.use_orthogonal_basis:
+        if self.hamileig.use_orthogonal_basis:
             self.overlap_blocks = None
         else:
             self.overlap_blocks = self.hamileig.overlap_blocks
     
     def _get_dptb_HR(self):
         predict_process = Processor(structure_list=self.structure, batchsize=1, kpoint=None, eigen_list=None, device=self.device, dtype=self.dtype, 
-                                        env_cutoff=self.apihost.model_config['env_cutoff'], onsitemode=self.apihost.model_config['onsitemode'], onsite_cutoff=self.apihost.model_config['onsite_cutoff'], sorted_onsite="st", sorted_bond="st", sorted_env="st")
+                                        env_cutoff=self.apihost.model_config['env_cutoff'], onsitemode=self.apihost.model_config['onsitemode'], onsite_cutoff=self.apihost.model_config['onsite_cutoff'], sorted_onsite=self.sorted_onsite, sorted_bond=self.sorted_bond, sorted_env=self.sorted_env)
         
         batch_bonds, batch_bond_onsites = predict_process.get_bond(sorted=self.sorted_bond)
         batch_env = predict_process.get_env(cutoff=self.apihost.model_config['env_cutoff'], sorted=self.sorted_env)
         batch_bond_hoppings, batch_hoppings, batch_bond_onsites, batch_onsiteEs, batch_soc_lambdas = self.apihost.nntb.calc(batch_bonds, batch_env)
 
         if  self.apihost.model_config['use_correction']:
-            coeffdict = self.apihost.sknet(mode='hopping')
+            coeffdict, overlap_coeffdict = self.apihost.sknet(mode='hopping')
             batch_nnsk_hoppings = self.apihost.hops_fun.get_skhops( batch_bond_hoppings, coeffdict, 
                             rcut=self.apihost.model_config["skfunction"]["sk_cutoff"], w=self.apihost.model_config["skfunction"]["sk_decay_w"])
             nnsk_onsiteE, onsite_coeffdict = self.apihost.sknet(mode='onsite')
-            batch_nnsk_onsiteEs = self.apihost.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.apihost.onsite_db, nn_onsiteE=nnsk_onsiteE)
+
+            if self.apihost.overlap:
+                assert overlap_coeffdict is not None, "The overlap_coeffdict should be provided if overlap is True."
+                batch_nnsk_overlaps = self.apihost.overlap_fun.get_skoverlaps(batch_bonds=batch_bonds, coeff_paras=overlap_coeffdict, 
+                            rcut=self.apihost.model_config['skfunction']['sk_cutoff'], w=self.apihost.model_config['skfunction']['sk_decay_w'])
+
+
+
+            if self.apihost.model_config['onsitemode'] in ['strain','NRL']:
+                batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
+            else:
+                batch_onsite_envs = None
+
+            batch_nnsk_onsiteEs = self.apihost.onsite_fun.get_onsiteEs(batch_bonds_onsite=batch_bond_onsites, onsite_env=batch_onsite_envs, nn_onsite_paras=nnsk_onsiteE)
+
             if self.apihost.model_config["soc"]:
                 nnsk_soc_lambdas, _ = self.apihost.sknet(mode="soc")
                 batch_nnsk_soc_lambdas = self.apihost.soc_fun(batch_bonds_onsite=batch_bond_onsites, soc_db=self.apihost.soc_db, nn_soc=nnsk_soc_lambdas)
 
             if self.apihost.model_config['onsitemode'] == "strain":
-                batch_onsite_envs = predict_process.get_onsitenv(cutoff=self.apihost.model_config['onsite_cutoff'], sorted=self.sorted_onsite)
                 batch_nnsk_onsiteVs = self.apihost.onsitestrain_fun.get_skhops(batch_bonds=batch_onsite_envs, coeff_paras=onsite_coeffdict)
                 onsiteVs = batch_nnsk_onsiteVs[0]
                 onsitenvs = batch_onsite_envs[0][:,1:]
             else:
                 onsiteVs = None
                 onsitenvs = None
+            if self.apihost.overlap:
+                nnsk_overlaps = batch_nnsk_overlaps[0]
+            else:
+                nnsk_overlaps = None
 
             if self.apihost.model_config["soc"] and self.apihost.model_config["dptb"]["soc_env"]:
                 nn_soc_lambdas = batch_soc_lambdas[0]
@@ -222,14 +253,15 @@ class NN2HRK(object):
                     sk_soc_lambdas = None
                 
 
-            onsiteEs, hoppings, _, _, soc_lambdas = nnsk_correction(nn_onsiteEs=batch_onsiteEs[0], nn_hoppings=batch_hoppings[0],
+            onsiteEs, hoppings, onsiteSs, overlaps, soc_lambdas = nnsk_correction(nn_onsiteEs=batch_onsiteEs[0], nn_hoppings=batch_hoppings[0],
                                     sk_onsiteEs=batch_nnsk_onsiteEs[0], sk_hoppings=batch_nnsk_hoppings[0],
-                                    sk_onsiteSs=None, sk_overlaps=None, nn_soc_lambdas=nn_soc_lambdas, sk_soc_lambdas=sk_soc_lambdas)
+                                    sk_onsiteSs=None, sk_overlaps=nnsk_overlaps, nn_soc_lambdas=nn_soc_lambdas, sk_soc_lambdas=sk_soc_lambdas)
         else:
-            onsiteEs, hoppings, soc_lambdas, onsiteVs, onsitenvs = batch_onsiteEs[0], batch_hoppings[0], None, None, None
+            assert not self.apihost.overlap, "The overlap should be False if use_correction is False."
+            onsiteEs, hoppings, soc_lambdas, onsiteVs, onsitenvs, onsiteSs, overlaps = batch_onsiteEs[0], batch_hoppings[0], None, None, None, None, None
 
         
-        self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
+        self.hamileig.update_hs_list(struct=self.structure, hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs,overlaps=overlaps, soc_lambdas=soc_lambdas)
         self.hamileig.get_hs_blocks(bonds_onsite=batch_bond_onsites[0][:,1:], bonds_hoppings=batch_bond_hoppings[0][:,1:],
                                     onsite_envs=onsitenvs)
 
@@ -239,7 +271,7 @@ class NN2HRK(object):
         self.use_orthogonal_basis = self.hamileig.use_orthogonal_basis
         self.allbonds, self.hamil_blocks = self.hamileig.all_bonds, self.hamileig.hamil_blocks
 
-        if not self.hamileig.use_orthogonal_basis:
+        if self.hamileig.use_orthogonal_basis:
             self.overlap_blocks = None
         else:
             self.overlap_blocks = self.hamileig.overlap_blocks

@@ -158,6 +158,7 @@ class BaseStruct(AbstractStructure):
         return self.__bonds__, self.__bonds_onsite__
 
     def get_env(self, env_cutoff=None, sorted='iatom-jatom'):
+        # for get env the default is turn on the smooth option.
         if self.if_env_ready:
             if env_cutoff == self.env_cutoff or env_cutoff == None:
                 return self.__projenv__
@@ -185,6 +186,7 @@ class BaseStruct(AbstractStructure):
             logging.error("onsite_cutoff:ValueError, onsite_cutoff for bond is not positive'")
             raise ValueError
         else:
+             # note: the onsite env is not smoothed. norm is |rij| not 1/|rij| or s(|rij|).
             self.__onsitenv__ = self.cal_env(env_cutoff=onsite_cutoff, sorted=sorted)
             self.onsite_cutoff = onsite_cutoff
             self.if_onsitenv_ready = True

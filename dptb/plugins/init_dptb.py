@@ -5,7 +5,7 @@ from dptb.plugins.base_plugin import Plugin
 import logging
 from dptb.nnet.nntb import NNTB
 from dptb.nnsktb.sknet import SKNet
-from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
+from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite, orbitalEs
 from dptb.nnsktb.socFunc import socFunc, loadSoc
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types, all_onsite_ene_types
 from dptb.utils.index_mapping import Index_Mapings
@@ -168,6 +168,15 @@ class InitDPTBModel(Plugin):
             raise NotImplementedError("Only support json and ckpt file as checkpoint")
 
         # -------------------------------------------------------------------------------------------
+        if onsitemode == 'NRL':
+            onsite_func_cutoff = options['onsitefuncion']['onsite_func_cutoff']
+            onsite_func_decay_w = options['onsitefuncion']['onsite_func_decay_w']
+            onsite_func_lambda = options['onsitefuncion']['onsite_func_lambda']
+        
+        overlap = options.get('overlap',False)
+        #-----------------------------------------------------------------------------------------------------------
+
+        # -------------------------------------------------------------------------------------------
         if modeltype == "ckpt":
             ckpt_list = [torch.load(ckpt) for ckpt in checkpoint]
             model_config = ckpt_list[0]["model_config"]
@@ -191,7 +200,7 @@ class InitDPTBModel(Plugin):
 
         elif modeltype == "json":
             # 只用一个文件包含所有的键积分参数：
-            json_model_types = ["onsite", "hopping","soc"]
+            json_model_types = ["onsite", "hopping", "overlap", "soc"]
             assert len(checkpoint) ==1
             json_dict = j_loader(checkpoint[0])
             assert 'onsite'  in json_dict, "onsite paras is not in the json file, or key err, check the key onsite in json fle"
@@ -207,6 +216,12 @@ class InitDPTBModel(Plugin):
                         json_model_i[itype] = torch.tensor(json_dict[ikey][itype],dtype=dtype,device=device)
                     json_model_list[ikey] = json_model_i
             
+            assert 'onsite' in json_model_list and 'hopping' in json_model_list, "onsite and hopping must be in json_model_list"
+            if 'overlap' in json_model_list:
+                for ikey in json_model_list['hopping']:
+                    json_model_list['hopping'][ikey] = torch.cat((json_model_list['hopping'][ikey],json_model_list['overlap'][ikey]),dim=0)
+                json_model_list.pop('overlap')
+                
             num_hopping_hidden = 1
             num_onsite_hidden = 1
             num_soc_hidden = 1
@@ -219,15 +234,26 @@ class InitDPTBModel(Plugin):
         onsite_strain_index_map, onsite_strain_num, onsite_index_map, onsite_num = \
                 IndMap.Onsite_Ind_Mapings(onsitemode, atomtype=atomtype)
 
-        onsite_fun = onsiteFunc
+        # onsite_fun = onsiteFunc
         hops_fun = SKintHops(mode='hopping',functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m)
+        if overlap:
+            overlap_fun = SKintHops(mode='hopping',functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m,overlap=overlap)
         if soc:
             soc_fun = socFunc
         if onsitemode == 'strain':
             onsitestrain_fun = SKintHops(mode='onsite', functype=skformula,proj_atom_anglr_m=proj_atom_anglr_m, atomtype=atomtype)
+            onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype='none',unit=unit)
+        elif onsitemode == 'NRL':
+            onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype=onsitemode,unit=unit,
+                                   onsite_func_cutoff=onsite_func_cutoff,onsite_func_decay_w=onsite_func_decay_w,onsite_func_lambda=onsite_func_lambda)
+        else:
+            onsite_fun = orbitalEs(proj_atom_anglr_m=proj_atom_anglr_m,atomtype=atomtype,functype=onsitemode,unit=unit)
 
         _, reducted_skint_types, _ = all_skint_types(bond_index_map)
-        hopping_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras}
+        if overlap:
+            hopping_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras, "nout_overlap": overlap_fun.num_paras}
+        else:
+            hopping_neurons = {"nhidden": num_hopping_hidden,  "nout": hops_fun.num_paras}
 
         _, reduced_onsiteE_types, onsiteE_ind_dict = all_onsite_ene_types(onsite_index_map)
         if onsitemode == 'strain':
@@ -235,7 +261,7 @@ class InitDPTBModel(Plugin):
             _, reducted_onsiteint_types, _ = all_onsite_intgrl_types(onsite_strain_index_map)
             onsite_types = reducted_onsiteint_types
         else:
-            onsite_neurons = {"nhidden":num_onsite_hidden}
+            onsite_neurons = {"nhidden":num_onsite_hidden,"nout":onsite_fun.num_paras}
             onsite_types = reduced_onsiteE_types
 
         if soc:
@@ -255,7 +281,8 @@ class InitDPTBModel(Plugin):
                                    device=device,
                                    dtype=dtype,
                                    onsitemode=onsitemode,
-                                   onsite_index_dict=onsiteE_ind_dict
+                                   onsite_index_dict=onsiteE_ind_dict,
+                                   overlap=overlap
                                    )
 
         if modeltype == 'ckpt':
@@ -272,7 +299,10 @@ class InitDPTBModel(Plugin):
 
         self.host.onsite_fun = onsite_fun
         self.host.hops_fun = hops_fun
-        self.host.onsite_db = loadOnsite(onsite_index_map, unit=unit)
+        self.host.overlap = overlap
+        # self.host.onsite_db = loadOnsite(onsite_index_map, unit=unit)
+        if overlap:
+            self.host.overlap_fun = overlap_fun
         if onsitemode == 'strain':
             self.host.onsitestrain_fun = onsitestrain_fun
         if soc:

@@ -45,6 +45,7 @@ class DPTBTrainer(Trainer):
         self.onsitemode = common_options.get('onsitemode','none')
         self.atomtype = get_uniq_symbol(common_options["atomtype"])
         self.soc = common_options['soc']
+        self.overlap = common_options['overlap']
         self.proj_atomtype = get_uniq_symbol(list(self.proj_atom_anglr_m.keys()))
 
         self.band_min = loss_options.get('band_min', 0)
@@ -141,15 +142,20 @@ class DPTBTrainer(Trainer):
 
         if self.run_opt.get("use_correction", False):
             # get sk param (dptb-0)
-            coeffdict = self.sknet(mode='hopping')
+            coeffdict, overlap_coeffdict = self.sknet(mode='hopping')
             nnsk_onsiteE, onsite_coeffdict = self.sknet(mode='onsite')
 
             # get sk param (of each bond or onsite, dptb-0)
             batch_nnsk_hoppings = self.hops_fun.get_skhops(
-                batch_bond_hoppings, coeffdict, rcut=self.model_options["skfunction"]["sk_cutoff"],
+                batch_bonds=batch_bond_hoppings, coeff_paras=coeffdict, rcut=self.model_options["skfunction"]["sk_cutoff"],
                 w=self.model_options["skfunction"]["sk_decay_w"])
             
-            batch_nnsk_onsiteEs = self.onsite_fun(batch_bonds_onsite=batch_bond_onsites, onsite_db=self.onsite_db, nn_onsiteE=nnsk_onsiteE)
+            if self.overlap:
+                batch_nnsk_overlaps = self.overlap_fun.get_skoverlaps(
+                    batch_bonds=batch_bond_hoppings, coeff_paras=overlap_coeffdict, rcut=self.model_options["skfunction"]["sk_cutoff"],
+                    w=self.model_options["skfunction"]["sk_decay_w"])
+                
+            batch_nnsk_onsiteEs = self.onsite_fun.get_onsiteEs(batch_bonds_onsite=batch_bond_onsites, onsite_env=batch_onsitenvs, nn_onsite_paras=nnsk_onsiteE)
             
             if self.onsitemode == "strain":
                 batch_nnsk_onsiteVs = self.onsitestrain_fun.get_skhops(batch_bonds=batch_onsitenvs, coeff_paras=onsite_coeffdict)
@@ -168,6 +174,10 @@ class DPTBTrainer(Trainer):
             if not self.run_opt.get("use_correction", False):
                 onsiteEs, hoppings = batch_onsiteEs[ii], batch_hoppings[ii]
                 soc_lambdas = None
+                overlaps = None
+                if self.overlap:
+                    log.error(msg="ValueError: Overlap mode can only be used with nnsk correction.")
+                    raise ValueError
                 if self.soc:
                     log.error(msg="ValueError: Soc mode can only be used with nnsk correction.")
                     raise ValueError
@@ -181,11 +191,14 @@ class DPTBTrainer(Trainer):
                         sk_soc_lambdas = batch_nnsk_soc_lambdas[ii]
                     else:
                         sk_soc_lambdas = None
-
-                onsiteEs, hoppings, _, _, soc_lambdas = nnsk_correction(
+                if self.overlap:
+                    nnsk_overlaps = batch_nnsk_overlaps[ii]
+                else:
+                    nnsk_overlaps = None
+                onsiteEs, hoppings, onsiteSs, overlaps, soc_lambdas = nnsk_correction(
                     nn_onsiteEs=batch_onsiteEs[ii], nn_hoppings=batch_hoppings[ii],
                     sk_onsiteEs=batch_nnsk_onsiteEs[ii], sk_hoppings=batch_nnsk_hoppings[ii],
-                    sk_onsiteSs=None, sk_overlaps=None, 
+                    sk_onsiteSs=None, sk_overlaps=nnsk_overlaps, 
                     nn_soc_lambdas=nn_soc_lambdas, 
                     sk_soc_lambdas=sk_soc_lambdas
                     )
@@ -198,7 +211,7 @@ class DPTBTrainer(Trainer):
             bond_onsites = batch_bond_onsites[ii][:,1:]
             bond_hoppings = batch_bond_hoppings[ii][:,1:]
 
-            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, soc_lambdas=soc_lambdas)
+            self.hamileig.update_hs_list(struct=structs[ii], hoppings=hoppings, onsiteEs=onsiteEs, onsiteVs=onsiteVs, overlaps=overlaps, soc_lambdas=soc_lambdas)
             self.hamileig.get_hs_blocks(bonds_onsite=bond_onsites,
                                         bonds_hoppings=bond_hoppings,
                                         onsite_envs=onsitenvs)
