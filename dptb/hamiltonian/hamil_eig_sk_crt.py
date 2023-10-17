@@ -56,6 +56,10 @@ class HamilEig(RotationSK):
             self.onsiteSs = onsiteSs
             self.use_orthogonal_basis = False
         
+        if onsiteSs is not None:
+            log.info(msg='The onsiteSs is not None, But even for non-orthogonal basis, the onsite S matrix part is still identity.')
+            log.info(msg='Therefore the onsiteSs will not be used !!')
+            
         if soc_lambdas is None:
             self.soc = False
         else:
@@ -149,7 +153,10 @@ class HamilEig(RotationSK):
 
             sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
             if not self.use_orthogonal_basis:
-                sub_over_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
+                # For non - orthogonal basis, the overlap matrix is needed. 
+                # but for the onsite, the overlap matrix is identity.
+                sub_over_block = th.eye(self.__struct__.proj_atomtype_norbs[iatype], dtype=self.dtype, device=self.device)
+
             
             ist = 0
             for ish in self.__struct__.proj_atom_anglr_m[iatype]:     # ['s','p',..]
@@ -159,8 +166,9 @@ class HamilEig(RotationSK):
 
                 indx = self.__struct__.onsite_index_map[iatype][ish] # change onsite index map from {N:{s:}} to {N:{ss:, sp:}}
                 sub_hamil_block[ist:ist+norbi, ist:ist+norbi] = th.eye(norbi, dtype=self.dtype, device=self.device) * self.onsiteEs[ib][indx]
-                if not self.use_orthogonal_basis:
-                    sub_over_block[ist:ist+norbi, ist:ist+norbi] = th.eye(norbi, dtype=self.dtype, device=self.device) * self.onsiteSs[ib][indx]
+                # For non - orthogonal basis, the onsite overlap is identity, we don't need to calculate it.
+                #if not self.use_orthogonal_basis:
+                #    sub_over_block[ist:ist+norbi, ist:ist+norbi] = th.eye(norbi, dtype=self.dtype, device=self.device) * self.onsiteSs[ib][indx]
                 ist = ist + norbi
 
             onsiteH_blocks.append(sub_hamil_block)

@@ -24,6 +24,20 @@ def test_nnskhost(root_directory):
     nnskapi.register_plugin(InitSKModel())
     nnskapi.build()
 
+def test_nnsk_nrl_json(root_directory):
+    checkfile = f'{root_directory}/examples/NRL-TB/silicon/ckpt/nrl_ckpt.json'
+    config=f'{root_directory}/examples/NRL-TB/silicon/input_nrl.json'
+
+    nnskapi = NNSKHost(checkpoint=checkfile, config=config)
+    nnskapi.register_plugin(InitSKModel())
+    nnskapi.build()
+
+def test_nnsk_nrl_pth(root_directory):
+    checkfile = f'{root_directory}/examples/NRL-TB/silicon/ckpt/nrl_ckpt.pth'
+    nnskapi = NNSKHost(checkpoint=checkfile)
+    nnskapi.register_plugin(InitSKModel())
+    nnskapi.build()
+
 
 def test_nnsk2HRK(root_directory):
     checkfile = f'{root_directory}/dptb/tests/data/hBN/checkpoint/best_nnsk.pth'
@@ -31,6 +45,14 @@ def test_nnsk2HRK(root_directory):
     nnskapi.register_plugin(InitSKModel())
     nnskapi.build()
     nnHrk = NN2HRK(apihost=nnskapi, mode='nnsk')
+
+def test_nnsk2HRK_pth(root_directory):
+    checkfile = f'{root_directory}/examples/NRL-TB/silicon/ckpt/nrl_ckpt.pth'
+    nnskapi = NNSKHost(checkpoint=checkfile)
+    nnskapi.register_plugin(InitSKModel())
+    nnskapi.build()
+    nnHrk = NN2HRK(apihost=nnskapi, mode='nnsk')
+
 
 def test_dptb2HRK(root_directory):
     checkfile = f'{root_directory}/dptb/tests/data/hBN/checkpoint/best_dptb.pth'
@@ -41,13 +63,38 @@ def test_dptb2HRK(root_directory):
     nnHrk = NN2HRK(apihost=dptbapi, mode='dptb')
 
     
-
 def test_run_nnsk(root_directory):
     run(
         INPUT=f'{root_directory}/dptb/tests/data/post_nnsk.json',
         model_ckpt=None,
         output=f"{root_directory}/dptb/tests/data/postrun",
         init_model=f"{root_directory}/dptb/tests/data/hBN/checkpoint/best_nnsk.pth",
+        run_sk=True,
+        structure=None,
+        log_level=2,
+        log_path=None,
+        use_correction=None
+    )
+
+def test_run_band_nnsk_nrl(root_directory):
+    run(
+        INPUT=f'{root_directory}/dptb/tests/data/nrl/band_pthckpt.json',
+        model_ckpt=None,
+        output=f"{root_directory}/dptb/tests/data/postrun",
+        init_model=f"{root_directory}/examples/NRL-TB/silicon/ckpt/nrl_ckpt.pth",
+        run_sk=True,
+        structure=None,
+        log_level=2,
+        log_path=None,
+        use_correction=None
+    )
+
+def test_run_band_nnsk_nrl_json(root_directory):
+    run(
+        INPUT=f'{root_directory}/dptb/tests/data/nrl/band_jsonckpt.json',
+        model_ckpt=None,
+        output=f"{root_directory}/dptb/tests/data/postrun",
+        init_model=f"{root_directory}/examples/NRL-TB/silicon/ckpt/nrl_ckpt.json",
         run_sk=True,
         structure=None,
         log_level=2,

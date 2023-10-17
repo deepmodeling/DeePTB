@@ -5,7 +5,6 @@ from dptb.utils.constants import dtype_dict
 from dptb.structure.abstract_stracture import AbstractStructure
 
 class Processor(object):
-    # TODO: 现在strain的env 是通过get_env 获得，但是在dptb中的env是有另外的含义。是否已经考虑。
     def __init__(self, structure_list: List[AbstractStructure], kpoint, eigen_list, batchsize: int, wannier_list = None, env_cutoff: float = 3.0, onsitemode=None, 
     onsite_cutoff=None, sorted_bond=None, sorted_onsite=None, sorted_env=None, bandinfo=None, device='cpu', dtype=torch.float32, if_shuffle=True):
         super(Processor, self).__init__()
@@ -69,10 +68,19 @@ class Processor(object):
             self.__struct_unsampled__ = self.__struct_unsampled__[self.batchsize:]
     
     def get_env(self, cutoff=None, sorted=None):
-        # TODO: the sorted mode should be explained here, in which case, we should use.
         '''It takes the environment of each structure in the workspace and concatenates them into one big
         environment
         
+        Parameters
+        ----------
+        cutoff float : the cutoff radius for the onsite environment.
+        sorted str : the sorted mode for the onsite environment.
+            None: not sorted, return torch tensors.
+            'st': sorted by structure, return a dictionary of tensors. eg. {0: tensor, 1: tensor, ...}
+            'itype-jtype': sorted by itype and jtype, return a dictionary of tensors. eg. {'C-B': tensor, ...}
+        
+        for env sorted="st".
+
         Returns
         -------
             A dictionary of the environment for ent type for all the strucutes in  the works sapce.
@@ -125,10 +133,18 @@ class Processor(object):
         return batch_env # {env_type: (f, itype, i, jtype, j, jtype, Rx, Ry, Rz, s(r), rx, ry, rz)} or [(f, itype, i, jtype, j, jtype, Rx, Ry, Rz, s(r), rx, ry, rz)]
 
     def get_onsitenv(self, cutoff=None, sorted=None):
-        # TODO: the sorted mode should be explained here, in which case, we should use.
         '''It takes the environment of each structure in the workspace and concatenates them into one big
         environment
         
+        Parameters
+        ----------
+        cutoff float : the cutoff radius for the onsite environment.
+        sorted str : the sorted mode for the onsite environment.
+            None: not sorted, return torch tensors.
+            'st': sorted by structure, return a dictionary of tensors. eg. {0: tensor, 1: tensor, ...}
+            'itype-jtype': sorted by itype and jtype, return a dictionary of tensors. eg. {'C-B': tensor, ...}
+        
+        for onsiteenv sorted_env="itype-jtype".
         Returns
         -------
             A dictionary of the environment for ent type for all the strucutes in  the works sapce.
@@ -141,7 +157,7 @@ class Processor(object):
         if cutoff is None:
             cutoff = self.onsite_cutoff
         else:
-            assert isinstance(cutoff, float)
+            assert isinstance(cutoff, float), "The cutoff should be a float number."
         
         if sorted is None:
             batch_env = []
@@ -183,6 +199,14 @@ class Processor(object):
     def get_bond(self, sorted=None):
         '''It takes the bonds of each structure in the workspace and concatenates them into one big dictionary.
         
+        Parameters
+        ----------
+        sorted str : the sorted mode for the onsite environment.
+            None: not sorted, return torch tensors.
+            'st': sorted by structure, return a dictionary of tensors. eg. {0: tensor, 1: tensor, ...}
+        
+        For bond sorted="st". 
+
         Returns
         -------
             A Tensor of the bonds lists for bond type for all the strucutes in the works space.
@@ -267,7 +291,7 @@ class Processor(object):
             self.shuffle()
             bond, bond_onsite = self.get_bond(self.sorted_bond)
 
-            if not self.onsitemode == 'strain':
+            if not self.onsitemode in ['strain','NRL']:  # for NRL - TB we also need the onsite env.
                 data = (bond, bond_onsite, self.get_env(sorted=self.sorted_env), None,  self.__struct_workspace__,
                     self.kpoint, self.eigen_list[self.__struct_idx_workspace__].astype(float), self.wannier_list[self.__struct_idx_workspace__])
             else:

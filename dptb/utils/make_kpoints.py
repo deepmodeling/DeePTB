@@ -207,9 +207,11 @@ def abacus_kpath(structase, kpath):
     kpath_list = np.concatenate(kpath_list,axis=0)
 
     #rev_latt = 2*np.pi*np.mat(ase_struct.cell).I
-    rev_latt = np.mat(structase.cell).I.T
+    # rev_latt =(np.matrix(structase.cell).I.T)
+    rev_latt =  np.linalg.inv(np.array(structase.cell).T)
     kdiff = kpoints[1:] - kpoints[:-1]
-    kdiff_cart = np.asarray(kdiff * rev_latt)
+    # kdiff_cart = np.asarray(kdiff * rev_latt)
+    kdiff_cart = np.dot(kdiff, rev_latt)
     kdist  = np.linalg.norm(kdiff_cart,axis=1)
     
     kdist_list = []
@@ -229,6 +231,7 @@ def abacus_kpath(structase, kpath):
     high_sym_kpoints = np.asarray(high_sym_kpoints)
 
     return kpath_list, kdist_list, high_sym_kpoints
+
 
 
 def ase_kpath(structase, pathstr:str, total_nkpoints:int):

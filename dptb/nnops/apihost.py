@@ -5,7 +5,6 @@ from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.utils.argcheck import normalize, host_normalize
 from dptb.utils.constants import dtype_dict
-from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 from dptb.plugins.base_plugin import PluginUser
 
 log = logging.getLogger(__name__)
@@ -31,6 +30,7 @@ class DPTBHost(PluginUser):
     def build(self):
         if not 'soc' in self.model_config.keys():
             self.model_config.update({'soc':False})
+        self.overlap =  self.model_config.get('overlap', False)
         self.call_plugins(queue_name='disposable', time=0, mode='init_model', **self.model_config)
         self.model_config.update({'use_correction':self.use_correction})
 
@@ -46,7 +46,12 @@ class NNSKHost(PluginUser):
                 raise RuntimeError
             
             # jdata = j_loader(checkpoint)
-            jdata = host_normalize(j_loader(config))
+            if isinstance(config, dict):
+                jdata = config
+            elif isinstance(config, str):
+                jdata = host_normalize(j_loader(config))
+            else:
+                raise RuntimeError("config must be a dict or a str.")
             #self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
 
             common_options = j_must_have(jdata, "common_options")
@@ -69,9 +74,12 @@ class NNSKHost(PluginUser):
                     log.error(msg="config is not set when init from json file.")
                     raise RuntimeError
             
-                # jdata = j_loader(checkpoint)
-                jdata = host_normalize(j_loader(config))
-                #self.call_plugins(queue_name='disposable', time=0, **self.model_options, **self.common_options, **self.data_options, **self.run_opt)
+                if isinstance(config, dict):
+                    jdata = config
+                elif isinstance(config, str):
+                    jdata = host_normalize(j_loader(config))
+                else:
+                    raise RuntimeError("config must be a dict or a str.")
 
                 common_options = j_must_have(jdata, "common_options")
                 model_options = j_must_have(jdata, "model_options")
@@ -93,7 +101,10 @@ class NNSKHost(PluginUser):
             else:
                 log.error(msg="Error! the model file should be one or one list of json/pth file.")
 
-        model_config["dtype"] = dtype_dict[model_config["dtype"]]
+        if isinstance(model_config["dtype"], str):
+            model_config["dtype"] = dtype_dict[model_config["dtype"]]
+        else:
+            model_config["dtype"] = model_config["dtype"]
         self.__init_params(**model_config)
 
     def __init_params(self, **model_config):
@@ -102,6 +113,7 @@ class NNSKHost(PluginUser):
     def build(self):
         if not 'soc' in self.model_config.keys():
             self.model_config.update({'soc':False})
+        self.overlap =  self.model_config.get('overlap', False)
         # ---------------------------       init network model        -----------------------
         self.call_plugins(queue_name='disposable', time=0, mode='init_model', **self.model_config)
         

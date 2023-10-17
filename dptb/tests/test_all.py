@@ -14,6 +14,11 @@ INPUT_dptb_test = os.path.join(Path(os.path.abspath(__file__)).parent, "data/inp
 
 test_data_path = os.path.join(Path(os.path.abspath(__file__)).parent, "data/")
 
+INPUT_nnsk_nrl = os.path.join(Path(os.path.abspath(__file__)).parent, "data/nrl/input_nrl.json")
+INPUT_nnsk_nrl_test = os.path.join(Path(os.path.abspath(__file__)).parent, "data/nrl/input_nrl_test.json")
+ckpt_nnsk_nrl_path = os.path.join(Path(os.path.abspath(__file__)).parent, "../../examples/NRL-TB/silicon/ckpt")
+
+
 log = logging.getLogger(__name__)
 
 def test_train():
@@ -89,6 +94,35 @@ def test_train_sk_init_model():
         use_correction=False,
     )
 
+def test_train_sk_init_model_nrl():
+    train(
+        INPUT=INPUT_nnsk_nrl,
+        init_model=ckpt_nnsk_nrl_path+"/nrl_ckpt.pth",
+        restart=None,
+        freeze=False,
+        train_soc=False,
+        output=test_data_path+"/test_all",
+        log_level=2,
+        log_path=None,
+        train_sk=True,
+        use_correction=False,
+    )
+
+def test_train_sk_init_model_nrl_json():
+    train(
+        INPUT=INPUT_nnsk_nrl,
+        init_model=ckpt_nnsk_nrl_path+"/nrl_ckpt.json",
+        restart=None,
+        freeze=False,
+        train_soc=False,
+        output=test_data_path+"/test_all",
+        log_level=2,
+        log_path=None,
+        train_sk=True,
+        use_correction=False,
+    )
+    
+
 def test_train_sk_restart_model():
     train(
         INPUT=INPUT,
@@ -102,6 +136,21 @@ def test_train_sk_restart_model():
         train_sk=True,
         use_correction=False,
     )
+
+def test_train_sk_restart_model_nrl():
+    train(
+        INPUT=INPUT_nnsk_nrl,
+        init_model=None,
+        restart=ckpt_nnsk_nrl_path+"/nrl_ckpt.pth",
+        freeze=False,
+        train_soc=False,
+        output=test_data_path+"/test_all",
+        log_level=2,
+        log_path=None,
+        train_sk=True,
+        use_correction=False,
+    )
+
 
 def test_train_crt():
 
@@ -117,6 +166,37 @@ def test_train_crt():
         train_sk=False,
         use_correction=test_data_path+"/hBN/checkpoint/best_nnsk.pth",
     )
+
+def test_train_crt_nrl():
+
+    train(
+        INPUT=INPUT_nnsk_nrl,
+        init_model=None,
+        restart=None,
+        freeze=False,
+        train_soc=False,
+        output=test_data_path+"/test_all",
+        log_level=2,
+        log_path=None,
+        train_sk=False,
+        use_correction=ckpt_nnsk_nrl_path+"/nrl_ckpt.pth",
+    )
+
+def test_train_crt_nrl_json():
+
+    train(
+        INPUT=INPUT_nnsk_nrl,
+        init_model=None,
+        restart=None,
+        freeze=False,
+        train_soc=False,
+        output=test_data_path+"/test_all",
+        log_level=2,
+        log_path=None,
+        train_sk=False,
+        use_correction=ckpt_nnsk_nrl_path+"/nrl_ckpt.json",
+    )
+
 
 def test_train_init_model_crt():
     train(
@@ -152,6 +232,28 @@ def test_tester_nnsk():
     _test(
         INPUT=INPUT_nnsk_test,
         init_model=test_data_path+"/hBN/checkpoint/best_nnsk.pth",
+        output=test_data_path+"/test_all",
+        log_level=2,
+        log_path=None,
+        test_sk=True,
+        use_correction=False,
+    )
+
+def test_tester_nnsk_nrl():
+    _test(
+        INPUT=INPUT_nnsk_nrl_test,
+        init_model=ckpt_nnsk_nrl_path+"/nrl_ckpt.pth",
+        output=test_data_path+"/test_all",
+        log_level=2,
+        log_path=None,
+        test_sk=True,
+        use_correction=False,
+    )
+
+def test_tester_nnsk_nrl_json():
+    _test(
+        INPUT=INPUT_nnsk_nrl_test,
+        init_model=ckpt_nnsk_nrl_path+"/nrl_ckpt.json",
         output=test_data_path+"/test_all",
         log_level=2,
         log_path=None,
