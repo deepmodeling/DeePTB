@@ -38,7 +38,7 @@ The **bandinfo.json** file looks like this:
 dptb config <generated input config path> [-full]
 ```
 The template config file will be generated at the path `./input.json`.
-For the full document about the input parameters, we refer to the detail [document](https://deeptb-doc.readthedocs.io/en/latest/index.html). For now, we only need to consider a few vital parameters that can setup the training:
+For the full document about the input parameters, we refer to the detail [document](https://deeptb.readthedocs.io/en/latest). For now, we only need to consider a few vital parameters that can setup the training:
 
 ```json
 "common_options": {
@@ -137,4 +137,4 @@ Please see the template config file in `examples/hBN/run/`, and the running comm
 dptb run [-sk] <run config> [[-o] <output directory>] -i <nnsk/dptb checkpoint path> [[-crt] <nnsk checkpoint path>]
 ```
 
-For detailed documents, please see our [Document page](https://deeptb-doc.readthedocs.io/en/latest/index.html).
+For detailed documents, please see our [Document page](https://deeptb.readthedocs.io/en/latest).

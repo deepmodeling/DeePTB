@@ -24,19 +24,18 @@ These capabilities make **DeePTB** adaptable to various research scenarios, exte
    :maxdepth: 2
    :caption: Advanced
 
-   advanced/install
-   advanced/scf/index
-   advanced/pp_orb
-   advanced/opt
-   advanced/md
-   advanced/acceleration/index
+   advanced/dptb_env
+   advanced/soc
+   advanced/nrl_tb
    advanced/elec_properties/index
-   advanced/interface/index
    advanced/input_files/index
+   advanced/interface/index
+   advanced/acceleration/index
+
 
 .. toctree::
    :maxdepth: 2
-   :caption: Citing ABACUS
+   :caption: Citing DeePTB
 
    CITATIONS
 
