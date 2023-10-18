@@ -5,6 +5,6 @@ Detailed Introduction of the Input Files
 .. toctree::
     :maxdepth: 1
 
-    input-main
-    stru
-    kpt
+    input-train
+    input-test
+    input-run
