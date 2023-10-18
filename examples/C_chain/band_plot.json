@@ -1,0 +1,37 @@
+{
+    "common_options": {
+        "onsitemode": "none",
+        "onsite_cutoff": 2.0,
+        "bond_cutoff": 2.0,
+        "env_cutoff": 2.0,
+        "atomtype": ["C"],
+        "proj_atom_neles": {"C": 1},
+        "proj_atom_anglr_m": {
+            "C": ["2s"]
+        }    
+    },
+    "model_options": {
+        "sknetwork": {
+            "sk_hop_nhidden": 1,
+            "sk_onsite_nhidden": 1
+        },
+        "skfunction": {
+            "sk_cutoff": 1.6,
+            "sk_decay_w": 0.3,
+            "skformula": "powerlaw"
+        }
+    },
+    "structure":"./C_chain.vasp",
+    "task_options": {
+        "task": "band",
+        "kline_type":"abacus",
+        "kpath":[[0.0,   0.0,   0.5,   50],   
+                 [0.0,   0.0,   0.0,   50],               
+                 [0.0,   0.0,  -0.5,   1]
+                ],
+        "klabels":["X","G","X"],
+        "E_fermi":-13.676863670349121,
+        "emin":-2,
+        "emax":2 
+       }
+}
