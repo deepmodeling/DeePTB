@@ -47,7 +47,9 @@ In the following, we will use Silicon as an example to show the full training pr
 ## Example: Bulk Silicon
 Bulk silicon has diamond structure at room temperature and pressure. Due to its widespread applications in the semiconductor industry, it has been a significant important element in modern society. Here we provide an example of building a silicon **DeePTB** model. By following this instruction step-by-step, you will be introduced to the high-level functionalities of **DeePTB**, which can provide a model bypass empirical TB, to achieve *ab initio* accuracy.
 
-The whole training procedure can be summarized as below:
+This example can be seen in the `example/silicon` folder. The whole training procedure can be summarized as below:
+
+
 
 This procedure contains the full steps to training an environmentally corrected **DeePTB** model. The converged model can predict the electronic structure of both perfect crystals and the configurations with atomic distortion, while can generalize to structures with more atoms. For convenience, we provide all the training checkpoints in `ckpt`:
 ```bash
