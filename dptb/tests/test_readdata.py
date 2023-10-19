@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 from ase.io import read
 from ase.io.trajectory import Trajectory
+import os
 
 @pytest.fixture(scope='session', autouse=True)
 def root_directory(request):
@@ -62,10 +63,11 @@ def read2bin(root_directory):
     kpoints = np.loadtxt(in_dir + '/' + kpoints_file)
 
     trajstrs = read(in_dir + '/' + struct_file, format='vasp',index=':')
-    traj = Trajectory(in_dir + '/' + 'xdat.traj',mode='w')
+    traj = Trajectory(in_dir + '/' + 'xdat2.traj',mode='w')
     for i  in range(1):
         traj.write(atoms=trajstrs[i])  
     traj.close()
 
-    np.save(in_dir + '/' + 'eigs.npy',eigvaules)
-    np.save(in_dir + '/' + 'kpoints.npy',kpoints)
+    #np.save(in_dir + '/' + 'eigs.npy',eigvaules)
+    #np.save(in_dir + '/' + 'kpoints.npy',kpoints)
+    #os.remove(in_dir + '/' + 'xdat.traj')
