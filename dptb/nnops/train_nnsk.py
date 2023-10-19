@@ -155,7 +155,6 @@ class NNSKTrainer(Trainer):
         if self.soc:    
             self.soc_coeff = nn_soc_lambdas
 
-        
         # constructing hamiltonians and decomposition
         pred = []
         label = []
@@ -163,15 +162,11 @@ class NNSKTrainer(Trainer):
             l = []
             if self.onsitemode == 'strain':
                 onsiteEs, onsiteVs, hoppings = batch_onsiteEs[ii], batch_onsiteVs[ii], batch_hoppings[ii]
-                # TODO: 这里的numpy 是否要改为tensor 方便之后为了GPU的加速。
-                # onsitenvs = np.asarray(batch_onsitenvs[ii][:,1:])
                 onsitenvs = batch_onsitenvs[ii][:,1:]
-                # call hamiltonian block
             else:
                 onsiteEs, hoppings = batch_onsiteEs[ii], batch_hoppings[ii]
                 onsiteVs = None
                 onsitenvs = None
-                # call hamiltonian block
             if self.overlap:
                 overlaps = batch_overlaps[ii]
             else:
@@ -182,8 +177,6 @@ class NNSKTrainer(Trainer):
             else:
                 soc_lambdas = None
 
-            # bond_onsites = np.asarray(batch_bond_onsites[ii][:,1:])
-            # bond_hoppings = np.asarray(batch_bonds[ii][:,1:])
             bond_onsites = batch_bond_onsites[ii][:,1:]
             bond_hoppings = batch_bonds[ii][:,1:]
 
@@ -192,8 +185,6 @@ class NNSKTrainer(Trainer):
                                         bonds_hoppings=bond_hoppings, 
                                         onsite_envs=onsitenvs)
             if decompose:
-                #if self.run_opt["freeze"]:
-                #    kpoints = np.array([[0,0,0]])
                 eigenvalues_ii, _ = self.hamileig.Eigenvalues(kpoints=kpoints, time_symm=self.common_options["time_symm"], unit=self.common_options["unit"])
                 pred.append(eigenvalues_ii)
             else:
@@ -208,9 +199,6 @@ class NNSKTrainer(Trainer):
                 label.append(l)
 
         if decompose:
-            #if self.run_opt["freeze"]:
-            #    label = torch.from_numpy(eigenvalues.astype(float))[:,[0],:].float()
-            #else:
             label = torch.from_numpy(eigenvalues.astype(float)).float()
             pred = torch.stack(pred)
         return pred, label
@@ -280,8 +268,6 @@ class NNSKTrainer(Trainer):
                     eigenvalues_pred, eigenvalues_lbl = self.calc(*data)
 
                     total_loss += self.validation_lossfunc(eig_pred=eigenvalues_pred,eig_label=eigenvalues_lbl,**self.validation_loss_options)
-                    #total_loss += loss_type1(self.criterion, eigenvalues_pred, eigenvalues_lbl, num_el, num_kp,
-                    #                         self.band_min, self.band_max)
                     if kwargs.get('quick'):
                         break
         with torch.enable_grad():

@@ -247,12 +247,12 @@ class lossfunction(object):
         return loss
 
     def block_l2(self, pred, label, **kwargs):
-        """wannier fixing loss function, just a deviation function of two list
+        """Hamiltonian block as training labels, such as wannier TB hamiltonians. The loss the is defined as deviation function of two list
         of tensors.
 
         Args:
             pred (list(torch.Tensor)): predicted hamiltonian blocks
-            label (list(torch.Tensor)): wannier hamiltonian blocks
+            label (list(torch.Tensor)): labeled hamiltonian blocks e.g. Wannier TB hamiltonians
         """
         
         assert len(pred) == len(label)
@@ -261,6 +261,7 @@ class lossfunction(object):
         for st in range(len(pred)):
             for p, l in zip(pred[st], label[st]):
                 rd = np.random.randint(low=0, high=10)
+                # only calculate loss for 70% of the blocks
                 if rd >= 3:
                     loss += self.criterion(l, p)
                     count += 1
