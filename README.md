@@ -1,5 +1,6 @@
 
-<p align='center' ><font size='70'>DeePTB</font></p>
+
+<h1 align="center" style="font-size350%;">DeePTB</h1>
 
 <br>
 
