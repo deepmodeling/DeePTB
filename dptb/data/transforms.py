@@ -5,7 +5,7 @@ import torch
 
 import ase.data
 
-from nequip.data import AtomicData, AtomicDataDict
+from dptb.data import AtomicData, AtomicDataDict
 
 
 class TypeMapper:

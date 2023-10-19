@@ -21,7 +21,7 @@ import e3nn.o3
 
 from . import AtomicDataDict
 from ._util import _TORCH_INTEGER_DTYPES
-from nequip.utils.torch_geometric import Data
+from torch_geometric.data import Data
 
 # A type representing ASE-style periodic boundary condtions, which can be partial (the tuple case)
 PBC = Union[bool, Tuple[bool, bool, bool]]

@@ -11,20 +11,20 @@ import torch
 
 from torch_runstats.scatter import scatter_std, scatter_mean
 
-from nequip.utils.torch_geometric import Batch, Dataset
-from nequip.utils.torch_geometric.utils import download_url, extract_zip
+from torch_geometric.data import Batch, Dataset
+from dptb.utils.tools import download_url, extract_zip
 
-import nequip
-from nequip.data import (
+import dptb
+from dptb.data import (
     AtomicData,
     AtomicDataDict,
     _NODE_FIELDS,
     _EDGE_FIELDS,
     _GRAPH_FIELDS,
 )
-from nequip.utils.batch_ops import bincount
-from nequip.utils.regressor import solver
-from nequip.utils.savenload import atomic_write
+from dptb.utils.batch_ops import bincount
+from dptb.utils.regressor import solver
+from dptb.utils.savenload import atomic_write
 from ..transforms import TypeMapper
 
 
@@ -74,7 +74,7 @@ class AtomicDataset(Dataset):
         }
         # Add other relevant metadata:
         params["dtype"] = str(self.dtype)
-        params["nequip_version"] = nequip.__version__
+        params["nequip_version"] = dptb.__version__
         return params
 
     @property

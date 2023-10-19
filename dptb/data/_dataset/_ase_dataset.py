@@ -11,7 +11,7 @@ import torch
 import torch.multiprocessing as mp
 
 
-from nequip.utils.multiprocessing import num_tasks
+from dptb.utils.multiprocessing import num_tasks
 from .. import AtomicData
 from ..transforms import TypeMapper
 from ._base_datasets import AtomicInMemoryDataset

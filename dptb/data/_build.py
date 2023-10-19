@@ -1,10 +1,10 @@
 import inspect
 from importlib import import_module
 
-from nequip import data
-from nequip.data.transforms import TypeMapper
-from nequip.data import AtomicDataset, register_fields
-from nequip.utils import instantiate, get_w_prefix
+from dptb import data
+from dptb.data.transforms import TypeMapper
+from dptb.data import AtomicDataset, register_fields
+from dptb.utils import instantiate, get_w_prefix
 
 
 def dataset_from_config(config, prefix: str = "dataset") -> AtomicDataset:

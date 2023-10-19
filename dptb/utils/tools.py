@@ -26,6 +26,11 @@ import random
 from ase.neighborlist import neighbor_list
 from ase.io.trajectory import Trajectory
 import ase
+import ssl
+import os.path as osp
+import urllib
+import zipfile
+import sys
 
 
 log = logging.getLogger(__name__)
@@ -705,6 +710,54 @@ def bn_stast(traj_path: str, cutoff: float =10., nns=[3.0, 4.5], first=False, re
             stast.append(d[d.__lt__(nns[i])])
     
     return stast
+
+def makedirs(dir):
+    os.makedirs(dir, exist_ok=True)
+
+
+def download_url(url, folder, log=True):
+    r"""Downloads the content of an URL to a specific folder.
+
+    Args:
+        url (string): The url.
+        folder (string): The folder.
+        log (bool, optional): If :obj:`False`, will not print anything to the
+            console. (default: :obj:`True`)
+    """
+
+    filename = url.rpartition("/")[2].split("?")[0]
+    path = osp.join(folder, filename)
+
+    if osp.exists(path):  # pragma: no cover
+        if log:
+            print("Using existing file", filename, file=sys.stderr)
+        return path
+
+    if log:
+        print("Downloading", url, file=sys.stderr)
+
+    makedirs(folder)
+
+    context = ssl._create_unverified_context()
+    data = urllib.request.urlopen(url, context=context)
+
+    with open(path, "wb") as f:
+        f.write(data.read())
+
+    return path
+
+
+def extract_zip(path, folder, log=True):
+    r"""Extracts a zip archive to a specific folder.
+
+    Args:
+        path (string): The path to the tar archive.
+        folder (string): The folder.
+        log (bool, optional): If :obj:`False`, will not print anything to the
+            console. (default: :obj:`True`)
+    """
+    with zipfile.ZipFile(path, "r") as f:
+        f.extractall(folder)
 
 
 
