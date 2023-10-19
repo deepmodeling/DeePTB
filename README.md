@@ -23,8 +23,7 @@ These capabilities make **DeePTB** adaptable to various research scenarios, exte
 
 See more details in our DeePTB paper: [arXiv:2307.04638](http://arxiv.org/abs/2307.04638)
 
-
-
+<!--
 # Key Features:
 - Slater-Koster parameterization with customizable radial dependence.
 - Orthogonal basis with customizable number of basis and bond neighbors.
@@ -33,7 +32,7 @@ See more details in our DeePTB paper: [arXiv:2307.04638](http://arxiv.org/abs/23
 - Flexibility on bases and XC functionals used in preparing the training labels.
 - Ability to handle systems with  SOC effects.
 - Finite temperature simulations through integration with MD.
-
+-->
  
 # Online Documentation
 For detailed documentation, please refer to [our documentation website](https://deeptb.readthedocs.io/en/latest/).
