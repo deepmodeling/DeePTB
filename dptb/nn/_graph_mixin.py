@@ -6,8 +6,8 @@ import torch
 
 from e3nn import o3
 
-from nequip.data import AtomicDataDict
-from nequip.utils import instantiate
+from dptb.data import AtomicDataDict
+from dptb.utils import instantiate
 
 
 class GraphModuleMixin:
@@ -55,7 +55,7 @@ class GraphModuleMixin:
                 )
         irreps_in[AtomicDataDict.EDGE_INDEX_KEY] = None
 
-        my_irreps_in = AtomicDataDict._fix_irreps_dict(my_irreps_in)
+        my_irreps_in = AtomicDataDict._fix_irreps_dict(my_irreps_in) # put all str to irreps and leave None unchanged
 
         irreps_out = AtomicDataDict._fix_irreps_dict(irreps_out)
         # Confirm compatibility:

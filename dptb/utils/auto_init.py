@@ -68,6 +68,7 @@ def instantiate(
     return_args_only: bool = False,
     parent_builders: list = [],
 ):
+    
     """Automatic initializing class instance by matching keys in the parameter dictionary to the constructor function.
 
     Keys that are exactly the same, or with a 'prefix_' in all_args, optional_args will be used.
@@ -88,7 +89,7 @@ def instantiate(
 
     prefix_list = [builder.__name__] if inspect.isclass(builder) else []
     if isinstance(prefix, str):
-        prefix_list += [prefix]
+        prefix_list += [prefix] # a list of class name
     elif isinstance(prefix, list):
         prefix_list += prefix
     else:

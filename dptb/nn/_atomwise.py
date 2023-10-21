@@ -17,6 +17,7 @@ from ._rescale import RescaleOutput
 
 class AtomwiseOperation(GraphModuleMixin, torch.nn.Module):
     def __init__(self, operation, field: str, irreps_in=None):
+        # this field here must be a node level field (?).
         super().__init__()
         self.operation = operation
         self.field = field
