@@ -5,7 +5,7 @@ license = "MIT"
 description = "A deep learning package for emperical tight-binding approach with first-principle accuracy."
 authors = ["Q. Gu <guqq@pku.edu.cn>", "Z. Zhanghao <zhouyinzhanghao@gmail.com>"]
 readme = "README.md"
-repository = "https://gitee.com/qqgu_phy/deeptb"
+repository = "https://github.com/deepmodeling/DeePTB"
 
 [tool.poetry.dependencies]
 python = ">=3.8"
