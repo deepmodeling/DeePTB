@@ -3,7 +3,7 @@ import numpy as np
 from ase import Atoms
 from dptb.utils.constants import anglrMId, Orbital_Order_Wan_Default, Orbital_Order_SK
 from dptb.structure.structure import BaseStruct
-
+from dptb.nnsktb.onsiteDB import onsite_energy_database
 
 def get_wannier_blocks(file:str, struct:BaseStruct, wannier_proj_orbital:dict, orb_wan:dict=None):
     """ get the hopping matrices in the order of dptb.
@@ -11,7 +11,7 @@ def get_wannier_blocks(file:str, struct:BaseStruct, wannier_proj_orbital:dict, o
     
     Rlatt, hopps, indR0 = read_hr(file)
     wannier_orbital_order, sk_orbital_order, iatom_nors = wan_orbital_orders(struct, wannier_proj_orbital, orb_wan)
-    hopping_bonds = transfrom_Hwan(hopps, Rlatt, wannier_orbital_order, sk_orbital_order, iatom_nors)
+    hopping_bonds = transfrom_Hwan(hopps, Rlatt, indR0, struct, wannier_orbital_order, sk_orbital_order, iatom_nors)
 
     return hopping_bonds
 
@@ -161,7 +161,42 @@ def wan_orbital_orders(struct:BaseStruct, wannier_proj_orbital:dict, orb_wan:dic
 
     return wannier_orbital_order, sk_orbital_order, iatom_nors
 
-def transfrom_Hwan(hopps, Rlatt, wannier_orbital_order, sk_orbital_order, iatom_nors):
+def onsite_shift(hopps_r00, struct, wannier_orbital_order, unit='eV'):
+    
+    projected_struct = struct.projected_struct
+    projected_struct_symbols = projected_struct.get_chemical_symbols() # list of atom symbols in the projected_struct
+
+    onsite_diag_elements = dict(zip(wannier_orbital_order, np.diag(hopps_r00).real))
+    min_key = min(onsite_diag_elements, key=onsite_diag_elements.get)
+    atom_ind = int(min_key.split('-')[0])
+    orb_symbol = min_key.split('-')[1][0]
+    atom_symbol = projected_struct_symbols[atom_ind]
+
+    proj_atom_anglr_m = struct.proj_atom_anglr_m
+
+    if unit == 'eV':
+        factor = 13.605662285137 * 2 # Hartree to eV
+    elif unit == 'Ry':
+        factor = 2.0  # Hartree to Ry
+    elif unit == 'Hartree':
+        factor = 1.0 
+    else:
+        raise ValueError('unit must be eV, Ry or Hartree')
+
+    onsite_e_db={}
+    for i in proj_atom_anglr_m:
+        onsite_e_db[i]={}
+        for iorb in proj_atom_anglr_m[i]:
+            ishell_symbol = ''.join(re.findall(r'[A-Za-z]',iorb))
+            onsite_e_db[i][ishell_symbol] = onsite_energy_database[i][iorb] * factor
+    
+    database_onsite_e_min = onsite_e_db[atom_symbol][orb_symbol]
+
+    onsite_shift = onsite_diag_elements[min_key] - database_onsite_e_min
+
+    return onsite_shift
+
+def transfrom_Hwan(hopps, Rlatt, indR0, struct, wannier_orbital_order, sk_orbital_order, iatom_nors):
     """ transform the hopping matrices from the order of wannier90_hr.dat to the order of dptb.
     
     Parameters:
@@ -187,7 +222,10 @@ def transfrom_Hwan(hopps, Rlatt, wannier_orbital_order, sk_orbital_order, iatom_
         ind = wannier_orbital_order.index(iorb)
         mtrans[i] +=  Mateye[ind] 
 
+    onsite_shift = onsite_shift(hopps[indR0], struct, wannier_orbital_order, unit='eV')
+
     hopps_skorder = mtrans @ hopps @ mtrans.T
+    hopps_skorder[indR0] = hopps_skorder[indR0] - onsite_shift * np.eye(norb)
 
     hopping_bonds = {}
     for ir in range(len(Rlatt)):
