@@ -19,4 +19,11 @@ atomic_num_dict_r = dict(zip(atomic_num_dict.values(), atomic_num_dict.keys()))
 MaxShells  = 3
 NumHvals   = 10
 
+Orbital_Order_Wan_Default = { 's': ['s'],
+                              'p': ['pz','px','py'],
+                              'd': ['dz2','dxz','dyz','dx2-y2','dxy']}
+Orbital_Order_SK = {'s': ['s'],
+                    'p': ['py','pz','px'],
+                    'd': ['dxy','dyz','dz2','dxz','dx2-y2']}
+
 dtype_dict = {"float32": torch.float32, "float64": torch.float64}

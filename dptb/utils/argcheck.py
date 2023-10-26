@@ -709,6 +709,8 @@ def normalize_bandinfo(data):
     doc_loss_gap_eta = ""
     doc_eout_weight=""
     doc_weight = ""
+    doc_wannier_proj = ""
+    doc_orb_wan = ""
 
     args = [
         Argument("band_min", int, optional=True, doc=doc_band_min, default=0),
@@ -719,7 +721,9 @@ def normalize_bandinfo(data):
         Argument("fermi_band", int, optional=True, doc=doc_fermi_band,default=0),
         Argument("loss_gap_eta", float, optional=True, doc=doc_loss_gap_eta, default=0.01),
         Argument("eout_weight", float, optional=True, doc=doc_eout_weight, default=0.00),
-        Argument("weight", [int, float, list], optional=True, doc=doc_weight, default=1.)
+        Argument("weight", [int, float, list], optional=True, doc=doc_weight, default=1.),
+        Argument("wannier_proj",dict, optional=True, doc=doc_wannier_proj, default={}),
+        Argument("orb_wan",[dict, None], optional=True, doc=doc_orb_wan, default=None)
     ]
     bandinfo = Argument("bandinfo", dict, sub_fields=args)
     data = bandinfo.normalize_value(data)

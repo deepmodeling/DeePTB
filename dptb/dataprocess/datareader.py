@@ -6,6 +6,7 @@ from ase.io.trajectory import Trajectory
 import torch
 from dptb.structure.structure import BaseStruct
 from dptb.dataprocess.processor import Processor
+from dptb.dataprocess.process_wannier import get_wannier_blocks
 from dptb.utils.tools import j_loader
 from dptb.utils.argcheck import normalize_bandinfo
 
@@ -17,7 +18,7 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
         "eigen_file": "eigs.npy",
         "kpoints_file" : "kpoints.npy",
         "bandinfo_file": "bandinfo.json",
-        "wannier_file": "wannier.npy"
+        "wannier_file": "wannier90_hr.dat"
     }
     
     filenames.update(kwargs)
@@ -38,12 +39,7 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
         kpoints = np.load(data_dirs[ii] + "/" + filenames['kpoints_file'])
         eigs = np.load(data_dirs[ii] + "/" + filenames['eigen_file'])
         bandinfo = j_loader(data_dirs[ii] + "/" + filenames['bandinfo_file'])
-        if os.path.exists(data_dirs[ii] + "/" + filenames['wannier_file']):
-            wannier = np.load(data_dirs[ii] + "/" + filenames['wannier_file'], allow_pickle=True)
-            wannier = [x.tolist() for x in wannier]
-        else:
-            wannier = [None]
-        
+
         bandinfo = normalize_bandinfo(bandinfo)
         bandinfo_sets.append(bandinfo)
         if len(eigs.shape)==2:
@@ -51,18 +47,27 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
         assert len(eigs.shape) == 3
         kpoints_sets.append(kpoints)
         eigens_sets.append(eigs)
-        if wannier[0] is None:
-            wannier = [None] * eigs.shape[0]
-        wannier_sets.append(wannier)
-        
-        
-        for iatom in asetrajs:
 
+        for iatom in asetrajs:
             struct = BaseStruct(atom=iatom, format='ase', cutoff=cutoff, proj_atom_anglr_m=proj_atom_anglr_m, proj_atom_neles=proj_atom_neles, onsitemode=onsitemode, time_symm=time_symm)
             struct_list.append(struct)
         struct_list_sets.append(struct_list)
 
-
+        if os.path.exists(data_dirs[ii] + "/" + filenames['wannier_file']):
+            #wannier = np.load(data_dirs[ii] + "/" + filenames['wannier_file'], allow_pickle=True)
+            assert len(struct_list) == 1, "wannier90_hr.dat should be calculated for one structure only!"
+            wannier_proj = bandinfo['wannier_proj']
+            orb_wan = bandinfo.get('orb_wan', None)
+            wannier = get_wannier_blocks(file=data_dirs[ii] + "/" + filenames['wannier_file'],
+                               struct=struct_list[0], wannier_proj_orbital=wannier_proj,orb_wan=orb_wan)
+            wannier = [wannier]
+        else:
+            wannier = [None]
+        
+        if wannier[0] is None:
+            wannier = [None] * eigs.shape[0]
+        wannier_sets.append(wannier)
+    
     return struct_list_sets, kpoints_sets, eigens_sets, bandinfo_sets, wannier_sets
 
 
