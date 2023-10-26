@@ -21,7 +21,6 @@ def test_sk_init(root_directory):
     proj_atom_anglr_m = {'C':['s','p'],'H':['s']}
     skfiles = sk_init(proj_atom_anglr_m=proj_atom_anglr_m, sk_file_path=sk_file_path)
     assert len(skfiles.keys()) == 4
-    return skfiles
 
 def test_read_skfiles(root_directory):
     sk_file_path = root_directory + '/examples/slakos'

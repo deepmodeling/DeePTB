@@ -1,6 +1,8 @@
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types, all_onsite_ene_types
 from dptb.utils.index_mapping import Index_Mapings
-
+from dptb.nnsktb.skintTypes import NRL_skint_type_constants
+import pytest
+import torch
 # add test for all_onsite_intgrl_types
 def test_onsite_intgrl_types():
     proj_atom_anglr_m = {'B':['2s'],'N':['2s','2p']}
@@ -206,3 +208,27 @@ def test_onsiteint_types():
             for ii in range(len(index)):
                 skbondname = f'{ibt}-{isk}-{ii}'
                 assert sk_onsite_ind_dict[ibt][index[ii]] == all_onsiteint_types_dict[skbondname]
+
+
+
+def test_NRL_skint_type_constants():
+    proj_atom_anglr_m = {'B':['3s'],'N':['2s','2p']}
+    indexmap = Index_Mapings(proj_atom_anglr_m) 
+    bond_index_map, bond_num_hops = indexmap.Bond_Ind_Mapings()
+    all_skint_types_dict, reducted_skint_types, sk_bond_ind_dict = all_skint_types(bond_index_map)
+    nrl_constant = NRL_skint_type_constants(reducted_skint_types)
+    
+    nrl_constant_true = {'N-N-2s-2s-0': torch.tensor([1.]),
+                         'N-N-2s-2p-0': torch.tensor([0.]),
+                         'N-N-2p-2p-0': torch.tensor([1.]),
+                         'N-N-2p-2p-1': torch.tensor([1.0]),
+                         'N-B-2s-3s-0': torch.tensor([0.]),
+                         'N-B-2p-3s-0': torch.tensor([0.]),
+                         'B-B-3s-3s-0': torch.tensor([1.])}
+    
+    assert len(nrl_constant) == len(nrl_constant_true)
+    assert isinstance(nrl_constant, dict)
+    assert len(nrl_constant) == len(reducted_skint_types)
+
+    for ikey in nrl_constant.keys():
+        assert torch.allclose(nrl_constant[ikey], nrl_constant_true[ikey])

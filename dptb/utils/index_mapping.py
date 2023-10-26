@@ -209,6 +209,12 @@ class Index_Mapings(object):
         onsite_strain_index_map, onsite_strain_num = None, None
         if onsitemode in ['uniform', 'none']:
             onsite_index_map, onsite_num = self._Onsite_Ind_Mapings()
+        elif onsitemode == 'NRL':
+            # TODO: design NRL onsite index map, 
+            # usually NRL is the same as uniform. but in some case they treat t2g and eg orbitals as different.
+            # therefore, we need new _Onsite_Ind_Mapings function for NRL.
+            # here we just temporarily use uniform one!
+            onsite_index_map, onsite_num = self._Onsite_Ind_Mapings()
         elif onsitemode == 'split':
             onsite_index_map, onsite_num = self._Onsite_Ind_Mapings_OrbSplit()
         elif onsitemode == 'strain':

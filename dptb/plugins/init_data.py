@@ -3,7 +3,6 @@ import logging
 from dptb.nnsktb.sknet import SKNet
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types
 from dptb.utils.index_mapping import Index_Mapings
-from dptb.nnsktb.onsiteFunc import onsiteFunc, loadOnsite
 from dptb.utils.tools import get_uniq_symbol
 from dptb.nnsktb.integralFunc import SKintHops
 from dptb.nnsktb.loadparas import load_paras

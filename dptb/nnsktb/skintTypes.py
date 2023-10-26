@@ -1,5 +1,6 @@
 import re
 import numpy as np
+import torch
 from dptb.utils.constants import anglrMId, SKBondType
 from dptb.utils.constants import atomic_num_dict
 
@@ -103,6 +104,32 @@ def all_skint_types(bond_index_map):
             
 
     return all_skint_types_dict, reducted_skint_types, sk_bond_ind_dict
+
+
+def NRL_skint_type_constants(reducted_skint_types):
+    '''The function `NRL_skint_type_constants` calculates a dictionary of skin type constants based on a
+    list of reduced skin types.
+
+    Parameters
+    ----------
+    reducted_skint_types: list
+        A list of reduced skin types. e.g.: ['N-N-2s-2s-0', 'N-B-2s-2p-0', 'B-B-2p-2p-0', 'B-B-2p-2p-1']
+
+    Returns
+    -------
+    sk_para_delta: dict
+        A dictionary of skin type constants. e.g.: {'N-N-2s-2s-0': tensor[1.0], 'N-B-2s-2p-0': tensor[0.0], 'B-B-2p-2p-0': tensor[1.0], 'B-B-2p-2p-1': tensor[1.0]}
+    
+    '''
+    delta_AlAl= torch.zeros(len(reducted_skint_types),1)
+    for i in range(len(reducted_skint_types)):
+        itype = reducted_skint_types[i]
+        if itype.split('-')[0] == itype.split('-')[1] and itype.split('-')[2] == itype.split('-')[3] :
+            delta_AlAl[i] = 1.0
+        else:
+            delta_AlAl[i] = 0.0
+    sk_para_delta = dict(zip(reducted_skint_types, delta_AlAl))
+    return sk_para_delta
 
 
 def all_onsite_intgrl_types(onsite_intgrl_index_map):
