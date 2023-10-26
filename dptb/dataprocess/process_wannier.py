@@ -161,7 +161,7 @@ def wan_orbital_orders(struct:BaseStruct, wannier_proj_orbital:dict, orb_wan:dic
 
     return wannier_orbital_order, sk_orbital_order, iatom_nors
 
-def onsite_shift(hopps_r00, struct, wannier_orbital_order, unit='eV'):
+def get_onsite_shift(hopps_r00, struct, wannier_orbital_order, unit='eV'):
     
     projected_struct = struct.projected_struct
     projected_struct_symbols = projected_struct.get_chemical_symbols() # list of atom symbols in the projected_struct
@@ -222,7 +222,7 @@ def transfrom_Hwan(hopps, Rlatt, indR0, struct, wannier_orbital_order, sk_orbita
         ind = wannier_orbital_order.index(iorb)
         mtrans[i] +=  Mateye[ind] 
 
-    onsite_shift = onsite_shift(hopps[indR0], struct, wannier_orbital_order, unit='eV')
+    onsite_shift = get_onsite_shift(hopps[indR0], struct, wannier_orbital_order, unit='eV')
 
     hopps_skorder = mtrans @ hopps @ mtrans.T
     hopps_skorder[indR0] = hopps_skorder[indR0] - onsite_shift * np.eye(norb)
