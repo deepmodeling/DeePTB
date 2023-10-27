@@ -1,6 +1,6 @@
 
 # Development team
 The current development team consists the following research groups/affiliations:
-- Peking University (Dr. Qiangqiang Gu)
+- AI for Science Institute, Beijing (Dr. Qiangqiang Gu)
 - Tianjin University (Dr. Zhanghao Zhouyin)
-- Beijing AI for Science Institute
+- AI for Science Institute, Beijing
