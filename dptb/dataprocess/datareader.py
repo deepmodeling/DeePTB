@@ -10,7 +10,7 @@ from dptb.dataprocess.process_wannier import get_wannier_blocks
 from dptb.utils.tools import j_loader
 from dptb.utils.argcheck import normalize_bandinfo
 
-def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='uniform', time_symm=True, **kwargs):
+def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='uniform', time_symm=True, use_wannier=False, **kwargs):
     """根据文件路径和prefix的读取文件夹下的数据文件,并存储为神经网络模型的输入格式数据
     """
     filenames  = {
@@ -53,7 +53,8 @@ def read_data(path, prefix, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemo
             struct_list.append(struct)
         struct_list_sets.append(struct_list)
 
-        if os.path.exists(data_dirs[ii] + "/" + filenames['wannier_file']):
+        if use_wannier:
+            assert os.path.exists(data_dirs[ii] + "/" + filenames['wannier_file'])
             #wannier = np.load(data_dirs[ii] + "/" + filenames['wannier_file'], allow_pickle=True)
             assert len(struct_list) == 1, "wannier90_hr.dat should be calculated for one structure only!"
             wannier_proj = bandinfo['wannier_proj']

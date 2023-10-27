@@ -25,6 +25,7 @@
     },
     "data_options": {
         "use_reference": true,
+        "use_wannier": true,
         "train": {
             "batch_size": 1,
             "path": "./data",
