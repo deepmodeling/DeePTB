@@ -63,8 +63,8 @@ class Device(object):
         
         seL = self.lead_L.se
         seR = self.lead_R.se
-        seinL = seL * self.lead_L.fermi_dirac(e+self.mu).reshape(-1)
-        seinR = seR * self.lead_R.fermi_dirac(e+self.mu).reshape(-1)
+        seinL = 1j*(seL-seL.conj().T) * self.lead_L.fermi_dirac(e+self.mu).reshape(-1)
+        seinR = 1j*(seR-seR.conj().T) * self.lead_R.fermi_dirac(e+self.mu).reshape(-1)
         s01, s02 = s_in[0].shape
         se01, se02 = seL.shape
         idx0, idy0 = min(s01, se01), min(s02, se02)
