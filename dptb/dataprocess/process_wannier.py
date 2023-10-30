@@ -162,6 +162,33 @@ def wan_orbital_orders(struct:BaseStruct, wannier_proj_orbital:dict, orb_wan:dic
     return wannier_orbital_order, sk_orbital_order, iatom_nors
 
 def get_onsite_shift(hopps_r00, struct, wannier_orbital_order, unit='eV'):
+    '''The function `get_onsite_shift` calculates the onsite shift of a given orbital in a crystal
+    structure based on the hopping matrix elements in wannier and a database of onsite energies.
+    
+    Parameters
+    ----------
+    hopps_r00
+        The variable `hopps_r00` represents the onsite Hamiltonian matrix elements. It is a square matrix
+    where each element represents the interaction energy between two orbitals on the same atom.
+    
+    struct
+        The `struct` parameter is an object that represents the structure of the system. It likely contains
+    information about the positions of atoms in the system and other relevant properties.
+    
+    wannier_orbital_order
+        The `wannier_orbital_order` parameter is a list that specifies the order of the Wannier orbitals.
+    Each element in the list represents a Wannier orbital and is in the format
+    "atom_index-orbital_symbol". For example, if there are 3 atoms and
+    
+    unit, optional
+        The `unit` parameter specifies the unit in which the onsite shift will be calculated. It can take
+    one of three values: 'eV', 'Ry', or 'Hartree'.
+    
+    Returns
+    -------
+        the value of the onsite shift, which is calculated based on the input parameters.
+    
+    '''
     
     projected_struct = struct.projected_struct
     projected_struct_symbols = projected_struct.get_chemical_symbols() # list of atom symbols in the projected_struct
