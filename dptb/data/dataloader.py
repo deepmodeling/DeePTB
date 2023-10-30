@@ -5,7 +5,6 @@ from torch.utils.data import Sampler
 
 from dptb.utils.torch_geometric import Batch, Data, Dataset
 
-
 class Collater(object):
     """Collate a list of ``AtomicData``.
 

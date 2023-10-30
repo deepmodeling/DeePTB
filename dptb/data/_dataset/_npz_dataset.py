@@ -101,6 +101,7 @@ class NpzDataset(AtomicInMemoryDataset):
 
         # only the keys explicitly mentioned in the yaml file will be parsed
         keys = set(list(self.key_mapping.keys()))
+
         keys.update(self.npz_fixed_field_keys)
         keys.update(self.include_keys)
         keys = keys.intersection(set(list(data.keys())))

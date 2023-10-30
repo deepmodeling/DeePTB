@@ -29,6 +29,7 @@ PBC = Union[bool, Tuple[bool, bool, bool]]
 
 _DEFAULT_LONG_FIELDS: Set[str] = {
     AtomicDataDict.EDGE_INDEX_KEY,
+    AtomicDataDict.ENV_INDEX_KEY, # new
     AtomicDataDict.ATOMIC_NUMBERS_KEY,
     AtomicDataDict.ATOM_TYPE_KEY,
     AtomicDataDict.BATCH_KEY,
@@ -60,6 +61,8 @@ _DEFAULT_GRAPH_FIELDS: Set[str] = {
     AtomicDataDict.PBC_KEY,
     AtomicDataDict.CELL_KEY,
     AtomicDataDict.BATCH_PTR_KEY,
+    AtomicDataDict.KPOINT_KEY, # new
+    AtomicDataDict.ENERGY_EIGENVALUE_KEY # new
 }
 _NODE_FIELDS: Set[str] = set(_DEFAULT_NODE_FIELDS)
 _EDGE_FIELDS: Set[str] = set(_DEFAULT_EDGE_FIELDS)
@@ -289,6 +292,8 @@ class AtomicData(Data):
         strict_self_interaction: bool = True,
         cell=None,
         pbc: Optional[PBC] = None,
+        env: Optional[bool] = False,
+        er_max: Optional[float] = None,
         **kwargs,
     ):
         """Build neighbor graph from points, optionally with PBC.
@@ -342,6 +347,19 @@ class AtomicData(Data):
             kwargs[AtomicDataDict.PBC_KEY] = torch.as_tensor(
                 pbc, dtype=torch.bool
             ).view(3)
+
+        # add env index
+        if env:
+            env_index, env_cell_shift, _ = neighbor_list_and_relative_vec(
+                pos=pos,
+                r_max=er_max,
+                self_interaction=self_interaction,
+                strict_self_interaction=strict_self_interaction,
+                cell=cell,
+                pbc=pbc,
+            )
+
+            kwargs[AtomicDataDict.ENV_INDEX_KEY] = env_index
 
         return cls(edge_index=edge_index, pos=torch.as_tensor(pos), **kwargs)
 

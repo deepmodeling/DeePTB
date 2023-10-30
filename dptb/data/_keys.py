@@ -15,16 +15,22 @@ else:
 POSITIONS_KEY: Final[str] = "pos"
 # The [2, n_edge] index tensor giving center -> neighbor relations
 EDGE_INDEX_KEY: Final[str] = "edge_index"
+# The [2, n_edge] index tensor giving center -> neighbor relations
+ENV_INDEX_KEY: Final[str] = "env_index"
 # A [n_edge, 3] tensor of how many periodic cells each edge crosses in each cell vector
 EDGE_CELL_SHIFT_KEY: Final[str] = "edge_cell_shift"
 # [n_batch, 3, 3] or [3, 3] tensor where rows are the cell vectors
 CELL_KEY: Final[str] = "cell"
+# [n_kpoints, 3] or [n_batch, nkpoints, 3] tensor
+KPOINT_KEY = "kpoint"
 # [n_batch, 3] bool tensor
 PBC_KEY: Final[str] = "pbc"
 # [n_atom, 1] long tensor
 ATOMIC_NUMBERS_KEY: Final[str] = "atomic_numbers"
 # [n_atom, 1] long tensor
 ATOM_TYPE_KEY: Final[str] = "atom_types"
+# [n_batch, n_kpoint, n_orb]
+ENERGY_EIGENVALUE_KEY: Final[str] = "eigenvalue"
 
 BASIC_STRUCTURE_KEYS: Final[List[str]] = [
     POSITIONS_KEY,

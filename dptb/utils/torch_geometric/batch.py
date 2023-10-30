@@ -9,6 +9,9 @@ from torch import Tensor
 from .data import Data
 from .dataset import IndexType
 
+## Comment from Zhanghao Z.Y.
+# prexist Comment
+
 
 class Batch(Data):
     r"""A plain old python object modeling a batch of graphs as one big
@@ -102,7 +105,7 @@ class Batch(Data):
                     inc = torch.tensor(inc)
                 cumsum[key].append(inc + cumsum[key][-1])
 
-                if key in follow_batch:
+                if key in follow_batch: ## follow batch is not used in dataloader
                     if isinstance(size, Tensor):
                         for j, size in enumerate(size.tolist()):
                             tmp = f"{key}_{j}_batch"
@@ -146,7 +149,7 @@ class Batch(Data):
             cat_dim = ref_data.__cat_dim__(key, item)
             cat_dim = 0 if cat_dim is None else cat_dim
             if isinstance(item, Tensor):
-                batch[key] = torch.cat(items, cat_dim)
+                batch[key] = torch.cat(items, cat_dim) ## cat data according to the cat dim
             elif isinstance(item, (int, float)):
                 batch[key] = torch.tensor(items)
 
