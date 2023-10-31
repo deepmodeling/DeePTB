@@ -197,13 +197,13 @@ class AtomicInMemoryDataset(AtomicDataset):
                 extract_zip(download_path, self.raw_dir)
 
     def process(self):
-        data = self.get_data()
+        data = self.get_data() ## get data returns either a list of AtomicData class or a data dict
         if isinstance(data, list):
 
             # It's a data list
             data_list = data
             if not (self.include_frames is None or data_list is None):
-                data_list = [data_list[i] for i in self.include_frames]
+                data_list = [data_list[i] for i in self.include_frames] # 可以选择数据集中加载的序号
             assert all(isinstance(e, AtomicData) for e in data_list)
             assert all(AtomicDataDict.BATCH_KEY not in e for e in data_list)
 

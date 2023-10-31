@@ -96,6 +96,7 @@ class NpzDataset(AtomicInMemoryDataset):
         return dirname(abspath(self.file_name))
 
     def get_data(self):
+        # get data returns either a list of AtomicData class or a data dict
 
         data = np.load(self.raw_dir + "/" + self.raw_file_names[0], allow_pickle=True)
 
