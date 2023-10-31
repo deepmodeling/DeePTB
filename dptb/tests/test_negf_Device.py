@@ -39,7 +39,7 @@ def test_negf_Device(root_directory):
     run_opt = {
             "run_sk": True,
             "init_model":model_ckpt,
-            "results_path":root_directory +"/dptb/tests/data/test_negf/test_negf_Device/",
+            "results_path":root_directory +"/dptb/tests/data/test_negf/",
             "structure":structure,
             "log_path": log_path,
             "log_level": 5,
@@ -151,20 +151,20 @@ def test_negf_Device(root_directory):
             [ 8.9264e-07+8.2022e-01j, -8.2021e-01+4.4631e-07j,-3.6607e-12-8.2022e-01j, -8.2022e-01+4.4634e-07j],
             [ 8.2022e-01-1.3390e-06j,  8.9264e-07+8.2022e-01j,-8.2022e-01+4.4634e-07j,  1.0983e-11-8.2022e-01j]],dtype=torch.complex128)]
 
-    gnd = [torch.tensor([[-2.2316e-07-4.1011e-01j,  1.2157e-13+2.2317e-07j,2.2316e-07+4.1011e-01j, -3.6432e-13-6.6949e-07j],
-            [ 1.2132e-13+2.2317e-07j, -2.2316e-07-4.1011e-01j, 1.2154e-13+2.2315e-07j,  2.2316e-07+4.1011e-01j],
-            [ 2.2316e-07+4.1011e-01j,  1.2132e-13+2.2315e-07j,-2.2316e-07-4.1011e-01j,  1.2149e-13+2.2317e-07j],
-            [-3.6429e-13-6.6949e-07j,  2.2316e-07+4.1011e-01j,1.2140e-13+2.2317e-07j, -2.2316e-07-4.1011e-01j]],dtype=torch.complex128)]
+    gnd = [torch.tensor([[ 8.2022e-01+0.0000e+00j, -4.4634e-07+2.2204e-16j,-8.2022e-01-3.1764e-22j,  1.3390e-06-5.5511e-17j],
+        [-4.4634e-07-2.7756e-16j,  8.2022e-01+2.6470e-23j, -4.4631e-07+2.7756e-16j, -8.2022e-01-2.3823e-22j],
+        [-8.2022e-01+2.9117e-22j, -4.4631e-07-2.2204e-16j, 8.2022e-01+7.9409e-23j, -4.4634e-07+1.1102e-16j],
+        [ 1.3390e-06+5.5511e-17j, -8.2022e-01+2.1176e-22j, -4.4634e-07-1.1102e-16j,  8.2022e-01+0.0000e+00j]],dtype=torch.complex128)]
 
     assert  abs(gr_left[0]-device.green['gr_left'][0]).max()<1e-5
     assert  abs(gnd[0]-device.green['gnd'][0]).max()<1e-5
     assert device.green['gnl'] == []
     assert device.green['gnu'] == []
 
-    gin_left=[torch.tensor([[-2.2316e-07-4.1011e-01j,  1.2157e-13+2.2317e-07j,2.2316e-07+4.1011e-01j, -3.6432e-13-6.6949e-07j],
-            [ 1.2132e-13+2.2317e-07j, -2.2316e-07-4.1011e-01j,1.2154e-13+2.2315e-07j,  2.2316e-07+4.1011e-01j],
-            [ 2.2316e-07+4.1011e-01j,  1.2132e-13+2.2315e-07j,-2.2316e-07-4.1011e-01j,  1.2149e-13+2.2317e-07j],
-            [-3.6429e-13-6.6949e-07j,  2.2316e-07+4.1011e-01j,1.2140e-13+2.2317e-07j, -2.2316e-07-4.1011e-01j]],dtype=torch.complex128)]
+    gin_left=[torch.tensor([[ 8.2022e-01+0.0000e+00j, -4.4634e-07+2.2204e-16j, -8.2022e-01-3.1764e-22j,  1.3390e-06-5.5511e-17j],
+        [-4.4634e-07-2.7756e-16j,  8.2022e-01+2.6470e-23j, -4.4631e-07+2.7756e-16j, -8.2022e-01-2.3823e-22j],
+        [-8.2022e-01+2.9117e-22j, -4.4631e-07-2.2204e-16j, 8.2022e-01+7.9409e-23j, -4.4634e-07+1.1102e-16j],
+        [ 1.3390e-06+5.5511e-17j, -8.2022e-01+2.1176e-22j,-4.4634e-07-1.1102e-16j,  8.2022e-01+0.0000e+00j]],dtype=torch.complex128)]
     assert  abs(gin_left[0]-device.green['gin_left'][0]).max()<1e-5
 
     assert device.green['gpd']== None

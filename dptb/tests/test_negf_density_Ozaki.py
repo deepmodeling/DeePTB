@@ -42,7 +42,7 @@ def test_negf_density_Ozaki(root_directory):
     run_opt = {
             "run_sk": True,
             "init_model":model_ckpt,
-            "results_path":root_directory +"/dptb/tests/data/test_negf/test_negf_Device/",
+            "results_path":root_directory +"/dptb/tests/data/test_negf",
             "structure":structure,
             "log_path": log_path,
             "log_level": 5,
