@@ -1,4 +1,5 @@
 test*.ipynb
+dptb/tests/data/hBN/data/set.0/xdat2.traj
 dptb/nnet/__pycache__/
 dptb/sktb/__pycache__/
 dptb/negf/__pycache__/
