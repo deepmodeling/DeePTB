@@ -328,6 +328,8 @@ class AtomicData(Data):
         else:
             assert len(pbc) == 3
 
+        # TODO: Need to add edge features and edge index.
+        
         pos = torch.as_tensor(pos, dtype=torch.get_default_dtype())
 
         edge_index, edge_cell_shift, cell = neighbor_list_and_relative_vec(

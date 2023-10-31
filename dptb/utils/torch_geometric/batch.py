@@ -12,7 +12,6 @@ from .dataset import IndexType
 ## Comment from Zhanghao Z.Y.
 # prexist Comment
 
-
 class Batch(Data):
     r"""A plain old python object modeling a batch of graphs as one big
     (disconnected) graph. With :class:`torch_geometric.data.Data` being the
@@ -84,7 +83,7 @@ class Batch(Data):
                 cat_dim = data.__cat_dim__(key, data[key])
                 # 0-dimensional tensors have no dimension along which to
                 # concatenate, so we set `cat_dim` to `None`.
-                if isinstance(item, Tensor) and item.dim() == 0:
+                if isinstance(item, Tensor) and item.dim() == 0: ## which means this tensor is a scalar
                     cat_dim = None
                 cat_dims[key] = cat_dim
 
@@ -93,11 +92,16 @@ class Batch(Data):
                     cat_dim = 0  # Concatenate along this new batch dimension.
                     item = item.unsqueeze(0)
                     device = item.device
-                elif isinstance(item, Tensor):
+                elif isinstance(item, Tensor): ## cat_dim is not none
                     size = item.size(cat_dim)
                     device = item.device
 
-                batch[key].append(item)  # Append item to the attribute list.
+                if getattr(item, 'is_nested', False):
+                    assert cat_dim == 0, "The batch collection of nested data only support concatenation on 0 dimension"
+                    item = item.unbind()
+                    batch[key] += item
+                else:
+                    batch[key].append(item)  # Append item to the attribute list.
 
                 slices[key].append(size + slices[key][-1])
                 inc = data.__inc__(key, item)
@@ -149,7 +153,11 @@ class Batch(Data):
             cat_dim = ref_data.__cat_dim__(key, item)
             cat_dim = 0 if cat_dim is None else cat_dim
             if isinstance(item, Tensor):
-                batch[key] = torch.cat(items, cat_dim) ## cat data according to the cat dim
+                if getattr(data_list[0][key], "is_nested", False):
+                    batch[key] = torch.nest.nested_tensor(items) ## concat into a nested tensor
+                else:
+                    batch[key] = torch.cat(items, cat_dim) ## cat data according to the cat dim
+                
             elif isinstance(item, (int, float)):
                 batch[key] = torch.tensor(items)
 
