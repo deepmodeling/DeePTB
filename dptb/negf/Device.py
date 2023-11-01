@@ -10,30 +10,92 @@ from scipy.integrate import simpson
 import matplotlib.pyplot as plt
 from dptb.negf.utils import gauss_xw, leggauss
 
+
+"""
+a Device object for calculating the Green's function, current, density of states, local density of states, and local current.
+"""
 log = logging.getLogger(__name__)
 
 class Device(object):
+    '''The function initializes various variables and parameters for a quantum transport calculation.
+        
+        Property
+        ----------
+        green
+            calculated green function
+        hamiltonian
+            The `hamiltonian` parameter represents the Hamiltonian matrix that describes the system's energy
+        levels and their interactions. It is typically a square matrix that represents the energy of each
+        state and the coupling between them.
+        structure
+            The "structure" parameter is an object of the "ase.Atoms" class. It represents the atomic structure
+        of a material and contains information about the positions of atoms, their types, and other
+        properties.
+        results_path
+            The `results_path` parameter is a string that represents the path where the results of the
+        calculations will be saved. It specifies the directory or file location where the output files will
+        be stored.
+        e_T, optional
+            The parameter `e_T` represents the temperature in electron volts (eV). It is used to calculate the
+        thermal energy `kBT` in units of Kelvin (K).
+        efermi
+            The parameter `efermi` represents the Fermi energy level. It is a reference energy level used in
+        electronic structure calculations to determine the occupation of electronic states. The Fermi energy
+        level separates the occupied states (below the Fermi level) from the unoccupied states (above the
+        Fermi level
+        
+    '''
     def __init__(self, hamiltonian, structure, results_path, e_T=300, efermi=0.) -> None:
+
         self.green = 0
         self.hamiltonian = hamiltonian
         self.structure = structure # ase Atoms
         self.results_path = results_path
         self.cdtype = torch.complex128
         self.device = "cpu"
-        self.kBT = k * e_T / eV
+        self.kBT = Boltzmann * e_T / eV
         self.e_T = e_T
         self.efermi = efermi
         self.mu = self.efermi
     
     def set_leadLR(self, lead_L, lead_R):
+        '''initialize the left and right lead in Device object
+        
+        Parameters
+        ----------
+        lead_L
+            the  lead obeject corresponding to the left lead
+        lead_R
+            the lead object corresponding to the right lead
+        mu
+            the chemical potential of the device
+        
+        '''
         self.lead_L = lead_L
         self.lead_R = lead_R
         self.mu = self.efermi - 0.5*(self.lead_L.voltage + self.lead_R.voltage)
 
-    def green_function(self, e, kpoint, eta_device=0., block_tridiagonal=True):
+    def green_function(self, energy, kpoint, eta_device=0., block_tridiagonal=True):
+        ''' computes the Green's function for a given energy and k-point in device.
+        
+        Parameters
+        ----------
+        energy
+            the energy at which the Green's function is evaluated.
+        kpoint
+            the k-point in the Brillouin zone.
+        eta_device
+            a float that represents the broadening factor used in the calculation of the Green's function.
+            It is used to avoid the divergence of the Green's function at the poles of the Hamiltonian.
+        block_tridiagonal
+            A boolean parameter that shows whether the Hamiltonian matrix is block tridiagonal or not. 
+            If set to True, the Hamiltonian matrix is assumed to have a block tridiagonal structure, 
+            which can lead to computational efficiency in certain cases.
+        
+        '''
         assert len(np.array(kpoint).reshape(-1)) == 3
-        if not isinstance(e, torch.Tensor):
-            e = torch.tensor(e, dtype=torch.complex128)
+        if not isinstance(energy, torch.Tensor):
+            energy = torch.tensor(energy, dtype=torch.complex128)
 
         self.block_tridiagonal = block_tridiagonal
         self.kpoint = kpoint
@@ -63,8 +125,8 @@ class Device(object):
         
         seL = self.lead_L.se
         seR = self.lead_R.se
-        seinL = 1j*(seL-seL.conj().T) * self.lead_L.fermi_dirac(e+self.mu).reshape(-1)
-        seinR = 1j*(seR-seR.conj().T) * self.lead_R.fermi_dirac(e+self.mu).reshape(-1)
+        seinL = 1j*(seL-seL.conj().T) * self.lead_L.fermi_dirac(energy+self.mu).reshape(-1)
+        seinR = 1j*(seR-seR.conj().T) * self.lead_R.fermi_dirac(energy+self.mu).reshape(-1)
         s01, s02 = s_in[0].shape
         se01, se02 = seL.shape
         idx0, idy0 = min(s01, se01), min(s02, se02)
@@ -77,7 +139,7 @@ class Device(object):
 
         s_in[0][:idx0,:idy0] = s_in[0][:idx0,:idy0] + seinL[:idx0,:idy0]
         s_in[-1][-idx1:,-idy1:] = s_in[-1][-idx1:,-idy1:] + seinR[-idx1:,-idy1:]
-        ans = recursive_gf(e, hl=[], hd=self.hd, hu=[],
+        ans = recursive_gf(energy, hl=[], hd=self.hd, hu=[],
                             sd=self.sd, su=[], sl=[], 
                             left_se=seL, right_se=seR, seP=None, s_in=s_in,
                             s_out=None, eta=eta_device, chemiPot=self.mu)
@@ -92,6 +154,18 @@ class Device(object):
         # self.green = update_temp_file(update_fn=fn, file_path=GFpath, ee=ee, tags=tags, info="Computing Green's Function")
 
     def _cal_current_(self, espacing):
+        '''calculate the current based on the voltage difference 
+
+        At this stage, this method only supports the calculation of the current in the 
+        non-self-consistent field (nscf) calculation. So this function is not used.
+        
+        Parameters
+        ----------
+        espacing
+            the spacing between energy grid points. It is used to determine the number of grid points 
+            in the energy range defined by `xl` and `xu`.
+        
+        '''
         v_L = self.lead_L.voltage
         v_R = self.lead_R.voltage
 
@@ -108,11 +182,28 @@ class Device(object):
 
         self.__CURRENT__ = simpson((self.lead_L.fermi_dirac(self.ee+self.mu) - self.lead_R.fermi_dirac(self.ee+self.mu)) * self.tc, self.ee)
 
-    def _cal_current_nscf_(self, ee, tc):
+    def _cal_current_nscf_(self, energy_grid, tc):
+        '''calculates the non self consistent field (nscf) current.
+
+        Parameters
+        ----------
+        ee
+            unit energy grid points in NEGF calculation
+        tc
+            Transmission calculated at zero bias voltage
+        
+        Returns
+        -------
+        vv
+            voltage range
+        cc
+            calculated current
+
+        '''
         f = lambda x,mu: 1 / (1 + torch.exp((x - mu) / self.kBT))
 
-        emin = ee.min()
-        emax = ee.max()
+        emin = energy_grid.min()
+        emax = energy_grid.max()
         vmin = emin + 4*self.kBT
         vmax = emax - 4*self.kBT
         vm = 0.5 * (vmin+vmax)
@@ -122,16 +213,26 @@ class Device(object):
         cc = []
 
         for dv in vv * 0.5:
-            I = simpson((f(ee+self.mu, self.lead_L.efermi-vm+dv) - f(ee+self.mu, self.lead_R.efermi-vm-dv)) * tc, ee)
+            I = simpson((f(energy_grid+self.mu, self.lead_L.efermi-vm+dv) - f(energy_grid+self.mu, self.lead_R.efermi-vm-dv)) * tc, energy_grid)
             cc.append(I)
 
         return vv, cc
     
     def fermi_dirac(self, x) -> torch.Tensor:
+        '''
+        calculates the Fermi-Dirac distribution function for a given energy.
+        '''
         return 1 / (1 + torch.exp((x - self.mu) / self.kBT))
 
 
     def _cal_tc_(self):
+        '''calculate the transmission coefficient 
+        
+        Returns
+        -------
+           tc is the transmission coefficient 
+        
+        '''
 
         tx, ty = self.g_trans.shape
         lx, ly = self.lead_L.se.shape
@@ -149,6 +250,12 @@ class Device(object):
         return tc
     
     def _cal_dos_(self):
+        ''' calculates the density of states (DOS) using a given set of diagonal blocks.
+        
+        Returns
+        -------
+            the dos with spin multiplicity
+        '''
         dos = 0
         for jj in range(len(self.grd)):
             temp = self.grd[jj] @ self.sd[jj] # taking each diagonal block with all energy e together
@@ -157,6 +264,13 @@ class Device(object):
         return dos * 2
 
     def _cal_ldos_(self):
+        ''' calculates the local density of states (LDOS) for a given Hamiltonian and k-point.
+        
+        Returns
+        -------
+            LDOS
+        
+        '''
         ldos = []
         # sd = self.hamiltonian.get_hs_device(kpoint=self.kpoint, V=self.V, block_tridiagonal=self.block_tridiagonal)[1]
         for jj in range(len(self.grd)):
@@ -172,6 +286,15 @@ class Device(object):
         return ldos
 
     def _cal_local_current_(self):
+        '''calculate the local current between different atoms 
+
+        At this stage, local current calculation only support non-block-triagonal format Hamiltonian
+        
+        Returns
+        -------
+            the local current
+        
+        '''
         # current only support non-block-triagonal format
         v_L = self.lead_L.voltage
         v_R = self.lead_R.voltage
@@ -194,6 +317,20 @@ class Device(object):
         return local_current.contiguous()
     
     def _cal_density_(self, dm_options):
+        ''' calculate the density matrix
+        
+        Parameters
+        ----------
+        dm_options
+            a dictionary that contains options for the `Ozaki` class. It is used  to initialize 
+            an instance of the `Ozaki` class with the specified options. The `Ozaki` class is then
+            used to calculate the density matrix
+        
+        Returns
+        -------
+            the variables DM_eq and DM_neq.
+        
+        '''
         dm = Ozaki(**dm_options)
         DM_eq, DM_neq = dm.integrate(device=self.device, kpoint=self.kpoint)
 
