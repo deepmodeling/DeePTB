@@ -18,6 +18,10 @@ log = logging.getLogger(__name__)
 
 class Device(object):
     '''Device object for NEGF calculation
+
+        a device object for NEGF (Non-Equilibrium Green's Function)
+        calculations, which includes methods for computing Green's functions, calculating current, density
+        of states, local density of states, and more.
         
         Property
         ----------
