@@ -226,6 +226,9 @@ class Hamiltonian(object):
 
     @property
     def device_norbs(self):
+        """ 
+        return the number of atoms in the device Hamiltonian
+        """
         return self.atom_norbs[self.device_id[0]:self.device_id[1]]
 
     # def get_hs_block_tridiagonal(self, HD, SD):
