@@ -55,16 +55,16 @@ class Hamiltonian(object):
         construct device and lead Hamiltonians and return the structures respectively.The lead Hamiltonian 
         is k-resolved due to the transverse k point sampling.
 
-        Param: 
+        Args: 
                 kpoints: k-points in the Brillouin zone with three coordinates (kx, ky, kz)
                 block_tridiagnal: A boolean parameter that determines whether to block-tridiagonalize the
                     device Hamiltonian or not. 
 
-        Return: 
+        Returns: 
                 structure_device and structure_leads corresponding to the structure of device and leads.
 
-        Raise:
-                
+        Raises:
+                RuntimeError: if the lead hamiltonian attained from device and lead calculation does not match.                
         
         """
         assert len(np.array(kpoints).shape) == 2
@@ -147,6 +147,21 @@ class Hamiltonian(object):
         return structure_device, structure_leads
     
     def get_hs_device(self, kpoint, V, block_tridiagonal=False):
+        """ get the device Hamiltonian and overlap matrix at a specific kpoint
+
+        In diagonalization mode, the Hamiltonian and overlap matrix are block tridiagonalized,
+        and hd,hu,hl refers to the diagnonal, upper and lower blocks of the Hamiltonian, respectively.
+        The same rules apply to sd, su, sl.
+        
+        Args:
+            kpoints: k-points in the Brillouin zone with three coordinates (kx, ky, kz)
+            V: voltage bias
+            block_tridiagonal:  a boolean flag that shows whether Hamiltonian has been diagonalized or not
+        
+        Returns:
+            if not diagonalized, return the whole Hamiltonian and Overlap HD-V*SD, SD
+            if diagonalized, return the block tridiagonalized Hamiltonian and Overlap hd, hu, hl, sd, su, sl
+        """
         f = torch.load(os.path.join(self.results_path, "HS_device.pth"))
         kpoints = f["kpoints"]
 
