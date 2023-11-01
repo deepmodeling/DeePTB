@@ -1,5 +1,5 @@
 import torch
-from dptb.negf.CFR import ozaki_residues
+from dptb.negf.ozaki_res_cal import Ozaki_residues
 from dptb.negf.Areshkin import pole_maker
 import numpy as np
 from dptb.negf.utils import gauss_xw

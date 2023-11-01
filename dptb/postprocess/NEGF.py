@@ -4,7 +4,7 @@ from dptb.negf.Areshkin import pole_maker
 from dptb.negf.RGF import recursive_gf
 from dptb.negf.surface_green import selfEnergy
 from dptb.negf.utils import quad, gauss_xw
-from dptb.negf.CFR import ozaki_residues
+from dptb.negf.ozaki_res_cal import Ozaki_residues
 from dptb.negf.hamiltonian import Hamiltonian
 from dptb.negf.density import Ozaki
 from dptb.negf.Areshkin import pole_maker

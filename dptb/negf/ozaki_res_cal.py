@@ -5,7 +5,7 @@ from scipy.linalg import eigh_tridiagonal
 
 
 
-def ozaki_residues(M_cut:int=1000):
+def Ozaki_residues(M_cut:int=1000):
     """
     It computes the poles and residues of the Ozaki formulism.
 
@@ -38,6 +38,6 @@ def ozaki_residues(M_cut:int=1000):
 
 
 if __name__ == "__main__":
-    p, r = ozaki_residues(M_cut=1000)
+    p, r = Ozaki_residues(M_cut=1000)
 
     print(p, r)
