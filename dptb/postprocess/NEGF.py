@@ -8,7 +8,7 @@ from dptb.negf.ozaki_res_cal import Ozaki_residues
 from dptb.negf.hamiltonian import Hamiltonian
 from dptb.negf.density import Ozaki
 from dptb.negf.Areshkin import pole_maker
-from dptb.negf.device_property import device_property
+from dptb.negf.device_property import Device_property
 from dptb.negf.utils import update_kmap
 from dptb.negf.Lead import Lead
 from ase.io import read
@@ -64,7 +64,7 @@ class NEGF(object):
             struct_device, struct_leads = self.hamiltonian.initialize(kpoints=self.kpoints)
         
 
-        self.device = device_property(self.hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)
+        self.device = Device_property(self.hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)
         self.device.set_leadLR(
                 lead_L=Lead(
                 hamiltonian=self.hamiltonian, 
@@ -137,7 +137,7 @@ class NEGF(object):
             self.uni_grid = torch.linspace(start=self.jdata["emin"], end=self.jdata["emax"], steps=int((self.jdata["emax"]-self.jdata["emin"])/self.jdata["espacing"]))
 
         if cal_pole:
-            self.poles, self.residues = ozaki_residues(M_cut=self.jdata["density_options"]["M_cut"])
+            self.poles, self.residues = Ozaki_residues(M_cut=self.jdata["density_options"]["M_cut"])
             self.poles = 1j* self.poles * self.kBT + self.device.lead_L.mu - self.device.mu
 
         if cal_int_grid:
