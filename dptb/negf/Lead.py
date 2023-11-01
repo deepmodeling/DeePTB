@@ -19,12 +19,6 @@ log = logging.getLogger(__name__)
 # There will be a kmap outside like: {(0,0,0):1, (0,1,2):2}, to locate which file it is to reads.
 # """
 
-            
-            
-
-            # get output
-
-
 
 class Lead(object):
     '''
@@ -60,8 +54,6 @@ class Lead(object):
         calculate  the self energy and surface green function at the given kpoint and energy.
     sigma2gamma
         calculate the Gamma function from the self energy.
-    
-
 
     '''
     def __init__(self, tab, hamiltonian, structure, results_path, voltage, e_T=300, efermi=0.0) -> None:
@@ -75,7 +67,7 @@ class Lead(object):
         self.efermi = efermi
         self.mu = self.efermi - self.voltage
 
-    def self_energy(self, kpoint, e, eta_lead: float=1e-5, method: str="Lopez-Sancho"):
+    def self_energy(self, kpoint, energy, eta_lead: float=1e-5, method: str="Lopez-Sancho"):
         '''calculate and loads the self energy and surface green function at the given kpoint and energy.
         
         Parameters
@@ -92,14 +84,14 @@ class Lead(object):
         '''
         assert len(np.array(kpoint).reshape(-1)) == 3
         # according to given kpoint and e_mesh, calculating or loading the self energy and surface green function to self.
-        if not isinstance(e, torch.Tensor):
-            e = torch.tensor(e)
+        if not isinstance(energy, torch.Tensor):
+            energy = torch.tensor(energy)
 
         if not hasattr(self, "HL"):
             self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
 
         self.se, _ = selfEnergy(
-            ee=e,
+            ee=energy,
             hL=self.HL,
             hLL=self.HLL,
             sL=self.SL,
