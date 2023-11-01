@@ -3,7 +3,7 @@ import torch
 from dptb.utils.constants import *
 from dptb.negf.RGF import recursive_gf
 from fmm3dpy import lfmm3d
-from dptb.negf.Areshkin import pole_maker
+from dptb.negf.areshkin_pole_sum import pole_maker
 from dptb.negf.surface_green import selfEnergy
 from dptb.negf.utils import finite_difference
 import numpy as np
