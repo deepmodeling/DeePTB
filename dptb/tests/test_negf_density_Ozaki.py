@@ -1,6 +1,6 @@
 # test_negf_density_Ozaki
 from dptb.negf.density import Ozaki
-from dptb.negf.Device import Device
+from dptb.negf.device_property import device_property
 from dptb.plugins.init_nnsk import InitSKModel
 from dptb.nnops.NN2HRK import NN2HRK
 from dptb.nnops.apihost import NNSKHost

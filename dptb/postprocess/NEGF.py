@@ -8,7 +8,7 @@ from dptb.negf.CFR import ozaki_residues
 from dptb.negf.hamiltonian import Hamiltonian
 from dptb.negf.density import Ozaki
 from dptb.negf.Areshkin import pole_maker
-from dptb.negf.device_property import Device
+from dptb.negf.device_property import device_property
 from dptb.negf.utils import update_kmap
 from dptb.negf.Lead import Lead
 from ase.io import read
@@ -64,7 +64,7 @@ class NEGF(object):
             struct_device, struct_leads = self.hamiltonian.initialize(kpoints=self.kpoints)
         
 
-        self.device = Device(self.hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)
+        self.device = device_property(self.hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)
         self.device.set_leadLR(
                 lead_L=Lead(
                 hamiltonian=self.hamiltonian, 

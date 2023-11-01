@@ -16,7 +16,7 @@ a Device object for calculating the Green's function, current, density of states
 """
 log = logging.getLogger(__name__)
 
-class Device(object):
+class device_property(object):
     '''Device object for NEGF calculation
 
         a device object for NEGF (Non-Equilibrium Green's Function)

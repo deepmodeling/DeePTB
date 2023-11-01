@@ -1,5 +1,5 @@
 #test_negf_Device_set_leadLR
-from dptb.negf.Device import Device
+from dptb.negf.device_property import device_property
 from dptb.plugins.init_nnsk import InitSKModel
 from dptb.nnops.NN2HRK import NN2HRK
 from dptb.nnops.apihost import NNSKHost
@@ -59,7 +59,7 @@ def test_negf_Device(root_directory):
         struct_device, struct_leads = hamiltonian.initialize(kpoints=kpoints)
 
 
-    device = Device(hamiltonian, struct_device, results_path=results_path, efermi=e_fermi)
+    device = device_property(hamiltonian, struct_device, results_path=results_path, efermi=e_fermi)
     device.set_leadLR(
                     lead_L=Lead(
                     hamiltonian=hamiltonian, 
