@@ -2,7 +2,7 @@ import torch
 from typing import List
 from dptb.negf.surface_green import selfEnergy
 import logging
-from dptb.negf.utils import update_kmap, update_temp_file
+from dptb.negf.negf_utils import update_kmap, update_temp_file
 import os
 from dptb.utils.constants import *
 import numpy as np

@@ -3,12 +3,12 @@ import logging
 from dptb.utils.constants import eV
 import torch
 import os
-from dptb.negf.utils import update_kmap, update_temp_file
+from dptb.negf.negf_utils import update_kmap, update_temp_file,gauss_xw, leggauss
 from dptb.negf.density import Ozaki
 from dptb.utils.constants import *
 from scipy.integrate import simpson
 import matplotlib.pyplot as plt
-from dptb.negf.utils import gauss_xw, leggauss
+
 
 
 """

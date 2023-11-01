@@ -2,7 +2,7 @@ import torch
 from dptb.negf.ozaki_res_cal import Ozaki_residues
 from dptb.negf.areshkin_pole_sum import pole_maker
 import numpy as np
-from dptb.negf.utils import gauss_xw
+from dptb.negf.negf_utils import gauss_xw
 import logging
 import matplotlib as mpl
 import matplotlib.pyplot as plt

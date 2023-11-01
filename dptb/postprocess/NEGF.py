@@ -2,19 +2,17 @@ from typing import List
 import torch
 from dptb.negf.RGF import recursive_gf
 from dptb.negf.surface_green import selfEnergy
-from dptb.negf.utils import quad, gauss_xw
+from dptb.negf.negf_utils import quad, gauss_xw,leggauss,update_kmap
 from dptb.negf.ozaki_res_cal import Ozaki_residues
 from dptb.negf.hamiltonian import Hamiltonian
 from dptb.negf.density import Ozaki
 from dptb.negf.areshkin_pole_sum import pole_maker
 from dptb.negf.device_property import Device_property
-from dptb.negf.utils import update_kmap
 from dptb.negf.lead_property import Lead_property
 from ase.io import read
 from dptb.negf.poisson import density2Potential, getImg
 from dptb.negf.SCF import _SCF
 from dptb.utils.constants import *
-from dptb.negf.utils import leggauss
 import logging
 import os
 from dptb.utils.tools import j_must_have
