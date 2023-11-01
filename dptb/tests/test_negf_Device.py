@@ -104,7 +104,7 @@ def test_negf_Device(root_directory):
     for ll in leads:
         if ll.startswith("lead"): #calculate surface green function at E=0
             getattr(device, ll).self_energy(
-                e=torch.tensor([0]), 
+                energy=torch.tensor([0]), 
                 kpoint=kpoints[0], 
                 eta_lead=task_options["eta_lead"],
                 method=task_options["sgf_solver"]
