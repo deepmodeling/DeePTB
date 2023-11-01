@@ -69,14 +69,14 @@ class Ozaki(Density):
         kBT = device.kBT
         # add 0th order moment
         poles = 1j* self.poles * kBT + device.lead_L.mu - device.mu # left lead expression for rho_eq
-        device.lead_L.self_energy(kpoint=kpoint, e=1j*self.R-device.mu)
-        device.lead_R.self_energy(kpoint=kpoint, e=1j*self.R-device.mu)
+        device.lead_L.self_energy(kpoint=kpoint, energy=1j*self.R-device.mu)
+        device.lead_R.self_energy(kpoint=kpoint, energy=1j*self.R-device.mu)
         device.green_function(e=1j*self.R-device.mu, kpoint=kpoint, block_tridiagonal=False)
         g0 = device.grd[0]
         DM_eq = 1.0j * self.R * g0
         for i, e in enumerate(poles):
-            device.lead_L.self_energy(kpoint=kpoint, e=e, eta_lead=eta_lead)
-            device.lead_R.self_energy(kpoint=kpoint, e=e, eta_lead=eta_lead)
+            device.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
+            device.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
             device.green_function(e=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
             term = ((-4 * 1j * kBT) * device.grd[0] * self.residues[i]).imag
             DM_eq -= term
@@ -90,8 +90,8 @@ class Ozaki(Density):
             xs, wlg = gauss_xw(xl=torch.scalar_tensor(xl), xu=torch.scalar_tensor(xu), n=self.n_gauss)
             DM_neq = 0.
             for i, e in enumerate(xs):
-                device.lead_L.self_energy(kpoint=kpoint, e=e, eta_lead=eta_lead)
-                device.lead_R.self_energy(kpoint=kpoint, e=e, eta_lead=eta_lead)
+                device.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
+                device.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
                 device.green_function(e=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
                 ggg = torch.mm(torch.mm(device.grd[0], device.lead_R.gamma), device.grd[0].conj().T).real
                 ggg = ggg * (device.lead_R.fermi_dirac(e+device.mu) - device.lead_L.fermi_dirac(e+device.mu))
