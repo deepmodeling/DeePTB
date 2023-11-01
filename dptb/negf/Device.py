@@ -453,6 +453,18 @@ class Device(object):
         return self.structure.positions
     
     def get_index(self, iatom):
+        '''returns the start and end indices of orbitals for a specific atom in a system.
+        
+        Parameters
+        ----------
+        iatom
+            the index of the atom for which we want to calculate the start and end orbital indices.
+        
+        Returns
+        -------
+            a list containing the start and end orbital indices for a specific atom in a system.
+        
+        '''
         start = sum(self.norbs_per_atom[:iatom])
         end = start + self.norbs_per_atom[iatom]
 
