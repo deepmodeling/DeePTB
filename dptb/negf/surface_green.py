@@ -11,14 +11,22 @@ log = logging.getLogger(__name__)
 
 
 class surface_green(torch.autograd.Function):
+    '''calculate surface green function
+
+    To realize AD-NEGF, this Class is designed manually to calculate the surface green function auto-differentiably.
+    
+    At this stage, we realized Lopez-Sancho scheme and  GEP scheme.
+    However, GEP scheme is not so stable, and we strongly recommended  to implement the Lopez-Sancho scheme.
+
+    '''
 
     @staticmethod
     def forward(ctx, H, h01, S, s01, ee, method='Lopez-Sancho'):
-        '''
-        gs = [A_l - A_{l,l-1} gs A_{l-1,l}]^{-1}
-        找找改进
-        1. ee can be a list, to handle a batch of samples
-        '''
+        # '''
+        # gs = [A_l - A_{l,l-1} gs A_{l-1,l}]^{-1}
+        # 
+        # 1. ee can be a list, to handle a batch of samples
+        # '''
 
         if method == 'GEP':
             gs = calcg0(ee, H, S, h01, s01)
@@ -132,6 +140,44 @@ class surface_green(torch.autograd.Function):
             return torch.mean(out, dim=0)
 
 def selfEnergy(hL, hLL, sL, sLL, ee, hDL=None, sDL=None, etaLead=1e-8, Bulk=False, chemiPot=0.0, dtype=torch.complex128, device='cpu', method='Lopez-Sancho'):
+    '''calculates the self-energy and surface Green's function for a given  Hamiltonian and overlap matrix.
+    
+    Parameters
+    ----------
+    hL
+        Hamiltonian matrix for one principal layer in Lead
+    hLL
+        Hamiltonian matrix between the most nearby principal layers in Lead
+    sL
+        Overlap matrix for one principal layer in Lead
+    sLL
+        Overlap matrix between the most nearby principal layers in Lead
+    ee
+        the given energy
+    hDL
+        Hamiltonian matrix between the lead and the device.   
+    sDL
+        Overlap matrix between the lead and the device.
+    etaLead
+        A small imaginary number that is used to avoid the singularity of the surface Green's function.
+    Bulk, optional
+        Ignore it, please.
+    chemiPot
+        the chemical potential of the lead.
+    dtype
+        the data type of the tensors used in the calculations. 
+    device
+        The "device" parameter specifies the device on which the calculations will be performed. It can be
+        set to 'cpu' for CPU computation or 'cuda' for GPU computation.
+    method
+        specify the method for calculating the surface Green's function.The available options 
+        are "Lopez-Sancho" and any other value will default to "Lopez-Sancho".
+    
+    Returns
+    -------
+        two values: Sig and SGF. The former is self-energy and the latter is surface Green's function.
+    
+    '''
     # if not isinstance(ee, torch.Tensor):
     #     eeshifted = torch.scalar_tensor(ee, dtype=dtype) - voltage  # Shift of self energies due to voltage(V)
     # else:
