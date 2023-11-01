@@ -20,7 +20,7 @@ import numpy as np
 from dptb.utils.make_kpoints import kmesh_sampling
 
 '''
-1. split the leads, the leads and contact, and contact. the atoms
+a Hamiltonian object  that initializes and manipulates device and  lead Hamiltonians for NEGF
 '''
 
 log = logging.getLogger(__name__)
@@ -50,6 +50,23 @@ class Hamiltonian(object):
             raise ValueError
 
     def initialize(self, kpoints, block_tridiagnal=False):
+        """initializes the device and lead Hamiltonians 
+        
+        construct device and lead Hamiltonians and return the structures respectively.The lead Hamiltonian 
+        is k-resolved due to the transverse k point sampling.
+
+        Param: 
+                kpoints: k-points in the Brillouin zone with three coordinates (kx, ky, kz)
+                block_tridiagnal: A boolean parameter that determines whether to block-tridiagonalize the
+                    device Hamiltonian or not. 
+
+        Return: 
+                structure_device and structure_leads corresponding to the structure of device and leads.
+
+        Raise:
+                
+        
+        """
         assert len(np.array(kpoints).shape) == 2
 
         HS_device = {}
