@@ -10,7 +10,7 @@ from dptb.negf.density import Ozaki
 from dptb.negf.Areshkin import pole_maker
 from dptb.negf.device_property import Device_property
 from dptb.negf.utils import update_kmap
-from dptb.negf.Lead import Lead
+from dptb.negf.lead_property import Lead_property
 from ase.io import read
 from dptb.negf.poisson import density2Potential, getImg
 from dptb.negf.SCF import _SCF
@@ -66,7 +66,7 @@ class NEGF(object):
 
         self.device = Device_property(self.hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)
         self.device.set_leadLR(
-                lead_L=Lead(
+                lead_L=Lead_property(
                 hamiltonian=self.hamiltonian, 
                 tab="lead_L", 
                 structure=struct_leads["lead_L"], 
@@ -75,7 +75,7 @@ class NEGF(object):
                 efermi=self.e_fermi, 
                 voltage=self.jdata["stru_options"]["lead_L"]["voltage"]
             ),
-                lead_R=Lead(
+                lead_R=Lead_property(
                     hamiltonian=self.hamiltonian, 
                     tab="lead_R", 
                     structure=struct_leads["lead_R"], 

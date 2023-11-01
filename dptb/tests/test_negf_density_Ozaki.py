@@ -11,7 +11,7 @@ import torch
 from dptb.negf.hamiltonian import Hamiltonian
 from ase.io import read
 from dptb.utils.make_kpoints import kmesh_sampling
-from dptb.negf.Lead import Lead
+from dptb.negf.lead_property import Lead_property
 from dptb.utils.constants import *
 import pytest
 
@@ -61,7 +61,7 @@ def test_negf_density_Ozaki(root_directory):
         struct_device, struct_leads = hamiltonian.initialize(kpoints=kpoints)
     device = Device_property(hamiltonian, struct_device, results_path=results_path, efermi=e_fermi)
     device.set_leadLR(
-                    lead_L=Lead(
+                    lead_L=Lead_property(
                     hamiltonian=hamiltonian, 
                     tab="lead_L", 
                     structure=struct_leads["lead_L"], 
@@ -70,7 +70,7 @@ def test_negf_density_Ozaki(root_directory):
                     efermi=e_fermi, 
                     voltage=task_options["stru_options"]["lead_L"]["voltage"]
                 ),
-                    lead_R=Lead(
+                    lead_R=Lead_property(
                         hamiltonian=hamiltonian, 
                         tab="lead_R", 
                         structure=struct_leads["lead_R"], 
