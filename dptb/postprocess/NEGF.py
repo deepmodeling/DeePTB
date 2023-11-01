@@ -8,7 +8,7 @@ from dptb.negf.CFR import ozaki_residues
 from dptb.negf.hamiltonian import Hamiltonian
 from dptb.negf.density import Ozaki
 from dptb.negf.Areshkin import pole_maker
-from dptb.negf.Device import Device
+from dptb.negf.device_property import Device
 from dptb.negf.utils import update_kmap
 from dptb.negf.Lead import Lead
 from ase.io import read
