@@ -126,6 +126,21 @@ def leggauss(fcn, xl, xu, params, n=100, **unused):
     return res
 
 def gauss_xw(xl, xu, n=100):
+    '''calculates the Gauss-Legendre quadrature points and weights for numerical  integration.
+    
+    Parameters
+    ----------
+    xl
+        The lower limit of integration.
+    xu
+        The upper limit of the integration range.
+    n, optional
+        the number of points to be used in the Gauss-Legendre quadrature.    
+    Returns
+    -------
+        point xs and their weights wlg.
+    
+    '''
     ndim = len(xu.shape)
     xlg, wlg = np.polynomial.legendre.leggauss(n)
     xlg = torch.tensor(xlg, dtype=xu.dtype, device=xu.device)[(...,) + (None,) * ndim]  # (n, *nx)
@@ -215,6 +230,23 @@ def quad(
                                  dtype, device, *params, *pfunc.objparams())
     
 def update_kmap(result_path, kpoint):
+    '''updates a Kpoints file
+    
+    The function `update_kmap` updates a KMAP file by comparing a given kpoint with existing kpoints and
+    either adding the new kpoint or returning the index of the closest matching kpoint.
+    
+    Parameters
+    ----------
+    result_path
+        the path to the directory where the `KMAP.pth` file will be saved or loaded from.
+    kpoint
+        point in k-space. 
+    
+    Returns
+    -------
+        the index `ik` of the updated or newly added `kpoint` in the `kmap` list.
+    
+    '''
     if os.path.exists(os.path.join(result_path, "KMAP.pth")):
         kmap = torch.load(os.path.join(result_path, "KMAP.pth"))
         err = np.abs(np.array(kmap) - np.array(kpoint).reshape(1,-1)).sum(axis=1)
@@ -649,6 +681,22 @@ def interp_sk_gridvalues(skfile_types, grid_distance, num_grids, HSintgrl):
 
 
 def write_vesta_lcurrent(positions, vesta_file, lcurrent, current, outpath):
+    ''' write local current in the form of VESTA file.
+       
+    Parameters
+    ----------
+    positions
+        the positions of the atoms in the system. 
+    vesta_file
+        The name of the VESTA file.
+    lcurrent
+        local current flowing between atoms
+    current
+        total current flowing through the system.
+    outpath
+        the path where the modified VESTA file will be saved.
+    
+    '''
     with open(vesta_file, "r") as f:
         data = f.read()
         f.close()
