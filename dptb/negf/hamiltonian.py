@@ -26,6 +26,31 @@ a Hamiltonian object  that initializes and manipulates device and  lead Hamilton
 log = logging.getLogger(__name__)
 
 class Hamiltonian(object):
+    '''The Class for Hamiltonian object in negf module. 
+    
+        It is used to initialize and manipulate device and lead Hamiltonians for negf.
+        It is different from the Hamiltonian object in the dptb module.
+        
+        Property
+        ----------
+        apiH: the API object for Hamiltonian
+        unit: the unit of energy
+        structase: the structure object for the device and leads
+        stru_options: the options for structure from input file
+        results_path: the path to store the results
+
+        device_id: the start-atom id and end-atom id of the device in the structure file
+        lead_ids: the start-atom id and end-atom id of the leads in the structure file
+
+
+        Methods
+        ----------
+        initialize: initializes the device and lead Hamiltonians
+        get_hs_device: get the device Hamiltonian and overlap matrix at a specific kpoint
+        get_hs_lead: get the lead Hamiltonian and overlap matrix at a specific kpoint
+        
+    '''
+
     def __init__(self, apiH, structase, stru_options, results_path) -> None:
         self.apiH = apiH
         self.unit = apiH.unit
