@@ -17,36 +17,62 @@ a Device object for calculating the Green's function, current, density of states
 log = logging.getLogger(__name__)
 
 class Device(object):
-    '''The function initializes various variables and parameters for a quantum transport calculation.
+    '''Device object for NEGF calculation
         
         Property
         ----------
         green
-            calculated green function
+            a dictionary that contains the Green's function and its related variables.
         hamiltonian
-            The `hamiltonian` parameter represents the Hamiltonian matrix that describes the system's energy
-        levels and their interactions. It is typically a square matrix that represents the energy of each
-        state and the coupling between them.
+             the Hamiltonian matrix of a system. 
         structure
-            The "structure" parameter is an object of the "ase.Atoms" class. It represents the atomic structure
-        of a material and contains information about the positions of atoms, their types, and other
-        properties.
+            an object of the "ase.Atoms" class. 
         results_path
-            The `results_path` parameter is a string that represents the path where the results of the
-        calculations will be saved. It specifies the directory or file location where the output files will
-        be stored.
-        e_T, optional
-            The parameter `e_T` represents the temperature in electron volts (eV). It is used to calculate the
-        thermal energy `kBT` in units of Kelvin (K).
+            a string that specifies the path where the results of thecalculations will be saved.    
+        e_T 
+            electron temperature in Kelvin.
         efermi
-            The parameter `efermi` represents the Fermi energy level. It is a reference energy level used in
-        electronic structure calculations to determine the occupation of electronic states. The Fermi energy
-        level separates the occupied states (below the Fermi level) from the unoccupied states (above the
-        Fermi level
-        
-    '''
-    def __init__(self, hamiltonian, structure, results_path, e_T=300, efermi=0.) -> None:
+            the Fermi energy level. 
+        mu
+            the chemical potential of the device.
+        dos
+            the density of states (DOS) with spin multiplicity.
+        ldos    
+            the local density of states (LDOS) with spin multiplicity.
+        current
+            the current between the left and right leads.
+        lcurrent
+            the local current between different atoms.
+        tc
+            trasmission coefficient.
+        various Green's functions tags
+            see the docstring of the RGF class for details.
 
+        Methods
+        -------
+        set_leadLR
+            initialize the left and right lead in Device object
+        green_function
+            computes the Green's function for a given energy and k-point in device.
+        _cal_current_
+            calculate the current based on the voltage difference
+        _cal_current_nscf_
+            calculates the non self consistent field (nscf) current.
+        fermi_dirac
+            calculates the Fermi-Dirac distribution function for a given energy.
+        _cal_tc_
+            calculate the transmission coefficient
+        _cal_dos_
+            calculate the density of states
+        _cal_ldos_
+            calculate the local density of states
+        _cal_local_current_
+            calculate the local current between different atoms
+        _cal_density_
+            calculate density matrix     
+        
+    '''    
+    def __init__(self, hamiltonian, structure, results_path, e_T=300, efermi=0.) -> None:
         self.green = 0
         self.hamiltonian = hamiltonian
         self.structure = structure # ase Atoms
@@ -77,6 +103,10 @@ class Device(object):
 
     def green_function(self, energy, kpoint, eta_device=0., block_tridiagonal=True):
         ''' computes the Green's function for a given energy and k-point in device.
+
+        the tags used here to identify different Green's functions follows the NEGF theory 
+        developed by Supriyo Datta in his book "Quantum Transport: Atom to Transistor". 
+        The detials are listed in DeePTB/dptb/negf/RGF.py docstring.
         
         Parameters
         ----------
@@ -254,7 +284,7 @@ class Device(object):
         
         Returns
         -------
-            the dos with spin multiplicity
+            DOS with spin multiplicity
         '''
         dos = 0
         for jj in range(len(self.grd)):
@@ -268,7 +298,7 @@ class Device(object):
         
         Returns
         -------
-            LDOS
+            LDOS with spin multiplicity
         
         '''
         ldos = []
