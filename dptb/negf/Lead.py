@@ -9,15 +9,15 @@ import numpy as np
 
 log = logging.getLogger(__name__)
 
-"""The data output of the intermidiate result should be like this:
-{each kpoint
-    "e_mesh":[],
-    "emap":[]
-    "se":[se(e0), se(e1),...], 
-    "sgf":[...e...]
-}
-There will be a kmap outside like: {(0,0,0):1, (0,1,2):2}, to locate which file it is to reads.
-"""
+# """The data output of the intermidiate result should be like this:
+# {each kpoint
+#     "e_mesh":[],
+#     "emap":[]
+#     "se":[se(e0), se(e1),...], 
+#     "sgf":[...e...]
+# }
+# There will be a kmap outside like: {(0,0,0):1, (0,1,2):2}, to locate which file it is to reads.
+# """
 
             
             
@@ -27,18 +27,69 @@ There will be a kmap outside like: {(0,0,0):1, (0,1,2):2}, to locate which file 
 
 
 class Lead(object):
+    '''
+    The Lead class represents a lead in a structure and provides methods for calculating the self energy
+    and gamma for the lead.
+
+    Property
+    ----------
+    hamiltonian
+        hamiltonian of the whole structure.
+    structure
+        structure of the lead.
+    tab
+        lead tab.
+    voltage
+        voltage of the lead.
+    results_path
+        output  path.
+    kBT
+        Boltzmann constant times temperature.
+    efermi
+        Fermi energy.
+    mu
+        chemical potential of the lead.
+    gamma
+        the broadening function of the isolated energy level of the device
+
+    
+
+    Method
+    ----------
+    self_energy
+        calculate  the self energy and surface green function at the given kpoint and energy.
+    sigma2gamma
+        calculate the Gamma function from the self energy.
+    
+
+
+    '''
     def __init__(self, tab, hamiltonian, structure, results_path, voltage, e_T=300, efermi=0.0) -> None:
         self.hamiltonian = hamiltonian
         self.structure = structure
         self.tab = tab
         self.voltage = voltage
         self.results_path = results_path
-        self.kBT = k * e_T / eV
+        self.kBT = Boltzmann * e_T / eV
         self.e_T = e_T
         self.efermi = efermi
         self.mu = self.efermi - self.voltage
 
     def self_energy(self, kpoint, e, eta_lead: float=1e-5, method: str="Lopez-Sancho"):
+        '''calculate and loads the self energy and surface green function at the given kpoint and energy.
+        
+        Parameters
+        ----------
+        kpoint
+            the coordinates of a specific point in the Brillouin zone. 
+        energy
+            specific energy value.
+        eta_lead : 
+            the broadening parameter for calculating lead self-energy.
+        method : 
+            specify the method for calculating the self energy. At this stage it only supports "Lopez-Sancho".
+        
+        '''
         assert len(np.array(kpoint).reshape(-1)) == 3
         # according to given kpoint and e_mesh, calculating or loading the self energy and surface green function to self.
         if not isinstance(e, torch.Tensor):
@@ -61,6 +112,21 @@ class Lead(object):
         )
 
     def sigmaLR2Gamma(self, se):
+        '''calculate the Gamma function from the self energy.
+        
+        Gamma function is the broadening function of the isolated energy level of the device.
+
+        Parameters
+        ----------
+        se
+            The parameter "se" represents a complex number.
+        
+        Returns
+        -------
+        Gamma
+            The Gamma function.
+        
+        '''
         return -1j * (se - se.conj())
     
     def fermi_dirac(self, x) -> torch.Tensor:
