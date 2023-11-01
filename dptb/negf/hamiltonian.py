@@ -160,7 +160,8 @@ class Hamiltonian(object):
         
         Returns:
             if not diagonalized, return the whole Hamiltonian and Overlap HD-V*SD, SD
-            if diagonalized, return the block tridiagonalized Hamiltonian and Overlap hd, hu, hl, sd, su, sl
+            if diagonalized, return the block tridiagonalized Hamiltonian and Overlap component hd, hu, hl,
+            sd, su, sl.
         """
         f = torch.load(os.path.join(self.results_path, "HS_device.pth"))
         kpoints = f["kpoints"]
@@ -184,6 +185,22 @@ class Hamiltonian(object):
             return [HD - V*SD], [SD], [], [], [], []
     
     def get_hs_lead(self, kpoint, tab, v):
+        """get the lead Hamiltonian and overlap matrix at a specific kpoint
+        
+        In diagonalization mode, the Hamiltonian and overlap matrix are block tridiagonalized,
+        and hd,hu,hl refers to the diagnonal, upper and lower blocks of the Hamiltonian, respectively.
+        The same rules apply to sd, su, sl.
+        
+        Args:
+            kpoints: k-points in the Brillouin zone with three coordinates (kx, ky, kz)
+            V: voltage bias
+            block_tridiagonal:  a boolean flag that shows whether Hamiltonian has been diagonalized or not
+        
+        Returns:
+            if not diagonalized, return the whole Hamiltonian and Overlap HD-V*SD, SD
+            if diagonalized, return the block tridiagonalized Hamiltonian and Overlap component hd, hu, hl,
+            sd, su, sl.
+        """
         f = torch.load(os.path.join(self.results_path, "HS_{0}.pth".format(tab)))
         kpoints = f["kpoints"]
 
