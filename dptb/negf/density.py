@@ -165,13 +165,13 @@ class Ozaki(Density):
         poles = 1j* self.poles * kBT + device.lead_L.mu - device.mu # left lead expression for rho_eq
         device.lead_L.self_energy(kpoint=kpoint, energy=1j*self.R-device.mu)
         device.lead_R.self_energy(kpoint=kpoint, energy=1j*self.R-device.mu)
-        device.green_function(e=1j*self.R-device.mu, kpoint=kpoint, block_tridiagonal=False)
+        device.green_function(energy=1j*self.R-device.mu, kpoint=kpoint, block_tridiagonal=False)
         g0 = device.grd[0]
         DM_eq = 1.0j * self.R * g0
         for i, e in enumerate(poles):
             device.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
             device.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
-            device.green_function(e=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
+            device.green_function(energy=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
             term = ((-4 * 1j * kBT) * device.grd[0] * self.residues[i]).imag
             DM_eq -= term
         
