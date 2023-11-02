@@ -192,7 +192,7 @@ def _recursive_gf(energy, mat_l_list, mat_d_list, mat_u_list, sd, su, sl, s_in=0
                gpd, gpl, gpu, gip_left
 
 
-def recursive_gf(energy, hl, hd, hu, sd, su, sl, left_se, right_se, seP=None, chemiPot=0.0, s_in=0, s_out=0,
+def Recursive_gf(energy, hl, hd, hu, sd, su, sl, left_se, right_se, seP=None, chemiPot=0.0, s_in=0, s_out=0,
                  eta=1e-5):
     
     """The recursive Green's function algorithm is taken from

@@ -13,7 +13,7 @@ from dptb.utils.make_kpoints import kmesh_sampling
 from dptb.negf.lead_property import Lead_property
 from dptb.utils.constants import *
 import os
-from dptb.negf.recursive_green_cal import recursive_gf
+from dptb.negf.recursive_green_cal import Recursive_gf
 import pytest
 
 @pytest.fixture(scope='session', autouse=True)
@@ -168,7 +168,7 @@ def test_negf_RGF(root_directory):
     assert abs(s_in[-1]-s_in_1_standard).max()<1e-5
 
 
-    ans = recursive_gf(e, hl=[], hd=device.hd, hu=[],
+    ans = Recursive_gf(e, hl=[], hd=device.hd, hu=[],
                         sd=device.sd, su=[], sl=[], 
                         left_se=seL, right_se=seR, seP=None, s_in=s_in,
                         s_out=None, eta=eta_device, chemiPot=device.mu)

@@ -1,7 +1,7 @@
 import ase.transport
 import torch
 from dptb.utils.constants import *
-from dptb.negf.recursive_green_cal import recursive_gf
+from dptb.negf.recursive_green_cal import Recursive_gf
 from fmm3dpy import lfmm3d
 from dptb.negf.areshkin_pole_sum import pole_maker
 from dptb.negf.surface_green import selfEnergy
@@ -83,7 +83,7 @@ def calCurrent(ul, ur, n_int=100, **hmt_ovp):
                             su=params[dic['lsu']], ee=ee, left=True, voltage=params[0])
         seR, _ = selfEnergy(hd=params[dic['rhd']], hu=params[dic['rhu']], sd=params[dic['rsd']],
                             su=params[dic['rsu']], ee=ee, left=False, voltage=params[1])
-        g_trans, _, _, _, _ = recursive_gf(ee, hl=params[dic['hl'][0]:dic['hl'][1]], hd=params[dic['hd'][0]:dic['hd'][1]],
+        g_trans, _, _, _, _ = Recursive_gf(ee, hl=params[dic['hl'][0]:dic['hl'][1]], hd=params[dic['hd'][0]:dic['hd'][1]],
                                        hu=params[dic['hu'][0]:dic['hu'][1]], sd=params[dic['sd'][0]:dic['sd'][1]],
                                        su=params[dic['su'][0]:dic['su'][1]],
                                        sl=params[dic['sl'][0]:dic['sl'][1]], left_se=seL, right_se=seR, seP=None,
@@ -109,7 +109,7 @@ def calEqDensity(pole, residue, basis_size, ul, ur, **hmt_ovp):
         seR, _ = selfEnergy(hd=hmt_ovp['rhd'], hu=hmt_ovp['rhu'], sd=hmt_ovp['rsd'], su=hmt_ovp['rsu'],
                             ee=ee, left=False, voltage=ur, etaLead=0)
 
-        _, grd, _, _, _ = recursive_gf(ee, hl=hmt_ovp['hl'], hd=hmt_ovp['hd'], hu=hmt_ovp['hu'], sd=hmt_ovp['sd'], su=hmt_ovp['su'],
+        _, grd, _, _, _ = Recursive_gf(ee, hl=hmt_ovp['hl'], hd=hmt_ovp['hd'], hu=hmt_ovp['hu'], sd=hmt_ovp['sd'], su=hmt_ovp['su'],
                                            sl=hmt_ovp['sl'], left_se=seL, right_se=seR, seP=None, s_in=None,
                                            s_out=None, eta=0.)
         return torch.cat([i.diag() for i in grd], dim=0)
@@ -148,7 +148,7 @@ def calNeqDensity(ul, ur, n_int=100, bSE=None, **hmt_ovp):
                                 su=params[dic['lsu']], ee=ee, left=True, voltage=ul)
             seR, _ = selfEnergy(hd=params[dic['rhd']], hu=params[dic['rhu']], sd=params[dic['rsd']],
                                 su=params[dic['rsu']], ee=ee, left=False, voltage=ur)
-            _, grd, _, _, _ = recursive_gf(ee, hl=params[dic['hl'][0]:dic['hl'][1]], hd=params[dic['hd'][0]:dic['hd'][1]], hu=params[dic['hu'][0]:dic['hu'][1]], sd=params[dic['sd'][0]:dic['sd'][1]],
+            _, grd, _, _, _ = Recursive_gf(ee, hl=params[dic['hl'][0]:dic['hl'][1]], hd=params[dic['hd'][0]:dic['hd'][1]], hu=params[dic['hu'][0]:dic['hu'][1]], sd=params[dic['sd'][0]:dic['sd'][1]],
                                            su=params[dic['su'][0]:dic['su'][1]],
                                            sl=params[dic['sl'][0]:dic['sl'][1]], left_se=seL, right_se=seR, seP=None, s_in=None,
                                            s_out=None)
@@ -166,14 +166,14 @@ def calNeqDensity(ul, ur, n_int=100, bSE=None, **hmt_ovp):
         wlg = torch.tensor(wlg, dtype=xu.dtype, device=xu.device)[(...,) + (None,) * ndim]  # (n, *nx)
         wlg *= 0.5 * (xu - xl)
         xs = xlg * (0.5 * (xu - xl)) + (0.5 * (xu + xl))  # (n, *nx)
-        _, grd, _, _, _ = recursive_gf(xs[0], hl=hmt_ovp['hl'], hd=hmt_ovp['hd'], hu=hmt_ovp['hu'], sd=hmt_ovp['sd'],
+        _, grd, _, _, _ = Recursive_gf(xs[0], hl=hmt_ovp['hl'], hd=hmt_ovp['hd'], hu=hmt_ovp['hu'], sd=hmt_ovp['sd'],
                                        su=hmt_ovp['su'],
                                        sl=hmt_ovp['sl'], left_se=b_seL[0], right_se=b_seR[0], seP=None, s_in=None,
                                        s_out=None)
         dp_neq = torch.cat([-2 * i.diag() for i in grd], dim=0)
         res = wlg[0] * dp_neq.imag
         for i in range(1, n):
-            _, grd, _, _, _ = recursive_gf(xs[i], hl=hmt_ovp['hl'], hd=hmt_ovp['hd'], hu=hmt_ovp['hu'],
+            _, grd, _, _, _ = Recursive_gf(xs[i], hl=hmt_ovp['hl'], hd=hmt_ovp['hd'], hu=hmt_ovp['hu'],
                                            sd=hmt_ovp['sd'],
                                            su=hmt_ovp['su'],
                                            sl=hmt_ovp['sl'], left_se=b_seL[i], right_se=b_seR[i], seP=None, s_in=None,
@@ -339,7 +339,7 @@ def TT_with_hTB(hamiltonian, V_ext, el, er, ul, ur, n, fd_step=1e-6, ifseebeck=F
     def fn(ee):
         seL, _ = selfEnergy(ee=ee, hd=hD, hu=hL.conj().T, sd=sD, su=sL.conj().T, left=True, voltage=ul)
         seR, _ = selfEnergy(ee=ee, hd=hD, hu=hR, sd=sD, su=sR, left=False, voltage=ur)
-        g_trans, _, _, _, _ = recursive_gf(ee, hl=hl_list, hd=hd_, hu=hr_list, sd=sd_list, su=sr_list,
+        g_trans, _, _, _, _ = Recursive_gf(ee, hl=hl_list, hd=hd_, hu=hr_list, sd=sd_list, su=sr_list,
                                            sl=sl_list, left_se=seL, right_se=seR, seP=None, s_in=None, s_out=None)
         s01, s02 = hd_[0].shape
         seL = seL[:s01, :s02]
