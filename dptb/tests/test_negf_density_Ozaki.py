@@ -89,7 +89,7 @@ def test_negf_density_Ozaki(root_directory):
     density = Ozaki(R=density_options["R"], M_cut=density_options["M_cut"], n_gauss=density_options["n_gauss"])
 
     #compute_density
-    DM_eq, DM_neq = density.integrate(device=device, kpoint=kpoints[0])
+    DM_eq, DM_neq = density.integrate(deviceprop=device, kpoint=kpoints[0])
     DM_eq_standard = torch.tensor([[ 1.0000e+00, -6.3615e-01,  3.4565e-07,  2.1080e-01],
             [-6.3615e-01,  1.0000e+00, -6.3615e-01,  3.4565e-07],
             [ 3.4565e-07, -6.3615e-01,  1.0000e+00, -6.3615e-01],
@@ -98,7 +98,7 @@ def test_negf_density_Ozaki(root_directory):
     assert np.array(abs(DM_eq_standard-DM_eq)<1e-5).all()       
     assert DM_neq==0.0     
 
-    onsite_density=density.get_density_onsite(device=device,DM=DM_eq)
+    onsite_density=density.get_density_onsite(deviceprop=device,DM=DM_eq)
     onsite_density_standard = torch.tensor([[ 0.0000,  0.0000,  6.4000,  1.0000],[ 0.0000,  0.0000,  8.0000,  1.0000],
         [ 0.0000,  0.0000,  9.6000,  1.0000],[ 0.0000,  0.0000, 11.2000,  1.0000]], dtype=torch.float64)
     assert np.array(abs(onsite_density_standard-onsite_density)<1e-5).all()

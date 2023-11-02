@@ -123,14 +123,14 @@ def test_negf_Device(root_directory):
     assert  abs(device.lead_L.se-lead_L_se_standard).max()<1e-5
     assert  abs(device.lead_R.se-lead_R_se_standard).max()<1e-5
 
-    device.green_function(  energy=torch.tensor([0]),   #calculate device green function at E=0
+    device.cal_green_function(  energy=torch.tensor([0]),   #calculate device green function at E=0
                             kpoint=kpoints[0], 
                             eta_device=task_options["eta_device"], 
                             block_tridiagonal=task_options["block_tridiagonal"]
                             )
 
     #check  green functions' results
-    assert list(device.green.keys())==['g_trans', 'grd', 'grl', 'gru', 'gr_left', 'gnd', 'gnl',\
+    assert list(device.greenfuncs.keys())==['g_trans', 'grd', 'grl', 'gru', 'gr_left', 'gnd', 'gnl',\
                                         'gnu', 'gin_left', 'gpd', 'gpl', 'gpu', 'gip_left']
     g_trans= torch.tensor([[ 1.0983e-11-8.2022e-01j, -8.2022e-01+4.4634e-07j,8.9264e-07+8.2022e-01j,  8.2022e-01-1.3390e-06j],
             [-8.2022e-01+4.4634e-07j, -3.6607e-12-8.2022e-01j,-8.2021e-01+4.4631e-07j,  8.9264e-07+8.2022e-01j],
@@ -141,10 +141,10 @@ def test_negf_Device(root_directory):
             [ 8.9264e-07+8.2022e-01j, -8.2021e-01+4.4631e-07j,-3.6607e-12-8.2022e-01j, -8.2022e-01+4.4634e-07j],
             [ 8.2022e-01-1.3390e-06j,  8.9264e-07+8.2022e-01j,-8.2022e-01+4.4634e-07j,  1.0983e-11-8.2022e-01j]],dtype=torch.complex128)]
 
-    assert  abs(g_trans-device.green['g_trans']).max()<1e-5
-    assert  abs(grd[0]-device.green['grd'][0]).max()<1e-5
-    assert device.green['grl'] == []
-    assert device.green['gru'] == []
+    assert  abs(g_trans-device.greenfuncs['g_trans']).max()<1e-5
+    assert  abs(grd[0]-device.greenfuncs['grd'][0]).max()<1e-5
+    assert device.greenfuncs['grl'] == []
+    assert device.greenfuncs['gru'] == []
 
     gr_left= [torch.tensor([[ 1.0983e-11-8.2022e-01j, -8.2022e-01+4.4634e-07j,8.9264e-07+8.2022e-01j,  8.2022e-01-1.3390e-06j],
             [-8.2022e-01+4.4634e-07j, -3.6607e-12-8.2022e-01j,-8.2021e-01+4.4631e-07j,  8.9264e-07+8.2022e-01j],
@@ -156,21 +156,21 @@ def test_negf_Device(root_directory):
         [-8.2022e-01+2.9117e-22j, -4.4631e-07-2.2204e-16j, 8.2022e-01+7.9409e-23j, -4.4634e-07+1.1102e-16j],
         [ 1.3390e-06+5.5511e-17j, -8.2022e-01+2.1176e-22j, -4.4634e-07-1.1102e-16j,  8.2022e-01+0.0000e+00j]],dtype=torch.complex128)]
 
-    assert  abs(gr_left[0]-device.green['gr_left'][0]).max()<1e-5
-    assert  abs(gnd[0]-device.green['gnd'][0]).max()<1e-5
-    assert device.green['gnl'] == []
-    assert device.green['gnu'] == []
+    assert  abs(gr_left[0]-device.greenfuncs['gr_left'][0]).max()<1e-5
+    assert  abs(gnd[0]-device.greenfuncs['gnd'][0]).max()<1e-5
+    assert device.greenfuncs['gnl'] == []
+    assert device.greenfuncs['gnu'] == []
 
     gin_left=[torch.tensor([[ 8.2022e-01+0.0000e+00j, -4.4634e-07+2.2204e-16j, -8.2022e-01-3.1764e-22j,  1.3390e-06-5.5511e-17j],
         [-4.4634e-07-2.7756e-16j,  8.2022e-01+2.6470e-23j, -4.4631e-07+2.7756e-16j, -8.2022e-01-2.3823e-22j],
         [-8.2022e-01+2.9117e-22j, -4.4631e-07-2.2204e-16j, 8.2022e-01+7.9409e-23j, -4.4634e-07+1.1102e-16j],
         [ 1.3390e-06+5.5511e-17j, -8.2022e-01+2.1176e-22j,-4.4634e-07-1.1102e-16j,  8.2022e-01+0.0000e+00j]],dtype=torch.complex128)]
-    assert  abs(gin_left[0]-device.green['gin_left'][0]).max()<1e-5
+    assert  abs(gin_left[0]-device.greenfuncs['gin_left'][0]).max()<1e-5
 
-    assert device.green['gpd']== None
-    assert device.green['gpl']== None
-    assert device.green['gpu']== None
-    assert device.green['gip_left']== None
+    assert device.greenfuncs['gpd']== None
+    assert device.greenfuncs['gpl']== None
+    assert device.greenfuncs['gpu']== None
+    assert device.greenfuncs['gip_left']== None
 
     Tc=device._cal_tc_() #transmission
     assert abs(Tc-1)<1e-5
