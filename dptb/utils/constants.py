@@ -22,6 +22,6 @@ NumHvals   = 10
 
 dtype_dict = {"float32": torch.float32, "float64": torch.float64}
 
-k = Boltzmann # k is the Boltzmann constant in old NEGF module
-Coulomb = 6.24150974e18
+# k = Boltzmann # k is the Boltzmann constant in old NEGF module
+Coulomb = 6.24150974e18 # in the unit of eV*Angstrom
 eV2J = 1.6021766208e-19 # in the unit of J

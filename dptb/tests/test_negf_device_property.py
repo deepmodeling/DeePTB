@@ -10,7 +10,7 @@ import torch
 from dptb.negf.hamiltonian_init import HamiltonianInit
 from ase.io import read
 from dptb.negf.lead_property import LeadProperty
-from dptb.utils.constants import *
+from dptb.utils.constants import Boltzmann, eV2J
 import pytest
 
 

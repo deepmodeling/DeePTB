@@ -11,7 +11,7 @@ from dptb.negf.hamiltonian_init import HamiltonianInit
 from ase.io import read
 from dptb.utils.make_kpoints import kmesh_sampling
 from dptb.negf.lead_property import LeadProperty
-from dptb.utils.constants import *
+from dptb.utils.constants import Boltzmann, eV2J
 import os
 from dptb.negf.recursive_green_cal import recursive_gf
 import pytest

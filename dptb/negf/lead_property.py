@@ -4,7 +4,7 @@ from dptb.negf.surface_green import selfEnergy
 import logging
 from dptb.negf.negf_utils import update_kmap, update_temp_file
 import os
-from dptb.utils.constants import *
+from dptb.utils.constants import Boltzmann, eV2J
 import numpy as np
 
 log = logging.getLogger(__name__)

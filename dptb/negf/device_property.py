@@ -5,7 +5,8 @@ import torch
 import os
 from dptb.negf.negf_utils import update_kmap, update_temp_file,gauss_xw, leggauss
 from dptb.negf.density import Ozaki
-from dptb.utils.constants import *
+from dptb.utils.constants import Boltzmann, eV2J,pi
+import numpy  as np
 from scipy.integrate import simpson
 import matplotlib.pyplot as plt
 

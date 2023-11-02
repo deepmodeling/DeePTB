@@ -2,7 +2,7 @@ import numpy as np
 import scipy.linalg as linalg
 import scipy.optimize as opt
 import cmath
-from dptb.utils.constants import *
+from dptb.utils.constants import Boltzmann, eV2J
 
 
 def pole_maker(Emin, ChemPot, kT, reltol):

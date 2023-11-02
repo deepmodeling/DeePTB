@@ -1,6 +1,6 @@
 from fmm3dpy import lfmm3d
 import torch
-from dptb.utils.constants import *
+
 
 
 
