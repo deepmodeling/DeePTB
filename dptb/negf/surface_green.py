@@ -205,12 +205,34 @@ def selfEnergy(hL, hLL, sL, sLL, ee, hDL=None, sDL=None, etaLead=1e-8, Bulk=Fals
 
 
 def calcg0(ee, h00, s00, h01, s01):
-    # here, for a single surface green function, for a specific |k>, ee is a matrix
-    # Calculate surface Green's function
-    # Euro Phys J B 62, 381 (2008)
-    # Inverse of : NOTE, setup for "right" lead.
-    # e-h00 -h01  ...
-    # -h10  e-h00(e-h11) ...
+    '''The `calcg0` function calculates the surface Green's function for a specific |k> , ref. Euro Phys J B 62, 381 (2008)
+        Inverse of : NOTE, setup for "right" lead.
+        e-h00 -h01  ...
+        -h10  e-h11 ...
+         .
+         .
+         .
+
+    Parameters
+    ----------
+    ee
+        The parameter `ee` represents the energy value for which the surface Green's function is
+    calculated. It is a complex number that determines the energy of the state being considered.
+    h00
+        hamiltonian matrix within principal layer
+    s00
+        overlap matrix within principal layer
+    h01
+        hamiltonian matrix between two adject principal layers
+    s01
+        overlap matrix between two adject principal layers
+    
+    Returns
+    -------
+        Surface Green's function `g00`.
+    
+    ''' 
+
 
     NN, ee = h00.shape[0], ee.real + max(torch.max(ee.imag).item(), 1e-8) * 1.0j
 
