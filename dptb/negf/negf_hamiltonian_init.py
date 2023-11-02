@@ -129,12 +129,12 @@ class NEGFHamiltonianInit(object):
                 # update lead id
                 n_proj_atom_pre = np.array([1]*len(self.structase))[:self.lead_ids[kk][0]][projatoms[:self.lead_ids[kk][0]]].sum()
                 n_proj_atom_lead = np.array([1]*len(self.structase))[self.lead_ids[kk][0]:self.lead_ids[kk][1]][projatoms[self.lead_ids[kk][0]:self.lead_ids[kk][1]]].sum()
-                lead_id = [0,0]
-                lead_id[0] = n_proj_atom_pre
-                lead_id[1] = n_proj_atom_pre + n_proj_atom_lead
+                proj_lead_id = [0,0]
+                proj_lead_id[0] = n_proj_atom_pre
+                proj_lead_id[1] = n_proj_atom_pre + n_proj_atom_lead
 
-                l_start = int(np.sum(self.atom_norbs[:lead_id[0]]))
-                l_end = int(l_start + np.sum(self.atom_norbs[lead_id[0]:lead_id[1]]) / 2)
+                l_start = int(np.sum(self.atom_norbs[:proj_lead_id[0]]))
+                l_end = int(l_start + np.sum(self.atom_norbs[proj_lead_id[0]:proj_lead_id[1]]) / 2)
                 HL, SL = H[:,l_start:l_end, l_start:l_end], S[:, l_start:l_end, l_start:l_end] # lead hamiltonian
                 HDL, SDL = H[:,d_start:d_end, l_start:l_end], S[:,d_start:d_end, l_start:l_end] # device and lead's hopping
                 HS_leads.update({
