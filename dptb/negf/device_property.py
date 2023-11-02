@@ -1,4 +1,4 @@
-from dptb.negf.recursive_green_cal import Recursive_gf
+from dptb.negf.recursive_green_cal import recursive_gf
 import logging
 from dptb.utils.constants import eV
 import torch
@@ -173,7 +173,7 @@ class DeviceProperty(object):
 
         s_in[0][:idx0,:idy0] = s_in[0][:idx0,:idy0] + seinL[:idx0,:idy0]
         s_in[-1][-idx1:,-idy1:] = s_in[-1][-idx1:,-idy1:] + seinR[-idx1:,-idy1:]
-        ans = Recursive_gf(energy, hl=[], hd=self.hd, hu=[],
+        ans = recursive_gf(energy, hl=[], hd=self.hd, hu=[],
                             sd=self.sd, su=[], sl=[], 
                             left_se=seL, right_se=seR, seP=None, s_in=s_in,
                             s_out=None, eta=eta_device, chemiPot=self.mu)
