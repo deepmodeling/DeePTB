@@ -199,8 +199,7 @@ def Recursive_gf(energy, hl, hd, hu, sd, su, sl, left_se, right_se, seP=None, ch
     M. P. Anantram, M. S. Lundstrom and D. E. Nikonov, Proceedings of the IEEE, 96, 1511 - 1550 (2008)
     DOI: 10.1109/JPROC.2008.927355
 
-    In order to get the electron correlation function output, the parameters s_in has to be set.
-    For the hole correlation function, the parameter s_out has to be set.
+    Obitan various green function for later calculations.
 
     Parameters
     ----------
