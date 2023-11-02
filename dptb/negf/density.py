@@ -17,8 +17,9 @@ The density class is used to calculate the density of states of the device.
 '''
 
 class Density(object):
-    '''
-    Density is the basic class
+    '''Density Class
+
+    Density is the basic density object, which contains the integrate method and slice method.
 
     Method
     ----------
