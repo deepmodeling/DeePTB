@@ -22,6 +22,8 @@ import logging
 
 log = logging.getLogger(__name__)
 
+# TODO : add common class to set all the dtype and precision.
+
 class NEGF(object):
     def __init__(self, apiHrk, run_opt, jdata):
         self.apiH = apiHrk
@@ -56,15 +58,15 @@ class NEGF(object):
         
 
         # computing the hamiltonian
-        self.hamiltonian = NEGFHamiltonianInit(apiH=self.apiH, structase=self.structase, stru_options=jdata["stru_options"], results_path=self.results_path)
+        self.negf_hamiltonian = NEGFHamiltonianInit(apiH=self.apiH, structase=self.structase, stru_options=jdata["stru_options"], results_path=self.results_path)
         with torch.no_grad():
-            struct_device, struct_leads = self.hamiltonian.initialize(kpoints=self.kpoints)
+            struct_device, struct_leads = self.negf_hamiltonian.initialize(kpoints=self.kpoints)
         
 
-        self.deviceprop = DeviceProperty(self.hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)
+        self.deviceprop = DeviceProperty(self.negf_hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)
         self.deviceprop.set_leadLR(
                 lead_L=LeadProperty(
-                hamiltonian=self.hamiltonian, 
+                hamiltonian=self.negf_hamiltonian, 
                 tab="lead_L", 
                 structure=struct_leads["lead_L"], 
                 results_path=self.results_path,
@@ -73,7 +75,7 @@ class NEGF(object):
                 voltage=self.jdata["stru_options"]["lead_L"]["voltage"]
             ),
                 lead_R=LeadProperty(
-                    hamiltonian=self.hamiltonian, 
+                    hamiltonian=self.negf_hamiltonian, 
                     tab="lead_R", 
                     structure=struct_leads["lead_R"], 
                     results_path=self.results_path, 
