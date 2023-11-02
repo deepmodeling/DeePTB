@@ -7,7 +7,7 @@ from dptb.utils.tools import j_must_have
 from dptb.utils.tools import j_loader
 import numpy as np
 import torch
-from dptb.negf.hamiltonian import Hamiltonian
+from dptb.negf.hamiltonian_init import Hamiltonian_init
 from ase.io import read
 from dptb.utils.make_kpoints import kmesh_sampling
 from dptb.negf.lead_property import Lead_property
@@ -54,7 +54,7 @@ def test_negf_RGF(root_directory):
     kBT = k * ele_T / eV
     e_fermi = task_options["e_fermi"]
 
-    hamiltonian = Hamiltonian(apiH=apiHrk, structase=structase, stru_options=task_options["stru_options"], results_path=results_path)
+    hamiltonian = Hamiltonian_init(apiH=apiHrk, structase=structase, stru_options=task_options["stru_options"], results_path=results_path)
     with torch.no_grad():
         struct_device, struct_leads = hamiltonian.initialize(kpoints=kpoints)
 

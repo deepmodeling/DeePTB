@@ -23,7 +23,7 @@ a Hamiltonian object  that initializes and manipulates device and  lead Hamilton
 
 log = logging.getLogger(__name__)
 
-class Hamiltonian(object):
+class Hamiltonian_init(object):
     '''The Class for Hamiltonian object in negf module. 
     
         It is used to initialize and manipulate device and lead Hamiltonians for negf.
