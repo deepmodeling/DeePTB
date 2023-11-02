@@ -41,8 +41,8 @@ def format_readline(line):
     lstr = []
     for ii in range(len(lsplit)):
         strtmp = lsplit[ii]
-        if re.search('\*', strtmp):
-            strspt = re.split('\*|\n', strtmp)
+        if re.search(r'\*', strtmp):
+            strspt = re.split(r'\*|\n', strtmp)
             strspt = list(filter(None, strspt))
             strfull = int(strspt[0]) * [strspt[1]]
             lstr += strfull
@@ -77,7 +77,7 @@ def get_uniq_symbol(atomsymbols):
 
     return uniqatomtype
 
-def _isinf(x):
+def find_isinf(x):
     return torch.any(torch.isinf(x))
 
 class _BaseInfTransform(object):
@@ -345,7 +345,7 @@ class _Quadrature(torch.autograd.Function):
             xu = torch.as_tensor(xu, dtype=dtype, device=device)
 
             # apply transformation if the boundaries contain inf
-            if _isinf(xl) or _isinf(xu):
+            if find_isinf(xl) or find_isinf(xu):
                 tfm = _TanInfTransform()
 
                 @make_sibling(fcn)
