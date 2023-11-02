@@ -4,7 +4,7 @@ from dptb.negf.areshkin_pole_sum import pole_maker
 from dptb.negf.recursive_green_cal import Recursive_gf
 from dptb.negf.surface_green import selfEnergy
 from dptb.negf.negf_utils import quad, gauss_xw,update_kmap,leggauss
-from dptb.negf.ozaki_res_cal import Ozaki_residues
+from dptb.negf.ozaki_res_cal import ozaki_residues
 from dptb.negf.areshkin_pole_sum import pole_maker
 from ase.io import read
 from dptb.negf.poisson import Density2Potential, getImg

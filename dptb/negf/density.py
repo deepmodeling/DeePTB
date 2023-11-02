@@ -1,5 +1,5 @@
 import torch
-from dptb.negf.ozaki_res_cal import Ozaki_residues
+from dptb.negf.ozaki_res_cal import ozaki_residues
 from dptb.negf.areshkin_pole_sum import pole_maker
 import numpy as np
 from dptb.negf.negf_utils import gauss_xw
@@ -135,7 +135,7 @@ class Ozaki(Density):
     '''
     def __init__(self, R, M_cut, n_gauss):
         super(Ozaki, self).__init__()
-        self.poles, self.residues = Ozaki_residues(M_cut)
+        self.poles, self.residues = ozaki_residues(M_cut)
         # here poles are in the unit of (e-mu) / kbT
         self.R = R
         self.n_gauss = n_gauss

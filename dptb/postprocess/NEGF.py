@@ -3,7 +3,7 @@ import torch
 from dptb.negf.recursive_green_cal import Recursive_gf
 from dptb.negf.surface_green import selfEnergy
 from dptb.negf.negf_utils import quad, gauss_xw,leggauss,update_kmap
-from dptb.negf.ozaki_res_cal import Ozaki_residues
+from dptb.negf.ozaki_res_cal import ozaki_residues
 from dptb.negf.hamiltonian_init import Hamiltonian_init
 from dptb.negf.density import Ozaki
 from dptb.negf.areshkin_pole_sum import pole_maker
@@ -134,7 +134,7 @@ class NEGF(object):
             self.uni_grid = torch.linspace(start=self.jdata["emin"], end=self.jdata["emax"], steps=int((self.jdata["emax"]-self.jdata["emin"])/self.jdata["espacing"]))
 
         if cal_pole:
-            self.poles, self.residues = Ozaki_residues(M_cut=self.jdata["density_options"]["M_cut"])
+            self.poles, self.residues = ozaki_residues(M_cut=self.jdata["density_options"]["M_cut"])
             self.poles = 1j* self.poles * self.kBT + self.device.lead_L.mu - self.device.mu
 
         if cal_int_grid:
