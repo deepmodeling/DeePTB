@@ -45,7 +45,14 @@ class LeadProperty(object):
         chemical potential of the lead.
     gamma
         the broadening function of the isolated energy level of the device
-
+    HL 
+        hamiltonian within principal layer
+    HLL 
+        hamiiltonian between two adjacent principal layers
+    HDL 
+        hamiltonian between principal layer and device
+    SL SLL and SDL 
+        the overlap matrix, with the same meaning as HL HLL and HDL.
     
 
     Method
