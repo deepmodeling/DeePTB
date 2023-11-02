@@ -1,12 +1,11 @@
-"""
-The module contains functions that computes Green's functions and their poles
-"""
 from __future__ import print_function, division
 import numpy as np
 import scipy.sparse as sp
 import scipy.linalg as linalg
 
-
+"""
+Attention: This module is not used in this version of the code.
+"""
 def surface_greens_function_poles(hl, h0, hr):
     """Computes eigenvalues and eigenvectors for the complex band structure problem.
     The eigenvalues correspond to the wave vectors as `exp(ik)`.

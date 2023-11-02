@@ -1,7 +1,7 @@
 import torch.linalg as tLA
 import torch
 
-def _recursive_gf(energy, mat_l_list, mat_d_list, mat_u_list, sd, su, sl, s_in=0, s_out=0, eta=1e-5):
+def recursive_gf_cal(energy, mat_l_list, mat_d_list, mat_u_list, sd, su, sl, s_in=0, s_out=0, eta=1e-5):
     """The recursive Green's function algorithm is taken from
     M. P. Anantram, M. S. Lundstrom and D. E. Nikonov, Proceedings of the IEEE, 96, 1511 - 1550 (2008)
     DOI: 10.1109/JPROC.2008.927355
@@ -262,11 +262,6 @@ def Recursive_gf(energy, hl, hd, hu, sd, su, sl, left_se, right_se, seP=None, ch
         s01, s02 = temp_mat_d_list[0].shape
         se01, se02 = left_se.shape
         idx0, idy0 = min(s01, se01), min(s02, se02)
-        # import matplotlib.pyplot as plt
-        # plt.matshow(left_se.real.detach())
-        # plt.show()
-        # plt.matshow(left_se.imag.detach())
-        # plt.show()
         temp_mat_d_list[0][:idx0,:idy0] = temp_mat_d_list[0][:idx0,:idy0] + left_se[:idx0,:idy0]
 
     if isinstance(right_se, torch.Tensor):
@@ -276,7 +271,7 @@ def Recursive_gf(energy, hl, hd, hu, sd, su, sl, left_se, right_se, seP=None, ch
         # right_se = right_se[-idx1:, -idy1:]
         temp_mat_d_list[-1][-idx1:, -idy1:] = temp_mat_d_list[-1][-idx1:, -idy1:] + right_se[-idx1:, -idy1:]
 
-    ans = _recursive_gf(shift_energy, temp_mat_l_list, temp_mat_d_list, temp_mat_u_list, sd, su, sl, s_in=s_in, s_out=s_out, eta=eta)
+    ans = recursive_gf_cal(shift_energy, temp_mat_l_list, temp_mat_d_list, temp_mat_u_list, sd, su, sl, s_in=s_in, s_out=s_out, eta=eta)
 
     if isinstance(left_se, torch.Tensor):
         temp_mat_d_list[0][:idx0, :idy0] = temp_mat_d_list[0][:idx0, :idy0] - left_se[:idx0, :idy0]
