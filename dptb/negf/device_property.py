@@ -25,7 +25,7 @@ class DeviceProperty(object):
         
         Property
         ----------
-        green
+        greenfuncs
             a dictionary that contains the Green's function and its related variables.
         hamiltonian
              the Hamiltonian matrix of a system. 
@@ -56,7 +56,7 @@ class DeviceProperty(object):
         -------
         set_leadLR
             initialize the left and right lead in Device object
-        green_function
+        cal_green_function
             computes the Green's function for a given energy and k-point in device.
         _cal_current_
             calculate the current based on the voltage difference
@@ -77,7 +77,7 @@ class DeviceProperty(object):
         
     '''    
     def __init__(self, hamiltonian, structure, results_path, e_T=300, efermi=0.) -> None:
-        self.green = 0
+        self.greenfuncs = 0
         self.hamiltonian = hamiltonian
         self.structure = structure # ase Atoms
         self.results_path = results_path
@@ -105,7 +105,7 @@ class DeviceProperty(object):
         self.lead_R = lead_R
         self.mu = self.efermi - 0.5*(self.lead_L.voltage + self.lead_R.voltage)
 
-    def green_function(self, energy, kpoint, eta_device=0., block_tridiagonal=True):
+    def cal_green_function(self, energy, kpoint, eta_device=0., block_tridiagonal=True):
         ''' computes the Green's function for a given energy and k-point in device.
 
         the tags used here to identify different Green's functions follows the NEGF theory 
@@ -169,7 +169,7 @@ class DeviceProperty(object):
         se11, se12 = seR.shape
         idx1, idy1 = min(s11, se11), min(s12, se12)
         
-        green_ = {}
+        green_funcs = {}
 
         s_in[0][:idx0,:idy0] = s_in[0][:idx0,:idy0] + seinL[:idx0,:idy0]
         s_in[-1][-idx1:,-idy1:] = s_in[-1][-idx1:,-idy1:] + seinR[-idx1:,-idy1:]
@@ -182,9 +182,9 @@ class DeviceProperty(object):
             # green shape [[g_trans, grd, grl,...],[g_trans, ...]]
         
         for t in range(len(tags)):
-            green_[tags[t]] = ans[t]
+            green_funcs[tags[t]] = ans[t]
 
-        self.green = green_
+        self.greenfuncs = green_funcs
         # self.green = update_temp_file(update_fn=fn, file_path=GFpath, ee=ee, tags=tags, info="Computing Green's Function")
 
     def _cal_current_(self, espacing):
@@ -208,7 +208,7 @@ class DeviceProperty(object):
         xu = max(v_L, v_R)+4*self.kBT
 
         def fcn(e):
-            self.green_function()
+            self.cal_green_function()
 
         cc = leggauss(fcn=self._cal_tc_)
         
@@ -366,7 +366,7 @@ class DeviceProperty(object):
         
         '''
         dm = Ozaki(**dm_options)
-        DM_eq, DM_neq = dm.integrate(device=self.device, kpoint=self.kpoint)
+        DM_eq, DM_neq = dm.integrate(deviceprop=self.device, kpoint=self.kpoint)
 
         return DM_eq, DM_neq
     
@@ -398,55 +398,55 @@ class DeviceProperty(object):
 
     @property
     def g_trans(self):
-        return self.green["g_trans"] # [n,n]
+        return self.greenfuncs["g_trans"] # [n,n]
     
     @property
     def grd(self):
-        return self.green["grd"] # [[n,n]]
+        return self.greenfuncs["grd"] # [[n,n]]
     
     @property
     def grl(self):
-        return self.green["grl"]
+        return self.greenfuncs["grl"]
     
     @property
     def gru(self):
-        return self.green["gru"]
+        return self.greenfuncs["gru"]
     
     @property
     def gr_left(self):
-        return self.green["gr_left"]
+        return self.greenfuncs["gr_left"]
     
     @property
     def gnd(self):
-        return self.green["gnd"]
+        return self.greenfuncs["gnd"]
     
     @property
     def gnl(self):
-        return self.green["gnl"]
+        return self.greenfuncs["gnl"]
     
     @property
     def gnu(self):
-        return self.green["gnu"]
+        return self.greenfuncs["gnu"]
     
     @property
     def gin_left(self):
-        return self.green["gin_left"]
+        return self.greenfuncs["gin_left"]
     
     @property
     def gpd(self):
-        return self.green["gpd"]
+        return self.greenfuncs["gpd"]
     
     @property
     def gpl(self):
-        return self.green["gpl"]
+        return self.greenfuncs["gpl"]
     
     @property
     def gpu(self):
-        return self.green["gpu"]
+        return self.greenfuncs["gpu"]
     
     @property
     def gip_left(self):
-        return self.green["gip_left"]
+        return self.greenfuncs["gip_left"]
     
     @property
     def norbs_per_atom(self):
