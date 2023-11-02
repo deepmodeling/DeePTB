@@ -7,8 +7,8 @@ from dptb.negf.ozaki_res_cal import ozaki_residues
 from dptb.negf.hamiltonian_init import HamiltonianInit
 from dptb.negf.density import Ozaki
 from dptb.negf.areshkin_pole_sum import pole_maker
-from dptb.negf.device_property import Device_property
-from dptb.negf.lead_property import Lead_property
+from dptb.negf.device_property import DeviceProperty
+from dptb.negf.lead_property import LeadProperty
 from ase.io import read
 from dptb.negf.poisson import Density2Potential, getImg
 from dptb.negf.scf_method import SCFMethod
@@ -61,9 +61,9 @@ class NEGF(object):
             struct_device, struct_leads = self.hamiltonian.initialize(kpoints=self.kpoints)
         
 
-        self.device = Device_property(self.hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)
+        self.device = DeviceProperty(self.hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)
         self.device.set_leadLR(
-                lead_L=Lead_property(
+                lead_L=LeadProperty(
                 hamiltonian=self.hamiltonian, 
                 tab="lead_L", 
                 structure=struct_leads["lead_L"], 
@@ -72,7 +72,7 @@ class NEGF(object):
                 efermi=self.e_fermi, 
                 voltage=self.jdata["stru_options"]["lead_L"]["voltage"]
             ),
-                lead_R=Lead_property(
+                lead_R=LeadProperty(
                     hamiltonian=self.hamiltonian, 
                     tab="lead_R", 
                     structure=struct_leads["lead_R"], 

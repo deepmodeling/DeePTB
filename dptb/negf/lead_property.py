@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 # """
 
 
-class Lead_property(object):
+class LeadProperty(object):
     '''
     The Lead class represents a lead in a structure and provides methods for calculating the self energy
     and gamma for the lead.

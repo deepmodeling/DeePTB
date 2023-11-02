@@ -1,6 +1,6 @@
 # test_negf_density_Ozaki
 from dptb.negf.density import Ozaki
-from dptb.negf.device_property import Device_property
+from dptb.negf.device_property import DeviceProperty
 from dptb.plugins.init_nnsk import InitSKModel
 from dptb.nnops.NN2HRK import NN2HRK
 from dptb.nnops.apihost import NNSKHost
@@ -11,7 +11,7 @@ import torch
 from dptb.negf.hamiltonian_init import HamiltonianInit
 from ase.io import read
 from dptb.utils.make_kpoints import kmesh_sampling
-from dptb.negf.lead_property import Lead_property
+from dptb.negf.lead_property import LeadProperty
 from dptb.utils.constants import *
 import pytest
 
@@ -59,9 +59,9 @@ def test_negf_density_Ozaki(root_directory):
     hamiltonian = HamiltonianInit(apiH=apiHrk, structase=structase, stru_options=task_options["stru_options"], results_path=results_path)
     with torch.no_grad():
         struct_device, struct_leads = hamiltonian.initialize(kpoints=kpoints)
-    device = Device_property(hamiltonian, struct_device, results_path=results_path, efermi=e_fermi)
+    device = DeviceProperty(hamiltonian, struct_device, results_path=results_path, efermi=e_fermi)
     device.set_leadLR(
-                    lead_L=Lead_property(
+                    lead_L=LeadProperty(
                     hamiltonian=hamiltonian, 
                     tab="lead_L", 
                     structure=struct_leads["lead_L"], 
@@ -70,7 +70,7 @@ def test_negf_density_Ozaki(root_directory):
                     efermi=e_fermi, 
                     voltage=task_options["stru_options"]["lead_L"]["voltage"]
                 ),
-                    lead_R=Lead_property(
+                    lead_R=LeadProperty(
                         hamiltonian=hamiltonian, 
                         tab="lead_R", 
                         structure=struct_leads["lead_R"], 
