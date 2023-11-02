@@ -41,7 +41,7 @@ class NEGF(object):
         
         # get the parameters
         self.ele_T = jdata["ele_T"]
-        self.kBT = k * self.ele_T / eV
+        self.kBT = Boltzmann * self.ele_T / eV2J
         self.e_fermi = jdata["e_fermi"]
         self.stru_options = j_must_have(jdata, "stru_options")
         self.pbc = self.stru_options["pbc"]

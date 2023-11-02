@@ -53,7 +53,7 @@ def test_negf_density_Ozaki(root_directory):
     results_path=run_opt.get('results_path')
     kpoints= kmesh_sampling(task_options["stru_options"]["kmesh"])
     ele_T = task_options["ele_T"]
-    kBT = k * ele_T / eV
+    kBT = Boltzmann * ele_T / eV2J
     e_fermi = task_options["e_fermi"]
 
     hamiltonian = HamiltonianInit(apiH=apiHrk, structase=structase, stru_options=task_options["stru_options"], results_path=results_path)

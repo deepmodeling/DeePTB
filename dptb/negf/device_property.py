@@ -1,6 +1,6 @@
 from dptb.negf.recursive_green_cal import recursive_gf
 import logging
-from dptb.utils.constants import eV
+from dptb.utils.constants import eV2J
 import torch
 import os
 from dptb.negf.negf_utils import update_kmap, update_temp_file,gauss_xw, leggauss
@@ -83,7 +83,7 @@ class DeviceProperty(object):
         self.results_path = results_path
         self.cdtype = torch.complex128
         self.device = "cpu"
-        self.kBT = Boltzmann * e_T / eV
+        self.kBT = Boltzmann * e_T / eV2J
         self.e_T = e_T
         self.efermi = efermi
         self.mu = self.efermi

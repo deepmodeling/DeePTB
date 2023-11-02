@@ -62,7 +62,7 @@ class LeadProperty(object):
         self.tab = tab
         self.voltage = voltage
         self.results_path = results_path
-        self.kBT = Boltzmann * e_T / eV
+        self.kBT = Boltzmann * e_T / eV2J
         self.e_T = e_T
         self.efermi = efermi
         self.mu = self.efermi - self.voltage

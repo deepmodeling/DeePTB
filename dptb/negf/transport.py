@@ -15,7 +15,7 @@ from dptb.negf.utils import quad
 '''
 The used transformation of different quantities will be implemented here
 '''
-kBT = k * T / eV
+kBT = Boltzmann * T / eV2J
 
 def fermi_dirac(x):
     return 1 / (1 + torch.exp(x/kBT))
