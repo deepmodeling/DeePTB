@@ -80,7 +80,7 @@ def get_uniq_symbol(atomsymbols):
 def find_isinf(x):
     return torch.any(torch.isinf(x))
 
-class _BaseInfTransform(object):
+class ADBaseInfTransform(object):
     @abstractmethod
     def forward(self, t):
         pass
@@ -93,7 +93,7 @@ class _BaseInfTransform(object):
     def x2t(self, x):
         pass
 
-class _TanInfTransform(_BaseInfTransform):
+class ADTanInfTransform(ADBaseInfTransform):
     def forward(self, t):
         return torch.tan(t)
 
@@ -222,11 +222,11 @@ def quad(
             y = fcn(x, *params)
             return packer.flatten(y)
 
-        res = _Quadrature.apply(pfunc2, xl, xu, fwd_options, bck_options, nparams,
+        res = Quadrature.apply(pfunc2, xl, xu, fwd_options, bck_options, nparams,
                                 dtype, device, *params, *pfunc.objparams())
         return packer.pack(res)
     else:
-        return _Quadrature.apply(pfunc, xl, xu, fwd_options, bck_options, nparams,
+        return Quadrature.apply(pfunc, xl, xu, fwd_options, bck_options, nparams,
                                  dtype, device, *params, *pfunc.objparams())
     
 def update_kmap(result_path, kpoint):
@@ -320,7 +320,7 @@ def update_temp_file(update_fn, file_path, ee, tags, info):
     
     return out
 
-class _Quadrature(torch.autograd.Function):
+class Quadrature(torch.autograd.Function):
     # NOTE: _Quadrature method do not involve changing the state (objparams) of
     # fcn, so there is no need in using `with fcn.useobjparams(objparams)`
     # statements.
@@ -346,7 +346,7 @@ class _Quadrature(torch.autograd.Function):
 
             # apply transformation if the boundaries contain inf
             if find_isinf(xl) or find_isinf(xu):
-                tfm = _TanInfTransform()
+                tfm = ADTanInfTransform()
 
                 @make_sibling(fcn)
                 def fcn2(t, *params):
