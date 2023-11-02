@@ -7,7 +7,7 @@ from dptb.utils.tools import j_must_have
 from dptb.utils.tools import j_loader
 import numpy as np
 import torch
-from dptb.negf.hamiltonian_init import HamiltonianInit
+from dptb.negf.negf_hamiltonian_init import NEGFHamiltonianInit
 from ase.io import read
 from dptb.negf.lead_property import LeadProperty
 from dptb.utils.constants import Boltzmann, eV2J
@@ -54,7 +54,7 @@ def test_negf_Device(root_directory):
     kBT = Boltzmann * ele_T / eV2J
     e_fermi = task_options["e_fermi"]
 
-    hamiltonian = HamiltonianInit(apiH=apiHrk, structase=structase, stru_options=task_options["stru_options"], results_path=results_path)
+    hamiltonian = NEGFHamiltonianInit(apiH=apiHrk, structase=structase, stru_options=task_options["stru_options"], results_path=results_path)
     with torch.no_grad():
         struct_device, struct_leads = hamiltonian.initialize(kpoints=kpoints)
 

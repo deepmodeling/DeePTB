@@ -7,7 +7,7 @@ from dptb.utils.tools import j_loader
 import numpy as np
 import torch
 import pytest
-from dptb.negf.hamiltonian_init import HamiltonianInit
+from dptb.negf.negf_hamiltonian_init import NEGFHamiltonianInit
 from ase.io import read
 
 
@@ -48,7 +48,7 @@ def test_negf_Hamiltonian(root_directory):
     results_path=run_opt.get('results_path')
     kpoints=np.array([[0,0,0]])
 
-    hamiltonian = HamiltonianInit(apiH=apiHrk, structase=structase, stru_options=task_options["stru_options"], results_path=results_path)
+    hamiltonian = NEGFHamiltonianInit(apiH=apiHrk, structase=structase, stru_options=task_options["stru_options"], results_path=results_path)
     with torch.no_grad():
         struct_device, struct_leads = hamiltonian.initialize(kpoints=kpoints)
     

@@ -4,7 +4,7 @@ from dptb.negf.recursive_green_cal import recursive_gf
 from dptb.negf.surface_green import selfEnergy
 from dptb.negf.negf_utils import quad, gauss_xw,leggauss,update_kmap
 from dptb.negf.ozaki_res_cal import ozaki_residues
-from dptb.negf.hamiltonian_init import HamiltonianInit
+from dptb.negf.negf_hamiltonian_init import NEGFHamiltonianInit
 from dptb.negf.density import Ozaki
 from dptb.negf.areshkin_pole_sum import pole_maker
 from dptb.negf.device_property import DeviceProperty
@@ -56,7 +56,7 @@ class NEGF(object):
         
 
         # computing the hamiltonian
-        self.hamiltonian = HamiltonianInit(apiH=self.apiH, structase=self.structase, stru_options=jdata["stru_options"], results_path=self.results_path)
+        self.hamiltonian = NEGFHamiltonianInit(apiH=self.apiH, structase=self.structase, stru_options=jdata["stru_options"], results_path=self.results_path)
         with torch.no_grad():
             struct_device, struct_leads = self.hamiltonian.initialize(kpoints=self.kpoints)
         

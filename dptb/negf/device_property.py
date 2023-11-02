@@ -1,6 +1,5 @@
 from dptb.negf.recursive_green_cal import recursive_gf
 import logging
-from dptb.utils.constants import eV2J
 import torch
 import os
 from dptb.negf.negf_utils import update_kmap, update_temp_file,gauss_xw, leggauss
