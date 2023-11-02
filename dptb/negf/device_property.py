@@ -1,4 +1,4 @@
-from dptb.negf.RGF import recursive_gf
+from dptb.negf.recursive_green_cal import recursive_gf
 import logging
 from dptb.utils.constants import eV
 import torch

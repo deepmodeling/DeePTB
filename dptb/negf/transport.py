@@ -1,7 +1,7 @@
 import ase.transport
 import torch
 from dptb.utils.constants import *
-from dptb.negf.RGF import recursive_gf
+from dptb.negf.recursive_green_cal import recursive_gf
 from fmm3dpy import lfmm3d
 from dptb.negf.areshkin_pole_sum import pole_maker
 from dptb.negf.surface_green import selfEnergy

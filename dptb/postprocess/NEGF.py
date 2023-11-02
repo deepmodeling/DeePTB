@@ -1,6 +1,6 @@
 from typing import List
 import torch
-from dptb.negf.RGF import recursive_gf
+from dptb.negf.recursive_green_cal import recursive_gf
 from dptb.negf.surface_green import selfEnergy
 from dptb.negf.negf_utils import quad, gauss_xw,leggauss,update_kmap
 from dptb.negf.ozaki_res_cal import Ozaki_residues

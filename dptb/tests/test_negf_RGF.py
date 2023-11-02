@@ -13,7 +13,7 @@ from dptb.utils.make_kpoints import kmesh_sampling
 from dptb.negf.lead_property import Lead_property
 from dptb.utils.constants import *
 import os
-from dptb.negf.RGF import recursive_gf
+from dptb.negf.recursive_green_cal import recursive_gf
 import pytest
 
 @pytest.fixture(scope='session', autouse=True)
