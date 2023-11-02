@@ -33,7 +33,7 @@ class Density(object):
     def integrate(self, device):
         pass
 
-    def slice(self, device, density, fix_dim="z", vslice=0.3, h=0.01, sigma=0.05, plot=False, optimize=False):
+    def slice(self, device, density, fix_dim:str="z", vslice:float=0.3, h:float=0.01, sigma:float=0.05, plot:bool=False, optimize:bool=False):
         '''generate a 2D grid of real-space density along transmission direction with Gaussian broadening.
         
         The `slice` function takes in a device structure and density, and slices it along a specified
@@ -42,9 +42,9 @@ class Density(object):
         Parameters
         ----------
         device
-            Device object that represents the device 
+            DeviceProperty object that represents the device 
         density
-            electron density of the device
+            electron density of the device calcualted from the instance method, here the Ozaki method.
         fix_dim
             transmission direction, default is "z"
         vslice
@@ -188,9 +188,9 @@ class Ozaki(Density):
                 device.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
                 device.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
                 device.green_function(e=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
-                ggg = torch.mm(torch.mm(device.grd[0], device.lead_R.gamma), device.grd[0].conj().T).real
-                ggg = ggg * (device.lead_R.fermi_dirac(e+device.mu) - device.lead_L.fermi_dirac(e+device.mu))
-                DM_neq = DM_neq + wlg[i] * ggg
+                gr_gamma_ga = torch.mm(torch.mm(device.grd[0], device.lead_R.gamma), device.grd[0].conj().T).real
+                gr_gamma_ga = gr_gamma_ga * (device.lead_R.fermi_dirac(e+device.mu) - device.lead_L.fermi_dirac(e+device.mu))
+                DM_neq = DM_neq + wlg[i] * gr_gamma_ga
         else:
             DM_neq = 0.
 

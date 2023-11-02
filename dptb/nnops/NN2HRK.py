@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from dptb.structure.structure import BaseStruct
 from dptb.structure.lead import LeadStruct
-from dptb.structure.device import Device
+from dptb.structure.device import DeviceStruct
 from dptb.dataprocess.processor import Processor
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
 from ase import Atoms
@@ -66,7 +66,7 @@ class NN2HRK(object):
                     time_symm=self.apihost.model_config['time_symm']
                     )
             elif mode == "device":
-                self.structure = Device(
+                self.structure = DeviceStruct(
                     atom=structure, 
                     format='ase', 
                     cutoff=self.apihost.model_config['bond_cutoff'], 

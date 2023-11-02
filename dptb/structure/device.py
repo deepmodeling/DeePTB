@@ -16,12 +16,12 @@ from ase.build.tools import sort
 
 
 
-class Device(BaseStruct):
+class DeviceStruct(BaseStruct):
     def __init__(self, atom, format, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='none', time_symm=True, device_options={}, pbc=[False, False, False]):
         self.pbc = pbc.copy()
         assert self.pbc[2] == False
         self.device_options = device_options
-        super(Device, self).__init__(atom, format, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode, time_symm)
+        super(DeviceStruct, self).__init__(atom, format, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode, time_symm)
         
         
     
