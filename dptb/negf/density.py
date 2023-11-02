@@ -30,10 +30,10 @@ class Density(object):
     def __init__(self) -> None:
         pass
 
-    def integrate(self, device):
+    def integrate(self, deviceprop):
         pass
 
-    def slice(self, device, density, fix_dim:str="z", vslice:float=0.3, h:float=0.01, sigma:float=0.05, plot:bool=False, optimize:bool=False):
+    def slice(self, deviceprop, density, fix_dim:str="z", vslice:float=0.3, h:float=0.01, sigma:float=0.05, plot:bool=False, optimize:bool=False):
         '''generate a 2D grid of real-space density along transmission direction with Gaussian broadening.
         
         The `slice` function takes in a device structure and density, and slices it along a specified
@@ -41,7 +41,7 @@ class Density(object):
         
         Parameters
         ----------
-        device
+        deviceprop
             DeviceProperty object that represents the device 
         density
             electron density of the device calcualted from the instance method, here the Ozaki method.
@@ -65,8 +65,8 @@ class Density(object):
         
         '''
         
-        lx, ly, lz = device.structure.cell.array.max(axis=0)
-        sx, sy, sz = device.structure.cell.array.min(axis=0)
+        lx, ly, lz = deviceprop.structure.cell.array.max(axis=0)
+        sx, sy, sz = deviceprop.structure.cell.array.min(axis=0)
 
         if optimize:
             lx, ly, lz = (density[:,:3] + 5 * sigma).max(dim=0)[0]
@@ -130,7 +130,7 @@ class Ozaki(Density):
     integrate
         calculates the equilibrium and non-equilibrium density matrices for a given k-point.
     on_site_density
-        calculate the onsite density for a given device and density matrix.
+        calculate the onsite density for a given deviceprop and density matrix.
     
     '''
     def __init__(self, R, M_cut, n_gauss):
@@ -140,20 +140,20 @@ class Ozaki(Density):
         self.R = R
         self.n_gauss = n_gauss
 
-    def integrate(self, device, kpoint, eta_lead=1e-5, eta_device=0.):
+    def integrate(self, deviceprop, kpoint, eta_lead=1e-5, eta_device=0.):
         '''calculates the equilibrium and non-equilibrium density matrices for a given k-point.
         
         Parameters
         ----------
-        device
-            the Device Object of the device for which the integration is being performed. 
+        deviceprop
+            the Device Object of the DeviceProperty for which the integration is being performed. 
         kpoint
             point in the Brillouin zone of the lead. It is used to calculate the self-energy and 
             Green's function for the given kpoint.
         eta_lead
             the broadening parameter for the leads in the calculation of the self-energy.
         eta_device
-            the broadening parameter for the device in the calculation of the Green function.
+            the broadening parameter for the deviceprop in the calculation of the Green function.
         
         Returns
         -------
@@ -161,48 +161,48 @@ class Ozaki(Density):
             DM_eq is the equilibrium density matrix, and DM_neq is the non-equilibrium density matrix.
         
         '''
-        kBT = device.kBT
+        kBT = deviceprop.kBT
         # add 0th order moment
-        poles = 1j* self.poles * kBT + device.lead_L.mu - device.mu # left lead expression for rho_eq
-        device.lead_L.self_energy(kpoint=kpoint, energy=1j*self.R-device.mu)
-        device.lead_R.self_energy(kpoint=kpoint, energy=1j*self.R-device.mu)
-        device.green_function(energy=1j*self.R-device.mu, kpoint=kpoint, block_tridiagonal=False)
-        g0 = device.grd[0]
+        poles = 1j* self.poles * kBT + deviceprop.lead_L.mu - deviceprop.mu # left lead expression for rho_eq
+        deviceprop.lead_L.self_energy(kpoint=kpoint, energy=1j*self.R-deviceprop.mu)
+        deviceprop.lead_R.self_energy(kpoint=kpoint, energy=1j*self.R-deviceprop.mu)
+        deviceprop.cal_green_function(energy=1j*self.R-deviceprop.mu, kpoint=kpoint, block_tridiagonal=False)
+        g0 = deviceprop.grd[0]
         DM_eq = 1.0j * self.R * g0
         for i, e in enumerate(poles):
-            device.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
-            device.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
-            device.green_function(energy=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
-            term = ((-4 * 1j * kBT) * device.grd[0] * self.residues[i]).imag
+            deviceprop.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
+            deviceprop.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
+            deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
+            term = ((-4 * 1j * kBT) * deviceprop.grd[0] * self.residues[i]).imag
             DM_eq -= term
         
         DM_eq = DM_eq.real
 
-        if abs(device.lead_L.voltage - device.lead_R.voltage) > 1e-14:
+        if abs(deviceprop.lead_L.voltage - deviceprop.lead_R.voltage) > 1e-14:
             # calculating Non-equilibrium density
-            xl, xu = min(device.lead_L.voltage, device.lead_R.voltage), max(device.lead_L.voltage, device.lead_R.voltage)
+            xl, xu = min(deviceprop.lead_L.voltage, deviceprop.lead_R.voltage), max(deviceprop.lead_L.voltage, deviceprop.lead_R.voltage)
             xl, xu = xl - 8*kBT, xu + 8*kBT
             xs, wlg = gauss_xw(xl=torch.scalar_tensor(xl), xu=torch.scalar_tensor(xu), n=self.n_gauss)
             DM_neq = 0.
             for i, e in enumerate(xs):
-                device.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
-                device.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
-                device.green_function(e=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
-                gr_gamma_ga = torch.mm(torch.mm(device.grd[0], device.lead_R.gamma), device.grd[0].conj().T).real
-                gr_gamma_ga = gr_gamma_ga * (device.lead_R.fermi_dirac(e+device.mu) - device.lead_L.fermi_dirac(e+device.mu))
+                deviceprop.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
+                deviceprop.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
+                deviceprop.cal_green_function(e=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
+                gr_gamma_ga = torch.mm(torch.mm(deviceprop.grd[0], deviceprop.lead_R.gamma), deviceprop.grd[0].conj().T).real
+                gr_gamma_ga = gr_gamma_ga * (deviceprop.lead_R.fermi_dirac(e+deviceprop.mu) - deviceprop.lead_L.fermi_dirac(e+deviceprop.mu))
                 DM_neq = DM_neq + wlg[i] * gr_gamma_ga
         else:
             DM_neq = 0.
 
         return DM_eq, DM_neq
     
-    def get_density_onsite(self, device, DM):
-        '''calculate the onsite density for a given device and density matrix.
+    def get_density_onsite(self, deviceprop, DM):
+        '''calculate the onsite density for a given deviceprop and density matrix.
         
         Parameters
         ----------
-        device
-            the Device Object of the device for which the integration is being performed. 
+        deviceprop
+            the Device Object of the DeviceProperty for which the integration is being performed. 
         DM
            a given density matrix.
         
@@ -219,10 +219,10 @@ class Ozaki(Density):
             log.error("The DM must be the of shape [norbs] or [norbs, norbs]")
 
 
-        norbs = [0]+device.norbs_per_atom
+        norbs = [0]+deviceprop.norbs_per_atom
         accmap = np.cumsum(norbs)
         onsite_density = torch.stack([DM[accmap[i]:accmap[i+1]].sum() for i in range(len(accmap)-1)])
         
-        onsite_density = torch.cat([torch.from_numpy(device.structure.positions), onsite_density.unsqueeze(-1)], dim=-1)
+        onsite_density = torch.cat([torch.from_numpy(deviceprop.structure.positions), onsite_density.unsqueeze(-1)], dim=-1)
 
         return onsite_density
