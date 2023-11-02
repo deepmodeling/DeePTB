@@ -8,7 +8,7 @@ from dptb.negf.ozaki_res_cal import Ozaki_residues
 from dptb.negf.areshkin_pole_sum import pole_maker
 from ase.io import read
 from dptb.negf.poisson import Density2Potential, getImg
-from dptb.negf.scf_method import _SCF
+from dptb.negf.scf_method import SCFMethod
 from dptb.utils.constants import *
 import logging
 import os

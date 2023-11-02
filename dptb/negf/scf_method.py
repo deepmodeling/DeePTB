@@ -3,7 +3,7 @@ from torch.optim import LBFGS, Adam
 from xitorch.linalg.solve import solve
 from xitorch.grad.jachess import jac
 
-class _SCF(torch.autograd.Function):
+class SCFMethod(torch.autograd.Function):
     @staticmethod
     def forward(ctx, fcn, x0, scf_options, method='PDIIS', *params):
         # with torch.no_grad():
