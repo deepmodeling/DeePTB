@@ -99,16 +99,16 @@ class NEGFHamiltonianInit(object):
         # change parameters to match the structure projection
         n_proj_atom_pre = np.array([1]*len(self.structase))[:self.device_id[0]][self.apiH.structure.projatoms[:self.device_id[0]]].sum()
         n_proj_atom_device = np.array([1]*len(self.structase))[self.device_id[0]:self.device_id[1]][self.apiH.structure.projatoms[self.device_id[0]:self.device_id[1]]].sum()
-        device_id = [0,0]
-        device_id[0] = n_proj_atom_pre
-        device_id[1] = n_proj_atom_pre + n_proj_atom_device
+        proj_device_id = [0,0]
+        proj_device_id[0] = n_proj_atom_pre
+        proj_device_id[1] = n_proj_atom_pre + n_proj_atom_device
         projatoms = self.apiH.structure.projatoms
 
         self.atom_norbs = [self.apiH.structure.proj_atomtype_norbs[i] for i in self.apiH.structure.proj_atom_symbols]
         self.apiH.get_HR()
         H, S = self.apiH.get_HK(kpoints=kpoints)
-        d_start = int(np.sum(self.atom_norbs[:device_id[0]]))
-        d_end = int(np.sum(self.atom_norbs)-np.sum(self.atom_norbs[device_id[1]:]))
+        d_start = int(np.sum(self.atom_norbs[:proj_device_id[0]]))
+        d_end = int(np.sum(self.atom_norbs)-np.sum(self.atom_norbs[proj_device_id[1]:]))
         HD, SD = H[:,d_start:d_end, d_start:d_end], S[:, d_start:d_end, d_start:d_end]
         
         if not block_tridiagnal:

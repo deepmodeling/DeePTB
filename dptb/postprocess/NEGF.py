@@ -12,13 +12,12 @@ from dptb.negf.lead_property import LeadProperty
 from ase.io import read
 from dptb.negf.poisson import Density2Potential, getImg
 from dptb.negf.scf_method import SCFMethod
-from dptb.utils.constants import *
-import logging
+from dptb.utils.constants import Boltzmann, eV2J
 import os
 from dptb.utils.tools import j_must_have
 import numpy as np
 from dptb.utils.make_kpoints import kmesh_sampling
-
+import logging
 
 log = logging.getLogger(__name__)
 
