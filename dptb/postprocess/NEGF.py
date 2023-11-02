@@ -10,7 +10,7 @@ from dptb.negf.areshkin_pole_sum import pole_maker
 from dptb.negf.device_property import Device_property
 from dptb.negf.lead_property import Lead_property
 from ase.io import read
-from dptb.negf.poisson import density2Potential, getImg
+from dptb.negf.poisson import Density2Potential, getImg
 from dptb.negf.scf_method import _SCF
 from dptb.utils.constants import *
 import logging

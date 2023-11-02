@@ -5,7 +5,7 @@ from dptb.utils.constants import *
 
 
 
-class density2Potential(torch.autograd.Function):
+class Density2Potential(torch.autograd.Function):
     '''
     This solves a poisson equation with dirichlet boundary condition
     '''
