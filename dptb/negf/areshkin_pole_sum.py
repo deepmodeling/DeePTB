@@ -395,6 +395,6 @@ def fermi_deriv2(E, mu, kT):
     x = (E - mu) / (2 * kT)
     return np.tanh(x) * (np.cosh(x) ** -2) / (4 * kT ** 2)
 
-if __name__ == '__main__':
-    pole, residue = pole_maker(Emin=-27, ChemPot=-4, kT=Boltzmann*T/eV2J, reltol=1e-30)
-    print(residue.shape)
+# if __name__ == '__main__':
+#     pole, residue = pole_maker(Emin=-27, ChemPot=-4, kT=Boltzmann*T/eV2J, reltol=1e-30)
+#     print(residue.shape)
