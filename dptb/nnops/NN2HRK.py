@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from dptb.structure.structure import BaseStruct
-from dptb.structure.lead import Lead
+from dptb.structure.lead import LeadStruct
 from dptb.structure.device import Device
 from dptb.dataprocess.processor import Processor
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
@@ -78,7 +78,7 @@ class NN2HRK(object):
                     pbc=pbc
                     )
             elif mode == "lead":
-                self.structure = Lead(
+                self.structure = LeadStruct(
                     atom=structure, 
                     format='ase', 
                     cutoff=self.apihost.model_config['bond_cutoff'], 

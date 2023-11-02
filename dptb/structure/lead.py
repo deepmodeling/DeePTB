@@ -16,12 +16,12 @@ from ase import Atoms
 
 
 
-class Lead(BaseStruct):
+class LeadStruct(BaseStruct):
     def __init__(self, atom, format, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode:str='none', time_symm=True, lead_options={}, pbc=[False, False, False]):
         self.pbc = pbc.copy()
         self.pbc[2] = True
         self.lead_options = lead_options
-        super(Lead, self).__init__(atom, format, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode, time_symm)
+        super(LeadStruct, self).__init__(atom, format, cutoff, proj_atom_anglr_m, proj_atom_neles, onsitemode, time_symm)
         
     def update_struct(self, atom, format, onsitemode:str='none'):
         self.init_description()
