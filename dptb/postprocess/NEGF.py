@@ -10,6 +10,7 @@ from dptb.negf.areshkin_pole_sum import pole_maker
 from dptb.negf.device_property import DeviceProperty
 from dptb.negf.lead_property import LeadProperty
 from ase.io import read
+import ase
 from dptb.negf.poisson import Density2Potential, getImg
 from dptb.negf.scf_method import SCFMethod
 from dptb.utils.constants import Boltzmann, eV2J
@@ -60,8 +61,8 @@ class NEGF(object):
             struct_device, struct_leads = self.hamiltonian.initialize(kpoints=self.kpoints)
         
 
-        self.device = DeviceProperty(self.hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)
-        self.device.set_leadLR(
+        self.deviceprop = DeviceProperty(self.hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)
+        self.deviceprop.set_leadLR(
                 lead_L=LeadProperty(
                 hamiltonian=self.hamiltonian, 
                 tab="lead_L", 
@@ -134,7 +135,7 @@ class NEGF(object):
 
         if cal_pole:
             self.poles, self.residues = ozaki_residues(M_cut=self.jdata["density_options"]["M_cut"])
-            self.poles = 1j* self.poles * self.kBT + self.device.lead_L.mu - self.device.mu
+            self.poles = 1j* self.poles * self.kBT + self.deviceprop.lead_L.mu - self.deviceprop.mu
 
         if cal_int_grid:
             xl = torch.tensor(min(v_list)-8*self.kBT)
@@ -164,14 +165,14 @@ class NEGF(object):
                     leads = self.stru_options.keys()
                     for ll in leads:
                         if ll.startswith("lead"):
-                            getattr(self.device, ll).self_energy(
+                            getattr(self.deviceprop, ll).self_energy(
                                 energy=e, 
                                 kpoint=k, 
                                 eta_lead=self.jdata["eta_lead"],
                                 method=self.jdata["sgf_solver"]
                                 )
                             
-                    self.device.green_function(
+                    self.deviceprop.cal_green_function(
                         energy=e, 
                         kpoint=k, 
                         eta_device=self.jdata["eta_device"], 
@@ -213,14 +214,14 @@ class NEGF(object):
                     leads = self.stru_options.keys()
                     for ll in leads:
                         if ll.startswith("lead"):
-                            getattr(self.device, ll).self_energy(
+                            getattr(self.deviceprop, ll).self_energy(
                                 e=e, 
                                 kpoint=k, 
                                 eta_lead=self.jdata["eta_lead"],
                                 method=self.jdata["sgf_solver"]
                                 )
                             
-                    self.device.green_function(
+                    self.deviceprop.cal_green_function(
                         e=e,
                         kpoint=k, 
                         eta_device=self.jdata["eta_device"], 
@@ -249,27 +250,27 @@ class NEGF(object):
 
 
     def compute_DOS(self, kpoint):
-        return self.device.dos
+        return self.deviceprop.dos
     
     def compute_TC(self, kpoint):
-        return self.device.tc
+        return self.deviceprop.tc
     
     def compute_LDOS(self, kpoint):
-        return self.device.ldos
+        return self.deviceprop.ldos
     
     def compute_current_nscf(self, kpoint, ee, tc):
-        return self.device._cal_current_nscf_(ee, tc)
+        return self.deviceprop._cal_current_nscf_(ee, tc)
 
     def compute_density(self, kpoint):
-        DM_eq, DM_neq = self.density.integrate(device=self.device, kpoint=kpoint)
+        DM_eq, DM_neq = self.density.integrate(deviceprop=self.deviceprop, kpoint=kpoint)
         return DM_eq, DM_neq
 
     def compute_current(self, kpoint):
-        self.device.green_function(e=self.int_grid, kpoint=kpoint, block_tridiagonal=self.block_tridiagonal)
-        return self.device.current
+        self.deviceprop.cal_green_function(e=self.int_grid, kpoint=kpoint, block_tridiagonal=self.block_tridiagonal)
+        return self.devidevicepropce.current
     
     def compute_lcurrent(self, kpoint):
-        return self.device.lcurrent
+        return self.deviceprop.lcurrent
 
 
     def SCF(self):
