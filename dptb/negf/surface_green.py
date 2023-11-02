@@ -10,7 +10,7 @@ import logging
 log = logging.getLogger(__name__)
 
 
-class surface_green(torch.autograd.Function):
+class Surface_green(torch.autograd.Function):
     '''calculate surface green function
 
     To realize AD-NEGF, this Class is designed manually to calculate the surface green function auto-differentiably.
@@ -191,7 +191,7 @@ def selfEnergy(hL, hLL, sL, sLL, ee, hDL=None, sDL=None, etaLead=1e-8, Bulk=Fals
 
     if hDL == None:
         ESH = (eeshifted * sL - hL)
-        SGF = surface_green.apply(hL, hLL, sL, sLL, eeshifted + 1j * etaLead, method)
+        SGF = Surface_green.apply(hL, hLL, sL, sLL, eeshifted + 1j * etaLead, method)
 
         if Bulk:
             Sig = tLA.inv(SGF)  # SGF^1
@@ -199,7 +199,7 @@ def selfEnergy(hL, hLL, sL, sLL, ee, hDL=None, sDL=None, etaLead=1e-8, Bulk=Fals
             Sig = ESH - tLA.inv(SGF)
     else:
         a, b = hDL.shape
-        SGF = surface_green.apply(hL, hLL, sL, sLL, eeshifted + 1j * etaLead, method)
+        SGF = Surface_green.apply(hL, hLL, sL, sLL, eeshifted + 1j * etaLead, method)
         Sig = (ee*sDL-hDL) @ SGF[:b,:b] @ (ee*sDL.conj().T-hDL.conj().T)
     return Sig, SGF  # R(nuo, nuo)
 
