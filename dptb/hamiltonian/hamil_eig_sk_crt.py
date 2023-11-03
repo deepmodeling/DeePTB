@@ -160,7 +160,6 @@ class HamilEig(RotationSE3):
                 # but for the onsite, the overlap matrix is identity.
                 sub_over_block = th.eye(self.__struct__.proj_atomtype_norbs[iatype], dtype=self.dtype, device=self.device)
 
-            
             ist = 0
             for ish in self.__struct__.proj_atom_anglr_m[iatype]:     # ['s','p',..]
                 ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
