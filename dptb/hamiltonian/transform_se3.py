@@ -44,6 +44,9 @@ class RotationSE3(object):
         if len(Angvec.shape) == 1:
             Angvec = Angvec.unsqueeze(0)
         
+        Hvalue = Hvalue.type(self.rot_type)
+        Angvec = Angvec.type(self.rot_type)
+        
         Angvec = Angvec[:,[1,2,0]]
 
         switch = {'ss': [0,0],
@@ -131,8 +134,8 @@ def transform_o3(Angvec: torch.Tensor, L_vec: Tuple, irs: torch.Tensor, dtype=to
 
 
     angle = xyz_to_angles(Angvec) # (tensor(N), tensor(N))
-    rot_mat_L = Irrep(int(l1), 1).D_from_angles(angle[0], angle[1], torch.tensor(0.)) # tensor(N, 2l1+1, 2l1+1)
-    rot_mat_R = Irrep(int(l2), 1).D_from_angles(angle[0], angle[1], torch.tensor(0.)) # tensor(N, 2l2+1, 2l2+1)
+    rot_mat_L = Irrep(int(l1), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=dtype, device=device)) # tensor(N, 2l1+1, 2l1+1)
+    rot_mat_R = Irrep(int(l2), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=dtype, device=device)) # tensor(N, 2l2+1, 2l2+1)
 
     HR = rot_mat_L @ H_ird @ rot_mat_R.transpose(1,2)
 
