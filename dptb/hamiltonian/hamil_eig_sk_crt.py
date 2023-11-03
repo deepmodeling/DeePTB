@@ -6,8 +6,10 @@ import re
 from dptb.hamiltonian.transform_sk_speed import RotationSK
 from dptb.hamiltonian.transform_se3 import RotationSE3
 from dptb.nnsktb.formula import SKFormula
-from dptb.utils.constants import anglrMId, atomic_num_dict_r
+from dptb.utils.constants import anglrMId, atomic_num_dict
 from dptb.hamiltonian.soc import creat_basis_lm, get_soc_matrix_cubic_basis
+
+import matplotlib.pyplot as plt
 
 ''' Over use of different index system cause the symbols and type and index kind of object need to be recalculated in different 
 Class, this makes entanglement of classes difficult. Need to design an consistent index system to resolve.'''
@@ -227,24 +229,23 @@ class HamilEig(RotationSE3):
             hoppingS_blocks = None
         
         out_bonds = []
-        atomtype = self.__struct__.proj_atom_numbers
-        for ia in atomtype:
-            for ja in atomtype:
-                iatype = atomic_num_dict_r[ia]
-                jatype = atomic_num_dict_r[ja]
+        atomtype = self.__struct__.atomtype
+        for iatype in atomtype:
+            for jatype in atomtype:
+                ia = atomic_num_dict[iatype]
+                ja = atomic_num_dict[jatype]
                 mask = bonds_hoppings[:,0].int().eq(ia) & bonds_hoppings[:,2].int().eq(ja)
                 bonds = bonds_hoppings[torch.arange(bonds_hoppings.shape[0])[mask]]
-                hoppings = [self.hoppings[i] for i in torch.arange(bonds_hoppings.shape[0])[mask]] # might have problems
-                if len(hoppings) > 0:
-                    hoppings = torch.stack(hoppings)
-                direction_vec = bonds[:,8:11].float()
-                sub_hamil_block = th.zeros([len(bonds), self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
-                if not self.use_orthogonal_basis:
-                    sub_over_block = th.zeros([len(bonds), self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
-                    overlaps = [self.overlaps[i] for i in torch.arange(bonds_hoppings.shape[0])[mask]] # might have problems
-                    if len(overlaps) > 0:
-                        overlaps = torch.stack(overlaps)
-                if len(bonds) > 0:
+
+                if len(bonds) == 0:
+                    continue
+                else:
+                    hoppings = torch.stack([self.hoppings[i] for i in torch.arange(bonds_hoppings.shape[0])[mask]]) # might have problems
+                    direction_vec = bonds[:,8:11].type(self.dtype)
+                    sub_hamil_block = th.zeros([len(bonds), self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
+                    if not self.use_orthogonal_basis:
+                        sub_over_block = th.zeros([len(bonds), self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
+                        overlaps = torch.stack([self.overlaps[i] for i in torch.arange(bonds_hoppings.shape[0])[mask]]) # might have problems
                     ist = 0
                     for ish in self.__struct__.proj_atom_anglr_m[iatype]:
                         ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))

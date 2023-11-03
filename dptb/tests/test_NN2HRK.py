@@ -441,7 +441,6 @@ def test_nnsk_nn2hrk_nrl(root_directory):
         nhrk = NN2HRK(apihost=nnskapi, mode='nnsk')
         nhrk.update_struct(struct)
         allbonds, hamil_blocks, overlap_blocks  = nhrk.get_HR()
-
         assert torch.equal(allbonds, allbonds_true) 
         assert len(hamil_blocks) == len(hamil_blocks_true)
         assert len(overlap_blocks) == len(overlap_blocks_true)

@@ -30,6 +30,7 @@ class RotationSE3(object):
         self.device = device
 
 
+
         # self.sd = sd
         # self.pd = pd
         # self.dd = dd
