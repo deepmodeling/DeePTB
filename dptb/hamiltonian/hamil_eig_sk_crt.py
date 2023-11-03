@@ -225,60 +225,53 @@ class HamilEig(RotationSK):
         else:
             hoppingS_blocks = None
         
-        for ib in range(len(bonds_hoppings)):
-            
-            ibond = bonds_hoppings[ib,0:7].int()
-            #direction_vec = (self.__struct__.projected_struct.positions[ibond[3]]
-            #          - self.__struct__.projected_struct.positions[ibond[1]]
-            #          + np.dot(ibond[4:], self.__struct__.projected_struct.cell))
-            #dist = np.linalg.norm(direction_vec)
-            #direction_vec = direction_vec/dist
-            direction_vec = bonds_hoppings[ib,8:11].float()
-            iatype = self.__struct__.proj_atom_symbols[int(ibond[1])]
-            jatype = self.__struct__.proj_atom_symbols[int(ibond[3])]
+        out_bonds = []
+        atomtype = len(self.__struct__.proj_atomtype)
+        for iatype in atomtype:
+            for jatype in atomtype:
+                mask = bonds_hoppings[:,1].int().eq(iatype) & bonds_hoppings[:,1].int().eq(jatype)
+                bonds = bonds_hoppings[torch.arange(bonds_hoppings.shape[0])[mask]]
+                hoppings = self.hoppings[torch.arange(bonds_hoppings.shape[0])[mask]] # might have problems
+                direction_vec = bonds[:,8:11].float()
+                sub_hamil_block = th.zeros([len(bonds), self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
+                if not self.use_orthogonal_basis:
+                    sub_over_block = th.zeros([len(bonds), self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
+                if len(bonds) > 0:
+                    ist = 0
+                    for ish in self.__struct__.proj_atom_anglr_m[iatype]:
+                        ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
+                        shidi = anglrMId[ishsymbol]
+                        norbi = 2*shidi+1
+                        jst = 0
+                        for jsh in self.__struct__.proj_atom_anglr_m[jatype]:
+                            jshsymbol = ''.join(re.findall(r'[A-Za-z]',jsh))
+                            shidj = anglrMId[jshsymbol]
+                            norbj = 2 * shidj + 1
+                            idx = self.__struct__.bond_index_map[iatype+'-'+jatype][ish+'-'+jsh]
+                            if shidi < shidj:
+                                tmpH = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.hoppings[ib][idx], Angvec=direction_vec)
+                                # Hamilblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpH,dim0=0,dim1=1)
+                                sub_hamil_block[:,ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * th.transpose(tmpH,dim0=0,dim1=1)
+                                if not self.use_orthogonal_basis:
+                                    tmpS = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.overlaps[ib][idx], Angvec=direction_vec)
+                                # Soverblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpS,dim0=0,dim1=1)
+                                    sub_over_block[:,ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * th.transpose(tmpS,dim0=0,dim1=1)
+                            else:
+                                tmpH = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue=self.hoppings[ib][idx], Angvec=direction_vec)
+                                sub_hamil_block[:,ist:ist+norbi, jst:jst+norbj] = tmpH
+                                if not self.use_orthogonal_basis:
+                                    tmpS = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue = self.overlaps[ib][idx], Angvec = direction_vec)
+                                    sub_over_block[:,ist:ist+norbi, jst:jst+norbj] = tmpS
+                        
+                            jst = jst + norbj 
+                        ist = ist + norbi
+                    hoppingH_blocks.extend(list(sub_hamil_block))
+                    if not self.use_orthogonal_basis:
+                        hoppingS_blocks.extend(list(sub_over_block))
+                    out_bonds.extend(list(bonds))
 
-            sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
-            if not self.use_orthogonal_basis:
-                sub_over_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
-            
-            bondatomtype = iatype + '-' + jatype
-            
-            ist = 0
-            for ish in self.__struct__.proj_atom_anglr_m[iatype]:
-                ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
-                shidi = anglrMId[ishsymbol]
-                norbi = 2*shidi+1
-                
-                jst = 0
-                for jsh in self.__struct__.proj_atom_anglr_m[jatype]:
-                    jshsymbol = ''.join(re.findall(r'[A-Za-z]',jsh))
-                    shidj = anglrMId[jshsymbol]
-                    norbj = 2 * shidj + 1
 
-                    idx = self.__struct__.bond_index_map[bondatomtype][ish+'-'+jsh]
-                    if shidi < shidj:
-                        tmpH = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.hoppings[ib][idx], Angvec=direction_vec)
-                        # Hamilblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpH,dim0=0,dim1=1)
-                        sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * th.transpose(tmpH,dim0=0,dim1=1)
-                        if not self.use_orthogonal_basis:
-                            tmpS = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.overlaps[ib][idx], Angvec=direction_vec)
-                        # Soverblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpS,dim0=0,dim1=1)
-                            sub_over_block[ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * th.transpose(tmpS,dim0=0,dim1=1)
-                    else:
-                        tmpH = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue=self.hoppings[ib][idx], Angvec=direction_vec)
-                        sub_hamil_block[ist:ist+norbi, jst:jst+norbj] = tmpH
-                        if not self.use_orthogonal_basis:
-                            tmpS = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue = self.overlaps[ib][idx], Angvec = direction_vec)
-                            sub_over_block[ist:ist+norbi, jst:jst+norbj] = tmpS
-                
-                    jst = jst + norbj 
-                ist = ist + norbi
-            
-            hoppingH_blocks.append(sub_hamil_block)
-            if not self.use_orthogonal_basis:
-                hoppingS_blocks.append(sub_over_block)
-
-        return hoppingH_blocks, hoppingS_blocks, bonds_hoppings
+        return hoppingH_blocks, hoppingS_blocks, out_bonds
     
     def get_hs_blocks(self, bonds_onsite = None, bonds_hoppings=None, onsite_envs=None):
         onsiteH, onsiteS, bonds_onsite = self.get_hs_onsite(bonds_onsite=bonds_onsite, onsite_envs=onsite_envs)

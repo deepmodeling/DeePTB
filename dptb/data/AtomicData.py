@@ -46,12 +46,16 @@ _DEFAULT_NODE_FIELDS: Set[str] = {
 }
 _DEFAULT_EDGE_FIELDS: Set[str] = {
     AtomicDataDict.EDGE_CELL_SHIFT_KEY,
+    AtomicDataDict.ENV_CELL_SHIFT_KEY,
     AtomicDataDict.EDGE_VECTORS_KEY,
+    AtomicDataDict.ENV_VECTORS_KEY,
     AtomicDataDict.EDGE_LENGTH_KEY,
+    AtomicDataDict.ENV_LENGTH_KEY,
     AtomicDataDict.EDGE_ATTRS_KEY,
     AtomicDataDict.EDGE_EMBEDDING_KEY,
     AtomicDataDict.EDGE_FEATURES_KEY,
     AtomicDataDict.EDGE_CUTOFF_KEY,
+    AtomicDataDict.ENV_CUTOFF_KEY,
     AtomicDataDict.EDGE_ENERGY_KEY,
 }
 _DEFAULT_GRAPH_FIELDS: Set[str] = {
@@ -252,6 +256,7 @@ class AtomicData(Data):
             if "edge_cell_shift" in self and self.edge_cell_shift is not None:
                 assert self.edge_cell_shift.shape == (self.num_edges, 3)
                 assert self.edge_cell_shift.dtype == self.pos.dtype
+            # TODO: should we add checks for env too ?
             if "cell" in self and self.cell is not None:
                 assert (self.cell.shape == (3, 3)) or (
                     self.cell.dim() == 3 and self.cell.shape[1:] == (3, 3)
@@ -292,7 +297,6 @@ class AtomicData(Data):
         strict_self_interaction: bool = True,
         cell=None,
         pbc: Optional[PBC] = None,
-        env: Optional[bool] = False,
         er_max: Optional[float] = None,
         **kwargs,
     ):
@@ -351,7 +355,7 @@ class AtomicData(Data):
             ).view(3)
 
         # add env index
-        if env:
+        if er_max is not None:
             env_index, env_cell_shift, _ = neighbor_list_and_relative_vec(
                 pos=pos,
                 r_max=er_max,
@@ -361,6 +365,8 @@ class AtomicData(Data):
                 pbc=pbc,
             )
 
+            if cell is not None:
+                kwargs[AtomicDataDict.ENV_CELL_SHIFT_KEY] = env_cell_shift
             kwargs[AtomicDataDict.ENV_INDEX_KEY] = env_index
 
         return cls(edge_index=edge_index, pos=torch.as_tensor(pos), **kwargs)
@@ -630,6 +636,10 @@ class AtomicData(Data):
     def get_edge_vectors(data: Data) -> torch.Tensor:
         data = AtomicDataDict.with_edge_vectors(AtomicData.to_AtomicDataDict(data))
         return data[AtomicDataDict.EDGE_VECTORS_KEY]
+    
+    def get_env_vectors(data: Data) -> torch.Tensor:
+        data = AtomicDataDict.with_env_vectors(AtomicData.to_AtomicDataDict(data))
+        return data[AtomicDataDict.ENV_VECTORS_KEY]
 
     @staticmethod
     def to_AtomicDataDict(
@@ -662,7 +672,7 @@ class AtomicData(Data):
         return self.__irreps__
 
     def __cat_dim__(self, key, value):
-        if key == AtomicDataDict.EDGE_INDEX_KEY:
+        if key == AtomicDataDict.EDGE_INDEX_KEY or key == AtomicDataDict.ENV_INDEX_KEY:
             return 1  # always cat in the edge dimension
         elif key in _GRAPH_FIELDS:
             # graph-level properties and so need a new batch dimension
@@ -689,6 +699,8 @@ class AtomicData(Data):
 
         # Only keep edges where both from and to are kept
         edge_mask = mask[self.edge_index[0]] & mask[self.edge_index[1]]
+        if hasattr(self, AtomicDataDict.ENV_INDEX_KEY):
+            env_mask = mask[self.env_index[0]] & mask[self.env_index[1]]
         # Create an index mapping:
         new_index = torch.full((self.num_nodes,), -1, dtype=torch.long)
         new_index[mask] = torch.arange(n_keeping, dtype=torch.long)
@@ -705,6 +717,14 @@ class AtomicData(Data):
                 ]
             elif k == AtomicDataDict.CELL_KEY:
                 new_dict[k] = self[k]
+            elif k == AtomicDataDict.ENV_INDEX_KEY:
+                new_dict[AtomicDataDict.ENV_INDEX_KEY] = new_index[
+                    self.env_index[:, env_mask]
+                ]
+            elif k == AtomicDataDict.ENV_CELL_SHIFT_KEY:
+                new_dict[AtomicDataDict.EDGE_CELL_SHIFT_KEY] = self.env_cell_shift[
+                    env_mask
+                ]
             else:
                 if isinstance(self[k], torch.Tensor) and len(self[k]) == self.num_nodes:
                     new_dict[k] = self[k][mask]

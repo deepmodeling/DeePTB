@@ -214,6 +214,3 @@ class SKNet(nn.Module):
         if not hasattr(self, 'hop_coeffdict'):
             self.forward(mode='hopping')
         return self.hop_coeffdict[skint_type]
-
-
-    

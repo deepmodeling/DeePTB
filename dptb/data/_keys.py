@@ -2,6 +2,7 @@
 
 This is a seperate module to compensate for a TorchScript bug that can only recognize constants when they are accessed as attributes of an imported module.
 """
+
 import sys
 from typing import List
 
@@ -17,6 +18,8 @@ POSITIONS_KEY: Final[str] = "pos"
 EDGE_INDEX_KEY: Final[str] = "edge_index"
 # The [2, n_edge] index tensor giving center -> neighbor relations
 ENV_INDEX_KEY: Final[str] = "env_index"
+# A [n_edge, 3] tensor of how many periodic cells each env crosses in each cell vector
+ENV_CELL_SHIFT_KEY: Final[str] = "env_cell_shift"
 # A [n_edge, 3] tensor of how many periodic cells each edge crosses in each cell vector
 EDGE_CELL_SHIFT_KEY: Final[str] = "edge_cell_shift"
 # [n_batch, 3, 3] or [3, 3] tensor where rows are the cell vectors
@@ -44,8 +47,12 @@ BASIC_STRUCTURE_KEYS: Final[List[str]] = [
 
 # A [n_edge, 3] tensor of displacement vectors associated to edges
 EDGE_VECTORS_KEY: Final[str] = "edge_vectors"
+# A [n_edge, 3] tensor of displacement vectors associated to envs
+ENV_VECTORS_KEY: Final[str] = "env_vectors"
 # A [n_edge] tensor of the lengths of EDGE_VECTORS
 EDGE_LENGTH_KEY: Final[str] = "edge_lengths"
+# A [n_edge] tensor of the lengths of ENV_VECTORS
+ENV_LENGTH_KEY: Final[str] = "env_lengths"
 # [n_edge, dim] (possibly equivariant) attributes of each edge
 EDGE_ATTRS_KEY: Final[str] = "edge_attrs"
 # [n_edge, dim] invariant embedding of the edges
@@ -53,6 +60,8 @@ EDGE_EMBEDDING_KEY: Final[str] = "edge_embedding"
 EDGE_FEATURES_KEY: Final[str] = "edge_features"
 # [n_edge, 1] invariant of the radial cutoff envelope for each edge, allows reuse of cutoff envelopes
 EDGE_CUTOFF_KEY: Final[str] = "edge_cutoff"
+# [n_edge, 1] invariant of the radial cutoff envelope for each edge, allows reuse of cutoff envelopes
+ENV_CUTOFF_KEY: Final[str] = "env_cutoff"
 # edge energy as in Allegro
 EDGE_ENERGY_KEY: Final[str] = "edge_energy"
 

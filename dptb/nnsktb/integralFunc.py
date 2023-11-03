@@ -51,7 +51,7 @@ class SKintHops(SKFormula):
         -------
             a list of hopping SK integrals.
         
-        '''
+        ''' 
         # TODO: 可能得优化目标：能不能一次性把所有的rij 计算出来。而不是循环计算每一个bond.
         batch_hoppings = {}
         for fi in batch_bonds.keys():

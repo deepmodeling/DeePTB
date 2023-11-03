@@ -4,6 +4,146 @@ from dptb.utils.constants import anglrMId
 import re
 import numpy as np
 
+class Index_Mapings_e3(object):
+    def __init__(self, basis=None):
+        self.basis = basis
+        self.AnglrMID = anglrMId
+        if basis is not None:
+            self.update(basis=basis)
+
+    def update(self, basis):
+        """_summary_
+
+        Parameters
+        ----------
+        basis : dict
+            the definition of the basis set, should be like:
+            {"A":"2s2p3d1f", "B":"1s2f3d1f"} or
+            {"A":["2s", "2p"], "B":["2s", "2p"]}
+            when list, "2s" indicate a "s" orbital in the second shell.
+            when str, "2s" indicates two s orbital, 
+            "2s2p3d4f" is equivilent to ["1s","2s", "1p", "2p", "1d", "2d", "3d", "1f"]
+        """
+        # bondtype, means the atoms types for bond. here ['N', 'B']
+        self.bondtype = get_uniq_symbol(list(basis.keys()))
+
+        # TODO: check the basis value
+
+        self.basis = basis
+        if isinstance(self.basis[self.bondtype[0]], str):
+            orbtype_count = {"s":0, "p":0, "d":0, "f":0}
+            orbs = map(lambda bs: re.findall(r'[1-9]+[A-Za-z]', bs), self.basis.values())
+            for ib in orbs:
+                for io in ib:
+                    if int(io[0]) > orbtype_count[io[1]]:
+                        orbtype_count[io[1]] = int(io[0])
+            # split into list basis
+            basis = {k:[] for k in self.bondtype}
+            for ib in self.basis.keys():
+                for io in ["s", "p", "d", "f"]:
+                    if io in self.basis[ib]:
+                        basis[ib].extend([str(i)+io for i in range(1, int(re.findall(r'[1-9]+'+io, self.basis[ib])[0][0])+1)])
+            self.basis = basis
+
+        elif isinstance(self.basis[self.bondtype[0]], list):
+            nb = len(self.bondtype)
+            orbtype_count = {"s":[0]*nb, "p":[0]*nb, "d":[0]*nb, "f":[0]*nb}
+            for ib, bt in enumerate(self.bondtype):
+                for io in self.basis[bt]:
+                    orb = re.findall(r'[A-Za-z]', io)[0]
+                    orbtype_count[orb][ib] += 1
+            
+            for ko in orbtype_count.keys():
+                orbtype_count[ko] = max(orbtype_count[ko])
+
+        self.bond_reduced_matrix_element = (1 * orbtype_count["s"] + 3 * orbtype_count["p"] + 5 * orbtype_count["d"] + 7 * orbtype_count["f"]) **2
+        self.orbtype_count = orbtype_count
+
+        # sort the basis
+        for ib in self.basis.keys():
+            self.basis[ib] = sorted(
+                self.basis[ib], 
+                key=lambda s: (self.AnglrMID[re.findall(r"[a-z]",s)[0]], re.findall(r"[1-9*]",s)[0])
+                )
+
+        # TODO: get full basis set
+        full_basis = []
+        for io in ["s", "p", "d", "f"]:
+            full_basis = full_basis + [str(i)+io for i in range(1, orbtype_count[io]+1)]
+        self.full_basis = full_basis
+
+        # TODO: get the mapping from list basis to full basis
+        # also need to think if we modify as this, how can we add extra basis when fitting.
+
+
+    def get_pairtype_maps(self):
+        """
+        The function `get_pairtype_maps` creates a mapping of orbital pair types, such as s-s, "s-p",
+        to slices based on the number of hops between them.
+        :return: a dictionary called `pairtype_map`.
+        """
+        
+        pairtype_maps = {}
+        ist = 0
+        numhops = 0
+        for io in ["s", "p", "d", "f"]:
+            if self.orbtype_count[io] != 0:
+                for jo in ["s", "p", "d", "f"]:
+                    if self.orbtype_count[jo] != 0:
+                        orb_pair = io+"-"+jo
+                        il, jl = self.AnglrMID[io], self.AnglrMID[jo]
+                        numhops =  self.orbtype_count[io] * self.orbtype_count[jo] * (2*il+1) * (2*jl+1)
+                        pairtype_maps[orb_pair] = slice(ist, ist+numhops)
+
+                        ist += numhops
+
+        return pairtype_maps
+    
+    def get_pair_maps(self):
+        
+        basis_to_full_basis = {}
+        for ib in self.basis.keys():
+            count_dict = {"s":0, "p":0, "d":0, "f":0}
+            basis_to_full_basis.setdefault(ib, {})
+            for o in self.basis[ib]:
+                io = re.findall(r"[a-z]", o)[0]
+                count_dict[io] += 1
+                basis_to_full_basis[ib][o] = str(count_dict[io])+io
+
+        # here we have the map from basis to full basis, but to define a map between basis pair to full basis pair,
+        # one need to consider the id of the full basis pairs. Specifically, if we want to know the position where
+        # "s*-2s" lies, we map it to the pair in full basis as "1s-2s", but we need to know the id of "1s-2s" in the 
+        # features vector. For a full basis have three s: [1s, 2s, 3s], it will have 9 s features. Therefore, we need
+        # to build a map from the full basis pair to the position in the vector.
+
+        # We define the feature vector should look like [1s-1s, 1s-2s, 1s-3s, 2s-1s, 2s-2s, 2s-3s, 3s-1s, 3s-2s, 3s-3s,...]
+        # it is sorted by the index of the left basis first, then the right basis. Therefore, we can build a map:
+
+        # to do so we need the pair type maps first
+        pairtype_maps = self.get_pairtype_maps()
+        pair_maps = {}
+        for ib in self.basis.keys():
+            for jb in self.basis.keys():
+                pair_maps.setdefault(ib+"-"+jb, {})
+                for io in self.basis[ib]:
+                    for jo in self.basis[jb]:
+                        full_basis_pair = basis_to_full_basis[ib][io]+"-"+basis_to_full_basis[jb][jo]
+                        ir, jr = int(full_basis_pair[0]), int(full_basis_pair[3])
+                        iio, jjo = full_basis_pair[1], full_basis_pair[4]
+                        n_feature = (2*self.AnglrMID[iio]+1) * (2*self.AnglrMID[jjo]+1)
+
+                        start = pairtype_maps[iio+"-"+jjo].start + \
+                            n_feature * ((ir-1)*self.orbtype_count[jjo]+(jr-1))
+                        
+                        pair_maps[ib+"-"+jb][io+"-"+jo] = slice(start, start+n_feature)
+                            
+
+        return pair_maps
+
+
+
+
+
 
 class Index_Mapings(object):
     ''' creat index mappings for networks outs and the corresponding physical parameters.
