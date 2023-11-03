@@ -4,6 +4,7 @@ import numpy as np
 import logging
 import re
 from dptb.hamiltonian.transform_sk_speed import RotationSK
+from dptb.hamiltonian.transform_se3 import RotationSE3
 from dptb.nnsktb.formula import SKFormula
 from dptb.utils.constants import anglrMId
 from dptb.hamiltonian.soc import creat_basis_lm, get_soc_matrix_cubic_basis
@@ -13,7 +14,7 @@ Class, this makes entanglement of classes difficult. Need to design an consisten
 
 log = logging.getLogger(__name__)
 
-class HamilEig(RotationSK):
+class HamilEig(RotationSE3):
     """ This module is to build the Hamiltonian from the SK-type bond integral.
     """
     def __init__(self, dtype=torch.float32, device='cpu') -> None:
