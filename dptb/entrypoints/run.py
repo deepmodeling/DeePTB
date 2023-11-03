@@ -95,6 +95,9 @@ def run(
     
     task_options = j_must_have(jdata, "task_options")
     task = task_options["task"]
+    use_gui = jdata.get("use_gui", False)
+    task_options.update({"use_gui": use_gui})
+    
     model_ckpt = run_opt["init_model"]["path"]
     # init_type = model_ckpt.split(".")[-1]
     # if init_type not in ["json", "pth"]:
