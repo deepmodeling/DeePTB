@@ -1,5 +1,6 @@
 import numpy as np
 import ase
+from scipy.constants import Boltzmann, pi, elementary_charge, hbar
 import torch
 
 anglrMId = {'s':0,'p':1,'d':2,'f':3}
@@ -20,3 +21,7 @@ MaxShells  = 3
 NumHvals   = 10
 
 dtype_dict = {"float32": torch.float32, "float64": torch.float64}
+
+# k = Boltzmann # k is the Boltzmann constant in old NEGF module
+Coulomb = 6.24150974e18 # in the unit of eV*Angstrom
+eV2J = 1.6021766208e-19 # in the unit of J
