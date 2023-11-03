@@ -5,6 +5,8 @@ dptb/tests/data/test_all/test_config.json
 dptb/tests/data/test_all/checkpoint/best_nnsk_b5.000_c6.615_w0.265.json
 dptb/tests/data/test_all/checkpoint/best_nnsk_b4.000_c4.000_w0.300.json
 dptb/tests/data/test_all/fancy_ones/checkpoint/best_nnsk_b4.000_c4.000_w0.300.json
+dptb/tests/data/test_negf/test_negf_run/out_negf/run_config.json
+run_config.json
 dptb/nnet/__pycache__/
 dptb/sktb/__pycache__/
 dptb/negf/__pycache__/

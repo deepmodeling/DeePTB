@@ -24,7 +24,8 @@ class bandcalc(object):
         self.apiH.update_struct(self.structase)
 
         self.ref_band = self.band_plot_options.get("ref_band", None)
-    
+        self.use_gui = self.band_plot_options.get("use_gui", False)
+
     def get_bands(self):
         kline_type = self.band_plot_options['kline_type']
 
@@ -153,4 +154,5 @@ class bandcalc(object):
         # remove the box around the plot
         ax.set_frame_on(False)
         plt.savefig(f'{self.results_path}/band.png',dpi=300)
-        plt.show()
+        if self.use_gui:
+            plt.show()
