@@ -1,0 +1,59 @@
+{
+    "common_options": {
+        "onsitemode": "uniform",
+        "unit": "eV",
+        "onsite_cutoff": 2.5,
+        "bond_cutoff": 2.5,
+        "env_cutoff": 4.1,
+        "atomtype": [
+            "Si"
+        ],
+        "proj_atom_neles": {
+            "Si": 4
+        },
+        "proj_atom_anglr_m": {
+            "Si": [
+                "3s",
+                "3p"
+            ]
+        }
+    },
+    "train_options": {
+        "seed":120478,
+        "num_epoch": 2,
+        "optimizer": {"lr":1e-2}
+    },
+    "data_options": {
+        "use_reference": true,
+        "use_wannier":true,
+        "train": {
+            "batch_size": 1,
+            "path": "./examples/Si_wannier/data",
+            "prefix": "kpath_spk"
+        },
+        "validation": {
+            "batch_size": 1,
+            "path": "./examples/Si_wannier/data",
+            "prefix": "kpath_spk"
+        },
+        "reference": {
+            "batch_size": 1,
+            "path": "./examples/Si_wannier/data",
+            "prefix": "kpath_spk"
+        }
+    },
+    "model_options": {
+        "sknetwork": {
+            "sk_hop_nhidden": 1,
+            "sk_onsite_nhidden": 1
+        },
+        "skfunction": {
+            "sk_cutoff": 5.0,
+            "sk_decay_w": 0.3,
+            "skformula": "varTang96"
+        }
+    },
+    "loss_options": {
+        "losstype": "block_l2"
+    }
+}

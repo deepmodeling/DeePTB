@@ -1,4 +1,10 @@
 test*.ipynb
+dptb/tests/data/hBN/data/set.0/xdat2.traj
+dptb/tests/data/postrun/run_config.json
+dptb/tests/data/test_all/test_config.json
+dptb/tests/data/test_all/checkpoint/best_nnsk_b5.000_c6.615_w0.265.json
+dptb/tests/data/test_all/checkpoint/best_nnsk_b4.000_c4.000_w0.300.json
+dptb/tests/data/test_all/fancy_ones/checkpoint/best_nnsk_b4.000_c4.000_w0.300.json
 dptb/nnet/__pycache__/
 dptb/sktb/__pycache__/
 dptb/negf/__pycache__/

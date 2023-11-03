@@ -20,8 +20,14 @@ atomic_num_dict_r = dict(zip(atomic_num_dict.values(), atomic_num_dict.keys()))
 MaxShells  = 3
 NumHvals   = 10
 
-dtype_dict = {"float32": torch.float32, "float64": torch.float64}
+Orbital_Order_Wan_Default = { 's': ['s'],
+                              'p': ['pz','px','py'],
+                              'd': ['dz2','dxz','dyz','dx2-y2','dxy']}
+Orbital_Order_SK = {'s': ['s'],
+                    'p': ['py','pz','px'],
+                    'd': ['dxy','dyz','dz2','dxz','dx2-y2']}
 
+dtype_dict = {"float32": torch.float32, "float64": torch.float64}
 # k = Boltzmann # k is the Boltzmann constant in old NEGF module
 Coulomb = 6.24150974e18 # in the unit of eV*Angstrom
 eV2J = 1.6021766208e-19 # in the unit of J
