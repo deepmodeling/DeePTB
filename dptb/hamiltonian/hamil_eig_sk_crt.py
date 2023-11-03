@@ -6,7 +6,7 @@ import re
 from dptb.hamiltonian.transform_sk_speed import RotationSK
 from dptb.hamiltonian.transform_se3 import RotationSE3
 from dptb.nnsktb.formula import SKFormula
-from dptb.utils.constants import anglrMId
+from dptb.utils.constants import anglrMId, atomic_num_dict_r
 from dptb.hamiltonian.soc import creat_basis_lm, get_soc_matrix_cubic_basis
 
 ''' Over use of different index system cause the symbols and type and index kind of object need to be recalculated in different 
@@ -227,16 +227,23 @@ class HamilEig(RotationSE3):
             hoppingS_blocks = None
         
         out_bonds = []
-        atomtype = len(self.__struct__.proj_atomtype)
-        for iatype in atomtype:
-            for jatype in atomtype:
-                mask = bonds_hoppings[:,1].int().eq(iatype) & bonds_hoppings[:,1].int().eq(jatype)
+        atomtype = self.__struct__.proj_atom_numbers
+        for ia in atomtype:
+            for ja in atomtype:
+                iatype = atomic_num_dict_r[ia]
+                jatype = atomic_num_dict_r[ja]
+                mask = bonds_hoppings[:,0].int().eq(ia) & bonds_hoppings[:,2].int().eq(ja)
                 bonds = bonds_hoppings[torch.arange(bonds_hoppings.shape[0])[mask]]
-                hoppings = self.hoppings[torch.arange(bonds_hoppings.shape[0])[mask]] # might have problems
+                hoppings = [self.hoppings[i] for i in torch.arange(bonds_hoppings.shape[0])[mask]] # might have problems
+                if len(hoppings) > 0:
+                    hoppings = torch.stack(hoppings)
                 direction_vec = bonds[:,8:11].float()
                 sub_hamil_block = th.zeros([len(bonds), self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
                 if not self.use_orthogonal_basis:
                     sub_over_block = th.zeros([len(bonds), self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
+                    overlaps = [self.overlaps[i] for i in torch.arange(bonds_hoppings.shape[0])[mask]] # might have problems
+                    if len(overlaps) > 0:
+                        overlaps = torch.stack(overlaps)
                 if len(bonds) > 0:
                     ist = 0
                     for ish in self.__struct__.proj_atom_anglr_m[iatype]:
@@ -250,18 +257,18 @@ class HamilEig(RotationSE3):
                             norbj = 2 * shidj + 1
                             idx = self.__struct__.bond_index_map[iatype+'-'+jatype][ish+'-'+jsh]
                             if shidi < shidj:
-                                tmpH = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.hoppings[ib][idx], Angvec=direction_vec)
+                                tmpH = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=hoppings[:,idx], Angvec=direction_vec)
                                 # Hamilblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpH,dim0=0,dim1=1)
-                                sub_hamil_block[:,ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * th.transpose(tmpH,dim0=0,dim1=1)
+                                sub_hamil_block[:,ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * th.transpose(tmpH,dim0=-2,dim1=-1)
                                 if not self.use_orthogonal_basis:
-                                    tmpS = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=self.overlaps[ib][idx], Angvec=direction_vec)
+                                    tmpS = self.rot_HS(Htype=ishsymbol+jshsymbol, Hvalue=overlaps[:,idx], Angvec=direction_vec)
                                 # Soverblock[ist:ist+norbi, jst:jst+norbj] = th.transpose(tmpS,dim0=0,dim1=1)
-                                    sub_over_block[:,ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * th.transpose(tmpS,dim0=0,dim1=1)
+                                    sub_over_block[:,ist:ist+norbi, jst:jst+norbj] = (-1.0)**(shidi + shidj) * th.transpose(tmpS,dim0=-2,dim1=-1)
                             else:
-                                tmpH = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue=self.hoppings[ib][idx], Angvec=direction_vec)
+                                tmpH = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue=hoppings[:,idx], Angvec=direction_vec)
                                 sub_hamil_block[:,ist:ist+norbi, jst:jst+norbj] = tmpH
                                 if not self.use_orthogonal_basis:
-                                    tmpS = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue = self.overlaps[ib][idx], Angvec = direction_vec)
+                                    tmpS = self.rot_HS(Htype=jshsymbol+ishsymbol, Hvalue = overlaps[:,idx], Angvec = direction_vec)
                                     sub_over_block[:,ist:ist+norbi, jst:jst+norbj] = tmpS
                         
                             jst = jst + norbj 
@@ -271,8 +278,7 @@ class HamilEig(RotationSE3):
                         hoppingS_blocks.extend(list(sub_over_block))
                     out_bonds.extend(list(bonds))
 
-
-        return hoppingH_blocks, hoppingS_blocks, out_bonds
+        return hoppingH_blocks, hoppingS_blocks, torch.stack(out_bonds)
     
     def get_hs_blocks(self, bonds_onsite = None, bonds_hoppings=None, onsite_envs=None):
         onsiteH, onsiteS, bonds_onsite = self.get_hs_onsite(bonds_onsite=bonds_onsite, onsite_envs=onsite_envs)

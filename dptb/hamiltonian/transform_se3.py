@@ -122,7 +122,7 @@ def transform_o3(Angvec: torch.Tensor, L_vec: Tuple, irs: torch.Tensor, dtype=to
 
     l1, l2 = L_vec[0], L_vec[1]
     wms = []
-    assert len(irs.reshape(-1)) == (2*l1+1) * (2*l2+1)
+    assert len(irs.reshape(-1)) == (2*l1+1) * (2*l2+1) * len(Angvec)
     for l_ird in range(abs(l2-l1), l2+l1+1):
         wms.append(wigner_3j(int(l1), int(l2), int(l_ird), dtype=dtype, device=device) * (2*l_ird+1)**0.5)
     
