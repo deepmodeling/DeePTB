@@ -18,7 +18,7 @@ jobs:
         id: s1
         uses: actions/checkout@v3
         with:
-          fetch-depth:  0
+          fetch-depth: 0
           ref: "refs/pull/${{ github.event.number }}/merge"
       - name: Install DeePTB & Run Test
         id: s2

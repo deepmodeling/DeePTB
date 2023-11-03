@@ -18,6 +18,9 @@ INPUT_nnsk_nrl = os.path.join(Path(os.path.abspath(__file__)).parent, "data/nrl/
 INPUT_nnsk_nrl_test = os.path.join(Path(os.path.abspath(__file__)).parent, "data/nrl/input_nrl_test.json")
 ckpt_nnsk_nrl_path = os.path.join(Path(os.path.abspath(__file__)).parent, "../../examples/NRL-TB/silicon/ckpt")
 
+INPUT_nnsk_wan = os.path.join(Path(os.path.abspath(__file__)).parent, "data/wan/input_wan.json")
+
+
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +50,20 @@ def test_train_sk():
         log_level=2,
         log_path=None,
         train_sk=True,
+        use_correction=False,
+    )
+
+def test_train_wan():
+    train(
+        INPUT = INPUT_nnsk_wan,
+        init_model = None,
+        restart=None,
+        freeze=False,
+        train_soc=False,
+        output=test_data_path+"/test_all",
+        log_level=2,
+        log_path=None,
+        train_sk=False,
         use_correction=False,
     )
 

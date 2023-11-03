@@ -1,6 +1,8 @@
 from typing import List, Callable
 from dargs import dargs, Argument, Variant, ArgumentEncoder
+import logging
 
+log = logging.getLogger(__name__)
 
 nnsk_model_config_checklist = ['unit','skfunction-skformula']
 nnsk_model_config_updatelist = ['sknetwork-sk_hop_nhidden', 'sknetwork-sk_onsite_nhidden', 'sknetwork-sk_soc_nhidden']
@@ -229,10 +231,11 @@ def data_options():
     doc_use_reference = "Whether to use a reference dataset that jointly train the model. It acting as a constraint or normalization to make sure the model won't deviate too much from the reference data."
 
     args = [Argument("use_reference", bool, optional=False, doc=doc_use_reference),
-        train_data_sub(),
-        validation_data_sub(),
-        reference_data_sub()
-    ]
+            Argument("use_wannier",bool, optional=True, default=False, doc="Whether to use wannier90_hr.dat to construct the wannier basis for the reference data. Default: False"),
+            train_data_sub(),
+            validation_data_sub(),
+            reference_data_sub()
+            ]
 
     doc_data_options = ""
 
@@ -380,6 +383,17 @@ def normalize(data):
     data = base.normalize_value(data)
     # data = base.normalize_value(data, trim_pattern="_*")
     base.check_value(data, strict=True)
+    
+    # add check loss and use wannier:
+    
+    if data['data_options']['use_wannier']:
+        if not data['loss_options']['losstype'] .startswith("block"):
+            log.info(msg='\n Warning! set data_options use_wannier true, but the loss type is not block_l2! The the wannier TB will not be used when training!\n')
+    
+    if data['loss_options']['losstype'] .startswith("block"):
+        if not data['data_options']['use_wannier']:
+            log.error(msg="\n ERROR! for block loss type, must set data_options:use_wannier True\n")
+            raise ValueError
 
     return data
 
@@ -850,6 +864,8 @@ def normalize_bandinfo(data):
     doc_loss_gap_eta = ""
     doc_eout_weight=""
     doc_weight = ""
+    doc_wannier_proj = ""
+    doc_orb_wan = ""
 
     args = [
         Argument("band_min", int, optional=True, doc=doc_band_min, default=0),
@@ -860,7 +876,9 @@ def normalize_bandinfo(data):
         Argument("fermi_band", int, optional=True, doc=doc_fermi_band,default=0),
         Argument("loss_gap_eta", float, optional=True, doc=doc_loss_gap_eta, default=0.01),
         Argument("eout_weight", float, optional=True, doc=doc_eout_weight, default=0.00),
-        Argument("weight", [int, float, list], optional=True, doc=doc_weight, default=1.)
+        Argument("weight", [int, float, list], optional=True, doc=doc_weight, default=1.),
+        Argument("wannier_proj",dict, optional=True, doc=doc_wannier_proj, default={}),
+        Argument("orb_wan",[dict, None], optional=True, doc=doc_orb_wan, default=None)
     ]
     bandinfo = Argument("bandinfo", dict, sub_fields=args)
     data = bandinfo.normalize_value(data)
