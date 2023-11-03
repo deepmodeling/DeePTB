@@ -101,7 +101,7 @@ def test_BaseStruct(root_directory):
     assert struct.onsite_num == onsite_num
 
 
-    struct.updata_struct(atom=filename,format='vasp',onsitemode='split')
+    struct.update_struct(atom=filename,format='vasp',onsitemode='split')
     assert struct.onsite_index_map == {'N': {'s': [0], 'p': [1, 2, 3]}, 'B': {'s': [0], 'p': [1, 2, 3]}}
     assert struct.onsite_num == {'N': 4, 'B': 4}
 
@@ -132,7 +132,7 @@ def test_Struct_IndMap_case1(root_directory):
     assert struct.onsite_index_map == onsite_index_map
     assert struct.onsite_num == onsite_num
 
-    struct.updata_struct(atom=filename,format='vasp',onsitemode='split')
+    struct.update_struct(atom=filename,format='vasp',onsitemode='split')
     assert struct.onsite_index_map == {'N': {'s': [0], 'p': [1, 2, 3]}, 'B': {'s': [0], 'p': [1, 2, 3]}}
     assert struct.onsite_num == {'N': 4, 'B': 4}
 
@@ -166,7 +166,7 @@ def test_Struct_IndMap_case2(root_directory):
     assert struct.onsite_index_map == onsite_index_map
     assert struct.onsite_num == onsite_num
 
-    struct.updata_struct(atom=filename,format='vasp',onsitemode='split')
+    struct.update_struct(atom=filename,format='vasp',onsitemode='split')
     assert struct.onsite_index_map == {'N': {'2s': [0], '2p': [1, 2, 3]}, 'B': {'2s': [0], '2p': [1, 2, 3]}}
     assert struct.onsite_num == {'N': 4, 'B': 4}
 
@@ -199,6 +199,6 @@ def test_Struct_IndMap_case3(root_directory):
     assert struct.onsite_index_map == onsite_index_map
     assert struct.onsite_num == onsite_num
 
-    struct.updata_struct(atom=filename,format='vasp',onsitemode='split')
+    struct.update_struct(atom=filename,format='vasp',onsitemode='split')
     assert struct.onsite_index_map == {'N': {'2s': [0], '2p': [1, 2, 3],'s*':[4]}, 'B': {'2s': [0], '2p': [1, 2, 3]}}
     assert struct.onsite_num == {'N': 5, 'B': 4}

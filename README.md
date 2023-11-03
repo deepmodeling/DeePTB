@@ -1,18 +1,8 @@
-<h1 align="center"> 
-    <br>
-    DeePTB
-    <br>
-    <br>
-    <p align="center">
-        <a href="https://github.com/deepmodeling/DeePTB/actions/workflows/image.yml">
-            <img src="https://github.com/deepmodeling/DeePTB/actions/workflows/image.yml/badge.svg">
-        </a>
-        <a href="https://github.com/deepmodeling/DeePTB/actions/workflows/unit_test.yml">
-            <img src="https://github.com/deepmodeling/DeePTB/actions/workflows/unit_test.yml/badge.svg">
-        </a>
-    </p>
-</h1>
+# DeePTB
 
+[![DeepModeling](https://img.shields.io/badge/DeepModeling-Incubating_Project-blue)](https://github.com/deepmodeling)
+[![Build](https://github.com/deepmodeling/DeePTB/actions/workflows/image.yml/badge.svg)](https://github.com/deepmodeling/DeePTB/actions/workflows/image.yml)
+[![Test](https://github.com/deepmodeling/DeePTB/actions/workflows/unit_test.yml/badge.svg)](https://github.com/deepmodeling/DeePTB/actions/workflows/unit_test.yml)
 
 ## About DeePTB
 
@@ -33,6 +23,8 @@ See more details in our DeePTB paper: [arXiv:2307.04638](http://arxiv.org/abs/23
 - Ability to handle systems with  SOC effects.
 - Finite temperature simulations through integration with MD.
 -->
- 
+
+**DeePTB** joins the DeepModeling community, a community devoted of AI for science, as an incubating level project. To learn more about the DeepModeling community, see the [introduction of community](https://github.com/deepmodeling/community).
+
 ## Online Documentation
 For detailed documentation, please refer to [our documentation website](https://deeptb.readthedocs.io/en/latest/).

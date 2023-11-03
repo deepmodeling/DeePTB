@@ -1,0 +1,78 @@
+{
+    "task_options": {
+        "task": "negf",
+        "scf": true,
+        "block_tridiagonal": false,
+        "ele_T": 300,
+        "unit": "Hartree",
+        "scf_options":{
+            "mode": "PDIIS",
+            "mixing_period": 3,
+            "step_size": 0.05,
+            "n_history": 6,
+            "abs_err": 1e-6,
+            "rel_err": 1e-4,
+            "max_iter": 100
+        },
+        "stru_options":{
+            "kmesh":[1,1,1],
+            "pbc":[false, false, false],
+            "device":{
+                "id":"4-8",
+                "sort": true
+            },
+            "lead_L":{
+                "id":"0-4",
+                "voltage":0.0
+            },
+            "lead_R":{
+                "id":"8-12",
+                "voltage":0.0
+            }
+        },
+        "poisson_options": {
+            "solver": "fmm",
+            "err": 1e-5
+        },
+        "sgf_solver": "Sancho-Rubio",
+        "espacing": 0.1,
+        "emin": -2,
+        "emax": 2,
+        "e_fermi": -13.638587951660156,
+        "density_options": {
+            "method": "Ozaki",
+            "M_cut": 50,
+            "R": 1e6
+        },
+        "eta_lead":1e-5,
+        "eta_device":0.0,
+        "out_dos": true,
+        "out_tc": true,
+        "out_ldos": true,
+        "out_current_nscf": true
+},
+
+"common_options": {
+    "onsitemode": "none",
+    "onsite_cutoff": 2.0,
+    "bond_cutoff": 2.0,
+    "env_cutoff": 2.0,
+    "atomtype": ["C"],
+    "proj_atom_neles": {"C": 1},
+    "proj_atom_anglr_m": {
+        "C": ["2s"]
+    }    
+},
+"model_options": {
+    "sknetwork": {
+        "sk_hop_nhidden": 1,
+        "sk_onsite_nhidden": 1
+    },
+    "skfunction": {
+        "sk_cutoff": 1.6,
+        "sk_decay_w": 0.3,
+        "skformula": "powerlaw"
+    }
+
+}
+}
