@@ -12,12 +12,6 @@ class MLP(nn.Module):
         self.in_layer = nn.Linear(in_features=n_in, out_features=n_hidden, device=device, dtype=dtype)
         self.out_layer = nn.Linear(in_features=n_hidden, out_features=n_out, device=device, dtype=dtype)
 
-        # use norm in the first layer, and the last layer:
-        # nn.init.normal_(self.in_layer.weight, mean=0, std=1e-3)
-        # nn.init.normal_(self.out_layer.weight, mean=0, std=1e-3)
-        # nn.init.normal_(self.in_layer.bias, mean=0, std=1e-3)
-        # nn.init.normal_(self.out_layer.bias, mean=0, std=1e-3)
-
         if if_batch_normalized:
             self.bn1 = nn.BatchNorm1d(n_hidden)
             self.bn2 = nn.BatchNorm1d(n_out)
