@@ -9,7 +9,7 @@ import logging
 import numpy as np
 from dptb.structure.structure import BaseStruct
 from dptb.utils.tools import get_uniq_symbol
-from dptb.utils.constants import anglrMId, atomic_num_dict
+from dptb.utils.constants import anglrMId, atomic_num_dict, atomic_num_dict_r
 
 @pytest.fixture(scope='session', autouse=True)
 def root_directory(request):
@@ -100,6 +100,14 @@ def test_BaseStruct(root_directory):
     assert struct.onsite_index_map == onsite_index_map
     assert struct.onsite_num == onsite_num
 
+    atom_symb1_inbond  = [atomic_num_dict_r[int(i)] for i in bonds[:,0]]
+    proj_atom_sym1_inbond =[struct.proj_atom_symbols[int(i)] for i in bonds[:,1]]
+
+    assert (atom_symb1_inbond == proj_atom_sym1_inbond)
+
+    atom_symb2_inbond  = [atomic_num_dict_r[int(i)] for i in bonds[:,2]]
+    proj_atom_sym2_inbond =[struct.proj_atom_symbols[int(i)] for i in bonds[:,3]]
+    assert (atom_symb2_inbond == proj_atom_sym2_inbond)
 
     struct.update_struct(atom=filename,format='vasp',onsitemode='split')
     assert struct.onsite_index_map == {'N': {'s': [0], 'p': [1, 2, 3]}, 'B': {'s': [0], 'p': [1, 2, 3]}}

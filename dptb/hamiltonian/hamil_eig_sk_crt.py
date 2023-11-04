@@ -236,6 +236,9 @@ class HamilEig(RotationSK):
             direction_vec = bonds_hoppings[ib,8:11].float()
             iatype = self.__struct__.proj_atom_symbols[int(ibond[1])]
             jatype = self.__struct__.proj_atom_symbols[int(ibond[3])]
+            # Risk!, the index pf the order of atoms in proj_structure  must be the same as the index in the proj_atom_symbols.
+            # actually, ibond[0] and ibond[2] are the atom index which can be used to get the atom symbol.
+            # the unit test must be set to keep this feature not be changed by other developers! 
 
             sub_hamil_block = th.zeros([self.__struct__.proj_atomtype_norbs[iatype], self.__struct__.proj_atomtype_norbs[jatype]], dtype=self.dtype, device=self.device)
             if not self.use_orthogonal_basis:
