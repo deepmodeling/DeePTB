@@ -63,10 +63,13 @@ def all_skint_types(bond_index_map):
                     if iskint_type_ex in reducted_skint_types:
                         all_skint_types_dict[iskint_type] = iskint_type_ex
                     else:
+                        assert iskint_type not in reducted_skint_types, f'{iskint_type} is already in reducted_skint_types.'
                         reducted_skint_types.append(iskint_type)
                         all_skint_types_dict[iskint_type] = iskint_type
-
+        
         elif iaid > jaid:
+            # note: here we set the order of reduced iaid > jaid.
+            # for iaid < jaid, we use the one with iaid > jaid and exchange iorb and jorb.
             # for different atom type, exchange the pair (ia, iorb) with (ja, jorb), they are the same.
             for isk in bond_index_map[ibm].keys():
                 iorb, jorb = isk.split('-')
@@ -100,8 +103,6 @@ def all_skint_types(bond_index_map):
             for iisk in range(len(bond_index_map[ibm][isk])): 
                 iskint_type = f'{ia}-{ja}-{iorb}-{jorb}-{iisk}'
                 sk_bond_ind_dict[ibm][ bond_index_map[ibm][isk][iisk] ] = all_skint_types_dict[iskint_type]
-
-            
 
     return all_skint_types_dict, reducted_skint_types, sk_bond_ind_dict
 
