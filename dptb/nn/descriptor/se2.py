@@ -1,19 +1,20 @@
 from torch_geometric.nn import MessagePassing
 from torch_geometric.nn import Aggregation
 import torch
-from typing import Optional, Tuple
-from ._graph_mixin import InvariantGraphModuleMixin
+from typing import Optional, Tuple, Union
 from dptb.data import AtomicDataDict
 
 class SE2Descriptor(torch.nn.Module):
     def __init__(
             self, 
-
-            
+            rs: Union[int, torch.Tensor], 
+            rc:Union[int, torch.Tensor], 
+            dtype: Union[str, torch.dtype] = torch.float32, 
+            device: Union[str, torch.device] = torch.device("cpu")
             ) -> None:
+        
         super(SE2Descriptor, self).__init__()
-
-        self.descriptor = _SE2Descriptor()
+        self.descriptor = _SE2Descriptor(rs=rs, rc=rc, dtype=dtype, device=device)
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         """_summary_
@@ -62,22 +63,39 @@ class SE2Aggregation(Aggregation):
 
 
 class _SE2Descriptor(MessagePassing):
-    def __init__(self, aggr: SE2Aggregation=SE2Aggregation(), **kwargs):
+    def __init__(
+            self, 
+            rs: Union[int, torch.Tensor], 
+            rc:Union[int, torch.Tensor], 
+            aggr: SE2Aggregation=SE2Aggregation(), 
+            dtype: Union[str, torch.dtype] = torch.float32, 
+            device: Union[str, torch.device] = torch.device("cpu"), **kwargs):
+        
         super(_SE2Descriptor, self).__init__(aggr=aggr, **kwargs)
         self.embedding_net = None
-        pass
+        if isinstance(rs, int):
+            self.rs = torch.tensor(rs, dtype=dtype, device=device)
+        else:
+            self.rs = rs
+        if isinstance(rc, int):
+            self.rc = torch.tensor(rc, dtype=dtype, device=device)
+        else:
+            self.rc = rc
+
+        assert len(self.rc.flatten()) == 1 and len(self.rs.flatten()) == 1
+        assert self.rs < self.rc
+        self.device = device
+        self.dtype = dtype
 
     def forward(self, env_vectors, env_index, edge_index):
         out_node = self.propagate(env_index, env_vectors=env_vectors) # [N_atom, D, 3]
         out_edge = self.edge_updater(out_node, edge_index) # [N_edge, D*D]
 
-        
         return out_node, out_edge
 
     def message(self, env_vectors):
-        norm = env_vectors.norm(-1, keepdim=True)
-
-        return torch.cat([self.embedding_net(norm), env_vectors], dim=-1) # [N_env, D_emb + 3]
+        snorm = self.smooth(env_vectors.norm(-1, keepdim=True), self.rs, self.rc)
+        return torch.cat([self.embedding_net(snorm), env_vectors], dim=-1) # [N_env, D_emb + 3]
 
     def update(self, aggr_out):
         """_summary_
@@ -97,3 +115,13 @@ class _SE2Descriptor(MessagePassing):
     def edge_update(self, node_descriptor, edge_index):
         
         return node_descriptor[edge_index[0]] + node_descriptor[edge_index[1]] # [N_edge, D*D]
+    
+    def smooth(self, r: torch.Tensor, rs: torch.Tensor, rc: torch.Tensor):
+        if r < rs:
+            return 1/r
+        elif rs <= r and r < rc:
+            x = (r - rc) / (rs - rc)
+            return 1/r * (x**3 * (10 + x * (-15 + 6 * x)) + 1)
+        else:
+            return torch.zeros_like(r, dtype=r.dtype, device=r.device)
+

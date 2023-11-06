@@ -24,13 +24,19 @@ class Index_Mapings_e3(object):
             when str, "2s" indicates two s orbital, 
             "2s2p3d4f" is equivilent to ["1s","2s", "1p", "2p", "1d", "2d", "3d", "1f"]
         """
-        # bondtype, means the atoms types for bond. here ['N', 'B']
-        self.bondtype = get_uniq_symbol(list(basis.keys()))
+
+        self.atomtype = get_uniq_symbol(list(basis.keys())) # this will sort the atomtype according to the atomic number
+        self.bondtype = []
+        for it, at in enumerate(self.atomtype):
+            for jt, bt in enumerate(self.atomtype[it:]):
+                bond = at+"-"+bt
+                if bond not in at:
+                    self.bondtype.append(bond)
 
         # TODO: check the basis value
 
         self.basis = basis
-        if isinstance(self.basis[self.bondtype[0]], str):
+        if isinstance(self.basis[self.atomtype[0]], str):
             orbtype_count = {"s":0, "p":0, "d":0, "f":0}
             orbs = map(lambda bs: re.findall(r'[1-9]+[A-Za-z]', bs), self.basis.values())
             for ib in orbs:
@@ -38,17 +44,17 @@ class Index_Mapings_e3(object):
                     if int(io[0]) > orbtype_count[io[1]]:
                         orbtype_count[io[1]] = int(io[0])
             # split into list basis
-            basis = {k:[] for k in self.bondtype}
+            basis = {k:[] for k in self.atomtype}
             for ib in self.basis.keys():
                 for io in ["s", "p", "d", "f"]:
                     if io in self.basis[ib]:
                         basis[ib].extend([str(i)+io for i in range(1, int(re.findall(r'[1-9]+'+io, self.basis[ib])[0][0])+1)])
             self.basis = basis
 
-        elif isinstance(self.basis[self.bondtype[0]], list):
-            nb = len(self.bondtype)
+        elif isinstance(self.basis[self.atomtype[0]], list):
+            nb = len(self.atomtype)
             orbtype_count = {"s":[0]*nb, "p":[0]*nb, "d":[0]*nb, "f":[0]*nb}
-            for ib, bt in enumerate(self.bondtype):
+            for ib, bt in enumerate(self.atomtype):
                 for io in self.basis[bt]:
                     orb = re.findall(r'[A-Za-z]', io)[0]
                     orbtype_count[orb][ib] += 1
@@ -56,7 +62,8 @@ class Index_Mapings_e3(object):
             for ko in orbtype_count.keys():
                 orbtype_count[ko] = max(orbtype_count[ko])
 
-        self.bond_reduced_matrix_element = (1 * orbtype_count["s"] + 3 * orbtype_count["p"] + 5 * orbtype_count["d"] + 7 * orbtype_count["f"]) **2
+        self.edge_reduced_matrix_element = (1 * orbtype_count["s"] + 3 * orbtype_count["p"] + 5 * orbtype_count["d"] + 7 * orbtype_count["f"]) **2
+                                     
         self.orbtype_count = orbtype_count
 
         # sort the basis
@@ -83,7 +90,7 @@ class Index_Mapings_e3(object):
         :return: a dictionary called `pairtype_map`.
         """
         
-        pairtype_maps = {}
+        self.pairtype_maps = {}
         ist = 0
         numhops = 0
         for io in ["s", "p", "d", "f"]:
@@ -93,11 +100,11 @@ class Index_Mapings_e3(object):
                         orb_pair = io+"-"+jo
                         il, jl = self.AnglrMID[io], self.AnglrMID[jo]
                         numhops =  self.orbtype_count[io] * self.orbtype_count[jo] * (2*il+1) * (2*jl+1)
-                        pairtype_maps[orb_pair] = slice(ist, ist+numhops)
+                        self.pairtype_maps[orb_pair] = slice(ist, ist+numhops)
 
                         ist += numhops
 
-        return pairtype_maps
+        return self.pairtype_maps
     
     def get_pair_maps(self):
         
@@ -120,26 +127,47 @@ class Index_Mapings_e3(object):
         # it is sorted by the index of the left basis first, then the right basis. Therefore, we can build a map:
 
         # to do so we need the pair type maps first
-        pairtype_maps = self.get_pairtype_maps()
-        pair_maps = {}
-        for ib in self.basis.keys():
-            for jb in self.basis.keys():
-                pair_maps.setdefault(ib+"-"+jb, {})
-                for io in self.basis[ib]:
-                    for jo in self.basis[jb]:
-                        full_basis_pair = basis_to_full_basis[ib][io]+"-"+basis_to_full_basis[jb][jo]
-                        ir, jr = int(full_basis_pair[0]), int(full_basis_pair[3])
-                        iio, jjo = full_basis_pair[1], full_basis_pair[4]
-                        n_feature = (2*self.AnglrMID[iio]+1) * (2*self.AnglrMID[jjo]+1)
+        self.pairtype_maps = self.get_pairtype_maps()
+        self.pair_maps = {}
+        for ib in self.bondtype:
+            ia, ja = ib.split("-")
+            self.pair_maps.setdefault(ib, {})
+            for io in self.basis[ia]:
+                for jo in self.basis[ja]:
+                    full_basis_pair = basis_to_full_basis[ia][io]+"-"+basis_to_full_basis[ja][jo]
+                    ir, jr = int(full_basis_pair[0]), int(full_basis_pair[3])
+                    iio, jjo = full_basis_pair[1], full_basis_pair[4]
+                    n_feature = (2*self.AnglrMID[iio]+1) * (2*self.AnglrMID[jjo]+1)
 
-                        start = pairtype_maps[iio+"-"+jjo].start + \
-                            n_feature * ((ir-1)*self.orbtype_count[jjo]+(jr-1))
+                    start = self.pairtype_maps[iio+"-"+jjo].start + \
+                        n_feature * ((ir-1)*self.orbtype_count[jjo]+(jr-1))
+                    
+                    self.pair_maps[ib][io+"-"+jo] = slice(start, start+n_feature)
                         
-                        pair_maps[ib+"-"+jb][io+"-"+jo] = slice(start, start+n_feature)
-                            
 
-        return pair_maps
+        return self.pair_maps
+    
+    def get_node_maps(self):
+        pass
 
+    def get_nodetype_maps(self):
+        self.nodetype_maps = {}
+        ist = 0
+        numonsites = 0
+
+        for i, io in enumerate(["s", "p", "d", "f"]):
+            if self.orbtype_count[io] != 0:
+                for j, jo in enumerate(["s", "p", "d", "f"][i:]):
+                    if self.orbtype_count[jo] != 0:
+                        orb_pair = io+"-"+jo
+                        il, jl = self.AnglrMID[io], self.AnglrMID[jo]
+                        numhops =  self.orbtype_count[io] * self.orbtype_count[jo] * (2*il+1) * (2*jl+1)
+                        self.nodetype_maps[orb_pair] = slice(ist, ist+numhops)
+
+                        ist += numhops
+
+
+        return self.nodetype_maps
 
 
 
