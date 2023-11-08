@@ -150,6 +150,60 @@ def with_env_vectors(data: Type, with_lengths: bool = True) -> Type:
         if with_lengths:
             data[_keys.ENV_LENGTH_KEY] = torch.linalg.norm(env_vec, dim=-1)
         return data
+    
+@torch.jit.script
+def with_onsitenv_vectors(data: Type, with_lengths: bool = True) -> Type:
+    """Compute the edge displacement vectors for a graph.
+
+    If ``data.pos.requires_grad`` and/or ``data.cell.requires_grad``, this
+    method will return edge vectors correctly connected in the autograd graph.
+
+    Returns:
+        Tensor [n_edges, 3] edge displacement vectors
+    """
+    if _keys.ONSITENV_VECTORS_KEY in data:
+        if with_lengths and _keys.ONSITENV_LENGTH_KEY not in data:
+            data[_keys.ONSITENV_LENGTH_KEY] = torch.linalg.norm(
+                data[_keys.ONSITENV_VECTORS_KEY], dim=-1
+            )
+        return data
+    else:
+        # Build it dynamically
+        # Note that this is
+        # (1) backwardable, because everything (pos, cell, shifts)
+        #     is Tensors.
+        # (2) works on a Batch constructed from AtomicData
+        pos = data[_keys.POSITIONS_KEY]
+        env_index = data[_keys.ONSITENV_INDEX_KEY]
+        env_vec = pos[env_index[1]] - pos[env_index[0]]
+        if _keys.CELL_KEY in data:
+            # ^ note that to save time we don't check that the edge_cell_shifts are trivial if no cell is provided; we just assume they are either not present or all zero.
+            # -1 gives a batch dim no matter what
+            cell = data[_keys.CELL_KEY].view(-1, 3, 3)
+            env_cell_shift = data[_keys.ONSITENV_CELL_SHIFT_KEY]
+            if cell.shape[0] > 1:
+                batch = data[_keys.BATCH_KEY]
+                # Cell has a batch dimension
+                # note the ASE cell vectors as rows convention
+                env_vec = env_vec + torch.einsum(
+                    "ni,nij->nj", env_cell_shift, cell[batch[env_index[0]]]
+                )
+                # TODO: is there a more efficient way to do the above without
+                # creating an [n_edge] and [n_edge, 3, 3] tensor?
+            else:
+                # Cell has either no batch dimension, or a useless one,
+                # so we can avoid creating the large intermediate cell tensor.
+                # Note that we do NOT check that the batch array, if it is present,
+                # is trivial — but this does need to be consistent.
+                env_vec = env_vec + torch.einsum(
+                    "ni,ij->nj",
+                    env_cell_shift,
+                    cell.squeeze(0),  # remove batch dimension
+                )
+        data[_keys.ONSITENV_VECTORS_KEY] = env_vec
+        if with_lengths:
+            data[_keys.ONSITENV_LENGTH_KEY] = torch.linalg.norm(env_vec, dim=-1)
+        return data
 
 
 @torch.jit.script

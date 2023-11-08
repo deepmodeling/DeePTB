@@ -16,12 +16,16 @@ else:
 POSITIONS_KEY: Final[str] = "pos"
 # The [2, n_edge] index tensor giving center -> neighbor relations
 EDGE_INDEX_KEY: Final[str] = "edge_index"
-# The [2, n_edge] index tensor giving center -> neighbor relations
+# The [2, n_env] index tensor giving center -> neighbor relations
 ENV_INDEX_KEY: Final[str] = "env_index"
+# The [2, n_onsitenv] index tensor giving center -> neighbor relations
+ONSITENV_INDEX_KEY: Final[str] = "onsitenv_index"
 # A [n_edge, 3] tensor of how many periodic cells each env crosses in each cell vector
 ENV_CELL_SHIFT_KEY: Final[str] = "env_cell_shift"
 # A [n_edge, 3] tensor of how many periodic cells each edge crosses in each cell vector
 EDGE_CELL_SHIFT_KEY: Final[str] = "edge_cell_shift"
+# [n_batch, 3, 3] or [3, 3] tensor where rows are the cell vectors
+ONSITENV_CELL_SHIFT_KEY: Final[str] = "onsitenv_cell_shift"
 # [n_batch, 3, 3] or [3, 3] tensor where rows are the cell vectors
 CELL_KEY: Final[str] = "cell"
 # [n_kpoints, 3] or [n_batch, nkpoints, 3] tensor
@@ -49,19 +53,27 @@ BASIC_STRUCTURE_KEYS: Final[List[str]] = [
 EDGE_VECTORS_KEY: Final[str] = "edge_vectors"
 # A [n_edge, 3] tensor of displacement vectors associated to envs
 ENV_VECTORS_KEY: Final[str] = "env_vectors"
+# A [n_edge, 3] tensor of displacement vectors associated to onsitenvs
+ONSITENV_VECTORS_KEY: Final[str] = "onsitenv_vectors"
 # A [n_edge] tensor of the lengths of EDGE_VECTORS
 EDGE_LENGTH_KEY: Final[str] = "edge_lengths"
 # A [n_edge] tensor of the lengths of ENV_VECTORS
 ENV_LENGTH_KEY: Final[str] = "env_lengths"
+# A [n_edge] tensor of the lengths of ONSITENV_VECTORS
+ONSITENV_LENGTH_KEY: Final[str] = "onsitenv_lengths"
 # [n_edge, dim] (possibly equivariant) attributes of each edge
 EDGE_ATTRS_KEY: Final[str] = "edge_attrs"
 # [n_edge, dim] invariant embedding of the edges
 EDGE_EMBEDDING_KEY: Final[str] = "edge_embedding"
 EDGE_FEATURES_KEY: Final[str] = "edge_features"
+ENV_FEATURES_KEY: Final[str] = "env_features"
+ONSITENV_FEATURE_KEY: Final[str] = "env_features"
 # [n_edge, 1] invariant of the radial cutoff envelope for each edge, allows reuse of cutoff envelopes
 EDGE_CUTOFF_KEY: Final[str] = "edge_cutoff"
-# [n_edge, 1] invariant of the radial cutoff envelope for each edge, allows reuse of cutoff envelopes
+# [n_edge, 1] invariant of the radial cutoff envelope for each env edge, allows reuse of cutoff envelopes
 ENV_CUTOFF_KEY: Final[str] = "env_cutoff"
+# [n_edge, 1] invariant of the radial cutoff envelope for each onsitenv edge, allows reuse of cutoff envelopes
+ONSITENV_CUTOFF_KEY: Final[str] = "onsitenv_cutoff"
 # edge energy as in Allegro
 EDGE_ENERGY_KEY: Final[str] = "edge_energy"
 

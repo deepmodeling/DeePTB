@@ -5,11 +5,15 @@ import re
 import numpy as np
 
 class Index_Mapings_e3(object):
-    def __init__(self, basis=None):
+    def __init__(self, basis=None, method="e3tb"):
         self.basis = basis
-        self.AnglrMID = anglrMId
+        self.method = method
         if basis is not None:
             self.update(basis=basis)
+
+        if self.method not in ["e3tb", "sktb"]:
+            raise ValueError
+        
 
     def update(self, basis):
         """_summary_
@@ -62,15 +66,39 @@ class Index_Mapings_e3(object):
             for ko in orbtype_count.keys():
                 orbtype_count[ko] = max(orbtype_count[ko])
 
-        self.edge_reduced_matrix_element = (1 * orbtype_count["s"] + 3 * orbtype_count["p"] + 5 * orbtype_count["d"] + 7 * orbtype_count["f"]) **2
-                                     
         self.orbtype_count = orbtype_count
+
+        if self.method == "e3tb":
+            self.edge_reduced_matrix_element = (1 * orbtype_count["s"] + 3 * orbtype_count["p"] + 5 * orbtype_count["d"] + 7 * orbtype_count["f"]) **2
+            self.node_reduced_matrix_element = int(((orbtype_count["s"] + 9 * orbtype_count["p"] + 25 * orbtype_count["d"] + 49 * orbtype_count["f"]) + \
+                                                    self.edge_reduced_matrix_element)/2)
+        else:
+            self.edge_reduced_matrix_element =  1 * (
+                                                    1 * orbtype_count["s"] * orbtype_count["s"] + \
+                                                    2 * orbtype_count["s"] * orbtype_count["p"] + \
+                                                    2 * orbtype_count["s"] * orbtype_count["d"] + \
+                                                    2 * orbtype_count["s"] * orbtype_count["f"]
+                                                    ) + \
+                                                2 * (
+                                                    1 * orbtype_count["p"] * orbtype_count["p"] + \
+                                                    2 * orbtype_count["p"] * orbtype_count["d"] + \
+                                                    2 * orbtype_count["p"] * orbtype_count["f"]
+                                                    ) + \
+                                                3 * (
+                                                    1 * orbtype_count["d"] * orbtype_count["d"] + \
+                                                    2 * orbtype_count["d"] * orbtype_count["f"]
+                                                    ) + \
+                                                4 * (orbtype_count["f"] * orbtype_count["f"])
+            
+            self.node_reduced_matrix_element = orbtype_count["s"] + orbtype_count["p"] + orbtype_count["d"] + orbtype_count["f"]
+                                     
+        
 
         # sort the basis
         for ib in self.basis.keys():
             self.basis[ib] = sorted(
                 self.basis[ib], 
-                key=lambda s: (self.AnglrMID[re.findall(r"[a-z]",s)[0]], re.findall(r"[1-9*]",s)[0])
+                key=lambda s: (anglrMId[re.findall(r"[a-z]",s)[0]], re.findall(r"[1-9*]",s)[0])
                 )
 
         # TODO: get full basis set
@@ -80,6 +108,15 @@ class Index_Mapings_e3(object):
         self.full_basis = full_basis
 
         # TODO: get the mapping from list basis to full basis
+        self.basis_to_full_basis = {}
+        for ib in self.basis.keys():
+            count_dict = {"s":0, "p":0, "d":0, "f":0}
+            self.basis_to_full_basis.setdefault(ib, {})
+            for o in self.basis[ib]:
+                io = re.findall(r"[a-z]", o)[0]
+                count_dict[io] += 1
+                self.basis_to_full_basis[ib][o] = str(count_dict[io])+io
+
         # also need to think if we modify as this, how can we add extra basis when fitting.
 
 
@@ -92,14 +129,17 @@ class Index_Mapings_e3(object):
         
         self.pairtype_maps = {}
         ist = 0
-        numhops = 0
         for io in ["s", "p", "d", "f"]:
             if self.orbtype_count[io] != 0:
                 for jo in ["s", "p", "d", "f"]:
                     if self.orbtype_count[jo] != 0:
                         orb_pair = io+"-"+jo
-                        il, jl = self.AnglrMID[io], self.AnglrMID[jo]
-                        numhops =  self.orbtype_count[io] * self.orbtype_count[jo] * (2*il+1) * (2*jl+1)
+                        il, jl = anglrMId[io], anglrMId[jo]
+                        if self.method == "e3tb":
+                            n_rme = (2*il+1) * (2*jl+1)
+                        else:
+                            n_rme = min(il, jl)+1
+                        numhops =  self.orbtype_count[io] * self.orbtype_count[jo] * n_rme
                         self.pairtype_maps[orb_pair] = slice(ist, ist+numhops)
 
                         ist += numhops
@@ -107,15 +147,6 @@ class Index_Mapings_e3(object):
         return self.pairtype_maps
     
     def get_pair_maps(self):
-        
-        basis_to_full_basis = {}
-        for ib in self.basis.keys():
-            count_dict = {"s":0, "p":0, "d":0, "f":0}
-            basis_to_full_basis.setdefault(ib, {})
-            for o in self.basis[ib]:
-                io = re.findall(r"[a-z]", o)[0]
-                count_dict[io] += 1
-                basis_to_full_basis[ib][o] = str(count_dict[io])+io
 
         # here we have the map from basis to full basis, but to define a map between basis pair to full basis pair,
         # one need to consider the id of the full basis pairs. Specifically, if we want to know the position where
@@ -127,17 +158,23 @@ class Index_Mapings_e3(object):
         # it is sorted by the index of the left basis first, then the right basis. Therefore, we can build a map:
 
         # to do so we need the pair type maps first
-        self.pairtype_maps = self.get_pairtype_maps()
+        if not hasattr(self, "pairtype_maps"):
+            self.pairtype_maps = self.get_pairtype_maps()
         self.pair_maps = {}
         for ib in self.bondtype:
             ia, ja = ib.split("-")
             self.pair_maps.setdefault(ib, {})
             for io in self.basis[ia]:
                 for jo in self.basis[ja]:
-                    full_basis_pair = basis_to_full_basis[ia][io]+"-"+basis_to_full_basis[ja][jo]
+                    full_basis_pair = self.basis_to_full_basis[ia][io]+"-"+self.basis_to_full_basis[ja][jo]
                     ir, jr = int(full_basis_pair[0]), int(full_basis_pair[3])
                     iio, jjo = full_basis_pair[1], full_basis_pair[4]
-                    n_feature = (2*self.AnglrMID[iio]+1) * (2*self.AnglrMID[jjo]+1)
+
+                    if self.method == "e3tb":
+                        n_feature = (2*anglrMId[iio]+1) * (2*anglrMId[jjo]+1)
+                    else:
+                        n_feature = min(anglrMId[iio], anglrMId[jjo])+1
+                    
 
                     start = self.pairtype_maps[iio+"-"+jjo].start + \
                         n_feature * ((ir-1)*self.orbtype_count[jjo]+(jr-1))
@@ -148,23 +185,60 @@ class Index_Mapings_e3(object):
         return self.pair_maps
     
     def get_node_maps(self):
-        pass
+        if not hasattr(self, "nodetype_maps"):
+            self.get_nodetype_maps()
+        
+        self.node_maps = {}
+        for at in self.atomtype:
+            self.node_maps.setdefault(at, {})
+            for i, io in enumerate(self.basis[at]):
+                for jo in self.basis[at][i:]:
+                    full_basis_pair = self.basis_to_full_basis[at][io]+"-"+self.basis_to_full_basis[at][jo]
+                    ir, jr = int(full_basis_pair[0]), int(full_basis_pair[3])
+                    iio, jjo = full_basis_pair[1], full_basis_pair[4]
+
+                    if self.method == "e3tb":
+                        n_feature = (2*anglrMId[iio]+1) * (2*anglrMId[jjo]+1)
+                    else:
+                        if io == jo:
+                            n_feature = 1
+                        else:
+                            n_feature = 0
+                
+                    start = self.nodetype_maps[iio+"-"+jjo].start + \
+                        n_feature * (2*self.orbtype_count[jjo]+1-ir) * (ir-1) / 2 + (jr - 1)
+                    start = int(start)
+                    
+                    self.node_maps[at][io+"-"+jo] = slice(start, start+n_feature)
+
+        return self.node_maps
+
+
 
     def get_nodetype_maps(self):
         self.nodetype_maps = {}
         ist = 0
-        numonsites = 0
 
         for i, io in enumerate(["s", "p", "d", "f"]):
             if self.orbtype_count[io] != 0:
-                for j, jo in enumerate(["s", "p", "d", "f"][i:]):
+                for jo in ["s", "p", "d", "f"][i:]:
                     if self.orbtype_count[jo] != 0:
                         orb_pair = io+"-"+jo
-                        il, jl = self.AnglrMID[io], self.AnglrMID[jo]
-                        numhops =  self.orbtype_count[io] * self.orbtype_count[jo] * (2*il+1) * (2*jl+1)
-                        self.nodetype_maps[orb_pair] = slice(ist, ist+numhops)
+                        il, jl = anglrMId[io], anglrMId[jo]
+                        if self.method == "e3tb":
+                            numonsites =  self.orbtype_count[io] * self.orbtype_count[jo] * (2*il+1) * (2*jl+1)
+                            if io == jo:
+                                numonsites +=  self.orbtype_count[jo] * (2*il+1) * (2*jl+1)
+                                numonsites = int(numonsites / 2)
+                        else:
+                            if io == jo:
+                                numonsites = self.orbtype_count[io]
+                            else:
+                                numonsites = 0
 
-                        ist += numhops
+                        self.nodetype_maps[orb_pair] = slice(ist, ist+numonsites)
+
+                        ist += numonsites
 
 
         return self.nodetype_maps

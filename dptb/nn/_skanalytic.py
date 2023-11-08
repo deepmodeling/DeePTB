@@ -51,7 +51,7 @@ class SKTB(torch.nn.Module):
             self.overlap_param = torch.nn.Parameter(torch.randn([len(self.idp.bondtype), self.n_skintegrals, n_formula], dtype=self.dtype, device=self.device))
 
         self.onsite_param = []
-
+        
     def forward(data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         # get the env and bond from the data
         # calculate the sk integrals

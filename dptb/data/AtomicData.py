@@ -30,6 +30,7 @@ PBC = Union[bool, Tuple[bool, bool, bool]]
 _DEFAULT_LONG_FIELDS: Set[str] = {
     AtomicDataDict.EDGE_INDEX_KEY,
     AtomicDataDict.ENV_INDEX_KEY, # new
+    AtomicDataDict.ONSITENV_INDEX_KEY, # new
     AtomicDataDict.ATOMIC_NUMBERS_KEY,
     AtomicDataDict.ATOM_TYPE_KEY,
     AtomicDataDict.BATCH_KEY,
@@ -47,15 +48,19 @@ _DEFAULT_NODE_FIELDS: Set[str] = {
 _DEFAULT_EDGE_FIELDS: Set[str] = {
     AtomicDataDict.EDGE_CELL_SHIFT_KEY,
     AtomicDataDict.ENV_CELL_SHIFT_KEY,
+    AtomicDataDict.ONSITENV_CELL_SHIFT_KEY,
     AtomicDataDict.EDGE_VECTORS_KEY,
     AtomicDataDict.ENV_VECTORS_KEY,
+    AtomicDataDict.ONSITENV_VECTORS_KEY,
     AtomicDataDict.EDGE_LENGTH_KEY,
     AtomicDataDict.ENV_LENGTH_KEY,
+    AtomicDataDict.ONSITENV_LENGTH_KEY,
     AtomicDataDict.EDGE_ATTRS_KEY,
     AtomicDataDict.EDGE_EMBEDDING_KEY,
     AtomicDataDict.EDGE_FEATURES_KEY,
     AtomicDataDict.EDGE_CUTOFF_KEY,
     AtomicDataDict.ENV_CUTOFF_KEY,
+    AtomicDataDict.ONSITENV_CUTOFF_KEY,
     AtomicDataDict.EDGE_ENERGY_KEY,
 }
 _DEFAULT_GRAPH_FIELDS: Set[str] = {
@@ -297,7 +302,9 @@ class AtomicData(Data):
         strict_self_interaction: bool = True,
         cell=None,
         pbc: Optional[PBC] = None,
+        reduce: Optional[bool] = False,
         er_max: Optional[float] = None,
+        oer_max: Optional[float] = None,
         **kwargs,
     ):
         """Build neighbor graph from points, optionally with PBC.
@@ -342,6 +349,8 @@ class AtomicData(Data):
             self_interaction=self_interaction,
             strict_self_interaction=strict_self_interaction,
             cell=cell,
+            reduce=reduce,
+            atomic_numbers=kwargs.get("atomic_numbers", None),
             pbc=pbc,
         )
 
@@ -368,6 +377,22 @@ class AtomicData(Data):
             if cell is not None:
                 kwargs[AtomicDataDict.ENV_CELL_SHIFT_KEY] = env_cell_shift
             kwargs[AtomicDataDict.ENV_INDEX_KEY] = env_index
+        
+        # add onsitenv index
+        if oer_max is not None:
+            onsitenv_index, onsitenv_cell_shift, _ = neighbor_list_and_relative_vec(
+                pos=pos,
+                r_max=oer_max,
+                self_interaction=self_interaction,
+                strict_self_interaction=strict_self_interaction,
+                cell=cell,
+                reduce=reduce,
+                pbc=pbc
+            )
+
+            if cell is not None:
+                kwargs[AtomicDataDict.ONSITENV_CELL_SHIFT_KEY] = onsitenv_cell_shift
+            kwargs[AtomicDataDict.ONSITENV_INDEX_KEY] = onsitenv_index
 
         return cls(edge_index=edge_index, pos=torch.as_tensor(pos), **kwargs)
 
@@ -402,7 +427,7 @@ class AtomicData(Data):
         Returns:
             A ``AtomicData``.
         """
-        from nequip.ase import NequIPCalculator
+        # from nequip.ase import NequIPCalculator
 
         assert "pos" not in kwargs
 
@@ -445,24 +470,24 @@ class AtomicData(Data):
             }
         )
 
-        if atoms.calc is not None:
+        # if atoms.calc is not None:
 
-            if isinstance(
-                atoms.calc, (SinglePointCalculator, SinglePointDFTCalculator)
-            ):
-                add_fields.update(
-                    {
-                        key_mapping.get(k, k): deepcopy(v)
-                        for k, v in atoms.calc.results.items()
-                        if k in include_keys
-                    }
-                )
-            elif isinstance(atoms.calc, NequIPCalculator):
-                pass  # otherwise the calculator breaks
-            else:
-                raise NotImplementedError(
-                    f"`from_ase` does not support calculator {atoms.calc}"
-                )
+        #     if isinstance(
+        #         atoms.calc, (SinglePointCalculator, SinglePointDFTCalculator)
+        #     ):
+        #         add_fields.update(
+        #             {
+        #                 key_mapping.get(k, k): deepcopy(v)
+        #                 for k, v in atoms.calc.results.items()
+        #                 if k in include_keys
+        #             }
+        #         )
+        #     elif isinstance(atoms.calc, NequIPCalculator):
+        #         pass  # otherwise the calculator breaks
+        #     else:
+        #         raise NotImplementedError(
+        #             f"`from_ase` does not support calculator {atoms.calc}"
+        #         )
 
         add_fields[AtomicDataDict.ATOMIC_NUMBERS_KEY] = atoms.get_atomic_numbers()
 
@@ -746,8 +771,11 @@ def neighbor_list_and_relative_vec(
     r_max,
     self_interaction=False,
     strict_self_interaction=True,
+    reduce=True,
+    atomic_numbers=None,
     cell=None,
     pbc=False,
+
 ):
     """Create neighbor list and neighbor vectors based on radial cutoff.
 
@@ -841,6 +869,14 @@ def neighbor_list_and_relative_vec(
         second_idex = second_idex[keep_edge]
         shifts = shifts[keep_edge]
 
+    if reduce:
+        assert atomic_numbers is not None
+        atomic_numbers = torch.as_tensor(atomic_numbers, dtype=torch.long)
+        mask = atomic_numbers[first_idex] >= atomic_numbers[second_idex]
+        first_idex = first_idex[mask]
+        second_idex = second_idex[mask]
+        shifts = shifts[mask]
+
     # Build output:
     edge_index = torch.vstack(
         (torch.LongTensor(first_idex), torch.LongTensor(second_idex))
@@ -851,4 +887,5 @@ def neighbor_list_and_relative_vec(
         dtype=out_dtype,
         device=out_device,
     )
+
     return edge_index, shifts, cell_tensor
