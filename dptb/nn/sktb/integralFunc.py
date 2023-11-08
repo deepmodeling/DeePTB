@@ -4,7 +4,6 @@ from dptb.nnsktb.formula import SKFormula
 from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types, NRL_skint_type_constants
 
-
 # define the function for output all the hoppongs for given i,j.
 
 class SKintHops(SKFormula):

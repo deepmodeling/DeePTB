@@ -386,7 +386,6 @@ class AtomicData(Data):
                 self_interaction=self_interaction,
                 strict_self_interaction=strict_self_interaction,
                 cell=cell,
-                reduce=reduce,
                 pbc=pbc
             )
 

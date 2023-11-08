@@ -50,7 +50,7 @@ class onsiteFormula(BaseOnsite):
         if self.functype == 'NRL':
             return self.NRL(**kwargs)
     
-    def uniform(self,xtype, onsite_db, nn_onsite_paras):
+    def uniform(self, xtype, onsite_db, nn_onsite_paras):
         '''This is a wrap function for a self-defined formula of onsite energies. one can easily modify it into whatever form they want.
         
         Returns

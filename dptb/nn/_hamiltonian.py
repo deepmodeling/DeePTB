@@ -246,10 +246,8 @@ class SKHamiltonian(torch.nn.Module):
 
         # compute onsite blocks
         node_feature = data[AtomicDataDict.NODE_FEATURES_KEY].clone()
-        if data.get(AtomicDataDict.ONSITENV_FEATURE_KEY, None): # strain, onsite block is symmetric, using node map
-            data[AtomicDataDict.NODE_FEATURES_KEY] = torch.zeros(n_node, self.idp_e3.node_reduced_matrix_element)
-        else:
-            data[AtomicDataDict.NODE_FEATURES_KEY] = torch.zeros(n_node, self.idp_e3.pair_reduced_matrix_element)
+        data[AtomicDataDict.NODE_FEATURES_KEY] = torch.zeros(n_node, self.idp_e3.node_reduced_matrix_element)
+
         for opairtype in self.idp.nodetype_maps.keys():
             # currently, "a-b" and "b-a" orbital pair are computed seperately, it is able to combined further
             # for better performance
@@ -262,13 +260,13 @@ class SKHamiltonian(torch.nn.Module):
                 HR = torch.eye(2*l1+1, dtype=self.dtype, device=self.device)[None, None, :, :] * skparam[:,:, None, :] # shape (N, n_pair, 2l1+1, 2l2+1)
 
                 # the onsite block doesnot have rotation
-                data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp_e3.pairtype_maps[opairtype]] = HR.reshape(n_node, -1)
+                data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp_e3.nodetype_maps[opairtype]] = HR.reshape(n_node, -1)
 
         # compute if strain effect is included
         # this is a little wired operation, since it acting on somekind of a edge(strain env) feature, and summed up to return a node feature.
         if data.get(AtomicDataDict.ONSITENV_FEATURE_KEY, None):
             n_onsitenv = len(data[AtomicDataDict.ONSITENV_FEATURES_KEY])
-            for opairtype in self.idp.pairtype_maps.keys():
+            for opairtype in self.idp.nodetype_maps.keys():
                 l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
                 n_skp = min(l1, l2)+1 # number of reduced matrix element
                 skparam = data[AtomicDataDict.ONSITENV_FEATURES_KEY][:, self.idp.pairtype_maps[opairtype]].reshape(n_onsitenv, -1, n_skp)
@@ -285,9 +283,8 @@ class SKHamiltonian(torch.nn.Module):
 
                 HR = scatter(HR, data[AtomicDataDict.ONSITENV_INDEX_KEY], 0, None, "sum") # shape (n_node, n_pair * 2l2+1 * 2l2+1)
 
-                data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp_e3.pairtype_maps[opairtype]] += HR
+                data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp_e3.nodetype_maps[opairtype]] += HR
 
-        
         return data
 
     def _initialize_CG_basis(self, pairtype: str):
