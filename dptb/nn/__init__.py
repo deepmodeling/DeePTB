@@ -18,16 +18,23 @@ The model can be constructed by the following steps:
 4. choose the loss target, and its metric, it can be MSE, MAE, etc.
 
 model_options = {
-    "embedding" = {
-        "mode" = "se2/gnn/se3..."
-        # mode specific
-        # se2
-        "env_cutoff": 3.5,
-        "rs": float,
-        "rc": float,
-        "n_axis": int,
-        # gnn
-        # se3
+    "network" = {
+        "embedding": {
+            "mode":"se2/gnn/se3...",
+            # mode specific
+            # se2
+            "env_cutoff": 3.5,
+            "rs": float,
+            "rc": float,
+            "n_axis": int,
+            # gnn
+            # se3
+        },
+        "prediction": {
+            "mode": "linear/nn",
+            # linear
+            # nn
+        }
     },
     "hamiltonian" = {
         "method": "sktb/e3tb",

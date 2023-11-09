@@ -1,5 +1,9 @@
-from ._one_hot import OneHotAtomEncoding
+from .emb import Embedding
+from .se2 import SE2Descriptor
+from .identity import Identity
 
 __all__ = [
-    OneHotAtomEncoding,
+    "Descriptor",
+    "SE2Descriptor",
+    "Identity"
 ]

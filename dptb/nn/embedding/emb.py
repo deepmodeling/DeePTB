@@ -8,15 +8,15 @@ all descriptors inplemendeted should be a instance of nn.Module class, and provi
 takes AtomicData class as input, and give AtomicData class as output.
 
 """
-class Descriptor:
+class Embedding:
     _register = Register()
 
     def register(target):
-        return Descriptor._register.register(target)
+        return Embedding._register.register(target)
     
     def __new__(cls, mode: str, **kwargs):
-        if mode in Descriptor._register.keys():
-            return Descriptor._register[mode](**kwargs)
+        if mode in Embedding._register.keys():
+            return Embedding._register[mode](**kwargs)
         else:
             raise Exception(f"Descriptor mode: {mode} is not registered!")
         

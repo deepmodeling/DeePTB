@@ -3,9 +3,9 @@ from torch_geometric.nn import Aggregation
 import torch
 from typing import Optional, Tuple, Union
 from dptb.data import AtomicDataDict
-from dptb.nn.descriptor.descriptor import Descriptor
+from dptb.nn.embedding.emb import Embedding
 
-@Descriptor.register("se2")
+@Embedding.register("se2")
 class SE2Descriptor(torch.nn.Module):
     def __init__(
             self, 
@@ -39,6 +39,14 @@ class SE2Descriptor(torch.nn.Module):
             )
         
         return data
+    
+    @property
+    def out_edge_dim(self):
+        pass
+
+    @property
+    def out_note_dim(self):
+        pass
 
 
 

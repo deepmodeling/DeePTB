@@ -161,7 +161,8 @@ class AtomicResBlock(torch.nn.Module):
 
 # The ResNet class is a neural network model that consists of multiple residual blocks and a final
 # output layer, with options for activation functions and batch normalization.
-class ResNet(torch.nn.Module):
+
+class AtomicResNet(torch.nn.Module):
     def __init__(
             self, 
             config: List[dict],
@@ -189,7 +190,7 @@ class ResNet(torch.nn.Module):
         dtype : _type_, optional
             _description_, by default torch.float32
         """
-        super(ResNet, self).__init__()
+        super(AtomicResNet, self).__init__()
         self.layers = torch.nn.ModuleList([])
         for kk in range(len(config)-1):
             self.layers.append(

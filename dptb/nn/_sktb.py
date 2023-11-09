@@ -120,9 +120,9 @@ class SKTB(torch.nn.Module):
         # compute strain
         if self.onsite.functype == "strain":
             onsitenv_type = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.ONSITENV_INDEX_KEY].flatten()].view(2, -1)
-            onsitenv_index = torch.tensor([self.idp.bondtype_map.get(atomic_num_dict_r(edge_type[:,i][0])+"-"+atomic_num_dict_r(edge_type[:,i][1]), 
-                            -self.idp.bondtype_map[atomic_num_dict_r(edge_type[:,i][1])+"-"+atomic_num_dict_r(edge_type[:,i][0])]) 
-                            for i in range(edge_type.shape[1])], dtype=torch.long, device=self.device)
+            onsitenv_index = torch.tensor([self.idp.bondtype_map.get(atomic_num_dict_r(onsitenv_type[:,i][0])+"-"+atomic_num_dict_r(onsitenv_type[:,i][1]), 
+                            -self.idp.bondtype_map[atomic_num_dict_r(onsitenv_type[:,i][1])+"-"+atomic_num_dict_r(onsitenv_type[:,i][0])]) 
+                            for i in range(onsitenv_type.shape[1])], dtype=torch.long, device=self.device)
             onsitenv_index[onsitenv_index<0] = -onsitenv_index[onsitenv_index<0] + len(self.idp.bondtype)
             onsitenv_params = torch.stack([self.strain_param, 
                 self.strain_param.reshape(-1, len(self.idp.full_basis), len(self.idp.full_basis)).transpose(1,2).reshape(len(self.idp.bondtype), -1)], dim=1)
