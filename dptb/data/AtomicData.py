@@ -62,6 +62,7 @@ _DEFAULT_EDGE_FIELDS: Set[str] = {
     AtomicDataDict.ENV_CUTOFF_KEY,
     AtomicDataDict.ONSITENV_CUTOFF_KEY,
     AtomicDataDict.EDGE_ENERGY_KEY,
+    AtomicDataDict.EDGE_OVERLAP_KEY,
 }
 _DEFAULT_GRAPH_FIELDS: Set[str] = {
     AtomicDataDict.TOTAL_ENERGY_KEY,

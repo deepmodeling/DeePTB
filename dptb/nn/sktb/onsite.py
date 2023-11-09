@@ -3,6 +3,7 @@ import torch as th
 from abc import ABC, abstractmethod
 from dptb.nnsktb.bondlengthDB import bond_length
 from torch_scatter import scatter
+from onsiteDB import onsite_energy_database
 
 
 class BaseOnsite(ABC):
@@ -21,11 +22,11 @@ class BaseOnsite(ABC):
         pass
 
 
-class onsiteFormula(BaseOnsite):
+class OnsiteFormula(BaseOnsite):
 
-    def __init__(self, functype='none') -> None:
+    def __init__(self, atomtype=None, functype='none') -> None:
         super().__init__() 
-        if functype == 'none':
+        if functype in ['none', 'strain']:
             self.functype = functype
             self.num_paras = 0
 
@@ -45,13 +46,28 @@ class onsiteFormula(BaseOnsite):
         else:
             raise ValueError('No such formula')
         
-    def skEs(self, **kwargs):
+        if isinstance(atomtype, list):
+            self.E_base = {k:onsite_energy_database[k] for k in atomtype}
+        
+    def get_skEs(self, **kwargs):
         if self.functype == 'uniform':
             return self.uniform(**kwargs)
         if self.functype == 'NRL':
             return self.NRL(**kwargs)
+        if self.functype in ['none', 'strain']:
+            return self.none(**kwargs)
+        
+    def none(self, atype_list, otype_list, **kwargs):
+        out = th.zeros([len(atype_list), len(otype_list)], dtype=th.float32)
+
+        for i, at in enumerate(atype_list):
+            for j, ot in enumerate(otype_list):
+                out[i,j] = self.E_base[at].get([ot], 0.)
+        
+
+        return out
     
-    def uniform(self, xtype, onsite_db, nn_onsite_paras):
+    def uniform(self, atype_list, otype_list, nn_onsite_paras, **kwargs):
         '''This is a wrap function for a self-defined formula of onsite energies. one can easily modify it into whatever form they want.
         
         Returns
@@ -59,13 +75,10 @@ class onsiteFormula(BaseOnsite):
             The function defined by functype is called to cal onsite energies and returned.
         
         '''
-        assert xtype in onsite_db.keys(), f'{xtype} is not in the onsite_db.'
-        assert xtype in nn_onsite_paras.keys(), f'{xtype} is not in the nn_onsite_paras.'
-        assert onsite_db[xtype].shape == nn_onsite_paras[xtype].shape, f'{xtype} onsite_db and nn_onsite_paras have different shape.'
-        return onsite_db[xtype] + nn_onsite_paras[xtype]
+        return nn_onsite_paras + self.none(atype_list, otype_list)
         
 
-    def NRL(self, onsitenv_index, onsitenvs_length, nn_onsite_paras, rcut:th.float32 = th.tensor(6), w:th.float32 = 0.1, lda=1.0):
+    def NRL(self, onsitenv_index, onsitenv_length, nn_onsite_paras, rcut:th.float32 = th.tensor(6), w:th.float32 = 0.1, lda=1.0):
         """ This is NRL-TB formula for onsite energies.
 
             rho_i = \sum_j exp(- lda**2 r_ij) f(r_ij)
@@ -89,7 +102,7 @@ class onsiteFormula(BaseOnsite):
         lda: float
             the decay for the  calculateing rho.
         """ 
-        r_ijs = onsitenvs_length.view(-1) # [N]
+        r_ijs = onsitenv_length.view(-1) # [N]
         exp_rij = th.exp(-lda**2 * r_ijs)
         f_rij = 1/(1+th.exp((r_ijs-rcut+5*w)/w))
         f_rij[r_ijs>=rcut] = 0.0

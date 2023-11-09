@@ -1,7 +1,8 @@
 from typing_extensions import Self
 from dptb.utils.tools import get_uniq_symbol
-from dptb.utils.constants import anglrMId
+from dptb.utils.constants import anglrMId, atomic_num_dict
 import re
+import torch
 import numpy as np
 
 class Index_Mapings_e3(object):
@@ -30,12 +31,16 @@ class Index_Mapings_e3(object):
         """
 
         self.atomtype = get_uniq_symbol(list(basis.keys())) # this will sort the atomtype according to the atomic number
+        self.atomtype_map = {at:i for i, at in enumerate(self.atomtype)}
         self.bondtype = []
+
         for it, at in enumerate(self.atomtype):
             for jt, bt in enumerate(self.atomtype[it:]):
                 bond = at+"-"+bt
                 if bond not in at:
                     self.bondtype.append(bond)
+
+        self.bondtype_map = {bt:i for i, bt in enumerate(self.bondtype)}
 
         # TODO: check the basis value
 
@@ -213,8 +218,6 @@ class Index_Mapings_e3(object):
 
         return self.node_maps
 
-
-
     def get_nodetype_maps(self):
         self.nodetype_maps = {}
         ist = 0
@@ -242,9 +245,6 @@ class Index_Mapings_e3(object):
 
 
         return self.nodetype_maps
-
-
-
 
 
 class Index_Mapings(object):

@@ -76,6 +76,7 @@ ENV_CUTOFF_KEY: Final[str] = "env_cutoff"
 ONSITENV_CUTOFF_KEY: Final[str] = "onsitenv_cutoff"
 # edge energy as in Allegro
 EDGE_ENERGY_KEY: Final[str] = "edge_energy"
+EDGE_OVERLAP_KEY: Final[str] = "edge_overlap"
 
 NODE_FEATURES_KEY: Final[str] = "node_features"
 NODE_ATTRS_KEY: Final[str] = "node_attrs"

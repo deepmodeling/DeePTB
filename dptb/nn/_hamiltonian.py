@@ -1,8 +1,9 @@
-"""This file refactor the SK and E3 Rotation in dptb/hamiltonian/transform_se3.py], it will take input of AtomicDataDict.Type
-    perform rotation from irreducible matrix element / sk parameters in EDGE/NODE FEATURE, and output the atomwise/ pairwise hamiltonian
-    as the new EDGE/NODE FEATURE. The rotation should also be a GNN module and speed uptable by JIT. The HR2HK should also be included here.
-    The indexmapping should ne passed here.
-    """
+"""
+This file refactor the SK and E3 Rotation in dptb/hamiltonian/transform_se3.py], it will take input of AtomicDataDict.Type
+perform rotation from irreducible matrix element / sk parameters in EDGE/NODE FEATURE, and output the atomwise/ pairwise hamiltonian
+as the new EDGE/NODE FEATURE. The rotation should also be a GNN module and speed uptable by JIT. The HR2HK should also be included here.
+The indexmapping should ne passed here.
+"""
 
 import torch
 from e3nn.o3 import wigner_3j, Irrep, xyz_to_angles, Irrep
@@ -16,6 +17,7 @@ from torch_scatter import scatter
 
 # The `E3Hamiltonian` class is a PyTorch module that represents a Hamiltonian for a system with a
 # given basis and can perform forward computations on input data.
+
 class E3Hamiltonian(torch.nn.Module):
     def __init__(
             self, 
@@ -139,7 +141,7 @@ class E3Hamiltonian(torch.nn.Module):
                 # the onsite block doesnot have rotation
                 print(rme.shape, data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp.nodetype_maps[opairtype]].shape, opairtype)
                 data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp.nodetype_maps[opairtype]] = rme
-            
+
         return data
             
     def _initialize_CG_basis(self, pairtype: str):
@@ -266,7 +268,7 @@ class SKHamiltonian(torch.nn.Module):
         # this is a little wired operation, since it acting on somekind of a edge(strain env) feature, and summed up to return a node feature.
         if data.get(AtomicDataDict.ONSITENV_FEATURE_KEY, None):
             n_onsitenv = len(data[AtomicDataDict.ONSITENV_FEATURES_KEY])
-            for opairtype in self.idp.nodetype_maps.keys():
+            for opairtype in self.idp.nodetype_maps.keys(): # save all env direction and pair direction like sp and ps, but only get sp
                 l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
                 n_skp = min(l1, l2)+1 # number of reduced matrix element
                 skparam = data[AtomicDataDict.ONSITENV_FEATURES_KEY][:, self.idp.pairtype_maps[opairtype]].reshape(n_onsitenv, -1, n_skp)
@@ -279,11 +281,11 @@ class SKHamiltonian(torch.nn.Module):
                 angle = xyz_to_angles(data[AtomicDataDict.EDGE_VECTORS_KEY][:,[1,2,0]]) # (tensor(N), tensor(N))
                 rot_mat_L = Irrep(int(l1), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l1+1, 2l1+1)
                 rot_mat_R = Irrep(int(l2), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l2+1, 2l2+1)
-                HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R).reshape(n_onsitenv, -1).sum # shape (N, n_pair * 2l2+1 * 2l2+1)
+                HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R) # shape (N, n_pair, 2l1+1, 2l2+1)
 
-                HR = scatter(HR, data[AtomicDataDict.ONSITENV_INDEX_KEY], 0, None, "sum") # shape (n_node, n_pair * 2l2+1 * 2l2+1)
-
-                data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp_e3.nodetype_maps[opairtype]] += HR
+                HR = scatter(HR, data[AtomicDataDict.ONSITENV_INDEX_KEY], 0, None, "sum") # shape (n_node, n_pair, 2l1+1, 2l2+1)
+                # A-B o1-o2 (A-B o2-o1)= (B-A o1-o2)
+                data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp_e3.nodetype_maps[opairtype]] += HR # the index type [node/pair] should align with the index of for loop
 
         return data
 

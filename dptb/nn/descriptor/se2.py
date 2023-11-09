@@ -3,12 +3,14 @@ from torch_geometric.nn import Aggregation
 import torch
 from typing import Optional, Tuple, Union
 from dptb.data import AtomicDataDict
+from dptb.nn.descriptor.descriptor import Descriptor
 
+@Descriptor.register("se2")
 class SE2Descriptor(torch.nn.Module):
     def __init__(
             self, 
-            rs: Union[int, torch.Tensor], 
-            rc:Union[int, torch.Tensor], 
+            rs: Union[float, torch.Tensor], 
+            rc:Union[float, torch.Tensor], 
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu")
             ) -> None:
@@ -65,19 +67,19 @@ class SE2Aggregation(Aggregation):
 class _SE2Descriptor(MessagePassing):
     def __init__(
             self, 
-            rs: Union[int, torch.Tensor], 
-            rc:Union[int, torch.Tensor], 
+            rs: Union[float, torch.Tensor], 
+            rc:Union[float, torch.Tensor], 
             aggr: SE2Aggregation=SE2Aggregation(), 
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"), **kwargs):
         
         super(_SE2Descriptor, self).__init__(aggr=aggr, **kwargs)
         self.embedding_net = None
-        if isinstance(rs, int):
+        if isinstance(rs, float):
             self.rs = torch.tensor(rs, dtype=dtype, device=device)
         else:
             self.rs = rs
-        if isinstance(rc, int):
+        if isinstance(rc, float):
             self.rc = torch.tensor(rc, dtype=dtype, device=device)
         else:
             self.rc = rc
