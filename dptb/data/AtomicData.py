@@ -47,22 +47,35 @@ _DEFAULT_NODE_FIELDS: Set[str] = {
 }
 _DEFAULT_EDGE_FIELDS: Set[str] = {
     AtomicDataDict.EDGE_CELL_SHIFT_KEY,
-    AtomicDataDict.ENV_CELL_SHIFT_KEY,
-    AtomicDataDict.ONSITENV_CELL_SHIFT_KEY,
     AtomicDataDict.EDGE_VECTORS_KEY,
-    AtomicDataDict.ENV_VECTORS_KEY,
-    AtomicDataDict.ONSITENV_VECTORS_KEY,
     AtomicDataDict.EDGE_LENGTH_KEY,
-    AtomicDataDict.ENV_LENGTH_KEY,
-    AtomicDataDict.ONSITENV_LENGTH_KEY,
     AtomicDataDict.EDGE_ATTRS_KEY,
     AtomicDataDict.EDGE_EMBEDDING_KEY,
     AtomicDataDict.EDGE_FEATURES_KEY,
     AtomicDataDict.EDGE_CUTOFF_KEY,
-    AtomicDataDict.ENV_CUTOFF_KEY,
-    AtomicDataDict.ONSITENV_CUTOFF_KEY,
     AtomicDataDict.EDGE_ENERGY_KEY,
     AtomicDataDict.EDGE_OVERLAP_KEY,
+}
+
+_DEFAULT_ENV_FIELDS: Set[str] = {
+    AtomicDataDict.ENV_CELL_SHIFT_KEY,
+    AtomicDataDict.ENV_VECTORS_KEY,
+    AtomicDataDict.ENV_LENGTH_KEY,
+    AtomicDataDict.ENV_ATTRS_KEY,
+    AtomicDataDict.ENV_EMBEDDING_KEY,
+    AtomicDataDict.ENV_FEATURES_KEY,
+    AtomicDataDict.ENV_CUTOFF_KEY,
+    
+}
+
+_DEFAULT_ONSITENV_FIELDS: Set[str] = {
+    AtomicDataDict.ONSITENV_CELL_SHIFT_KEY,
+    AtomicDataDict.ONSITENV_VECTORS_KEY,
+    AtomicDataDict.ONSITENV_LENGTH_KEY,
+    AtomicDataDict.ONSITENV_ATTRS_KEY,
+    AtomicDataDict.ONSITENV_EMBEDDING_KEY,
+    AtomicDataDict.ONSITENV_FEATURES_KEY,
+    AtomicDataDict.ONSITENV_CUTOFF_KEY,
 }
 _DEFAULT_GRAPH_FIELDS: Set[str] = {
     AtomicDataDict.TOTAL_ENERGY_KEY,
@@ -76,6 +89,8 @@ _DEFAULT_GRAPH_FIELDS: Set[str] = {
 }
 _NODE_FIELDS: Set[str] = set(_DEFAULT_NODE_FIELDS)
 _EDGE_FIELDS: Set[str] = set(_DEFAULT_EDGE_FIELDS)
+_ENV_FIELDS: Set[str] = set(_DEFAULT_ENV_FIELDS)
+_ONSITENV_FIELDS: Set[str] = set(_DEFAULT_ONSITENV_FIELDS)
 _GRAPH_FIELDS: Set[str] = set(_DEFAULT_GRAPH_FIELDS)
 _LONG_FIELDS: Set[str] = set(_DEFAULT_LONG_FIELDS)
 
@@ -83,6 +98,8 @@ _LONG_FIELDS: Set[str] = set(_DEFAULT_LONG_FIELDS)
 def register_fields(
     node_fields: Sequence[str] = [],
     edge_fields: Sequence[str] = [],
+    env_fields: Sequence[str] = [],
+    onsitenv_fields: Sequence[str] = [],
     graph_fields: Sequence[str] = [],
     long_fields: Sequence[str] = [],
 ) -> None:
@@ -94,12 +111,16 @@ def register_fields(
     """
     node_fields: set = set(node_fields)
     edge_fields: set = set(edge_fields)
+    env_fields: set = set(env_fields)
+    onsitenv_fields: set = set(onsitenv_fields)
     graph_fields: set = set(graph_fields)
     long_fields: set = set(long_fields)
-    allfields = node_fields.union(edge_fields, graph_fields)
+    allfields = node_fields.union(edge_fields, graph_fields, env_fields, onsitenv_fields)
     assert len(allfields) == len(node_fields) + len(edge_fields) + len(graph_fields)
     _NODE_FIELDS.update(node_fields)
     _EDGE_FIELDS.update(edge_fields)
+    _ENV_FIELDS.update(env_fields)
+    _ONSITENV_FIELDS.update(onsitenv_fields)
     _GRAPH_FIELDS.update(graph_fields)
     _LONG_FIELDS.update(long_fields)
     if len(set.union(_NODE_FIELDS, _EDGE_FIELDS, _GRAPH_FIELDS)) < (
@@ -122,8 +143,12 @@ def deregister_fields(*fields: Sequence[str]) -> None:
         assert f not in _DEFAULT_NODE_FIELDS, "Cannot deregister built-in field"
         assert f not in _DEFAULT_EDGE_FIELDS, "Cannot deregister built-in field"
         assert f not in _DEFAULT_GRAPH_FIELDS, "Cannot deregister built-in field"
+        assert f not in _DEFAULT_ENV_FIELDS, "Cannot deregister built-in field"
+        assert f not in _DEFAULT_ONSITENV_FIELDS, "Cannot deregister built-in field"
         _NODE_FIELDS.discard(f)
         _EDGE_FIELDS.discard(f)
+        _ENV_FIELDS.discard(f)
+        _ONSITENV_FIELDS.discard(f)
         _GRAPH_FIELDS.discard(f)
 
 
@@ -133,6 +158,8 @@ def _register_field_prefix(prefix: str) -> None:
     register_fields(
         node_fields=[prefix + e for e in _NODE_FIELDS],
         edge_fields=[prefix + e for e in _EDGE_FIELDS],
+        env_fields=[prefix + e for e in _ENV_FIELDS],
+        onsitenv_fields=[prefix + e for e in _ONSITENV_FIELDS],
         graph_fields=[prefix + e for e in _GRAPH_FIELDS],
         long_fields=[prefix + e for e in _LONG_FIELDS],
     )
@@ -203,6 +230,22 @@ def _process_dict(kwargs, ignore_fields=[]):
         ):
             raise ValueError(
                 f"{k} is a edge field but has the wrong dimension {v.shape}"
+            )
+        elif (
+            k in _ENV_FIELDS
+            and AtomicDataDict.ENV_INDEX_KEY in kwargs
+            and v.shape[0] != kwargs[AtomicDataDict.ENV_INDEX_KEY].shape[1]
+        ):
+            raise ValueError(
+                f"{k} is a env field but has the wrong dimension {v.shape}"
+            )
+        elif (
+            k in _ONSITENV_FIELDS
+            and AtomicDataDict.ONSITENV_INDEX_KEY in kwargs
+            and v.shape[0] != kwargs[AtomicDataDict.ONSITENV_INDEX_KEY].shape[1]
+        ):
+            raise ValueError(
+                f"{k} is a env field but has the wrong dimension {v.shape}"
             )
         elif k in _GRAPH_FIELDS:
             if num_frames > 1 and v.shape[0] != num_frames:
@@ -372,6 +415,7 @@ class AtomicData(Data):
                 self_interaction=self_interaction,
                 strict_self_interaction=strict_self_interaction,
                 cell=cell,
+                reduce=False,
                 pbc=pbc,
             )
 
@@ -387,6 +431,7 @@ class AtomicData(Data):
                 self_interaction=self_interaction,
                 strict_self_interaction=strict_self_interaction,
                 cell=cell,
+                reduce=False,
                 pbc=pbc
             )
 
@@ -697,7 +742,7 @@ class AtomicData(Data):
         return self.__irreps__
 
     def __cat_dim__(self, key, value):
-        if key == AtomicDataDict.EDGE_INDEX_KEY or key == AtomicDataDict.ENV_INDEX_KEY:
+        if key == AtomicDataDict.EDGE_INDEX_KEY or key == AtomicDataDict.ENV_INDEX_KEY or key == AtomicDataDict.ONSITENV_INDEX_KEY:
             return 1  # always cat in the edge dimension
         elif key in _GRAPH_FIELDS:
             # graph-level properties and so need a new batch dimension
@@ -726,6 +771,8 @@ class AtomicData(Data):
         edge_mask = mask[self.edge_index[0]] & mask[self.edge_index[1]]
         if hasattr(self, AtomicDataDict.ENV_INDEX_KEY):
             env_mask = mask[self.env_index[0]] & mask[self.env_index[1]]
+        if hasattr(self, AtomicDataDict.ONSITENV_INDEX_KEY):
+            onsitenv_mask = mask[self.onsitenv_index[0]] & mask[self.onsitenv_index[1]]
         # Create an index mapping:
         new_index = torch.full((self.num_nodes,), -1, dtype=torch.long)
         new_index[mask] = torch.arange(n_keeping, dtype=torch.long)
@@ -747,8 +794,16 @@ class AtomicData(Data):
                     self.env_index[:, env_mask]
                 ]
             elif k == AtomicDataDict.ENV_CELL_SHIFT_KEY:
-                new_dict[AtomicDataDict.EDGE_CELL_SHIFT_KEY] = self.env_cell_shift[
+                new_dict[AtomicDataDict.ENV_CELL_SHIFT_KEY] = self.env_cell_shift[
                     env_mask
+                ]
+            elif k == AtomicDataDict.ONSITENV_INDEX_KEY:
+                new_dict[AtomicDataDict.ONSITENV_INDEX_KEY] = new_index[
+                    self.onsitenv_index[:, onsitenv_mask]
+                ]
+            elif k == AtomicDataDict.ONSITENV_CELL_SHIFT_KEY:
+                new_dict[AtomicDataDict.ONSITENV_CELL_SHIFT_KEY] = self.onsitenv_cell_shift[
+                    onsitenv_mask
                 ]
             else:
                 if isinstance(self[k], torch.Tensor) and len(self[k]) == self.num_nodes:

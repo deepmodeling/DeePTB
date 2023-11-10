@@ -10,8 +10,8 @@ from dptb.utils.constants import h_all_types, anglrMId
 from typing import Tuple, Union, Dict
 from dptb.utils.index_mapping import Index_Mapings_e3
 from dptb.data import AtomicDataDict
-from sktb.hopping import HoppingFormula
-from sktb.onsite import OnsiteFormula
+from .sktb.hopping import HoppingFormula
+from .sktb.onsite import OnsiteFormula
 from .sktb.bondlengthDB import bond_length_list
 from dptb.utils.constants import atomic_num_dict_r
 
@@ -54,7 +54,7 @@ class SKTB(torch.nn.Module):
         elif onsite == "none":
             self.onsite_param = None
         else:
-            self.onsite_param = torch.nn.Parameter(torch.randn([len(self.idp.atomtype), self.onsite.num_paras], dtype=self.dtype, device=self.device))
+            self.onsite_param = torch.nn.Parameter(torch.randn([len(self.idp.atomtype), self.idp.node_reduced_matrix_element, self.onsite.num_paras], dtype=self.dtype, device=self.device))
         
         if onsite == "strain":
             # AB [ss, sp, sd, ps, pp, pd, ds, dp, dd]

@@ -74,6 +74,12 @@ def dataset_from_config(config, prefix: str = "dataset") -> AtomicDataset:
         arg_dicts=[config[prefixed_eff_key], config],
     )
 
+    config[prefixed_eff_key]["oer_max"] = get_w_prefix(
+        "oer_max",
+        prefix=prefix,
+        arg_dicts=[config[prefixed_eff_key], config],
+    )
+
     # Build a TypeMapper from the config
     type_mapper, _ = instantiate(TypeMapper, prefix=prefix, optional_args=config)
 

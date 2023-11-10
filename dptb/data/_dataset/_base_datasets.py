@@ -75,6 +75,7 @@ class AtomicDataset(Dataset):
         # Add other relevant metadata:
         params["dtype"] = str(self.dtype)
         params["nequip_version"] = dptb.__version__
+
         return params
 
     @property

@@ -27,6 +27,11 @@ model_options = {
             "rs": float,
             "rc": float,
             "n_axis": int,
+            "radial_embedding": {
+                "neurons": [int],
+                "activation": str,
+                "if_batch_normalized": bool
+            }
             # gnn
             # se3
         },
@@ -34,6 +39,9 @@ model_options = {
             "mode": "linear/nn",
             # linear
             # nn
+            "neurons": [int],
+            "activation": str,
+            "if_batch_normalized": bool,
         }
     },
     "hamiltonian" = {
@@ -58,6 +66,7 @@ model_options = {
             "lambda": float
         }
         # e3tb
+        
     },
 }
 

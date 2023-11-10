@@ -1,9 +1,12 @@
 # define the integrals formula.
 import torch as th
+import torch
+from typing import List, Union
 from abc import ABC, abstractmethod
 from dptb.nnsktb.bondlengthDB import bond_length
-from torch_scatter import scatter
-from onsiteDB import onsite_energy_database
+from torch_runstats.scatter import scatter
+from dptb.nn.sktb.onsiteDB import onsite_energy_database
+from dptb.utils.index_mapping import Index_Mapings_e3
 
 
 class BaseOnsite(ABC):
@@ -11,7 +14,7 @@ class BaseOnsite(ABC):
         pass
 
     @abstractmethod
-    def skEs(self, **kwargs):
+    def get_skEs(self, **kwargs):
         '''This is a wrap function for a self-defined formula of onsite energies. one can easily modify it into whatever form they want.
         
         Returns
@@ -24,7 +27,7 @@ class BaseOnsite(ABC):
 
 class OnsiteFormula(BaseOnsite):
 
-    def __init__(self, atomtype=None, functype='none') -> None:
+    def __init__(self, atomtype: Union[List[str], None], idp: Union[Index_Mapings_e3,None]=None, functype='none') -> None:
         super().__init__() 
         if functype in ['none', 'strain']:
             self.functype = functype
@@ -46,6 +49,18 @@ class OnsiteFormula(BaseOnsite):
         else:
             raise ValueError('No such formula')
         
+        if self.functype in ["uniform", "none", "strain"]:
+            self.idp = idp
+            assert self.idp is not None
+            assert self.atomtype is not None
+
+
+            self.E_base = {}
+            for at in self.atomtype:
+                self.E_base[at] = torch.zeros(self.idp.node_reduced_matrix_element)
+                for ot in self.idp.basis[at]:
+                    self.E_base[at][self.idp.node_maps[at][ot]] = onsite_energy_database[at][ot]
+
         if isinstance(atomtype, list):
             self.E_base = {k:onsite_energy_database[k] for k in atomtype}
         
@@ -57,17 +72,10 @@ class OnsiteFormula(BaseOnsite):
         if self.functype in ['none', 'strain']:
             return self.none(**kwargs)
         
-    def none(self, atype_list, otype_list, **kwargs):
-        out = th.zeros([len(atype_list), len(otype_list)], dtype=th.float32)
-
-        for i, at in enumerate(atype_list):
-            for j, ot in enumerate(otype_list):
-                out[i,j] = self.E_base[at].get([ot], 0.)
-        
-
-        return out
+    def none(self, atomic_numbers, **kwargs):
+        pass
     
-    def uniform(self, atype_list, otype_list, nn_onsite_paras, **kwargs):
+    def uniform(self, atomic_numbers, otype_list, nn_onsite_paras, **kwargs):
         '''This is a wrap function for a self-defined formula of onsite energies. one can easily modify it into whatever form they want.
         
         Returns
@@ -75,10 +83,10 @@ class OnsiteFormula(BaseOnsite):
             The function defined by functype is called to cal onsite energies and returned.
         
         '''
-        return nn_onsite_paras + self.none(atype_list, otype_list)
+        return nn_onsite_paras + self.none(atomic_numbers=atomic_numbers)
         
 
-    def NRL(self, onsitenv_index, onsitenv_length, nn_onsite_paras, rcut:th.float32 = th.tensor(6), w:th.float32 = 0.1, lda=1.0):
+    def NRL(self, onsitenv_index, onsitenv_length, nn_onsite_paras, rcut:th.float32 = th.tensor(6), w:th.float32 = 0.1, lda=1.0, **kwargs):
         """ This is NRL-TB formula for onsite energies.
 
             rho_i = \sum_j exp(- lda**2 r_ij) f(r_ij)
@@ -89,12 +97,12 @@ class OnsiteFormula(BaseOnsite):
                     = 0;                               (r_ij >= rcut)
         Parameters
         ----------
-        x_onsite_envs: list
-            the rij list for i atom. j is the neighbor atoms of i.
-        nn_onsite_paras: dict
-            the parameters coefficient for onsite energies.
-            ['N-2s-0':[...]
-            ...]
+        onsitenv_index: torch.LongTensor
+            env index shaped as [2, N]
+        onsitenv_length: torch.Tensor
+            env index shaped as [N] or [N,1]
+        nn_onsite_paras: torch.Tensor
+            [N, n_orb, 4]
         rcut: float
             the cutoff radius for onsite energies.
         w: float
@@ -106,7 +114,7 @@ class OnsiteFormula(BaseOnsite):
         exp_rij = th.exp(-lda**2 * r_ijs)
         f_rij = 1/(1+th.exp((r_ijs-rcut+5*w)/w))
         f_rij[r_ijs>=rcut] = 0.0
-        rho_i = scatter(exp_rij * f_rij, onsitenv_index, 0, None, "sum").unsqueeze(1) # [N_atom, 1]
+        rho_i = scatter(src=exp_rij * f_rij, index=onsitenv_index[0], dim=0, reduce="sum").unsqueeze(1) # [N_atom, 1]
         a_l, b_l, c_l, d_l = nn_onsite_paras[:,:,0], nn_onsite_paras[:,:,1], nn_onsite_paras[:,:,2], nn_onsite_paras[:,:,3]
         E_il = a_l + b_l * rho_i**(2/3) + c_l * rho_i**(4/3) + d_l * rho_i**2 # [N_atom, n_orb]
         return E_il # [N_atom_n_orb]

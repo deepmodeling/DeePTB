@@ -63,11 +63,15 @@ ENV_LENGTH_KEY: Final[str] = "env_lengths"
 ONSITENV_LENGTH_KEY: Final[str] = "onsitenv_lengths"
 # [n_edge, dim] (possibly equivariant) attributes of each edge
 EDGE_ATTRS_KEY: Final[str] = "edge_attrs"
+ENV_ATTRS_KEY: Final[str] = "env_attrs"
+ONSITENV_ATTRS_KEY: Final[str] = "onsitenv_attrs"
 # [n_edge, dim] invariant embedding of the edges
 EDGE_EMBEDDING_KEY: Final[str] = "edge_embedding"
+ENV_EMBEDDING_KEY: Final[str] = "env_embedding"
+ONSITENV_EMBEDDING_KEY: Final[str] = "onsitenv_embedding"
 EDGE_FEATURES_KEY: Final[str] = "edge_features"
 ENV_FEATURES_KEY: Final[str] = "env_features"
-ONSITENV_FEATURE_KEY: Final[str] = "env_features"
+ONSITENV_FEATURES_KEY: Final[str] = "env_features"
 # [n_edge, 1] invariant of the radial cutoff envelope for each edge, allows reuse of cutoff envelopes
 EDGE_CUTOFF_KEY: Final[str] = "edge_cutoff"
 # [n_edge, 1] invariant of the radial cutoff envelope for each env edge, allows reuse of cutoff envelopes
