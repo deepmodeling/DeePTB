@@ -9,9 +9,10 @@ import torch
 from e3nn.o3 import wigner_3j, Irrep, xyz_to_angles, Irrep
 from dptb.utils.constants import h_all_types, anglrMId
 from typing import Tuple, Union, Dict
-from dptb.utils.index_mapping import Index_Mapings_e3
+from dptb.data.transforms import OrbitalMapper
 from dptb.data import AtomicDataDict
-from torch_scatter import scatter
+import re
+from torch_runstats.scatter import scatter
 
 #TODO: 1. jit acceleration 2. GPU support 3. rotate AB and BA bond together.
 
@@ -30,7 +31,7 @@ class E3Hamiltonian(torch.nn.Module):
         super(E3Hamiltonian, self).__init__()
         self.dtype = dtype
         self.device = device
-        self.idp = Index_Mapings_e3(basis, method="e3tb")
+        self.idp = OrbitalMapper(basis, method="e3tb")
         self.basis = self.idp.basis
         self.cgbasis = {}
         self.decompose = decompose
@@ -139,7 +140,6 @@ class E3Hamiltonian(torch.nn.Module):
                 rme = rme.transpose(1,2).reshape(n_node, -1)
 
                 # the onsite block doesnot have rotation
-                print(rme.shape, data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp.nodetype_maps[opairtype]].shape, opairtype)
                 data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp.nodetype_maps[opairtype]] = rme
 
         return data
@@ -180,34 +180,40 @@ class SKHamiltonian(torch.nn.Module):
         super(SKHamiltonian, self).__init__()
         self.dtype = dtype
         self.device = device
-        self.idp = Index_Mapings_e3(basis, method="sktb")
+        self.idp = OrbitalMapper(basis, method="sktb")
         # initilize a e3 indexmapping to help putting the orbital wise blocks into atom-pair wise format
-        self.idp_e3 = Index_Mapings_e3(basis, method="e3tb")
+        self.idp_e3 = OrbitalMapper(basis, method="e3tb")
         self.basis = self.idp.basis
         self.cgbasis = {}
 
-        self.idp.get_nodetype_maps()
-        self.idp.get_pairtype_maps()
-        self.idp_e3.get_nodetype_maps()
-        self.idp_e3.get_pairtype_maps()
+        self.idp.get_node_maps()
+        self.idp.get_pair_maps()
+        self.idp_e3.get_node_maps()
+        self.idp_e3.get_pair_maps()
 
         pairtypes = self.idp.pairtype_maps.keys()
         for pairtype in pairtypes:
             self._initialize_CG_basis(pairtype)
 
         self.sk2irs = {
-            'ss': torch.tensor([[1.]], dtype=self.rot_type, device=self.device),
-            'sp': torch.tensor([[1.]], dtype=self.rot_type, device=self.device),
-            'sd': torch.tensor([[1.]], dtype=self.rot_type, device=self.device),
-            'pp': torch.tensor([
+            's-s': torch.tensor([[1.]], dtype=self.dtype, device=self.device),
+            's-p': torch.tensor([[1.]], dtype=self.dtype, device=self.device),
+            's-d': torch.tensor([[1.]], dtype=self.dtype, device=self.device),
+            'p-s': torch.tensor([[1.]], dtype=self.dtype, device=self.device),
+            'p-p': torch.tensor([
                 [3**0.5/3,2/3*3**0.5],[6**0.5/3,-6**0.5/3]
             ], dtype=self.dtype, device=self.device
             ),
-            'pd':torch.tensor([
+            'p-d':torch.tensor([
                 [(2/5)**0.5,(6/5)**0.5],[(3/5)**0.5,-2/5**0.5]
             ], dtype=self.dtype, device=self.device
             ),
-            'dd':torch.tensor([
+            'd-s':torch.tensor([[1.]], dtype=self.dtype, device=self.device),
+            'd-p':torch.tensor([
+                [(2/5)**0.5,(6/5)**0.5],[(3/5)**0.5,-2/5**0.5]
+            ], dtype=self.dtype, device=self.device
+            ),
+            'd-d':torch.tensor([
                 [5**0.5/5, 2*5**0.5/5, 2*5**0.5/5],
                 [2*(1/14)**0.5,2*(1/14)**0.5,-4*(1/14)**0.5],
                 [3*(2/35)**0.5,-4*(2/35)**0.5,(2/35)**0.5]
@@ -250,23 +256,24 @@ class SKHamiltonian(torch.nn.Module):
         node_feature = data[AtomicDataDict.NODE_FEATURES_KEY].clone()
         data[AtomicDataDict.NODE_FEATURES_KEY] = torch.zeros(n_node, self.idp_e3.node_reduced_matrix_element)
 
-        for opairtype in self.idp.nodetype_maps.keys():
+        for opairtype in self.idp.node_maps.keys():
             # currently, "a-b" and "b-a" orbital pair are computed seperately, it is able to combined further
             # for better performance
-            l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
-            if l1 != l2:
+            o1, o2 = opairtype.split("-")[0], opairtype.split("-")[1]
+            if o1 != o2:
                 continue # off-diagonal term in sktb format
             else:
-                skparam = node_feature[:, self.idp.nodetype_maps[opairtype]].reshape(n_node, -1, 1)
+                l = anglrMId[re.findall(r"[a-z]", o1)[0]]
+                skparam = node_feature[:, self.idp.node_maps[opairtype]].reshape(n_node, -1, 1)
                 
-                HR = torch.eye(2*l1+1, dtype=self.dtype, device=self.device)[None, None, :, :] * skparam[:,:, None, :] # shape (N, n_pair, 2l1+1, 2l2+1)
-
+                HR = torch.eye(2*l+1, dtype=self.dtype, device=self.device)[None, None, :, :] * skparam[:,:, None, :] # shape (N, n_pair, 2l1+1, 2l2+1)
                 # the onsite block doesnot have rotation
-                data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp_e3.nodetype_maps[opairtype]] = HR.reshape(n_node, -1)
+                print(HR.shape)
+                data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp_e3.node_maps[opairtype]] = HR.reshape(n_node, -1)
 
         # compute if strain effect is included
         # this is a little wired operation, since it acting on somekind of a edge(strain env) feature, and summed up to return a node feature.
-        if data.get(AtomicDataDict.ONSITENV_FEATURE_KEY, None):
+        if data.get(AtomicDataDict.ONSITENV_FEATURES_KEY, None) is not None:
             n_onsitenv = len(data[AtomicDataDict.ONSITENV_FEATURES_KEY])
             for opairtype in self.idp.nodetype_maps.keys(): # save all env direction and pair direction like sp and ps, but only get sp
                 l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
@@ -278,13 +285,15 @@ class SKHamiltonian(torch.nn.Module):
                 H_z = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
                     rme[:,None, None, :, :], dim=-2) # shape (N, 2l1+1, 2l2+1, n_pair)
                 
-                angle = xyz_to_angles(data[AtomicDataDict.EDGE_VECTORS_KEY][:,[1,2,0]]) # (tensor(N), tensor(N))
+                angle = xyz_to_angles(data[AtomicDataDict.ONSITENV_VECTORS_KEY][:,[1,2,0]]) # (tensor(N), tensor(N))
                 rot_mat_L = Irrep(int(l1), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l1+1, 2l1+1)
                 rot_mat_R = Irrep(int(l2), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l2+1, 2l2+1)
+
                 HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R) # shape (N, n_pair, 2l1+1, 2l2+1)
 
-                HR = scatter(HR, data[AtomicDataDict.ONSITENV_INDEX_KEY], 0, None, "sum") # shape (n_node, n_pair, 2l1+1, 2l2+1)
+                HR = scatter(src=HR, index=data[AtomicDataDict.ONSITENV_INDEX_KEY][0], dim=0, reduce="sum") # shape (n_node, n_pair, 2l1+1, 2l2+1)
                 # A-B o1-o2 (A-B o2-o1)= (B-A o1-o2)
+                print(HR.shape)
                 data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp_e3.nodetype_maps[opairtype]] += HR # the index type [node/pair] should align with the index of for loop
 
         return data
@@ -307,8 +316,11 @@ class SKHamiltonian(torch.nn.Module):
             's-s': [0],
             's-p': [1],
             's-d': [2],
+            'p-s': [1],
             'p-p': [0,6],
             'p-d': [1,11],
+            'd-s': [2],
+            'd-p': [1,11],
             'd-d': [0,6,20]
         }
 

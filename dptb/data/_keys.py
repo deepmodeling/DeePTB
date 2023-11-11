@@ -71,7 +71,7 @@ ENV_EMBEDDING_KEY: Final[str] = "env_embedding"
 ONSITENV_EMBEDDING_KEY: Final[str] = "onsitenv_embedding"
 EDGE_FEATURES_KEY: Final[str] = "edge_features"
 ENV_FEATURES_KEY: Final[str] = "env_features"
-ONSITENV_FEATURES_KEY: Final[str] = "env_features"
+ONSITENV_FEATURES_KEY: Final[str] = "onsitenv_features"
 # [n_edge, 1] invariant of the radial cutoff envelope for each edge, allows reuse of cutoff envelopes
 EDGE_CUTOFF_KEY: Final[str] = "edge_cutoff"
 # [n_edge, 1] invariant of the radial cutoff envelope for each env edge, allows reuse of cutoff envelopes

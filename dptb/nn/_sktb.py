@@ -8,9 +8,10 @@ basically a map from a matrix parameters to edge/node features, or strain mode's
 import torch
 from dptb.utils.constants import h_all_types, anglrMId
 from typing import Tuple, Union, Dict
-from dptb.utils.index_mapping import Index_Mapings_e3
+from dptb.data.transforms import OrbitalMapper
 from dptb.data import AtomicDataDict
 from .sktb.hopping import HoppingFormula
+import numpy as np
 from .sktb.onsite import OnsiteFormula
 from .sktb.bondlengthDB import bond_length_list
 from dptb.utils.constants import atomic_num_dict_r
@@ -31,12 +32,15 @@ class SKTB(torch.nn.Module):
         super(SKTB, self).__init__()
 
         self.basis = basis
-        self.idp = Index_Mapings_e3(basis, method="sktb")
+        self.idp = OrbitalMapper(basis, method="sktb")
+        self.idp.get_node_maps()
+        self.idp.get_pair_maps()
         self.dtype = dtype
         self.device = device
-        self.onsite = OnsiteFormula(functype=onsite)
+        self.onsite = OnsiteFormula(idp=self.idp, functype=onsite, dtype=dtype, device=device)
         self.hopping = HoppingFormula(functype=hopping)
-        self.overlap = HoppingFormula(functype=hopping, overlap=overlap)
+        if overlap:
+            self.overlap = HoppingFormula(functype=hopping, overlap=hopping)
         self.rc = rc
         self.w = w
 
@@ -45,23 +49,24 @@ class SKTB(torch.nn.Module):
         # init_onsite, hopping, overlap formula
 
         # init_param
-        self.hopping_param = torch.nn.Parameter(torch.randn([len(self.idp.bondtype), self.idp.edge_reduced_matrix_element, self.hopping.num_paras], dtype=self.dtype, device=self.device))
+        self.hopping_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element, self.hopping.num_paras], dtype=self.dtype, device=self.device))
         if overlap:
-            self.overlap_param = torch.nn.Parameter(torch.randn([len(self.idp.bondtype), self.idp.edge_reduced_matrix_element, self.hopping.num_paras], dtype=self.dtype, device=self.device))
+            self.overlap_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element, self.hopping.num_paras], dtype=self.dtype, device=self.device))
 
         if onsite == "strain":
             self.onsite_param = []
         elif onsite == "none":
             self.onsite_param = None
         else:
-            self.onsite_param = torch.nn.Parameter(torch.randn([len(self.idp.atomtype), self.idp.node_reduced_matrix_element, self.onsite.num_paras], dtype=self.dtype, device=self.device))
+            self.onsite_param = torch.nn.Parameter(torch.randn([len(self.idp.type_names), self.idp.node_reduced_matrix_element, self.onsite.num_paras], dtype=self.dtype, device=self.device))
         
         if onsite == "strain":
             # AB [ss, sp, sd, ps, pp, pd, ds, dp, dd]
             # AA [...]
             # but need to map to all pairs and all orbital pairs like AB, AA, BB, BA for [ss, sp, sd, ps, pp, pd, ds, dp, dd]
             # with this map: BA[sp, sd] = AB[ps, ds]
-            self.strain_param = torch.nn.Parameter(torch.randn([len(self.idp.bondtype), self.idp.edge_reduced_matrix_element], dtype=self.dtype, device=self.device))
+            self.strain_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element], dtype=self.dtype, device=self.device))
+    
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         # get the env and bond from the data
         # calculate the sk integrals
@@ -73,59 +78,62 @@ class SKTB(torch.nn.Module):
         # map the parameters to the edge/node/env features
         
         # compute integrals from parameters using hopping and onsite clas
-        edge_type = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.EDGE_INDEX_KEY].flatten()].view(2, -1)
-        edge_index = [self.idp.bondtype_map[atomic_num_dict_r(edge_type[:,i][0])+"-"+atomic_num_dict_r(edge_type[:,i][1])] for i in range(edge_type.shape[1])]
-        edge_params = self.hopping_param[edge_index] # [N_edge, n_pairs, n_paras]
-        r0 = 0.5*bond_length_list[data[AtomicDataDict.EDGE_INDEX_KEY].flatten()].view(2,-1).sum(0)
+        edge_number = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.EDGE_INDEX_KEY]].reshape(2, -1)
+        edge_index = self.idp.transform_reduced_bond(*edge_number)
+        r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number].sum(0)
         data[AtomicDataDict.EDGE_FEATURES_KEY] = self.hopping.get_skhij(
-            rij=data[AtomicDataDict.EDGE_LENGTH_KEY].unsqueeze(1).repeat(1, self.idp.edge_reduced_matrix_element).view(-1),
-            paraArray=edge_params.view(-1, self.hopping.num_paras),
+            rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
+            paraArray=self.hopping_param[edge_index], # [N_edge, n_pairs, n_paras],
             rcut=self.rc,
             w=self.w,
-            r0=r0.unsqueeze(1).repeat(1, self.idp.edge_reduced_matrix_element).view(-1)
-            ).reshape(-1, self.idp.edge_reduced_matrix_element)
-        
+            r0=r0
+            ) # [N_edge, n_pairs]
+
         if hasattr(self, "overlap"):
-            edge_params = self.overlap_param[edge_index]
-            self.overlap.getsksij()
-            equal_orbpair = torch.zeros(self.idp.edge_reduced_matrix_element, dtype=self.dtype, device=self.device).view(1, -1)
+            equal_orbpair = torch.zeros(self.idp.edge_reduced_matrix_element, dtype=self.dtype, device=self.device)
             for orbpair_key, slices in self.idp.pair_maps.items():
                 if orbpair_key.split("-")[0] == orbpair_key.split("-")[1]:
                     equal_orbpair[slices] = 1.0
-            paraconst = edge_type[0].eq(edge_type[1]).float().view(-1, 1) @ equal_orbpair.unsqueeze(0)
-            data[AtomicDataDict.EDGE_OVERLAP_KEY] = self.hopping.get_skhij(
-                rij=data[AtomicDataDict.EDGE_LENGTH_KEY].unsqueeze(1).repeat(1, self.idp.edge_reduced_matrix_element).view(-1),
-                paraArray=edge_params.view(-1, self.hopping.num_paras),
-                paraconst=paraconst.view(-1),
+            paraconst = edge_number[0].eq(edge_number[1]).float().view(-1, 1) * equal_orbpair.unsqueeze(0)
+
+            data[AtomicDataDict.EDGE_OVERLAP_KEY] = self.overlap.get_sksij(
+                rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
+                paraArray=self.overlap_param[edge_index],
+                paraconst=paraconst,
                 rcut=self.rc,
                 w=self.w,
-                r0=r0.unsqueeze(1).repeat(1, self.idp.edge_reduced_matrix_element).view(-1)
-                ).reshape(-1, self.idp.edge_reduced_matrix_element)
+                r0=r0,
+                )
 
         if self.onsite.functype == "NRL":
             data[AtomicDataDict.NODE_FEATURES_KEY] = self.onsite.get_skEs(
-                onsitenv_index=data[AtomicDataDict.ENV_INDEX_KEY], 
-                onsitenv_length=data[AtomicDataDict.ENV_LENGTH_KEY], 
+                atomic_numbers=data[AtomicDataDict.ATOMIC_NUMBERS_KEY],
+                onsitenv_index=data[AtomicDataDict.ONSITENV_INDEX_KEY], 
+                onsitenv_length=data[AtomicDataDict.ONSITENV_LENGTH_KEY], 
                 nn_onsite_paras=self.onsite_param, 
                 rcut=self.rc, 
                 w=self.w
                 )
         else:
             data[AtomicDataDict.NODE_FEATURES_KEY] = self.onsite.get_skEs(
-                atype_list=data[AtomicDataDict.ATOMIC_NUMBERS_KEY], 
-                otype_list=data[AtomicDataDict.ATOMIC_NUMBERS_KEY], 
+                atomic_numbers=data[AtomicDataDict.ATOMIC_NUMBERS_KEY], 
                 nn_onsite_paras=self.onsite_param
                 )
         
         # compute strain
         if self.onsite.functype == "strain":
-            onsitenv_type = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.ONSITENV_INDEX_KEY].flatten()].view(2, -1)
-            onsitenv_index = torch.tensor([self.idp.bondtype_map.get(atomic_num_dict_r(onsitenv_type[:,i][0])+"-"+atomic_num_dict_r(onsitenv_type[:,i][1]), 
-                            -self.idp.bondtype_map[atomic_num_dict_r(onsitenv_type[:,i][1])+"-"+atomic_num_dict_r(onsitenv_type[:,i][0])]) 
-                            for i in range(onsitenv_type.shape[1])], dtype=torch.long, device=self.device)
-            onsitenv_index[onsitenv_index<0] = -onsitenv_index[onsitenv_index<0] + len(self.idp.bondtype)
-            onsitenv_params = torch.stack([self.strain_param, 
-                self.strain_param.reshape(-1, len(self.idp.full_basis), len(self.idp.full_basis)).transpose(1,2).reshape(len(self.idp.bondtype), -1)], dim=1)
+            onsitenv_number = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.ONSITENV_INDEX_KEY]].reshape(2,-1)
+            onsitenv_index = self.idp.transform_reduced_bond(*onsitenv_number)
+            reflect_index = self.idp.transform_reduced_bond(*onsitenv_number.flip(0))
+            onsitenv_index[onsitenv_index<0] = reflect_index[onsitenv_index<0] + len(self.idp.reduced_bond_types)
+
+            # be careful here cause I am not so sure about whether this keys of pair maps has the correct order, 
+            # but it works for now
+            reflect_keys = np.array(list(self.idp.pair_maps.keys()), dtype="str").reshape(len(self.idp.full_basis), len(self.idp.full_basis)).transpose(1,0).reshape(-1)
+            reflect_params = torch.cat([self.strain_param[:,self.idp.pair_maps[key]] for key in reflect_keys], dim=-1)
+            onsitenv_params = torch.cat([self.strain_param, 
+                reflect_params], dim=0)
+            
             data[AtomicDataDict.ONSITENV_FEATURES_KEY] = onsitenv_params[onsitenv_index]
 
         return data

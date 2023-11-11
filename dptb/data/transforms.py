@@ -199,7 +199,7 @@ class BondMapper(TypeMapper):
             for bsym, bi in self.chemical_symbol_to_type.items():
                 self.bond_types[ai * self.num_types + bi] = asym + "-" + bsym
                 if ai <= bi:
-                    self.reduced_bond_types[(2*self.num_types-ai) * ai // 2 + bi] = asym + "-" + bsym
+                    self.reduced_bond_types[(2*self.num_types-ai+1) * ai // 2 + bi-ai] = asym + "-" + bsym
         for i, bt in enumerate(self.bond_types):
             self.bond_to_type[bt] = i
             self.type_to_bond[i] = bt
@@ -456,26 +456,22 @@ class OrbitalMapper(BondMapper):
         if not hasattr(self, "pairtype_maps"):
             self.pairtype_maps = self.get_pairtype_maps()
         self.pair_maps = {}
-        for ib in self.reduced_bond_types:
-            ia, ja = ib.split("-")
-            self.pair_maps.setdefault(ib, {})
-            for io in self.basis[ia]:
-                for jo in self.basis[ja]:
-                    full_basis_pair = self.basis_to_full_basis[ia][io]+"-"+self.basis_to_full_basis[ja][jo]
-                    ir, jr = int(full_basis_pair[0]), int(full_basis_pair[3])
-                    iio, jjo = full_basis_pair[1], full_basis_pair[4]
+        for io in self.full_basis:
+            for jo in self.full_basis:
+                full_basis_pair = io+"-"+jo
+                ir, jr = int(full_basis_pair[0]), int(full_basis_pair[3])
+                iio, jjo = full_basis_pair[1], full_basis_pair[4]
 
-                    if self.method == "e3tb":
-                        n_feature = (2*anglrMId[iio]+1) * (2*anglrMId[jjo]+1)
-                    else:
-                        n_feature = min(anglrMId[iio], anglrMId[jjo])+1
-                    
+                if self.method == "e3tb":
+                    n_feature = (2*anglrMId[iio]+1) * (2*anglrMId[jjo]+1)
+                else:
+                    n_feature = min(anglrMId[iio], anglrMId[jjo])+1
+                
 
-                    start = self.pairtype_maps[iio+"-"+jjo].start + \
-                        n_feature * ((ir-1)*self.orbtype_count[jjo]+(jr-1))
-                    
-                    self.pair_maps[ib][io+"-"+jo] = slice(start, start+n_feature)
-                        
+                start = self.pairtype_maps[iio+"-"+jjo].start + \
+                    n_feature * ((ir-1)*self.orbtype_count[jjo]+(jr-1))
+                
+                self.pair_maps[io+"-"+jo] = slice(start, start+n_feature)
 
         return self.pair_maps
     
@@ -484,27 +480,26 @@ class OrbitalMapper(BondMapper):
             self.get_nodetype_maps()
         
         self.node_maps = {}
-        for at in self.type_names:
-            self.node_maps.setdefault(at, {})
-            for i, io in enumerate(self.basis[at]):
-                for jo in self.basis[at][i:]:
-                    full_basis_pair = self.basis_to_full_basis[at][io]+"-"+self.basis_to_full_basis[at][jo]
-                    ir, jr = int(full_basis_pair[0]), int(full_basis_pair[3])
-                    iio, jjo = full_basis_pair[1], full_basis_pair[4]
+        for i, io in enumerate(self.full_basis):
+            for jo in self.full_basis[i:]:
+                full_basis_pair = io+"-"+jo
+                ir, jr = int(full_basis_pair[0]), int(full_basis_pair[3])
+                iio, jjo = full_basis_pair[1], full_basis_pair[4]
 
-                    if self.method == "e3tb":
-                        n_feature = (2*anglrMId[iio]+1) * (2*anglrMId[jjo]+1)
+                if self.method == "e3tb":
+                    n_feature = (2*anglrMId[iio]+1) * (2*anglrMId[jjo]+1)
+                    if iio == jjo:
+                        start = self.nodetype_maps[iio+"-"+jjo].start + \
+                            n_feature * ((2*self.orbtype_count[jjo]+2-ir) * (ir-1) / 2 + (jr - ir))
                     else:
-                        if io == jo:
-                            n_feature = 1
-                        else:
-                            n_feature = 0
-                
-                    start = self.nodetype_maps[iio+"-"+jjo].start + \
-                        n_feature * (2*self.orbtype_count[jjo]+1-ir) * (ir-1) / 2 + (jr - 1)
+                        start = self.nodetype_maps[iio+"-"+jjo].start + \
+                            n_feature * ((ir-1)*self.orbtype_count[jjo]+(jr-1))
                     start = int(start)
-                    
-                    self.node_maps[at][io+"-"+jo] = slice(start, start+n_feature)
+                    self.node_maps[io+"-"+jo] = slice(start, start+n_feature)
+                else:
+                    if io == jo:
+                        start = int(self.nodetype_maps[iio+"-"+jjo].start + (ir-1))
+                        self.node_maps[io+"-"+jo] = slice(start, start+1)
 
         return self.node_maps
 

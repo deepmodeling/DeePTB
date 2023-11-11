@@ -8,7 +8,7 @@ class BaseHopping(ABC):
         pass
 
     @abstractmethod
-    def skhij(self, rij, **kwargs):
+    def get_skhij(self, rij, **kwargs):
         '''This is a wrap function for a self-defined formula of sk integrals. one can easily modify it into whatever form they want.
         
         Returns
@@ -54,7 +54,7 @@ class HoppingFormula(BaseHopping):
             raise ValueError('No such formula')
         
 
-    def skhij(self, rij, **kwargs):
+    def get_skhij(self, rij, **kwargs):
         '''This is a wrap function for a self-defined formula of sk integrals. one can easily modify it into whatever form they want.
         
         Returns
@@ -72,7 +72,7 @@ class HoppingFormula(BaseHopping):
         else:
             raise ValueError('No such formula')
 
-    def sksij(self,rij,**kwargs):
+    def get_sksij(self,rij,**kwargs):
         '''This is a wrap function for a self-defined formula of sk overlap. one can easily modify it into whatever form they want.
         
         Returns
@@ -84,23 +84,44 @@ class HoppingFormula(BaseHopping):
 
         if self.functype == 'NRL':
             return self.NRL_OVERLAP(rij=rij, **kwargs)
+        elif self.functype == "powerlaw":
+            return self.powerlaw(rij=rij, **kwargs)
+        elif self.functype == "varTang96":
+            return self.varTang96(rij=rij, **kwargs)
         else:
             raise ValueError('No such formula')
 
 
-    def varTang96(self, rij, paraArray, rcut:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
+    def varTang96(self, rij: torch.Tensor, paraArray: torch.Tensor, rcut:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """> This function calculates the value of the variational form of Tang et al 1996. without the
         environment dependent
 
                 $$ h(rij) = \alpha_1 * (rij)^(-\alpha_2) * exp(-\alpha_3 * (rij)^(\alpha_4))$$
-        """
-        if isinstance(paraArray, list):
-            paraArray = torch.tensor(paraArray)
-        assert len(paraArray.shape) in {2, 1}, 'paraArray should be a 2d tensor or 1d tensor'
-        paraArray = paraArray.view(-1, self.num_paras)
-        #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
-        alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1].abs(), paraArray[:, 2].abs(), paraArray[:, 3].abs()
 
+        Parameters
+        ----------
+        rij : torch.Tensor([N, 1]/[N])
+            the bond length vector, have the same length of the bond index vector.
+        paraArray : torch.Tensor([N, ..., 4])
+            The parameters for computing varTang96's type hopping integrals, the first dimension should have the 
+            same length of the bond index vector, while the last dimenion if 4, which is the number of parameters
+            for each varTang96's type formula.
+        rcut : torch.Tensor, optional
+            cut-off by half at which value, by default torch.tensor(6)
+        w : torch.Tensor, optional
+            the decay factor, the larger the smoother, by default 0.1
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        
+        rij = rij.reshape(-1)
+        assert paraArray.shape[-1] == 4 and paraArray.shape[0] == len(rij), 'paraArray should be a 2d tensor with the last dimenion if 4, which is the number of parameters for each varTang96\'s type formula.'
+        alpha1, alpha2, alpha3, alpha4 = paraArray[..., 0], paraArray[..., 1].abs(), paraArray[..., 2].abs(), paraArray[..., 3].abs()
+        shape = [-1]+[1] * (len(alpha1.shape)-1)
+        rij = rij.reshape(shape)
         return alpha1 * rij**(-alpha2) * torch.exp(-alpha3 * rij**alpha4)/(1+torch.exp((rij-rcut)/w))
 
     def powerlaw(self, rij, paraArray, r0:torch.Tensor, rcut:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
@@ -109,13 +130,12 @@ class HoppingFormula(BaseHopping):
 
                 $$ h(rij) = \alpha_1 * (rij / r_ij0)^(\lambda + \alpha_2)
         """
-        if isinstance(paraArray, list):
-            paraArray = torch.tensor(paraArray)
-        assert len(paraArray.shape) in {2, 1}, 'paraArray should be a 2d tensor or 1d tensor'
-        
-        paraArray = paraArray.view(-1, self.num_paras)
+
         #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
-        alpha1, alpha2 = paraArray[:, 0], paraArray[:, 1].abs()
+        alpha1, alpha2 = paraArray[..., 0], paraArray[..., 1].abs()
+        shape = [-1]+[1] * (len(alpha1.shape)-1)
+        rij = rij.reshape(shape)
+        r0 = r0.reshape(shape)
 
         r0 = r0 / 1.8897259886
         return alpha1 * (r0/rij)**(1 + alpha2) / (1+torch.exp((rij-rcut)/w))
@@ -131,13 +151,10 @@ class HoppingFormula(BaseHopping):
                     = 0;                               (r_ij >= rcut)
 
         """
-        if isinstance(paraArray, list):
-            paraArray = torch.tensor(paraArray)
-        assert len(paraArray.shape) in {2, 1}, 'paraArray should be a 2d tensor or 1d tensor'
-        
-        paraArray = paraArray.view(-1, self.num_paras)
-        a, b, c, d = paraArray[:, 0], paraArray[:, 1], paraArray[:, 2], paraArray[:, 3]
-
+        rij = rij.reshape(-1)
+        a, b, c, d = paraArray[..., 0], paraArray[..., 1], paraArray[..., 2], paraArray[..., 3]
+        shape = [-1]+[1] * (len(a.shape)-1)
+        rij = rij.reshape(shape)
         f_rij = 1/(1+torch.exp((rij-rcut+5*w)/w))
         f_rij[rij>=rcut] = 0.0
 
@@ -154,91 +171,18 @@ class HoppingFormula(BaseHopping):
                     = 0;                               (r_ij >= rcut)
         # delta
         """
-        if isinstance(paraArray, list):
-            paraArray = torch.tensor(paraArray)
-        if isinstance(paraconst, list):
-            paraconst = torch.tensor(paraconst)
 
-        assert len(paraArray.shape) in {2, 1}, 'paraArray should be a 2d tensor or 1d tensor'
-        assert paraconst is not None, 'paraconst should not be None'
-        assert len(paraconst.shape) in {2, 1}, 'paraconst should be a 2d tensor or 1d tensor'
-        
-        paraArray = paraArray.view(-1, self.num_paras)
-        paraconst = paraconst.view(-1, 1)
+        assert paraArray.shape[:-1] == paraconst.shape, 'paraArray and paraconst should have the same shape except the last dimenion.'
+        rij = rij.reshape(-1)
+        assert len(rij) == len(paraArray), 'rij and paraArray should have the same length.'
 
-        a, b, c, d = paraArray[:, 0], paraArray[:, 1], paraArray[:, 2], paraArray[:, 3]
-        delta_ll = paraconst[:,0]
+        a, b, c, d = paraArray[..., 0], paraArray[..., 1], paraArray[..., 2], paraArray[..., 3]
+        delta_ll = paraconst
+        shape = [-1]+[1] * (len(a.shape)-1)
+        rij = rij.reshape(shape)
 
         f_rij = 1/(1+torch.exp((rij-rcut+5*w)/w))
         f_rij[rij>=rcut] = 0.0
 
         return (delta_ll + a * rij + b * rij**2 + c * rij**3) * torch.exp(-d**2 * rij)*f_rij
     
-class SKhopping(HoppingFormula):
-    def __init__(self, functype="varTang96", overlap=False) -> None:
-        super(SKhopping, self).__init__(functype=functype, overlap=overlap)
-
-    def get_skhops(self, edge_anumber, rij: torch.Tensor, params: torch.Tensor, rcut:torch.Tensor = torch.tensor(6.), w:torch.Tensor = torch.tensor(0.1)):
-        '''> The function `get_skhops` takes in a list of bonds, a dictionary of Slater-Koster coeffient parameters obtained in sknet fitting,
-        and a dictionary of sk_bond_ind obtained in skintType func, and returns a list of Slater-Koster hopping integrals.
-        
-        Parameters
-        ----------
-        edge_anumber: torch.Tensor
-            the bond type tensor, shaped [2,N], [[i_atomic_number], [j_atomic_number]]
-        rij: torch.Tensor
-            bond_length, shaped torch.tensor(N)
-        edge_index: torch.Tensor
-            the bond index tensor, shaped [2,N], [[i_atom], [j_atom]]
-        params: torch.Tensor
-            Tensor containing sk hopping parameters, shaped [N, n_orb, n_formula]
-        
-        Returns
-        -------
-        hij: torch.Tensor
-            a Tensor of hopping SK integrals, shaped [N, n_orb]
-        
-        ''' 
-        r0 = 0.5*(bond_length_list[edge_anumber[0]] +  bond_length_list[edge_anumber[1]])
-        N, n_orb, n_formula = params.shape
-        hij = self.skhij(
-            paraArray=params.reshape(-1, n_formula), 
-            rij=rij.unsqueeze(1).repeat(1, n_orb).reshape(-1), 
-            r0=r0.unsqueeze(1).repeat(1, n_orb).reshape(-1),
-            rcut=rcut, 
-            w=w
-            ) # shaped (N * n_orb)
-
-        return hij.reshape(N, n_orb)
-    
-    def get_skoverlaps(self, rij: torch.Tensor, params: torch.Tensor, const: torch.Tensor, rcut: torch.Tensor = torch.tensor(6.), w:torch.Tensor = torch.tensor(0.1)):
-        """ The function `get_skoverlaps` takes in a list of bonds, a dictionary of Slater-Koster coeffient parameters obtained in sknet fitting,
-        and a dictionary of sk_bond_ind obtained in skintType func, and returns a list of Slater-Koster hopping integrals.
-
-        Parameters
-        ----------
-        bonds
-            the bond list, with the first 7 columns being the bond information, and the 8-th column being the
-        bond length.
-        coeff_paras : dict
-            a dictionary of the coeffient parameters for each SK term.
-        bond_index_dict : dict
-            a dictionary that contains the of `key/name` of the dict of Slater-Koster coeffient parameters for each bond type.
-
-        Returns
-        -------
-            a list of overlap SK integrals.
-        """
-
-
-
-        N, n_orb, n_formula = params.shape
-        sij = self.sksij(
-            params=params.reshape(-1, n_formula),
-            rij=rij.unsqueeze(1).repeat(1, n_orb).reshape(-1),
-            const=const.reshape(-1),
-            rcut=rcut, 
-            w=w
-            )
-
-        return sij.reshape(N, n_orb)

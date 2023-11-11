@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dptb.nnsktb.bondlengthDB import bond_length
 from torch_runstats.scatter import scatter
 from dptb.nn.sktb.onsiteDB import onsite_energy_database
-from dptb.utils.index_mapping import Index_Mapings_e3
+from dptb.data.transforms import OrbitalMapper
 
 
 class BaseOnsite(ABC):
@@ -27,7 +27,12 @@ class BaseOnsite(ABC):
 
 class OnsiteFormula(BaseOnsite):
 
-    def __init__(self, atomtype: Union[List[str], None], idp: Union[Index_Mapings_e3,None]=None, functype='none') -> None:
+    def __init__(
+            self, 
+            idp: Union[OrbitalMapper, None]=None,
+            functype='none', 
+            dtype: Union[str, torch.dtype] = torch.float32,
+            device: Union[str, torch.device] = torch.device("cpu")) -> None:
         super().__init__() 
         if functype in ['none', 'strain']:
             self.functype = functype
@@ -49,20 +54,14 @@ class OnsiteFormula(BaseOnsite):
         else:
             raise ValueError('No such formula')
         
+        self.idp = idp
         if self.functype in ["uniform", "none", "strain"]:
-            self.idp = idp
-            assert self.idp is not None
-            assert self.atomtype is not None
-
-
-            self.E_base = {}
-            for at in self.atomtype:
-                self.E_base[at] = torch.zeros(self.idp.node_reduced_matrix_element)
-                for ot in self.idp.basis[at]:
-                    self.E_base[at][self.idp.node_maps[at][ot]] = onsite_energy_database[at][ot]
-
-        if isinstance(atomtype, list):
-            self.E_base = {k:onsite_energy_database[k] for k in atomtype}
+            self.E_base = torch.zeros(self.idp.num_types, self.idp.node_reduced_matrix_element, dtype=dtype, device=device)
+            for asym, idx in self.idp.chemical_symbol_to_type.items():
+                self.E_base[idx] = torch.zeros(self.idp.node_reduced_matrix_element)
+                for ot in self.idp.basis[asym]:
+                    fot = self.idp.basis_to_full_basis[asym][ot]
+                    self.E_base[idx][self.idp.node_maps[fot+"-"+fot]] = onsite_energy_database[asym][ot]
         
     def get_skEs(self, **kwargs):
         if self.functype == 'uniform':
@@ -72,21 +71,51 @@ class OnsiteFormula(BaseOnsite):
         if self.functype in ['none', 'strain']:
             return self.none(**kwargs)
         
-    def none(self, atomic_numbers, **kwargs):
-        pass
-    
-    def uniform(self, atomic_numbers, otype_list, nn_onsite_paras, **kwargs):
-        '''This is a wrap function for a self-defined formula of onsite energies. one can easily modify it into whatever form they want.
-        
+    def none(self, atomic_numbers: torch.Tensor, **kwargs):
+        """The none onsite function, the energy output is directly loaded from the onsite Database.
+        Parameters
+        ----------
+        atomic_numbers : torch.Tensor(N)
+            The atomic number list.
+
         Returns
         -------
-            The function defined by functype is called to cal onsite energies and returned.
+        torch.Tensor(N, n_orb)
+            the onsite energies by composing results from nn and ones from database.
+        """
+        atomic_numbers = atomic_numbers.reshape(-1)
+
+        idx = self.idp.transform_atom(atomic_numbers)
         
-        '''
-        return nn_onsite_paras + self.none(atomic_numbers=atomic_numbers)
+        return self.E_base[idx]
+    
+    def uniform(self, atomic_numbers: torch.Tensor, nn_onsite_paras: torch.Tensor, **kwargs):
+        """The uniform onsite function, that have the same onsite energies for one specific orbital of a atom type.
+
+        Parameters
+        ----------
+        atomic_numbers : torch.Tensor(N) or torch.Tensor(N,1)
+            The atomic number list.
+        nn_onsite_paras : torch.Tensor(N_atom_type, n_orb)
+            The nn fitted parameters for onsite energies.
+
+        Returns
+        -------
+        torch.Tensor(N, n_orb)
+            the onsite energies by composing results from nn and ones from database.
+        """
+        atomic_numbers = atomic_numbers.reshape(-1)
+        if nn_onsite_paras.shape[-1] == 1:
+            nn_onsite_paras = nn_onsite_paras.squeeze(-1)
+        
+        assert len(nn_onsite_paras) == self.E_base.shape[0]
+
+        idx = self.idp.transform_atom(atomic_numbers)
+
+        return nn_onsite_paras[idx] + self.none(atomic_numbers=atomic_numbers)
         
 
-    def NRL(self, onsitenv_index, onsitenv_length, nn_onsite_paras, rcut:th.float32 = th.tensor(6), w:th.float32 = 0.1, lda=1.0, **kwargs):
+    def NRL(self, atomic_numbers, onsitenv_index, onsitenv_length, nn_onsite_paras, rcut:th.float32 = th.tensor(6), w:th.float32 = 0.1, lda=1.0, **kwargs):
         """ This is NRL-TB formula for onsite energies.
 
             rho_i = \sum_j exp(- lda**2 r_ij) f(r_ij)
@@ -110,6 +139,9 @@ class OnsiteFormula(BaseOnsite):
         lda: float
             the decay for the  calculateing rho.
         """ 
+        atomic_numbers = atomic_numbers.reshape(-1)
+        idx = self.idp.transform_atom(atomic_numbers)
+        nn_onsite_paras = nn_onsite_paras[idx]
         r_ijs = onsitenv_length.view(-1) # [N]
         exp_rij = th.exp(-lda**2 * r_ijs)
         f_rij = 1/(1+th.exp((r_ijs-rcut+5*w)/w))
@@ -117,4 +149,4 @@ class OnsiteFormula(BaseOnsite):
         rho_i = scatter(src=exp_rij * f_rij, index=onsitenv_index[0], dim=0, reduce="sum").unsqueeze(1) # [N_atom, 1]
         a_l, b_l, c_l, d_l = nn_onsite_paras[:,:,0], nn_onsite_paras[:,:,1], nn_onsite_paras[:,:,2], nn_onsite_paras[:,:,3]
         E_il = a_l + b_l * rho_i**(2/3) + c_l * rho_i**(4/3) + d_l * rho_i**2 # [N_atom, n_orb]
-        return E_il # [N_atom_n_orb]
+        return E_il # [N_atom, n_orb]
