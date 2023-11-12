@@ -268,17 +268,18 @@ class SKHamiltonian(torch.nn.Module):
                 
                 HR = torch.eye(2*l+1, dtype=self.dtype, device=self.device)[None, None, :, :] * skparam[:,:, None, :] # shape (N, n_pair, 2l1+1, 2l2+1)
                 # the onsite block doesnot have rotation
-                print(HR.shape)
+
                 data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp_e3.node_maps[opairtype]] = HR.reshape(n_node, -1)
 
         # compute if strain effect is included
         # this is a little wired operation, since it acting on somekind of a edge(strain env) feature, and summed up to return a node feature.
         if data.get(AtomicDataDict.ONSITENV_FEATURES_KEY, None) is not None:
             n_onsitenv = len(data[AtomicDataDict.ONSITENV_FEATURES_KEY])
-            for opairtype in self.idp.nodetype_maps.keys(): # save all env direction and pair direction like sp and ps, but only get sp
-                l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
+            for opair in self.idp.node_maps.keys(): # save all env direction and pair direction like sp and ps, but only get sp
+                l1, l2 = anglrMId[opair[1]], anglrMId[opair[4]]
+                opairtype = opair[1]+"-"+opair[4]
                 n_skp = min(l1, l2)+1 # number of reduced matrix element
-                skparam = data[AtomicDataDict.ONSITENV_FEATURES_KEY][:, self.idp.pairtype_maps[opairtype]].reshape(n_onsitenv, -1, n_skp)
+                skparam = data[AtomicDataDict.ONSITENV_FEATURES_KEY][:, self.idp.pair_maps[opair]].reshape(n_onsitenv, -1, n_skp)
                 rme = skparam @ self.sk2irs[opairtype].T # shape (N, n_pair, n_rme)
                 rme = rme.transpose(1,2) # shape (N, n_rme, n_pair)
 
@@ -293,9 +294,9 @@ class SKHamiltonian(torch.nn.Module):
 
                 HR = scatter(src=HR, index=data[AtomicDataDict.ONSITENV_INDEX_KEY][0], dim=0, reduce="sum") # shape (n_node, n_pair, 2l1+1, 2l2+1)
                 # A-B o1-o2 (A-B o2-o1)= (B-A o1-o2)
-                print(HR.shape)
-                data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp_e3.nodetype_maps[opairtype]] += HR # the index type [node/pair] should align with the index of for loop
-
+                print(HR.shape, opairtype, self.idp_e3.node_maps[opair])
+                data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp_e3.node_maps[opair]] += HR.flatten(1, len(HR.shape)-1) # the index type [node/pair] should align with the index of for loop
+            
         return data
 
     def _initialize_CG_basis(self, pairtype: str):
