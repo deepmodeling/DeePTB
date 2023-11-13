@@ -2,7 +2,7 @@ import inspect
 from importlib import import_module
 
 from dptb import data
-from dptb.data.transforms import TypeMapper
+from dptb.data.transforms import BondMapper
 from dptb.data import AtomicDataset, register_fields
 from dptb.utils import instantiate, get_w_prefix
 
@@ -81,7 +81,7 @@ def dataset_from_config(config, prefix: str = "dataset") -> AtomicDataset:
     )
 
     # Build a TypeMapper from the config
-    type_mapper, _ = instantiate(TypeMapper, prefix=prefix, optional_args=config)
+    type_mapper, _ = instantiate(BondMapper, prefix=prefix, optional_args=config)
 
     # Register fields:
     # This might reregister fields, but that's OK:

@@ -1,4 +1,5 @@
 from typing import Dict, Optional, Union, List
+from dptb.data.AtomicDataDict import Type
 from dptb.utils.tools import get_uniq_symbol
 from dptb.utils.constants import anglrMId
 import re
@@ -303,6 +304,37 @@ class BondMapper(TypeMapper):
     @property
     def has_bond(self) -> bool:
         return self.bond_to_type is not None
+    
+    def __call__(
+            self, data: Union[AtomicDataDict.Type, AtomicData], types_required: bool = True
+            ) -> Union[AtomicDataDict.Type, AtomicData]:
+        if AtomicDataDict.EDGE_TYPE_KEY in data:
+            if AtomicDataDict.ATOMIC_NUMBERS_KEY in data:
+                warnings.warn(
+                    "Data contained both EDGE_TYPE_KEY and ATOMIC_NUMBERS_KEY; ignoring ATOMIC_NUMBERS_KEY"
+                )
+        elif AtomicDataDict.ATOMIC_NUMBERS_KEY in data:
+            assert (
+                self.reduced_bond_to_type is not None
+            ), "Atomic numbers provided but there is no chemical_symbols/chemical_symbol_to_type mapping!"
+            atomic_numbers = data[AtomicDataDict.ATOMIC_NUMBERS_KEY]
+
+            assert (
+                AtomicDataDict.EDGE_INDEX_KEY in data
+            ), "The bond type mapper need a EDGE index as input."
+
+            data[AtomicDataDict.EDGE_TYPE_KEY] = \
+                self.transform_reduced_bond(
+                    atomic_numbers[data[AtomicDataDict.EDGE_INDEX_KEY][0]],
+                    atomic_numbers[data[AtomicDataDict.EDGE_INDEX_KEY][1]]
+                    )
+        else:
+            if types_required:
+                raise KeyError(
+                    "Data doesn't contain any atom type information (EDGE_TYPE_KEY or ATOMIC_NUMBERS_KEY)"
+                )
+        return super().__call__(data=data, types_required=types_required)
+        
 
     
     
@@ -365,28 +397,30 @@ class OrbitalMapper(BondMapper):
                 orbtype_count[ko] = max(orbtype_count[ko])
 
         self.orbtype_count = orbtype_count
+        self.full_basis_norb = 1 * orbtype_count["s"] + 3 * orbtype_count["p"] + 5 * orbtype_count["d"] + 7 * orbtype_count["f"]
+
 
         if self.method == "e3tb":
-            self.edge_reduced_matrix_element = (1 * orbtype_count["s"] + 3 * orbtype_count["p"] + 5 * orbtype_count["d"] + 7 * orbtype_count["f"]) **2
+            self.edge_reduced_matrix_element = self.full_basis_norb ** 2
             self.node_reduced_matrix_element = int(((orbtype_count["s"] + 9 * orbtype_count["p"] + 25 * orbtype_count["d"] + 49 * orbtype_count["f"]) + \
                                                     self.edge_reduced_matrix_element)/2)
         else:
-            self.edge_reduced_matrix_element =  1 * (
-                                                    1 * orbtype_count["s"] * orbtype_count["s"] + \
-                                                    2 * orbtype_count["s"] * orbtype_count["p"] + \
-                                                    2 * orbtype_count["s"] * orbtype_count["d"] + \
-                                                    2 * orbtype_count["s"] * orbtype_count["f"]
-                                                    ) + \
-                                                2 * (
-                                                    1 * orbtype_count["p"] * orbtype_count["p"] + \
-                                                    2 * orbtype_count["p"] * orbtype_count["d"] + \
-                                                    2 * orbtype_count["p"] * orbtype_count["f"]
-                                                    ) + \
-                                                3 * (
-                                                    1 * orbtype_count["d"] * orbtype_count["d"] + \
-                                                    2 * orbtype_count["d"] * orbtype_count["f"]
-                                                    ) + \
-                                                4 * (orbtype_count["f"] * orbtype_count["f"])
+            self.edge_reduced_matrix_element = (
+                1 * orbtype_count["s"] * orbtype_count["s"] + \
+                2 * orbtype_count["s"] * orbtype_count["p"] + \
+                2 * orbtype_count["s"] * orbtype_count["d"] + \
+                2 * orbtype_count["s"] * orbtype_count["f"]
+                ) + \
+            2 * (
+                1 * orbtype_count["p"] * orbtype_count["p"] + \
+                2 * orbtype_count["p"] * orbtype_count["d"] + \
+                2 * orbtype_count["p"] * orbtype_count["f"]
+                ) + \
+            3 * (
+                1 * orbtype_count["d"] * orbtype_count["d"] + \
+                2 * orbtype_count["d"] * orbtype_count["f"]
+                ) + \
+            4 * (orbtype_count["f"] * orbtype_count["f"])
             
             self.node_reduced_matrix_element = orbtype_count["s"] + orbtype_count["p"] + orbtype_count["d"] + orbtype_count["f"]
                                      
@@ -407,13 +441,37 @@ class OrbitalMapper(BondMapper):
 
         # TODO: get the mapping from list basis to full basis
         self.basis_to_full_basis = {}
+        self.atom_norb = {}
         for ib in self.basis.keys():
             count_dict = {"s":0, "p":0, "d":0, "f":0}
             self.basis_to_full_basis.setdefault(ib, {})
+            self.atom_norb.setdefault(ib, 0)
             for o in self.basis[ib]:
                 io = re.findall(r"[a-z]", o)[0]
+                l = anglrMId[io]
                 count_dict[io] += 1
+                self.atom_norb[ib] += 2*l+1
+
                 self.basis_to_full_basis[ib][o] = str(count_dict[io])+io
+        
+        # Get the mask for mapping from full basis to atom specific basis
+        self.mask_to_basis = {}
+        for ib in self.basis.keys():
+            self.mask_to_basis.setdefault(ib, torch.zeros(self.full_basis_norb, dtype=torch.bool))
+            ibasis = list(self.basis_to_full_basis[ib].values())
+            ist = 0
+            for io in self.full_basis:
+                l = anglrMId[io[1]]
+                if io in ibasis:
+                    self.mask_to_basis[ib][ist:ist+2*l+1] = True
+                
+                ist += 2*l+1
+            
+        for ib, mask in self.mask_to_basis.items():
+            assert mask.sum().int() == self.atom_norb[ib]
+
+            
+
 
     def get_pairtype_maps(self):
         """
@@ -453,6 +511,9 @@ class OrbitalMapper(BondMapper):
         # it is sorted by the index of the left basis first, then the right basis. Therefore, we can build a map:
 
         # to do so we need the pair type maps first
+        if hasattr(self, "pair_maps"):
+            return self.pair_maps
+        
         if not hasattr(self, "pairtype_maps"):
             self.pairtype_maps = self.get_pairtype_maps()
         self.pair_maps = {}
@@ -476,6 +537,10 @@ class OrbitalMapper(BondMapper):
         return self.pair_maps
     
     def get_node_maps(self):
+
+        if hasattr(self, "node_maps"):
+            return self.node_maps
+
         if not hasattr(self, "nodetype_maps"):
             self.get_nodetype_maps()
         

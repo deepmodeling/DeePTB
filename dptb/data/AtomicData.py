@@ -55,6 +55,7 @@ _DEFAULT_EDGE_FIELDS: Set[str] = {
     AtomicDataDict.EDGE_CUTOFF_KEY,
     AtomicDataDict.EDGE_ENERGY_KEY,
     AtomicDataDict.EDGE_OVERLAP_KEY,
+    AtomicDataDict.EDGE_TYPE_KEY,
 }
 
 _DEFAULT_ENV_FIELDS: Set[str] = {
@@ -346,7 +347,7 @@ class AtomicData(Data):
         strict_self_interaction: bool = True,
         cell=None,
         pbc: Optional[PBC] = None,
-        reduce: Optional[bool] = False,
+        reduce: Optional[bool] = True,
         er_max: Optional[float] = None,
         oer_max: Optional[float] = None,
         **kwargs,
@@ -927,7 +928,7 @@ def neighbor_list_and_relative_vec(
     if reduce:
         assert atomic_numbers is not None
         atomic_numbers = torch.as_tensor(atomic_numbers, dtype=torch.long)
-        mask = atomic_numbers[first_idex] >= atomic_numbers[second_idex]
+        mask = atomic_numbers[first_idex] <= atomic_numbers[second_idex]
         first_idex = first_idex[mask]
         second_idex = second_idex[mask]
         shifts = shifts[mask]

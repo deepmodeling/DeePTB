@@ -22,19 +22,34 @@ from torch_runstats.scatter import scatter
 class E3Hamiltonian(torch.nn.Module):
     def __init__(
             self, 
-            basis: Dict[str, Union[str, list]],
+            basis: Dict[str, Union[str, list], None]=None,
+            idp: Union[OrbitalMapper, None]=None,
             decompose: bool = False,
+            edge_field: str = AtomicDataDict.EDGE_FEATURES_KEY,
+            node_field: str = AtomicDataDict.NODE_FEATURES_KEY,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu")
             ) -> None:
         
         super(E3Hamiltonian, self).__init__()
+
+        assert basis is not None or idp is not None, "Either basis or idp should be provided."
+
         self.dtype = dtype
         self.device = device
-        self.idp = OrbitalMapper(basis, method="e3tb")
+        if self.basis is None:
+            self.idp = OrbitalMapper(basis, method="e3tb")
+            if idp is not None:
+                assert idp == self.idp, "The basis of idp and basis should be the same."
+        else:
+            self.idp = idp
+            self.basis = self.idp.basis
+            
         self.basis = self.idp.basis
         self.cgbasis = {}
         self.decompose = decompose
+        self.edge_field = edge_field
+        self.node_field = node_field
 
         # initialize the CG basis
         self.idp.get_nodetype_maps()
@@ -61,8 +76,8 @@ class E3Hamiltonian(torch.nn.Module):
         :return: the updated `data` dictionary.
         """
 
-        assert data[AtomicDataDict.EDGE_FEATURES_KEY].shape[1] == self.idp.edge_reduced_matrix_element
-        assert data[AtomicDataDict.NODE_FEATURES_KEY].shape[1] == self.idp.node_reduced_matrix_element
+        assert data[self.edge_field].shape[1] == self.idp.edge_reduced_matrix_element
+        assert data[self.node_field].shape[1] == self.idp.node_reduced_matrix_element
 
         n_edge = data[AtomicDataDict.EDGE_INDEX_KEY].shape[1]
         n_node = data[AtomicDataDict.NODE_FEATURES_KEY].shape[0]
@@ -76,7 +91,7 @@ class E3Hamiltonian(torch.nn.Module):
                 # for better performance
                 l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
                 n_rme = (2*l1+1) * (2*l2+1) # number of reduced matrix element
-                rme = data[AtomicDataDict.EDGE_FEATURES_KEY][:, self.idp.pairtype_maps[opairtype]]
+                rme = data[self.edge_field][:, self.idp.pairtype_maps[opairtype]]
                 rme = rme.reshape(n_edge, -1, n_rme)
                 rme = rme.transpose(1,2) # shape (N, n_rme, n_pair)
                 
@@ -89,7 +104,7 @@ class E3Hamiltonian(torch.nn.Module):
                 rot_mat_R = Irrep(int(l2), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l2+1, 2l2+1)
                 HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R).reshape(n_edge, -1) # shape (N, n_pair * n_rme)
                 
-                data[AtomicDataDict.EDGE_FEATURES_KEY][:, self.idp.pairtype_maps[opairtype]] = HR
+                data[self.edge_field][:, self.idp.pairtype_maps[opairtype]] = HR
 
             # compute onsite blocks
             for opairtype in self.idp.nodetype_maps.keys():
@@ -97,7 +112,7 @@ class E3Hamiltonian(torch.nn.Module):
                 # for better performance
                 l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
                 n_rme = (2*l1+1) * (2*l2+1) # number of reduced matrix element
-                rme = data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp.nodetype_maps[opairtype]]
+                rme = data[self.node_field][:, self.idp.nodetype_maps[opairtype]]
                 rme = rme.reshape(n_node, -1, n_rme)
                 rme = rme.transpose(1,2) # shape (N, n_rme, n_pair)
                 
@@ -106,13 +121,13 @@ class E3Hamiltonian(torch.nn.Module):
                 HR = HR.permute(0,3,1,2).reshape(n_node, -1)
 
                 # the onsite block doesnot have rotation
-                data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp.nodetype_maps[opairtype]] = HR
+                data[self.node_field][:, self.idp.nodetype_maps[opairtype]] = HR
         
         else:
             for opairtype in self.idp.pairtype_maps.keys():
                 l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
                 nL, nR = 2*l1+1, 2*l2+1
-                HR = data[AtomicDataDict.EDGE_FEATURES_KEY][:, self.idp.pairtype_maps[opairtype]]
+                HR = data[self.edge_field][:, self.idp.pairtype_maps[opairtype]]
                 HR = HR.reshape(n_edge, -1, nL, nR) # shape (N, n_pair, nL, nR)
 
                 # rotation
@@ -125,14 +140,14 @@ class E3Hamiltonian(torch.nn.Module):
                     H_z[:,:,:,None,:], dim=(1,2)) # shape (N, n_rme, n_pair)
                 rme = rme.transpose(1,2).reshape(n_edge, -1)
 
-                data[AtomicDataDict.EDGE_FEATURES_KEY][:, self.idp.pairtype_maps[opairtype]] = rme
+                data[self.edge_field][:, self.idp.pairtype_maps[opairtype]] = rme
 
             for opairtype in self.idp.nodetype_maps.keys():
                 # currently, "a-b" and "b-a" orbital pair are computed seperately, it is able to combined further
                 # for better performance
                 l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
                 nL, nR = 2*l1+1, 2*l2+1 # number of reduced matrix element
-                HR = data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp.nodetype_maps[opairtype]]
+                HR = data[self.node_field][:, self.idp.nodetype_maps[opairtype]]
                 HR = HR.reshape(n_node, -1, nL, nR).permute(0,2,3,1)# shape (N, nL, nR, n_pair)
                 
                 rme = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
@@ -140,7 +155,7 @@ class E3Hamiltonian(torch.nn.Module):
                 rme = rme.transpose(1,2).reshape(n_node, -1)
 
                 # the onsite block doesnot have rotation
-                data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp.nodetype_maps[opairtype]] = rme
+                data[self.node_field][:, self.idp.nodetype_maps[opairtype]] = rme
 
         return data
             
@@ -175,7 +190,8 @@ class SKHamiltonian(torch.nn.Module):
         self, 
         basis: Dict[str, Union[str, list]],
         dtype: Union[str, torch.dtype] = torch.float32, 
-        device: Union[str, torch.device] = torch.device("cpu")
+        device: Union[str, torch.device] = torch.device("cpu"),
+        overlap: bool = False
         ) -> None:
         super(SKHamiltonian, self).__init__()
         self.dtype = dtype
@@ -185,6 +201,7 @@ class SKHamiltonian(torch.nn.Module):
         self.idp_e3 = OrbitalMapper(basis, method="e3tb")
         self.basis = self.idp.basis
         self.cgbasis = {}
+        self.overlap = overlap
 
         self.idp.get_node_maps()
         self.idp.get_pair_maps()

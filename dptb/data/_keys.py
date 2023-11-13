@@ -84,6 +84,7 @@ EDGE_OVERLAP_KEY: Final[str] = "edge_overlap"
 
 NODE_FEATURES_KEY: Final[str] = "node_features"
 NODE_ATTRS_KEY: Final[str] = "node_attrs"
+EDGE_TYPE_KEY: Final[str] = "edge_type"
 
 PER_ATOM_ENERGY_KEY: Final[str] = "atomic_energy"
 TOTAL_ENERGY_KEY: Final[str] = "total_energy"
