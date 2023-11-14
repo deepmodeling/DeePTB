@@ -441,34 +441,31 @@ class OrbitalMapper(BondMapper):
 
         # TODO: get the mapping from list basis to full basis
         self.basis_to_full_basis = {}
-        self.atom_norb = {}
+        self.atom_norb = torch.zeros(len(self.type_names), dtype=torch.long)
         for ib in self.basis.keys():
             count_dict = {"s":0, "p":0, "d":0, "f":0}
             self.basis_to_full_basis.setdefault(ib, {})
-            self.atom_norb.setdefault(ib, 0)
             for o in self.basis[ib]:
                 io = re.findall(r"[a-z]", o)[0]
                 l = anglrMId[io]
                 count_dict[io] += 1
-                self.atom_norb[ib] += 2*l+1
+                self.atom_norb[self.chemical_symbol_to_type[ib]] += 2*l+1
 
                 self.basis_to_full_basis[ib][o] = str(count_dict[io])+io
         
         # Get the mask for mapping from full basis to atom specific basis
-        self.mask_to_basis = {}
+        self.mask_to_basis = torch.zeros(len(self.type_names), self.full_basis_norb, dtype=torch.bool)
         for ib in self.basis.keys():
-            self.mask_to_basis.setdefault(ib, torch.zeros(self.full_basis_norb, dtype=torch.bool))
             ibasis = list(self.basis_to_full_basis[ib].values())
             ist = 0
             for io in self.full_basis:
                 l = anglrMId[io[1]]
                 if io in ibasis:
-                    self.mask_to_basis[ib][ist:ist+2*l+1] = True
+                    self.mask_to_basis[self.chemical_symbol_to_type[ib]][ist:ist+2*l+1] = True
                 
                 ist += 2*l+1
             
-        for ib, mask in self.mask_to_basis.items():
-            assert mask.sum().int() == self.atom_norb[ib]
+        assert (self.mask_to_basis.sum(dim=1).int()-self.atom_norb).abs().sum() <= 1e-6
 
             
 
