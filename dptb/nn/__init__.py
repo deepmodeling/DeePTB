@@ -17,59 +17,53 @@ The model can be constructed by the following steps:
     - out data with SK/E3 hamiltonian
 4. choose the loss target, and its metric, it can be MSE, MAE, etc.
 
+ 
 model_options = {
-    "network" = {
-        "embedding": {
-            "mode":"se2/gnn/se3...",
-            # mode specific
-            # se2
-            "env_cutoff": 3.5,
-            "rs": float,
-            "rc": float,
-            "n_axis": int,
-            "radial_embedding": {
-                "neurons": [int],
-                "activation": str,
-                "if_batch_normalized": bool
-            }
-            # gnn
-            # se3
-        },
-        "prediction": {
-            "mode": "linear/nn",
-            # linear
-            # nn
+    "embedding": {
+        "mode":"se2/gnn/se3...",
+        # mode specific
+        # se2
+        "env_cutoff": 3.5,
+        "rs": float,
+        "rc": float,
+        "n_axis": int,
+        "radial_embedding": {
             "neurons": [int],
             "activation": str,
-            "if_batch_normalized": bool,
+            "if_batch_normalized": bool
         }
+        # gnn
+        # se3
     },
-    "hamiltonian" = {
-        "method": "sktb/e3tb",
-        "rmax": 3.5,
-        "precision": float,                 # use to check if rmax is large enough
-        "soc": bool,
-        "overlap": bool,
-        # sktb
-        
-        "hopping_function": {
-            "formula": "varTang96/powerlaw/NRL",
-            ...
+    "prediction": {
+        "mode": "linear/nn",
+        # linear
+        # nn
+        "neurons": [int],
+        "activation": str,
+        "if_batch_normalized": bool,
+        "hamiltonian" = {
+            "method": "sktb/e3tb",
+            "rmax": 3.5,
+            "precision": float,                 # use to check if rmax is large enough
+            "soc": bool,
+            "overlap": bool,
+            # sktb
+            "hopping_function": {
+                "formula": "varTang96/powerlaw/NRL",
+                ...
+            },
+            "onsite_function": {
+                "formula": "strain/uniform/NRL",
+                # strain
+                "strain_cutoff": float,
+                # NRL
+                "cutoff": float,
+                "decay_w": float,
+                "lambda": float
+            }
+            # e3tb
         },
-        "onsite_function": {
-            "formula": "strain/uniform/NRL",
-            # strain
-            "strain_cutoff": float,
-            # NRL
-            "cutoff": float,
-            "decay_w": float,
-            "lambda": float
-        }
-        # e3tb
-        
     },
 }
-
-
 """
-

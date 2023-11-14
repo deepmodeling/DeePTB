@@ -10,16 +10,15 @@ from dptb.utils.constants import h_all_types, anglrMId
 from typing import Tuple, Union, Dict
 from dptb.data.transforms import OrbitalMapper
 from dptb.data import AtomicDataDict
-from .sktb.hopping import HoppingFormula
 import numpy as np
-from .sktb.onsite import OnsiteFormula
-from .sktb.bondlengthDB import bond_length_list
+from .sktb import OnsiteFormula, bond_length_list, HoppingFormula
 from dptb.utils.constants import atomic_num_dict_r
 
 class SKTB(torch.nn.Module):
     def __init__(
-            self, 
-            basis: Dict[str, Union[str, list]],
+            self,
+            basis: Dict[str, Union[str, list]]=None,
+            idp: Union[OrbitalMapper, None]=None,
             onsite: str = "uniform",
             hopping: str = "powerlaw",
             overlap: bool = False,
@@ -31,23 +30,31 @@ class SKTB(torch.nn.Module):
         
         super(SKTB, self).__init__()
 
-        self.basis = basis
-        self.idp = OrbitalMapper(basis, method="sktb")
+        if basis is None:
+            self.idp = OrbitalMapper(basis, method="sktb")
+            if idp is not None:
+                assert idp == self.idp, "The basis of idp and basis should be the same."
+        else:
+            assert self.idp.method == "sktb", "The OrbitalMapper should be initialized with method='sktb'"
+            self.idp = idp
+            
+        self.basis = self.idp.basis
         self.idp.get_node_maps()
         self.idp.get_pair_maps()
+
         self.dtype = dtype
         self.device = device
+
+        # init_onsite, hopping, overlap formula
+
         self.onsite = OnsiteFormula(idp=self.idp, functype=onsite, dtype=dtype, device=device)
         self.hopping = HoppingFormula(functype=hopping)
         if overlap:
-            self.overlap = HoppingFormula(functype=hopping, overlap=hopping)
+            self.overlap = HoppingFormula(functype=hopping, overlap=True)
         self.rc = rc
         self.w = w
 
-        orbtype_count = self.idp.orbtype_count
         
-        # init_onsite, hopping, overlap formula
-
         # init_param
         self.hopping_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element, self.hopping.num_paras], dtype=self.dtype, device=self.device))
         if overlap:

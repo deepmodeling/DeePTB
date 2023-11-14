@@ -1,3 +1,5 @@
+from dptb.nn.deeptb import DPTB
+from dptb.nn.sktb import SKTB
 
 def build_model(model_options):
     """
@@ -13,7 +15,10 @@ def build_model(model_options):
         as input and output, we only need to replace the descriptor model and embedding model with a Graph Neural Network model.
     """
 
+    # process the model_options
+    
     model = None
+
 
     return model
 

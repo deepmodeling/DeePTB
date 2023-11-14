@@ -14,11 +14,11 @@ class Embedding:
     def register(target):
         return Embedding._register.register(target)
     
-    def __new__(cls, mode: str, **kwargs):
-        if mode in Embedding._register.keys():
-            return Embedding._register[mode](**kwargs)
+    def __new__(cls, method: str, **kwargs):
+        if method in Embedding._register.keys():
+            return Embedding._register[method](**kwargs)
         else:
-            raise Exception(f"Descriptor mode: {mode} is not registered!")
+            raise Exception(f"Descriptor mode: {method} is not registered!")
         
 
         

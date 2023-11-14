@@ -5,8 +5,22 @@ from typing import Optional, Tuple, Union
 from dptb.data import AtomicDataDict
 from dptb.nn.embedding.emb import Embedding
 from ..base import ResNet
-from dptb.utils.tools import get_neuron_config
+from dptb.utils.constants import dtype_dict
 from ..type_encode.one_hot import OneHotAtomEncoding
+
+def get_neuron_config(nl):
+    n = len(nl)
+    if n % 2 == 0:
+        d_out = nl[-1]
+        nl = nl[:-1]
+    config = []
+    for i in range(1,len(nl)-1, 2):
+        config.append({'in_features': nl[i-1], 'hidden_features': nl[i], 'out_features': nl[i+1]})
+
+    if n % 2 == 0:
+        config.append({'in_features': nl[-1], 'out_features': d_out})
+
+    return config
 
 @Embedding.register("se2")
 class SE2Descriptor(torch.nn.Module):
@@ -20,6 +34,22 @@ class SE2Descriptor(torch.nn.Module):
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu")
             ) -> None:
+        """
+        a demo input
+        se2_config = {
+                    "rs": 3.0, 
+                    "rc": 4.0,
+                    "n_axis": 4,
+                    "n_atom": 2,
+                    "radial_embedding": {
+                        "neurons": [10,20,30],
+                        "activation": "tanh",
+                        "if_batch_normalized": False
+                    },
+                    "dtype": "float32",
+                    "device": "cpu"
+                }
+        """
         
         super(SE2Descriptor, self).__init__()
         self.onehot = OneHotAtomEncoding(num_types=n_atom, set_features=False)
@@ -54,14 +84,14 @@ class SE2Descriptor(torch.nn.Module):
         return self.descriptor.n_out
 
     @property
-    def out_note_dim(self):
+    def out_node_dim(self):
         return self.descriptor.n_out
 
 
 
     
 class SE2Aggregation(Aggregation):
-    def forward(self, x: torch.Tensor, env_index: torch.LongTensor):
+    def forward(self, x: torch.Tensor, index: torch.LongTensor, **kwargs):
         """_summary_
 
         Parameters
@@ -78,7 +108,7 @@ class SE2Aggregation(Aggregation):
         """
         direct_vec = x[:, -3:]
         x = x[:,:-3].unsqueeze(-1) * direct_vec.unsqueeze(1) # [N_env, D, 3]
-        return self.reduce(x, env_index, reduce="mean", dim=0) # [N_atom, D, 3] following the orders of atom index.
+        return self.reduce(x, index, reduce="mean", dim=0) # [N_atom, D, 3] following the orders of atom index.
 
 
 class _SE2Descriptor(MessagePassing):
@@ -94,6 +124,11 @@ class _SE2Descriptor(MessagePassing):
             device: Union[str, torch.device] = torch.device("cpu"), **kwargs):
         
         super(_SE2Descriptor, self).__init__(aggr=aggr, **kwargs)
+
+        if isinstance(device, str):
+            device = torch.device(device)
+        if isinstance(dtype, str):
+            dtype = dtype_dict[dtype]
 
 
         radial_embedding["config"] = get_neuron_config([2*n_atom+1]+radial_embedding["neurons"])
@@ -117,14 +152,17 @@ class _SE2Descriptor(MessagePassing):
         self.n_out = self.n_axis * radial_embedding["neurons"][-1]
 
     def forward(self, env_vectors, atom_attr, env_index, edge_index):
-        n_env = env_vectors.shape[1]
-        out_node = self.propagate(env_index, env_vectors=env_vectors, env_attr=atom_attr[env_index.T.flatten()].reshape(n_env,2,-1).squeeze(1)) # [N_atom, D, 3]
-        out_edge = self.edge_updater(out_node, edge_index) # [N_edge, D*D]
+        n_env = env_index.shape[1]
+        env_attr = atom_attr[env_index].transpose(1,0).reshape(n_env,-1)
+        out_node = self.propagate(env_index, env_vectors=env_vectors, env_attr=env_attr) # [N_atom, D, 3]
+        out_edge = self.edge_updater(edge_index, node_descriptor=out_node) # [N_edge, D*D]
 
         return out_node, out_edge
 
     def message(self, env_vectors, env_attr):
-        snorm = self.smooth(env_vectors.norm(-1, keepdim=True), self.rs, self.rc)
+        rij = env_vectors.norm(dim=-1, keepdim=True)
+        snorm = self.smooth(rij, self.rs, self.rc)
+        env_vectors = snorm * env_vectors / rij
         return torch.cat([self.embedding_net(torch.cat([snorm, env_attr], dim=-1)), env_vectors], dim=-1) # [N_env, D_emb + 3]
 
     def update(self, aggr_out):
@@ -142,16 +180,15 @@ class _SE2Descriptor(MessagePassing):
 
         return torch.bmm(aggr_out, aggr_out.transpose(1, 2))[:,:,:self.n_axis].flatten(start_dim=1, end_dim=2) # [N, D*D]
     
-    def edge_update(self, node_descriptor, edge_index):
+    def edge_update(self, edge_index, node_descriptor):
         
         return node_descriptor[edge_index[0]] + node_descriptor[edge_index[1]] # [N_edge, D*D]
     
     def smooth(self, r: torch.Tensor, rs: torch.Tensor, rc: torch.Tensor):
-        if r < rs:
-            return 1/r
-        elif rs <= r and r < rc:
-            x = (r - rc) / (rs - rc)
-            return 1/r * (x**3 * (10 + x * (-15 + 6 * x)) + 1)
-        else:
-            return torch.zeros_like(r, dtype=r.dtype, device=r.device)
+        r_ = torch.zeros_like(r)
+        r_[r<rs] = 1/r[r<rs]
+        x = (r - rc) / (rs - rc)
+        mid_mask = (rs<=r) * (r < rc)
+        r_[mid_mask] = 1/r[mid_mask] * (x[mid_mask]**3 * (10 + x[mid_mask] * (-15 + 6 * x[mid_mask])) + 1)
 
+        return r_

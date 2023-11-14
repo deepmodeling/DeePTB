@@ -21,19 +21,17 @@ class HR2HK(torch.nn.Module):
             ):
         super(HR2HK, self).__init__()
 
-        assert basis is not None or idp is not None, "Either basis or idp should be provided."
-
         self.dtype = dtype
         self.device = device
-        if self.basis is None:
+        if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb")
             if idp is not None:
                 assert idp == self.idp, "The basis of idp and basis should be the same."
         else:
+            assert idp is not None, "Either basis or idp should be provided."
             self.idp = idp
-            self.basis = self.idp.basis
-
-
+        
+        self.basis = self.idp.basis
         self.idp.get_nodetype_maps()
         self.idp.get_pairtype_maps()
 

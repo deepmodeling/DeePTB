@@ -22,7 +22,7 @@ from torch_runstats.scatter import scatter
 class E3Hamiltonian(torch.nn.Module):
     def __init__(
             self, 
-            basis: Dict[str, Union[str, list], None]=None,
+            basis: Dict[str, Union[str, list]]=None,
             idp: Union[OrbitalMapper, None]=None,
             decompose: bool = False,
             edge_field: str = AtomicDataDict.EDGE_FEATURES_KEY,
@@ -33,17 +33,15 @@ class E3Hamiltonian(torch.nn.Module):
         
         super(E3Hamiltonian, self).__init__()
 
-        assert basis is not None or idp is not None, "Either basis or idp should be provided."
-
         self.dtype = dtype
         self.device = device
-        if self.basis is None:
+        if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb")
             if idp is not None:
                 assert idp == self.idp, "The basis of idp and basis should be the same."
         else:
+            assert idp is not None, "Either basis or idp should be provided."
             self.idp = idp
-            self.basis = self.idp.basis
             
         self.basis = self.idp.basis
         self.cgbasis = {}
@@ -188,7 +186,8 @@ class SKHamiltonian(torch.nn.Module):
     # transform SK parameters to SK hamiltonian with E3 CG basis, strain is included.
     def __init__(
         self, 
-        basis: Dict[str, Union[str, list]],
+        basis: Dict[str, Union[str, list]]=None,
+        idp: Union[OrbitalMapper, None]=None,
         dtype: Union[str, torch.dtype] = torch.float32, 
         device: Union[str, torch.device] = torch.device("cpu"),
         overlap: bool = False
@@ -196,9 +195,16 @@ class SKHamiltonian(torch.nn.Module):
         super(SKHamiltonian, self).__init__()
         self.dtype = dtype
         self.device = device
-        self.idp = OrbitalMapper(basis, method="sktb")
+
+        if basis is not None:
+            self.idp = OrbitalMapper(basis, method="sktb")
+            if idp is not None:
+                assert idp == self.idp, "The basis of idp and basis should be the same."
+        else:
+            assert idp is not None, "Either basis or idp should be provided."
+            self.idp = idp
         # initilize a e3 indexmapping to help putting the orbital wise blocks into atom-pair wise format
-        self.idp_e3 = OrbitalMapper(basis, method="e3tb")
+        self.idp_e3 = OrbitalMapper(self.idp.basis, method="e3tb")
         self.basis = self.idp.basis
         self.cgbasis = {}
         self.overlap = overlap
