@@ -4,7 +4,7 @@ from typing import Union, Tuple, Optional, Callable
 import torch.nn.functional as F
 from .embedding import Embedding
 from dptb.utils.index_mapping import Index_Mapings_e3
-from ._base import AtomicFFN, AtomicResNet, AtomicLinear
+from .base import AtomicFFN, AtomicResNet, AtomicLinear
 from dptb.data import AtomicDataDict
 from torch import Tensor
 from dptb.utils.tools import get_neuron_config

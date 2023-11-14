@@ -20,7 +20,7 @@ import torch
 import e3nn.o3
 
 from . import AtomicDataDict
-from ._util import _TORCH_INTEGER_DTYPES
+from .util import _TORCH_INTEGER_DTYPES
 from dptb.utils.torch_geometric.data import Data
 
 # A type representing ASE-style periodic boundary condtions, which can be partial (the tuple case)
@@ -86,6 +86,8 @@ _DEFAULT_GRAPH_FIELDS: Set[str] = {
     AtomicDataDict.CELL_KEY,
     AtomicDataDict.BATCH_PTR_KEY,
     AtomicDataDict.KPOINT_KEY, # new
+    AtomicDataDict.HAMILTONIAN_KEY, # new
+    AtomicDataDict.OVERLAP_KEY, # new
     AtomicDataDict.ENERGY_EIGENVALUE_KEY # new
 }
 _NODE_FIELDS: Set[str] = set(_DEFAULT_NODE_FIELDS)

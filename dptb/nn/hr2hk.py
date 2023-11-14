@@ -2,12 +2,11 @@
 
 
 import torch
-from dptb.utils.constants import h_all_types, anglrMId, atomic_num_dict
+from dptb.utils.constants import h_all_types, anglrMId, atomic_num_dict, atomic_num_dict_r
 from typing import Tuple, Union, Dict
 from dptb.data.transforms import OrbitalMapper
 from dptb.data import AtomicDataDict
 import re
-
 
 class HR2HK(torch.nn.Module):
     def __init__(
@@ -16,6 +15,7 @@ class HR2HK(torch.nn.Module):
             idp: Union[OrbitalMapper, None]=None,
             edge_field: str = AtomicDataDict.EDGE_FEATURES_KEY,
             node_field: str = AtomicDataDict.NODE_FEATURES_KEY,
+            out_field: str = AtomicDataDict.HAMILTONIAN_KEY,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu")
             ):
@@ -39,6 +39,7 @@ class HR2HK(torch.nn.Module):
 
         self.edge_field = edge_field
         self.node_field = node_field
+        self.out_field = out_field
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
 
@@ -67,15 +68,31 @@ class HR2HK(torch.nn.Module):
 
         # R2K procedure can be done for all kpoint at once, try to implement this.
         all_norb = sum([data[AtomicDataDict.ATOM_TYPE_KEY].eq(self.idp.transform_atom(atomic_num_dict[ia])).sum() * self.idp.atom_norb[ia] for ia in self.idp.basis.keys()])
-        block = torch.zeros(all_norb, all_norb, dtype=self.dtype, device=self.device)
-        for bondsymbol, bondtype in self.idp.bond_to_type.items():
-            iasym, jasym = list(bondsymbol.split("-"))
-            mask = data[AtomicDataDict.EDGE_TYPE_KEY].eq(bondtype)
-            orblocks = data[AtomicDataDict.EDGE_FEATURES_KEY][mask] # (n_bonds, n_orbital*n_orbitals)
+        block = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shaoe[0], all_norb, all_norb, dtype=self.dtype, device=self.device)
 
-            for iorb in self.idp.basis[iasym]:
-                for jorb in self.idp.basis[jasym]:
-                    iforb, jforb = self.idp.basis_to_full_basis[iasym][iorb], self.idp.basis_to_full_basis[jasym][jorb]
+        atom_id_to_indices = {}
+        ist = 0
+        for i, oblock in enumerate(onsite_block):
+            mask = self.idp.mask_to_basis[atomic_num_dict_r[data[AtomicDataDict.ATOMIC_NUMBERS_KEY][i]]]
+            masked_oblock = oblock[mask][:,mask]
+            block[:,ist:ist+masked_oblock.shape[0],ist:ist+masked_oblock.shape[1]] = 0.5 * masked_oblock.squeeze(0)
+            atom_id_to_indices[i] = slice(ist, ist+masked_oblock.shape[0])
+            ist += masked_oblock.shape[0]
+        
+        for i, hblock in enumerate(bondwise_hopping):
+            iatom = data[AtomicDataDict.EDGE_INDEX_KEY][0][i]
+            jatom = data[AtomicDataDict.EDGE_INDEX_KEY][1][i]
+            iatom_indices = atom_id_to_indices[iatom]
+            jatom_indices = atom_id_to_indices[jatom]
+            imask = self.idp.mask_to_basis[atomic_num_dict_r[data[AtomicDataDict.ATOMIC_NUMBERS_KEY][iatom]]]
+            jmask = self.idp.mask_to_basis[atomic_num_dict_r[data[AtomicDataDict.ATOMIC_NUMBERS_KEY][jatom]]]
+            masked_hblock = hblock[imask][:,jmask]
+            block[:,iatom_indices,jatom_indices] = masked_hblock.squeeze(0) * torch.exp(-1j * 2 * torch.pi * data[AtomicDataDict.KPOINT_KEY] @ data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i]).reshape(-1,1,1)
 
-            
-            
+        block = block + block.transpose(1,2).conj()
+        block.contiguous()
+
+        data[self.out_field] = block
+
+        return data
+

@@ -13,11 +13,11 @@ import torch.jit
 from e3nn import o3
 
 # Make the keys available in this module
-from ._keys import *  # noqa: F403, F401
+from .keys import *  # noqa: F403, F401
 
 # Also import the module to use in TorchScript, this is a hack to avoid bug:
 # https://github.com/pytorch/pytorch/issues/52312
-from . import _keys
+from . import keys
 
 # Define a type alias
 Type = Dict[str, torch.Tensor]
@@ -26,9 +26,9 @@ Type = Dict[str, torch.Tensor]
 def validate_keys(keys, graph_required=True):
     # Validate combinations
     if graph_required:
-        if not (_keys.POSITIONS_KEY in keys and _keys.EDGE_INDEX_KEY in keys):
+        if not (keys.POSITIONS_KEY in keys and keys.EDGE_INDEX_KEY in keys):
             raise KeyError("At least pos and edge_index must be supplied")
-    if _keys.EDGE_CELL_SHIFT_KEY in keys and "cell" not in keys:
+    if keys.EDGE_CELL_SHIFT_KEY in keys and "cell" not in keys:
         raise ValueError("If `edge_cell_shift` given, `cell` must be given.")
 
 
@@ -53,10 +53,10 @@ def with_edge_vectors(data: Type, with_lengths: bool = True) -> Type:
     Returns:
         Tensor [n_edges, 3] edge displacement vectors
     """
-    if _keys.EDGE_VECTORS_KEY in data:
-        if with_lengths and _keys.EDGE_LENGTH_KEY not in data:
-            data[_keys.EDGE_LENGTH_KEY] = torch.linalg.norm(
-                data[_keys.EDGE_VECTORS_KEY], dim=-1
+    if keys.EDGE_VECTORS_KEY in data:
+        if with_lengths and keys.EDGE_LENGTH_KEY not in data:
+            data[keys.EDGE_LENGTH_KEY] = torch.linalg.norm(
+                data[keys.EDGE_VECTORS_KEY], dim=-1
             )
         return data
     else:
@@ -65,16 +65,16 @@ def with_edge_vectors(data: Type, with_lengths: bool = True) -> Type:
         # (1) backwardable, because everything (pos, cell, shifts)
         #     is Tensors.
         # (2) works on a Batch constructed from AtomicData
-        pos = data[_keys.POSITIONS_KEY]
-        edge_index = data[_keys.EDGE_INDEX_KEY]
+        pos = data[keys.POSITIONS_KEY]
+        edge_index = data[keys.EDGE_INDEX_KEY]
         edge_vec = pos[edge_index[1]] - pos[edge_index[0]]
-        if _keys.CELL_KEY in data:
+        if keys.CELL_KEY in data:
             # ^ note that to save time we don't check that the edge_cell_shifts are trivial if no cell is provided; we just assume they are either not present or all zero.
             # -1 gives a batch dim no matter what
-            cell = data[_keys.CELL_KEY].view(-1, 3, 3)
-            edge_cell_shift = data[_keys.EDGE_CELL_SHIFT_KEY]
+            cell = data[keys.CELL_KEY].view(-1, 3, 3)
+            edge_cell_shift = data[keys.EDGE_CELL_SHIFT_KEY]
             if cell.shape[0] > 1:
-                batch = data[_keys.BATCH_KEY]
+                batch = data[keys.BATCH_KEY]
                 # Cell has a batch dimension
                 # note the ASE cell vectors as rows convention
                 edge_vec = edge_vec + torch.einsum(
@@ -92,9 +92,9 @@ def with_edge_vectors(data: Type, with_lengths: bool = True) -> Type:
                     edge_cell_shift,
                     cell.squeeze(0),  # remove batch dimension
                 )
-        data[_keys.EDGE_VECTORS_KEY] = edge_vec
+        data[keys.EDGE_VECTORS_KEY] = edge_vec
         if with_lengths:
-            data[_keys.EDGE_LENGTH_KEY] = torch.linalg.norm(edge_vec, dim=-1)
+            data[keys.EDGE_LENGTH_KEY] = torch.linalg.norm(edge_vec, dim=-1)
         return data
     
 @torch.jit.script
@@ -107,10 +107,10 @@ def with_env_vectors(data: Type, with_lengths: bool = True) -> Type:
     Returns:
         Tensor [n_edges, 3] edge displacement vectors
     """
-    if _keys.ENV_VECTORS_KEY in data:
-        if with_lengths and _keys.ENV_LENGTH_KEY not in data:
-            data[_keys.ENV_LENGTH_KEY] = torch.linalg.norm(
-                data[_keys.ENV_VECTORS_KEY], dim=-1
+    if keys.ENV_VECTORS_KEY in data:
+        if with_lengths and keys.ENV_LENGTH_KEY not in data:
+            data[keys.ENV_LENGTH_KEY] = torch.linalg.norm(
+                data[keys.ENV_VECTORS_KEY], dim=-1
             )
         return data
     else:
@@ -119,16 +119,16 @@ def with_env_vectors(data: Type, with_lengths: bool = True) -> Type:
         # (1) backwardable, because everything (pos, cell, shifts)
         #     is Tensors.
         # (2) works on a Batch constructed from AtomicData
-        pos = data[_keys.POSITIONS_KEY]
-        env_index = data[_keys.ENV_INDEX_KEY]
+        pos = data[keys.POSITIONS_KEY]
+        env_index = data[keys.ENV_INDEX_KEY]
         env_vec = pos[env_index[1]] - pos[env_index[0]]
-        if _keys.CELL_KEY in data:
+        if keys.CELL_KEY in data:
             # ^ note that to save time we don't check that the edge_cell_shifts are trivial if no cell is provided; we just assume they are either not present or all zero.
             # -1 gives a batch dim no matter what
-            cell = data[_keys.CELL_KEY].view(-1, 3, 3)
-            env_cell_shift = data[_keys.ENV_CELL_SHIFT_KEY]
+            cell = data[keys.CELL_KEY].view(-1, 3, 3)
+            env_cell_shift = data[keys.ENV_CELL_SHIFT_KEY]
             if cell.shape[0] > 1:
-                batch = data[_keys.BATCH_KEY]
+                batch = data[keys.BATCH_KEY]
                 # Cell has a batch dimension
                 # note the ASE cell vectors as rows convention
                 env_vec = env_vec + torch.einsum(
@@ -146,9 +146,9 @@ def with_env_vectors(data: Type, with_lengths: bool = True) -> Type:
                     env_cell_shift,
                     cell.squeeze(0),  # remove batch dimension
                 )
-        data[_keys.ENV_VECTORS_KEY] = env_vec
+        data[keys.ENV_VECTORS_KEY] = env_vec
         if with_lengths:
-            data[_keys.ENV_LENGTH_KEY] = torch.linalg.norm(env_vec, dim=-1)
+            data[keys.ENV_LENGTH_KEY] = torch.linalg.norm(env_vec, dim=-1)
         return data
     
 @torch.jit.script
@@ -161,10 +161,10 @@ def with_onsitenv_vectors(data: Type, with_lengths: bool = True) -> Type:
     Returns:
         Tensor [n_edges, 3] edge displacement vectors
     """
-    if _keys.ONSITENV_VECTORS_KEY in data:
-        if with_lengths and _keys.ONSITENV_LENGTH_KEY not in data:
-            data[_keys.ONSITENV_LENGTH_KEY] = torch.linalg.norm(
-                data[_keys.ONSITENV_VECTORS_KEY], dim=-1
+    if keys.ONSITENV_VECTORS_KEY in data:
+        if with_lengths and keys.ONSITENV_LENGTH_KEY not in data:
+            data[keys.ONSITENV_LENGTH_KEY] = torch.linalg.norm(
+                data[keys.ONSITENV_VECTORS_KEY], dim=-1
             )
         return data
     else:
@@ -173,16 +173,16 @@ def with_onsitenv_vectors(data: Type, with_lengths: bool = True) -> Type:
         # (1) backwardable, because everything (pos, cell, shifts)
         #     is Tensors.
         # (2) works on a Batch constructed from AtomicData
-        pos = data[_keys.POSITIONS_KEY]
-        env_index = data[_keys.ONSITENV_INDEX_KEY]
+        pos = data[keys.POSITIONS_KEY]
+        env_index = data[keys.ONSITENV_INDEX_KEY]
         env_vec = pos[env_index[1]] - pos[env_index[0]]
-        if _keys.CELL_KEY in data:
+        if keys.CELL_KEY in data:
             # ^ note that to save time we don't check that the edge_cell_shifts are trivial if no cell is provided; we just assume they are either not present or all zero.
             # -1 gives a batch dim no matter what
-            cell = data[_keys.CELL_KEY].view(-1, 3, 3)
-            env_cell_shift = data[_keys.ONSITENV_CELL_SHIFT_KEY]
+            cell = data[keys.CELL_KEY].view(-1, 3, 3)
+            env_cell_shift = data[keys.ONSITENV_CELL_SHIFT_KEY]
             if cell.shape[0] > 1:
-                batch = data[_keys.BATCH_KEY]
+                batch = data[keys.BATCH_KEY]
                 # Cell has a batch dimension
                 # note the ASE cell vectors as rows convention
                 env_vec = env_vec + torch.einsum(
@@ -200,9 +200,9 @@ def with_onsitenv_vectors(data: Type, with_lengths: bool = True) -> Type:
                     env_cell_shift,
                     cell.squeeze(0),  # remove batch dimension
                 )
-        data[_keys.ONSITENV_VECTORS_KEY] = env_vec
+        data[keys.ONSITENV_VECTORS_KEY] = env_vec
         if with_lengths:
-            data[_keys.ONSITENV_LENGTH_KEY] = torch.linalg.norm(env_vec, dim=-1)
+            data[keys.ONSITENV_LENGTH_KEY] = torch.linalg.norm(env_vec, dim=-1)
         return data
 
 
@@ -213,14 +213,14 @@ def with_batch(data: Type) -> Type:
     If this AtomicDataPrimitive has no ``batch``, one of all zeros will be
     allocated and returned.
     """
-    if _keys.BATCH_KEY in data:
+    if keys.BATCH_KEY in data:
         return data
     else:
-        pos = data[_keys.POSITIONS_KEY]
+        pos = data[keys.POSITIONS_KEY]
         batch = torch.zeros(len(pos), dtype=torch.long, device=pos.device)
-        data[_keys.BATCH_KEY] = batch
+        data[keys.BATCH_KEY] = batch
         # ugly way to make a tensor of [0, len(pos)], but it avoids transfers or casts
-        data[_keys.BATCH_PTR_KEY] = torch.arange(
+        data[keys.BATCH_PTR_KEY] = torch.arange(
             start=0,
             end=len(pos) + 1,
             step=len(pos),

@@ -4,9 +4,9 @@ import torch
 from typing import Optional, Tuple, Union
 from dptb.data import AtomicDataDict
 from dptb.nn.embedding.emb import Embedding
-from .._base import ResNet
+from ..base import ResNet
 from dptb.utils.tools import get_neuron_config
-from ..type_encode._one_hot import OneHotAtomEncoding
+from ..type_encode.one_hot import OneHotAtomEncoding
 
 @Embedding.register("se2")
 class SE2Descriptor(torch.nn.Module):

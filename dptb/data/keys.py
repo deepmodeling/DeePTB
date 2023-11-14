@@ -30,6 +30,10 @@ ONSITENV_CELL_SHIFT_KEY: Final[str] = "onsitenv_cell_shift"
 CELL_KEY: Final[str] = "cell"
 # [n_kpoints, 3] or [n_batch, nkpoints, 3] tensor
 KPOINT_KEY = "kpoint"
+
+HAMILTONIAN_KEY = "hamiltonian"
+
+OVERLAP_KEY = "overlap"
 # [n_batch, 3] bool tensor
 PBC_KEY: Final[str] = "pbc"
 # [n_atom, 1] long tensor
