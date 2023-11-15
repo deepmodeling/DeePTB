@@ -17,7 +17,7 @@ The model can be constructed by the following steps:
     - out data with SK/E3 hamiltonian
 4. choose the loss target, and its metric, it can be MSE, MAE, etc.
 
- 
+
 model_options = {
     "embedding": {
         "mode":"se2/gnn/se3...",
@@ -49,21 +49,23 @@ model_options = {
             "soc": bool,
             "overlap": bool,
             # sktb
-            "hopping_function": {
-                "formula": "varTang96/powerlaw/NRL",
-                ...
-            },
-            "onsite_function": {
-                "formula": "strain/uniform/NRL",
-                # strain
-                "strain_cutoff": float,
-                # NRL
-                "cutoff": float,
-                "decay_w": float,
-                "lambda": float
-            }
             # e3tb
         },
     },
+    "nnsk":{
+        "hopping_function": {
+            "formula": "varTang96/powerlaw/NRL",
+            ...
+        },
+        "onsite_function": {
+            "formula": "strain/uniform/NRL",
+            # strain
+            "strain_cutoff": float,
+            # NRL
+            "cutoff": float,
+            "decay_w": float,
+            "lambda": float
+        }
+    }
 }
 """

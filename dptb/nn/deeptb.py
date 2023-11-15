@@ -70,10 +70,12 @@ class DPTB(nn.Module):
 
 
         # initialize the prediction layer
-        method = prediction["hamiltonian"].get("method", "e3tb")
+        self.method = prediction["hamiltonian"].get("method", "e3tb")
+        self.overlap = prediction["hamiltonian"].get("overlap", False)
+        self.soc = prediction["hamiltonian"].get("soc", False)
 
         if basis is not None:
-            self.idp = OrbitalMapper(basis, method=method)
+            self.idp = OrbitalMapper(basis, method=self.method)
             if idp is not None:
                 assert idp == self.idp, "The basis of idp and basis should be the same."
         else:
@@ -84,17 +86,16 @@ class DPTB(nn.Module):
         self.idp.get_node_maps()
         self.idp.get_pair_maps()
         
-        self.method = method
         if prediction["method"] == "linear":
             
-            self.node_prediction = AtomicLinear(
+            self.node_prediction_h = AtomicLinear(
                 in_features=self.embedding.out_node_dim, 
                 out_features=self.idp.node_reduced_matrix_element, 
                 field=AtomicDataDict.NODE_FEATURES_KEY,
                 dtype=dtype,
                 device=device
                 )
-            self.edge_prediction = AtomicLinear(
+            self.edge_prediction_h = AtomicLinear(
                 in_features=self.embedding.out_edge_dim, 
                 out_features=self.idp.edge_reduced_matrix_element, 
                 field=AtomicDataDict.EDGE_FEATURES_KEY,
@@ -102,43 +103,91 @@ class DPTB(nn.Module):
                 device=device
                 )
             
+            if self.overlap:
+                self.node_prediction_s = AtomicLinear(
+                    in_features=self.embedding.out_node_dim, 
+                    out_features=self.idp.node_reduced_matrix_element, 
+                    field=AtomicDataDict.NODE_OVERLAP_KEY,
+                    dtype=dtype,
+                    device=device
+                    )
+                self.edge_prediction_s = AtomicLinear(
+                    in_features=self.embedding.out_edge_dim, 
+                    out_features=self.idp.edge_reduced_matrix_element, 
+                    field=AtomicDataDict.EDGE_OVERLAP_KEY,
+                    dtype=dtype,
+                    device=device
+                    )
+            
         elif prediction["method"] == "nn":
             prediction["neurons"] = [self.embedding.out_node_dim] + prediction["neurons"] + [self.idp.node_reduced_matrix_element]
             prediction["config"] = get_neuron_config(prediction["neurons"])
 
-            self.node_prediction = AtomicResNet(
+            self.node_prediction_h = AtomicResNet(
                 **prediction,
                 field=AtomicDataDict.NODE_FEATURES_KEY,
                 device=device, 
                 dtype=dtype
             )
+
+            if self.overlap:
+                self.node_prediction_s = AtomicResNet(
+                    **prediction,
+                    field=AtomicDataDict.NODE_OVERLAP_KEY,
+                    device=device, 
+                    dtype=dtype
+                )
+
             prediction["neurons"][0] = self.embedding.out_edge_dim
             prediction["neurons"][-1] = self.idp.edge_reduced_matrix_element
             prediction["config"] = get_neuron_config(prediction["neurons"])
-            self.edge_prediction = AtomicResNet(
+            self.edge_prediction_h = AtomicResNet(
                 **prediction,
                 field=AtomicDataDict.EDGE_FEATURES_KEY,
                 device=device, 
                 dtype=dtype
             )
 
+            if self.overlap:
+                self.edge_prediction_s = AtomicResNet(
+                    **prediction,
+                    field=AtomicDataDict.EDGE_OVERLAP_KEY,
+                    device=device, 
+                    dtype=dtype
+                )
+
         else:
             raise NotImplementedError("The prediction model {} is not implemented.".format(prediction["method"]))
 
+        
         # initialize the hamiltonian layer
-        if method == "sktb":
+        if self.method == "sktb":
             self.hamiltonian = SKHamiltonian(idp=self.idp, dtype=self.dtype, device=self.device)
-        elif method == "e3tb":
+        elif self.method == "e3tb":
             self.hamiltonian = E3Hamiltonian(idp=self.idp, dtype=self.dtype, device=self.device)
+
+        if self.overlap:
+            if self.method == "sktb":
+                self.overlap = SKHamiltonian(idp=self.idp, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
+            elif self.method == "e3tb":
+                self.overlap = E3Hamiltonian(idp=self.idp, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
         
 
 
     def forward(self, data: AtomicDataDict.Type):
 
         data = self.embedding(data)
-        data = self.node_prediction(data)
-        data = self.edge_prediction(data)
+        if self.overlap:
+            data[AtomicDataDict.EDGE_OVERLAP_KEY] = data[AtomicDataDict.EDGE_FEATURES_KEY]
+            data[AtomicDataDict.NODE_OVERLAP_KEY] = data[AtomicDataDict.NODE_FEATURES_KEY]
+        data = self.node_prediction_h(data)
+        data = self.edge_prediction_h(data)
         data = self.hamiltonian(data)
+
+        if self.overlap:
+            data = self.node_prediction_s(data)
+            data = self.edge_prediction_s(data)
+            data = self.overlap(data)
 
         return data
         

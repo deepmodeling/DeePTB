@@ -43,6 +43,7 @@ _DEFAULT_NODE_FIELDS: Set[str] = {
     AtomicDataDict.ATOM_TYPE_KEY,
     AtomicDataDict.FORCE_KEY,
     AtomicDataDict.PER_ATOM_ENERGY_KEY,
+    AtomicDataDict.NODE_OVERLAP_KEY,
     AtomicDataDict.BATCH_KEY,
 }
 _DEFAULT_EDGE_FIELDS: Set[str] = {

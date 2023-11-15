@@ -28,11 +28,14 @@ class E3Hamiltonian(torch.nn.Module):
             edge_field: str = AtomicDataDict.EDGE_FEATURES_KEY,
             node_field: str = AtomicDataDict.NODE_FEATURES_KEY,
             dtype: Union[str, torch.dtype] = torch.float32, 
-            device: Union[str, torch.device] = torch.device("cpu")
+            device: Union[str, torch.device] = torch.device("cpu"),
+            **kwargs,
             ) -> None:
         
         super(E3Hamiltonian, self).__init__()
 
+        if isinstance(dtype, str):
+            dtype = torch.getattr(dtype)
         self.dtype = dtype
         self.device = device
         if basis is not None:
@@ -190,9 +193,15 @@ class SKHamiltonian(torch.nn.Module):
         idp: Union[OrbitalMapper, None]=None,
         dtype: Union[str, torch.dtype] = torch.float32, 
         device: Union[str, torch.device] = torch.device("cpu"),
-        overlap: bool = False
+        edge_field: str = AtomicDataDict.EDGE_FEATURES_KEY,
+        node_field: str = AtomicDataDict.NODE_FEATURES_KEY,
+        strain: bool = False,
+        **kwargs,
         ) -> None:
         super(SKHamiltonian, self).__init__()
+
+        if isinstance(dtype, str):
+            dtype = torch.getattr(dtype)
         self.dtype = dtype
         self.device = device
 
@@ -208,6 +217,9 @@ class SKHamiltonian(torch.nn.Module):
         self.basis = self.idp.basis
         self.cgbasis = {}
         self.overlap = overlap
+        self.strain = strain
+        self.edge_field = edge_field
+        self.node_field = node_field
 
         self.idp.get_node_maps()
         self.idp.get_pair_maps()
@@ -247,14 +259,14 @@ class SKHamiltonian(torch.nn.Module):
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         # transform sk parameters to irreducible matrix element
 
-        assert data[AtomicDataDict.EDGE_FEATURES_KEY].shape[1] == self.idp.edge_reduced_matrix_element
-        assert data[AtomicDataDict.NODE_FEATURES_KEY].shape[1] == self.idp.node_reduced_matrix_element
+        assert data[self.edge_field].shape[1] == self.idp.edge_reduced_matrix_element
+        assert data[self.node_field].shape[1] == self.idp.node_reduced_matrix_element
 
-        n_edge = data[AtomicDataDict.EDGE_INDEX_KEY].shape[1]
-        n_node = data[AtomicDataDict.NODE_FEATURES_KEY].shape[0]
+        n_edge = data[self.edge_field].shape[0]
+        n_node = data[self.node_field].shape[0]
 
-        edge_features = data[AtomicDataDict.EDGE_FEATURES_KEY].clone()
-        data[AtomicDataDict.EDGE_FEATURES_KEY] = torch.zeros(n_edge, self.idp_e3.edge_reduced_matrix_element)
+        edge_features = data[self.edge_field].clone()
+        data[self.edge_field] = torch.zeros((n_edge, self.idp_e3.edge_reduced_matrix_element), dtype=self.dtype, device=self.device)
 
         # for hopping blocks
         for opairtype in self.idp.pairtype_maps.keys():
@@ -273,11 +285,11 @@ class SKHamiltonian(torch.nn.Module):
             rot_mat_R = Irrep(int(l2), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l2+1, 2l2+1)
             HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R).reshape(n_edge, -1) # shape (N, n_pair * 2l2+1 * 2l2+1)
             
-            data[AtomicDataDict.EDGE_FEATURES_KEY][:, self.idp_e3.pairtype_maps[opairtype]] = HR
+            data[self.edge_field][:, self.idp_e3.pairtype_maps[opairtype]] = HR
 
         # compute onsite blocks
-        node_feature = data[AtomicDataDict.NODE_FEATURES_KEY].clone()
-        data[AtomicDataDict.NODE_FEATURES_KEY] = torch.zeros(n_node, self.idp_e3.node_reduced_matrix_element)
+        node_feature = data[self.node_field].clone()
+        data[self.node_field] = torch.zeros(n_node, self.idp_e3.node_reduced_matrix_element)
 
         for opairtype in self.idp.node_maps.keys():
             # currently, "a-b" and "b-a" orbital pair are computed seperately, it is able to combined further
@@ -287,16 +299,16 @@ class SKHamiltonian(torch.nn.Module):
                 continue # off-diagonal term in sktb format
             else:
                 l = anglrMId[re.findall(r"[a-z]", o1)[0]]
+
                 skparam = node_feature[:, self.idp.node_maps[opairtype]].reshape(n_node, -1, 1)
-                
                 HR = torch.eye(2*l+1, dtype=self.dtype, device=self.device)[None, None, :, :] * skparam[:,:, None, :] # shape (N, n_pair, 2l1+1, 2l2+1)
                 # the onsite block doesnot have rotation
 
-                data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp_e3.node_maps[opairtype]] = HR.reshape(n_node, -1)
+                data[self.node_field][:, self.idp_e3.node_maps[opairtype]] = HR.reshape(n_node, -1)
 
         # compute if strain effect is included
         # this is a little wired operation, since it acting on somekind of a edge(strain env) feature, and summed up to return a node feature.
-        if data.get(AtomicDataDict.ONSITENV_FEATURES_KEY, None) is not None:
+        if self.strain:
             n_onsitenv = len(data[AtomicDataDict.ONSITENV_FEATURES_KEY])
             for opair in self.idp.node_maps.keys(): # save all env direction and pair direction like sp and ps, but only get sp
                 l1, l2 = anglrMId[opair[1]], anglrMId[opair[4]]
@@ -317,8 +329,7 @@ class SKHamiltonian(torch.nn.Module):
 
                 HR = scatter(src=HR, index=data[AtomicDataDict.ONSITENV_INDEX_KEY][0], dim=0, reduce="sum") # shape (n_node, n_pair, 2l1+1, 2l2+1)
                 # A-B o1-o2 (A-B o2-o1)= (B-A o1-o2)
-                print(HR.shape, opairtype, self.idp_e3.node_maps[opair])
-                data[AtomicDataDict.NODE_FEATURES_KEY][:, self.idp_e3.node_maps[opair]] += HR.flatten(1, len(HR.shape)-1) # the index type [node/pair] should align with the index of for loop
+                data[self.node_field][:, self.idp_e3.node_maps[opair]] += HR.flatten(1, len(HR.shape)-1) # the index type [node/pair] should align with the index of for loop
             
         return data
 

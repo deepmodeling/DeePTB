@@ -14,7 +14,7 @@ import numpy as np
 from .sktb import OnsiteFormula, bond_length_list, HoppingFormula
 from dptb.utils.constants import atomic_num_dict_r
 
-class SKTB(torch.nn.Module):
+class NNSK(torch.nn.Module):
     def __init__(
             self,
             basis: Dict[str, Union[str, list]]=None,
@@ -28,7 +28,7 @@ class SKTB(torch.nn.Module):
             w: Union[float, torch.Tensor] = 1.0,
             ) -> None:
         
-        super(SKTB, self).__init__()
+        super(NNSK, self).__init__()
 
         if basis is None:
             self.idp = OrbitalMapper(basis, method="sktb")
@@ -126,6 +126,9 @@ class SKTB(torch.nn.Module):
                 atomic_numbers=data[AtomicDataDict.ATOMIC_NUMBERS_KEY], 
                 nn_onsite_paras=self.onsite_param
                 )
+            
+        if hasattr(self, "overlap"):
+            data[AtomicDataDict.NODE_OVERLAP_KEY] = torch.ones_like(data[AtomicDataDict.NODE_OVERLAP_KEY])
         
         # compute strain
         if self.onsite.functype == "strain":
@@ -144,5 +147,10 @@ class SKTB(torch.nn.Module):
             data[AtomicDataDict.ONSITENV_FEATURES_KEY] = onsitenv_params[onsitenv_index]
 
         return data
+    
+    def from_reference_model(cls, ref_model: torch.nn.Module, nnsk_options):
+        # the mapping from the parameters of the ref_model and the current model can be found using
+        # reference model's idp and current idp
+        pass
 
         
