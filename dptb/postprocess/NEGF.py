@@ -217,14 +217,14 @@ class NEGF(object):
                     for ll in leads:
                         if ll.startswith("lead"):
                             getattr(self.deviceprop, ll).self_energy(
-                                e=e, 
+                                energy=e, 
                                 kpoint=k, 
                                 eta_lead=self.jdata["eta_lead"],
                                 method=self.jdata["sgf_solver"]
                                 )
                             
                     self.deviceprop.cal_green_function(
-                        e=e,
+                        energy=e,
                         kpoint=k, 
                         eta_device=self.jdata["eta_device"], 
                         block_tridiagonal=self.block_tridiagonal
