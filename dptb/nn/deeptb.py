@@ -35,6 +35,7 @@ class DPTB(nn.Module):
             idp: Union[OrbitalMapper, None]=None,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
+            **kwargs,
     ):
         """The top level DeePTB model class.
 

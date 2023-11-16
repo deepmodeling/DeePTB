@@ -13,6 +13,7 @@ from dptb.data import AtomicDataDict
 import numpy as np
 from .sktb import OnsiteFormula, bond_length_list, HoppingFormula
 from dptb.utils.constants import atomic_num_dict_r
+from dptb.nn.hamiltonian import SKHamiltonian
 
 class NNSK(torch.nn.Module):
     def __init__(
@@ -26,46 +27,51 @@ class NNSK(torch.nn.Module):
             device: Union[str, torch.device] = torch.device("cpu"),
             rc: Union[float, torch.Tensor] = 5.0,
             w: Union[float, torch.Tensor] = 1.0,
+            **kwargs,
             ) -> None:
         
         super(NNSK, self).__init__()
 
-        if basis is None:
+        if isinstance(dtype, str):
+            dtype = getattr(torch, dtype)
+        self.dtype = dtype
+        self.device = device
+
+        if basis is not None:
             self.idp = OrbitalMapper(basis, method="sktb")
             if idp is not None:
                 assert idp == self.idp, "The basis of idp and basis should be the same."
         else:
-            assert self.idp.method == "sktb", "The OrbitalMapper should be initialized with method='sktb'"
+            assert idp is not None, "Either basis or idp should be provided."
             self.idp = idp
             
         self.basis = self.idp.basis
         self.idp.get_node_maps()
         self.idp.get_pair_maps()
 
-        self.dtype = dtype
-        self.device = device
 
         # init_onsite, hopping, overlap formula
 
-        self.onsite = OnsiteFormula(idp=self.idp, functype=onsite, dtype=dtype, device=device)
-        self.hopping = HoppingFormula(functype=hopping)
+        self.onsite_fn = OnsiteFormula(idp=self.idp, functype=onsite, dtype=dtype, device=device)
+        self.hopping_fn = HoppingFormula(functype=hopping)
         if overlap:
-            self.overlap = HoppingFormula(functype=hopping, overlap=True)
+            self.overlap_fn = HoppingFormula(functype=hopping, overlap=True)
         self.rc = rc
         self.w = w
 
+        print(overlap)
         
         # init_param
-        self.hopping_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element, self.hopping.num_paras], dtype=self.dtype, device=self.device))
+        self.hopping_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device))
         if overlap:
-            self.overlap_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element, self.hopping.num_paras], dtype=self.dtype, device=self.device))
+            self.overlap_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device))
 
         if onsite == "strain":
             self.onsite_param = []
         elif onsite == "none":
             self.onsite_param = None
         else:
-            self.onsite_param = torch.nn.Parameter(torch.randn([len(self.idp.type_names), self.idp.node_reduced_matrix_element, self.onsite.num_paras], dtype=self.dtype, device=self.device))
+            self.onsite_param = torch.nn.Parameter(torch.randn([len(self.idp.type_names), self.idp.node_reduced_matrix_element, self.onsite_fn.num_paras], dtype=self.dtype, device=self.device))
         
         if onsite == "strain":
             # AB [ss, sp, sd, ps, pp, pd, ds, dp, dd]
@@ -73,7 +79,10 @@ class NNSK(torch.nn.Module):
             # but need to map to all pairs and all orbital pairs like AB, AA, BB, BA for [ss, sp, sd, ps, pp, pd, ds, dp, dd]
             # with this map: BA[sp, sd] = AB[ps, ds]
             self.strain_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element], dtype=self.dtype, device=self.device))
-    
+        self.hamiltonian = SKHamiltonian(idp=self.idp, dtype=self.dtype, device=self.device)
+        if overlap:
+            self.overlap = SKHamiltonian(idp=self.idp, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
+
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         # get the env and bond from the data
         # calculate the sk integrals
@@ -88,7 +97,7 @@ class NNSK(torch.nn.Module):
         edge_number = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.EDGE_INDEX_KEY]].reshape(2, -1)
         edge_index = self.idp.transform_reduced_bond(*edge_number)
         r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number].sum(0)
-        data[AtomicDataDict.EDGE_FEATURES_KEY] = self.hopping.get_skhij(
+        data[AtomicDataDict.EDGE_FEATURES_KEY] = self.hopping_fn.get_skhij(
             rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
             paraArray=self.hopping_param[edge_index], # [N_edge, n_pairs, n_paras],
             rcut=self.rc,
@@ -103,7 +112,7 @@ class NNSK(torch.nn.Module):
                     equal_orbpair[slices] = 1.0
             paraconst = edge_number[0].eq(edge_number[1]).float().view(-1, 1) * equal_orbpair.unsqueeze(0)
 
-            data[AtomicDataDict.EDGE_OVERLAP_KEY] = self.overlap.get_sksij(
+            data[AtomicDataDict.EDGE_OVERLAP_KEY] = self.overlap_fn.get_sksij(
                 rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
                 paraArray=self.overlap_param[edge_index],
                 paraconst=paraconst,
@@ -112,8 +121,8 @@ class NNSK(torch.nn.Module):
                 r0=r0,
                 )
 
-        if self.onsite.functype == "NRL":
-            data[AtomicDataDict.NODE_FEATURES_KEY] = self.onsite.get_skEs(
+        if self.onsite_fn.functype == "NRL":
+            data[AtomicDataDict.NODE_FEATURES_KEY] = self.onsite_fn.get_skEs(
                 atomic_numbers=data[AtomicDataDict.ATOMIC_NUMBERS_KEY],
                 onsitenv_index=data[AtomicDataDict.ONSITENV_INDEX_KEY], 
                 onsitenv_length=data[AtomicDataDict.ONSITENV_LENGTH_KEY], 
@@ -122,7 +131,7 @@ class NNSK(torch.nn.Module):
                 w=self.w
                 )
         else:
-            data[AtomicDataDict.NODE_FEATURES_KEY] = self.onsite.get_skEs(
+            data[AtomicDataDict.NODE_FEATURES_KEY] = self.onsite_fn.get_skEs(
                 atomic_numbers=data[AtomicDataDict.ATOMIC_NUMBERS_KEY], 
                 nn_onsite_paras=self.onsite_param
                 )
@@ -131,7 +140,7 @@ class NNSK(torch.nn.Module):
             data[AtomicDataDict.NODE_OVERLAP_KEY] = torch.ones_like(data[AtomicDataDict.NODE_OVERLAP_KEY])
         
         # compute strain
-        if self.onsite.functype == "strain":
+        if self.onsite_fn.functype == "strain":
             onsitenv_number = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.ONSITENV_INDEX_KEY]].reshape(2,-1)
             onsitenv_index = self.idp.transform_reduced_bond(*onsitenv_number)
             reflect_index = self.idp.transform_reduced_bond(*onsitenv_number.flip(0))
@@ -146,11 +155,20 @@ class NNSK(torch.nn.Module):
             
             data[AtomicDataDict.ONSITENV_FEATURES_KEY] = onsitenv_params[onsitenv_index]
 
+        # sk param to hamiltonian and overlap
+        data = self.hamiltonian(data)
+        if hasattr(self, "overlap"):
+            data = self.overlap(data)
+        
         return data
     
     def from_reference_model(cls, ref_model: torch.nn.Module, nnsk_options):
         # the mapping from the parameters of the ref_model and the current model can be found using
         # reference model's idp and current idp
+        pass
+
+    def from_model_v1(cls, v1_model: torch.nn.Module, nnsk_options):
+        # could support json file and .pth file checkpoint of nnsk
         pass
 
         

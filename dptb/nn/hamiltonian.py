@@ -216,7 +216,6 @@ class SKHamiltonian(torch.nn.Module):
         self.idp_e3 = OrbitalMapper(self.idp.basis, method="e3tb")
         self.basis = self.idp.basis
         self.cgbasis = {}
-        self.overlap = overlap
         self.strain = strain
         self.edge_field = edge_field
         self.node_field = node_field

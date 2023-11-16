@@ -1,7 +1,7 @@
 import torch
 import logging
 import numpy as np
-from dptb.nnops.base_trainer import Trainer
+from dptb.nnops.base_trainer import BaseTrainer
 from dptb.utils.tools import get_uniq_symbol, \
     get_lr_scheduler, get_optimizer, j_must_have
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
@@ -10,7 +10,7 @@ import json
 
 log = logging.getLogger(__name__)
 
-class NNSKTrainer(Trainer):
+class NNSKTrainer(BaseTrainer):
     def __init__(self, run_opt, jdata) -> None:
         super(NNSKTrainer, self).__init__(jdata)
         self.name = "nnsk"

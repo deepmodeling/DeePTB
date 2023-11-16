@@ -6,11 +6,11 @@ from dptb.utils.tools import get_uniq_symbol, get_lr_scheduler, \
 get_optimizer, nnsk_correction, j_must_have
 
 from dptb.nnops.trainloss import lossfunction
-from dptb.nnops.base_trainer import Trainer
+from dptb.nnops.base_trainer import BaseTrainer
 
 log = logging.getLogger(__name__)
 
-class DPTBTrainer(Trainer):
+class DPTBTrainer(BaseTrainer):
 
     def __init__(self, run_opt, jdata) -> None:
         super(DPTBTrainer, self).__init__(jdata)
