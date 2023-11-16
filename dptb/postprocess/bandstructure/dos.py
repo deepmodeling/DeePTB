@@ -21,7 +21,7 @@ class doscalc (object):
         self.dos_plot_options = jdata
         self.results_path = run_opt.get('results_path')
         self.apiH.update_struct(self.structase)
-
+        self.use_gui = self.dos_plot_options.get("use_gui", False)
 
     def get_dos(self):
         self.mesh_grid = self.dos_plot_options['mesh_grid']
@@ -59,7 +59,8 @@ class doscalc (object):
         plt.tick_params(direction='in')
         plt.tight_layout()
         plt.savefig(f'{self.results_path}/dos.png',dpi=300)
-        plt.show()
+        if self.use_gui:
+            plt.show()
 
 
     def _calc_dos(self, sigma=0.1, npoints=100,  width=None, updata=False, kpoints=None):
@@ -123,6 +124,8 @@ class pdoscalc (object):
         for itype in apiHrk.structure.proj_atom_symbols:
             norbs = apiHrk.structure.proj_atomtype_norbs[itype]
             self.num_orbs_per_atom.append(norbs)
+        
+        self.use_gui = self.pdos_plot_options.get("use_gui", False)
 
     def get_pdos(self):
         self.mesh_grid = self.pdos_plot_options['mesh_grid']
@@ -183,7 +186,8 @@ class pdoscalc (object):
         plt.tick_params(direction='in')
         plt.tight_layout()
         plt.savefig(f'{self.results_path}/proj_dos.png',dpi=300)
-        plt.show()
+        if self.use_gui:
+            plt.show()
 
 
     def _calc_pdos(self, sigma=0.1, npoints=100,  width=None, updata=False, kpoints=None):

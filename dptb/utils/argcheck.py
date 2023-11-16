@@ -593,6 +593,7 @@ def normalize_run(data):
     doc_structure = ""
     doc_use_correction = ""
     doc_overlap = ""
+    doc_gui = ""
  
     args = [
         Argument("onsite_cutoff", float, optional = False, doc = doc_onsite_cutoff),
@@ -621,6 +622,7 @@ def normalize_run(data):
         mo,
         Argument("structure", [str,None], optional=True, default=None, doc = doc_structure),
         Argument("use_correction", [str,None], optional=True, default=None, doc = doc_use_correction),
+        Argument("use_gui", bool, optional=True, default=False, doc = doc_gui),
         Argument("task_options", dict, sub_fields=[], optional=True, sub_variants=[task_options()], doc = doc_property)
     ]
 
