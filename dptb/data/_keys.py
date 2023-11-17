@@ -86,6 +86,8 @@ ONSITENV_CUTOFF_KEY: Final[str] = "onsitenv_cutoff"
 EDGE_ENERGY_KEY: Final[str] = "edge_energy"
 EDGE_OVERLAP_KEY: Final[str] = "edge_overlap"
 NODE_OVERLAP_KEY: Final[str] = "node_overlap"
+EDGE_HAMILTONIAN_KEY: Final[str] = "edge_hamiltonian"
+NODE_HAMILTONIAN_KEY: Final[str] = "node_hamiltonian"
 
 NODE_FEATURES_KEY: Final[str] = "node_features"
 NODE_ATTRS_KEY: Final[str] = "node_attrs"

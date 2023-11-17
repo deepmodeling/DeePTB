@@ -102,13 +102,6 @@ class _BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
         self.epoch = 1
 
     @abstractmethod
-    def from_scratch(self):
-        '''
-         init trainer from scratch
-        '''
-        pass
-
-    @abstractmethod
     def restart(self, checkpoint):
         """init trainer from disk
         """

@@ -29,7 +29,7 @@ class Trainer(_BaseTrainer):
         self.name = "dptb"
         
         # init the object
-        self.model = model
+        self.model = model.to(device)
         self.optimizer = get_optimizer(self.model.parameters(), **train_options["optimizer"])
         self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, last_epoch=self.epoch, **self.train_options["lr_scheduler"])  # add optmizer
         
@@ -105,7 +105,6 @@ class Trainer(_BaseTrainer):
     def train(self) -> None:
 
         for ibatch in self.dataloader:
-            self.loss_options.update(processor.bandinfo)
             # iter with different structure
 
             def closure():
@@ -119,7 +118,7 @@ class Trainer(_BaseTrainer):
                     for irefbatch in range(self.ref_loader):
                         irefbatch = self.calc(irefbatch)
                         loss += (self.batch_size * 1.0 / (self.reference_batch_size * (1+self.n_reference_sets))) * \
-                                    self.train_lossfunc(ref_pred, ref_label, **self.reference_loss_options)
+                                    self.train_lossfunc(ibatch, **self.reference_loss_options)
                 
                 loss.backward()
                 self.train_loss = loss.detach()

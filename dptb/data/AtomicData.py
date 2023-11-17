@@ -35,6 +35,7 @@ _DEFAULT_LONG_FIELDS: Set[str] = {
     AtomicDataDict.ATOM_TYPE_KEY,
     AtomicDataDict.BATCH_KEY,
 }
+
 _DEFAULT_NODE_FIELDS: Set[str] = {
     AtomicDataDict.POSITIONS_KEY,
     AtomicDataDict.NODE_FEATURES_KEY,
@@ -43,9 +44,11 @@ _DEFAULT_NODE_FIELDS: Set[str] = {
     AtomicDataDict.ATOM_TYPE_KEY,
     AtomicDataDict.FORCE_KEY,
     AtomicDataDict.PER_ATOM_ENERGY_KEY,
+    AtomicDataDict.NODE_HAMILTONIAN_KEY,
     AtomicDataDict.NODE_OVERLAP_KEY,
     AtomicDataDict.BATCH_KEY,
 }
+
 _DEFAULT_EDGE_FIELDS: Set[str] = {
     AtomicDataDict.EDGE_CELL_SHIFT_KEY,
     AtomicDataDict.EDGE_VECTORS_KEY,
@@ -56,6 +59,7 @@ _DEFAULT_EDGE_FIELDS: Set[str] = {
     AtomicDataDict.EDGE_CUTOFF_KEY,
     AtomicDataDict.EDGE_ENERGY_KEY,
     AtomicDataDict.EDGE_OVERLAP_KEY,
+    AtomicDataDict.EDGE_HAMILTONIAN_KEY,
     AtomicDataDict.EDGE_TYPE_KEY,
 }
 
@@ -67,7 +71,6 @@ _DEFAULT_ENV_FIELDS: Set[str] = {
     AtomicDataDict.ENV_EMBEDDING_KEY,
     AtomicDataDict.ENV_FEATURES_KEY,
     AtomicDataDict.ENV_CUTOFF_KEY,
-    
 }
 
 _DEFAULT_ONSITENV_FIELDS: Set[str] = {
@@ -79,6 +82,7 @@ _DEFAULT_ONSITENV_FIELDS: Set[str] = {
     AtomicDataDict.ONSITENV_FEATURES_KEY,
     AtomicDataDict.ONSITENV_CUTOFF_KEY,
 }
+
 _DEFAULT_GRAPH_FIELDS: Set[str] = {
     AtomicDataDict.TOTAL_ENERGY_KEY,
     AtomicDataDict.STRESS_KEY,
@@ -91,6 +95,7 @@ _DEFAULT_GRAPH_FIELDS: Set[str] = {
     AtomicDataDict.OVERLAP_KEY, # new
     AtomicDataDict.ENERGY_EIGENVALUE_KEY # new
 }
+
 _NODE_FIELDS: Set[str] = set(_DEFAULT_NODE_FIELDS)
 _EDGE_FIELDS: Set[str] = set(_DEFAULT_EDGE_FIELDS)
 _ENV_FIELDS: Set[str] = set(_DEFAULT_ENV_FIELDS)
@@ -350,7 +355,6 @@ class AtomicData(Data):
         strict_self_interaction: bool = True,
         cell=None,
         pbc: Optional[PBC] = None,
-        reduce: Optional[bool] = True,
         er_max: Optional[float] = None,
         oer_max: Optional[float] = None,
         **kwargs,
@@ -387,8 +391,8 @@ class AtomicData(Data):
         else:
             assert len(pbc) == 3
 
-        # TODO: Need to add edge features and edge index.
-        
+        # TODO: We can only compute the edge vector one times with the largest radial distance among [r_max, er_max, oer_max]
+
         pos = torch.as_tensor(pos, dtype=torch.get_default_dtype())
 
         edge_index, edge_cell_shift, cell = neighbor_list_and_relative_vec(
@@ -397,7 +401,7 @@ class AtomicData(Data):
             self_interaction=self_interaction,
             strict_self_interaction=strict_self_interaction,
             cell=cell,
-            reduce=reduce,
+            reduce=True,
             atomic_numbers=kwargs.get("atomic_numbers", None),
             pbc=pbc,
         )

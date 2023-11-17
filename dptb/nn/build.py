@@ -1,37 +1,73 @@
-from dptb.nn.deeptb import DPTB
+from dptb.nn.deeptb import DPTB, MIX
+import logging
 from dptb.nn.nnsk import NNSK
+import torch
 from dptb.utils.tools import j_must_have
 
-def build_model(run_options, model_options, common_options):
+log = logging.getLogger(__name__)
+
+def build_model(run_options, model_options=None, common_options=None):
     """
     The build model method should composed of the following steps:
         1. process the configs from user input and the config from the checkpoint (if any).
         2. construct the model based on the configs.
         3. process the config dict for the output dict.
+        run_opt = {
+        "init_model": init_model,
+        "restart": restart,
+        "freeze": freeze,
+        "log_path": log_path,
+        "log_level": log_level,
+        "use_correction": use_correction
+    }
     """
-
     # this is the 
     # process the model_options
-    
-    model = None
+    assert not all((run_options.get("init_model"), run_options.get("restart"))), "You can only choose one of the init_model and restart options."
+    if any((run_options.get("init_model"), run_options.get("restart"))):
+        from_scratch = False
+        checkpoint = run_options.get("init_model") or run_options.get("restart")
+    else:
+        from_scratch = True
+        if not all((model_options, common_options)):
+            logging.error("You need to provide model_options and common_options when you are initializing a model from scratch.")
+            raise ValueError
 
+    # decide whether to initialize a mixed model, or a deeptb model, or a nnsk model
     init_deeptb = False
     init_nnsk = False
-    # check if the model is deeptb or nnsk
-    if len(model_options.get("embedding")) != 0 and len(model_options.get("prediction")) != 0:
+    init_mixed = False
+    if all((all((model_options.get("embedding"), model_options.get("prediction"))), model_options.get("nnsk"))):
+        init_mixed = True
+    elif all((model_options.get("embedding"), model_options.get("prediction"))):
         init_deeptb = True
-    if len(model_options.get("nnsk")) != 0:
+    elif model_options.get("nnsk"):
         init_nnsk = True
+    else:
+        log.error("Model cannot be built without either one of the terms in model_options (embedding+prediction/nnsk).")
+        raise ValueError
+
+    assert int(init_mixed) + int(init_deeptb) + int(init_nnsk) == 1, "You can only choose one of the mixed, deeptb, and nnsk options."
+    # check if the model is deeptb or nnsk
 
     # init deeptb
-    if init_deeptb:
-        deeptb_model = DPTB(**model_options, **common_options)
+    if from_scratch:
+        if init_deeptb:
+            model = DPTB(**model_options, **common_options)
 
+        if init_nnsk:
+            model = NNSK(**model_options["nnsk"], **common_options)
 
-    # init nnsk
-    if init_nnsk:
-        nnsk_options = j_must_have
-        nnsk_model = NNSK(**nnsk_options, **common_options)
-
+        if init_mixed:
+            model = MIX(**model_options, **common_options)
+            
+    else:
+        # load the model from the checkpoint
+        if init_deeptb:
+            model = DPTB.from_reference(checkpoint)
+        if init_nnsk:
+            model = NNSK.from_reference(checkpoint, **model_options["nnsk"])
+        if init_mixed:
+            model = MIX.from_reference(checkpoint)
     
     return model

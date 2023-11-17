@@ -13,7 +13,8 @@ class AtomicLinear(torch.nn.Module):
             self, 
             in_features: int,
             out_features: int, 
-            field = AtomicDataDict.NODE_FEATURES_KEY,
+            in_field = AtomicDataDict.NODE_FEATURES_KEY,
+            out_field = AtomicDataDict.NODE_FEATURES_KEY,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu")
             ):
@@ -23,10 +24,11 @@ class AtomicLinear(torch.nn.Module):
         if isinstance(dtype, str):
             dtype = dtype_dict[dtype]
         self.linear = Linear(in_features, out_features, dtype=dtype, device=device)
-        self.field = field
+        self.in_field = in_field
+        self.out_field = out_field
     
     def forward(self, data: AtomicDataDict.Type):
-        data[self.field] = self.linear(data[self.field])
+        data[self.out_field] = self.linear(data[self.in_field])
         return data
     
 class AtomicMLP(torch.nn.Module):
@@ -35,24 +37,27 @@ class AtomicMLP(torch.nn.Module):
             in_features, 
             hidden_features, 
             out_features,
-            field = AtomicDataDict.NODE_FEATURES_KEY,
+            in_field = AtomicDataDict.NODE_FEATURES_KEY,
+            out_field = AtomicDataDict.NODE_FEATURES_KEY,
             activation: Union[str, Callable[[Tensor], Tensor]] = F.relu, 
             if_batch_normalized: bool = False, 
             device: Union[str, torch.device] = torch.device('cpu'), 
             dtype: Union[str, torch.dtype] = torch.float32
             ):
         super(AtomicMLP, self).__init__()
-        self.in_layer = AtomicLinear(
+        if isinstance(device, str):
+            device = torch.device(device)
+        if isinstance(dtype, str):
+            dtype = dtype_dict[dtype]
+        self.in_layer = Linear(
             in_features=in_features, 
             out_features=hidden_features, 
-            field = field,
             device=device, 
             dtype=dtype)
         
-        self.out_layer = AtomicLinear(
+        self.out_layer = Linear(
             in_features=hidden_features, 
-            out_features=out_features, 
-            field=field,
+            out_features=out_features,
             device=device, 
             dtype=dtype)
 
@@ -65,7 +70,8 @@ class AtomicMLP(torch.nn.Module):
         else:
             self.activation = activation
 
-        self.field = field
+        self.in_field = in_field
+        self.out_field = out_field
 
     def __setstate__(self, state):
         if 'activation' not in state:
@@ -73,21 +79,23 @@ class AtomicMLP(torch.nn.Module):
         super(AtomicMLP, self).__setstate__(state)
 
     def forward(self, data: AtomicDataDict.Type):
-        data = self.in_layer(data)
+        x = self.in_layer(data[self.in_field])
         if self.if_batch_normalized:
-            data[self.field] = self.bn1(data[self.field])
-        data[self.field] = self.activation(data[self.field])
-        data = self.out_layer(data)
+            x = self.bn1(x)
+        x = self.activation(x)
+        x = self.out_layer(x)
         if self.if_batch_normalized:
-            data[self.field] = self.bn2(data[self.field])
+            x = self.bn2(x)
+        data[self.out_field] = x
 
         return data
     
 class AtomicFFN(torch.nn.Module):
     def __init__(
-        self, 
+        self,
         config: List[dict],
-        field: AtomicDataDict.NODE_FEATURES_KEY,
+        in_field: AtomicDataDict.NODE_FEATURES_KEY,
+        out_field: AtomicDataDict.NODE_FEATURES_KEY,
         activation: Union[str, Callable[[Tensor], Tensor]] = F.relu,
         if_batch_normalized: bool = False, 
         device: Union[str, torch.device] = torch.device('cpu'), 
@@ -96,30 +104,46 @@ class AtomicFFN(torch.nn.Module):
         super(AtomicFFN, self).__init__()
         self.layers = torch.nn.ModuleList([])
         for kk in range(len(config)-1):
-            self.layers.append(
-                AtomicResBlock(
-                    **config[kk], 
-                    field=field,
-                    if_batch_normalized=if_batch_normalized, 
-                    activation=activation, 
-                    device=device, 
-                    dtype=dtype
+            if kk == 0:
+                self.layers.append(
+                    AtomicMLP(
+                        **config[kk], 
+                        in_field=in_field,
+                        out_field=out_field,
+                        if_batch_normalized=if_batch_normalized, 
+                        activation=activation, 
+                        device=device, 
+                        dtype=dtype
+                        )
                     )
-                )
+            else:
+                self.layers.append(
+                    AtomicMLP(
+                        **config[kk], 
+                        in_field=out_field,
+                        out_field=out_field,
+                        if_batch_normalized=if_batch_normalized, 
+                        activation=activation, 
+                        device=device, 
+                        dtype=dtype
+                        )
+                    )
         if isinstance(activation, str):
             self.activation = _get_activation_fn(activation)
         else:
             self.activation = activation
 
         if config[-1].get('hidden_features') is None:
-            self.out_layer = AtomicLinear(in_features=config[-1]['in_features'], out_features=config[-1]['out_features'], field=field, device=device, dtype=dtype)
+            self.out_layer = AtomicLinear(in_features=config[-1]['in_features'], out_features=config[-1]['out_features'], in_field=out_field, out_field=out_field, device=device, dtype=dtype)
         else:
-            self.out_layer = AtomicMLP(**config[-1], field=field,  if_batch_normalized=False, activation=activation, device=device, dtype=dtype)
+            self.out_layer = AtomicMLP(**config[-1], in_field=out_field, out_field=out_field,  if_batch_normalized=False, activation=activation, device=device, dtype=dtype)
+        self.out_field = out_field
+        self.in_field = in_field
 
     def forward(self, data: AtomicDataDict.Type):
         for layer in self.layers:
             data = layer(data)
-            data[self.field] = self.activation(data[self.field])
+            data[self.out_field] = self.activation(data[self.out_field])
 
         return self.out_layer(data)
     
@@ -129,22 +153,23 @@ class AtomicResBlock(torch.nn.Module):
                  in_features: int, 
                  hidden_features: int, 
                  out_features: int, 
-                 field = AtomicDataDict.NODE_FEATURES_KEY,
+                 in_field = AtomicDataDict.NODE_FEATURES_KEY,
+                 out_field = AtomicDataDict.NODE_FEATURES_KEY,
                  activation: Union[str, Callable[[Tensor], Tensor]] = F.relu, 
                  if_batch_normalized: bool=False, 
                  device: Union[str, torch.device] = torch.device('cpu'), 
                  dtype: Union[str, torch.dtype] = torch.float32
             ):
         super(AtomicResBlock, self).__init__()
-        self.layer = AtomicMLP(in_features, hidden_features, out_features, field=field, if_batch_normalized=if_batch_normalized, device=device, dtype=dtype, activation=activation)
+        self.in_field = in_field
+        self.out_field = out_field
+        self.layer = AtomicMLP(in_features, hidden_features, out_features, in_field=in_field, out_field=out_field, if_batch_normalized=if_batch_normalized, device=device, dtype=dtype, activation=activation)
         self.out_features = out_features
         self.in_features = in_features
         if isinstance(activation, str):
             self.activation = _get_activation_fn(activation)
         else:
             self.activation = activation
-
-        self.field = field
 
     def __setstate__(self, state):
         if 'activation' not in state:
@@ -153,16 +178,16 @@ class AtomicResBlock(torch.nn.Module):
 
     def forward(self, data: AtomicDataDict.Type):
         if self.in_features < self.out_features:
-            res = F.interpolate(data[self.field].unsqueeze(1), size=[self.out_features]).squeeze(1)
+            res = F.interpolate(data[self.in_field].unsqueeze(1), size=[self.out_features]).squeeze(1)
         elif self.in_features == self.out_features:
-            res =  data[self.field]
+            res =  data[self.in_field]
         else:
-            res = F.adaptive_avg_pool1d(input=data[self.field], output_size=self.out_features)
+            res = F.adaptive_avg_pool1d(input=data[self.in_field], output_size=self.out_features)
 
         data = self.layer(data)
-        data[self.field] = data[self.field] + res
+        data[self.out_field] = data[self.out_field] + res
 
-        data[self.field] = self.activation(data[self.field])
+        data[self.out_field] = self.activation(data[self.out_field])
 
         return data
 
@@ -173,7 +198,8 @@ class AtomicResNet(torch.nn.Module):
     def __init__(
             self, 
             config: List[dict],
-            field: AtomicDataDict.NODE_FEATURES_KEY,
+            in_field: AtomicDataDict.NODE_FEATURES_KEY,
+            out_field: AtomicDataDict.NODE_FEATURES_KEY,
             activation: Union[str, Callable[[Tensor], Tensor]] = F.relu,
             if_batch_normalized: bool = False, 
             device: Union[str, torch.device] = torch.device('cpu'), 
@@ -199,18 +225,34 @@ class AtomicResNet(torch.nn.Module):
             _description_, by default torch.float32
         """
         super(AtomicResNet, self).__init__()
+        self.in_field = in_field
+        self.out_field = out_field
         self.layers = torch.nn.ModuleList([])
         for kk in range(len(config)-1):
-            self.layers.append(
-                AtomicResBlock(
-                    **config[kk], 
-                    field=field,
-                    if_batch_normalized=if_batch_normalized, 
-                    activation=activation, 
-                    device=device, 
-                    dtype=dtype
+            if kk == 0:
+                self.layers.append(
+                    AtomicResBlock(
+                        **config[kk], 
+                        in_field=in_field,
+                        out_field=out_field,
+                        if_batch_normalized=if_batch_normalized, 
+                        activation=activation, 
+                        device=device, 
+                        dtype=dtype
+                        )
                     )
-                )
+            else:
+                self.layers.append(
+                    AtomicResBlock(
+                        **config[kk], 
+                        in_field=out_field,
+                        out_field=out_field,
+                        if_batch_normalized=if_batch_normalized, 
+                        activation=activation, 
+                        device=device, 
+                        dtype=dtype
+                        )
+                    )
         if isinstance(activation, str):
             self.activation = _get_activation_fn(activation)
         else:
@@ -218,15 +260,14 @@ class AtomicResNet(torch.nn.Module):
 
 
         if config[-1].get('hidden_feature') is None:
-            self.out_layer = AtomicLinear(in_features=config[-1]['in_features'], out_features=config[-1]['out_features'], field=field, device=device, dtype=dtype)
+            self.out_layer = AtomicLinear(in_features=config[-1]['in_features'], out_features=config[-1]['out_features'], in_field=out_field, out_field=out_field, device=device, dtype=dtype)
         else:
-            self.out_layer = AtomicMLP(**config[-1],  if_batch_normalized=False, field=field, activation=activation, device=device, dtype=dtype)
+            self.out_layer = AtomicMLP(**config[-1],  if_batch_normalized=False, in_field=in_field, out_field=out_field, activation=activation, device=device, dtype=dtype)
 
-        self.field = field
     def forward(self, data: AtomicDataDict.Type):
         for layer in self.layers:
             data = layer(data)
-            data[self.field] = self.activation(data[self.field])
+            data[self.out_field] = self.activation(data[self.out_field])
 
         return self.out_layer(data)
     

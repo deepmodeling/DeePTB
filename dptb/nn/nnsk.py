@@ -162,12 +162,14 @@ class NNSK(torch.nn.Module):
         
         return data
     
-    def from_reference_model(cls, ref_model: torch.nn.Module, nnsk_options):
+    @classmethod
+    def from_reference(cls, checkpoint, nnsk_options: Dict=None):
         # the mapping from the parameters of the ref_model and the current model can be found using
         # reference model's idp and current idp
         pass
 
-    def from_model_v1(cls, v1_model: torch.nn.Module, nnsk_options):
+    @classmethod
+    def from_model_v1(self, v1_model: torch.nn.Module, nnsk_options):
         # could support json file and .pth file checkpoint of nnsk
         pass
 
