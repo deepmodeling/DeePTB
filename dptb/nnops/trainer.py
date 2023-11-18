@@ -5,10 +5,12 @@ get_optimizer, j_must_have
 from dptb.nnops.trainloss import lossfunction
 from dptb.nnops.base_trainer import _BaseTrainer
 from typing import Union, Optional
-from dptb.data import AtomicDataset, DataLoader, build_dataset
+from dptb.data import AtomicDataset, DataLoader, build_dataset, AtomicData
 from dptb.nn import build_model
+from _loss import Loss
 
 log = logging.getLogger(__name__)
+#TODO: complete the log output for initilizing the trainer
 
 class Trainer(_BaseTrainer):
 
@@ -26,7 +28,6 @@ class Trainer(_BaseTrainer):
             device: Union[str, torch.device] = torch.device("cpu"),
             ) -> None:
         super(Trainer, self).__init__(dtype=dtype, device=device)
-        self.name = "dptb"
         
         # init the object
         self.model = model.to(device)
@@ -51,15 +52,43 @@ class Trainer(_BaseTrainer):
             self.validation_loader = DataLoader(dataset=self.validation_datasets)
 
         # loss function
-        self.train_lossfunc = None
-        self.validation_lossfunc = None
+        self.train_lossfunc = Loss(method=train_options["loss_options"]["train"]["method"])
+        if self.validation:
+            self.validation_lossfunc = Loss(method=train_options["loss_options"]["validation"]["method"])
 
-    def calc(self, batch):
+    def iteration(self, batch, ref_batch=None):
         '''
         conduct one step forward computation, used in train, test and validation.
         '''
+        self.optim.zero_grad(set_to_none=True)
+        batch = batch.to(self.device)
+        batch = AtomicData.to_AtomicDataDict(batch)
 
+        batch_for_loss = batch_for_loss.copy() # make a shallow copy in case the model change the batch data
+        #TODO: the rescale/normalization can be added here
         batch = self.model(batch)
+
+        loss = self.train_lossfunc(batch, batch_for_loss)
+
+        if ref_batch is not None:
+            ref_batch = ref_batch.to(self.device)
+            ref_batch = AtomicData.to_AtomicDataDict(ref_batch)
+            ref_batch_for_loss = ref_batch.copy()
+            ref_batch = self.model(ref_batch)
+            loss += self.train_lossfunc(ref_batch, batch_for_loss)
+
+        self.optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        #TODO: add clip large gradient
+        self.optimizer.step()
+
+        state = {'field':'iteration', "train_loss": loss.detach(), "lr": self.optimizer.state_dict()["param_groups"][0]['lr']}
+        self.call_plugins(queue_name='iteration', time=self.iteration, **state)
+        self.iteration += 1
+
+        #TODO: add EMA
+
+        return loss.detach()
     
     @classmethod
     def restart(
@@ -102,55 +131,33 @@ class Trainer(_BaseTrainer):
                 item.load_state_dict(checkpoint[key+"state_dict"])
 # 
 
-    def train(self) -> None:
+    def epoch(self) -> None:
 
-        for ibatch in self.dataloader:
+        for ibatch in self.train_loader:
             # iter with different structure
+            if self.use_reference:
+                self.iteration(ibatch, next(self.reference_loader))
+            else:
+                self.iteration(ibatch)
 
-            def closure():
-                # calculate eigenvalues.
-                self.optimizer.zero_grad()
-                ibatch = self.calc(ibatch)
-
-                loss = self.train_lossfunc(ibatch, **self.loss_options)
-
-                if self.use_reference:
-                    for irefbatch in range(self.ref_loader):
-                        irefbatch = self.calc(irefbatch)
-                        loss += (self.batch_size * 1.0 / (self.reference_batch_size * (1+self.n_reference_sets))) * \
-                                    self.train_lossfunc(ibatch, **self.reference_loss_options)
-                
-                loss.backward()
-                self.train_loss = loss.detach()
-                return loss
-
-            self.optimizer.step(closure)
-            state = {'field':'iteration', "train_loss": self.train_loss, "lr": self.optimizer.state_dict()["param_groups"][0]['lr']}
-
-            self.call_plugins(queue_name='iteration', time=self.iteration, **state)
-            # self.lr_scheduler.step() # 在epoch 加入 scheduler.
-            self.iteration += 1
 
     def update(self, **kwargs):
         pass
 
-    def validation(self, quick=False):
-        with torch.no_grad():
-            total_loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
-            for processor in self.validation_processor_list:
-                self.validation_loss_options.update(processor.bandinfo)
-                for data in processor:
-                    eigenvalues_pred, eigenvalues_lbl = self.calc(*data)
-                    total_loss += self.validation_lossfunc(eig_pred=eigenvalues_pred,eig_label=eigenvalues_lbl,**self.validation_loss_options)
-                    if quick:
-                        break
-                    
-        with torch.enable_grad():
-            return total_loss.detach()
+    def validation(self, fast=True):
+        with torch.zero_grad():
+            loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
 
+            for ibatch in self.validation_loader:
+                batch = batch.to(self.device)
+                batch = AtomicData.to_AtomicDataDict(batch)
 
+                batch_for_loss = batch_for_loss.copy()
+                batch = self.model(batch)
 
-if __name__ == '__main__':
-    a = [1,2,3]
+                loss += self.validation_lossfunc(batch, batch_for_loss)
 
-    print(list(enumerate(a, 2)))
+                if fast:
+                    break
+
+        return loss

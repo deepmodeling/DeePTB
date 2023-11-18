@@ -122,14 +122,14 @@ class _BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
 
 
     @abstractmethod
-    def calc(self, **data):
+    def iteration(self, **data):
         '''
         conduct one step forward computation, used in train, test and validation.
         '''
         pass
 
     @abstractmethod
-    def train(self) -> None:
+    def epoch(self) -> None:
         """define a training iteration process
         """
         pass

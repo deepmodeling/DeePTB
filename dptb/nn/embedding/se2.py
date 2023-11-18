@@ -69,6 +69,7 @@ class SE2Descriptor(torch.nn.Module):
             _description_
         """
         data = self.onehot(data)
+        data = AtomicDataDict.with_env_vectors(data, with_lengths=True)
 
         data[AtomicDataDict.NODE_FEATURES_KEY], data[AtomicDataDict.EDGE_FEATURES_KEY] = self.descriptor(
             data[AtomicDataDict.ENV_VECTORS_KEY],

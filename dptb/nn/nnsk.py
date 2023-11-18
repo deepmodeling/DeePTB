@@ -94,6 +94,8 @@ class NNSK(torch.nn.Module):
         # map the parameters to the edge/node/env features
         
         # compute integrals from parameters using hopping and onsite clas
+        data = AtomicDataDict.with_edge_vectors(data, with_lengths=True)
+
         edge_number = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.EDGE_INDEX_KEY]].reshape(2, -1)
         edge_index = self.idp.transform_reduced_bond(*edge_number)
         r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number].sum(0)
@@ -122,6 +124,7 @@ class NNSK(torch.nn.Module):
                 )
 
         if self.onsite_fn.functype == "NRL":
+            data = AtomicDataDict.with_env_vectors(data, with_lengths=True)
             data[AtomicDataDict.NODE_FEATURES_KEY] = self.onsite_fn.get_skEs(
                 atomic_numbers=data[AtomicDataDict.ATOMIC_NUMBERS_KEY],
                 onsitenv_index=data[AtomicDataDict.ONSITENV_INDEX_KEY], 
