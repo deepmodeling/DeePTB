@@ -92,7 +92,7 @@ class HoppingFormula(BaseHopping):
             raise ValueError('No such formula')
 
 
-    def varTang96(self, rij: torch.Tensor, paraArray: torch.Tensor, rcut:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
+    def varTang96(self, rij: torch.Tensor, paraArray: torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """> This function calculates the value of the variational form of Tang et al 1996. without the
         environment dependent
 
@@ -122,9 +122,9 @@ class HoppingFormula(BaseHopping):
         alpha1, alpha2, alpha3, alpha4 = paraArray[..., 0], paraArray[..., 1].abs(), paraArray[..., 2].abs(), paraArray[..., 3].abs()
         shape = [-1]+[1] * (len(alpha1.shape)-1)
         rij = rij.reshape(shape)
-        return alpha1 * rij**(-alpha2) * torch.exp(-alpha3 * rij**alpha4)/(1+torch.exp((rij-rcut)/w))
+        return alpha1 * rij**(-alpha2) * torch.exp(-alpha3 * rij**alpha4)/(1+torch.exp((rij-rs)/w))
 
-    def powerlaw(self, rij, paraArray, r0:torch.Tensor, rcut:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
+    def powerlaw(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """> This function calculates the value of the variational form of Tang et al 1996. without the
         environment dependent
 
@@ -138,9 +138,9 @@ class HoppingFormula(BaseHopping):
         r0 = r0.reshape(shape)
 
         r0 = r0 / 1.8897259886
-        return alpha1 * (r0/rij)**(1 + alpha2) / (1+torch.exp((rij-rcut)/w))
+        return alpha1 * (r0/rij)**(1 + alpha2) / (1+torch.exp((rij-rs)/w))
 
-    def NRL_HOP(self, rij, paraArray, rcut:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
+    def NRL_HOP(self, rij, paraArray, rc:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """
         This function calculates the SK integral value of the form of NRL-TB 
 
@@ -155,12 +155,12 @@ class HoppingFormula(BaseHopping):
         a, b, c, d = paraArray[..., 0], paraArray[..., 1], paraArray[..., 2], paraArray[..., 3]
         shape = [-1]+[1] * (len(a.shape)-1)
         rij = rij.reshape(shape)
-        f_rij = 1/(1+torch.exp((rij-rcut+5*w)/w))
-        f_rij[rij>=rcut] = 0.0
+        f_rij = 1/(1+torch.exp((rij-rc+5*w)/w))
+        f_rij[rij>=rc] = 0.0
 
         return (a + b * rij + c * rij**2) * torch.exp(-d**2 * rij)*f_rij
 
-    def NRL_OVERLAP(self, rij, paraArray, paraconst, rcut:torch.float32 = torch.tensor(6), w:torch.float32 = 0.1, **kwargs):
+    def NRL_OVERLAP(self, rij, paraArray, paraconst, rc:torch.float32 = torch.tensor(6), w:torch.float32 = 0.1, **kwargs):
         """
         This function calculates the Overlap value of the form of NRL-TB 
 
@@ -181,8 +181,8 @@ class HoppingFormula(BaseHopping):
         shape = [-1]+[1] * (len(a.shape)-1)
         rij = rij.reshape(shape)
 
-        f_rij = 1/(1+torch.exp((rij-rcut+5*w)/w))
-        f_rij[rij>=rcut] = 0.0
+        f_rij = 1/(1+torch.exp((rij-rc+5*w)/w))
+        f_rij[rij>=rc] = 0.0
 
         return (delta_ll + a * rij + b * rij**2 + c * rij**3) * torch.exp(-d**2 * rij)*f_rij
     

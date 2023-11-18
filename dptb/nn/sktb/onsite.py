@@ -115,7 +115,7 @@ class OnsiteFormula(BaseOnsite):
         return nn_onsite_paras[idx] + self.none(atomic_numbers=atomic_numbers)
         
 
-    def NRL(self, atomic_numbers, onsitenv_index, onsitenv_length, nn_onsite_paras, rcut:th.float32 = th.tensor(6), w:th.float32 = 0.1, lda=1.0, **kwargs):
+    def NRL(self, atomic_numbers, onsitenv_index, onsitenv_length, nn_onsite_paras, rc:th.float32 = th.tensor(6), w:th.float32 = 0.1, lda=1.0, **kwargs):
         """ This is NRL-TB formula for onsite energies.
 
             rho_i = \sum_j exp(- lda**2 r_ij) f(r_ij)
@@ -144,8 +144,8 @@ class OnsiteFormula(BaseOnsite):
         nn_onsite_paras = nn_onsite_paras[idx]
         r_ijs = onsitenv_length.view(-1) # [N]
         exp_rij = th.exp(-lda**2 * r_ijs)
-        f_rij = 1/(1+th.exp((r_ijs-rcut+5*w)/w))
-        f_rij[r_ijs>=rcut] = 0.0
+        f_rij = 1/(1+th.exp((r_ijs-rc+5*w)/w))
+        f_rij[r_ijs>=rc] = 0.0
         rho_i = scatter(src=exp_rij * f_rij, index=onsitenv_index[0], dim=0, reduce="sum").unsqueeze(1) # [N_atom, 1]
         a_l, b_l, c_l, d_l = nn_onsite_paras[:,:,0], nn_onsite_paras[:,:,1], nn_onsite_paras[:,:,2], nn_onsite_paras[:,:,3]
         E_il = a_l + b_l * rho_i**(2/3) + c_l * rho_i**(4/3) + d_l * rho_i**2 # [N_atom, n_orb]

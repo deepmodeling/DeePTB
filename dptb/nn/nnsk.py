@@ -20,13 +20,11 @@ class NNSK(torch.nn.Module):
             self,
             basis: Dict[str, Union[str, list]]=None,
             idp: Union[OrbitalMapper, None]=None,
-            onsite: str = "uniform",
-            hopping: str = "powerlaw",
+            onsite: Dict={"method": "none"},
+            hopping: Dict={"method": "powerlaw", "rs":6.0, "w": 0.2},
             overlap: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
-            rc: Union[float, torch.Tensor] = 5.0,
-            w: Union[float, torch.Tensor] = 1.0,
             **kwargs,
             ) -> None:
         
@@ -48,18 +46,18 @@ class NNSK(torch.nn.Module):
         self.basis = self.idp.basis
         self.idp.get_node_maps()
         self.idp.get_pair_maps()
+        self.onsite_options = onsite
+        self.hopping_options = hopping
+
 
 
         # init_onsite, hopping, overlap formula
 
-        self.onsite_fn = OnsiteFormula(idp=self.idp, functype=onsite, dtype=dtype, device=device)
-        self.hopping_fn = HoppingFormula(functype=hopping)
+        self.onsite_fn = OnsiteFormula(idp=self.idp, functype=self.onsite_param["method"], dtype=dtype, device=device)
+        self.hopping_fn = HoppingFormula(functype=self.hopping_options["method"])
         if overlap:
-            self.overlap_fn = HoppingFormula(functype=hopping, overlap=True)
-        self.rc = rc
-        self.w = w
+            self.overlap_fn = HoppingFormula(functype=self.hopping_options["method"], overlap=True)
 
-        print(overlap)
         
         # init_param
         self.hopping_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device))
@@ -102,8 +100,7 @@ class NNSK(torch.nn.Module):
         data[AtomicDataDict.EDGE_FEATURES_KEY] = self.hopping_fn.get_skhij(
             rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
             paraArray=self.hopping_param[edge_index], # [N_edge, n_pairs, n_paras],
-            rcut=self.rc,
-            w=self.w,
+            **self.hopping_options,
             r0=r0
             ) # [N_edge, n_pairs]
 
@@ -118,8 +115,7 @@ class NNSK(torch.nn.Module):
                 rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
                 paraArray=self.overlap_param[edge_index],
                 paraconst=paraconst,
-                rcut=self.rc,
-                w=self.w,
+                **self.hopping_options,
                 r0=r0,
                 )
 
@@ -130,8 +126,7 @@ class NNSK(torch.nn.Module):
                 onsitenv_index=data[AtomicDataDict.ONSITENV_INDEX_KEY], 
                 onsitenv_length=data[AtomicDataDict.ONSITENV_LENGTH_KEY], 
                 nn_onsite_paras=self.onsite_param, 
-                rcut=self.rc, 
-                w=self.w
+                **self.onsite_options,
                 )
         else:
             data[AtomicDataDict.NODE_FEATURES_KEY] = self.onsite_fn.get_skEs(
@@ -172,7 +167,7 @@ class NNSK(torch.nn.Module):
         pass
 
     @classmethod
-    def from_model_v1(self, v1_model: torch.nn.Module, nnsk_options):
+    def from_model_v1(self, v1_model: dict, nnsk_options):
         # could support json file and .pth file checkpoint of nnsk
         pass
 
