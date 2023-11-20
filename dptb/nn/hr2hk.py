@@ -69,6 +69,8 @@ class HR2HK(torch.nn.Module):
                     onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = onsite_block[:,jst:jst+2*lj+1,ist:ist+2*li+1].transpose(1,2)
                 jst += 2*lj+1
             ist += 2*li+1
+        self.onsite_block = onsite_block
+        self.bondwise_hopping = bondwise_hopping
 
 
         # R2K procedure can be done for all kpoint at once, try to implement this.
@@ -94,12 +96,13 @@ class HR2HK(torch.nn.Module):
             jmask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY][jatom]].reshape(-1)
             masked_hblock = hblock[imask][:,jmask]
 
-            block[:,iatom_indices,jatom_indices] = masked_hblock.squeeze(0).type_as(block) * torch.exp(-1j * 2 * torch.pi * (data[AtomicDataDict.KPOINT_KEY] @ data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i])).reshape(-1,1,1)
+            block[:,iatom_indices,jatom_indices] += masked_hblock.squeeze(0).type_as(block) * \
+                torch.exp(-1j * 2 * torch.pi * (data[AtomicDataDict.KPOINT_KEY] @ data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i])).reshape(-1,1,1)
 
         block = block + block.transpose(1,2).conj()
-        block.contiguous()
+        block = block.contiguous()
 
         data[self.out_field] = block
 
         return data
-
+    

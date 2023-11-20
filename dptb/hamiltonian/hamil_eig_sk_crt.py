@@ -164,7 +164,7 @@ class HamilEig(RotationSE3):
             for ish in self.__struct__.proj_atom_anglr_m[iatype]:     # ['s','p',..]
                 ishsymbol = ''.join(re.findall(r'[A-Za-z]',ish))
                 shidi = anglrMId[ishsymbol]          # 0,1,2,...
-                norbi = 2*shidi + 1 
+                norbi = 2*shidi + 1
 
                 indx = self.__struct__.onsite_index_map[iatype][ish] # change onsite index map from {N:{s:}} to {N:{ss:, sp:}}
                 sub_hamil_block[ist:ist+norbi, ist:ist+norbi] = th.eye(norbi, dtype=self.dtype, device=self.device) * self.onsiteEs[ib][indx]

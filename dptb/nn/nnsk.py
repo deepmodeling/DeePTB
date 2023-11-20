@@ -80,7 +80,7 @@ class NNSK(torch.nn.Module):
             self.strain_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device))
             # symmetrize the env for same atomic spices
             
-        self.hamiltonian = SKHamiltonian(idp=self.idp, dtype=self.dtype, device=self.device)
+        self.hamiltonian = SKHamiltonian(idp=self.idp, dtype=self.dtype, device=self.device, strain=hasattr(self, "strain_param"))
         if overlap:
             self.overlap = SKHamiltonian(idp=self.idp, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
 
@@ -98,26 +98,36 @@ class NNSK(torch.nn.Module):
 
         # symmetrize the bond for same atomic spices
         reflect_keys = np.array(list(self.idp.pair_maps.keys()), dtype="str").reshape(len(self.idp.full_basis), len(self.idp.full_basis)).transpose(1,0).reshape(-1)
-        reflect_params = 0.5 * self.hopping_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))]
+        params = 0.5 * self.hopping_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))]
+        reflect_params = torch.zeros_like(params)
+        for k, k_r in zip(self.idp.pair_maps.keys(), reflect_keys):
+            reflect_params[:,self.idp.pair_maps[k],:] += params[:,self.idp.pair_maps[k_r],:]
         self.hopping_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))] = \
-            reflect_params + torch.cat([reflect_params[:,self.idp.pair_maps[key],:] for key in reflect_keys], dim=-2)
+            reflect_params + params
         
         if hasattr(self, "overlap"):
-            reflect_params = 0.5 * self.overlap_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))]
+            params = 0.5 * self.overlap_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))]
+            reflect_params = torch.zeros_like(params)
+            for k, k_r in zip(self.idp.pair_maps.keys(), reflect_keys):
+                reflect_params[:,self.idp.pair_maps[k],:] += params[:,self.idp.pair_maps[k_r],:]
             self.overlap_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))] = \
-                reflect_params + torch.cat([reflect_params[:,self.idp.pair_maps[key],:] for key in reflect_keys], dim=-2)
+                reflect_params + params
             
         if self.onsite_fn.functype == "strain":
-            reflect_params = 0.5 * self.strain_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))]
+            params = 0.5 * self.strain_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))]
+            reflect_params = torch.zeros_like(params)
+            for k, k_r in zip(self.idp.pair_maps.keys(), reflect_keys):
+                reflect_params[:,self.idp.pair_maps[k],:] += params[:,self.idp.pair_maps[k_r],:]
             self.strain_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))] = \
-                reflect_params + torch.cat([reflect_params[:,self.idp.pair_maps[key],:] for key in reflect_keys], dim=-2)
+                reflect_params + params
 
             
         data = AtomicDataDict.with_edge_vectors(data, with_lengths=True)
 
         edge_number = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.EDGE_INDEX_KEY]].reshape(2, -1)
         edge_index = self.idp.transform_reduced_bond(*edge_number)
-        r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number].sum(0)
+        r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number-1].sum(0)
+
         data[AtomicDataDict.EDGE_FEATURES_KEY] = self.hopping_fn.get_skhij(
             rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
             paraArray=self.hopping_param[edge_index], # [N_edge, n_pairs, n_paras],
@@ -165,11 +175,13 @@ class NNSK(torch.nn.Module):
             onsitenv_index = self.idp.transform_reduced_bond(*onsitenv_number)
             reflect_index = self.idp.transform_reduced_bond(*onsitenv_number.flip(0))
             onsitenv_index[onsitenv_index<0] = reflect_index[onsitenv_index<0] + len(self.idp.reduced_bond_types)
-            reflect_params = torch.cat([self.strain_param[:,self.idp.pair_maps[key],:] for key in reflect_keys], dim=-2)
+            reflect_params = torch.zeros_like(self.strain_param)
+            for k, k_r in zip(self.idp.pair_maps.keys(), reflect_keys):
+                reflect_params[:,self.idp.pair_maps[k],:] += self.strain_param[:,self.idp.pair_maps[k_r],:]
             onsitenv_params = torch.cat([self.strain_param, 
                 reflect_params], dim=0)
             
-            r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[onsitenv_number].sum(0)
+            r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[onsitenv_number-1].sum(0)
             onsitenv_params = self.hopping_fn.get_skhij(
             rij=data[AtomicDataDict.ONSITENV_LENGTH_KEY],
             paraArray=onsitenv_params[onsitenv_index], # [N_edge, n_pairs, n_paras],

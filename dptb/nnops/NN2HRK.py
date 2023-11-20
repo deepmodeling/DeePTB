@@ -148,6 +148,7 @@ class NN2HRK(object):
         batch_bonds, batch_bond_onsites = predict_process.get_bond(sorted=self.sorted_bond)
         coeffdict, overlap_coeffdict = self.apihost.model(mode='hopping')
         batch_hoppings = self.apihost.hops_fun.get_skhops(batch_bonds=batch_bonds, coeff_paras=coeffdict, rcut=self.apihost.model_config['skfunction']['sk_cutoff'], w=self.apihost.model_config['skfunction']['sk_decay_w'])
+        print(batch_hoppings)
         nn_onsiteE, onsite_coeffdict = self.apihost.model(mode='onsite')
         if self.apihost.overlap:
             assert overlap_coeffdict is not None, "The overlap_coeffdict should be provided if overlap is True."

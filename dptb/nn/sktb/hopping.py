@@ -132,11 +132,14 @@ class HoppingFormula(BaseHopping):
 
         #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
         alpha1, alpha2 = paraArray[..., 0], paraArray[..., 1].abs()
+        #[N, n_op]
         shape = [-1]+[1] * (len(alpha1.shape)-1)
+        # [-1, 1]
         rij = rij.reshape(shape)
         r0 = r0.reshape(shape)
 
         r0 = r0 / 1.8897259886
+
         return alpha1 * (r0/rij)**(1 + alpha2) / (1+torch.exp((rij-rs)/w))
 
     def NRL_HOP(self, rij, paraArray, rc:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
