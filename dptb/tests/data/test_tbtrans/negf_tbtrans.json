@@ -54,15 +54,15 @@
                 "pbc":[false, true, false],
                 "kmesh":[1,1,1],
                 "device":{
-                    "id":"112-144",
+                    "id":"8-12",
                     "sort": true
                 },
                 "lead_L":{
-                    "id":"0-112",
+                    "id":"0-8",
                     "voltage":0.0
                 },
                 "lead_R":{
-                    "id":"144-256",
+                    "id":"12-20",
                     "voltage":0.0
                 }
             },
@@ -72,8 +72,8 @@
             },
             "sgf_solver": "Sancho-Rubio",
             "espacing": 0.1,
-            "emin": -10,
-            "emax": 5,
+            "emin": -2,
+            "emax": 2,
             "e_fermi": -9.874357223510742,
             "density_options":{
                 "method": "Ozaki"
