@@ -91,13 +91,13 @@ class TBTransInputSet(object):
         self.H_lead_R = sisl.Hamiltonian(self.geom_lead_R)
 
     def load_model(self):
-        '''The function `load_dptb_model` loads DPTB models for different components of a system.
+        '''The function `load_dptb_model` loads models for different structure.
 
             `all` refers to the entire system, including the device and leads.
 
         Returns
         -------
-        - allbonds_all: bond information for the entire system
+        - allbonds_all: all of the bond information 
         - hamil_block_all: Hamiltonian block for the entire system, which is a tensor that contains 
                             the values of the Hamiltonian matrix elements for each specific bond in allbonds_all
         - overlap_block_all: overlap block for the entire system,  which is a tensor that contains 
@@ -136,7 +136,7 @@ class TBTransInputSet(object):
 
     def hamil_write(self):
         '''The function `hamil_write` writes the contents of `self.H_all`, `self.H_lead_L`, and `self.H_lead_R`
-        to separate files in the `result_path` directory.
+        to separate files in the `results_path` directory.
         
         '''
         self.H_all.write(self.results_path+'structure.nc')
@@ -269,6 +269,7 @@ class TBTransInputSet(object):
         geom_lead_R.write(sorted_lead_R)
 
         # output sorted geometry into vasp Structure file: rewrite xyz files
+        ## writen as VASP for VESTA view
         all_struct = read(all_tbtrans_stru)
         all_vasp_struct = results_path+'structure_tbtrans.vasp'
         write(all_vasp_struct,sort(all_struct),format='vasp')
@@ -285,33 +286,21 @@ class TBTransInputSet(object):
         
         Parameters
         ----------
-        geom_device
-            The `geom_device` parameter is the geometry of the device region. It contains information about the
-        atoms and their positions in the device region.
+        geom_all
+            The `geom_all` parameter is the geometry of the whole structure. It contains information about the
+        atoms and their positions.
         geom_lead_L
-            The `geom_lead_L` parameter represents the geometry of the left lead in the system. It contains
+            The `geom_lead_L` parameter represents the geometry of the left lead. It contains
         information about the atoms and their positions in the lead.
         geom_lead_R
-            The `geom_lead_R` parameter is a variable that represents the geometry of the right lead in the
-        system. It contains information about the atoms in the lead, such as their positions and chemical
-        symbols.
-        model
-            The `model` parameter is a string that represents the path to deeptb model file. It can have either a
-        `.pth` or `.json` extension. If it has a `.pth` extension, the necessary model information is stored in
-        the `model_config` dictionary of the checkpoint file. If it has a `.json` extension, the necessary model
-        information is stored in the `common_options` dictionary of the JSON configuration file and could be read 
-        directly.
-        config
-            The `config` parameter is a string that represents the path to a JSON configuration file.
+            The `geom_lead_R` parameter represents the geometry of the right lead. It contains 
+            information about the atoms in the lead, such as their positions and chemical symbols.
+        apiHrk
+            apiHrk has been loaded in the run.py file. It is used as an API for
+            performing certain operations or accessing certain functionalities when loading dptb model.
         
         '''
-
-
-        # model_config存储在哪些地方:在apihost.py中写得很清楚
-        # - dptb_model.pth中有
-        # - nnsk_model.pth中也有
-        # - common options中有时也有
-       
+      
         # dict_element_orbital = {}
 
         # if model.split('.')[-1]=='pth':
@@ -324,7 +313,7 @@ class TBTransInputSet(object):
         dict_element_orbital = apiHrk.apihost.model_config['proj_atom_anglr_m']
         # dict_element_orbital = ckpt["model_config"]['proj_atom_anglr_m']  # {'Si': ['3s', '3p', 'd*']}
         # dict_element_orbital = {'C':['2s']}
-        print('dict_element_orbital:',dict_element_orbital)
+        # print('dict_element_orbital:',dict_element_orbital)
         
         n_species_lead_L = geom_lead_L.atoms.nspecie
         n_species_lead_R = geom_lead_R.atoms.nspecie
@@ -353,12 +342,12 @@ class TBTransInputSet(object):
 
             # species_symbols = [char for char in geom_part.atoms.formula() if char.isalpha()]
             
-            print(species_symbols)
-            print(n_species)
+            # print(species_symbols)
+            # print(n_species)
             assert len(species_symbols)==n_species # number of chemical elements in this area
 
             for i  in range(n_species): # 
-                print(i)
+                # print(i)
                 element_orbital_class = dict_element_orbital[species_symbols[i]]# ['3s', '3p', 'd*'] 
                 element_orbital_name = self._orbitals_name_get(element_orbital_class)
                 shell_elec_num =  self._shell_electrons(species_symbols[i])
@@ -462,21 +451,20 @@ class TBTransInputSet(object):
 
     # def _load_dptb_model(self,checkfile:str,config:str,structure_tbtrans_file:str,run_sk:bool,use_correction:Optional[str]):
     def _load_model(self,apiHrk,structure_tbtrans_file:str):        
-        '''The `_load_dptb_model` function loads model from deeptb and returns the Hamiltonian elements.
+        '''The `_load_model` function loads model from deeptb and returns the Hamiltonian elements.
         
         Parameters
         ----------
         apiHrk
-            The parameter `apiHrk` is an instance of the `NN2HRK` class. It is used to convert the output of a
-        neural network model into a Hamiltonian representation. It has an attribute `apihost` which is an
-        instance of either `NNSKHost` or `
+            apiHrk has been loaded in the run.py file. It is used as an API for
+            performing certain operations or accessing certain functionalities when loading dptb model.
         structure_tbtrans_file : str
             The parameter `structure_tbtrans_file` is a string that represents the file path to the structure
         file in the TBTrans format.
         
         Returns
         -------
-            The function `_load_dptb_model` returns three variables: `allbonds`, `hamil_block`, and
+            The function `_load_model` returns three variables: `allbonds`, `hamil_block`, and
         `overlap_block`.
         
         '''
