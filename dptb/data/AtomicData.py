@@ -352,7 +352,6 @@ class AtomicData(Data):
         pos=None,
         r_max: float = None,
         self_interaction: bool = False,
-        strict_self_interaction: bool = True,
         cell=None,
         pbc: Optional[PBC] = None,
         er_max: Optional[float] = None,
@@ -399,7 +398,6 @@ class AtomicData(Data):
             pos=pos,
             r_max=r_max,
             self_interaction=self_interaction,
-            strict_self_interaction=strict_self_interaction,
             cell=cell,
             reduce=True,
             atomic_numbers=kwargs.get("atomic_numbers", None),
@@ -421,7 +419,6 @@ class AtomicData(Data):
                 pos=pos,
                 r_max=er_max,
                 self_interaction=self_interaction,
-                strict_self_interaction=strict_self_interaction,
                 cell=cell,
                 reduce=False,
                 pbc=pbc,
@@ -437,7 +434,6 @@ class AtomicData(Data):
                 pos=pos,
                 r_max=oer_max,
                 self_interaction=self_interaction,
-                strict_self_interaction=strict_self_interaction,
                 cell=cell,
                 reduce=False,
                 pbc=pbc
@@ -833,12 +829,10 @@ def neighbor_list_and_relative_vec(
     pos,
     r_max,
     self_interaction=False,
-    strict_self_interaction=True,
     reduce=True,
     atomic_numbers=None,
     cell=None,
     pbc=False,
-
 ):
     """Create neighbor list and neighbor vectors based on radial cutoff.
 
@@ -915,27 +909,55 @@ def neighbor_list_and_relative_vec(
         temp_cell,
         temp_pos,
         cutoff=float(r_max),
-        self_interaction=strict_self_interaction,  # we want edges from atom to itself in different periodic images!
+        self_interaction=self_interaction,  # we want edges from atom to itself in different periodic images!
         use_scaled_positions=False,
     )
 
     # Eliminate true self-edges that don't cross periodic boundaries
-    if not self_interaction:
-        bad_edge = first_idex == second_idex
-        bad_edge &= np.all(shifts == 0, axis=1)
-        keep_edge = ~bad_edge
-        if _ERROR_ON_NO_EDGES and (not np.any(keep_edge)):
-            raise ValueError(
-                f"Every single atom has no neighbors within the cutoff r_max={r_max} (after eliminating self edges, no edges remain in this system)"
-            )
-        first_idex = first_idex[keep_edge]
-        second_idex = second_idex[keep_edge]
-        shifts = shifts[keep_edge]
+    # if not self_interaction:
+    #     bad_edge = first_idex == second_idex
+    #     bad_edge &= np.all(shifts == 0, axis=1)
+    #     keep_edge = ~bad_edge
+    #     if _ERROR_ON_NO_EDGES and (not np.any(keep_edge)):
+    #         raise ValueError(
+    #             f"Every single atom has no neighbors within the cutoff r_max={r_max} (after eliminating self edges, no edges remain in this system)"
+    #         )
+    #     first_idex = first_idex[keep_edge]
+    #     second_idex = second_idex[keep_edge]
+    #     shifts = shifts[keep_edge]
 
     if reduce:
+        # for i!=j
         assert atomic_numbers is not None
         atomic_numbers = torch.as_tensor(atomic_numbers, dtype=torch.long)
-        mask = atomic_numbers[first_idex] <= atomic_numbers[second_idex]
+        mask = first_idex <= second_idex
+        first_idex = first_idex[mask]
+        second_idex = second_idex[mask]
+        shifts = shifts[mask]
+
+        # for i=j
+        rev_dict = {}
+        mask = torch.ones(len(first_idex), dtype=torch.bool)
+        mask[first_idex == second_idex] = False
+        o_first_idex = first_idex[~mask]
+        o_second_idex = second_idex[~mask]
+        o_shift = shifts[~mask]
+        o_mask = mask[~mask]
+
+        
+        for i in range(len(o_first_idex)):
+            key = str(o_first_idex[i])+str(o_shift[i])
+            key_rev = str(o_first_idex[i])+str(-o_shift[i])
+            rev_dict[key] = True
+            if not (rev_dict.get(key_rev, False) and rev_dict.get(key, False)):
+                o_mask[i] = True
+        del rev_dict
+        del o_first_idex
+        del o_second_idex
+        del o_shift
+        mask[~mask] = o_mask
+        del o_mask
+        
         first_idex = first_idex[mask]
         second_idex = second_idex[mask]
         shifts = shifts[mask]

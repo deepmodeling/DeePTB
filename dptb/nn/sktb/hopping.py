@@ -19,39 +19,38 @@ class BaseHopping(ABC):
         pass
 
 class HoppingFormula(BaseHopping):
+    num_paras_dict = {
+        'varTang96': 4,
+        'powerlaw': 2,
+        'NRL': 4,
+        'custom': None,
+    }
 
     def __init__(self, functype='varTang96',overlap=False) -> None:
         super(HoppingFormula, self).__init__()
         # one can modify this by add his own formula with the name functype to deifine num of pars.
         self.overlap = overlap
         if functype == 'varTang96':
-            self.functype = functype
-            self.num_paras = 4
             assert hasattr(self, 'varTang96')
        
         elif functype == 'powerlaw':
-            self.functype = functype
-            self.num_paras = 2
             assert hasattr(self, 'powerlaw')
 
         elif functype == 'NRL':
-            self.functype = functype
-            self.num_paras = 4
             assert hasattr(self, 'NRL_HOP')
             if overlap:
-                self.overlap_num_paras = 4
                 assert hasattr(self, 'NRL_OVERLAP')
-
 
         elif functype =='custom':
              # the functype custom, is for user to define their own formula.
             # just modify custom to the name of your formula.
             # and define the funnction self.custom(rij, paraArray, **kwargs)
-            self.functype = functype
-            self.num_paras = None # defined by custom.
             assert hasattr(self, 'custom')
         else:
             raise ValueError('No such formula')
+        
+        self.functype = functype
+        self.num_params = self.num_paras_dict[functype]
         
 
     def get_skhij(self, rij, **kwargs):
@@ -185,4 +184,8 @@ class HoppingFormula(BaseHopping):
         f_rij[rij>=rc] = 0.0
 
         return (delta_ll + a * rij + b * rij**2 + c * rij**3) * torch.exp(-d**2 * rij)*f_rij
+    
+    @classmethod
+    def num_params(cls, funtype):
+        return cls.num_paras_dict[funtype]
     

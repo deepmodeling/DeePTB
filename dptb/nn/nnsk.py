@@ -12,7 +12,7 @@ from dptb.data.transforms import OrbitalMapper
 from dptb.data import AtomicDataDict
 import numpy as np
 from .sktb import OnsiteFormula, bond_length_list, HoppingFormula
-from dptb.utils.constants import atomic_num_dict_r
+from dptb.utils.constants import atomic_num_dict_r, atomic_num_dict
 from dptb.nn.hamiltonian import SKHamiltonian
 
 class NNSK(torch.nn.Module):
@@ -65,7 +65,7 @@ class NNSK(torch.nn.Module):
             self.overlap_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device))
 
         if onsite == "strain":
-            self.onsite_param = []
+            self.onsite_param = None
         elif onsite == "none":
             self.onsite_param = None
         else:
@@ -167,8 +167,58 @@ class NNSK(torch.nn.Module):
         pass
 
     @classmethod
-    def from_model_v1(self, v1_model: dict, nnsk_options):
+    def from_model_v1(
+        cls, 
+        v1_model: dict, 
+        basis: Dict[str, Union[str, list]]=None,
+        idp: Union[OrbitalMapper, None]=None, 
+        nnsk_options: dict=None,
+        dtype: Union[str, torch.dtype] = torch.float32, 
+        device: Union[str, torch.device] = torch.device("cpu"),
+        ):
         # could support json file and .pth file checkpoint of nnsk
+
+        if isinstance(dtype, str):
+            dtype = getattr(torch, dtype)
+        dtype = dtype
+        device = device
+
+        if basis is not None:
+            assert basis is None
+            idp = OrbitalMapper(basis, method="sktb")
+        else:
+            assert idp is not None
+        
+            
+        basis = idp.basis
+
+        nnsk_model = cls(basis=basis, idp=idp, dtype=dtype, device=device, **nnsk_options)
+
+        onsite = v1_model["onsite"]
+        hopping = v1_model["hopping"]
+
+        assert len(hopping) > 0, "The hopping parameters should be provided."
+
+        # load hopping params
+        for orbpair, skparam in hopping.items():
+            iasym, jasym, iorb, jorb, num = list(orbpair.splt("-"))
+            ian, jan = atomic_num_dict[iasym], atomic_num_dict[jasym]
+            fiorb, fjorb = idp.basis_to_full_basis[iasym][iorb], idp.basis_to_full_basis[jasym][jorb]
+            
+            if ian <= jan:
+                nline = idp.transform_reduced_bond(iatomic_numbers=ian, jatomic_numbers=jan)
+                nidx = idp.pair_maps[f"{fiorb}-{fjorb}"].start + num
+            else:
+                nline = idp.transform_reduced_bond(iatomic_numbers=jan, jatomic_numbers=ian)
+                nidx = idp.pair_maps[f"{fjorb}-{fiorb}"].start + num
+
+            nnsk_model.hopping_param[nline, nidx] = torch.tensor(skparam, dtype=dtype, device=device)
+        
+        # load onsite params, differently with onsite mode
+        if nnsk_options["onsite"]["method"] == "strain":
+            pass
+
+
         pass
 
         
