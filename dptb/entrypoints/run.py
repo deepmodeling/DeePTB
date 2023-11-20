@@ -222,7 +222,7 @@ def run(
             raise RuntimeError
 
         tbtrans_init = TBTransInputSet(apiHrk, run_opt, task_options)
-        tbtrans_init.load_dptb_model()
+        tbtrans_init.load_model()
         tbtrans_init.hamil_get()
         tbtrans_init.hamil_write()
         log.info(msg='TBtrans input files are successfully generated.')

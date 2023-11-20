@@ -35,11 +35,23 @@ if  shutil.which('tbtrans') is None:
 
 class TBTransInputSet(object):
     def __init__(self, apiHrk, run_opt, jdata):
+        '''This function initializes various variables and objects needed for the generation of TBtrans input file.
 
-        # self.structure= '/data/zjj/TBtrans_interface/hBN/supercell_struct.xyz'
-        # self.nnsk_model = '/data/zjj/TBtrans_interface/hBN/model/best_nnsk_b3.600_c3.600_w0.300.json'
-        # self.dptb_model = '/data/zjj/negf-develop-example/transmission_dos_ldos_IV/best_dptb_c4.7w0.1_2.pth'
-        # self.config='/data/zjj/TBtrans_interface/hBN/model/input_short.json'
+        Note that the input  for dptb-negf is sufficient for generating TBtrans input file.
+        
+        Parameters
+        ----------
+        apiHrk
+            apiHrk has been loaded in the run.py file. It is used as an API for
+            performing certain operations or accessing certain functionalities.
+        run_opt
+            The `run_opt` parameter is a dictionary that contains options for running the model.
+            It has been loaded and prepared in the run.py file.
+        jdata
+            jdata is a JSON object that contains options and parameters for the task Generation of Input Files for TBtrans. 
+            It is loaded in the run.py.
+        '''
+
 
         self.apiHrk = apiHrk  #apiHrk has been loaded in run.py
         self.jdata = jdata    #jdata has been loaded in run.py, jdata is written in negf.json    
@@ -53,10 +65,7 @@ class TBTransInputSet(object):
 
 
         self.results_path = run_opt['results_path']
-        if not self.results_path.endswith('/'):self.results_path += '/'
-
-       
-              
+        if not self.results_path.endswith('/'):self.results_path += '/'             
         self.stru_options = j_must_have(jdata, "stru_options")
         # self.use_correction = False
         # self.orbital_info_available = True
@@ -81,7 +90,7 @@ class TBTransInputSet(object):
         self.H_lead_L = sisl.Hamiltonian(self.geom_lead_L)
         self.H_lead_R = sisl.Hamiltonian(self.geom_lead_R)
 
-    def load_dptb_model(self):
+    def load_model(self):
         '''The function `load_dptb_model` loads DPTB models for different components of a system.
 
             `all` refers to the entire system, including the device and leads.
@@ -103,11 +112,11 @@ class TBTransInputSet(object):
         #                 =self._load_dptb_model(self.inital_model_path,self.config,self.lead_R_tbtrans_stru,run_sk=self.run_sk,use_correction=self.use_correction_path)
 
         self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
-                        =self._load_dptb_model(self.apiHrk,self.all_tbtrans_stru)
+                        =self._load_model(self.apiHrk,self.all_tbtrans_stru)
         self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
-                        =self._load_dptb_model(self.apiHrk,self.lead_L_tbtrans_stru)
+                        =self._load_model(self.apiHrk,self.lead_L_tbtrans_stru)
         self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
-                        =self._load_dptb_model(self.apiHrk,self.lead_R_tbtrans_stru)
+                        =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)
 
 
     def hamil_get(self):
@@ -452,41 +461,25 @@ class TBTransInputSet(object):
 
 
     # def _load_dptb_model(self,checkfile:str,config:str,structure_tbtrans_file:str,run_sk:bool,use_correction:Optional[str]):
-    def _load_dptb_model(self,apiHrk,structure_tbtrans_file:str):
-        '''The `load_dptb_model` function loads a DPTB or NNSK model and returns the Hamiltonian elements.
-
-            Here run_sk is a boolean flag that determines whether to run the model using the NNSK or DPTB.
+    def _load_model(self,apiHrk,structure_tbtrans_file:str):        
+        '''The `_load_dptb_model` function loads model from deeptb and returns the Hamiltonian elements.
         
         Parameters
         ----------
-        checkfile : str
-            The `checkfile` parameter is the file path to the model checkpoint file. 
-        config : str
-            The `config` parameter is a string that represents the configuration file for the model. It
-        contains information such as the model architecture, hyperparameters, and other settings that are
-        necessary for loading and building the model.
+        apiHrk
+            The parameter `apiHrk` is an instance of the `NN2HRK` class. It is used to convert the output of a
+        neural network model into a Hamiltonian representation. It has an attribute `apihost` which is an
+        instance of either `NNSKHost` or `
         structure_tbtrans_file : str
-            The `structure_tbtrans_file` parameter is the file path to the structure file in the TBtrans
-        format.
-        struct_option : dict
-            The `struct_option` parameter is a dictionary that contains various options for the structure. It
-        includes the following keys:
-        run_sk : bool
-            The `run_sk` parameter is a boolean flag that determines whether to run the model using the NNSK
-        (Neural Network Schrödinger-Kohn) method. If `run_sk` is set to `True`, the model will be run using
-        the NNSK method. If
-        use_correction : Optional[str]
-            The `use_correction` parameter is an optional parameter that specifies whether to use correction
-        terms in the model. It can be set to either `None` or a string value. If it is set to `None`, the
-        model will not use any correction terms. If it is set to a string value
+            The parameter `structure_tbtrans_file` is a string that represents the file path to the structure
+        file in the TBTrans format.
         
         Returns
         -------
-            The function `load_dptb_model` returns three variables: `allbonds`, `hamil_block`, and
+            The function `_load_dptb_model` returns three variables: `allbonds`, `hamil_block`, and
         `overlap_block`.
         
         '''
-        
         # if all((use_correction, run_sk)):
         #     raise RuntimeError("--use-correction and --train_sk should not be set at the same time")
         
