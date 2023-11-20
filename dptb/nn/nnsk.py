@@ -38,7 +38,7 @@ class NNSK(torch.nn.Module):
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="sktb")
             if idp is not None:
-                assert idp == self.idp, "The basis of idp and basis should be the same."
+                assert idp.basis == self.idp.basis, "The basis of idp and basis should be the same."
         else:
             assert idp is not None, "Either basis or idp should be provided."
             self.idp = idp
@@ -53,30 +53,33 @@ class NNSK(torch.nn.Module):
 
         # init_onsite, hopping, overlap formula
 
-        self.onsite_fn = OnsiteFormula(idp=self.idp, functype=self.onsite_param["method"], dtype=dtype, device=device)
+        self.onsite_fn = OnsiteFormula(idp=self.idp, functype=self.onsite_options["method"], dtype=dtype, device=device)
         self.hopping_fn = HoppingFormula(functype=self.hopping_options["method"])
         if overlap:
             self.overlap_fn = HoppingFormula(functype=self.hopping_options["method"], overlap=True)
 
         
         # init_param
+        # 
         self.hopping_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device))
         if overlap:
             self.overlap_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device))
 
-        if onsite == "strain":
+        if self.onsite_options["method"] == "strain":
             self.onsite_param = None
-        elif onsite == "none":
+        elif self.onsite_options["method"] == "none":
             self.onsite_param = None
         else:
             self.onsite_param = torch.nn.Parameter(torch.randn([len(self.idp.type_names), self.idp.node_reduced_matrix_element, self.onsite_fn.num_paras], dtype=self.dtype, device=self.device))
         
-        if onsite == "strain":
+        if self.onsite_options["method"] == "strain":
             # AB [ss, sp, sd, ps, pp, pd, ds, dp, dd]
             # AA [...]
             # but need to map to all pairs and all orbital pairs like AB, AA, BB, BA for [ss, sp, sd, ps, pp, pd, ds, dp, dd]
             # with this map: BA[sp, sd] = AB[ps, ds]
-            self.strain_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element], dtype=self.dtype, device=self.device))
+            self.strain_param = torch.nn.Parameter(torch.randn([len(self.idp.reduced_bond_types), self.idp.edge_reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device))
+            # symmetrize the env for same atomic spices
+            
         self.hamiltonian = SKHamiltonian(idp=self.idp, dtype=self.dtype, device=self.device)
         if overlap:
             self.overlap = SKHamiltonian(idp=self.idp, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
@@ -92,6 +95,24 @@ class NNSK(torch.nn.Module):
         # map the parameters to the edge/node/env features
         
         # compute integrals from parameters using hopping and onsite clas
+
+        # symmetrize the bond for same atomic spices
+        reflect_keys = np.array(list(self.idp.pair_maps.keys()), dtype="str").reshape(len(self.idp.full_basis), len(self.idp.full_basis)).transpose(1,0).reshape(-1)
+        reflect_params = 0.5 * self.hopping_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))]
+        self.hopping_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))] = \
+            reflect_params + torch.cat([reflect_params[:,self.idp.pair_maps[key],:] for key in reflect_keys], dim=-2)
+        
+        if hasattr(self, "overlap"):
+            reflect_params = 0.5 * self.overlap_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))]
+            self.overlap_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))] = \
+                reflect_params + torch.cat([reflect_params[:,self.idp.pair_maps[key],:] for key in reflect_keys], dim=-2)
+            
+        if self.onsite_fn.functype == "strain":
+            reflect_params = 0.5 * self.strain_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))]
+            self.strain_param.data[self.idp.transform_reduced_bond(torch.tensor(list(self.idp._valid_set)), torch.tensor(list(self.idp._valid_set)))] = \
+                reflect_params + torch.cat([reflect_params[:,self.idp.pair_maps[key],:] for key in reflect_keys], dim=-2)
+
+            
         data = AtomicDataDict.with_edge_vectors(data, with_lengths=True)
 
         edge_number = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.EDGE_INDEX_KEY]].reshape(2, -1)
@@ -139,17 +160,22 @@ class NNSK(torch.nn.Module):
         
         # compute strain
         if self.onsite_fn.functype == "strain":
-            onsitenv_number = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.ONSITENV_INDEX_KEY]].reshape(2,-1)
+            data = AtomicDataDict.with_onsitenv_vectors(data, with_lengths=True)
+            onsitenv_number = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.ONSITENV_INDEX_KEY]].reshape(2, -1)
             onsitenv_index = self.idp.transform_reduced_bond(*onsitenv_number)
             reflect_index = self.idp.transform_reduced_bond(*onsitenv_number.flip(0))
             onsitenv_index[onsitenv_index<0] = reflect_index[onsitenv_index<0] + len(self.idp.reduced_bond_types)
-
-            # be careful here cause I am not so sure about whether this keys of pair maps has the correct order, 
-            # but it works for now
-            reflect_keys = np.array(list(self.idp.pair_maps.keys()), dtype="str").reshape(len(self.idp.full_basis), len(self.idp.full_basis)).transpose(1,0).reshape(-1)
-            reflect_params = torch.cat([self.strain_param[:,self.idp.pair_maps[key]] for key in reflect_keys], dim=-1)
+            reflect_params = torch.cat([self.strain_param[:,self.idp.pair_maps[key],:] for key in reflect_keys], dim=-2)
             onsitenv_params = torch.cat([self.strain_param, 
                 reflect_params], dim=0)
+            
+            r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[onsitenv_number].sum(0)
+            onsitenv_params = self.hopping_fn.get_skhij(
+            rij=data[AtomicDataDict.ONSITENV_LENGTH_KEY],
+            paraArray=onsitenv_params[onsitenv_index], # [N_edge, n_pairs, n_paras],
+            r0=r0,
+            **self.onsite_options,
+            ) # [N_edge, n_pairs]
             
             data[AtomicDataDict.ONSITENV_FEATURES_KEY] = onsitenv_params[onsitenv_index]
 
@@ -172,7 +198,9 @@ class NNSK(torch.nn.Module):
         v1_model: dict, 
         basis: Dict[str, Union[str, list]]=None,
         idp: Union[OrbitalMapper, None]=None, 
-        nnsk_options: dict=None,
+        onsite: Dict={"method": "none"},
+        hopping: Dict={"method": "powerlaw", "rs":6.0, "w": 0.2},
+        overlap: bool = False,
         dtype: Union[str, torch.dtype] = torch.float32, 
         device: Union[str, torch.device] = torch.device("cpu"),
         ):
@@ -184,25 +212,30 @@ class NNSK(torch.nn.Module):
         device = device
 
         if basis is not None:
-            assert basis is None
+            assert idp is None
             idp = OrbitalMapper(basis, method="sktb")
         else:
             assert idp is not None
         
             
         basis = idp.basis
+        idp.get_node_maps()
+        idp.get_pair_maps()
 
-        nnsk_model = cls(basis=basis, idp=idp, dtype=dtype, device=device, **nnsk_options)
+        nnsk_model = cls(basis=basis, idp=idp, dtype=dtype, device=device, onsite=onsite, hopping=hopping, overlap=overlap)
 
-        onsite = v1_model["onsite"]
-        hopping = v1_model["hopping"]
+        onsite_param = v1_model["onsite"]
+        hopping_param = v1_model["hopping"]
 
         assert len(hopping) > 0, "The hopping parameters should be provided."
 
         # load hopping params
-        for orbpair, skparam in hopping.items():
-            iasym, jasym, iorb, jorb, num = list(orbpair.splt("-"))
-            ian, jan = atomic_num_dict[iasym], atomic_num_dict[jasym]
+        for orbpair, skparam in hopping_param.items():
+            skparam = torch.tensor(skparam, dtype=dtype, device=device)
+            skparam[0] *= 13.605662285137 * 2
+            iasym, jasym, iorb, jorb, num = list(orbpair.split("-"))
+            num = int(num)
+            ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
             fiorb, fjorb = idp.basis_to_full_basis[iasym][iorb], idp.basis_to_full_basis[jasym][jorb]
             
             if ian <= jan:
@@ -212,13 +245,37 @@ class NNSK(torch.nn.Module):
                 nline = idp.transform_reduced_bond(iatomic_numbers=jan, jatomic_numbers=ian)
                 nidx = idp.pair_maps[f"{fjorb}-{fiorb}"].start + num
 
-            nnsk_model.hopping_param[nline, nidx] = torch.tensor(skparam, dtype=dtype, device=device)
+            nnsk_model.hopping_param.data[nline, nidx] = skparam
+            if ian == jan:
+                nidx = idp.pair_maps[f"{fjorb}-{fiorb}"].start + num
+                nnsk_model.hopping_param.data[nline, nidx] = skparam
         
         # load onsite params, differently with onsite mode
-        if nnsk_options["onsite"]["method"] == "strain":
+        if onsite["method"] == "strain":
+            for orbpair, skparam in onsite_param.items():
+                skparam = torch.tensor(skparam, dtype=dtype, device=device)
+                skparam[0] *= 13.605662285137 * 2
+                iasym, jasym, iorb, jorb, num = list(orbpair.split("-"))
+                num = int(num)
+                ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
+                fiorb, fjorb = idp.basis_to_full_basis[iasym][iorb], idp.basis_to_full_basis[jasym][jorb]
+
+                if ian <= jan:
+                    nline = idp.transform_reduced_bond(iatomic_numbers=ian, jatomic_numbers=jan)
+                    nidx = idp.pair_maps[f"{fiorb}-{fjorb}"].start + num
+                else:
+                    nline = idp.transform_reduced_bond(iatomic_numbers=jan, jatomic_numbers=ian)
+                    nidx = idp.pair_maps[f"{fjorb}-{fiorb}"].start + num
+
+                nnsk_model.strain_param.data[nline, nidx] = skparam
+                if ian == jan:
+                    nidx = idp.pair_maps[f"{fjorb}-{fiorb}"].start + num
+                    nnsk_model.strain_param.data[nline, nidx] = skparam
+
+        elif onsite["method"] != "none":
+            pass
+        else:
             pass
 
-
-        pass
-
+        return nnsk_model
         

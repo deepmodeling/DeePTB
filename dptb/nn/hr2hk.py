@@ -57,7 +57,11 @@ class HR2HK(torch.nn.Module):
             for j,jorb in enumerate(self.idp.full_basis):
                 orbpair = iorb + "-" + jorb
                 lj = anglrMId[re.findall(r"[a-zA-Z]+", jorb)[0]]
-                bondwise_hopping[:,ist:ist+2*li+1,jst:jst+2*lj+1] = orbpair_hopping[:,self.idp.pair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
+                if li < lj:
+                    factor = (-1.0)**(li+lj)
+                else:
+                    factor = 1.0
+                bondwise_hopping[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_hopping[:,self.idp.pair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
                 
                 if i <= j:
                     onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = orbpair_onsite[:,self.idp.node_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)

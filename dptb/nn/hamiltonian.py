@@ -208,7 +208,7 @@ class SKHamiltonian(torch.nn.Module):
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="sktb")
             if idp is not None:
-                assert idp == self.idp, "The basis of idp and basis should be the same."
+                assert idp.basis == self.idp.basis, "The basis of idp and basis should be the same."
         else:
             assert idp is not None, "Either basis or idp should be provided."
             self.idp = idp

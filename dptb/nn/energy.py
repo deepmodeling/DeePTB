@@ -18,7 +18,7 @@ class Eigenvalues(nn.Module):
             h_edge_field: str = AtomicDataDict.EDGE_FEATURES_KEY,
             h_node_field: str = AtomicDataDict.NODE_FEATURES_KEY,
             h_out_field: str = AtomicDataDict.HAMILTONIAN_KEY,
-            out_field: str = AtomicDataDict.EIGENVALUES_KEY,
+            out_field: str = AtomicDataDict.ENERGY_EIGENVALUE_KEY,
             s_edge_field: str = None,
             s_node_field: str = None,
             s_out_field: str = None,
@@ -26,14 +26,14 @@ class Eigenvalues(nn.Module):
             device: Union[str, torch.device] = torch.device("cpu")):
         super(Eigenvalues, self).__init__()
 
-        self.h2k = HR2HK(id=idp, edge_field=h_edge_field, node_field=h_node_field, out_field=h_out_field, dtype=dtype, device=device)
+        self.h2k = HR2HK(idp=idp, edge_field=h_edge_field, node_field=h_node_field, out_field=h_out_field, dtype=dtype, device=device)
         if s_edge_field is not None:
             self.s2k = HR2HK(id=idp, edge_field=s_edge_field, node_field=s_node_field, out_field=s_out_field, dtype=dtype, device=device)
             self.overlap = True
         else:
             self.overlap = False
         self.out_field = out_field
-        self.h_out_field = s_out_field
+        self.h_out_field = h_out_field
         self.s_out_field = s_out_field
 
 

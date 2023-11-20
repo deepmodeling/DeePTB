@@ -26,6 +26,13 @@ class BaseOnsite(ABC):
 
 
 class OnsiteFormula(BaseOnsite):
+    num_paras_dict = {
+        'uniform': 4,
+        'none': 0,
+        'strain': 0,
+        "NRL": 4,
+        "custom": None,
+    }
 
     def __init__(
             self, 
@@ -35,24 +42,20 @@ class OnsiteFormula(BaseOnsite):
             device: Union[str, torch.device] = torch.device("cpu")) -> None:
         super().__init__() 
         if functype in ['none', 'strain']:
-            self.functype = functype
-            self.num_paras = 0
-
+            pass
         elif functype == 'uniform':
-            self.functype = functype
-            self.num_paras = 1
             assert hasattr(self, 'uniform')
+
         elif functype == 'NRL':
-            self.functype = functype
-            self.num_paras = 4
             assert hasattr(self, 'NRL')
 
         elif functype == 'custom':
-            self.functype = functype
-            self.num_paras = None # defined by custom.
             assert hasattr(self, 'custom')
         else:
             raise ValueError('No such formula')
+        
+        self.functype = functype
+        self.num_paras = self.num_paras_dict[functype]
         
         self.idp = idp
         if self.functype in ["uniform", "none", "strain"]:

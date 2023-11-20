@@ -50,7 +50,7 @@ class HoppingFormula(BaseHopping):
             raise ValueError('No such formula')
         
         self.functype = functype
-        self.num_params = self.num_paras_dict[functype]
+        self.num_paras = self.num_paras_dict[functype]
         
 
     def get_skhij(self, rij, **kwargs):
