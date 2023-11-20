@@ -23,6 +23,7 @@ from dptb.postprocess.bandstructure.fermisurface import fs2dcalc, fs3dcalc
 from dptb.postprocess.bandstructure.ifermi_api import ifermiapi, ifermi_installed, pymatgen_installed
 from dptb.postprocess.write_skparam import WriteNNSKParam
 from dptb.postprocess.NEGF import NEGF
+from dptb.postprocess.tbtrans_init import TBTransInputSet,sisl_installed
 
 __all__ = ["run"]
 
@@ -215,6 +216,16 @@ def run(
         negf.compute()
         log.info(msg='NEGF calculation successfully completed.')
 
+    if task == 'tbtrans_negf':
+        if not(sisl_installed):
+            log.error(msg="sisl is required to perform tbtrans calculation !")
+            raise RuntimeError
+
+        tbtrans_init = TBTransInputSet(apiHrk, run_opt, task_options)
+        tbtrans_init.load_dptb_model()
+        tbtrans_init.hamil_get()
+        tbtrans_init.hamil_write()
+        log.info(msg='TBtrans input files are successfully generated.')
 
     if output:
         with open(os.path.join(output, "run_config.json"), "w") as fp:
