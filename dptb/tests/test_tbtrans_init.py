@@ -12,11 +12,8 @@ def root_directory(request):
 
 
 def test_tbtrans_init(root_directory):
-    # checkfile = f'{root_directory}/dptb/tests/data/hBN/checkpoint/best_nnsk.pth'
-    # nnskapi = NNSKHost(checkpoint=checkfile)
-    # nnskapi.register_plugin(InitSKModel())
-    # nnskapi.build()
 
+    # check whether sisl is installed: if not, skip this test
     try:
         import sisl
     except:
