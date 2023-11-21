@@ -83,6 +83,8 @@ class E3Hamiltonian(torch.nn.Module):
         n_edge = data[AtomicDataDict.EDGE_INDEX_KEY].shape[1]
         n_node = data[AtomicDataDict.NODE_FEATURES_KEY].shape[0]
 
+        data = AtomicDataDict.with_edge_vectors(data, with_lengths=True)
+
         if not self.decompose:
             # The EDGE_FEATURES_KEY and NODE_FAETURE_KEY are the reduced matrix elements
 

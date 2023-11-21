@@ -130,7 +130,7 @@ class DPTB(nn.Module):
             prediction["neurons"] = [self.embedding.out_node_dim] + prediction["neurons"] + [self.idp.node_reduced_matrix_element]
             prediction["config"] = get_neuron_config(prediction["neurons"])
 
-            self.node_prediction_h = AtomicResNet(
+            self.node_prediction_h = AtomicFFN(
                 **prediction,
                 in_field=AtomicDataDict.NODE_FEATURES_KEY,
                 out_field=AtomicDataDict.NODE_FEATURES_KEY,
@@ -139,7 +139,7 @@ class DPTB(nn.Module):
             )
 
             if self.overlap:
-                self.node_prediction_s = AtomicResNet(
+                self.node_prediction_s = AtomicFFN(
                     **prediction,
                     in_field=AtomicDataDict.NODE_OVERLAP_KEY,
                     out_field=AtomicDataDict.NODE_OVERLAP_KEY,
@@ -150,7 +150,7 @@ class DPTB(nn.Module):
             prediction["neurons"][0] = self.embedding.out_edge_dim
             prediction["neurons"][-1] = self.idp.edge_reduced_matrix_element
             prediction["config"] = get_neuron_config(prediction["neurons"])
-            self.edge_prediction_h = AtomicResNet(
+            self.edge_prediction_h = AtomicFFN(
                 **prediction,
                 in_field=AtomicDataDict.EDGE_FEATURES_KEY,
                 out_field=AtomicDataDict.EDGE_FEATURES_KEY,
@@ -159,7 +159,7 @@ class DPTB(nn.Module):
             )
 
             if self.overlap:
-                self.edge_prediction_s = AtomicResNet(
+                self.edge_prediction_s = AtomicFFN(
                     **prediction,
                     in_field=AtomicDataDict.EDGE_OVERLAP_KEY,
                     out_field=AtomicDataDict.EDGE_OVERLAP_KEY,

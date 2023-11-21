@@ -98,8 +98,8 @@ class _BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
                         - epoch: events after epoch batch training 
                     The difference b/w iteration and update the parameters, iteration takes in the batch output, loss etc., while  update takes in model itself.
                 '''
-        self.iteration = 1
-        self.epoch = 1
+        self.iter = 1
+        self.ep = 1
 
     @abstractmethod
     def restart(self, checkpoint):
@@ -112,13 +112,13 @@ class _BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
             '''对四个事件调用序列进行最小堆排序。'''
             heapq.heapify(q)
 
-        for i in range(self.epoch, epochs + 1):
-            self.train()
+        for i in range(self.ep, epochs + 1):
+            self.epoch()
             # run plugins of epoch events.
             self.call_plugins(queue_name='epoch', time=i)
             self.lr_scheduler.step()  # modify the lr at each epoch (should we add it to pluggins so we could record the lr scheduler process?)
             self.update()
-            self.epoch += 1
+            self.ep += 1
 
 
     @abstractmethod

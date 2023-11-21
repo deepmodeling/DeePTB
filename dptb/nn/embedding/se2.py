@@ -70,19 +70,21 @@ class SE2Descriptor(torch.nn.Module):
         """
         data = self.onehot(data)
         data = AtomicDataDict.with_env_vectors(data, with_lengths=True)
+        data = AtomicDataDict.with_edge_vectors(data, with_lengths=True)
 
         data[AtomicDataDict.NODE_FEATURES_KEY], data[AtomicDataDict.EDGE_FEATURES_KEY] = self.descriptor(
             data[AtomicDataDict.ENV_VECTORS_KEY],
             data[AtomicDataDict.NODE_ATTRS_KEY],
             data[AtomicDataDict.ENV_INDEX_KEY], 
-            data[AtomicDataDict.EDGE_INDEX_KEY]
+            data[AtomicDataDict.EDGE_INDEX_KEY],
+            data[AtomicDataDict.EDGE_LENGTH_KEY],
             )
         
         return data
     
     @property
     def out_edge_dim(self):
-        return self.descriptor.n_out
+        return self.descriptor.n_out + 1
 
     @property
     def out_node_dim(self):
@@ -152,11 +154,11 @@ class _SE2Descriptor(MessagePassing):
             self.n_axis = radial_embedding["neurons"][-1]
         self.n_out = self.n_axis * radial_embedding["neurons"][-1]
 
-    def forward(self, env_vectors, atom_attr, env_index, edge_index):
+    def forward(self, env_vectors, atom_attr, env_index, edge_index, edge_length):
         n_env = env_index.shape[1]
         env_attr = atom_attr[env_index].transpose(1,0).reshape(n_env,-1)
         out_node = self.propagate(env_index, env_vectors=env_vectors, env_attr=env_attr) # [N_atom, D, 3]
-        out_edge = self.edge_updater(edge_index, node_descriptor=out_node) # [N_edge, D*D]
+        out_edge = self.edge_updater(edge_index, node_descriptor=out_node, edge_length=edge_length) # [N_edge, D*D]
 
         return out_node, out_edge
 
@@ -178,12 +180,13 @@ class _SE2Descriptor(MessagePassing):
         _type_
             _description_
         """
-
-        return torch.bmm(aggr_out, aggr_out.transpose(1, 2))[:,:,:self.n_axis].flatten(start_dim=1, end_dim=2) # [N, D*D]
+        out = torch.bmm(aggr_out, aggr_out.transpose(1, 2))[:,:,:self.n_axis].flatten(start_dim=1, end_dim=2)
+        out = out - out.mean(1, keepdim=True)
+        out = out / out.norm(dim=1, keepdim=True)
+        return out # [N, D*D]
     
-    def edge_update(self, edge_index, node_descriptor):
-        
-        return node_descriptor[edge_index[0]] + node_descriptor[edge_index[1]] # [N_edge, D*D]
+    def edge_update(self, edge_index, node_descriptor, edge_length):
+        return torch.cat([node_descriptor[edge_index[0]] + node_descriptor[edge_index[1]], 1/edge_length.reshape(-1,1)], dim=-1) # [N_edge, D*D]
     
     def smooth(self, r: torch.Tensor, rs: torch.Tensor, rc: torch.Tensor):
         r_ = torch.zeros_like(r)

@@ -5,9 +5,9 @@ get_optimizer, j_must_have
 from dptb.nnops.trainloss import lossfunction
 from dptb.nnops.base_trainer import _BaseTrainer
 from typing import Union, Optional
-from dptb.data import AtomicDataset, DataLoader, build_dataset, AtomicData
+from dptb.data import AtomicDataset, DataLoader, AtomicData
 from dptb.nn import build_model
-from _loss import Loss
+from dptb.nnops._loss import Loss
 
 log = logging.getLogger(__name__)
 #TODO: complete the log output for initilizing the trainer
@@ -22,8 +22,8 @@ class Trainer(_BaseTrainer):
             common_options: dict,
             model: torch.nn.Module,
             train_datasets: AtomicDataset,
-            reference_datasets: Optional[AtomicDataset]=None,
-            validation_datasets: Optional[AtomicDataset]=None,
+            reference_datasets: Union[AtomicDataset, None]=None,
+            validation_datasets: Union[AtomicDataset, None]=None,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             ) -> None:
@@ -31,40 +31,43 @@ class Trainer(_BaseTrainer):
         
         # init the object
         self.model = model.to(device)
-        self.optimizer = get_optimizer(self.model.parameters(), **train_options["optimizer"])
-        self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, last_epoch=self.epoch, **self.train_options["lr_scheduler"])  # add optmizer
+        self.optimizer = get_optimizer(model_param=self.model.parameters(), **train_options["optimizer"])
+        self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **train_options["lr_scheduler"])  # add optmizer
         
         self.train_datasets = train_datasets
+        self.use_reference = False
         if reference_datasets is not None:
             self.reference_datesets = reference_datasets
             self.use_reference = True
 
         if validation_datasets is not None:
             self.validation_datasets = validation_datasets
-            self.validation = True
+            self.use_validation = True
+        else:
+            self.use_validation = False
 
         self.train_loader = DataLoader(dataset=self.train_datasets)
 
         if self.use_reference:
             self.reference_loader = DataLoader(dataset=self.reference_datesets)
 
-        if self.validation:
+        if self.use_validation:
             self.validation_loader = DataLoader(dataset=self.validation_datasets)
 
         # loss function
         self.train_lossfunc = Loss(method=train_options["loss_options"]["train"]["method"])
-        if self.validation:
+        if self.use_validation:
             self.validation_lossfunc = Loss(method=train_options["loss_options"]["validation"]["method"])
 
     def iteration(self, batch, ref_batch=None):
         '''
         conduct one step forward computation, used in train, test and validation.
         '''
-        self.optim.zero_grad(set_to_none=True)
+        self.optimizer.zero_grad(set_to_none=True)
         batch = batch.to(self.device)
         batch = AtomicData.to_AtomicDataDict(batch)
 
-        batch_for_loss = batch_for_loss.copy() # make a shallow copy in case the model change the batch data
+        batch_for_loss = batch.copy() # make a shallow copy in case the model change the batch data
         #TODO: the rescale/normalization can be added here
         batch = self.model(batch)
 
@@ -75,7 +78,7 @@ class Trainer(_BaseTrainer):
             ref_batch = AtomicData.to_AtomicDataDict(ref_batch)
             ref_batch_for_loss = ref_batch.copy()
             ref_batch = self.model(ref_batch)
-            loss += self.train_lossfunc(ref_batch, batch_for_loss)
+            loss += self.train_lossfunc(ref_batch, ref_batch_for_loss)
 
         self.optimizer.zero_grad(set_to_none=True)
         loss.backward()
@@ -83,8 +86,8 @@ class Trainer(_BaseTrainer):
         self.optimizer.step()
 
         state = {'field':'iteration', "train_loss": loss.detach(), "lr": self.optimizer.state_dict()["param_groups"][0]['lr']}
-        self.call_plugins(queue_name='iteration', time=self.iteration, **state)
-        self.iteration += 1
+        self.call_plugins(queue_name='iteration', time=self.iter, **state)
+        self.iter += 1
 
         #TODO: add EMA
 
@@ -138,7 +141,7 @@ class Trainer(_BaseTrainer):
             if self.use_reference:
                 self.iteration(ibatch, next(self.reference_loader))
             else:
-                self.iteration(ibatch)
+                loss = self.iteration(ibatch)
 
 
     def update(self, **kwargs):

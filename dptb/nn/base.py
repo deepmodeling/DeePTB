@@ -99,7 +99,8 @@ class AtomicFFN(torch.nn.Module):
         activation: Union[str, Callable[[Tensor], Tensor]] = F.relu,
         if_batch_normalized: bool = False, 
         device: Union[str, torch.device] = torch.device('cpu'), 
-        dtype: Union[str, torch.dtype] = torch.float32
+        dtype: Union[str, torch.dtype] = torch.float32,
+        **kwargs
         ):
         super(AtomicFFN, self).__init__()
         self.layers = torch.nn.ModuleList([])
