@@ -442,7 +442,7 @@ class AtomicData(Data):
             if cell is not None:
                 kwargs[AtomicDataDict.ONSITENV_CELL_SHIFT_KEY] = onsitenv_cell_shift
             kwargs[AtomicDataDict.ONSITENV_INDEX_KEY] = onsitenv_index
-
+            
         return cls(edge_index=edge_index, pos=torch.as_tensor(pos), **kwargs)
 
     @classmethod

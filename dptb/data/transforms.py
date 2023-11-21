@@ -595,4 +595,24 @@ class OrbitalMapper(BondMapper):
 
         
         # also need to think if we modify as this, how can we add extra basis when fitting.
+
+    def get_orbital_maps(self):
+        # simply get a 1-d slice for each atom species.
+
+        self.orbital_maps = {}
+
+        for ib in self.basis.keys():
+            orbital_list = self.basis[ib]
+            slices = {}
+            start_index = 0
+
+            for orb in orbital_list:
+                orb_l = re.findall(r'[A-Za-z]', orb)[0]
+                increment = (2*anglrMId[orb_l]+1)
+                end_index = start_index + increment
+                slices[orb] = slice(start_index, end_index)
+                start_index = end_index
+            
+            self.orbital_maps[ib] = slices
         
+        return self.orbital_maps
