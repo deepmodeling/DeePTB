@@ -33,7 +33,7 @@
             "sk_decay_w": 0.3
         }
     },
-    "structure":"./test_hBN_struct.xyz",
+    "structure":"./test_hBN_zigzag_struct.xyz",
 	"task_options":
         {
             "task": "tbtrans_negf",

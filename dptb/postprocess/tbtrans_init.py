@@ -2,8 +2,6 @@ import numpy as np
 import logging
 import shutil
 import re
-
-
 from dptb.structure.structure import BaseStruct
 from dptb.utils.tools import j_loader,j_must_have
 
@@ -56,30 +54,12 @@ class TBTransInputSet(object):
         self.apiHrk = apiHrk  #apiHrk has been loaded in run.py
         self.jdata = jdata    #jdata has been loaded in run.py, jdata is written in negf.json    
 
-        # if isinstance(run_opt['structure'],str):
-        #     self.structase = read(run_opt['structure'])
-        # elif isinstance(run_opt['structure'],ase.Atoms):
-        #     self.structase = run_opt['structure']
-        # else:
-        #     raise ValueError('structure must be ase.Atoms or str')
-
-
         self.results_path = run_opt['results_path']
         if not self.results_path.endswith('/'):self.results_path += '/'             
         self.stru_options = j_must_have(jdata, "stru_options")
-        # self.use_correction = False
-        # self.orbital_info_available = True
         self.energy_unit_option = 'eV'  # enenrgy unit for TBtrans calculation
 
-        # if self.use_correction:
-        #     self.inital_model_path = self.dptb_model
-        #     self.use_correction_path = self.nnsk_model
-        #     self.run_sk = False
-        # else:
-        #     self.inital_model_path = self.nnsk_model
-        #     self.use_correction_path = None
-        #     self.run_sk=True
-        
+       
         self.geom_all,self.geom_lead_L,self.geom_lead_R,self.all_tbtrans_stru,self.lead_L_tbtrans_stru,self.lead_R_tbtrans_stru\
                    = self.read_rewrite_structure(run_opt['structure'],self.stru_options,self.results_path)
         
@@ -104,12 +84,6 @@ class TBTransInputSet(object):
                              the values of the overlap matrix elements for each specific basis
         '''
 
-        # self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
-        #                 =self._load_dptb_model(self.inital_model_path,self.config,self.all_tbtrans_stru,run_sk=self.run_sk,use_correction=self.use_correction_path)
-        # self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
-        #                 =self._load_dptb_model(self.inital_model_path,self.config,self.lead_L_tbtrans_stru,run_sk=self.run_sk,use_correction=self.use_correction_path)
-        # self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
-        #                 =self._load_dptb_model(self.inital_model_path,self.config,self.lead_R_tbtrans_stru,run_sk=self.run_sk,use_correction=self.use_correction_path)
 
         self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
                         =self._load_model(self.apiHrk,self.all_tbtrans_stru)
@@ -420,7 +394,7 @@ class TBTransInputSet(object):
     def _shell_electrons(self,element_symbol):
         '''The function `_shell_electrons` calculates the number of shell electrons for a given element symbol.
 
-            In this code, shell electron number is trivial for subgroup element
+            In this code, shell electron number is trivial for subgroup element. It would be improved soon.
         
         Parameters
         ----------
@@ -561,13 +535,15 @@ class TBTransInputSet(object):
                 # consistent with supercell setting
                 if abs(y) > 1 or abs(z) > 1:
                     print("Unexpected supercell index: ",[x,y,z])
-                    print("Attention: the structure supercell setting may be too small to satisfy the nearest interaction, causing error Self-energy calculation!")
-                if abs(z)>0 or abs(y)>0:
-                    print([x,y,z])
+                    print("Attention: the supercell setting may be too small to satisfy the nearest cell interaction, error in Lead self-energy calculation may occur.")
+                # if abs(z)>0 or abs(y)>0:
+                #     print([x,y,z])
                 for orb_a in range(orb_first_a,orb_last_a):
                     for orb_b in range(orb_first_b,orb_last_b):
                         Hamil_sisl[orb_a,orb_b,(x,y,z)]=hamil_block[i].detach().numpy()[orb_a-orb_first_a,orb_b-orb_first_b]*unit_constant
                         Hamil_sisl[orb_b,orb_a,(-1*x,-1*y,-1*z)]=np.conjugate(Hamil_sisl[orb_a,orb_b,(x,y,z)])
                         # Hamil_sisl[orb_b,orb_a,(-1*x,-1*y,-1*z)]=hamil_block[i].detach().numpy()[orb_b-orb_first_b,orb_a-orb_first_a]*unit_constant
-        
+                
+                #TODO: At this stage, there is some problem using slice operation in sisl. I'm fixing it with the developer of sisl.
+                # I believe that the slice operation will be take soon.
         
