@@ -284,10 +284,21 @@ class NNSK(torch.nn.Module):
                     nidx = idp.pair_maps[f"{fjorb}-{fiorb}"].start + num
                     nnsk_model.strain_param.data[nline, nidx] = skparam
 
-        elif onsite["method"] != "none":
+        elif onsite["method"] == "none":
             pass
         else:
-            pass
+            for orbon, skparam in onsite_param.items():
+                skparam = torch.tensor(skparam, dtype=dtype, device=device)
+                skparam *= 13.605662285137 * 2
+                iasym, iorb, num = list(orbon.split("-"))
+                num = int(num)
+                ian = torch.tensor(atomic_num_dict[iasym])
+                fiorb = idp.basis_to_full_basis[iasym][iorb]
+
+                nline = idp.transform_atom(atomic_numbers=ian)
+                nidx = idp.node_maps[fiorb+"-"+fiorb].start + num
+
+                nnsk_model.onsite_param.data[nline, nidx] = skparam
 
         return nnsk_model
         

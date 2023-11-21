@@ -27,7 +27,7 @@ class BaseOnsite(ABC):
 
 class OnsiteFormula(BaseOnsite):
     num_paras_dict = {
-        'uniform': 4,
+        'uniform': 1,
         'none': 0,
         'strain': 0,
         "NRL": 4,
