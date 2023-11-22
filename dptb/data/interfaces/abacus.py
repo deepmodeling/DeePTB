@@ -295,13 +295,13 @@ def abacus_parse(input_path,
             f["hamiltonian_blocks"] = h5py.ExternalLink("hamiltonians.h5", "/")
             if add_overlap:
                 f["overlap_blocks"] = h5py.ExternalLink("overlaps.h5", "/")
-            else:
-                f["overlap_blocks"] = False
-        else:
-            f["hamiltonian_blocks"] = False
+            # else:
+            #     f["overlap_blocks"] = False
+        # else:
+        #     f["hamiltonian_blocks"] = False
         if get_eigenvalues:
             f["kpoint"] = kpts
             f["eigenvalue"] = band
-        else:
-            f["kpoint"] = False
-            f["eigenvalue"] = False
+        # else:
+        #     f["kpoint"] = False
+        #     f["eigenvalue"] = False

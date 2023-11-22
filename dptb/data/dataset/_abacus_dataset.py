@@ -39,10 +39,11 @@ class ABACUSDataset(AtomicDataset):
         self.file_names = h5file_names
         self.preprocess_path = preprocess_path
 
-        self.r_max = AtomicData_options["r_max"]
-        self.er_max = AtomicData_options["er_max"]
-        self.oer_max = AtomicData_options["oer_max"]
-        self.pbc = AtomicData_options["pbc"]
+        self.AtomicData_options = AtomicData_options
+        # self.r_max = AtomicData_options["r_max"]
+        # self.er_max = AtomicData_options["er_max"]
+        # self.oer_max = AtomicData_options["oer_max"]
+        # self.pbc = AtomicData_options["pbc"]
 
         self.index = None
         self.num_examples = len(h5file_names)
@@ -54,12 +55,9 @@ class ABACUSDataset(AtomicDataset):
 
         atomic_data = AtomicData.from_points(
             pos = data["pos"][:],
-            r_max = self.r_max,
             cell = data["cell"][:],
-            er_max = self.er_max,
-            oer_max = self.oer_max,
-            pbc = self.pbc,
             atomic_numbers = data["atomic_numbers"][:],
+            **self.AtomicData_options,
         )
 
         if data["hamiltonian_blocks"]:
@@ -67,8 +65,8 @@ class ABACUSDataset(AtomicDataset):
             for key, value in data["basis"].items(): 
                 basis[key] = [(f"{i+1}" + orbitalLId[l]) for i, l in enumerate(value)]
             idp = OrbitalMapper(basis)
-            ham_block_to_feature(atomic_data, idp, data["hamiltonian_blocks"], data["overlap_blocks"])
-        if data["eigenvalue"] and data["kpoint"]:
+            ham_block_to_feature(atomic_data, idp, data.get("hamiltonian_blocks", False), data.get("overlap_blocks", False))
+        if data.get("eigenvalue") and data.get("kpoint"):
             atomic_data[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(data["kpoint"][:], dtype=torch.get_default_dtype())
             atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.as_tensor(data["eigenvalue"][:], dtype=torch.get_default_dtype())
 
