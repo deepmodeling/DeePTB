@@ -1,0 +1,64 @@
+{
+    "common_options": {
+        "bond_cutoff": 4.0,
+        "env_cutoff": 4.0,
+        "basis": {
+            "B": "2s2p1d",
+            "N": "2s2p1d"
+        },
+        "device": "cpu",
+        "dtype": "float32"
+    },
+    "model_options": {
+        "embedding": {
+            "method": "se2",
+            "rs": 2.0, 
+            "rc": 4.0,
+            "n_axis": 10,
+            "radial_embedding": {
+                "neurons": [128,128,20],
+                "activation": "tanh",
+                "if_batch_normalized": false
+            }
+        },
+        "prediction":{
+            "method": "nn",
+            "neurons": [256,256,256],
+            "activation": "tanh",
+            "if_batch_normalized": false,
+            "quantities": ["hamiltonian"],
+            "hamiltonian":{
+                "method": "e3tb",
+                "precision": 1e-5,  
+                "overlap": false
+            }
+        }
+    },
+    "train_options": {
+        "seed": 120478,
+        "batch_size": 1,
+        "num_epoch": 40,
+        "optimizer": {
+            "lr": 0.02,
+            "type": "Adam"
+        },
+        "lr_scheduler": {
+            "type": "exp",
+            "gamma": 0.9985
+        },
+        "loss_options":{
+            "train":{"method": "hamil"}
+        },
+        "save_freq": 10,
+        "validation_freq": 10,
+        "display_freq": 1
+    },
+    "data_options": {
+        "train": {
+            "root": "./",
+            "preprocess_path": "./set",
+            "file_names": ["AtomicData.h5"],
+            "pbc": true
+        }
+    }
+}

@@ -67,12 +67,8 @@ class DPTB(nn.Module):
             dtype = getattr(torch, dtype)
         self.dtype = dtype
         self.device = device
+        self.model_options = {"embedding": embedding, "prediction": prediction}
         
-        # initialize the embedding layer
-        self.embedding = Embedding(**embedding, dtype=dtype, device=device)
-
-
-        # initialize the prediction layer
         self.method = prediction["hamiltonian"].get("method", "e3tb")
         self.overlap = prediction["hamiltonian"].get("overlap", False)
         self.soc = prediction["hamiltonian"].get("soc", False)
@@ -88,7 +84,12 @@ class DPTB(nn.Module):
         self.basis = self.idp.basis
         self.idp.get_node_maps()
         self.idp.get_pair_maps()
+
+
+        # initialize the embedding layer
+        self.embedding = Embedding(**embedding, dtype=dtype, device=device, n_atom=len(self.basis.keys()))
         
+        # initialize the prediction layer
         if prediction["method"] == "linear":
             
             self.node_prediction_h = AtomicLinear(

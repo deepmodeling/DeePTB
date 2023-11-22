@@ -616,3 +616,4 @@ class OrbitalMapper(BondMapper):
             self.orbital_maps[ib] = slices
         
         return self.orbital_maps
+    

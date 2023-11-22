@@ -1,8 +1,8 @@
 import inspect
 from importlib import import_module
-
+from dptb.data.dataset import ABACUSDataset
 from dptb import data
-from dptb.data.transforms import TypeMapper
+from dptb.data.transforms import TypeMapper, OrbitalMapper
 from dptb.data import AtomicDataset, register_fields
 from dptb.utils import instantiate, get_w_prefix
 
@@ -95,3 +95,23 @@ def dataset_from_config(config, prefix: str = "dataset") -> AtomicDataset:
     )
 
     return instance
+
+
+def build_dataset(set_options, common_options):
+
+    AtomicDataOptions = {
+        "r_max": common_options["bond_cutoff"],
+        "er_max": common_options.get("env_cutoff", None),
+        "oer_max": common_options.get("onsite_cutoff", None),
+        "pbc": set_options["pbc"]
+    }
+
+    dataset = ABACUSDataset(
+        root=set_options["root"],
+        preprocess_path=set_options["preprocess_path"],
+        h5file_names=set_options["file_names"],
+        AtomicData_options=AtomicDataOptions,
+        type_mapper=OrbitalMapper(basis=common_options["basis"]),
+    )
+
+    return dataset

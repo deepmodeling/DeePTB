@@ -160,4 +160,4 @@ class HamilLoss(nn.Module):
             onsite_loss += self.loss(data[AtomicDataDict.NODE_OVERLAP_KEY], ref_data[AtomicDataDict.NODE_OVERLAP_KEY])
             hopping_loss += self.loss(data[AtomicDataDict.EDGE_OVERLAP_KEY], ref_data[AtomicDataDict.EDGE_OVERLAP_KEY])
         
-        return onsite_loss + hopping_loss
+        return hopping_loss + onsite_loss

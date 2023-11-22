@@ -83,3 +83,54 @@ model_options = {
     }
 }
 """
+
+common_options = {
+    "basis": {
+        "B": "2s2p1d",
+        "N": "2s2p1d",
+    },
+    "device": "cpu",
+    "dtype": "float32",
+    "r_max": 2.0,
+    "er_max": 4.0,
+    "oer_max": 6.0,
+}
+
+
+data_options = {
+    "train": {
+
+    }
+}
+
+
+dptb_model_options = {
+    "embedding": {
+        "method": "se2",
+        "rs": 2.0, 
+        "rc": 7.0,
+        "n_axis": 10,
+        "radial_embedding": {
+            "neurons": [128,128,20],
+            "activation": "tanh",
+            "if_batch_normalized": False,
+        },
+    },
+    "prediction":{
+        "method": "nn",
+        "neurons": [256,256,256],
+        "activation": "tanh",
+        "if_batch_normalized": False,
+        "quantities": ["hamiltonian"],
+        "hamiltonian":{
+            "method": "e3tb",
+            "precision": 1e-5,
+            "overlap": False,
+        },
+    },
+    "nnsk": {
+        "onsite": {"method": "strain", "rs":6.0, "w":0.1},
+        "hopping": {"method": "powerlaw", "rs":3.2, "w": 0.15},
+        "overlap": False
+    }
+}

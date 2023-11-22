@@ -24,15 +24,15 @@ class Trainer(_BaseTrainer):
             train_datasets: AtomicDataset,
             reference_datasets: Union[AtomicDataset, None]=None,
             validation_datasets: Union[AtomicDataset, None]=None,
-            dtype: Union[str, torch.dtype] = torch.float32, 
-            device: Union[str, torch.device] = torch.device("cpu"),
             ) -> None:
-        super(Trainer, self).__init__(dtype=dtype, device=device)
+        super(Trainer, self).__init__(dtype=common_options["dtype"], device=common_options["device"])
         
         # init the object
-        self.model = model.to(device)
+        self.model = model.to(self.device)
         self.optimizer = get_optimizer(model_param=self.model.parameters(), **train_options["optimizer"])
         self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **train_options["lr_scheduler"])  # add optmizer
+        self.common_options = common_options
+        self.train_options = train_options
         
         self.train_datasets = train_datasets
         self.use_reference = False
@@ -46,18 +46,20 @@ class Trainer(_BaseTrainer):
         else:
             self.use_validation = False
 
-        self.train_loader = DataLoader(dataset=self.train_datasets)
+        self.train_loader = DataLoader(dataset=self.train_datasets, batch_size=train_options["batch_size"], shuffle=True)
 
         if self.use_reference:
-            self.reference_loader = DataLoader(dataset=self.reference_datesets)
+            self.reference_loader = DataLoader(dataset=self.reference_datesets, batch_size=train_options["batch_size"], shuffle=True)
 
         if self.use_validation:
-            self.validation_loader = DataLoader(dataset=self.validation_datasets)
+            self.validation_loader = DataLoader(dataset=self.validation_datasets, batch_size=train_options["batch_size"], shuffle=False)
 
         # loss function
-        self.train_lossfunc = Loss(method=train_options["loss_options"]["train"]["method"])
+        self.train_lossfunc = Loss(**train_options["loss_options"]["train"])
         if self.use_validation:
-            self.validation_lossfunc = Loss(method=train_options["loss_options"]["validation"]["method"])
+            self.validation_lossfunc = Loss(**train_options["loss_options"]["validation"])
+        if self.use_reference:
+            self.reference_lossfunc = Loss(**train_options["loss_options"]["reference"])
 
     def iteration(self, batch, ref_batch=None):
         '''
@@ -148,7 +150,7 @@ class Trainer(_BaseTrainer):
         pass
 
     def validation(self, fast=True):
-        with torch.zero_grad():
+        with torch.no_grad():
             loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
 
             for ibatch in self.validation_loader:
