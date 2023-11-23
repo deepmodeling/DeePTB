@@ -27,6 +27,7 @@ class E3Hamiltonian(torch.nn.Module):
             decompose: bool = False,
             edge_field: str = AtomicDataDict.EDGE_FEATURES_KEY,
             node_field: str = AtomicDataDict.NODE_FEATURES_KEY,
+            overlap: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             **kwargs,
@@ -36,6 +37,7 @@ class E3Hamiltonian(torch.nn.Module):
 
         if isinstance(dtype, str):
             dtype = torch.getattr(dtype)
+        self.overlap = overlap
         self.dtype = dtype
         self.device = device
         if basis is not None:
@@ -78,7 +80,8 @@ class E3Hamiltonian(torch.nn.Module):
         """
 
         assert data[self.edge_field].shape[1] == self.idp.edge_reduced_matrix_element
-        assert data[self.node_field].shape[1] == self.idp.node_reduced_matrix_element
+        if not self.overlap:
+            assert data[self.node_field].shape[1] == self.idp.node_reduced_matrix_element
 
         n_edge = data[AtomicDataDict.EDGE_INDEX_KEY].shape[1]
         n_node = data[AtomicDataDict.NODE_FEATURES_KEY].shape[0]
@@ -110,21 +113,23 @@ class E3Hamiltonian(torch.nn.Module):
                 data[self.edge_field][:, self.idp.pairtype_maps[opairtype]] = HR
 
             # compute onsite blocks
-            for opairtype in self.idp.nodetype_maps.keys():
-                # currently, "a-b" and "b-a" orbital pair are computed seperately, it is able to combined further
-                # for better performance
-                l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
-                n_rme = (2*l1+1) * (2*l2+1) # number of reduced matrix element
-                rme = data[self.node_field][:, self.idp.nodetype_maps[opairtype]]
-                rme = rme.reshape(n_node, -1, n_rme)
-                rme = rme.transpose(1,2) # shape (N, n_rme, n_pair)
-                
-                HR = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
-                    rme[:,None, None, :, :], dim=-2) # shape (N, 2l1+1, 2l2+1, n_pair)
-                HR = HR.permute(0,3,1,2).reshape(n_node, -1)
+            if not self.overlap:
+                for opairtype in self.idp.nodetype_maps.keys():
+                    # currently, "a-b" and "b-a" orbital pair are computed seperately, it is able to combined further
+                    # for better performance
+                    l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
+                    
+                    n_rme = (2*l1+1) * (2*l2+1) # number of reduced matrix element
+                    rme = data[self.node_field][:, self.idp.nodetype_maps[opairtype]]
+                    rme = rme.reshape(n_node, -1, n_rme)
+                    rme = rme.transpose(1,2) # shape (N, n_rme, n_pair)
+                    
+                    HR = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
+                        rme[:,None, None, :, :], dim=-2) # shape (N, 2l1+1, 2l2+1, n_pair)
+                    HR = HR.permute(0,3,1,2).reshape(n_node, -1)
 
-                # the onsite block doesnot have rotation
-                data[self.node_field][:, self.idp.nodetype_maps[opairtype]] = HR
+                    # the onsite block does not have rotation
+                    data[self.node_field][:, self.idp.nodetype_maps[opairtype]] = HR
         
         else:
             for opairtype in self.idp.pairtype_maps.keys():
@@ -145,20 +150,21 @@ class E3Hamiltonian(torch.nn.Module):
 
                 data[self.edge_field][:, self.idp.pairtype_maps[opairtype]] = rme
 
-            for opairtype in self.idp.nodetype_maps.keys():
-                # currently, "a-b" and "b-a" orbital pair are computed seperately, it is able to combined further
-                # for better performance
-                l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
-                nL, nR = 2*l1+1, 2*l2+1 # number of reduced matrix element
-                HR = data[self.node_field][:, self.idp.nodetype_maps[opairtype]]
-                HR = HR.reshape(n_node, -1, nL, nR).permute(0,2,3,1)# shape (N, nL, nR, n_pair)
-                
-                rme = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
-                    HR[:,:,:,None,:], dim=(1,2)) # shape (N, n_rme, n_pair)
-                rme = rme.transpose(1,2).reshape(n_node, -1)
+            if not self.overlap:
+                for opairtype in self.idp.nodetype_maps.keys():
+                    # currently, "a-b" and "b-a" orbital pair are computed seperately, it is able to combined further
+                    # for better performance
+                    l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
+                    nL, nR = 2*l1+1, 2*l2+1 # number of reduced matrix element
+                    HR = data[self.node_field][:, self.idp.nodetype_maps[opairtype]]
+                    HR = HR.reshape(n_node, -1, nL, nR).permute(0,2,3,1)# shape (N, nL, nR, n_pair)
+                    
+                    rme = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
+                        HR[:,:,:,None,:], dim=(1,2)) # shape (N, n_rme, n_pair)
+                    rme = rme.transpose(1,2).reshape(n_node, -1)
 
-                # the onsite block doesnot have rotation
-                data[self.node_field][:, self.idp.nodetype_maps[opairtype]] = rme
+                    # the onsite block doesnot have rotation
+                    data[self.node_field][:, self.idp.nodetype_maps[opairtype]] = rme
 
         return data
             
@@ -197,6 +203,7 @@ class SKHamiltonian(torch.nn.Module):
         device: Union[str, torch.device] = torch.device("cpu"),
         edge_field: str = AtomicDataDict.EDGE_FEATURES_KEY,
         node_field: str = AtomicDataDict.NODE_FEATURES_KEY,
+        overlap: bool = False,
         strain: bool = False,
         **kwargs,
         ) -> None:
@@ -206,6 +213,7 @@ class SKHamiltonian(torch.nn.Module):
             dtype = torch.getattr(dtype)
         self.dtype = dtype
         self.device = device
+        self.overlap = overlap
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="sktb")
@@ -290,23 +298,24 @@ class SKHamiltonian(torch.nn.Module):
             data[self.edge_field][:, self.idp_e3.pairtype_maps[opairtype]] = HR
 
         # compute onsite blocks
-        node_feature = data[self.node_field].clone()
-        data[self.node_field] = torch.zeros(n_node, self.idp_e3.node_reduced_matrix_element)
+        if not self.overlap:
+            node_feature = data[self.node_field].clone()
+            data[self.node_field] = torch.zeros(n_node, self.idp_e3.node_reduced_matrix_element)
 
-        for opairtype in self.idp.node_maps.keys():
-            # currently, "a-b" and "b-a" orbital pair are computed seperately, it is able to combined further
-            # for better performance
-            o1, o2 = opairtype.split("-")[0], opairtype.split("-")[1]
-            if o1 != o2:
-                continue # off-diagonal term in sktb format
-            else:
-                l = anglrMId[re.findall(r"[a-z]", o1)[0]]
+            for opairtype in self.idp.node_maps.keys():
+                # currently, "a-b" and "b-a" orbital pair are computed seperately, it is able to combined further
+                # for better performance
+                o1, o2 = opairtype.split("-")[0], opairtype.split("-")[1]
+                if o1 != o2:
+                    continue # off-diagonal term in sktb format
+                else:
+                    l = anglrMId[re.findall(r"[a-z]", o1)[0]]
 
-                skparam = node_feature[:, self.idp.node_maps[opairtype]].reshape(n_node, -1, 1)
-                HR = torch.eye(2*l+1, dtype=self.dtype, device=self.device)[None, None, :, :] * skparam[:,:, None, :] # shape (N, n_pair, 2l1+1, 2l2+1)
-                # the onsite block doesnot have rotation
+                    skparam = node_feature[:, self.idp.node_maps[opairtype]].reshape(n_node, -1, 1)
+                    HR = torch.eye(2*l+1, dtype=self.dtype, device=self.device)[None, None, :, :] * skparam[:,:, None, :] # shape (N, n_pair, 2l1+1, 2l2+1)
+                    # the onsite block doesnot have rotation
 
-                data[self.node_field][:, self.idp_e3.node_maps[opairtype]] = HR.reshape(n_node, -1)
+                    data[self.node_field][:, self.idp_e3.node_maps[opairtype]] = HR.reshape(n_node, -1)
 
         # compute if strain effect is included
         # this is a little wired operation, since it acting on somekind of a edge(strain env) feature, and summed up to return a node feature.

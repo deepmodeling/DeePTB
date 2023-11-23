@@ -82,7 +82,7 @@ class NNSK(torch.nn.Module):
             
         self.hamiltonian = SKHamiltonian(idp=self.idp, dtype=self.dtype, device=self.device, strain=hasattr(self, "strain_param"))
         if overlap:
-            self.overlap = SKHamiltonian(idp=self.idp, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
+            self.overlap = SKHamiltonian(idp=self.idp, overlap=True, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         # get the env and bond from the data
@@ -165,8 +165,8 @@ class NNSK(torch.nn.Module):
                 nn_onsite_paras=self.onsite_param
                 )
             
-        if hasattr(self, "overlap"):
-            data[AtomicDataDict.NODE_OVERLAP_KEY] = torch.ones_like(data[AtomicDataDict.NODE_OVERLAP_KEY])
+        # if hasattr(self, "overlap"):
+        #     data[AtomicDataDict.NODE_OVERLAP_KEY] = torch.ones_like(data[AtomicDataDict.NODE_OVERLAP_KEY])
         
         # compute strain
         if self.onsite_fn.functype == "strain":

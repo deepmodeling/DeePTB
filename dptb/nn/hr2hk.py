@@ -16,6 +16,7 @@ class HR2HK(torch.nn.Module):
             edge_field: str = AtomicDataDict.EDGE_FEATURES_KEY,
             node_field: str = AtomicDataDict.NODE_FEATURES_KEY,
             out_field: str = AtomicDataDict.HAMILTONIAN_KEY,
+            overlap: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu")
             ):
@@ -25,6 +26,8 @@ class HR2HK(torch.nn.Module):
             dtype = torch.dtype(dtype)
         self.dtype = dtype
         self.device = device
+        self.overlap = overlap
+
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb")
             if idp is not None:
@@ -46,7 +49,7 @@ class HR2HK(torch.nn.Module):
 
         # construct bond wise hamiltonian block from obital pair wise node/edge features
         orbpair_hopping = data[self.edge_field]
-        orbpair_onsite = data[self.node_field]
+        orbpair_onsite = data.get(self.node_field)
         bondwise_hopping = torch.zeros_like(orbpair_hopping).reshape(-1, self.idp.full_basis_norb, self.idp.full_basis_norb)
         onsite_block = torch.zeros((orbpair_onsite.shape[0], self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
 
@@ -63,10 +66,14 @@ class HR2HK(torch.nn.Module):
                     factor = 1.0
                 bondwise_hopping[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_hopping[:,self.idp.pair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
                 
-                if i <= j:
-                    onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = orbpair_onsite[:,self.idp.node_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
+                if self.overlap:
+                    if iorb == jorb:
+                        onsite_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = 0.5 * torch.eye(2*li+1, dtype=self.dtype, device=self.device).reshape(1, 2*li+1, 2*lj+1).repeat(onsite_block.shape[0], 1, 1)
                 else:
-                    onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = onsite_block[:,jst:jst+2*lj+1,ist:ist+2*li+1].transpose(1,2)
+                    if i <= j:
+                        onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = orbpair_onsite[:,self.idp.node_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
+                    else:
+                        onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = onsite_block[:,jst:jst+2*lj+1,ist:ist+2*li+1].transpose(1,2)
                 jst += 2*lj+1
             ist += 2*li+1
         self.onsite_block = onsite_block

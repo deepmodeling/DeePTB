@@ -37,7 +37,7 @@
     "train_options": {
         "seed": 120478,
         "batch_size": 1,
-        "num_epoch": 40,
+        "num_epoch": 4000,
         "optimizer": {
             "lr": 0.02,
             "type": "Adam"

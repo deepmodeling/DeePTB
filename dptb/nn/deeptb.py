@@ -131,7 +131,7 @@ class DPTB(nn.Module):
             prediction["neurons"] = [self.embedding.out_node_dim] + prediction["neurons"] + [self.idp.node_reduced_matrix_element]
             prediction["config"] = get_neuron_config(prediction["neurons"])
 
-            self.node_prediction_h = AtomicFFN(
+            self.node_prediction_h = AtomicResNet(
                 **prediction,
                 in_field=AtomicDataDict.NODE_FEATURES_KEY,
                 out_field=AtomicDataDict.NODE_FEATURES_KEY,
@@ -139,19 +139,10 @@ class DPTB(nn.Module):
                 dtype=dtype
             )
 
-            if self.overlap:
-                self.node_prediction_s = AtomicFFN(
-                    **prediction,
-                    in_field=AtomicDataDict.NODE_OVERLAP_KEY,
-                    out_field=AtomicDataDict.NODE_OVERLAP_KEY,
-                    device=device, 
-                    dtype=dtype
-                )
-
             prediction["neurons"][0] = self.embedding.out_edge_dim
             prediction["neurons"][-1] = self.idp.edge_reduced_matrix_element
             prediction["config"] = get_neuron_config(prediction["neurons"])
-            self.edge_prediction_h = AtomicFFN(
+            self.edge_prediction_h = AtomicResNet(
                 **prediction,
                 in_field=AtomicDataDict.EDGE_FEATURES_KEY,
                 out_field=AtomicDataDict.EDGE_FEATURES_KEY,
@@ -160,7 +151,7 @@ class DPTB(nn.Module):
             )
 
             if self.overlap:
-                self.edge_prediction_s = AtomicFFN(
+                self.edge_prediction_s = AtomicResNet(
                     **prediction,
                     in_field=AtomicDataDict.EDGE_OVERLAP_KEY,
                     out_field=AtomicDataDict.EDGE_OVERLAP_KEY,
@@ -196,7 +187,8 @@ class DPTB(nn.Module):
                     edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, 
                     node_field=AtomicDataDict.NODE_OVERLAP_KEY, 
                     dtype=self.dtype, 
-                    device=self.device
+                    device=self.device,
+                    overlap=True,
                     )
             elif self.method == "e3tb":
                 self.overlap = E3Hamiltonian(
@@ -204,7 +196,8 @@ class DPTB(nn.Module):
                     edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, 
                     node_field=AtomicDataDict.NODE_OVERLAP_KEY, 
                     dtype=self.dtype, 
-                    device=self.device
+                    device=self.device,
+                    overlap=True,
                     )
         
 
@@ -214,13 +207,11 @@ class DPTB(nn.Module):
         data = self.embedding(data)
         if self.overlap:
             data[AtomicDataDict.EDGE_OVERLAP_KEY] = data[AtomicDataDict.EDGE_FEATURES_KEY]
-            data[AtomicDataDict.NODE_OVERLAP_KEY] = data[AtomicDataDict.NODE_FEATURES_KEY]
         data = self.node_prediction_h(data)
         data = self.edge_prediction_h(data)
         data = self.hamiltonian(data)
 
         if self.overlap:
-            data = self.node_prediction_s(data)
             data = self.edge_prediction_s(data)
             data = self.overlap(data)
 
