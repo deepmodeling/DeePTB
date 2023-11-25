@@ -344,6 +344,7 @@ def embedding():
 
     return Variant("method", [
             Argument("se2", dict, se2()),
+            Argument("baseline", dict, baseline())
         ],optional=True, default_tag="se2", doc=doc_method)
 
 def se2():
@@ -370,6 +371,35 @@ def se2():
         Argument("n_axis", [int, None], optional=True, default=None, doc=doc_n_axis),
     ]
 
+
+def baseline():
+
+    doc_rs = ""
+    doc_rc = ""
+    doc_n_axis = ""
+    doc_radial_embedding = ""
+
+    doc_neurons = ""
+    doc_activation = ""
+    doc_if_batch_normalized = ""
+
+    radial_embedding = [
+        Argument("neurons", list, optional=False, doc=doc_neurons),
+        Argument("activation", str, optional=True, default="tanh", doc=doc_activation),
+        Argument("if_batch_normalized", bool, optional=True, default=False, doc=doc_if_batch_normalized),
+    ]
+
+    return [
+        Argument("p", [float, int], optional=False, doc=doc_rs),
+        Argument("rc", [float, int], optional=False, doc=doc_rc),
+        Argument("n_basis", int, optional=False, doc=doc_rc),
+        Argument("n_radial", int, optional=False, doc=doc_rc),
+        Argument("n_sqrt_radial", int, optional=False, doc=doc_rc),
+        Argument("n_layer", int, optional=False, doc=doc_rc),
+        Argument("radial_net", dict, sub_fields=radial_embedding, optional=False, doc=doc_radial_embedding),
+        Argument("hidden_net", dict, sub_fields=radial_embedding, optional=False, doc=doc_radial_embedding),
+        Argument("n_axis", [int, None], optional=True, default=None, doc=doc_n_axis),
+    ]
 
 def prediction():
     doc_method = ""

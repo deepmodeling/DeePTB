@@ -455,6 +455,8 @@ class OrbitalMapper(BondMapper):
         
         # Get the mask for mapping from full basis to atom specific basis
         self.mask_to_basis = torch.zeros(len(self.type_names), self.full_basis_norb, dtype=torch.bool)
+        self.mask_to_erme = torch.zeros(len(self.type_names), self.edge_reduced_matrix_element, dtype=torch.bool)
+        self.mask_to_nrme = torch.zeros(len(self.type_names), self.node_reduced_matrix_element, dtype=torch.bool)
         for ib in self.basis.keys():
             ibasis = list(self.basis_to_full_basis[ib].values())
             ist = 0
@@ -462,9 +464,9 @@ class OrbitalMapper(BondMapper):
                 l = anglrMId[io[1]]
                 if io in ibasis:
                     self.mask_to_basis[self.chemical_symbol_to_type[ib]][ist:ist+2*l+1] = True
-                
+                    
                 ist += 2*l+1
-            
+
         assert (self.mask_to_basis.sum(dim=1).int()-self.atom_norb).abs().sum() <= 1e-6
 
             

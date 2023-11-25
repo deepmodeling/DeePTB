@@ -58,8 +58,7 @@ def train(
                 ...
             - log/
                 - log.log
-            - config_nnsktb.json
-            - config_dptb.json
+            - config.json
     '''
     # init all paths
     # if init_model, restart or init_frez, findout the input configure file

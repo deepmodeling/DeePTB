@@ -153,11 +153,11 @@ class Trainer(_BaseTrainer):
         with torch.no_grad():
             loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
 
-            for ibatch in self.validation_loader:
+            for batch in self.validation_loader:
                 batch = batch.to(self.device)
                 batch = AtomicData.to_AtomicDataDict(batch)
 
-                batch_for_loss = batch_for_loss.copy()
+                batch_for_loss = batch.copy()
                 batch = self.model(batch)
 
                 loss += self.validation_lossfunc(batch, batch_for_loss)

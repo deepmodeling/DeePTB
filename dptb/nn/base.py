@@ -326,6 +326,7 @@ class FFN(nn.Module):
             if_batch_normalized=False, 
             device: Union[str, torch.device]=torch.device('cpu'), 
             dtype: Union[str, torch.dtype] = torch.float32,
+            **kwargs
             ):
         super(FFN, self).__init__()
         if isinstance(device, str):
@@ -392,7 +393,7 @@ class ResBlock(torch.nn.Module):
         elif self.in_features == self.out_features:
             out = x + out
         else:
-            out = nn.functional.adaptive_avg_pool1d(input=x, output_size=self.out_feature) + out
+            out = nn.functional.adaptive_avg_pool1d(input=x, output_size=self.out_features) + out
 
         out = self.activation(out)
 
