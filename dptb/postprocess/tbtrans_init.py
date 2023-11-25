@@ -252,7 +252,7 @@ class TBTransInputSet(object):
 
 
 
-    def orbitals_get(self,geom_all:sisl.geometry, geom_lead_L:sisl.geometry,geom_lead_R:sisl.geometry,apiHrk):
+    def orbitals_get(self,geom_all, geom_lead_L,geom_lead_R,apiHrk):
         '''The function `orbitals_get` takes in various inputs such as geometric devices, leads, deeptb model, and
         configurations, and assigns orbital properties to the atoms in the given sisl geometries .
 
@@ -476,7 +476,7 @@ class TBTransInputSet(object):
 
 
 
-    def hamiltonian_get(self,allbonds:torch.tensor,hamil_block:torch.tensor,overlap_block:torch.tensor,Hamil_sisl:sisl.hamiltonian,energy_unit_option:str):
+    def hamiltonian_get(self,allbonds:torch.tensor,hamil_block:torch.tensor,overlap_block:torch.tensor,Hamil_sisl,energy_unit_option:str):
         '''The function `hamiltonian_get` takes in various parameters and calculates the Hamiltonian matrix
         for a given set of bonds, storing the result in the `Hamil_sisl` matrix.
         
