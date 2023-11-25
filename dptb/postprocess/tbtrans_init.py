@@ -131,8 +131,7 @@ class TBTransInputSet(object):
         struct_options
             The `struct_options` parameter is a dictionary that contains various options for the structure. 
         result_path
-            The `result_path` parameter is the path where the output files will be saved. It is a string that
-        specifies the directory where the files will be stored.
+            The `result_path` parameter is the path where the output files will be saved. 
         
         Returns
         -------
@@ -161,6 +160,7 @@ class TBTransInputSet(object):
         if structure_file.split('.')[-1]=='vasp':
             structure_vasp = sisl.io.carSileVASP(structure_file)
             geom_all = structure_vasp.read_geometry()
+            log.warning('Attention! VASP structure file is only valid for materials with one single element!')
         elif structure_file.split('.')[-1]=='xyz':
             structure_xyz = sisl.io.xyzSile(structure_file)
             geom_all = structure_xyz.read_geometry()
