@@ -179,6 +179,8 @@ def _get_activation_fn(activation):
         return F.gelu
     elif activation == "tanh":
         return torch.tanh
+    elif activation == "silu":
+        return torch.nn.SiLU()
 
     raise RuntimeError("activation should be relu/gelu/tanh, not {}".format(activation))
 

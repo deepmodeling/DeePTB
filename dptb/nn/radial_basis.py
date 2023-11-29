@@ -92,27 +92,49 @@ class BesselBasis(nn.Module):
         return self.prefactor * (numerator / x.unsqueeze(-1))
 
 
-# class GaussianBasis(nn.Module):
-#     r_max: float
+def gaussian_smearing(distances, offset, widths, centered=False):
+    if not centered:
+        # compute width of Gaussian functions (using an overlap of 1 STDDEV)
+        coeff = -0.5 / torch.pow(widths, 2)
+        # Use advanced indexing to compute the individual components
+        diff = distances[..., None] - offset
+    else:
+        # if Gaussian functions are centered, use offsets to compute widths
+        coeff = -0.5 / torch.pow(offset, 2)
+        # if Gaussian functions are centered, no offset is subtracted
+        diff = distances[..., None]
+    # compute smear distance values
+    gauss = torch.exp(coeff * torch.pow(diff, 2))
+    return gauss
 
-#     def __init__(self, r_max, r_min=0.0, num_basis=8, trainable=True):
-#         super().__init__()
 
-#         self.trainable = trainable
-#         self.num_basis = num_basis
+class GaussianBasis(nn.Module):
+    def __init__(
+            self, start=0.0, stop=5.0, n_gaussians=50, centered=False, trainable=False
+    ):
+        super(GaussianBasis, self).__init__()
+        # compute offset and width of Gaussian functions
+        offset = torch.linspace(start, stop, n_gaussians)
+        widths = torch.Tensor((offset[1] - offset[0]) * torch.ones_like(offset)) # FloatTensor
+        if trainable:
+            self.width = nn.Parameter(widths)
+            self.offsets = nn.Parameter(offset)
+        else:
+            self.register_buffer("width", widths)
+            self.register_buffer("offsets", offset)
+        self.centered = centered
 
-#         self.r_max = float(r_max)
-#         self.r_min = float(r_min)
+    def forward(self, distances):
+        """Compute smeared-gaussian distance values.
 
-#         means = torch.linspace(self.r_min, self.r_max, self.num_basis)
-#         stds = torch.full(size=means.size, fill_value=means[1] - means[0])
-#         if self.trainable:
-#             self.means = nn.Parameter(means)
-#             self.stds = nn.Parameter(stds)
-#         else:
-#             self.register_buffer("means", means)
-#             self.register_buffer("stds", stds)
+        Args:
+            distances (torch.Tensor): interatomic distance values of
+                (N_b x N_at x N_nbh) shape.
 
-#     def forward(self, x: torch.Tensor) -> torch.Tensor:
-#         x = (x[..., None] - self.means) / self.stds
-#         x = x.square().mul(-0.5).exp() / self.stds  # sqrt(2 * pi)
+        Returns:
+            torch.Tensor: layer output of (N_b x N_at x N_nbh x N_g) shape.
+
+        """
+        return gaussian_smearing(
+            distances, self.offsets, self.width, centered=self.centered
+        )

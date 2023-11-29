@@ -105,11 +105,11 @@ class E3Hamiltonian(torch.nn.Module):
                     rme[:,None, None, :, :], dim=-2) # shape (N, 2l1+1, 2l2+1, n_pair)
                 
                 # rotation
-                angle = xyz_to_angles(data[AtomicDataDict.EDGE_VECTORS_KEY][:,[1,2,0]]) # (tensor(N), tensor(N))
-                rot_mat_L = Irrep(int(l1), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l1+1, 2l1+1)
-                rot_mat_R = Irrep(int(l2), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l2+1, 2l2+1)
-                HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R).reshape(n_edge, -1) # shape (N, n_pair * n_rme)
-                
+                # angle = xyz_to_angles(data[AtomicDataDict.EDGE_VECTORS_KEY][:,[1,2,0]]) # (tensor(N), tensor(N))
+                # rot_mat_L = Irrep(int(l1), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l1+1, 2l1+1)
+                # rot_mat_R = Irrep(int(l2), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l2+1, 2l2+1)
+                # HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R).reshape(n_edge, -1) # shape (N, n_pair * n_rme)
+                HR = H_z.permute(0,3,1,2).reshape(n_edge, -1)
                 data[self.edge_field][:, self.idp.pairtype_maps[opairtype]] = HR
 
             # compute onsite blocks
@@ -139,14 +139,15 @@ class E3Hamiltonian(torch.nn.Module):
                 HR = HR.reshape(n_edge, -1, nL, nR) # shape (N, n_pair, nL, nR)
 
                 # rotation
-                angle = xyz_to_angles(data[AtomicDataDict.EDGE_VECTORS_KEY][:,[1,2,0]]) # (tensor(N), tensor(N))
-                rot_mat_L = Irrep(int(l1), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l1+1, 2l1+1)
-                rot_mat_R = Irrep(int(l2), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l2+1, 2l2+1)
-                H_z = torch.einsum("nml, nqmo, nok -> nlkq", rot_mat_L, HR, rot_mat_R) # shape (N, nL, nR, n_pair)
-
+                # angle = xyz_to_angles(data[AtomicDataDict.EDGE_VECTORS_KEY][:,[1,2,0]]) # (tensor(N), tensor(N))
+                # rot_mat_L = Irrep(int(l1), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l1+1, 2l1+1)
+                # rot_mat_R = Irrep(int(l2), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l2+1, 2l2+1)
+                # H_z = torch.einsum("nml, nqmo, nok -> nlkq", rot_mat_L, HR, rot_mat_R) # shape (N, nL, nR, n_pair)
+                H_z = HR.permute(0,2,3,1) # shape (N, nL, nR, n_pair)
                 rme = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
                     H_z[:,:,:,None,:], dim=(1,2)) # shape (N, n_rme, n_pair)
                 rme = rme.transpose(1,2).reshape(n_edge, -1)
+                rme = H_z.permute(0,3,1,2).reshape(n_edge, -1)
 
                 data[self.edge_field][:, self.idp.pairtype_maps[opairtype]] = rme
 
@@ -159,9 +160,11 @@ class E3Hamiltonian(torch.nn.Module):
                     HR = data[self.node_field][:, self.idp.nodetype_maps[opairtype]]
                     HR = HR.reshape(n_node, -1, nL, nR).permute(0,2,3,1)# shape (N, nL, nR, n_pair)
                     
-                    rme = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
-                        HR[:,:,:,None,:], dim=(1,2)) # shape (N, n_rme, n_pair)
-                    rme = rme.transpose(1,2).reshape(n_node, -1)
+                    # rme = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
+                    #     HR[:,:,:,None,:], dim=(1,2)) # shape (N, n_rme, n_pair)
+                    # rme = rme.transpose(1,2).reshape(n_node, -1)
+
+                    rme = HR.permute(0,3,1,2).reshape(n_node, -1)
 
                     # the onsite block doesnot have rotation
                     data[self.node_field][:, self.idp.nodetype_maps[opairtype]] = rme
@@ -294,6 +297,9 @@ class SKHamiltonian(torch.nn.Module):
             rot_mat_L = Irrep(int(l1), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l1+1, 2l1+1)
             rot_mat_R = Irrep(int(l2), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l2+1, 2l2+1)
             HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R).reshape(n_edge, -1) # shape (N, n_pair * 2l2+1 * 2l2+1)
+            
+            if l1 < l2:
+                HR = HR * (-1)**(l1+l2)
             
             data[self.edge_field][:, self.idp_e3.pairtype_maps[opairtype]] = HR
 

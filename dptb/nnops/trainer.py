@@ -55,11 +55,11 @@ class Trainer(_BaseTrainer):
             self.validation_loader = DataLoader(dataset=self.validation_datasets, batch_size=train_options["batch_size"], shuffle=False)
 
         # loss function
-        self.train_lossfunc = Loss(**train_options["loss_options"]["train"])
+        self.train_lossfunc = Loss(**train_options["loss_options"]["train"], idp=self.model.idp)
         if self.use_validation:
-            self.validation_lossfunc = Loss(**train_options["loss_options"]["validation"])
+            self.validation_lossfunc = Loss(**train_options["loss_options"]["validation"], idp=self.model.idp)
         if self.use_reference:
-            self.reference_lossfunc = Loss(**train_options["loss_options"]["reference"])
+            self.reference_lossfunc = Loss(**train_options["loss_options"]["reference"], idp=self.model.idp)
 
     def iteration(self, batch, ref_batch=None):
         '''

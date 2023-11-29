@@ -18,7 +18,7 @@ class HR2HK(torch.nn.Module):
             out_field: str = AtomicDataDict.HAMILTONIAN_KEY,
             overlap: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32, 
-            device: Union[str, torch.device] = torch.device("cpu")
+            device: Union[str, torch.device] = torch.device("cpu"),
             ):
         super(HR2HK, self).__init__()
 
@@ -51,7 +51,7 @@ class HR2HK(torch.nn.Module):
         orbpair_hopping = data[self.edge_field]
         orbpair_onsite = data.get(self.node_field)
         bondwise_hopping = torch.zeros_like(orbpair_hopping).reshape(-1, self.idp.full_basis_norb, self.idp.full_basis_norb)
-        onsite_block = torch.zeros((orbpair_onsite.shape[0], self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
+        onsite_block = torch.zeros((len(data[AtomicDataDict.ATOM_TYPE_KEY]), self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
 
         ist = 0
         for i,iorb in enumerate(self.idp.full_basis):
@@ -60,15 +60,12 @@ class HR2HK(torch.nn.Module):
             for j,jorb in enumerate(self.idp.full_basis):
                 orbpair = iorb + "-" + jorb
                 lj = anglrMId[re.findall(r"[a-zA-Z]+", jorb)[0]]
-                if li < lj:
-                    factor = (-1.0)**(li+lj)
-                else:
-                    factor = 1.0
-                bondwise_hopping[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_hopping[:,self.idp.pair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
+                
+                bondwise_hopping[:,ist:ist+2*li+1,jst:jst+2*lj+1] = orbpair_hopping[:,self.idp.pair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
                 
                 if self.overlap:
                     if iorb == jorb:
-                        onsite_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = 0.5 * torch.eye(2*li+1, dtype=self.dtype, device=self.device).reshape(1, 2*li+1, 2*lj+1).repeat(onsite_block.shape[0], 1, 1)
+                        onsite_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = torch.eye(2*li+1, dtype=self.dtype, device=self.device).reshape(1, 2*li+1, 2*lj+1).repeat(onsite_block.shape[0], 1, 1)
                 else:
                     if i <= j:
                         onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = orbpair_onsite[:,self.idp.node_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)

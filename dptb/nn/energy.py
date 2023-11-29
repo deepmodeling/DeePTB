@@ -28,7 +28,7 @@ class Eigenvalues(nn.Module):
 
         self.h2k = HR2HK(idp=idp, edge_field=h_edge_field, node_field=h_node_field, out_field=h_out_field, dtype=dtype, device=device)
         if s_edge_field is not None:
-            self.s2k = HR2HK(id=idp, overlap=True, edge_field=s_edge_field, node_field=s_node_field, out_field=s_out_field, dtype=dtype, device=device)
+            self.s2k = HR2HK(idp=idp, overlap=True, edge_field=s_edge_field, node_field=s_node_field, out_field=s_out_field, dtype=dtype, device=device)
             self.overlap = True
         else:
             self.overlap = False

@@ -56,10 +56,10 @@ class BASELINE(torch.nn.Module):
             self.rc = rc
 
         self.p = p
-        self.node_emb_layer = _NODE_EMB(rc=rc, p=p, n_axis=n_axis, n_basis=n_basis, n_radial=n_radial, n_sqrt_radial=n_sqrt_radial, n_atom=n_atom, radial_net=radial_net, dtype=dtype, device=device)
+        self.node_emb_layer = _NODE_EMB(rc=self.rc, p=p, n_axis=n_axis, n_basis=n_basis, n_radial=n_radial, n_sqrt_radial=n_sqrt_radial, n_atom=n_atom, radial_net=radial_net, dtype=dtype, device=device)
         self.layers = torch.nn.ModuleList([])
-        for i in range(n_layer):
-            self.layers.append(BaselineLayer(rc=rc, p=p, n_radial=n_radial, n_sqrt_radial=n_sqrt_radial, n_axis=n_axis, n_hidden=n_axis*n_sqrt_radial, hidden_net=hidden_net, radial_net=radial_net, dtype=dtype, device=device))
+        for _ in range(n_layer):
+            self.layers.append(BaselineLayer(n_atom=n_atom, rc=self.rc, p=p, n_radial=n_radial, n_sqrt_radial=n_sqrt_radial, n_axis=n_axis, n_hidden=n_axis*n_sqrt_radial, hidden_net=hidden_net, radial_net=radial_net, dtype=dtype, device=device))
         self.onehot = OneHotAtomEncoding(num_types=n_atom, set_features=False)
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
@@ -227,6 +227,7 @@ class BaselineLayer(MessagePassing):
             n_radial: int,
             n_sqrt_radial: int,
             n_axis: int,
+            n_atom: int,
             n_hidden: int,
             radial_net: dict={},
             hidden_net: dict={},
@@ -261,9 +262,14 @@ class BaselineLayer(MessagePassing):
         self.dtype = dtype
 
     def forward(self, env_length, edge_length, edge_index, env_index, env_radial, edge_radial, node_emb, env_hidden, edge_hidden):
+        # n_env = env_index.shape[1]
+        # n_edge = edge_index.shape[1]
+        # env_attr = atom_attr[env_index].transpose(1,0).reshape(n_env,-1)
+        # edge_attr = atom_attr[edge_index].transpose(1,0).reshape(n_edge,-1)
+        
         env_weight = self.mlp_emb(env_radial)
         # node_emb can descripe the node very well
-        _node_emb = self.propagate(env_index, node_emb=node_emb[env_index[1]], env_weight=env_weight) # [N_atom, D, 3]
+        node_emb = 0.89442719 * node_emb + 0.4472 * self.propagate(env_index, node_emb=node_emb[env_index[1]], env_weight=env_weight) # [N_atom, D, 3]
         # import matplotlib.pyplot as plt
         # fig = plt.figure(figsize=(15,4))
         # plt.plot(node_emb.detach().T)
@@ -271,9 +277,9 @@ class BaselineLayer(MessagePassing):
         # plt.show()
 
         # env_hidden 长得太像了
-        env_hidden = self.mlp_hid(torch.cat([_node_emb[env_index[0]], env_hidden], dim=-1))
-        edge_hidden = self.mlp_hid(torch.cat([_node_emb[edge_index[0]], edge_hidden], dim=-1))
-        node_emb = _node_emb + node_emb
+        env_hidden = self.mlp_hid(torch.cat([node_emb[env_index[0]], env_hidden], dim=-1))
+        edge_hidden = self.mlp_hid(torch.cat([node_emb[edge_index[0]], edge_hidden], dim=-1))
+        # node_emb = _node_emb + node_emb
 
         # import matplotlib.pyplot as plt
         # fig = plt.figure(figsize=(15,4))
@@ -283,8 +289,8 @@ class BaselineLayer(MessagePassing):
 
         ud_env = polynomial_cutoff(x=env_length, r_max=self.rc, p=self.p).reshape(-1, 1)
         ud_edge = polynomial_cutoff(x=edge_length, r_max=self.rc, p=self.p).reshape(-1, 1)
-        env_radial = ud_env * self.edge_layer_norm(self.mlp_radial(torch.cat([env_radial, env_hidden], dim=-1)))
-        edge_radial = ud_edge * self.edge_layer_norm(self.mlp_radial(torch.cat([edge_radial, edge_hidden], dim=-1)))
+        env_radial = 0.89442719 * env_radial + 0.4472 * ud_env * self.edge_layer_norm(self.mlp_radial(torch.cat([env_radial, env_hidden], dim=-1)))
+        edge_radial = 0.89442719 * edge_radial + 0.4472 * ud_edge * self.edge_layer_norm(self.mlp_radial(torch.cat([edge_radial, edge_hidden], dim=-1)))
 
         return env_radial, env_hidden, edge_radial, edge_hidden, node_emb
 
@@ -304,5 +310,6 @@ class BaselineLayer(MessagePassing):
         _type_
             _description_
         """
+
         aggr_out = aggr_out.reshape(aggr_out.shape[0], -1)
         return self.node_layer_norm(aggr_out) # [N, D*D]

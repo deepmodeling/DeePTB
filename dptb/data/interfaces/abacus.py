@@ -24,15 +24,22 @@ class OrbAbacus2DeepTB:
         self.Us_abacus2deeptb[0] = np.eye(1)
         self.Us_abacus2deeptb[1] = np.eye(3)[[2, 0, 1]]            # 0, 1, -1 -> -1, 0, 1
         self.Us_abacus2deeptb[2] = np.eye(5)[[4, 2, 0, 1, 3]]      # 0, 1, -1, 2, -2 -> -2, -1, 0, 1, 2
-        self.Us_abacus2deeptb[3] = np.eye(7)[[6, 4, 2, 0, 1, 3, 5]]
+        self.Us_abacus2deeptb[3] = np.eye(7)[[6, 4, 2, 0, 1, 3, 5]] # -3,-2,-1,0,1,2,3
 
         # minus_dict = {
         #     1: [1, 2],
         #     2: [0, 2],
         #     3: [0, 2, 4, 6],
         # }
-        # for k, v in minus_dict.items():
-        #     self.Us_abacus2deeptb[k][v] *= -1  # add phase (-1)^m
+
+        minus_dict = {
+            1: [0, 2],
+            2: [1, 3],
+            3: [0, 2, 4, 6],
+        }
+
+        for k, v in minus_dict.items():
+            self.Us_abacus2deeptb[k][v] *= -1  # add phase (-1)^m
 
     def get_U(self, l):
         if l > 3:
@@ -236,7 +243,7 @@ def abacus_parse(input_path,
                                                       site_norbits_cumsum[index_site_i] * (1 + spinful),
                                       (site_norbits_cumsum[index_site_j] - site_norbits[index_site_j]) * (1 + spinful):
                                       site_norbits_cumsum[index_site_j] * (1 + spinful)]
-                                if abs(mat).max() < 1e-8:
+                                if abs(mat).max() < 1e-10:
                                     continue
                                 if not spinful:
                                     mat = U_orbital.transform(mat, orbital_types_dict[element[index_site_i]],

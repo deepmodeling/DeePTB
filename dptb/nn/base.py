@@ -97,7 +97,7 @@ class AtomicFFN(torch.nn.Module):
         in_field: AtomicDataDict.NODE_FEATURES_KEY,
         out_field: AtomicDataDict.NODE_FEATURES_KEY,
         activation: Union[str, Callable[[Tensor], Tensor]] = F.relu,
-        if_batch_normalized: bool = False, 
+        if_batch_normalized: bool = False,
         device: Union[str, torch.device] = torch.device('cpu'), 
         dtype: Union[str, torch.dtype] = torch.float32,
         **kwargs
@@ -140,13 +140,18 @@ class AtomicFFN(torch.nn.Module):
             self.out_layer = AtomicMLP(**config[-1], in_field=out_field, out_field=out_field,  if_batch_normalized=False, activation=activation, device=device, dtype=dtype)
         self.out_field = out_field
         self.in_field = in_field
+        # self.out_norm = nn.LayerNorm(config[-1]['out_features'], elementwise_affine=True)
 
     def forward(self, data: AtomicDataDict.Type):
+        out_scale = self.out_scale(data[self.in_field])
+        out_shift = self.out_shift(data[self.in_field])
         for layer in self.layers:
             data = layer(data)
             data[self.out_field] = self.activation(data[self.out_field])
 
-        return self.out_layer(data)
+        data = self.out_layer(data)
+        # data[self.out_field] = self.out_norm(data[self.out_field])
+        return data
     
 
 class AtomicResBlock(torch.nn.Module):
@@ -264,13 +269,16 @@ class AtomicResNet(torch.nn.Module):
             self.out_layer = AtomicLinear(in_features=config[-1]['in_features'], out_features=config[-1]['out_features'], in_field=out_field, out_field=out_field, device=device, dtype=dtype)
         else:
             self.out_layer = AtomicMLP(**config[-1],  if_batch_normalized=False, in_field=in_field, out_field=out_field, activation=activation, device=device, dtype=dtype)
+        # self.out_norm = nn.LayerNorm(config[-1]['out_features'], elementwise_affine=True)
 
     def forward(self, data: AtomicDataDict.Type):
+
         for layer in self.layers:
             data = layer(data)
             data[self.out_field] = self.activation(data[self.out_field])
-
-        return self.out_layer(data)
+        data = self.out_layer(data)
+        # data[self.out_field] = self.out_norm(data[self.out_field])
+        return data
     
 class MLP(nn.Module):
     def __init__(

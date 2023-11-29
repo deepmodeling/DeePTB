@@ -8,6 +8,7 @@ import warnings
 import torch
 
 import ase.data
+import e3nn.o3 as o3
 
 from dptb.data import AtomicData, AtomicDataDict
 
@@ -455,8 +456,7 @@ class OrbitalMapper(BondMapper):
         
         # Get the mask for mapping from full basis to atom specific basis
         self.mask_to_basis = torch.zeros(len(self.type_names), self.full_basis_norb, dtype=torch.bool)
-        self.mask_to_erme = torch.zeros(len(self.type_names), self.edge_reduced_matrix_element, dtype=torch.bool)
-        self.mask_to_nrme = torch.zeros(len(self.type_names), self.node_reduced_matrix_element, dtype=torch.bool)
+        
         for ib in self.basis.keys():
             ibasis = list(self.basis_to_full_basis[ib].values())
             ist = 0
@@ -469,9 +469,21 @@ class OrbitalMapper(BondMapper):
 
         assert (self.mask_to_basis.sum(dim=1).int()-self.atom_norb).abs().sum() <= 1e-6
 
+        self.get_pair_maps()
+        self.get_node_maps()
+
+        self.mask_to_erme = torch.zeros(len(self.reduced_bond_types), self.edge_reduced_matrix_element, dtype=torch.bool)
+        self.mask_to_nrme = torch.zeros(len(self.type_names), self.node_reduced_matrix_element, dtype=torch.bool)
+        for ib in self.basis.keys():
+            for opair in self.node_maps:
+                self.mask_to_nrme[self.chemical_symbol_to_type[ib]][self.node_maps[opair]] = True
+        
+
+        for ib in self.reduced_bond_to_type.keys():
+            for opair in self.pair_maps:
+                self.mask_to_erme[self.reduced_bond_to_type[ib]][self.pair_maps[opair]] = True
+
             
-
-
     def get_pairtype_maps(self):
         """
         The function `get_pairtype_maps` creates a mapping of orbital pair types, such as s-s, "s-p",
@@ -618,4 +630,40 @@ class OrbitalMapper(BondMapper):
             self.orbital_maps[ib] = slices
         
         return self.orbital_maps
+    
+    def get_irreps(self, no_parity=True):
+        assert self.method == "e3tb", "Only support e3tb method for now."
+
+        if hasattr(self, "node_irreps") and hasattr(self, "pair_irreps"):
+            return self.node_maps, self.pair_irreps
+
+        if not hasattr(self, "nodetype_maps"):
+            self.get_nodetype_maps()
+
+        if not hasattr(self, "pairtype_maps"):
+            self.get_pairtype_maps()
+
+        irs = []
+        if no_parity:
+            factor = 1
+        else:
+            factor = -1
+        for pair, sli in self.pairtype_maps.items():
+            l1, l2 = anglrMId[pair[0]], anglrMId[pair[2]]
+            ir1 = o3.Irrep((l1, factor**l1))
+            ir2 = o3.Irrep((l2, factor**l2))
+            irs += [i for i in ir1*ir2]*int((sli.stop-sli.start)/(2*l1+1)/(2*l2+1))
+
+        self.pair_irreps = o3.Irreps(irs)
+
+        irs = []
+        for pair, sli in self.nodetype_maps.items():
+            l1, l2 = anglrMId[pair[0]], anglrMId[pair[2]]
+            ir1 = o3.Irrep((l1, factor**l1))
+            ir2 = o3.Irrep((l2, factor**l2))
+            irs += [i for i in ir1*ir2]*int((sli.stop-sli.start)/(2*l1+1)/(2*l2+1))
+        
+        self.node_irreps = o3.Irreps(irs)
+        return self.node_irreps, self.pair_irreps
+            
     

@@ -72,6 +72,7 @@ class DPTB(nn.Module):
         self.method = prediction["hamiltonian"].get("method", "e3tb")
         self.overlap = prediction["hamiltonian"].get("overlap", False)
         self.soc = prediction["hamiltonian"].get("soc", False)
+        self.prediction = prediction
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method=self.method)
@@ -87,10 +88,10 @@ class DPTB(nn.Module):
 
 
         # initialize the embedding layer
-        self.embedding = Embedding(**embedding, dtype=dtype, device=device, n_atom=len(self.basis.keys()))
+        self.embedding = Embedding(**embedding, dtype=dtype, device=device, idp=self.idp, n_atom=len(self.basis.keys()))
         
         # initialize the prediction layer
-        if prediction["method"] == "linear":
+        if prediction.get("method") == "linear":
             
             self.node_prediction_h = AtomicLinear(
                 in_features=self.embedding.out_node_dim, 
@@ -127,7 +128,7 @@ class DPTB(nn.Module):
                     device=device
                     )
             
-        elif prediction["method"] == "nn":
+        elif prediction.get("method") == "nn":
             prediction["neurons"] = [self.embedding.out_node_dim] + prediction["neurons"] + [self.idp.node_reduced_matrix_element]
             prediction["config"] = get_neuron_config(prediction["neurons"])
 
@@ -158,6 +159,8 @@ class DPTB(nn.Module):
                     device=device, 
                     dtype=dtype
                 )
+        elif prediction.get("method") == "none":
+            pass
         else:
             raise NotImplementedError("The prediction model {} is not implemented.".format(prediction["method"]))
 
@@ -207,8 +210,11 @@ class DPTB(nn.Module):
         data = self.embedding(data)
         if self.overlap:
             data[AtomicDataDict.EDGE_OVERLAP_KEY] = data[AtomicDataDict.EDGE_FEATURES_KEY]
-        data = self.node_prediction_h(data)
-        data = self.edge_prediction_h(data)
+        
+        if not self.prediction.get("method") == "none":
+            data = self.node_prediction_h(data)
+            data = self.edge_prediction_h(data)
+        
         data = self.hamiltonian(data)
 
         if self.overlap:
