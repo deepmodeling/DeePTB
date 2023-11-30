@@ -160,11 +160,9 @@ class E3Hamiltonian(torch.nn.Module):
                     HR = data[self.node_field][:, self.idp.nodetype_maps[opairtype]]
                     HR = HR.reshape(n_node, -1, nL, nR).permute(0,2,3,1)# shape (N, nL, nR, n_pair)
                     
-                    # rme = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
-                    #     HR[:,:,:,None,:], dim=(1,2)) # shape (N, n_rme, n_pair)
-                    # rme = rme.transpose(1,2).reshape(n_node, -1)
-
-                    rme = HR.permute(0,3,1,2).reshape(n_node, -1)
+                    rme = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
+                        HR[:,:,:,None,:], dim=(1,2)) # shape (N, n_rme, n_pair)
+                    rme = rme.transpose(1,2).reshape(n_node, -1)
 
                     # the onsite block doesnot have rotation
                     data[self.node_field][:, self.idp.nodetype_maps[opairtype]] = rme

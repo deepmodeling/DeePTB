@@ -32,14 +32,14 @@ class OrbAbacus2DeepTB:
         #     3: [0, 2, 4, 6],
         # }
 
-        minus_dict = {
-            1: [0, 2],
-            2: [1, 3],
-            3: [0, 2, 4, 6],
-        }
+        # minus_dict = {
+        #     1: [0, 2],
+        #     2: [1, 3],
+        #     3: [0, 2, 4, 6],
+        # }
 
-        for k, v in minus_dict.items():
-            self.Us_abacus2deeptb[k][v] *= -1  # add phase (-1)^m
+        # for k, v in minus_dict.items():
+        #     self.Us_abacus2deeptb[k][v] *= -1  # add phase (-1)^m
 
     def get_U(self, l):
         if l > 3:

@@ -215,7 +215,7 @@ class DPTB(nn.Module):
             data = self.node_prediction_h(data)
             data = self.edge_prediction_h(data)
         
-        data = self.hamiltonian(data)
+        # data = self.hamiltonian(data)
 
         if self.overlap:
             data = self.edge_prediction_s(data)
