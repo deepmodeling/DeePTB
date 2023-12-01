@@ -16,6 +16,7 @@ from .dataset import (
     ASEDataset,
     HDF5Dataset,
     ABACUSDataset,
+    ABACUSInMemoryDataset,
 )
 from .dataloader import DataLoader, Collater, PartialSampler
 from .build import dataset_from_config
@@ -33,6 +34,7 @@ __all__ = [
     ASEDataset,
     HDF5Dataset,
     ABACUSDataset,
+    ABACUSInMemoryDataset,
     DataLoader,
     Collater,
     PartialSampler,

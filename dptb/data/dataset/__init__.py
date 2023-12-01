@@ -4,10 +4,12 @@ from ._npz_dataset import NpzDataset
 from ._hdf5_dataset import HDF5Dataset
 from ._abacus_dataset import ABACUSDataset
 from ._deeph_dataset import DeePHE3Dataset
+from ._abacus_dataset_mem import ABACUSInMemoryDataset
 
 
 __all__ = [
     DeePHE3Dataset,
+    ABACUSInMemoryDataset,
     ABACUSDataset, 
     ASEDataset, 
     AtomicDataset, 
@@ -15,3 +17,4 @@ __all__ = [
     NpzDataset, 
     HDF5Dataset
     ]
+
