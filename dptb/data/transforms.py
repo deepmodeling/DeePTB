@@ -345,7 +345,8 @@ class OrbitalMapper(BondMapper):
             self, 
             basis: Dict[str, Union[List[str], str]], 
             chemical_symbol_to_type: Optional[Dict[str, int]] = None,
-            method: str ="e3tb"
+            method: str ="e3tb",
+            device: Union[str, torch.device] = torch.device("cpu")
             ):
         """_summary_
 
@@ -367,6 +368,7 @@ class OrbitalMapper(BondMapper):
 
         self.basis = basis
         self.method = method
+        self.device = device
 
         if self.method not in ["e3tb", "sktb"]:
             raise ValueError
@@ -472,16 +474,25 @@ class OrbitalMapper(BondMapper):
         self.get_pair_maps()
         self.get_node_maps()
 
-        self.mask_to_erme = torch.zeros(len(self.reduced_bond_types), self.edge_reduced_matrix_element, dtype=torch.bool)
-        self.mask_to_nrme = torch.zeros(len(self.type_names), self.node_reduced_matrix_element, dtype=torch.bool)
-        for ib in self.basis.keys():
-            for opair in self.node_maps:
-                self.mask_to_nrme[self.chemical_symbol_to_type[ib]][self.node_maps[opair]] = True
+        self.mask_to_erme = torch.zeros(len(self.reduced_bond_types), self.edge_reduced_matrix_element, dtype=torch.bool, device=self.device)
+        self.mask_to_nrme = torch.zeros(len(self.type_names), self.node_reduced_matrix_element, dtype=torch.bool, device=self.device)
+        for ib, bb in self.basis.items():
+            for io in bb:
+                iof = self.basis_to_full_basis[ib][io]
+                for jo in bb:
+                    jof = self.basis_to_full_basis[ib][jo]
+                    if self.node_maps.get(iof+"-"+jof) is not None:
+                        self.mask_to_nrme[self.chemical_symbol_to_type[ib]][self.node_maps[iof+"-"+jof]] = True
         
 
         for ib in self.reduced_bond_to_type.keys():
-            for opair in self.pair_maps:
-                self.mask_to_erme[self.reduced_bond_to_type[ib]][self.pair_maps[opair]] = True
+            a,b = ib.split("-")
+            for io in self.basis[a]:
+                iof = self.basis_to_full_basis[a][io]
+                for jo in self.basis[b]:
+                    jof = self.basis_to_full_basis[b][jo]
+                    if self.pair_maps.get(iof+"-"+jof) is not None:
+                        self.mask_to_erme[self.reduced_bond_to_type[ib]][self.pair_maps[iof+"-"+jof]] = True
 
             
     def get_pairtype_maps(self):
@@ -633,9 +644,11 @@ class OrbitalMapper(BondMapper):
     
     def get_irreps(self, no_parity=True):
         assert self.method == "e3tb", "Only support e3tb method for now."
+        self.no_parity=True
 
         if hasattr(self, "node_irreps") and hasattr(self, "pair_irreps"):
-            return self.node_maps, self.pair_irreps
+            if self.no_parity == no_parity:
+                return self.node_maps, self.pair_irreps
 
         if not hasattr(self, "nodetype_maps"):
             self.get_nodetype_maps()
@@ -648,22 +661,23 @@ class OrbitalMapper(BondMapper):
             factor = 1
         else:
             factor = -1
+
         for pair, sli in self.pairtype_maps.items():
             l1, l2 = anglrMId[pair[0]], anglrMId[pair[2]]
-            ir1 = o3.Irrep((l1, factor**l1))
-            ir2 = o3.Irrep((l2, factor**l2))
-            irs += [i for i in ir1*ir2]*int((sli.stop-sli.start)/(2*l1+1)/(2*l2+1))
+            p = factor**(l1+l2)
+            required_ls = range(abs(l1 - l2), l1 + l2 + 1)
+            required_irreps = [(1,(l, p)) for l in required_ls]
+            irs += required_irreps*int((sli.stop-sli.start)/(2*l1+1)/(2*l2+1))
 
         self.pair_irreps = o3.Irreps(irs)
 
         irs = []
         for pair, sli in self.nodetype_maps.items():
             l1, l2 = anglrMId[pair[0]], anglrMId[pair[2]]
-            ir1 = o3.Irrep((l1, factor**l1))
-            ir2 = o3.Irrep((l2, factor**l2))
-            irs += [i for i in ir1*ir2]*int((sli.stop-sli.start)/(2*l1+1)/(2*l2+1))
+            p = factor**(l1+l2)
+            required_ls = range(abs(l1 - l2), l1 + l2 + 1)
+            required_irreps = [(1,(l, p)) for l in required_ls]
+            irs += required_irreps*int((sli.stop-sli.start)/(2*l1+1)/(2*l2+1))
         
         self.node_irreps = o3.Irreps(irs)
         return self.node_irreps, self.pair_irreps
-            
-    

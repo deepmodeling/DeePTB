@@ -26,20 +26,14 @@ class OrbAbacus2DeepTB:
         self.Us_abacus2deeptb[2] = np.eye(5)[[4, 2, 0, 1, 3]]      # 0, 1, -1, 2, -2 -> -2, -1, 0, 1, 2
         self.Us_abacus2deeptb[3] = np.eye(7)[[6, 4, 2, 0, 1, 3, 5]] # -3,-2,-1,0,1,2,3
 
-        # minus_dict = {
-        #     1: [1, 2],
-        #     2: [0, 2],
-        #     3: [0, 2, 4, 6],
-        # }
+        minus_dict = {
+            1: [0, 2],
+            2: [1, 3],
+            3: [0, 2, 4, 6],
+        }
 
-        # minus_dict = {
-        #     1: [0, 2],
-        #     2: [1, 3],
-        #     3: [0, 2, 4, 6],
-        # }
-
-        # for k, v in minus_dict.items():
-        #     self.Us_abacus2deeptb[k][v] *= -1  # add phase (-1)^m
+        for k, v in minus_dict.items():
+            self.Us_abacus2deeptb[k][v] *= -1  # add phase (-1)^m
 
     def get_U(self, l):
         if l > 3:
@@ -130,6 +124,8 @@ def abacus_parse(input_path,
                     break
             site_norbits_dict[atom_type] = current_site_norbits
             orbital_types_dict[atom_type] = current_orbital_types
+
+        print(orbital_types_dict)
 
         line = find_target_line(f, "TOTAL ATOM NUMBER")
         assert line is not None, 'Cannot find "TOTAL ATOM NUMBER" in log file'

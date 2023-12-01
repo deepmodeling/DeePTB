@@ -65,6 +65,7 @@ class Trainer(_BaseTrainer):
         '''
         conduct one step forward computation, used in train, test and validation.
         '''
+        self.model.train()
         self.optimizer.zero_grad(set_to_none=True)
         batch = batch.to(self.device)
         batch = AtomicData.to_AtomicDataDict(batch)

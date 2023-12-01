@@ -356,6 +356,7 @@ class AtomicData(Data):
         pbc: Optional[PBC] = None,
         er_max: Optional[float] = None,
         oer_max: Optional[float] = None,
+        reduce_edge: bool = True,
         **kwargs,
     ):
         """Build neighbor graph from points, optionally with PBC.
@@ -399,7 +400,7 @@ class AtomicData(Data):
             r_max=r_max,
             self_interaction=self_interaction,
             cell=cell,
-            reduce=True,
+            reduce=reduce_edge,
             atomic_numbers=kwargs.get("atomic_numbers", None),
             pbc=pbc,
         )

@@ -75,7 +75,7 @@ class DPTB(nn.Module):
         self.prediction = prediction
 
         if basis is not None:
-            self.idp = OrbitalMapper(basis, method=self.method)
+            self.idp = OrbitalMapper(basis, method=self.method, device=self.device)
             if idp is not None:
                 assert idp == self.idp, "The basis of idp and basis should be the same."
         else:

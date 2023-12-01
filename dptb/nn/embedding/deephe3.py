@@ -23,10 +23,10 @@ class N3DeePH(nn.Module):
             r_max: float=5.0, 
             n_basis: int=128, 
             use_sc=True, 
-            no_parity=False, 
-            use_sbf=True,
+            no_parity=False,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
+            only_ij=False,
             **kwargs,
             ):
         super(N3DeePH, self).__init__()
@@ -67,10 +67,10 @@ class N3DeePH(nn.Module):
                 r_max=r_max, 
                 use_sc=use_sc,
                 no_parity=no_parity, 
-                use_sbf=use_sbf,
+                use_sbf=False,
                 selftp=False, 
                 edge_upd=True,
-                only_ij=True,
+                only_ij=only_ij,
                 num_basis=n_basis
             )
         self.net.to(self.device)
