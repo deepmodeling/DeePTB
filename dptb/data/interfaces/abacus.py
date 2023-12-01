@@ -51,10 +51,11 @@ class OrbAbacus2DeepTB:
         block_rights = block_diag(*[self.get_U(l_right) for l_right in l_rights])
         return block_lefts @ mat @ block_rights.T
     
-def recursive_parse(input_dir, output_dir, data_name, only_S=False, get_Ham=False, add_overlap=False, get_eigenvalues=False):
+def recursive_parse(input_dir, preprocess_dir, data_name="OUT.ABACUS", only_overlap=False, get_Ham=False, add_overlap=False, get_eigenvalues=False):
     input_dir = os.path.abspath(input_dir)
-    output_dir = os.path.abspath(output_dir)
-    os.makedirs(output_dir, exist_ok=True)
+    preprocess_dir = os.path.abspath(preprocess_dir)
+    os.makedirs(preprocess_dir, exist_ok=True)
+    h5file_names = []
     for file in os.listdir(input_dir):
         if os.path.isdir(os.path.join(input_dir, file)):
             datafiles = os.listdir(os.path.join(input_dir, file))
@@ -62,13 +63,15 @@ def recursive_parse(input_dir, output_dir, data_name, only_S=False, get_Ham=Fals
                 if os.path.exists(os.path.join(input_dir, file, data_name, "hscsr.tgz")):
                     os.system("cd "+os.path.join(input_dir, file, data_name) + " && tar -zxvf hscsr.tgz && mv OUT.ABACUS/* ./")
                 try:
-                    abacus_parse(os.path.join(input_dir, file), os.path.join(output_dir, file), data_name, only_S=only_S, get_Ham=get_Ham,
+                    _abacus_parse(os.path.join(input_dir, file), os.path.join(preprocess_dir, file), data_name, only_S=only_overlap, get_Ham=get_Ham,
                                 add_overlap=add_overlap, get_eigenvalues=get_eigenvalues)
+                    h5file_names.append(os.path.join(preprocess_dir, file, "AtomicData.h5"))
                 except Exception as e:
                     print(f"Error in {data_name}: {e}")
                     continue
+    return h5file_names
 
-def abacus_parse(input_path, 
+def _abacus_parse(input_path, 
                  output_path, 
                  data_name, 
                  only_S=False, 
