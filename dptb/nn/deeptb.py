@@ -145,7 +145,8 @@ class DPTB(nn.Module):
                 node_field=AtomicDataDict.NODE_FEATURES_KEY,
                 idp_sk=self.idp, 
                 dtype=self.dtype, 
-                device=self.device
+                device=self.device,
+                overlap=True
                 )
             if self.overlap:
                 self.overlap = SKHamiltonian(

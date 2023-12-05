@@ -3,10 +3,10 @@ from dptb.nn.build import build_model
 from dptb.data.build import build_dataset
 from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
 from dptb.plugins.train_logger import Logger
-from dptb.utils.argcheck import normalize, normalize_restart, normalize_init_model
+from dptb.utils.argcheck import normalize
 from dptb.plugins.plugins import Saver
 from typing import Dict, List, Optional, Any
-from dptb.utils.tools import j_loader, setup_seed
+from dptb.utils.tools import j_loader, setup_seed, j_must_have
 from dptb.utils.constants import dtype_dict
 from dptb.utils.loggers import set_log_handles
 import heapq
@@ -90,18 +90,8 @@ def train(
     set_log_handles(log_level, Path(log_path) if log_path else None)
     # parse the config. Since if use init, config file may not equals to current
     
-    if not restart and not init_model:
-        jdata = j_loader(INPUT)
-        jdata = normalize(jdata)
-    elif restart:
-        # jdata only requires a limited numbers of keys
-        # : data_options, common_options
-        jdata = j_loader(INPUT)
-        jdata = normalize_restart(jdata)
-    elif init_model:
-        jdata = j_loader(INPUT)
-        jdata = normalize_init_model(jdata)
-        # TODO: check whether common options align with the ones in checkpoint
+    jdata = j_loader(INPUT)
+    jdata = normalize(jdata)
 
     # setup seed
     setup_seed(seed=jdata["common_options"]["seed"])
@@ -126,12 +116,17 @@ def train(
     
     if restart or init_model:
         f = torch.load(restart)
-        if jdata.get(["model_options"], None):
+        if jdata.get("model_options", None):
             jdata["model_options"] = f["config"]["model_options"]
 
         if restart:
             jdata["train_options"] = f["config"]["train_options"]
+        else:
+            j_must_have(jdata, "train_options")
         del f
+    else:
+        j_must_have(jdata, "model_options")
+        j_must_have(jdata, "train_options")
 
     if restart:
         trainer = Trainer.restart(

@@ -272,10 +272,12 @@ class SKHamiltonian(torch.nn.Module):
         # transform sk parameters to irreducible matrix element
 
         assert data[self.edge_field].shape[1] == self.idp_sk.edge_reduced_matrix_element
-        assert data[self.node_field].shape[1] == self.idp_sk.node_reduced_matrix_element
-
+        if not self.overlap:
+            assert data[self.node_field].shape[1] == self.idp_sk.node_reduced_matrix_element
+            n_node = data[self.node_field].shape[0]
+            
         n_edge = data[self.edge_field].shape[0]
-        n_node = data[self.node_field].shape[0]
+        
 
         edge_features = data[self.edge_field].clone()
         data[self.edge_field] = torch.zeros((n_edge, self.idp.edge_reduced_matrix_element), dtype=self.dtype, device=self.device)

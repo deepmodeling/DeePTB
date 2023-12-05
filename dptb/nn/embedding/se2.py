@@ -30,7 +30,7 @@ class SE2Descriptor(torch.nn.Module):
             rc:Union[float, torch.Tensor],
             n_axis: Union[int, torch.LongTensor, None]=None,
             n_atom: int=1,
-            radial_embedding: dict={},
+            radial_net: dict={},
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             **kwargs,
@@ -54,7 +54,7 @@ class SE2Descriptor(torch.nn.Module):
         
         super(SE2Descriptor, self).__init__()
         self.onehot = OneHotAtomEncoding(num_types=n_atom, set_features=False)
-        self.descriptor = _SE2Descriptor(rs=rs, rc=rc, n_atom=n_atom, radial_embedding=radial_embedding, n_axis=n_axis, dtype=dtype, device=device)
+        self.descriptor = _SE2Descriptor(rs=rs, rc=rc, n_atom=n_atom, radial_net=radial_net, n_axis=n_axis, dtype=dtype, device=device)
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         """_summary_
@@ -122,7 +122,7 @@ class _SE2Descriptor(MessagePassing):
             rc:Union[float, torch.Tensor],
             n_axis: Union[int, torch.LongTensor, None]=None,
             aggr: SE2Aggregation=SE2Aggregation(),
-            radial_embedding: dict={},
+            radial_net: dict={},
             n_atom: int=1,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"), **kwargs):
@@ -135,8 +135,8 @@ class _SE2Descriptor(MessagePassing):
             dtype = dtype_dict[dtype]
 
 
-        radial_embedding["config"] = get_neuron_config([2*n_atom+1]+radial_embedding["neurons"])
-        self.embedding_net = ResNet(**radial_embedding, device=device, dtype=dtype)
+        radial_net["config"] = get_neuron_config([2*n_atom+1]+radial_net["neurons"])
+        self.embedding_net = ResNet(**radial_net, device=device, dtype=dtype)
         if isinstance(rs, float):
             self.rs = torch.tensor(rs, dtype=dtype, device=device)
         else:
@@ -152,8 +152,8 @@ class _SE2Descriptor(MessagePassing):
         self.device = device
         self.dtype = dtype
         if n_axis == None:
-            self.n_axis = radial_embedding["neurons"][-1]
-        self.n_out = self.n_axis * radial_embedding["neurons"][-1]
+            self.n_axis = radial_net["neurons"][-1]
+        self.n_out = self.n_axis * radial_net["neurons"][-1]
 
     def forward(self, env_vectors, atom_attr, env_index, edge_index, edge_length):
         n_env = env_index.shape[1]

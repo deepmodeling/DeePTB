@@ -2,46 +2,37 @@
     "common_options": {
         "bond_cutoff": 5.0,
         "env_cutoff": 5.0,
+        "seed": 12342,
         "basis": {
-            "Al": "4s4p1d",
-            "As": "2s2p1d"
+            "Al": ["3s", "3p", "d*"],
+            "As": ["4s", "4p", "d*"]
         },
-        "device": "cpu",
+        "device": "cuda",
         "dtype": "float32",
         "overlap": false
     },
     "model_options": {
         "embedding":{
-            "method": "baseline",
+            "method": "se2",
             "rc": 5.0,
-            "p": 4,
+            "rs": 2.0,
             "n_axis": 10,
-            "n_basis": 3,
-            "n_radial": 150,
-            "n_sqrt_radial": 20,
-            "n_layer": 2,
             "radial_net": {
                 "neurons": [20,40,60],
-                "activation": "tanh",
-                "if_batch_normalized": false
-            },
-            "hidden_net": {
-                "neurons": [100,150,100],
                 "activation": "tanh",
                 "if_batch_normalized": false
             }
         },
         "prediction":{
-            "method": "e3tb",
+            "method": "sktb",
             "neurons": [128,128,128],
             "activation": "tanh",
             "if_batch_normalized": false
         }
     },
     "train_options": {
-        "seed": 120478,
         "num_epoch": 4000,
-        "batch_size": 2,
+        "batch_size": 1,
         "optimizer": {
             "lr": 0.01,
             "type": "Adam"
@@ -51,7 +42,7 @@
             "gamma": 0.995
         },
         "loss_options":{
-            "train":{"method": "hamil"}
+            "train":{"method": "eigvals"}
         },
         "save_freq": 10,
         "validation_freq": 10,
@@ -62,7 +53,6 @@
             "root": "/share/semicond/lmp_abacus/abacus_hse_data/AlAs/result-prod-alas/prod-alas/AlAs/sys-000/",
             "preprocess_path": "/share/semicond/lmp_abacus/abacus_hse_data/AlAs/result-prod-alas/prod-alas/AlAs/sys-000/atomic_data/",
             "file_names": [
-                "T100/frame-18/AtomicData.h5", 
                 "T100/frame-29/AtomicData.h5",
                 "T500/frame-100/AtomicData.h5",
                 "T500/frame-44/AtomicData.h5",
