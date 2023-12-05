@@ -93,7 +93,9 @@ _DEFAULT_GRAPH_FIELDS: Set[str] = {
     AtomicDataDict.KPOINT_KEY, # new
     AtomicDataDict.HAMILTONIAN_KEY, # new
     AtomicDataDict.OVERLAP_KEY, # new
-    AtomicDataDict.ENERGY_EIGENVALUE_KEY # new
+    AtomicDataDict.ENERGY_EIGENVALUE_KEY, # new
+    AtomicDataDict.ENERGY_WINDOWS_KEY, # new,
+    AtomicDataDict.BAND_WINDOW_KEY # new,
 }
 
 _NODE_FIELDS: Set[str] = set(_DEFAULT_NODE_FIELDS)

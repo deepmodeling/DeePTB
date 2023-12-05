@@ -2,7 +2,6 @@ from dptb.nnops.trainer import Trainer
 from dptb.nn.build import build_model
 from dptb.data.build import build_dataset
 from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
-from dptb.plugins.init_data import InitData
 from dptb.plugins.train_logger import Logger
 from dptb.utils.argcheck import normalize
 from dptb.plugins.plugins import Saver

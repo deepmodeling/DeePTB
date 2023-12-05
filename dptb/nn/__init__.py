@@ -1,7 +1,11 @@
 from .build import build_model
+from .deeptb import DPTB
+from .nnsk import NNSK
 
 __all__ = [
-
+    build_model,
+    DPTB,
+    NNSK,
 ]
 """
 

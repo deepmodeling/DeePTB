@@ -28,7 +28,9 @@ class TypeMapper:
         chemical_symbol_to_type: Optional[Dict[str, int]] = None,
         type_to_chemical_symbol: Optional[Dict[int, str]] = None,
         chemical_symbols: Optional[List[str]] = None,
+        device=torch.device("cpu"),
     ):
+        self.device = device
         if chemical_symbols is not None:
             if chemical_symbol_to_type is not None:
                 raise ValueError(
@@ -79,13 +81,13 @@ class TypeMapper:
             self._min_Z = min(valid_atomic_numbers)
             self._max_Z = max(valid_atomic_numbers)
             Z_to_index = torch.full(
-                size=(1 + self._max_Z - self._min_Z,), fill_value=-1, dtype=torch.long
+                size=(1 + self._max_Z - self._min_Z,), fill_value=-1, dtype=torch.long, device=device
             )
             for sym, type in self.chemical_symbol_to_type.items():
                 Z_to_index[ase.data.atomic_numbers[sym] - self._min_Z] = type
             self._Z_to_index = Z_to_index
             self._index_to_Z = torch.zeros(
-                size=(len(self.chemical_symbol_to_type),), dtype=torch.long
+                size=(len(self.chemical_symbol_to_type),), dtype=torch.long, device=device
             )
             for sym, type_idx in self.chemical_symbol_to_type.items():
                 self._index_to_Z[type_idx] = ase.data.atomic_numbers[sym]
@@ -187,9 +189,10 @@ class BondMapper(TypeMapper):
     def __init__(
             self, 
             chemical_symbols: Optional[List[str]] = None, 
-            chemical_symbols_to_type:Union[Dict[str, int], None]=None
+            chemical_symbols_to_type:Union[Dict[str, int], None]=None,
+            device=torch.device("cpu"),
             ):
-        super(BondMapper, self).__init__(chemical_symbol_to_type=chemical_symbols_to_type, chemical_symbols=chemical_symbols)
+        super(BondMapper, self).__init__(chemical_symbol_to_type=chemical_symbols_to_type, chemical_symbols=chemical_symbols, device=device)
 
         self.bond_types = [None] * self.num_types ** 2
         self.reduced_bond_types = [None] * ((self.num_types * (self.num_types + 1)) // 2)
@@ -210,10 +213,10 @@ class BondMapper(TypeMapper):
             self.type_to_reduced_bond[i] = bt
         
         ZZ_to_index = torch.full(
-                size=(len(self._Z_to_index), len(self._Z_to_index)), fill_value=-1, dtype=torch.long
+                size=(len(self._Z_to_index), len(self._Z_to_index)), fill_value=-1, device=device, dtype=torch.long
             )
         ZZ_to_reduced_index = torch.full(
-                size=(len(self._Z_to_index), len(self._Z_to_index)), fill_value=-1, dtype=torch.long
+                size=(len(self._Z_to_index), len(self._Z_to_index)), fill_value=-1, device=device, dtype=torch.long
             )
         
 
@@ -230,19 +233,19 @@ class BondMapper(TypeMapper):
         self._ZZ_to_reduced_index = ZZ_to_reduced_index
 
         self._index_to_ZZ = torch.zeros(
-                size=(len(self.bond_to_type),2), dtype=torch.long
+                size=(len(self.bond_to_type),2), dtype=torch.long, device=device
             )
         self._reduced_index_to_ZZ = torch.zeros(
-                size=(len(self.reduced_bond_to_type),2), dtype=torch.long
+                size=(len(self.reduced_bond_to_type),2), dtype=torch.long, device=device
             )
         
         for abond, aidx in self.bond_to_type.items():
             asym, bsym = abond.split("-")
-            self._index_to_ZZ[aidx] = torch.tensor([ase.data.atomic_numbers[asym], ase.data.atomic_numbers[bsym]], dtype=torch.long)
+            self._index_to_ZZ[aidx] = torch.tensor([ase.data.atomic_numbers[asym], ase.data.atomic_numbers[bsym]], dtype=torch.long, device=device)
 
         for abond, aidx in self.reduced_bond_to_type.items():
             asym, bsym = abond.split("-")
-            self._reduced_index_to_ZZ = torch.tensor([ase.data.atomic_numbers[asym], ase.data.atomic_numbers[bsym]], dtype=torch.long)
+            self._reduced_index_to_ZZ[aidx] = torch.tensor([ase.data.atomic_numbers[asym], ase.data.atomic_numbers[bsym]], dtype=torch.long, device=device)
 
 
     def transform_atom(self, atomic_numbers):
@@ -362,9 +365,9 @@ class OrbitalMapper(BondMapper):
         """
         if chemical_symbol_to_type is not None:
             assert set(basis.keys()) == set(chemical_symbol_to_type.keys())
-            super(OrbitalMapper, self).__init__(chemical_symbol_to_type=chemical_symbol_to_type)
+            super(OrbitalMapper, self).__init__(chemical_symbol_to_type=chemical_symbol_to_type, device=device)
         else:
-            super(OrbitalMapper, self).__init__(chemical_symbols=list(basis.keys()))
+            super(OrbitalMapper, self).__init__(chemical_symbols=list(basis.keys()), device=device)
 
         self.basis = basis
         self.method = method
@@ -444,7 +447,7 @@ class OrbitalMapper(BondMapper):
 
         # TODO: get the mapping from list basis to full basis
         self.basis_to_full_basis = {}
-        self.atom_norb = torch.zeros(len(self.type_names), dtype=torch.long)
+        self.atom_norb = torch.zeros(len(self.type_names), dtype=torch.long, device=self.device)
         for ib in self.basis.keys():
             count_dict = {"s":0, "p":0, "d":0, "f":0}
             self.basis_to_full_basis.setdefault(ib, {})
@@ -457,7 +460,7 @@ class OrbitalMapper(BondMapper):
                 self.basis_to_full_basis[ib][o] = str(count_dict[io])+io
         
         # Get the mask for mapping from full basis to atom specific basis
-        self.mask_to_basis = torch.zeros(len(self.type_names), self.full_basis_norb, dtype=torch.bool)
+        self.mask_to_basis = torch.zeros(len(self.type_names), self.full_basis_norb, device=self.device, dtype=torch.bool)
         
         for ib in self.basis.keys():
             ibasis = list(self.basis_to_full_basis[ib].values())
@@ -681,3 +684,6 @@ class OrbitalMapper(BondMapper):
         
         self.node_irreps = o3.Irreps(irs)
         return self.node_irreps, self.pair_irreps
+    
+    def __eq__(self, other):
+        return self.basis == other.basis and self.method == other.method

@@ -7,15 +7,15 @@ import torch
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dptb.plugins.train_logger import Logger
-from dptb.plugins.init_nnsk import InitSKModel
-from dptb.plugins.init_dptb import InitDPTBModel
+from dptb.v1.init_nnsk import InitSKModel
+from dptb.v1.init_dptb import InitDPTBModel
 from dptb.utils.argcheck import normalize, normalize_run
 from dptb.utils.tools import j_loader
 from dptb.utils.loggers import set_log_handles
 from dptb.utils.tools import j_must_have
 from dptb.utils.constants import dtype_dict
-from dptb.nnops.apihost import NNSKHost, DPTBHost
-from dptb.nnops.NN2HRK import NN2HRK
+from dptb.nnops.v1.apihost import NNSKHost, DPTBHost
+from dptb.nnops.v1.NN2HRK import NN2HRK
 from ase.io import read,write
 from dptb.postprocess.bandstructure.band import bandcalc
 from dptb.postprocess.bandstructure.dos import doscalc, pdoscalc

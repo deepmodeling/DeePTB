@@ -3,11 +3,11 @@ import logging
 import numpy as np
 from dptb.hamiltonian.hamil_eig_sk_crt import HamilEig
 from dptb.nnsktb.onsiteFunc import loadOnsite
-from dptb.nnops.loss import loss_type1, loss_spectral
+from dptb.nnops.v1.loss import loss_type1, loss_spectral
 from dptb.utils.tools import get_uniq_symbol, get_lr_scheduler, \
 get_optimizer, nnsk_correction, j_must_have
 
-from dptb.nnops.trainloss import lossfunction
+from dptb.nnops.v1.trainloss import lossfunction
 from dptb.nnops.base_tester import Tester
 
 log = logging.getLogger(__name__)

@@ -86,4 +86,10 @@ class N3DeePH(nn.Module):
 
         return data
 
-        
+    @property
+    def out_edge_irreps(self):
+        return self.n_radial
+
+    @property
+    def out_node_irreps(self):
+        return self.n_sqrt_radial * self.n_axis

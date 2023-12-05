@@ -1,6 +1,3 @@
-
-
-
 import torch
 from dptb.utils.constants import h_all_types, anglrMId, atomic_num_dict, atomic_num_dict_r
 from typing import Tuple, Union, Dict
@@ -23,13 +20,13 @@ class HR2HK(torch.nn.Module):
         super(HR2HK, self).__init__()
 
         if isinstance(dtype, str):
-            dtype = torch.dtype(dtype)
+            dtype = getattr(torch, dtype)
         self.dtype = dtype
         self.device = device
         self.overlap = overlap
 
         if basis is not None:
-            self.idp = OrbitalMapper(basis, method="e3tb")
+            self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
             if idp is not None:
                 assert idp == self.idp, "The basis of idp and basis should be the same."
         else:
@@ -51,6 +48,8 @@ class HR2HK(torch.nn.Module):
         orbpair_hopping = data[self.edge_field]
         orbpair_onsite = data.get(self.node_field)
         bondwise_hopping = torch.zeros_like(orbpair_hopping).reshape(-1, self.idp.full_basis_norb, self.idp.full_basis_norb)
+        bondwise_hopping.to(self.device)
+        bondwise_hopping.type(self.dtype)
         onsite_block = torch.zeros((len(data[AtomicDataDict.ATOM_TYPE_KEY]), self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
 
         ist = 0
@@ -85,7 +84,7 @@ class HR2HK(torch.nn.Module):
         atom_id_to_indices = {}
         ist = 0
         for i, oblock in enumerate(onsite_block):
-            mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY][i]].reshape(-1)
+            mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
             masked_oblock = oblock[mask][:,mask]
             block[:,ist:ist+masked_oblock.shape[0],ist:ist+masked_oblock.shape[1]] = 0.5 * masked_oblock.squeeze(0)
             atom_id_to_indices[i] = slice(ist, ist+masked_oblock.shape[0])
@@ -96,8 +95,8 @@ class HR2HK(torch.nn.Module):
             jatom = data[AtomicDataDict.EDGE_INDEX_KEY][1][i]
             iatom_indices = atom_id_to_indices[int(iatom)]
             jatom_indices = atom_id_to_indices[int(jatom)]
-            imask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY][iatom]].reshape(-1)
-            jmask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY][jatom]].reshape(-1)
+            imask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[iatom]]
+            jmask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[jatom]]
             masked_hblock = hblock[imask][:,jmask]
 
             block[:,iatom_indices,jatom_indices] += masked_hblock.squeeze(0).type_as(block) * \

@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import pytest
 import os
-from dptb.nnops.nnapi import NNSK, DeePTB
+from dptb.nnops.v1.nnapi import NNSK, DeePTB
 from ase.io import read,write
 from dptb.structure.structure import BaseStruct
 

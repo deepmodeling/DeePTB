@@ -1,8 +1,8 @@
 import pytest
-from dptb.plugins.init_nnsk import InitSKModel
-from dptb.plugins.init_dptb import InitDPTBModel
-from dptb.nnops.NN2HRK import NN2HRK
-from dptb.nnops.apihost import NNSKHost,DPTBHost
+from dptb.v1.init_nnsk import InitSKModel
+from dptb.v1.init_dptb import InitDPTBModel
+from dptb.nnops.v1.NN2HRK import NN2HRK
+from dptb.nnops.v1.apihost import NNSKHost,DPTBHost
 from dptb.entrypoints.run import run
 from dptb.structure.structure import BaseStruct
 import torch

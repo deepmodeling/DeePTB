@@ -7,7 +7,8 @@
             "As": "2s2p1d"
         },
         "device": "cpu",
-        "dtype": "float32"
+        "dtype": "float32",
+        "overlap": false
     },
     "model_options": {
         "embedding":{
@@ -31,16 +32,10 @@
             }
         },
         "prediction":{
-            "method": "nn",
+            "method": "e3tb",
             "neurons": [128,128,128],
             "activation": "tanh",
-            "if_batch_normalized": false,
-            "quantities": ["hamiltonian"],
-            "hamiltonian":{
-                "method": "e3tb",
-                "precision": 1e-5,  
-                "overlap": false
-            }
+            "if_batch_normalized": false
         }
     },
     "train_options": {

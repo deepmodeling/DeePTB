@@ -13,9 +13,9 @@ from typing import Dict, List, Optional, Any
 from dptb.utils.loggers import set_log_handles
 from dptb.utils.tools import j_loader, setup_seed
 from dptb.utils.constants import dtype_dict
-from dptb.plugins.init_nnsk import InitSKModel
-from dptb.plugins.init_dptb import InitDPTBModel
-from dptb.plugins.init_data import InitTestData
+from dptb.v1.init_nnsk import InitSKModel
+from dptb.v1.init_dptb import InitDPTBModel
+from dptb.v1.init_data import InitTestData
 from dptb.utils.argcheck import normalize_test
 from dptb.plugins.monitor import TestLossMonitor
 from dptb.plugins.train_logger import Logger

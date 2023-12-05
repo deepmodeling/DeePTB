@@ -24,7 +24,7 @@ class Saver(Plugin):
         #         "%.3f"%self.trainer.model_options["skfunction"]["sk_decay_w"]
         suffix = ".iter{}".format(self.trainer.iter+1)
         self._save(
-            name="latest_"+suffix,
+            name="latest"+suffix,
             model=self.trainer.model,
             model_options=self.trainer.model.model_options,
             common_options=self.trainer.common_options,
@@ -50,7 +50,7 @@ class Saver(Plugin):
             #     "%.3f"%self.trainer.model_options["skfunction"]["sk_decay_w"]
             suffix = ".epoch{}".format(self.trainer.ep+1)
             self._save(
-                name="best_"+suffix,
+                name="best"+suffix,
                 model=self.trainer.model,
                 model_options=self.trainer.model.model_options,
                 common_options=self.trainer.common_options,

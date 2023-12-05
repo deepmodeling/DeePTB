@@ -3,7 +3,6 @@ import torch as th
 import torch
 from typing import List, Union
 from abc import ABC, abstractmethod
-from dptb.nnsktb.bondlengthDB import bond_length
 from torch_runstats.scatter import scatter
 from dptb.nn.sktb.onsiteDB import onsite_energy_database
 from dptb.data.transforms import OrbitalMapper

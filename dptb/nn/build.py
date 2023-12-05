@@ -64,10 +64,11 @@ def build_model(run_options, model_options=None, common_options=None):
     else:
         # load the model from the checkpoint
         if init_deeptb:
-            model = DPTB.from_reference(checkpoint)
+            model = DPTB.from_reference(checkpoint, **model_options, **common_options)
         if init_nnsk:
-            model = NNSK.from_reference(checkpoint, **model_options["nnsk"])
+            model = NNSK.from_reference(checkpoint, **model_options["nnsk"], **common_options)
         if init_mixed:
-            model = MIX.from_reference(checkpoint)
+            # mix model can be initilized with a mixed reference model or a nnsk model.
+            model = MIX.from_reference(checkpoint, **model_options, **common_options)
     
     return model

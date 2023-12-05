@@ -4,7 +4,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from dptb.utils.constants import atomic_num_dict, anglrMId, SKBondType
-from dptb.nnsktb.onsiteDB import onsite_energy_database
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -17,7 +16,6 @@ from typing import (
     Union,
 )
 import json
-from dptb.nnsktb.formula import SKFormula
 from pathlib import Path
 import yaml
 import torch.optim as optim

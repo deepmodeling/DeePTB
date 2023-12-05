@@ -31,11 +31,11 @@ def _abacus_h5_reader(h5file_path, AtomicData_options):
         for key, value in data["basis"].items(): 
             basis[key] = [(f"{i+1}" + orbitalLId[l]) for i, l in enumerate(value)]
         idp = OrbitalMapper(basis)
-        e3 = E3Hamiltonian(idp=idp, decompose=True)
+        # e3 = E3Hamiltonian(idp=idp, decompose=True)
         ham_block_to_feature(atomic_data, idp, data.get("hamiltonian_blocks", False), data.get("overlap_blocks", False))
-        with torch.no_grad():
-            atomic_data = e3(atomic_data.to_dict())
-        atomic_data = AtomicData.from_dict(atomic_data)
+        # with torch.no_grad():
+        #     atomic_data = e3(atomic_data.to_dict())
+        # atomic_data = AtomicData.from_dict(atomic_data)
 
     if data.get("eigenvalue") and data.get("kpoint"):
         atomic_data[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(data["kpoint"][:], dtype=torch.get_default_dtype())
@@ -85,7 +85,7 @@ class ABACUSInMemoryDataset(AtomicInMemoryDataset):
             self.file_name = h5_filenames
             print("Finished parsing ABACUS output.")
 
-        super().__init__(
+        super(ABACUSInMemoryDataset, self).__init__(
             file_name=self.file_name,
             url=url,
             root=root,
@@ -106,4 +106,4 @@ class ABACUSInMemoryDataset(AtomicInMemoryDataset):
 
     @property
     def raw_dir(self):
-        return self.abacus_args.get("input_dir")
+        return self.root

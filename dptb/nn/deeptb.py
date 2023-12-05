@@ -8,6 +8,7 @@ from dptb.nn.base import AtomicFFN, AtomicResNet, AtomicLinear
 from dptb.data import AtomicDataDict
 from dptb.nn.hamiltonian import E3Hamiltonian, SKHamiltonian
 from dptb.nn.nnsk import NNSK
+from e3nn.o3 import Linear
 
 
 """ if this class is called, it suggest user choose a embedding method. If not, it should directly use _sktb.py
@@ -33,10 +34,12 @@ class DPTB(nn.Module):
             self,
             embedding: dict,
             prediction: dict,
+            overlap: bool = False,
             basis: Dict[str, Union[str, list]]=None,
             idp: Union[OrbitalMapper, None]=None,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
+            transform: bool = True,
             **kwargs,
     ):
         """The top level DeePTB model class.
@@ -51,6 +54,8 @@ class DPTB(nn.Module):
             _description_, by default None
         idp : Union[OrbitalMapper, None], optional
             _description_, by default None
+        transform : bool, optional
+            _description_, decide whether to transform the irreducible matrix element to the hamiltonians
         dtype : Union[str, torch.dtype], optional
             _description_, by default torch.float32
         device : Union[str, torch.device], optional
@@ -68,10 +73,11 @@ class DPTB(nn.Module):
         self.dtype = dtype
         self.device = device
         self.model_options = {"embedding": embedding, "prediction": prediction}
+        self.transform = transform
         
-        self.method = prediction["hamiltonian"].get("method", "e3tb")
-        self.overlap = prediction["hamiltonian"].get("overlap", False)
-        self.soc = prediction["hamiltonian"].get("soc", False)
+        self.method = prediction.get("method", "e3tb")
+        self.overlap = overlap
+        # self.soc = prediction.get("soc", False)
         self.prediction = prediction
 
         if basis is not None:
@@ -91,44 +97,8 @@ class DPTB(nn.Module):
         self.embedding = Embedding(**embedding, dtype=dtype, device=device, idp=self.idp, n_atom=len(self.basis.keys()))
         
         # initialize the prediction layer
-        if prediction.get("method") == "linear":
             
-            self.node_prediction_h = AtomicLinear(
-                in_features=self.embedding.out_node_dim, 
-                out_features=self.idp.node_reduced_matrix_element, 
-                in_field=AtomicDataDict.NODE_FEATURES_KEY,
-                out_field=AtomicDataDict.NODE_FEATURES_KEY,
-                dtype=dtype,
-                device=device
-                )
-            self.edge_prediction_h = AtomicLinear(
-                in_features=self.embedding.out_edge_dim, 
-                out_features=self.idp.edge_reduced_matrix_element, 
-                in_field=AtomicDataDict.EDGE_FEATURES_KEY,
-                out_field=AtomicDataDict.EDGE_FEATURES_KEY,
-                dtype=dtype,
-                device=device
-                )
-            
-            if self.overlap:
-                self.node_prediction_s = AtomicLinear(
-                    in_features=self.embedding.out_node_dim, 
-                    out_features=self.idp.node_reduced_matrix_element, 
-                    in_field=AtomicDataDict.NODE_OVERLAP_KEY,
-                    out_field=AtomicDataDict.NODE_OVERLAP_KEY,
-                    dtype=dtype,
-                    device=device
-                    )
-                self.edge_prediction_s = AtomicLinear(
-                    in_features=self.embedding.out_edge_dim, 
-                    out_features=self.idp.edge_reduced_matrix_element, 
-                    in_field=AtomicDataDict.EDGE_OVERLAP_KEY,
-                    out_field=AtomicDataDict.EDGE_OVERLAP_KEY,
-                    dtype=dtype,
-                    device=device
-                    )
-            
-        elif prediction.get("method") == "nn":
+        if self.method == "sktb":
             prediction["neurons"] = [self.embedding.out_node_dim] + prediction["neurons"] + [self.idp.node_reduced_matrix_element]
             prediction["config"] = get_neuron_config(prediction["neurons"])
 
@@ -159,21 +129,32 @@ class DPTB(nn.Module):
                     device=device, 
                     dtype=dtype
                 )
-        elif prediction.get("method") == "none":
+
+        elif prediction.get("method") == "e3tb":
             pass
+
         else:
             raise NotImplementedError("The prediction model {} is not implemented.".format(prediction["method"]))
 
         
-        # initialize the hamiltonian layer
         if self.method == "sktb":
             self.hamiltonian = SKHamiltonian(
                 edge_field=AtomicDataDict.EDGE_FEATURES_KEY,
                 node_field=AtomicDataDict.NODE_FEATURES_KEY,
-                idp=self.idp, 
+                idp_sk=self.idp, 
                 dtype=self.dtype, 
                 device=self.device
                 )
+            if self.overlap:
+                self.overlap = SKHamiltonian(
+                    idp_sk=self.idp, 
+                    edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, 
+                    node_field=AtomicDataDict.NODE_OVERLAP_KEY, 
+                    dtype=self.dtype, 
+                    device=self.device,
+                    overlap=True,
+                    )
+
         elif self.method == "e3tb":
             self.hamiltonian = E3Hamiltonian(
                 edge_field=AtomicDataDict.EDGE_FEATURES_KEY,
@@ -182,18 +163,7 @@ class DPTB(nn.Module):
                 dtype=self.dtype, 
                 device=self.device
                 )
-
-        if self.overlap:
-            if self.method == "sktb":
-                self.overlap = SKHamiltonian(
-                    idp=self.idp, 
-                    edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, 
-                    node_field=AtomicDataDict.NODE_OVERLAP_KEY, 
-                    dtype=self.dtype, 
-                    device=self.device,
-                    overlap=True,
-                    )
-            elif self.method == "e3tb":
+            if self.overlap:
                 self.overlap = E3Hamiltonian(
                     idp=self.idp, 
                     edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, 
@@ -202,7 +172,6 @@ class DPTB(nn.Module):
                     device=self.device,
                     overlap=True,
                     )
-        
 
 
     def forward(self, data: AtomicDataDict.Type):
@@ -211,15 +180,15 @@ class DPTB(nn.Module):
         if self.overlap:
             data[AtomicDataDict.EDGE_OVERLAP_KEY] = data[AtomicDataDict.EDGE_FEATURES_KEY]
         
-        if not self.prediction.get("method") == "none":
-            data = self.node_prediction_h(data)
-            data = self.edge_prediction_h(data)
-        
-        # data = self.hamiltonian(data)
-
+        data = self.node_prediction_h(data)
+        data = self.edge_prediction_h(data)
         if self.overlap:
             data = self.edge_prediction_s(data)
-            data = self.overlap(data)
+        
+        if self.transform:
+            data = self.hamiltonian(data)
+            if self.overlap:
+                data = self.overlap(data)
 
         return data
     
@@ -227,11 +196,11 @@ class DPTB(nn.Module):
     def from_reference(cls, checkpoint):
         
         ckpt = torch.load(checkpoint)
-        model = cls(**ckpt["config"]["model_options"], **ckpt["config"]["mode_config"], **ckpt["idp"])
+        model = cls(**ckpt["config"]["model_options"], **ckpt["config"]["common_options"], **ckpt["idp"])
         model.load_state_dict(ckpt["model_state_dict"])
 
         return model
-        
+    
 
 class MIX(nn.Module):
     def __init__(
@@ -244,7 +213,7 @@ class MIX(nn.Module):
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
     ):
-        self.dptb = DPTB(embedding, prediction, basis, idp, dtype, device)
+        self.dptb = DPTB(embedding, prediction, basis, idp, True, dtype, device)
         self.nnsk = NNSK(basis, idp, **nnsk, dtype=dtype, device=device)
 
 

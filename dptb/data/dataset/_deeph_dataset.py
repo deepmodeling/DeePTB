@@ -64,12 +64,12 @@ class DeePHE3Dataset(AtomicDataset):
             )
 
             idp = self.type_mapper
-            e3 = E3Hamiltonian(idp=idp, decompose=True)
+            # e3 = E3Hamiltonian(idp=idp, decompose=True)
 
             openmx_to_deeptb(atomic_data, idp, os.path.join(file, "./hamiltonians.h5"))
-            with torch.no_grad():
-                atomic_data = e3(atomic_data.to_dict())
-            atomic_data = AtomicData.from_dict(atomic_data)
+            # with torch.no_grad():
+            #     atomic_data = e3(atomic_data.to_dict())
+            # atomic_data = AtomicData.from_dict(atomic_data)
 
             torch.save(atomic_data, os.path.join(file, "AtomicData.pth"))
 

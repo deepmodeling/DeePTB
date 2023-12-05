@@ -2,12 +2,11 @@ import torch
 import logging
 from dptb.utils.tools import get_lr_scheduler, \
 get_optimizer, j_must_have
-from dptb.nnops.trainloss import lossfunction
 from dptb.nnops.base_trainer import _BaseTrainer
 from typing import Union, Optional
 from dptb.data import AtomicDataset, DataLoader, AtomicData
 from dptb.nn import build_model
-from dptb.nnops._loss import Loss
+from dptb.nnops.loss import Loss
 
 log = logging.getLogger(__name__)
 #TODO: complete the log output for initilizing the trainer
@@ -55,11 +54,11 @@ class Trainer(_BaseTrainer):
             self.validation_loader = DataLoader(dataset=self.validation_datasets, batch_size=train_options["batch_size"], shuffle=False)
 
         # loss function
-        self.train_lossfunc = Loss(**train_options["loss_options"]["train"], idp=self.model.idp)
+        self.train_lossfunc = Loss(**train_options["loss_options"]["train"], **common_options, idp=self.model.hamiltonian.idp)
         if self.use_validation:
-            self.validation_lossfunc = Loss(**train_options["loss_options"]["validation"], idp=self.model.idp)
+            self.validation_lossfunc = Loss(**train_options["loss_options"]["validation"], **common_options, idp=self.model.hamiltonian.idp)
         if self.use_reference:
-            self.reference_lossfunc = Loss(**train_options["loss_options"]["reference"], idp=self.model.idp)
+            self.reference_lossfunc = Loss(**train_options["loss_options"]["reference"], **common_options, idp=self.model.hamiltonian.idp)
 
     def iteration(self, batch, ref_batch=None):
         '''
@@ -68,19 +67,47 @@ class Trainer(_BaseTrainer):
         self.model.train()
         self.optimizer.zero_grad(set_to_none=True)
         batch = batch.to(self.device)
+        
+        # record the batch_info to help reconstructing sub-graph from the batch
+        batch_info = {
+            "__slices__": batch.__slices__,
+            "__cumsum__": batch.__cumsum__,
+            "__cat_dims__": batch.__cat_dims__,
+            "__num_nodes_list__": batch.__num_nodes_list__,
+            "__data_class__": batch.__data_class__,
+        }
+
         batch = AtomicData.to_AtomicDataDict(batch)
 
         batch_for_loss = batch.copy() # make a shallow copy in case the model change the batch data
         #TODO: the rescale/normalization can be added here
         batch = self.model(batch)
 
+        #TODO: this could make the loss function unjitable since t he batchinfo in batch and batch_for_loss does not necessarily 
+        #       match the torch.Tensor requiresment, should be improved further
+
+        batch.update(batch_info)
+        batch_for_loss.update(batch_info)
+
         loss = self.train_lossfunc(batch, batch_for_loss)
 
         if ref_batch is not None:
-            ref_batch = ref_batch.to(self.device)
-            ref_batch = AtomicData.to_AtomicDataDict(ref_batch)
+            ref_batch = ref_batch.to(self.device) # AtomicData Type
+            batch_info = {
+                "__slices__": batch.__slices__,
+                "__cumsum__": batch.__cumsum__,
+                "__cat_dims__": batch.__cat_dims__,
+                "__num_nodes_list__": batch.__num_nodes_list__,
+                "__data_class__": batch.__data_class__,
+            }
+
+            ref_batch = AtomicData.to_AtomicDataDict(ref_batch) # AtomicDataDict Type
             ref_batch_for_loss = ref_batch.copy()
             ref_batch = self.model(ref_batch)
+
+            ref_batch.update(batch_info)
+            ref_batch_for_loss.update(batch_info)
+            
             loss += self.train_lossfunc(ref_batch, ref_batch_for_loss)
 
         self.optimizer.zero_grad(set_to_none=True)
@@ -108,7 +135,11 @@ class Trainer(_BaseTrainer):
 
         ckpt = torch.load(checkpoint)
 
-        model = build_model(**ckpt["config"]["model_options"], **ckpt["config"]["common_options"])
+        run_opt = {
+        "restart": checkpoint,
+        }
+
+        model = build_model(run_opt, **ckpt["config"]["model_options"], **ckpt["config"]["common_options"])
 
         # init trainer and load the trainer's states
         trainer = cls(
@@ -156,10 +187,22 @@ class Trainer(_BaseTrainer):
 
             for batch in self.validation_loader:
                 batch = batch.to(self.device)
+
+                batch_info = {
+                    "__slices__": batch.__slices__,
+                    "__cumsum__": batch.__cumsum__,
+                    "__cat_dims__": batch.__cat_dims__,
+                    "__num_nodes_list__": batch.__num_nodes_list__,
+                    "__data_class__": batch.__data_class__,
+                }
+
                 batch = AtomicData.to_AtomicDataDict(batch)
 
                 batch_for_loss = batch.copy()
                 batch = self.model(batch)
+
+                batch.update(batch_info)
+                batch_for_loss.update(batch_info)
 
                 loss += self.validation_lossfunc(batch, batch_for_loss)
 
