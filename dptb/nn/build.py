@@ -6,7 +6,7 @@ from dptb.utils.tools import j_must_have
 
 log = logging.getLogger(__name__)
 
-def build_model(run_options, model_options=None, common_options=None):
+def build_model(run_options, model_options: dict={}, common_options: dict={}):
     """
     The build model method should composed of the following steps:
         1. process the configs from user input and the config from the checkpoint (if any).
@@ -37,6 +37,20 @@ def build_model(run_options, model_options=None, common_options=None):
     init_deeptb = False
     init_nnsk = False
     init_mixed = False
+
+    # load the model_options and common_options from checkpoint if not provided
+    if not from_scratch:
+        # init model from checkpoint
+        if len(model_options) == 0:
+            f = torch.load(checkpoint)
+            model_options = f["config"]["model_options"]
+            del f
+
+        if len(common_options) == 0:
+            f = torch.load(checkpoint)
+            common_options = f["config"]["common_options"]
+            del f
+
     if all((all((model_options.get("embedding"), model_options.get("prediction"))), model_options.get("nnsk"))):
         init_mixed = True
     elif all((model_options.get("embedding"), model_options.get("prediction"))):

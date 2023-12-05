@@ -139,7 +139,7 @@ class Trainer(_BaseTrainer):
         "restart": checkpoint,
         }
 
-        model = build_model(run_opt, **ckpt["config"]["model_options"], **ckpt["config"]["common_options"])
+        model = build_model(run_opt, ckpt["config"]["model_options"], ckpt["config"]["common_options"])
 
         # init trainer and load the trainer's states
         trainer = cls(
@@ -149,12 +149,10 @@ class Trainer(_BaseTrainer):
             validation_datasets=validation_datasets,
             train_options=ckpt["config"]["train_options"],
             common_options=ckpt["config"]["common_options"],
-            dtype=ckpt["config"]["common_options"]["dtype"],
-            device=ckpt["config"]["common_options"]["device"],
             )
         
-        trainer.epoch = ckpt["epoch"]
-        trainer.iteration = ckpt["iteration"]
+        trainer.ep = ckpt["epoch"]
+        trainer.iter = ckpt["iteration"]
         trainer.stats = ckpt["stats"]
 
         queues_name = list(trainer.plugin_queues.keys())
@@ -165,7 +163,9 @@ class Trainer(_BaseTrainer):
         for key in Trainer.object_keys:
             item = getattr(trainer, key, None)
             if item is not None:
-                item.load_state_dict(checkpoint[key+"state_dict"])
+                item.load_state_dict(ckpt[key+"_state_dict"])
+
+        return trainer
 # 
 
     def epoch(self) -> None:
@@ -175,7 +175,7 @@ class Trainer(_BaseTrainer):
             if self.use_reference:
                 self.iteration(ibatch, next(self.reference_loader))
             else:
-                loss = self.iteration(ibatch)
+                self.iteration(ibatch)
 
 
     def update(self, **kwargs):

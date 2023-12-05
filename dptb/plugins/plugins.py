@@ -24,10 +24,11 @@ class Saver(Plugin):
         #         "%.3f"%self.trainer.model_options["skfunction"]["sk_decay_w"]
         suffix = ".iter{}".format(self.trainer.iter+1)
         self._save(
-            name="latest"+suffix,
+            name=self.trainer.model.name+suffix,
             model=self.trainer.model,
             model_options=self.trainer.model.model_options,
             common_options=self.trainer.common_options,
+            train_options=self.trainer.train_options,
             )
         
         # if self.trainer.name == "dptb" \
@@ -48,12 +49,13 @@ class Saver(Plugin):
         if updated_loss < self.best_loss:
             # suffix = "_b"+"%.3f"%self.trainer.common_options["bond_cutoff"]+"_c"+"%.3f"%self.trainer.model_options["skfunction"]["sk_cutoff"]+"_w"+\
             #     "%.3f"%self.trainer.model_options["skfunction"]["sk_decay_w"]
-            suffix = ".epoch{}".format(self.trainer.ep+1)
+            suffix = ".ep{}".format(self.trainer.ep+1)
             self._save(
-                name="best"+suffix,
+                name=self.trainer.model.name+suffix,
                 model=self.trainer.model,
                 model_options=self.trainer.model.model_options,
                 common_options=self.trainer.common_options,
+                train_options=self.trainer.train_options,
                 )
             
             self.best_loss = updated_loss
@@ -71,11 +73,18 @@ class Saver(Plugin):
 
             # log.info(msg="checkpoint saved as {}".format("best_epoch"))
 
-    def _save(self, name, model, model_options, common_options):
+    def _save(self, name, model, model_options, common_options, train_options):
         obj = {}
-        obj.update({"model_options": model_options, "common_options": common_options, "model_state_dict": model.state_dict(), 
-        "optimizer_state_dict": self.trainer.optimizer.state_dict(), "epoch": self.trainer.ep+1, 
-        "iteration":self.trainer.iter+1, "stats": self.trainer.stats})
+        obj.update({"config": {"model_options": model_options, "common_options": common_options, "train_options": train_options}})
+        obj.update(
+            {
+                "model_state_dict": model.state_dict(), 
+                "optimizer_state_dict": self.trainer.optimizer.state_dict(), 
+                "lr_scheduler_state_dict": self.trainer.lr_scheduler.state_dict(),
+                "epoch": self.trainer.ep+1, 
+                "iteration":self.trainer.iter+1, 
+                "stats": self.trainer.stats}
+                )
         f_path = os.path.join(self.checkpoint_path, name+".pth")
         torch.save(obj, f=f_path)
 

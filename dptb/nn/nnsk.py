@@ -17,6 +17,7 @@ from dptb.nn.hamiltonian import SKHamiltonian
 from dptb.utils.tools import j_loader
 
 class NNSK(torch.nn.Module):
+    name = "nnsk"
     def __init__(
             self,
             basis: Dict[str, Union[str, list]]=None,
@@ -26,6 +27,8 @@ class NNSK(torch.nn.Module):
             overlap: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
+            transform: bool = True,
+            freeze: bool = False,
             **kwargs,
             ) -> None:
         
@@ -43,12 +46,14 @@ class NNSK(torch.nn.Module):
         else:
             assert idp_sk is not None, "Either basis or idp should be provided."
             self.idp_sk = idp_sk
-            
+        
+        self.transform = transform
         self.basis = self.idp_sk.basis
         self.idp_sk.get_node_maps()
         self.idp_sk.get_pair_maps()
         self.onsite_options = onsite
         self.hopping_options = hopping
+        self.model_options = {"nnsk":{"onsite": onsite, "hopping": hopping}}
 
 
 
@@ -84,6 +89,9 @@ class NNSK(torch.nn.Module):
         self.hamiltonian = SKHamiltonian(idp_sk=self.idp_sk, dtype=self.dtype, device=self.device, strain=hasattr(self, "strain_param"))
         if overlap:
             self.overlap = SKHamiltonian(idp_sk=self.idp_sk, overlap=True, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
+        if freeze:
+            for (name, param) in self.named_parameters():
+                param.requires_grad = False
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         # get the env and bond from the data
@@ -198,9 +206,10 @@ class NNSK(torch.nn.Module):
             data[AtomicDataDict.ONSITENV_FEATURES_KEY] = onsitenv_params
 
         # sk param to hamiltonian and overlap
-        data = self.hamiltonian(data)
-        if hasattr(self, "overlap"):
-            data = self.overlap(data)
+        if self.transform:
+            data = self.hamiltonian(data)
+            if hasattr(self, "overlap"):
+                data = self.overlap(data)
         
         return data
     
@@ -210,45 +219,62 @@ class NNSK(torch.nn.Module):
         checkpoint: str, 
         basis: Dict[str, Union[str, list]]=None,
         idp_sk: Union[OrbitalMapper, None]=None,  
-        onsite: Dict={"method": "none"},
-        hopping: Dict={"method": "powerlaw", "rs":6.0, "w": 0.2},
-        overlap: bool = False,
-        dtype: Union[str, torch.dtype] = torch.float32, 
-        device: Union[str, torch.device] = torch.device("cpu")
+        onsite: Dict=None,
+        hopping: Dict=None,
+        overlap: bool=None,
+        dtype: Union[str, torch.dtype]=None, 
+        device: Union[str, torch.device]=None,
+        freeze: bool = None,
         ):
         # the mapping from the parameters of the ref_model and the current model can be found using
         # reference model's idp and current idp
+
+        common_options = {
+            "dtype": dtype,
+            "device": device,
+            "basis": basis,
+            "overlap": overlap,
+        }
+
+        nnsk = {
+            "onsite": onsite,
+            "hopping": hopping,
+            "freeze": freeze,
+        }
+
+
         if checkpoint.split(".")[-1] == "json":
+            for k,v in common_options.items():
+                assert v is not None, f"You need to provide {k} when you are initializing a model from a json file."
+            for k,v in nnsk.items():
+                assert v is not None, f"You need to provide {k} when you are initializing a model from a json file."
+
             v1_model = j_loader(checkpoint)
             ref_model = cls.from_model_v1(
                 v1_model=v1_model,
-                basis=basis,
-                idp_sk=idp_sk,
-                onsite=onsite,
-                hopping=hopping,
-                overlap=overlap,
-                dtype=dtype,
-                device=device,
+                **nnsk,
+                **common_options,
             )
 
+            del v1_model
+
         else:
-            if isinstance(dtype, str):
-                dtype = getattr(torch, dtype)
-            dtype = dtype
-            device = device
+            f = torch.load(checkpoint, map_location=device)
+            for k,v in common_options.items():
+                if v is None:
+                    common_options[k] = f["config"]["common_options"][k]
+            for k,v in nnsk.items():
+                if v is None:
+                    nnsk[k] = f["config"]["model_options"]["nnsk"][k]
 
-            if basis is not None:
-                assert idp_sk is None
-                idp_sk = OrbitalMapper(basis, method="sktb")
-            else:
-                assert idp_sk is not None
+            ref_model = cls(**common_options, **nnsk)
 
-            basis = idp_sk.basis
-            ref_model = cls(basis=basis, idp_sk=idp_sk, dtype=dtype, device=device, onsite=onsite, hopping=hopping, overlap=overlap)
-
-            ref_model.load_state_dict(torch.load(checkpoint, map_location=device))
+            ref_model.load_state_dict(f["model_state_dict"])
 
             # TODO: handle the situation when ref_model config is not the same as the current model
+            del f
+        
+
 
         return ref_model
 

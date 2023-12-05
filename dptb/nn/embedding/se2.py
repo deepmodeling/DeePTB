@@ -32,7 +32,8 @@ class SE2Descriptor(torch.nn.Module):
             n_atom: int=1,
             radial_embedding: dict={},
             dtype: Union[str, torch.dtype] = torch.float32, 
-            device: Union[str, torch.device] = torch.device("cpu")
+            device: Union[str, torch.device] = torch.device("cpu"),
+            **kwargs,
             ) -> None:
         """
         a demo input

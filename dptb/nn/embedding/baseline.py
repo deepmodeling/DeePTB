@@ -41,7 +41,8 @@ class BASELINE(torch.nn.Module):
             radial_net: dict={},
             hidden_net: dict={},
             dtype: Union[str, torch.dtype] = torch.float32, 
-            device: Union[str, torch.device] = torch.device("cpu")):
+            device: Union[str, torch.device] = torch.device("cpu"),
+            **kwargs,):
         
         super(BASELINE, self).__init__()
 

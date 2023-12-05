@@ -35,6 +35,7 @@ def common_options():
             - `split`: (not recommanded) The split onsite mode correct onsite hamiltonian with a magnetic quantum number dependent form, which violate the rotation equivariace, but some times can be effective. The formula is: \
                 $$H_{i,i}^{lm,l^\prime m^\prime} = (\epsilon_l^0+\epsilon_{lm}^\prime) \delta_{ll^\prime}\delta_{mm^\prime}$$ \n\n\
             Default: `none`"
+    doc_seed = "The random seed used to initialize the parameters and determine the shuffling order of datasets. Default: `3982377700`"
     doc_onsite_cutoff = "The cutoff-range considered when using strain mode correction. Out of which the atom are assume to have no effect on current atom's onsite energy."
     doc_bond_cutoff = "The cutoff-range of bond hoppings, beyond which it assume the atom pairs have 0 hopping integrals."
     doc_env_cutoff = "The cutoff-range of DeePTB environmental correction, recommand range is: (0.5*bond_cutoff, bond_cutoff)"
@@ -45,6 +46,7 @@ def common_options():
         Argument("bond_cutoff", float, optional = False, doc = doc_bond_cutoff),
         Argument("env_cutoff", float, optional = True, doc = doc_env_cutoff),
         Argument("basis", dict, optional=False, doc=doc_basis),
+        Argument("seed", int, optional=True, default=3982377700, doc=doc_seed),
         Argument("device", str, optional = True, default="cpu", doc = doc_device),
         Argument("dtype", str, optional = True, default="float32", doc = doc_dtype),
     ]
@@ -56,7 +58,6 @@ def common_options():
 
 def train_options():
     doc_num_epoch = "Total number of training epochs. It is worth noted, if the model is reloaded with `-r` or `--restart` option, epoch which have been trained will counted from the time that the checkpoint is saved."
-    doc_seed = "The random seed used to initialize the parameters and determine the shuffling order of datasets. Default: `3982377700`"
     doc_save_freq = "Frequency, or every how many iteration to saved the current model into checkpoints, The name of checkpoint is formulated as `latest|best_dptb|nnsk_b<bond_cutoff>_c<sk_cutoff>_w<sk_decay_w>`. Default: `10`"
     doc_validation_freq = "Frequency or every how many iteration to do model validation on validation datasets. Default: `10`"
     doc_display_freq = "Frequency, or every how many iteration to display the training log to screem. Default: `1`"
@@ -73,7 +74,6 @@ def train_options():
     
     args = [
         Argument("num_epoch", int, optional=False, doc=doc_num_epoch),
-        Argument("seed", int, optional=True, default=3982377700, doc=doc_seed),
         Argument("batch_size", int, optional=True, default=1, doc=doc_batch_size),
         Argument("optimizer", dict, sub_fields=[], optional=True, default={}, sub_variants=[optimizer()], doc = doc_optimizer),
         Argument("lr_scheduler", dict, sub_fields=[], optional=True, default={}, sub_variants=[lr_scheduler()], doc = doc_lr_scheduler),
@@ -477,13 +477,14 @@ def nnsk():
     doc_nnsk = ""
     doc_onsite = ""
     doc_hopping = ""
+    doc_freeze = ""
 
-    overlap = Argument("overlap", bool, optional=True, default=False, doc="The parameters to define the overlap correction of nnsk model.")
+    # overlap = Argument("overlap", bool, optional=True, default=False, doc="The parameters to define the overlap correction of nnsk model.")
 
     return Argument("nnsk", dict, sub_fields=[
         Argument("onsite", dict, optional=False, sub_fields=[], sub_variants=[onsite()], doc=doc_onsite), 
-        Argument("hopping", dict, optional=False, sub_fields=[], sub_variants=[hopping()], doc=doc_hopping), 
-        overlap], sub_variants=[], optional=True, doc=doc_nnsk)
+        Argument("hopping", dict, optional=False, sub_fields=[], sub_variants=[hopping()], doc=doc_hopping),
+        Argument("freeze", bool, optional=True, default=False, doc=doc_freeze)], sub_variants=[], optional=True, doc=doc_nnsk)
 
 def onsite():
     doc_method = ""
@@ -575,6 +576,53 @@ def normalize(data):
     mo = model_options()
 
     base = Argument("base", dict, [co, tr, da, mo])
+    data = base.normalize_value(data)
+    # data = base.normalize_value(data, trim_pattern="_*")
+    base.check_value(data, strict=True)
+    
+    # add check loss and use wannier:
+    
+    # if data['data_options']['use_wannier']:
+    #     if not data['loss_options']['losstype'] .startswith("block"):
+    #         log.info(msg='\n Warning! set data_options use_wannier true, but the loss type is not block_l2! The the wannier TB will not be used when training!\n')
+    
+    # if data['loss_options']['losstype'] .startswith("block"):
+    #     if not data['data_options']['use_wannier']:
+    #         log.error(msg="\n ERROR! for block loss type, must set data_options:use_wannier True\n")
+    #         raise ValueError
+
+    return data
+
+def normalize_restart(data):
+
+    co = common_options()
+    da = data_options()
+
+    base = Argument("base", dict, [co, da])
+    data = base.normalize_value(data)
+    # data = base.normalize_value(data, trim_pattern="_*")
+    base.check_value(data, strict=True)
+    
+    # add check loss and use wannier:
+    
+    # if data['data_options']['use_wannier']:
+    #     if not data['loss_options']['losstype'] .startswith("block"):
+    #         log.info(msg='\n Warning! set data_options use_wannier true, but the loss type is not block_l2! The the wannier TB will not be used when training!\n')
+    
+    # if data['loss_options']['losstype'] .startswith("block"):
+    #     if not data['data_options']['use_wannier']:
+    #         log.error(msg="\n ERROR! for block loss type, must set data_options:use_wannier True\n")
+    #         raise ValueError
+
+    return data
+
+def normalize_init_model(data):
+
+    co = common_options()
+    da = data_options()
+    tr = train_options()
+
+    base = Argument("base", dict, [co, da, tr])
     data = base.normalize_value(data)
     # data = base.normalize_value(data, trim_pattern="_*")
     base.check_value(data, strict=True)

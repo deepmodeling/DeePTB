@@ -3,7 +3,7 @@ from dptb.nn.build import build_model
 from dptb.data.build import build_dataset
 from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
 from dptb.plugins.train_logger import Logger
-from dptb.utils.argcheck import normalize
+from dptb.utils.argcheck import normalize, normalize_restart, normalize_init_model
 from dptb.plugins.plugins import Saver
 from typing import Dict, List, Optional, Any
 from dptb.utils.tools import j_loader, setup_seed
@@ -28,7 +28,6 @@ def train(
         INPUT: str,
         init_model: Optional[str],
         restart: Optional[str],
-        freeze:bool,
         train_soc:bool,
         output: str,
         log_level: int,
@@ -38,11 +37,12 @@ def train(
     run_opt = {
         "init_model": init_model,
         "restart": restart,
-        "freeze": freeze,
         "train_soc": train_soc,
         "log_path": log_path,
         "log_level": log_level
     }
+
+    assert train_soc is False, "train_soc is not supported yet"
 
     '''
         -1- set up input and output directories
@@ -69,9 +69,6 @@ def train(
             "--init-model and --restart should not be set at the same time"
         )
     
-    jdata = j_loader(INPUT)
-    jdata = normalize(jdata)
-    
     # setup output path
     if output:
         Path(output).parent.mkdir(exist_ok=True, parents=True)
@@ -93,31 +90,59 @@ def train(
     set_log_handles(log_level, Path(log_path) if log_path else None)
     # parse the config. Since if use init, config file may not equals to current
     
-    
+    if not restart and not init_model:
+        jdata = j_loader(INPUT)
+        jdata = normalize(jdata)
+    elif restart:
+        # jdata only requires a limited numbers of keys
+        # : data_options, common_options
+        jdata = j_loader(INPUT)
+        jdata = normalize_restart(jdata)
+    elif init_model:
+        jdata = j_loader(INPUT)
+        jdata = normalize_init_model(jdata)
+        # TODO: check whether common options align with the ones in checkpoint
+
     # setup seed
-    setup_seed(seed=jdata["train_options"]["seed"])
+    setup_seed(seed=jdata["common_options"]["seed"])
 
     # with open(os.path.join(output, "train_config.json"), "w") as fp:
     #     json.dump(jdata, fp, indent=4)
-    
-
-    # build model
-    model = build_model(run_options=run_opt, model_options=jdata["model_options"], common_options=jdata["common_options"])
 
     # build dataset 
     train_datasets = build_dataset(set_options=jdata["data_options"]["train"], common_options=jdata["common_options"])
     if jdata["data_options"].get("validation"):
-        validation_datasets = build_dataset(set_options=jdata["dataset_options"]["validation"], common_options=jdata["common_options"])
+        validation_datasets = build_dataset(set_options=jdata["data_options"]["validation"], common_options=jdata["common_options"])
     else:
         validation_datasets = None
     if jdata["data_options"].get("reference"):
-        reference_datasets = build_dataset(set_options=jdata["dataset_options"]["reference"], common_options=jdata["common_options"])
+        reference_datasets = build_dataset(set_options=jdata["data_options"]["reference"], common_options=jdata["common_options"])
     else:
         reference_datasets = None
 
+    # update jdata
+    # this is not necessary, because if we init model from checkpoint, the build_model will load the model_options from checkpoints if not provided
+    # since here we want to output jdata as a config file to inform the user what model options are used, we need to update the jdata
+    
+    if restart or init_model:
+        f = torch.load(restart)
+        if jdata.get(["model_options"], None):
+            jdata["model_options"] = f["config"]["model_options"]
+
+        if restart:
+            jdata["train_options"] = f["config"]["train_options"]
+        del f
+
     if restart:
-        trainer = Trainer.restart()
+        trainer = Trainer.restart(
+            checkpoint=restart,
+            train_datasets=train_datasets,
+            reference_datasets=reference_datasets,
+            validation_datasets=validation_datasets,
+        )
     else:
+        # include the init model and from scratch
+        model = build_model(run_options=run_opt, model_options=jdata["model_options"], common_options=jdata["common_options"])
         trainer = Trainer(
             train_options=jdata["train_options"],
             common_options=jdata["common_options"],
@@ -126,7 +151,6 @@ def train(
             validation_datasets=validation_datasets,
             reference_datasets=reference_datasets,
         )
-    
     
     # register the plugin in trainer, to tract training info
     log_field = ["train_loss", "lr"]

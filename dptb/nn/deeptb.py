@@ -30,6 +30,7 @@ def get_neuron_config(nl):
 
 class DPTB(nn.Module):
     quantities = ["hamiltonian", "energy"]
+    name = "dptb"
     def __init__(
             self,
             embedding: dict,
@@ -72,8 +73,9 @@ class DPTB(nn.Module):
             dtype = getattr(torch, dtype)
         self.dtype = dtype
         self.device = device
-        self.model_options = {"embedding": embedding, "prediction": prediction}
+        self.model_options = {"embedding": embedding.copy(), "prediction": prediction.copy()}
         self.transform = transform
+        
         
         self.method = prediction.get("method", "e3tb")
         self.overlap = overlap
@@ -193,38 +195,159 @@ class DPTB(nn.Module):
         return data
     
     @classmethod
-    def from_reference(cls, checkpoint):
-        
+    def from_reference(
+        cls, 
+        checkpoint, 
+        embedding: dict={},
+        prediction: dict={},
+        overlap: bool=None,
+        basis: Dict[str, Union[str, list]]=None,
+        dtype: Union[str, torch.dtype]=None,
+        device: Union[str, torch.device]=None,
+        transform: bool = True,
+        **kwargs
+        ):
+
         ckpt = torch.load(checkpoint)
-        model = cls(**ckpt["config"]["model_options"], **ckpt["config"]["common_options"], **ckpt["idp"])
+        common_options = {
+            "dtype": dtype,
+            "device": device,
+            "basis": basis,
+            "overlap": overlap,
+        }
+        model_options = {
+            "embedding": embedding,
+            "prediction": prediction,
+        }
+
+        if len(embedding) == 0 or len(prediction) == 0:
+            model_options.update(ckpt["config"]["model_options"])
+
+        for k,v in common_options.items():
+            if v is None:
+                common_options[k] = ckpt["config"]["common_options"][k]
+        
+        model = cls(**model_options, **common_options)
         model.load_state_dict(ckpt["model_state_dict"])
 
+        del ckpt
+
         return model
-    
 
 class MIX(nn.Module):
+    name = "mix"
     def __init__(
             self,
             embedding: dict,
             prediction: dict,
             nnsk: dict,
             basis: Dict[str, Union[str, list]]=None,
-            idp: Union[OrbitalMapper, None]=None,
+            overlap: bool = False,
+            idp_sk: Union[OrbitalMapper, None]=None,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
     ):
-        self.dptb = DPTB(embedding, prediction, basis, idp, True, dtype, device)
-        self.nnsk = NNSK(basis, idp, **nnsk, dtype=dtype, device=device)
+        super(MIX, self).__init__()
+
+        self.dtype = dtype
+        self.device = device
+
+        self.dptb = DPTB(
+            embedding=embedding, 
+            prediction=prediction, 
+            basis=basis, 
+            idp=idp_sk,
+            overlap=overlap, 
+            dtype=dtype, 
+            device=device,
+            transform=False,
+            )
+        
+        self.nnsk = NNSK(
+            basis=basis,
+            idp_sk=idp_sk, 
+            **nnsk,
+            overlap=overlap,
+            dtype=dtype, 
+            device=device,
+            transform=False,
+            )
+        
+        self.model_options = self.nnsk.model_options
+        self.model_options.update(self.dptb.model_options)
+        
+        self.hamiltonian = self.nnsk.hamiltonian
+        if overlap:
+            self.overlap = self.nnsk.overlap
 
 
     def forward(self, data: AtomicDataDict.Type):
         data_dptb = self.dptb(data)
         data_nnsk = self.nnsk(data)
 
-        return data
+        data_nnsk[AtomicDataDict.EDGE_FEATURES_KEY] = data_nnsk[AtomicDataDict.EDGE_FEATURES_KEY] * (1 + data_dptb[AtomicDataDict.EDGE_FEATURES_KEY])
+        data_nnsk[AtomicDataDict.NODE_FEATURES_KEY] = data_nnsk[AtomicDataDict.NODE_FEATURES_KEY] * (1 + data_dptb[AtomicDataDict.NODE_FEATURES_KEY])
+
+        data_nnsk = self.hamiltonian(data_nnsk)
+        if hasattr(self, "overlap"):
+            data_nnsk = self.overlap(data_nnsk)
+
+        return data_nnsk
     
     @classmethod
-    def from_reference(cls, checkpoint, nnsk_options: Dict=None):
+    def from_reference(
+        cls, 
+        checkpoint, 
+        embedding: dict=None,
+        prediction: dict=None,
+        nnsk: dict=None,
+        basis: Dict[str, Union[str, list]]=None,
+        overlap: bool = None,
+        dtype: Union[str, torch.dtype] = None,
+        device: Union[str, torch.device] = None,
+        ):
         # the mapping from the parameters of the ref_model and the current model can be found using
         # reference model's idp and current idp
-        pass
+        
+        ckpt = torch.load(checkpoint)
+        common_options = {
+            "dtype": dtype,
+            "device": device,
+            "basis": basis,
+            "overlap": overlap,
+        }
+        model_options = {
+            "embedding": embedding,
+            "prediction": prediction,
+            "nnsk": nnsk,
+        }
+        
+        if len(nnsk) == 0:
+            model_options["nnsk"] = ckpt["config"]["model_options"]["nnsk"]
+
+        if len(embedding) == 0 or len(prediction) == 0:
+            assert ckpt["config"]["model_options"].get("embedding") is not None and ckpt["config"]["model_options"].get("prediction") is not None, \
+            "The reference model checkpoint should come from a mixed model if dptb info is not provided."
+
+            model_options["embedding"] = ckpt["config"]["model_options"]["embedding"]
+            model_options["prediction"] = ckpt["config"]["model_options"]["prediction"]
+
+        for k,v in common_options.items():
+            if v is None:
+                common_options[k] = ckpt["config"]["common_options"][k]
+
+        if ckpt["config"]["model_options"].get("embedding") is not None and ckpt["config"]["model_options"].get("prediction") is not None:
+            # read from mixed model
+            model = cls(**model_options, **common_options)
+            model.load_state_dict(ckpt["model_state_dict"])
+
+        else:
+            assert ckpt["config"]["model_options"].get("nnsk") is not None, "The referenced checkpoint should provide at least the nnsk model info."
+            # read from nnsk model
+
+            model = cls(**model_options, **common_options)
+            model.nnsk.load_state_dict(ckpt["model_state_dict"])
+        
+        del ckpt
+        
+        return model
