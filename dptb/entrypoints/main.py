@@ -141,13 +141,6 @@ def main_parser() -> argparse.ArgumentParser:
     )
 
     parser_train.add_argument(
-        "-sk",
-        "--train-sk",
-        action="store_true",
-        help="Trainging NNSKTB parameters.",
-    )
-
-    parser_train.add_argument(
         "-crt",
         "--use-correction",
         type=str,
@@ -158,13 +151,6 @@ def main_parser() -> argparse.ArgumentParser:
     parser_train.add_argument(
         "-s",
         "--train_soc",
-        action="store_true",
-        help="Initialize the training from the frozen model.",
-    )
-
-    parser_train.add_argument(
-        "-f",
-        "--freeze",
         action="store_true",
         help="Initialize the training from the frozen model.",
     )
@@ -196,13 +182,6 @@ def main_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="Initialize the model by the provided checkpoint.",
-    )
-
-    parser_test.add_argument(
-        "-sk",
-        "--test-sk",
-        action="store_true",
-        help="Test NNSKTB parameters.",
     )
 
     parser_test.add_argument(
@@ -257,13 +236,6 @@ def main_parser() -> argparse.ArgumentParser:
         type=str,
         default="./",
         help="The output files in postprocess run."
-    )
-
-    parser_run.add_argument(
-        "-sk",
-        "--run_sk",
-        action="store_true",
-        help="using NNSKTB parameters TB models for post-run."
     )
 
     parser_run.add_argument(

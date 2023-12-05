@@ -407,11 +407,37 @@ def prediction():
     doc_linear = ""
 
     return Variant("method", [
-            Argument("nn", dict, nn(), doc=doc_nn),
-            Argument("linear", dict, linear(), doc=doc_linear),
+            Argument("sktb", dict, sktb_prediction(), doc=doc_nn),
+            Argument("e3tb", dict, e3tb_prediction(), doc=doc_nn),
         ], optional=False, doc=doc_method)
 
-def nn():
+def sktb_prediction():
+    doc_neurons = ""
+    doc_activation = ""
+    doc_if_batch_normalized = ""
+    doc_quantities = ""
+    doc_hamiltonian = ""
+
+    doc_method = ""
+    doc_precision = ""
+
+    hamiltonian = [
+        Argument("method", str, optional=False, doc=doc_method),
+        Argument("precision", float, optional=True, default=1e-5, doc=doc_precision),
+        Argument("overlap", bool, optional=True, default=False)
+    ]
+
+    nn = [
+        Argument("neurons", list, optional=False, doc=doc_neurons),
+        Argument("activation", str, optional=True, default="tanh", doc=doc_activation),
+        Argument("if_batch_normalized", bool, optional=True, default=False, doc=doc_if_batch_normalized),
+        Argument("quantities", list, optional=False, doc=doc_quantities),
+        Argument("hamiltonian", dict, sub_fields=hamiltonian, doc=doc_hamiltonian),
+    ]
+
+    return nn
+
+def e3tb_prediction():
     doc_neurons = ""
     doc_activation = ""
     doc_if_batch_normalized = ""
@@ -642,14 +668,11 @@ def normalize_init_model(data):
 
 def normalize_test(data):
 
-    ini = init_model()
-
     co = common_options()
     da = test_data_options()
-    mo = model_options()
     lo = loss_options()
 
-    base = Argument("base", dict, [ini, co, da, mo, lo])
+    base = Argument("base", dict, [co, da, lo])
     data = base.normalize_value(data)
     # data = base.normalize_value(data, trim_pattern="_*")
     base.check_value(data, strict=True)

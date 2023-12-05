@@ -2,7 +2,7 @@ import torch
 import logging
 from dptb.utils.tools import get_lr_scheduler, \
 get_optimizer, j_must_have
-from dptb.nnops.base_trainer import _BaseTrainer
+from dptb.nnops.base_trainer import BaseTrainer
 from typing import Union, Optional
 from dptb.data import AtomicDataset, DataLoader, AtomicData
 from dptb.nn import build_model
@@ -11,7 +11,7 @@ from dptb.nnops.loss import Loss
 log = logging.getLogger(__name__)
 #TODO: complete the log output for initilizing the trainer
 
-class Trainer(_BaseTrainer):
+class Trainer(BaseTrainer):
 
     object_keys = ["lr_scheduler", "optimizer"]
 
@@ -184,6 +184,7 @@ class Trainer(_BaseTrainer):
     def validation(self, fast=True):
         with torch.no_grad():
             loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
+            self.model.eval()
 
             for batch in self.validation_loader:
                 batch = batch.to(self.device)
