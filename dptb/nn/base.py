@@ -31,6 +31,19 @@ class AtomicLinear(torch.nn.Module):
         data[self.out_field] = self.linear(data[self.in_field])
         return data
     
+class Identity(torch.nn.Module):
+    def __init__(
+        self,
+        dtype: Union[str, torch.dtype] = torch.float32,
+        device: Union[str, torch.device] = torch.device("cpu"),
+        **kwargs,
+    ):
+        super(Identity, self).__init__()
+
+    def forward(self, data: AtomicDataDict) -> AtomicDataDict:
+        return data
+
+    
 class AtomicMLP(torch.nn.Module):
     def __init__(
             self,

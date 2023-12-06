@@ -291,7 +291,8 @@ def embedding():
 
     return Variant("method", [
             Argument("se2", dict, se2()),
-            Argument("baseline", dict, baseline())
+            Argument("baseline", dict, baseline()),
+            Argument("deeph-e3", dict, deephe3())
         ],optional=True, default_tag="se2", doc=doc_method)
 
 def se2():
@@ -348,6 +349,23 @@ def baseline():
         Argument("n_axis", [int, None], optional=True, default=None, doc=doc_n_axis),
     ]
 
+def deephe3():
+    doc_irreps_embed = ""
+    doc_irreps_mid = ""
+    doc_lmax = ""
+    doc_n_basis = ""
+    doc_rc = ""
+    doc_n_layer = ""
+
+    return [
+            Argument("irreps_embed", str, optional=True, default="64x0e", doc=doc_irreps_embed),
+            Argument("irreps_mid", str, optional=True, default="64x0e+32x1o+16x2e+8x3o+8x4e+4x5o", doc=doc_irreps_mid),
+            Argument("lmax", int, optional=True, default=3, doc=doc_lmax),
+            Argument("n_basis", int, optional=True, default=128, doc=doc_n_basis),
+            Argument("rc", float, optional=False, doc=doc_rc),
+            Argument("n_layer", int, optional=True, default=3, doc=doc_n_layer),
+        ]
+
 def prediction():
     doc_method = ""
     doc_nn = ""
@@ -387,7 +405,7 @@ def e3tb_prediction():
 
     ]
 
-    return nn
+    return []
 
 
 

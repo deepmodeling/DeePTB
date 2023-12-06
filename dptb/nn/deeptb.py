@@ -4,7 +4,7 @@ from typing import Union, Tuple, Optional, Callable, Dict
 import torch.nn.functional as F
 from dptb.nn.embedding import Embedding
 from dptb.data.transforms import OrbitalMapper
-from dptb.nn.base import AtomicFFN, AtomicResNet, AtomicLinear
+from dptb.nn.base import AtomicFFN, AtomicResNet, AtomicLinear, Identity
 from dptb.data import AtomicDataDict
 from dptb.nn.hamiltonian import E3Hamiltonian, SKHamiltonian
 from dptb.nn.nnsk import NNSK
@@ -133,7 +133,11 @@ class DPTB(nn.Module):
                 )
 
         elif prediction.get("method") == "e3tb":
-            pass
+            self.node_prediction_h = Identity(**prediction, device=device, dtype=dtype)
+            self.edge_prediction_h = Identity(**prediction, device=device, dtype=dtype)
+            if self.overlap:
+                raise NotImplementedError("The overlap prediction is not implemented for e3tb method.")
+                self.edge_prediction_s = Identity(**prediction, device=device, dtype=dtype)
 
         else:
             raise NotImplementedError("The prediction model {} is not implemented.".format(prediction["method"]))

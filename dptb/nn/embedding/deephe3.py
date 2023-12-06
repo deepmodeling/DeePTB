@@ -10,26 +10,24 @@ from typing import Dict, Union, List, Tuple, Optional, Any
 
 
 @Embedding.register("deeph-e3")
-class N3DeePH(nn.Module):
+class E3DeePH(nn.Module):
     def __init__(
             self,
             basis: Dict[str, Union[str, list]]=None,
             idp: Union[OrbitalMapper, None]=None,
             n_atom: int=1, 
             irreps_embed: o3.Irreps=o3.Irreps("64e"), 
-            lmax: int=3, 
-            irreps_mid: o3.Irreps=o3.Irreps("64e"), 
+            lmax: int=3,
+            irreps_mid: o3.Irreps=o3.Irreps("64x0e+32x1o+16x2e+8x3o+8x4e+4x5o"), 
             n_layer: int=3, 
-            r_max: float=5.0, 
-            n_basis: int=128, 
-            use_sc=True, 
-            no_parity=False,
+            rc: float=5.0, 
+            n_basis: int=128,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
-            only_ij=False,
             **kwargs,
             ):
-        super(N3DeePH, self).__init__()
+        
+        super(E3DeePH, self).__init__()
 
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype)
@@ -46,11 +44,12 @@ class N3DeePH(nn.Module):
             
         self.basis = self.idp.basis
 
-        self.idp.get_irreps(no_parity=no_parity)
-        if not no_parity:
-            irreps_sh=o3.Irreps([(1, (i, (-1) ** i)) for i in range(lmax + 1)])
-        else:
-            irreps_sh=o3.Irreps([(1, (i, 1)) for i in range(lmax + 1)])
+        self.idp.get_irreps(no_parity=False)
+        irreps_sh=o3.Irreps([(1, (i, (-1) ** i)) for i in range(lmax + 1)])
+        # if not no_parity:
+        #     irreps_sh=o3.Irreps([(1, (i, (-1) ** i)) for i in range(lmax + 1)])
+        # else:
+        #     irreps_sh=o3.Irreps([(1, (i, 1)) for i in range(lmax + 1)])
 
         self.net = Net(
                 num_species=n_atom,
@@ -64,16 +63,19 @@ class N3DeePH(nn.Module):
                 irreps_post_edge=self.idp.pair_irreps.sort()[0].simplify(), # it can be dervied from the basis
                 irreps_out_edge=self.idp.pair_irreps, # it can be dervied from the basis
                 num_block=n_layer,
-                r_max=r_max, 
-                use_sc=use_sc,
-                no_parity=no_parity, 
+                r_max=rc, 
+                use_sc=True,
+                no_parity=False, 
                 use_sbf=False,
                 selftp=False, 
                 edge_upd=True,
-                only_ij=only_ij,
+                only_ij=False,
                 num_basis=n_basis
             )
+        
         self.net.to(self.device)
+
+        self.out_irreps = irreps_mid
         
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         data = with_edge_vectors(data, with_lengths=True)
@@ -88,8 +90,8 @@ class N3DeePH(nn.Module):
 
     @property
     def out_edge_irreps(self):
-        return self.n_radial
+        return self.out_irreps
 
     @property
     def out_node_irreps(self):
-        return self.n_sqrt_radial * self.n_axis
+        return self.out_irreps
