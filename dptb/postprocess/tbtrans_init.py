@@ -27,30 +27,42 @@ except ImportError:
 
 if  shutil.which('tbtrans') is None:
     log.error('tbtrans is not in the Environment PATH. Thus the input for TBtrans can be generated but not run.')
+ 
 
-# The TBTransInputSet class is used to transform input data for DeePTB-negf into a TBTrans object.
 
 
 class TBTransInputSet(object):
-    def __init__(self, apiHrk, run_opt, jdata):
-        '''This function initializes various variables and objects needed for the generation of TBtrans input file.
+    """ The TBTransInputSet class is used to transform input data for DeePTB-negf into a TBTrans object.
 
-        Note that the input  for dptb-negf is sufficient for generating TBtrans input file.
-        
-        Parameters
-        ----------
-        apiHrk
+    Properties
+    -----------
+        - apiHrk
             apiHrk has been loaded in the run.py file. It is used as an API for
             performing certain operations or accessing certain functionalities.
-        run_opt
+        - run_opt
             The `run_opt` parameter is a dictionary that contains options for running the model.
             It has been loaded and prepared in the run.py file.
-        jdata
+        - jdata
             jdata is a JSON object that contains options and parameters for the task Generation of Input Files for TBtrans. 
             It is loaded in the run.py.
-        '''
-
-
+        - results_path
+            The `results_path` parameter is a string that represents the path to the directory where the
+            results will be saved.
+        - stru_options
+            The `stru_options` parameter is a dictionary that contains options for the structure from DeePTB input.
+        - energy_unit_option
+            The `energy_unit_option` parameter is a string that specifies the unit of energy for the
+            calculation. It can be either "Hartree" or "eV".
+        - geom_all
+            The `geom_all` parameter is the geometry of the whole structure, including the device and leads.
+        - H_all
+            The `H_all` parameter is the sisl.Hamiltonian for the entire system, including the device and leads.
+        - H_lead_L
+            The `H_lead_L` parameter is sisl.Hamiltonian  for the left lead.
+        - H_lead_R
+            The `H_lead_R` parameter is sisl.Hamiltonian  for the right lead.
+    """
+    def __init__(self, apiHrk, run_opt, jdata):
         self.apiHrk = apiHrk  #apiHrk has been loaded in run.py
         self.jdata = jdata    #jdata has been loaded in run.py, jdata is written in negf.json    
 
@@ -165,7 +177,7 @@ class TBTransInputSet(object):
             structure_xyz = sisl.io.xyzSile(structure_file)
             geom_all = structure_xyz.read_geometry()
         else:
-            print('structure file format is not supported. Only support vasp and xyz format')
+            print('Structure file format is not supported. Only support vasp and xyz format')
     # structure_xyz = sisl.io.xyzSile(structure_file)
     # geom_device = structure_xyz.read_geometry()
     #define lead geometry structure
@@ -225,7 +237,7 @@ class TBTransInputSet(object):
         if pbc[1]==True: nsc_y = 3
         else: nsc_y = 1
 
-        geom_lead_L.set_nsc(a=nsc_x,b=nsc_y,c=3)
+        geom_lead_L.set_nsc(a=nsc_x,b=nsc_y,c=3) #Set the number of super-cells in the `Lattice` object
         geom_lead_R.set_nsc(a=nsc_x,b=nsc_y,c=3)
         geom_all.set_nsc(a=nsc_x,b=nsc_y,c=3)
 
@@ -505,13 +517,13 @@ class TBTransInputSet(object):
 
         if energy_unit_option=='Hartree':
             unit_constant = 1
-            print('Energy Unit: Hartree')
+           
         elif energy_unit_option=='eV':
             unit_constant = 27.2107
-            print('Energy Unit: eV')
+            
 
 
-        print(len(allbonds))
+        # print(len(allbonds))
         # H_device.H[1000,1000]=1
         for i in range(len(allbonds)):
             if i%100==0:print('bond_index: ',i)
@@ -532,12 +544,13 @@ class TBTransInputSet(object):
                 x = allbonds[i,-3].numpy().tolist()
                 y = allbonds[i,-2].numpy().tolist()
                 z = allbonds[i,-1].numpy().tolist()
-                # consistent with supercell setting
-                if abs(y) > 1 or abs(z) > 1:
+                # consistent with supercell setting:Set the number of super-cells in the `Lattice` object in sisl
+                if abs(x) > 1 or abs(y) > 1 or abs(z) > 1:
                     print("Unexpected supercell index: ",[x,y,z])
-                    print("Attention: the supercell setting may be too small to satisfy the nearest cell interaction, error in Lead self-energy calculation may occur.")
-                # if abs(z)>0 or abs(y)>0:
-                #     print([x,y,z])
+                    print("Attention: the supercell setting may be too small to satisfy the nearest cell interaction, \
+                          error in Lead self-energy calculation may occur.")
+
+
                 for orb_a in range(orb_first_a,orb_last_a):
                     for orb_b in range(orb_first_b,orb_last_b):
                         Hamil_sisl[orb_a,orb_b,(x,y,z)]=hamil_block[i].detach().numpy()[orb_a-orb_first_a,orb_b-orb_first_b]*unit_constant
