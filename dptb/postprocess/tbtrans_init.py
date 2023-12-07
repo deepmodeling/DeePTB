@@ -82,27 +82,6 @@ class TBTransInputSet(object):
         self.H_lead_L = sisl.Hamiltonian(self.geom_lead_L)
         self.H_lead_R = sisl.Hamiltonian(self.geom_lead_R)
 
-    def load_model(self):
-        '''The function `load_dptb_model` loads models for different structure.
-
-            `all` refers to the entire system, including the device and leads.
-
-        Returns
-        -------
-        - allbonds_all: all of the bond information 
-        - hamil_block_all: Hamiltonian block for the entire system, which is a tensor that contains 
-                            the values of the Hamiltonian matrix elements for each specific bond in allbonds_all
-        - overlap_block_all: overlap block for the entire system,  which is a tensor that contains 
-                             the values of the overlap matrix elements for each specific basis
-        '''
-
-
-        self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
-                        =self._load_model(self.apiHrk,self.all_tbtrans_stru)
-        self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
-                        =self._load_model(self.apiHrk,self.lead_L_tbtrans_stru)
-        self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
-                        =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)
 
 
     def hamil_get(self):
@@ -197,12 +176,13 @@ class TBTransInputSet(object):
     # geom_lead_L.lattice.cell[2,2]=first_PL_leadL[-1][2]-second_PL_leadL[0][2]+PL_leadL_zspace
     # assert geom_lead_L.lattice.cell[2,2]>0
 
-        lead_L_cor = geom_lead_L.axyz()
+        lead_L_cor = geom_lead_L.axyz() #Return the atomic coordinates in the supercell of a given atom.
         cell = np.array(geom_lead_L.lattice.cell)[:2]
         Natom_PL = int(len(lead_L_cor)/2)
         first_PL_leadL = lead_L_cor[Natom_PL:];second_PL_leadL =lead_L_cor[:Natom_PL]
         R_vec = first_PL_leadL - second_PL_leadL
-        assert np.abs(R_vec[0] - R_vec[-1]).sum() < 1e-5
+        # assert np.abs(R_vec[0] - R_vec[-1]).sum() < 1e-5
+        assert np.abs(R_vec[0] - R_vec.mean(axis=0)).sum() < 1e-5
         R_vec = R_vec.mean(axis=0) * 2
         cell = np.concatenate([cell, R_vec.reshape(1,-1)])
         # PL_leadL_zspace = first_PL_leadL[0][2]-second_PL_leadL[-1][2] # the distance between Principal layers
@@ -397,7 +377,7 @@ class TBTransInputSet(object):
                     orbital_name_list += [orbital_name[1]+'dxy',orbital_name[1]+'dyz',\
                                             orbital_name[1]+'dz2',orbital_name[1]+'dxz',orbital_name[1]+'dx2-y2']
                 else:#polarized orbital
-                    orbital_name_list += ['dxy*','dyz*','dz2*','dxz*','dx2-y2']
+                    orbital_name_list += ['dxy*','dyz*','dz2*','dxz*','dx2-y2*']
             else:
                 raise RuntimeError("At this stage dptb-negf only supports s, p, d orbitals")
 
@@ -436,6 +416,29 @@ class TBTransInputSet(object):
 
 
     # def _load_dptb_model(self,checkfile:str,config:str,structure_tbtrans_file:str,run_sk:bool,use_correction:Optional[str]):
+
+    def load_model(self):
+        '''The function `load_dptb_model` loads models for different structure.
+
+            `all` refers to the entire system, including the device and leads.
+
+        Returns
+        -------
+        - allbonds_all: all of the bond information 
+        - hamil_block_all: Hamiltonian block for the entire system, which is a tensor that contains 
+                            the values of the Hamiltonian matrix elements for each specific bond in allbonds_all
+        - overlap_block_all: overlap block for the entire system,  which is a tensor that contains 
+                             the values of the overlap matrix elements for each specific basis
+        '''
+
+
+        self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
+                        =self._load_model(self.apiHrk,self.all_tbtrans_stru)
+        self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
+                        =self._load_model(self.apiHrk,self.lead_L_tbtrans_stru)
+        self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
+                        =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)
+
     def _load_model(self,apiHrk,structure_tbtrans_file:str):        
         '''The `_load_model` function loads model from deeptb and returns the Hamiltonian elements.
         
@@ -470,6 +473,16 @@ class TBTransInputSet(object):
         #     apihost.build()
         #     apiHrk = NN2HRK(apihost=apihost, mode='dptb')   
         
+
+        self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
+                        =self._load_model(self.apiHrk,self.all_tbtrans_stru)
+        self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
+                        =self._load_model(self.apiHrk,self.lead_L_tbtrans_stru)
+        self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
+                        =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)
+        
+        structure_tbtrans_file_list = [self.all_tbtrans_stru,self.lead_L_tbtrans_stru,self.lead_R_tbtrans_stru]
+
         ## create BaseStruct
         structure_base =BaseStruct(
                             atom=ase.io.read(structure_tbtrans_file), 
