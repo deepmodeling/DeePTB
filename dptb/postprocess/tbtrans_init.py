@@ -281,16 +281,16 @@ class TBTransInputSet(object):
     ## all(lead + central part) have periodicity in x,y,z directions: interaction between supercells
     ### not sure that geom_all need pbc in z direction   
 
-        pbc = struct_options['pbc']
-        if pbc[0]==True: nsc_x = 3  
-        else: nsc_x = 1
+        # pbc = struct_options['pbc']
+        # if pbc[0]==True: nsc_x = 3  
+        # else: nsc_x = 1
 
-        if pbc[1]==True: nsc_y = 3
-        else: nsc_y = 1
+        # if pbc[1]==True: nsc_y = 3
+        # else: nsc_y = 1
 
-        geom_lead_L.set_nsc(a=nsc_x,b=nsc_y,c=3) #Set the number of super-cells in the `Lattice` object
-        geom_lead_R.set_nsc(a=nsc_x,b=nsc_y,c=3)
-        geom_all.set_nsc(a=nsc_x,b=nsc_y,c=3)
+        # geom_lead_L.set_nsc(a=nsc_x,b=nsc_y,c=3) #Set the number of super-cells in the `Lattice` object
+        # geom_lead_R.set_nsc(a=nsc_x,b=nsc_y,c=3)
+        # geom_all.set_nsc(a=nsc_x,b=nsc_y,c=3)
 
 
             # output sorted geometry into xyz Structure file
@@ -560,6 +560,16 @@ class TBTransInputSet(object):
 
         # print(len(allbonds))
         # H_device.H[1000,1000]=1
+
+        x_max = abs(allbonds[:,-3].numpy()).max()
+        y_max = abs(allbonds[:,-2].numpy()).max()
+        z_max = abs(allbonds[:,-1].numpy()).max()
+        # print('x_max: ',x_max)
+        # print('y_max: ',y_max)
+        # print('z_max: ',z_max)
+        Hamil_sisl.set_nsc(a=2*abs(x_max)+1,b=2*abs(y_max)+1,c=2*abs(z_max)+1)
+        
+
         for i in range(len(allbonds)):
             if i%100==0:print('bond_index: ',i)
             orb_first_a = Hamil_sisl.geometry.a2o(allbonds[i,1])
@@ -580,11 +590,11 @@ class TBTransInputSet(object):
                 y = allbonds[i,-2].numpy().tolist()
                 z = allbonds[i,-1].numpy().tolist()
                 # consistent with supercell setting:Set the number of super-cells in the `Lattice` object in sisl
-                if abs(x) > 1 or abs(y) > 1 or abs(z) > 1:
-                    print("Unexpected supercell index: ",[x,y,z])
-                    print("Attention: the supercell setting may be too small to satisfy the nearest cell interaction, \
-                          error in Lead self-energy calculation may occur.")
-
+                # if abs(x) > 1 or abs(y) > 1 or abs(z) > 1:
+                    
+                #     print("Unexpected supercell index: ",[x,y,z])
+                #     print("Attention: the supercell setting may be too small to satisfy the nearest cell interaction, \
+                #           error in Lead self-energy calculation may occur.")
 
                 for orb_a in range(orb_first_a,orb_last_a):
                     for orb_b in range(orb_first_b,orb_last_b):
@@ -596,4 +606,5 @@ class TBTransInputSet(object):
                 
                 #TODO: At this stage, there is some problem using slice operation in sisl. I'm fixing it with the developer of sisl.
                 # I believe that the slice operation will be take soon.
+            
         
