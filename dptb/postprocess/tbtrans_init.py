@@ -82,6 +82,27 @@ class TBTransInputSet(object):
         self.H_lead_L = sisl.Hamiltonian(self.geom_lead_L)
         self.H_lead_R = sisl.Hamiltonian(self.geom_lead_R)
 
+    def load_model(self):
+        '''The function `load_dptb_model` loads models for different structure.
+
+            `all` refers to the entire system, including the device and leads.
+
+        Returns
+        -------
+        - allbonds_all: all of the bond information 
+        - hamil_block_all: Hamiltonian block for the entire system, which is a tensor that contains 
+                            the values of the Hamiltonian matrix elements for each specific bond in allbonds_all
+        - overlap_block_all: overlap block for the entire system,  which is a tensor that contains 
+                             the values of the overlap matrix elements for each specific basis
+        '''
+
+
+        self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
+                        =self._load_model(self.apiHrk,self.all_tbtrans_stru)
+        self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
+                        =self._load_model(self.apiHrk,self.lead_L_tbtrans_stru)
+        self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
+                        =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)
 
 
     def hamil_get(self):
@@ -246,9 +267,10 @@ class TBTransInputSet(object):
 
     def orbitals_get(self,geom_all, geom_lead_L,geom_lead_R,apiHrk):
         '''The function `orbitals_get` takes in various inputs such as geometric devices, leads, deeptb model, and
-        configurations, and assigns orbital properties to the atoms in the given sisl geometries .
+        configurations, and assigns orbitals number, orbital names, shell-electron numbers to the atoms in the given sisl geometries .
 
             Here the geometry class is sisl.geometry, which is different from the structure class in dptb-negf.
+            We initialize sisl.geometry from structure files directly, therefore there is no orbital information in sisl.geometry.
         
         Parameters
         ----------
@@ -266,20 +288,9 @@ class TBTransInputSet(object):
             performing certain operations or accessing certain functionalities when loading dptb model.
         
         '''
-      
-        # dict_element_orbital = {}
+          
 
-        # if model.split('.')[-1]=='pth':
-        #     ckpt = torch.load(model)
-        #     dict_element_orbital = ckpt["model_config"]['proj_atom_anglr_m']
-        # elif model.split('.')[-1]=='json': #with .json model, the necessary info stored in config file
-        #     dict_element_orbital = self.jdata['common_options']['proj_atom_anglr_m']
-        #     # raise RuntimeError('At this stage, this interface only support pth model form')
-    
-        dict_element_orbital = apiHrk.apihost.model_config['proj_atom_anglr_m']
-        # dict_element_orbital = ckpt["model_config"]['proj_atom_anglr_m']  # {'Si': ['3s', '3p', 'd*']}
-        # dict_element_orbital = {'C':['2s']}
-        # print('dict_element_orbital:',dict_element_orbital)
+
         
         n_species_lead_L = geom_lead_L.atoms.nspecie
         n_species_lead_R = geom_lead_R.atoms.nspecie
@@ -288,59 +299,34 @@ class TBTransInputSet(object):
         geom_list = [geom_lead_L,geom_lead_R,geom_all]  
 
 
-        def split_string(s):
-            letters = []
-            current_letter = ''
-            for c in s:
-                if c.isdigit():
-                    if current_letter:
-                        letters.append(current_letter)
-                        current_letter = ''
-                else:
-                    current_letter += c
-            if current_letter:
-                letters.append(current_letter)
-            return letters
+        dict_element_orbital = apiHrk.apihost.model_config['proj_atom_anglr_m']
+        dict_shell_electron = apiHrk.apihost.model_config['proj_atom_neles']
 
-        # print(geom_list[0].atoms.formula())
         for n_species, geom_part in zip(n_species_list,geom_list):
-            species_symbols = split_string(geom_part.atoms.formula())
+            # species_symbols = split_string(geom_part.atoms.formula())
+            ## get the chemical symbol of the part
+            species_symbols = ''.join(char for char in geom_part.atoms.formula() if char.isalpha())
+            assert len(species_symbols)==n_species # number of chemical elements in this part
 
-            # species_symbols = [char for char in geom_part.atoms.formula() if char.isalpha()]
-            
-            # print(species_symbols)
-            # print(n_species)
-            assert len(species_symbols)==n_species # number of chemical elements in this area
-
-            for i  in range(n_species): # 
-                # print(i)
-                element_orbital_class = dict_element_orbital[species_symbols[i]]# ['3s', '3p', 'd*'] 
-                element_orbital_name = self._orbitals_name_get(element_orbital_class)
-                shell_elec_num =  self._shell_electrons(species_symbols[i])
-
+            for i  in range(n_species): #determine the orbitals number for each species
+                element_orbital_list = dict_element_orbital[species_symbols[i]]
+                # Examples of elemet_orbital_list: ['3s', '3p', 'd*'] 
+                element_orbital_name = self._orbitals_name_get(element_orbital_list) 
+                # Examples of element_orbital_name: ['3s', '3py', '3pz', '3px', 'dxy*', 'dyz*', 'dz2*', 'dxz*', 'dx2-y2*']
+                
+                # shell_elec_num =  self._shell_electrons(species_symbols[i])
+                shell_elec_num =  dict_shell_electron[species_symbols[i]]
                 shell_elec_list = np.zeros(len(element_orbital_name))
-                shell_elec_list[:shell_elec_num]=1
+                shell_elec_list[:shell_elec_num]=1 #occupation number for each orbital, here we assume the system is in ground state
 
                 for atom_index in range(geom_part.na):
-                    geom_part.atoms[atom_index]._orbitals =[Orbital(-1, q0=q,tag=tag) for q,tag in zip(shell_elec_list,element_orbital_name)]
-
-            # geom_lead_L.atoms[i]._orbitals =[AtomicOrbital(name) for name in element_orbital_name]
-
-        # for i in range(n_species_lead_R):
-        #     element_orbital_class = dict_element_orbital[geom_lead_R.atoms[i].symbol]# ['3s', '3p', 'd*'] 
-        #     element_orbital_name = _orbitals_name_get(element_orbital_class) 
-        #     geom_lead_R.atoms[i]._orbitals =[Orbital(-1, tag=tag) for tag in element_orbital_name]
-        #     # geom_lead_R.atoms[i]._orbitals =[AtomicOrbital(name) for name in element_orbital_name]
-        # for i in range(n_species_device):
-        #     element_orbital_class = dict_element_orbital[geom_device.atoms[i].symbol]# ['3s', '3p', 'd*'] 
-        #     element_orbital_name = _orbitals_name_get(element_orbital_class) 
-        #     geom_device.atoms[i]._orbitals =[Orbital(-1, tag=tag) for tag in element_orbital_name]
-            # geom_device.atoms[i]._orbitals =[AtomicOrbital(name) for name in element_orbital_name]
+                    if geom_part.atoms[atom_index].symbol == species_symbols[i]:
+                        geom_part.atoms[atom_index]._orbitals =[Orbital(-1, q0=q,tag=tag) for q,tag in zip(shell_elec_list,element_orbital_name)]
+                    # attribute sisl.Orbital object to each atom in sisl.geometry.atoms[x]._orbitals
 
         geom_lead_L.atoms._update_orbitals()  #sisl use ._update_orbitals() to ensure the order of orbitals 
         geom_lead_R.atoms._update_orbitals()
         geom_all.atoms._update_orbitals()
-
 
 
     def _orbitals_name_get(self,element_orbital_class:str):
@@ -356,7 +342,15 @@ class TBTransInputSet(object):
         Returns
         -------
             a list of orbital names.
-        
+
+        Examples
+        --------
+        >>>element_orbital_name = self._orbitals_name_get(['2s', '2p'])
+        >>>element_orbital_name
+        ['2s', '2py', '2pz', '2px']
+        >>>element_orbital_name = self._orbitals_name_get(['3s', '3p', 'd*'])
+        >>>element_orbital_name
+        ['3s', '3py', '3pz', '3px', 'dxy*', 'dyz*', 'dz2*', 'dxz*', 'dx2-y2*']
         '''
         orbital_name_list=[] 
         for orb_cla in element_orbital_class:  # ['3s', '3p', 'd*']          
@@ -380,64 +374,43 @@ class TBTransInputSet(object):
                     orbital_name_list += ['dxy*','dyz*','dz2*','dxz*','dx2-y2*']
             else:
                 raise RuntimeError("At this stage dptb-negf only supports s, p, d orbitals")
-
+        # print(orbital_name_list)
+        # raise RuntimeError('stop here')
         return orbital_name_list
     
-    def _shell_electrons(self,element_symbol):
-        '''The function `_shell_electrons` calculates the number of shell electrons for a given element symbol.
+    # def _shell_electrons(self,element_symbol):
+    #     '''The function `_shell_electrons` calculates the number of shell electrons for a given element symbol.
 
-            In this code, shell electron number is trivial for subgroup element. It would be improved soon.
+    #         In this code, shell electron number is trivial for subgroup element. It would be improved soon.
         
-        Parameters
-        ----------
-        element_symbol
-            The element symbol is a string representing the symbol of an element on the periodic table. For
-        example, "H" for hydrogen, "O" for oxygen, or "Fe" for iron.
+    #     Parameters
+    #     ----------
+    #     element_symbol
+    #         The element symbol is a string representing the symbol of an element on the periodic table. For
+    #     example, "H" for hydrogen, "O" for oxygen, or "Fe" for iron.
         
-        Returns
-        -------
-            the number of shell electrons for the given element symbol.
+    #     Returns
+    #     -------
+    #         the number of shell electrons for the given element symbol.
         
-        '''
-        atomic_number = PeriodicTable().Z_int(element_symbol)
-        assert atomic_number > 1 and atomic_number <=118
+    #     '''
+    #     atomic_number = PeriodicTable().Z_int(element_symbol)
+    #     assert atomic_number > 1 and atomic_number <=118
 
-        if atomic_number>18:
-            print('In this code, shell electron number is trivial for subgroup element ')      
-        rare_element_index = [2,10,18,36,54,86]
+    #     if atomic_number>18:
+    #         print('In this code, shell electron number is trivial for subgroup element ')      
+    #     rare_element_index = [2,10,18,36,54,86]
         
-        for index in range(len(rare_element_index)-1):
-            if atomic_number > rare_element_index[index] and atomic_number <= rare_element_index[index+1]:
-                core_ele_num = atomic_number-rare_element_index[index]
+    #     for index in range(len(rare_element_index)-1):
+    #         if atomic_number > rare_element_index[index] and atomic_number <= rare_element_index[index+1]:
+    #             core_ele_num = atomic_number-rare_element_index[index]
 
-        print(element_symbol+'  shell elec: '+str(core_ele_num))
-        return core_ele_num
+    #     print(element_symbol+'  shell elec: '+str(core_ele_num))
+    #     return core_ele_num
     
 
 
     # def _load_dptb_model(self,checkfile:str,config:str,structure_tbtrans_file:str,run_sk:bool,use_correction:Optional[str]):
-
-    def load_model(self):
-        '''The function `load_dptb_model` loads models for different structure.
-
-            `all` refers to the entire system, including the device and leads.
-
-        Returns
-        -------
-        - allbonds_all: all of the bond information 
-        - hamil_block_all: Hamiltonian block for the entire system, which is a tensor that contains 
-                            the values of the Hamiltonian matrix elements for each specific bond in allbonds_all
-        - overlap_block_all: overlap block for the entire system,  which is a tensor that contains 
-                             the values of the overlap matrix elements for each specific basis
-        '''
-
-
-        self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
-                        =self._load_model(self.apiHrk,self.all_tbtrans_stru)
-        self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
-                        =self._load_model(self.apiHrk,self.lead_L_tbtrans_stru)
-        self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
-                        =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)
 
     def _load_model(self,apiHrk,structure_tbtrans_file:str):        
         '''The `_load_model` function loads model from deeptb and returns the Hamiltonian elements.
@@ -474,14 +447,14 @@ class TBTransInputSet(object):
         #     apiHrk = NN2HRK(apihost=apihost, mode='dptb')   
         
 
-        self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
-                        =self._load_model(self.apiHrk,self.all_tbtrans_stru)
-        self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
-                        =self._load_model(self.apiHrk,self.lead_L_tbtrans_stru)
-        self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
-                        =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)
+        # self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
+        #                 =self._load_model(self.apiHrk,self.all_tbtrans_stru)
+        # self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
+        #                 =self._load_model(self.apiHrk,self.lead_L_tbtrans_stru)
+        # self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
+        #                 =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)
         
-        structure_tbtrans_file_list = [self.all_tbtrans_stru,self.lead_L_tbtrans_stru,self.lead_R_tbtrans_stru]
+        # structure_tbtrans_file_list = [self.all_tbtrans_stru,self.lead_L_tbtrans_stru,self.lead_R_tbtrans_stru]
 
         ## create BaseStruct
         structure_base =BaseStruct(
@@ -534,6 +507,8 @@ class TBTransInputSet(object):
         elif energy_unit_option=='eV':
             unit_constant = 27.2107
             
+        else:
+            raise RuntimeError("energy_unit_option should be 'Hartree' or 'eV'")
 
 
         # print(len(allbonds))
