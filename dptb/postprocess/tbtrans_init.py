@@ -34,6 +34,8 @@ if  shutil.which('tbtrans') is None:
 class TBTransInputSet(object):
     """ The TBTransInputSet class is used to transform input data for DeePTB-negf into a TBTrans object.
 
+        Attention: the transport direction is forced to be z direction in this stage, please make sure the structure is in the right direction.
+
     Properties
     -----------
         - apiHrk
@@ -258,7 +260,7 @@ class TBTransInputSet(object):
         geom_lead_L.lattice.cell=cell
         # assert geom_lead_L.lattice.cell[2,2]>0
 
-
+        #TODO: This version tbtrans_init only supports double lead case. Code for more leads will be added later.
 
         lead_R_cor = geom_lead_R.axyz()
         cell = np.array(geom_lead_R.lattice.cell)[:2]
