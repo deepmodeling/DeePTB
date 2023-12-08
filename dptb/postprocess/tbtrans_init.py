@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 try:
     import sisl
     from sisl.orbital import Orbital
-    from sisl.atom import PeriodicTable
+    
     sisl_installed = True
 
 except ImportError:
@@ -180,7 +180,7 @@ class TBTransInputSet(object):
 
     def read_rewrite_structure(self,structure_file:str,struct_options:dict,results_path:str):
         '''The function `read_rewrite_structure` reads a structure file, extracts specific regions of the structure,
-        sorts the atoms in the structure, and outputs the sorted structures in XYZ and VASP file formats.
+        sorts the atoms in the structure, and outputs the sorted structures in XYZ and VASP file formats for later operations.
         
         Parameters
         ----------
@@ -219,7 +219,8 @@ class TBTransInputSet(object):
         if structure_file.split('.')[-1]=='vasp':
             structure_vasp = sisl.io.carSileVASP(structure_file)
             geom_all = structure_vasp.read_geometry()
-            log.warning('Attention! VASP structure file is only valid for materials with one single element!')
+            if geom_all.atoms.nspecie>1:
+                raise RuntimeError('ERROR! In transport calculation, VASP structure file is only valid for materials with one single element!')        
         elif structure_file.split('.')[-1]=='xyz':
             structure_xyz = sisl.io.xyzSile(structure_file)
             geom_all = structure_xyz.read_geometry()
@@ -264,7 +265,7 @@ class TBTransInputSet(object):
         Natom_PL = int(len(lead_R_cor)/2)
         first_PL_leadR = lead_R_cor[:Natom_PL];second_PL_leadR = lead_R_cor[Natom_PL:]
         R_vec = first_PL_leadR - second_PL_leadR
-        assert np.abs(R_vec[0] - R_vec[-1]).sum() < 1e-5
+        assert np.abs(R_vec[0] - R_vec.mean(axis=0)).sum() < 1e-5
         R_vec = -1*R_vec.mean(axis=0) * 2
         cell = np.concatenate([cell, R_vec.reshape(1,-1)])
         # PL_leadR_zspace = second_PL_leadR[0][2]-first_PL_leadR[-1][2]
@@ -289,7 +290,8 @@ class TBTransInputSet(object):
         geom_lead_R.set_nsc(a=nsc_x,b=nsc_y,c=3)
         geom_all.set_nsc(a=nsc_x,b=nsc_y,c=3)
 
-        # output sorted geometry into xyz Structure file
+
+            # output sorted geometry into xyz Structure file
         all_tbtrans_stru=results_path+'structure_tbtrans.xyz'
         sorted_structure = sisl.io.xyzSile(all_tbtrans_stru,'w')
         geom_all.write(sorted_structure)
