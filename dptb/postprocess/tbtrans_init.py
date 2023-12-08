@@ -63,6 +63,24 @@ class TBTransInputSet(object):
             The `H_lead_L` parameter is sisl.Hamiltonian  for the left lead.
         - H_lead_R
             The `H_lead_R` parameter is sisl.Hamiltonian  for the right lead.
+        - allbonds_all
+            The `allbonds_all` parameter is a tensor that contains all of the bond information for the entire system.
+        - allbonds_lead_L
+            The `allbonds_lead_L` parameter is a tensor that contains all of the bond information for the left lead.
+        - allbonds_lead_R
+            The `allbonds_lead_R` parameter is a tensor that contains all of the bond information for the right lead.
+        - hamil_block_all
+            The `hamil_block_all` parameter is a tensor that contains  the Hamiltonian matrix elements for each specific bond in allbonds_all.
+        - hamil_block_lead_L
+            The `hamil_block_lead_L` parameter is a tensor that contains the Hamiltonian matrix elements for each specific bond in allbonds_lead_L.
+        - hamil_block_lead_R
+            The `hamil_block_lead_L` parameter is a tensor that contains the Hamiltonian matrix elements for each specific bond in allbonds_lead_R.
+        - overlap_block_all
+            The `overlap_block_all` parameter is a tensor that contains the overlap matrix elements for each specific basis in the entire system.
+        - overlap_block_lead_L
+            The `overlap_block_lead_L` parameter is a tensor that contains the overlap matrix elements for each specific basis in the left lead.
+        - overlap_block_lead_R
+            The `overlap_block_lead_R` parameter is a tensor that contains the overlap matrix elements for each specific basis in the right lead.
     """
     def __init__(self, apiHrk, run_opt, jdata):
         self.apiHrk = apiHrk  #apiHrk has been loaded in run.py
@@ -83,6 +101,22 @@ class TBTransInputSet(object):
         self.H_all = sisl.Hamiltonian(self.geom_all)
         self.H_lead_L = sisl.Hamiltonian(self.geom_lead_L)
         self.H_lead_R = sisl.Hamiltonian(self.geom_lead_R)
+
+
+        #important properties for later use
+
+        ##allbonds matrx, hamiltonian matrix, overlap matrix for the whole structure
+        self.allbonds_all = None
+        self.hamil_block_all = None
+        self.overlap_block_all = None
+        ##allbonds matrx, hamiltonian matrix, overlap matrix for lead_L
+        self.allbonds_lead_L = None
+        self.hamil_block_lead_L = None
+        self.overlap_block_lead_L = None
+        ##allbonds matrx, hamiltonian matrix, overlap matrix for lead_R
+        self.allbonds_lead_R = None
+        self.hamil_block_lead_R = None
+        self.overlap_block_lead_R = None
 
     def load_model(self):
         '''The function `load_dptb_model` loads models for different structure.
