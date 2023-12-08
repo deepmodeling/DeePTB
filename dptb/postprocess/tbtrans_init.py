@@ -233,7 +233,7 @@ class TBTransInputSet(object):
         geom_lead_R = geom_all.sub(lead_R_range)
 
         #sort sturcture atoms according to z-direction: it's easier for later coding
-        #2,1,0 refers to sort by axis=2 firstly, then axis=1, last for axis=0
+        #2,1,0 refers to sort by axis=0 firstly, then axis=1, last for axis=2
         geom_lead_R = geom_lead_R.sort(axis=(2,1,0));geom_lead_L=geom_lead_L.sort(axis=(2,1,0))  
         geom_all=geom_all.sort(axis=(2,1,0))
     
