@@ -568,6 +568,7 @@ class TBTransInputSet(object):
         # print('y_max: ',y_max)
         # print('z_max: ',z_max)
         Hamil_sisl.set_nsc(a=2*abs(x_max)+1,b=2*abs(y_max)+1,c=2*abs(z_max)+1)
+        # set the number of super-cells in Hamiltonian object in sisl, which is based on allbonds results
         
 
         for i in range(len(allbonds)):
