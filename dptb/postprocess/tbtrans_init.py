@@ -606,7 +606,7 @@ class TBTransInputSet(object):
         
 
         for i in range(len(allbonds)):
-            if i%100==0:print('bond_index: ',i)
+            # if i%100==0:print('bond_index: ',i)
             orb_first_a = Hamil_sisl.geometry.a2o(allbonds[i,1])
             orb_last_a = Hamil_sisl.geometry.a2o(allbonds[i,1]+1)
             orb_first_b = Hamil_sisl.geometry.a2o(allbonds[i,3])
