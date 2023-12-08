@@ -223,8 +223,7 @@ def run(
 
         tbtrans_init = TBTransInputSet(apiHrk, run_opt, task_options)
         tbtrans_init.load_model()
-        tbtrans_init.hamil_get()
-        tbtrans_init.hamil_write()
+        tbtrans_init.hamil_get_write(write_nc=True)
         log.info(msg='TBtrans input files are successfully generated.')
 
     if output:

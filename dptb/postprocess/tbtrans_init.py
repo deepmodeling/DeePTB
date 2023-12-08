@@ -95,20 +95,61 @@ class TBTransInputSet(object):
         - overlap_block_all: overlap block for the entire system,  which is a tensor that contains 
                              the values of the overlap matrix elements for each specific basis
         '''
-
-
-        self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
-                        =self._load_model(self.apiHrk,self.all_tbtrans_stru)
-        self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
-                        =self._load_model(self.apiHrk,self.lead_L_tbtrans_stru)
-        self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
-                        =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)
-
-
-    def hamil_get(self):
+        # self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
+        #             =self._load_model(self.apiHrk,self.all_tbtrans_stru)
+        # self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
+        #                 =self._load_model(self.apiHrk,self.lead_L_tbtrans_stru)
+        # self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
+        #                 =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)
         
-        '''The function `hamil_get` retrieves the Hamiltonian and overlap matrices for the device and left and
-        right leads.
+        # the whole structure
+        structure_base =BaseStruct(
+                            atom=ase.io.read(self.all_tbtrans_stru), 
+                            format='ase',  
+                            cutoff=self.apiHrk.apihost.model_config['bond_cutoff'], 
+                            proj_atom_anglr_m=self.apiHrk.apihost.model_config['proj_atom_anglr_m'], 
+                            proj_atom_neles=self.apiHrk.apihost.model_config['proj_atom_neles'], 
+                            onsitemode=self.apiHrk.apihost.model_config['onsitemode'], 
+                            time_symm=self.apiHrk.apihost.model_config['time_symm']
+                            )
+            
+        self.apiHrk.update_struct(structure_base)
+        self.allbonds_all,self.hamil_block_all,self.overlap_block_all = self.apiHrk.get_HR()
+
+        # the left lead
+        structure_base =BaseStruct(
+                            atom=ase.io.read(self.lead_L_tbtrans_stru), 
+                            format='ase',  
+                            cutoff=self.apiHrk.apihost.model_config['bond_cutoff'], 
+                            proj_atom_anglr_m=self.apiHrk.apihost.model_config['proj_atom_anglr_m'], 
+                            proj_atom_neles=self.apiHrk.apihost.model_config['proj_atom_neles'], 
+                            onsitemode=self.apiHrk.apihost.model_config['onsitemode'], 
+                            time_symm=self.apiHrk.apihost.model_config['time_symm']
+                            )
+            
+        self.apiHrk.update_struct(structure_base)
+        self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L = self.apiHrk.get_HR()
+
+        # the right lead
+        structure_base =BaseStruct(
+                            atom=ase.io.read(self.lead_R_tbtrans_stru), 
+                            format='ase',  
+                            cutoff=self.apiHrk.apihost.model_config['bond_cutoff'], 
+                            proj_atom_anglr_m=self.apiHrk.apihost.model_config['proj_atom_anglr_m'], 
+                            proj_atom_neles=self.apiHrk.apihost.model_config['proj_atom_neles'], 
+                            onsitemode=self.apiHrk.apihost.model_config['onsitemode'], 
+                            time_symm=self.apiHrk.apihost.model_config['time_symm']
+                            )
+            
+        self.apiHrk.update_struct(structure_base)
+        self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R = self.apiHrk.get_HR()
+
+
+    def hamil_get_write(self,write_nc:bool=True):
+        
+        '''The function `hamil_get_write` retrieves the Hamiltonian and overlap matrices for the device and left and
+        right leads, then writes the contents of `self.H_all`, `self.H_lead_L`, and `self.H_lead_R` to nc files for
+        TBtrans calculations.
         '''
         self.hamiltonian_get(self.allbonds_all,self.hamil_block_all,self.overlap_block_all,\
                              self.H_all,self.energy_unit_option)
@@ -118,16 +159,22 @@ class TBTransInputSet(object):
 
         self.hamiltonian_get(self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R,\
                              self.H_lead_R,self.energy_unit_option)
-        
 
-    def hamil_write(self):
-        '''The function `hamil_write` writes the contents of `self.H_all`, `self.H_lead_L`, and `self.H_lead_R`
-        to separate files in the `results_path` directory.
+        if write_nc:
+            self.H_all.write(self.results_path+'structure.nc')
+            self.H_lead_L.write(self.results_path+'lead_L.nc')
+            self.H_lead_L.write(self.results_path+'lead_R.nc')
+        else:
+            print('Hamiltonian matrices have been generated, but not written to nc files.')
+
+    # def hamil_write(self):
+    #     '''The function `hamil_write` writes the contents of `self.H_all`, `self.H_lead_L`, and `self.H_lead_R`
+    #     to separate files in the `results_path` directory.
         
-        '''
-        self.H_all.write(self.results_path+'structure.nc')
-        self.H_lead_L.write(self.results_path+'lead_L.nc')
-        self.H_lead_L.write(self.results_path+'lead_R.nc')
+    #     '''
+    #     self.H_all.write(self.results_path+'structure.nc')
+    #     self.H_lead_L.write(self.results_path+'lead_L.nc')
+    #     self.H_lead_L.write(self.results_path+'lead_R.nc')
 
 
 
@@ -287,11 +334,7 @@ class TBTransInputSet(object):
             apiHrk has been loaded in the run.py file. It is used as an API for
             performing certain operations or accessing certain functionalities when loading dptb model.
         
-        '''
-          
-
-
-        
+        '''        
         n_species_lead_L = geom_lead_L.atoms.nspecie
         n_species_lead_R = geom_lead_R.atoms.nspecie
         n_species_all = geom_all.atoms.nspecie
@@ -412,24 +455,24 @@ class TBTransInputSet(object):
 
     # def _load_dptb_model(self,checkfile:str,config:str,structure_tbtrans_file:str,run_sk:bool,use_correction:Optional[str]):
 
-    def _load_model(self,apiHrk,structure_tbtrans_file:str):        
-        '''The `_load_model` function loads model from deeptb and returns the Hamiltonian elements.
+    # def _load_model(self,apiHrk,structure_tbtrans_file:str):        
+    #     '''The `_load_model` function loads model from deeptb and returns the Hamiltonian elements.
         
-        Parameters
-        ----------
-        apiHrk
-            apiHrk has been loaded in the run.py file. It is used as an API for
-            performing certain operations or accessing certain functionalities when loading dptb model.
-        structure_tbtrans_file : str
-            The parameter `structure_tbtrans_file` is a string that represents the file path to the structure
-        file in the TBTrans format.
+    #     Parameters
+    #     ----------
+    #     apiHrk
+    #         apiHrk has been loaded in the run.py file. It is used as an API for
+    #         performing certain operations or accessing certain functionalities when loading dptb model.
+    #     structure_tbtrans_file : str
+    #         The parameter `structure_tbtrans_file` is a string that represents the file path to the structure
+    #     file in the TBTrans format.
         
-        Returns
-        -------
-            The function `_load_model` returns three variables: `allbonds`, `hamil_block`, and
-        `overlap_block`.
+    #     Returns
+    #     -------
+    #         The function `_load_model` returns three variables: `allbonds`, `hamil_block`, and
+    #     `overlap_block`.
         
-        '''
+    #     '''
         # if all((use_correction, run_sk)):
         #     raise RuntimeError("--use-correction and --train_sk should not be set at the same time")
         
@@ -457,20 +500,20 @@ class TBTransInputSet(object):
         # structure_tbtrans_file_list = [self.all_tbtrans_stru,self.lead_L_tbtrans_stru,self.lead_R_tbtrans_stru]
 
         ## create BaseStruct
-        structure_base =BaseStruct(
-                            atom=ase.io.read(structure_tbtrans_file), 
-                            format='ase',  
-                            cutoff=apiHrk.apihost.model_config['bond_cutoff'], 
-                            proj_atom_anglr_m=apiHrk.apihost.model_config['proj_atom_anglr_m'], 
-                            proj_atom_neles=apiHrk.apihost.model_config['proj_atom_neles'], 
-                            onsitemode=apiHrk.apihost.model_config['onsitemode'], 
-                            time_symm=apiHrk.apihost.model_config['time_symm']
-                            )
+        # structure_base =BaseStruct(
+        #                     atom=ase.io.read(structure_tbtrans_file), 
+        #                     format='ase',  
+        #                     cutoff=apiHrk.apihost.model_config['bond_cutoff'], 
+        #                     proj_atom_anglr_m=apiHrk.apihost.model_config['proj_atom_anglr_m'], 
+        #                     proj_atom_neles=apiHrk.apihost.model_config['proj_atom_neles'], 
+        #                     onsitemode=apiHrk.apihost.model_config['onsitemode'], 
+        #                     time_symm=apiHrk.apihost.model_config['time_symm']
+        #                     )
             
-        apiHrk.update_struct(structure_base)
-        allbonds,hamil_block,overlap_block = apiHrk.get_HR()
+        # apiHrk.update_struct(structure_base)
+        # allbonds,hamil_block,overlap_block = apiHrk.get_HR()
         
-        return allbonds,hamil_block,overlap_block
+        # return allbonds,hamil_block,overlap_block
 
 
 
@@ -541,8 +584,10 @@ class TBTransInputSet(object):
 
                 for orb_a in range(orb_first_a,orb_last_a):
                     for orb_b in range(orb_first_b,orb_last_b):
-                        Hamil_sisl[orb_a,orb_b,(x,y,z)]=hamil_block[i].detach().numpy()[orb_a-orb_first_a,orb_b-orb_first_b]*unit_constant
-                        Hamil_sisl[orb_b,orb_a,(-1*x,-1*y,-1*z)]=np.conjugate(Hamil_sisl[orb_a,orb_b,(x,y,z)])
+                        H_value = hamil_block[i].detach().numpy()[orb_a-orb_first_a,orb_b-orb_first_b]*unit_constant
+                        if H_value != 0:
+                            Hamil_sisl[orb_a,orb_b,(x,y,z)]=H_value
+                            Hamil_sisl[orb_b,orb_a,(-1*x,-1*y,-1*z)]=np.conjugate(Hamil_sisl[orb_a,orb_b,(x,y,z)])
                         # Hamil_sisl[orb_b,orb_a,(-1*x,-1*y,-1*z)]=hamil_block[i].detach().numpy()[orb_b-orb_first_b,orb_a-orb_first_a]*unit_constant
                 
                 #TODO: At this stage, there is some problem using slice operation in sisl. I'm fixing it with the developer of sisl.

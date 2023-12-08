@@ -40,6 +40,14 @@ def test_tbtrans_init(root_directory):
     jdata = jdata['task_options']
     tbtrans_hBN = TBTransInputSet(apiHrk=apiHrk,run_opt=run_opt, jdata=jdata)
 
+    # check _orbitals_name_get
+    element_orbital_name = tbtrans_hBN._orbitals_name_get(['2s', '2p']) 
+    assert element_orbital_name == ['2s', '2py', '2pz', '2px']
+    element_orbital_name = tbtrans_hBN._orbitals_name_get(['3s', '3p', 'd*']) 
+    assert element_orbital_name == ['3s', '3py', '3pz', '3px', 'dxy*', 'dyz*', 'dz2*', 'dxz*', 'dx2-y2*']
+
+
+
     tbtrans_hBN.load_model()
     assert (tbtrans_hBN.allbonds_all[0].detach().numpy()-np.array([5, 0, 5, 0, 0, 0, 0])).max()<1e-5
     assert (tbtrans_hBN.allbonds_all[50].detach().numpy()-np.array([ 5,  2,  5, 18,  0,  0, -1])).max()<1e-5
@@ -62,7 +70,7 @@ def test_tbtrans_init(root_directory):
                                                                             [-0.26915616,  0.22751862, -0.30906558,  0.        ],
                                                                             [-0.        ,  0.        ,  0.        ,  0.08500822]])).max()<1e-5
 
-    tbtrans_hBN.hamil_get()
+    tbtrans_hBN.hamil_get_write(write_nc=False)
     # tbtrans_hBN.hamil_write()
     # check the hamiltonian through Hk at Gamma and M 
     H_lead = tbtrans_hBN.H_lead_L
