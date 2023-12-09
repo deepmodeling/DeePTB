@@ -28,13 +28,18 @@ except ImportError:
 if  shutil.which('tbtrans') is None:
     log.error('tbtrans is not in the Environment PATH. Thus the input for TBtrans can be generated but not run.')
  
-
+#  TBTransInputSet is used to transform input data for DeePTB-negf into TBtrans input files.
+#  TBtrans (Tight-Binding transport) is a generic computer program which calculates transport and other physical quantities
+#  using the Green function formalism. It is a stand-alone program which allows extreme scale tight-binding calculations. 
+#  For details, see https://www.sciencedirect.com/science/article/pii/S001046551630306X?via%3Dihub.
+#  To run TBTransInputSet, user need sisl package(https://zerothi.github.io/sisl/index.html)
 
 
 class TBTransInputSet(object):
     """ The TBTransInputSet class is used to transform input data for DeePTB-negf into a TBTrans object.
 
-        Attention: the transport direction is forced to be z direction in this stage, please make sure the structure is in the right direction.
+        Attention: the transport direction is forced to be z direction in this stage, please make sure the structure is in 
+        correct direction.
 
     Properties
     -----------
@@ -138,9 +143,13 @@ class TBTransInputSet(object):
         # self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
         #                 =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)
         
-        # the whole structure
-        structure_base =BaseStruct(
-                            atom=ase.io.read(self.all_tbtrans_stru), 
+
+        tbtrans_stru_list = [self.all_tbtrans_stru,self.lead_L_tbtrans_stru,self.lead_R_tbtrans_stru]
+        allbonds_list = [];hamil_block_list = [];overlap_block_list = []
+
+        for tbtrans_stru in tbtrans_stru_list:
+            structure_base =BaseStruct(
+                            atom=ase.io.read(tbtrans_stru), 
                             format='ase',  
                             cutoff=self.apiHrk.apihost.model_config['bond_cutoff'], 
                             proj_atom_anglr_m=self.apiHrk.apihost.model_config['proj_atom_anglr_m'], 
@@ -148,39 +157,64 @@ class TBTransInputSet(object):
                             onsitemode=self.apiHrk.apihost.model_config['onsitemode'], 
                             time_symm=self.apiHrk.apihost.model_config['time_symm']
                             )
-            
-        self.apiHrk.update_struct(structure_base)
-        self.allbonds_all,self.hamil_block_all,self.overlap_block_all = self.apiHrk.get_HR()
 
-        # the left lead
-        structure_base =BaseStruct(
-                            atom=ase.io.read(self.lead_L_tbtrans_stru), 
-                            format='ase',  
-                            cutoff=self.apiHrk.apihost.model_config['bond_cutoff'], 
-                            proj_atom_anglr_m=self.apiHrk.apihost.model_config['proj_atom_anglr_m'], 
-                            proj_atom_neles=self.apiHrk.apihost.model_config['proj_atom_neles'], 
-                            onsitemode=self.apiHrk.apihost.model_config['onsitemode'], 
-                            time_symm=self.apiHrk.apihost.model_config['time_symm']
-                            )
-            
-        self.apiHrk.update_struct(structure_base)
-        self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L = self.apiHrk.get_HR()
+            self.apiHrk.update_struct(structure_base)
+            allbonds,hamil_block,overlap_block = self.apiHrk.get_HR()
+            allbonds_list.append(allbonds);hamil_block_list.append(hamil_block);overlap_block_list.append(overlap_block)
 
-        # the right lead
-        structure_base =BaseStruct(
-                            atom=ase.io.read(self.lead_R_tbtrans_stru), 
-                            format='ase',  
-                            cutoff=self.apiHrk.apihost.model_config['bond_cutoff'], 
-                            proj_atom_anglr_m=self.apiHrk.apihost.model_config['proj_atom_anglr_m'], 
-                            proj_atom_neles=self.apiHrk.apihost.model_config['proj_atom_neles'], 
-                            onsitemode=self.apiHrk.apihost.model_config['onsitemode'], 
-                            time_symm=self.apiHrk.apihost.model_config['time_symm']
-                            )
-            
-        self.apiHrk.update_struct(structure_base)
-        self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R = self.apiHrk.get_HR()
+        self.allbonds_all,self.allbonds_lead_L,self.allbonds_lead_R = allbonds_list[0],allbonds_list[1],allbonds_list[2]
+        self.hamil_block_all,self.hamil_block_lead_L,self.hamil_block_lead_R = hamil_block_list[0],hamil_block_list[1],hamil_block_list[2]
+        self.overlap_block_all,self.overlap_block_lead_L,self.overlap_block_lead_R = overlap_block_list[0],overlap_block_list[1],overlap_block_list[2]
 
+    # def _load_model(self,apiHrk,structure_tbtrans_file:str):
+    #     '''The `load_dptb_model` function loads a DPTB or NNSK model and returns the Hamiltonian elements.
+    #         Here run_sk is a boolean flag that determines whether to run the model using the NNSK or DPTB.
+        
+    #     Parameters
+    #     ----------
+    #     checkfile : str
+    #         The `checkfile` parameter is the file path to the model checkpoint file. 
+    #     config : str
+    #         The `config` parameter is a string that represents the configuration file for the model. It
+    #     contains information such as the model architecture, hyperparameters, and other settings that are
+    #     necessary for loading and building the model.
+    #     structure_tbtrans_file : str
+    #         The `structure_tbtrans_file` parameter is the file path to the structure file in the TBtrans
+    #     format.
+    #     struct_option : dict
+    #         The `struct_option` parameter is a dictionary that contains various options for the structure. It
+    #     includes the following keys:
+    #     run_sk : bool
+    #         The `run_sk` parameter is a boolean flag that determines whether to run the model using the NNSK
+    #     (Neural Network Schrödinger-Kohn) method. If `run_sk` is set to `True`, the model will be run using
+    #     the NNSK method. If
+    #     use_correction : Optional[str]
+    #         The `use_correction` parameter is an optional parameter that specifies whether to use correction
+    #     terms in the model. It can be set to either `None` or a string value. If it is set to `None`, the
+    #     model will not use any correction terms. If it is set to a string value
+        
+    #     Returns
+    #     -------
+    #         The function `load_dptb_model` returns three variables: `allbonds`, `hamil_block`, and
+    #     `overlap_block`.
+        
+    #     '''
+    #     ## create BaseStruct
+    #     structure_base =BaseStruct(
+    #                         atom=ase.io.read(structure_tbtrans_file), 
+    #                         format='ase',  
+    #                         cutoff=apiHrk.apihost.model_config['bond_cutoff'], 
+    #                         proj_atom_anglr_m=apiHrk.apihost.model_config['proj_atom_anglr_m'], 
+    #                         proj_atom_neles=apiHrk.apihost.model_config['proj_atom_neles'], 
+    #                         onsitemode=apiHrk.apihost.model_config['onsitemode'], 
+    #                         time_symm=apiHrk.apihost.model_config['time_symm']
+    #                         )
 
+    #     apiHrk.update_struct(structure_base)
+    #     allbonds,hamil_block,overlap_block = apiHrk.get_HR()
+
+    #     return allbonds,hamil_block,overlap_block
+ 
     def hamil_get_write(self,write_nc:bool=True):
         
         '''The function `hamil_get_write` retrieves the Hamiltonian and overlap matrices for the device and left and
@@ -201,7 +235,7 @@ class TBTransInputSet(object):
             self.H_lead_L.write(self.results_path+'lead_L.nc')
             self.H_lead_L.write(self.results_path+'lead_R.nc')
         else:
-            print('Hamiltonian matrices have been generated, but not written to nc files.')
+            print('Hamiltonian matrices have been generated, but not written to nc files(TBtrans input file).')
 
     # def hamil_write(self):
     #     '''The function `hamil_write` writes the contents of `self.H_all`, `self.H_lead_L`, and `self.H_lead_R`
