@@ -124,7 +124,7 @@ class TBTransInputSet(object):
         self.overlap_block_lead_R = None
 
     def load_model(self):
-        '''The function `load_dptb_model` loads models for different structure.
+        '''The function `load_model` loads models for different structure.
 
             `all` refers to the entire system, including the device and leads.
 
