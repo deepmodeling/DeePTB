@@ -1,0 +1,90 @@
+{
+    "common_options": {
+        "onsitemode": "strain",
+        "onsite_cutoff": 1.6,
+        "bond_cutoff": 3.6,
+        "env_cutoff": 3.5,
+        "atomtype": [
+            "N",
+            "B"
+        ],
+        "proj_atom_neles": {
+            "N": 5,
+            "B": 3
+        },
+        "proj_atom_anglr_m": {
+            "N": [
+                "2s",
+                "2p"
+            ],
+            "B": [
+                "2s",
+                "2p"
+            ]
+        }
+    },   
+    "model_options": {
+        "sknetwork": {
+            "sk_hop_nhidden": 1,
+            "sk_onsite_nhidden": 1
+        },
+        "skfunction": {
+            "sk_cutoff": 3.6,
+            "sk_decay_w": 0.3
+        }
+    },
+    "structure":"./test_hBN_zigzag_struct.xyz",
+	"task_options":
+        {
+            "task": "tbtrans_negf",
+            "scf": true,
+            "block_tridiagonal": false,
+            "ele_T": 500,
+            "unit": "Hartree",
+            "scf_options":{
+                "mode": "PDIIS",
+                "mixing_period": 3,
+                "step_size": 0.05,
+                "n_history": 6,
+                "abs_err": 1e-6,
+                "rel_err": 1e-4,
+                "max_iter": 100
+            },
+            "stru_options":{
+                "pbc":[false, true, false],
+                "kmesh":[1,1,1],
+                "device":{
+                    "id":"8-12",
+                    "sort": true
+                },
+                "lead_L":{
+                    "id":"0-8",
+                    "voltage":0.0
+                },
+                "lead_R":{
+                    "id":"12-20",
+                    "voltage":0.0
+                }
+            },
+            "poisson_options": {
+                "solver": "fmm",
+                "err": 1e-5
+            },
+            "sgf_solver": "Sancho-Rubio",
+            "espacing": 0.1,
+            "emin": -2,
+            "emax": 2,
+            "e_fermi": -9.874357223510742,
+            "density_options":{
+                "method": "Ozaki"
+            },
+            "eta_lead":1e-5,
+            "eta_device":0.0,
+            "out_dos": true,
+            "out_tc": true,
+            "out_ldos": true,
+            "out_current_nscf": true,
+            "out_density": true,
+            "out_lcurrent": true
+    }
+}

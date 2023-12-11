@@ -430,8 +430,64 @@ def task_options():
             Argument("FS3D", dict, FS3D()),
             Argument("write_sk", dict, write_sk()),
             Argument("ifermi", dict, ifermi()),
-            Argument("negf", dict, negf())
+            Argument("negf", dict, negf()),
+            Argument("tbtrans_negf", dict, tbtrans_negf())
         ],optional=True, default_tag="band", doc=doc_task)
+
+
+def tbtrans_negf():
+    doc_scf = ""
+    doc_block_tridiagonal = ""
+    doc_ele_T = ""
+    doc_unit = ""
+    doc_scf_options = ""
+    doc_stru_options = ""
+    doc_poisson_options = ""
+    doc_sgf_solver = ""
+    doc_espacing = ""
+    doc_emin = ""
+    doc_emax = ""
+    doc_e_fermi = ""
+    doc_eta_lead = ""
+    doc_eta_device = ""
+    doc_out_dos = ""
+    doc_out_tc = ""
+    doc_out_current = ""
+    doc_out_current_nscf = ""
+    doc_out_ldos = ""
+    doc_out_density = ""
+    doc_out_lcurrent = ""
+    doc_density_options = ""
+    doc_out_potential = ""
+
+    return [
+        Argument("scf", bool, optional=True, default=False, doc=doc_scf),
+        Argument("block_tridiagonal", bool, optional=True, default=False, doc=doc_block_tridiagonal),
+        Argument("ele_T", [float, int], optional=False, doc=doc_ele_T),
+        Argument("unit", str, optional=True, default="Hartree", doc=doc_unit),
+        Argument("scf_options", dict, optional=True, default={}, sub_fields=[], sub_variants=[scf_options()], doc=doc_scf_options),
+        Argument("stru_options", dict, optional=False, sub_fields=stru_options(), doc=doc_stru_options),
+        Argument("poisson_options", dict, optional=True, default={}, sub_fields=[], sub_variants=[poisson_options()], doc=doc_poisson_options),
+        Argument("sgf_solver", str, optional=True, default="Sancho-Rubio", doc=doc_sgf_solver),
+        Argument("espacing", [int, float], optional=False, doc=doc_espacing),
+        Argument("emin", [int, float], optional=False, doc=doc_emin),
+        Argument("emax", [int, float], optional=False, doc=doc_emax),
+        Argument("e_fermi", [int, float], optional=False, doc=doc_e_fermi),
+        Argument("density_options", dict, optional=True, default={}, sub_fields=[], sub_variants=[density_options()], doc=doc_density_options),
+        Argument("eta_lead", [int, float], optional=True, default=1e-5, doc=doc_eta_lead),
+        Argument("eta_device", [int, float], optional=True, default=0., doc=doc_eta_device),
+        Argument("out_dos", bool, optional=True, default=False, doc=doc_out_dos),
+        Argument("out_tc", bool, optional=True, default=False, doc=doc_out_tc),
+        Argument("out_density", bool, optional=True, default=False, doc=doc_out_density),
+        Argument("out_potential", bool, optional=True, default=False, doc=doc_out_potential),
+        Argument("out_current", bool, optional=True, default=False, doc=doc_out_current),
+        Argument("out_current_nscf", bool, optional=True, default=False, doc=doc_out_current_nscf),
+        Argument("out_ldos", bool, optional=True, default=False, doc=doc_out_ldos),
+        Argument("out_lcurrent", bool, optional=True, default=False, doc=doc_out_lcurrent)
+    ]
+
+
+
 
 
 def negf():
