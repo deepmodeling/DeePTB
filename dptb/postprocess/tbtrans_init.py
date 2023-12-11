@@ -10,6 +10,7 @@ from ase.build import sort
 import ase.atoms
 import torch
 
+from dptb.utils.constants import atomic_num_dict_r
 
 
 log = logging.getLogger(__name__)
@@ -351,7 +352,11 @@ class TBTransInputSet(object):
         for n_species, geom_part in zip(n_species_list,geom_list):
             # species_symbols = split_string(geom_part.atoms.formula())
             ## get the chemical symbol of the part
-            species_symbols = ''.join(char for char in geom_part.atoms.formula() if char.isalpha())
+            # species_symbols = ''.join(char for char in geom_part.atoms.formula() if char.isalpha())
+            
+            uni_symbol_index = np.unique(geom_part.atoms.Z)
+            species_symbols=[atomic_num_dict_r[i] for i in uni_symbol_index]
+            
             assert len(species_symbols)==n_species # number of chemical elements in this part
 
             for i  in range(n_species): #determine the orbitals number for each species
