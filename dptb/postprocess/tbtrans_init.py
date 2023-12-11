@@ -136,97 +136,43 @@ class TBTransInputSet(object):
         - overlap_block_all: overlap block for the entire system,  which is a tensor that contains 
                              the values of the overlap matrix elements for each specific basis
         '''
-        # self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
-        #             =self._load_model(self.apiHrk,self.all_tbtrans_stru)
-        # self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
-        #                 =self._load_model(self.apiHrk,self.lead_L_tbtrans_stru)
-        # self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
-        #                 =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)
-        
 
-        tbtrans_stru_list = [self.all_tbtrans_stru,self.lead_L_tbtrans_stru,self.lead_R_tbtrans_stru]
-        allbonds_list = [];hamil_block_list = [];overlap_block_list = []
 
-        for tbtrans_stru in tbtrans_stru_list:
-            structure_base =BaseStruct(
-                            atom=ase.io.read(tbtrans_stru), 
-                            format='ase',  
-                            cutoff=self.apiHrk.apihost.model_config['bond_cutoff'], 
-                            proj_atom_anglr_m=self.apiHrk.apihost.model_config['proj_atom_anglr_m'], 
-                            proj_atom_neles=self.apiHrk.apihost.model_config['proj_atom_neles'], 
-                            onsitemode=self.apiHrk.apihost.model_config['onsitemode'], 
-                            time_symm=self.apiHrk.apihost.model_config['time_symm']
-                            )
-
-            self.apiHrk.update_struct(structure_base)
-            allbonds,hamil_block,overlap_block = self.apiHrk.get_HR()
-            allbonds_list.append(allbonds);hamil_block_list.append(hamil_block);overlap_block_list.append(overlap_block)
-
-        self.allbonds_all,self.allbonds_lead_L,self.allbonds_lead_R = allbonds_list[0],allbonds_list[1],allbonds_list[2]
-        self.hamil_block_all,self.hamil_block_lead_L,self.hamil_block_lead_R = hamil_block_list[0],hamil_block_list[1],hamil_block_list[2]
-        self.overlap_block_all,self.overlap_block_lead_L,self.overlap_block_lead_R = overlap_block_list[0],overlap_block_list[1],overlap_block_list[2]
-
-    # def _load_model(self,apiHrk,structure_tbtrans_file:str):
-    #     '''The `load_dptb_model` function loads a DPTB or NNSK model and returns the Hamiltonian elements.
-    #         Here run_sk is a boolean flag that determines whether to run the model using the NNSK or DPTB.
-        
-    #     Parameters
-    #     ----------
-    #     checkfile : str
-    #         The `checkfile` parameter is the file path to the model checkpoint file. 
-    #     config : str
-    #         The `config` parameter is a string that represents the configuration file for the model. It
-    #     contains information such as the model architecture, hyperparameters, and other settings that are
-    #     necessary for loading and building the model.
-    #     structure_tbtrans_file : str
-    #         The `structure_tbtrans_file` parameter is the file path to the structure file in the TBtrans
-    #     format.
-    #     struct_option : dict
-    #         The `struct_option` parameter is a dictionary that contains various options for the structure. It
-    #     includes the following keys:
-    #     run_sk : bool
-    #         The `run_sk` parameter is a boolean flag that determines whether to run the model using the NNSK
-    #     (Neural Network Schrödinger-Kohn) method. If `run_sk` is set to `True`, the model will be run using
-    #     the NNSK method. If
-    #     use_correction : Optional[str]
-    #         The `use_correction` parameter is an optional parameter that specifies whether to use correction
-    #     terms in the model. It can be set to either `None` or a string value. If it is set to `None`, the
-    #     model will not use any correction terms. If it is set to a string value
-        
-    #     Returns
-    #     -------
-    #         The function `load_dptb_model` returns three variables: `allbonds`, `hamil_block`, and
-    #     `overlap_block`.
-        
-    #     '''
-    #     ## create BaseStruct
-    #     structure_base =BaseStruct(
-    #                         atom=ase.io.read(structure_tbtrans_file), 
-    #                         format='ase',  
-    #                         cutoff=apiHrk.apihost.model_config['bond_cutoff'], 
-    #                         proj_atom_anglr_m=apiHrk.apihost.model_config['proj_atom_anglr_m'], 
-    #                         proj_atom_neles=apiHrk.apihost.model_config['proj_atom_neles'], 
-    #                         onsitemode=apiHrk.apihost.model_config['onsitemode'], 
-    #                         time_symm=apiHrk.apihost.model_config['time_symm']
-    #                         )
-
-    #     apiHrk.update_struct(structure_base)
-    #     allbonds,hamil_block,overlap_block = apiHrk.get_HR()
-
-    #     return allbonds,hamil_block,overlap_block
  
     def hamil_get_write(self,write_nc:bool=True):
         
-        '''The function `hamil_get_write` retrieves the Hamiltonian and overlap matrices for the device and left and
-        right leads, then writes the contents of `self.H_all`, `self.H_lead_L`, and `self.H_lead_R` to nc files for
+        '''The function `hamil_get_write` loads models for different structure.retrieves the Hamiltonian and overlap matrices /
+        for the device and left and right leads, then writes the contents of `self.H_all`, `self.H_lead_L`, and `self.H_lead_R` to nc files for
         TBtrans calculations.
+
+            `all` refers to the entire system, including the device and leads.
+
+
+        Returns
+        -------
+        - allbonds_all: all of the bond information 
+        - hamil_block_all: Hamiltonian block for the entire system, which is a tensor that contains 
+                            the values of the Hamiltonian matrix elements for each specific bond in allbonds_all
+        - overlap_block_all: overlap block for the entire system,  which is a tensor that contains 
+                             the values of the overlap matrix elements for each specific basis
         '''
+
+
+        # get the Hamiltonian matrix for the entire system
+        self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
+                    =self._load_model(self.apiHrk,self.all_tbtrans_stru)
         self.hamiltonian_get(self.allbonds_all,self.hamil_block_all,self.overlap_block_all,\
-                             self.H_all,self.energy_unit_option)
-        
+                             self.H_all,self.energy_unit_option)    
+
+        # get the Hamiltonian matrix for the left lead
+        self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
+                        =self._load_model(self.apiHrk,self.lead_L_tbtrans_stru)
         self.hamiltonian_get(self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L,\
                              self.H_lead_L,self.energy_unit_option)
-
+        
+        # get the Hamiltonian matrix for the right lead
+        self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
+                        =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)       
         self.hamiltonian_get(self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R,\
                              self.H_lead_R,self.energy_unit_option)
 
@@ -587,7 +533,57 @@ class TBTransInputSet(object):
         
         # return allbonds,hamil_block,overlap_block
 
+        
 
+
+    def _load_model(self,apiHrk,structure_tbtrans_file:str):
+        '''The `load_dptb_model` function loads a DPTB or NNSK model and returns the Hamiltonian elements.
+            Here run_sk is a boolean flag that determines whether to run the model using the NNSK or DPTB.
+        
+        Parameters
+        ----------
+        checkfile : str
+            The `checkfile` parameter is the file path to the model checkpoint file. 
+        config : str
+            The `config` parameter is a string that represents the configuration file for the model. It
+        contains information such as the model architecture, hyperparameters, and other settings that are
+        necessary for loading and building the model.
+        structure_tbtrans_file : str
+            The `structure_tbtrans_file` parameter is the file path to the structure file in the TBtrans
+        format.
+        struct_option : dict
+            The `struct_option` parameter is a dictionary that contains various options for the structure. It
+        includes the following keys:
+        run_sk : bool
+            The `run_sk` parameter is a boolean flag that determines whether to run the model using the NNSK
+        (Neural Network Schrödinger-Kohn) method. If `run_sk` is set to `True`, the model will be run using
+        the NNSK method. If
+        use_correction : Optional[str]
+            The `use_correction` parameter is an optional parameter that specifies whether to use correction
+        terms in the model. It can be set to either `None` or a string value. If it is set to `None`, the
+        model will not use any correction terms. If it is set to a string value
+        
+        Returns
+        -------
+            The function `load_dptb_model` returns three variables: `allbonds`, `hamil_block`, and
+        `overlap_block`.
+        
+        '''
+        ## create BaseStruct
+        structure_base =BaseStruct(
+                            atom=ase.io.read(structure_tbtrans_file), 
+                            format='ase',  
+                            cutoff=apiHrk.apihost.model_config['bond_cutoff'], 
+                            proj_atom_anglr_m=apiHrk.apihost.model_config['proj_atom_anglr_m'], 
+                            proj_atom_neles=apiHrk.apihost.model_config['proj_atom_neles'], 
+                            onsitemode=apiHrk.apihost.model_config['onsitemode'], 
+                            time_symm=apiHrk.apihost.model_config['time_symm']
+                            )
+
+        apiHrk.update_struct(structure_base)
+        allbonds,hamil_block,overlap_block = apiHrk.get_HR()
+
+        return allbonds,hamil_block,overlap_block
 
     def hamiltonian_get(self,allbonds:torch.tensor,hamil_block:torch.tensor,overlap_block:torch.tensor,Hamil_sisl,energy_unit_option:str):
         '''The function `hamiltonian_get` takes in various parameters and calculates the Hamiltonian matrix

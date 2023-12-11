@@ -48,7 +48,7 @@ def test_tbtrans_init(root_directory):
 
 
 
-    tbtrans_hBN.load_model()
+    tbtrans_hBN.hamil_get_write(write_nc=False)
     assert (tbtrans_hBN.allbonds_all[0].detach().numpy()-np.array([5, 0, 5, 0, 0, 0, 0])).max()<1e-5
     assert (tbtrans_hBN.allbonds_all[50].detach().numpy()-np.array([ 5,  2,  5, 18,  0,  0, -1])).max()<1e-5
     assert (tbtrans_hBN.hamil_block_all[0].detach().numpy()-   np.array([[-0.73303634,  0.        ,  0.        ,  0.        ],
@@ -70,7 +70,7 @@ def test_tbtrans_init(root_directory):
                                                                             [-0.26915616,  0.22751862, -0.30906558,  0.        ],
                                                                             [-0.        ,  0.        ,  0.        ,  0.08500822]])).max()<1e-5
 
-    tbtrans_hBN.hamil_get_write(write_nc=False)
+    
     # tbtrans_hBN.hamil_write()
     # check the hamiltonian through Hk at Gamma and M 
     H_lead = tbtrans_hBN.H_lead_L
