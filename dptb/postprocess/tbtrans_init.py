@@ -123,21 +123,6 @@ class TBTransInputSet(object):
         self.hamil_block_lead_R = None
         self.overlap_block_lead_R = None
 
-    def load_model(self):
-        '''The function `load_model` loads models for different structure.
-
-            `all` refers to the entire system, including the device and leads.
-
-        Returns
-        -------
-        - allbonds_all: all of the bond information 
-        - hamil_block_all: Hamiltonian block for the entire system, which is a tensor that contains 
-                            the values of the Hamiltonian matrix elements for each specific bond in allbonds_all
-        - overlap_block_all: overlap block for the entire system,  which is a tensor that contains 
-                             the values of the overlap matrix elements for each specific basis
-        '''
-
-
  
     def hamil_get_write(self,write_nc:bool=True):
         
