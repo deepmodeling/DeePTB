@@ -227,7 +227,7 @@ class TBTransInputSet(object):
             structure_xyz = sisl.io.xyzSile(structure_file)
             geom_all = structure_xyz.read_geometry()
         else:
-            print('Structure file format is not supported. Only support vasp and xyz format')
+            raise RuntimeError('Structure file format is not supported. Only support vasp and xyz format')
     # structure_xyz = sisl.io.xyzSile(structure_file)
     # geom_device = structure_xyz.read_geometry()
     #define lead geometry structure
@@ -408,8 +408,7 @@ class TBTransInputSet(object):
             orbital_name = re.findall(r'\d+|[a-zA-Z]+|\*',orb_cla)
             orbital_name = sorted(orbital_name, key=lambda x: (x == '*',x.isnumeric(),x))# put s,p,d in the 1st position
             
-            if len(orbital_name)==1: print(orbital_name)
-            assert len(orbital_name)>1
+            assert len(orbital_name)>1 #example 3d*:  orbital_name: ['d', '3', '*']
             if orbital_name[0]=='s':
                 orbital_name_list += [orbital_name[1]+'s']
             elif orbital_name[0]=='p':
