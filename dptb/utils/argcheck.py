@@ -157,12 +157,14 @@ def train_data_sub():
     doc_preprocess_path = ""
     doc_file_names = ""
     doc_pbc = ""
-
+    doc_reduce_edge = ""
+    
     args = [
         Argument("root", str, optional=False, doc=doc_root),
         Argument("preprocess_path", str, optional=False, doc=doc_preprocess_path),
         Argument("file_names", list, optional=False, doc=doc_file_names),
-        Argument("pbc", [bool, list], optional=True, default=True, doc=doc_pbc)
+        Argument("pbc", [bool, list], optional=True, default=True, doc=doc_pbc),
+        Argument("reduce_edge", bool, optional=True, default=True, doc=doc_reduce_edge)
     ]
 
     doc_train = ""
@@ -292,7 +294,8 @@ def embedding():
     return Variant("method", [
             Argument("se2", dict, se2()),
             Argument("baseline", dict, baseline()),
-            Argument("deeph-e3", dict, deephe3())
+            Argument("deeph-e3", dict, deephe3()),
+            Argument("e3baseline", dict, e3baseline())
         ],optional=True, default_tag="se2", doc=doc_method)
 
 def se2():
@@ -366,6 +369,30 @@ def deephe3():
             Argument("n_layer", int, optional=True, default=3, doc=doc_n_layer),
         ]
 
+def e3baseline():
+    doc_irreps_hidden = ""
+    doc_lmax = ""
+    doc_avg_num_neighbors = ""
+    doc_n_radial_basis = ""
+    doc_r_max = ""
+    doc_n_layers = ""
+    doc_env_embed_multiplicity = ""
+    doc_linear_after_env_embed = ""
+    doc_latent_resnet_update_ratios_learnable = ""
+
+    return [
+            Argument("irreps_hidden", str, optional=True, default="64x0e+32x1o+16x2e+8x3o+8x4e+4x5o", doc=doc_irreps_hidden),
+            Argument("lmax", int, optional=True, default=3, doc=doc_lmax),
+            Argument("avg_num_neighbors", [int, float], optional=True, default=50, doc=doc_avg_num_neighbors),
+            Argument("r_max", float, optional=False, doc=doc_r_max),
+            Argument("n_layers", int, optional=True, default=3, doc=doc_n_layers),
+            Argument("n_radial_basis", int, optional=True, default=3, doc=doc_n_radial_basis),
+            Argument("env_embed_multiplicity", int, optional=True, default=10, doc=doc_env_embed_multiplicity),
+            Argument("linear_after_env_embed", bool, optional=True, default=False, doc=doc_linear_after_env_embed),
+            Argument("latent_resnet_update_ratios_learnable", bool, optional=True, default=False, doc=doc_latent_resnet_update_ratios_learnable)
+        ]
+
+
 def prediction():
     doc_method = ""
     doc_nn = ""
@@ -392,20 +419,17 @@ def sktb_prediction():
 
     return nn
 
+
 def e3tb_prediction():
-    doc_neurons = ""
-    doc_activation = ""
-    doc_if_batch_normalized = ""
-    doc_precision = ""
+    doc_scales_trainable = ""
+    doc_shifts_trainable = ""
 
     nn = [
-        Argument("neurons", list, optional=False, doc=doc_neurons),
-        Argument("activation", str, optional=True, default="tanh", doc=doc_activation),
-        Argument("if_batch_normalized", bool, optional=True, default=False, doc=doc_if_batch_normalized),
-
+        Argument("scales_trainable", bool, optional=True, default=False, doc=doc_scales_trainable),
+        Argument("shifts_trainable", bool, optional=True, default=False, doc=doc_shifts_trainable),
     ]
 
-    return []
+    return nn
 
 
 

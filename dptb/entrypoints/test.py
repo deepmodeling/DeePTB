@@ -59,6 +59,15 @@ def _test(
     # setup seed
     setup_seed(seed=jdata["common_options"]["seed"])
 
+    f = torch.load(init_model)
+    # update basis
+    basis = f["config"]["common_options"]["basis"]
+    for asym, orb in jdata["common_options"]["basis"].items():
+        assert asym in basis.keys(), f"Atom {asym} not found in model's basis"
+        assert orb == basis[asym], f"Orbital {orb} of Atom {asym} not consistent with the model's basis"
+
+    jdata["common_options"]["basis"] = basis # use the old basis, because it will be used to build the orbital mapper for dataset
+
     set_log_handles(log_level, Path(log_path) if log_path else None)
 
     f = torch.load(run_opt["init_model"])

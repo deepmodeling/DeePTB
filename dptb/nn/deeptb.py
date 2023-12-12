@@ -9,6 +9,7 @@ from dptb.data import AtomicDataDict
 from dptb.nn.hamiltonian import E3Hamiltonian, SKHamiltonian
 from dptb.nn.nnsk import NNSK
 from e3nn.o3 import Linear
+from dptb.nn.rescale import PerSpeciesScaleShift, PerEdgeSpeciesScaleShift
 
 
 """ if this class is called, it suggest user choose a embedding method. If not, it should directly use _sktb.py
@@ -94,9 +95,11 @@ class DPTB(nn.Module):
         self.idp.get_node_maps()
         self.idp.get_pair_maps()
 
+        n_species = len(self.basis.keys())
+
 
         # initialize the embedding layer
-        self.embedding = Embedding(**embedding, dtype=dtype, device=device, idp=self.idp, n_atom=len(self.basis.keys()))
+        self.embedding = Embedding(**embedding, dtype=dtype, device=device, idp=self.idp, n_atom=n_species)
         
         # initialize the prediction layer
             
@@ -133,11 +136,24 @@ class DPTB(nn.Module):
                 )
 
         elif prediction.get("method") == "e3tb":
-            self.node_prediction_h = Identity(**prediction, device=device, dtype=dtype)
-            self.edge_prediction_h = Identity(**prediction, device=device, dtype=dtype)
+            self.node_prediction_h = PerSpeciesScaleShift(
+                field=AtomicDataDict.NODE_FEATURES_KEY,
+                num_types=n_species,
+                out_field = AtomicDataDict.NODE_FEATURES_KEY,
+                shifts=None,
+                scales=1.,
+                **prediction,
+            )
+            self.edge_prediction_h = PerEdgeSpeciesScaleShift(
+                field=AtomicDataDict.EDGE_FEATURES_KEY,
+                num_types=n_species,
+                out_field = AtomicDataDict.EDGE_FEATURES_KEY,
+                shifts=None,
+                scales=1.,
+                **prediction,
+            )
             if self.overlap:
                 raise NotImplementedError("The overlap prediction is not implemented for e3tb method.")
-                self.edge_prediction_s = Identity(**prediction, device=device, dtype=dtype)
 
         else:
             raise NotImplementedError("The prediction model {} is not implemented.".format(prediction["method"]))

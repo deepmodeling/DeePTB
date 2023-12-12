@@ -64,7 +64,7 @@ class E3DeePH(nn.Module):
                 irreps_out_edge=self.idp.pair_irreps, # it can be dervied from the basis
                 num_block=n_layer,
                 r_max=rc, 
-                use_sc=True,
+                use_sc=False,
                 no_parity=False, 
                 use_sbf=False,
                 selftp=False, 
@@ -72,6 +72,7 @@ class E3DeePH(nn.Module):
                 only_ij=False,
                 num_basis=n_basis
             )
+
         
         self.net.to(self.device)
 
@@ -79,7 +80,6 @@ class E3DeePH(nn.Module):
         
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         data = with_edge_vectors(data, with_lengths=True)
-        data = with_env_vectors(data, with_lengths=True)
         data = with_batch(data)
 
         node_feature, edge_feature = self.net(data)

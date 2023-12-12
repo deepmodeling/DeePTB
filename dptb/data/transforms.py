@@ -319,7 +319,7 @@ class BondMapper(TypeMapper):
                 )
         elif AtomicDataDict.ATOMIC_NUMBERS_KEY in data:
             assert (
-                self.reduced_bond_to_type is not None
+                self.bond_to_type is not None
             ), "Atomic numbers provided but there is no chemical_symbols/chemical_symbol_to_type mapping!"
             atomic_numbers = data[AtomicDataDict.ATOMIC_NUMBERS_KEY]
 
@@ -328,7 +328,7 @@ class BondMapper(TypeMapper):
             ), "The bond type mapper need a EDGE index as input."
 
             data[AtomicDataDict.EDGE_TYPE_KEY] = \
-                self.transform_reduced_bond(
+                self.transform_bond(
                     atomic_numbers[data[AtomicDataDict.EDGE_INDEX_KEY][0]],
                     atomic_numbers[data[AtomicDataDict.EDGE_INDEX_KEY][1]]
                     )
@@ -363,6 +363,7 @@ class OrbitalMapper(BondMapper):
             when str, "2s" indicates two s orbital, 
             "2s2p3d4f" is equivilent to ["1s","2s", "1p", "2p", "1d", "2d", "3d", "1f"]
         """
+        #TODO: use OrderedDict to fix the order of the dict used as index map
         if chemical_symbol_to_type is not None:
             assert set(basis.keys()) == set(chemical_symbol_to_type.keys())
             super(OrbitalMapper, self).__init__(chemical_symbol_to_type=chemical_symbol_to_type, device=device)
@@ -477,7 +478,7 @@ class OrbitalMapper(BondMapper):
         self.get_pair_maps()
         self.get_node_maps()
 
-        self.mask_to_erme = torch.zeros(len(self.reduced_bond_types), self.edge_reduced_matrix_element, dtype=torch.bool, device=self.device)
+        self.mask_to_erme = torch.zeros(len(self.bond_types), self.edge_reduced_matrix_element, dtype=torch.bool, device=self.device)
         self.mask_to_nrme = torch.zeros(len(self.type_names), self.node_reduced_matrix_element, dtype=torch.bool, device=self.device)
         for ib, bb in self.basis.items():
             for io in bb:
@@ -487,15 +488,14 @@ class OrbitalMapper(BondMapper):
                     if self.node_maps.get(iof+"-"+jof) is not None:
                         self.mask_to_nrme[self.chemical_symbol_to_type[ib]][self.node_maps[iof+"-"+jof]] = True
         
-
-        for ib in self.reduced_bond_to_type.keys():
+        for ib in self.bond_to_type.keys():
             a,b = ib.split("-")
             for io in self.basis[a]:
                 iof = self.basis_to_full_basis[a][io]
                 for jo in self.basis[b]:
                     jof = self.basis_to_full_basis[b][jo]
                     if self.pair_maps.get(iof+"-"+jof) is not None:
-                        self.mask_to_erme[self.reduced_bond_to_type[ib]][self.pair_maps[iof+"-"+jof]] = True
+                        self.mask_to_erme[self.bond_to_type[ib]][self.pair_maps[iof+"-"+jof]] = True
 
             
     def get_pairtype_maps(self):

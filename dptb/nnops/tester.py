@@ -13,8 +13,6 @@ log = logging.getLogger(__name__)
 
 class Tester(BaseTester):
 
-    object_keys = ["lr_scheduler", "optimizer"]
-
     def __init__(
             self,
             test_options: dict,

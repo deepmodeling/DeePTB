@@ -135,8 +135,9 @@ class NNSK(torch.nn.Module):
 
         # edge_number = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.EDGE_INDEX_KEY]].reshape(2, -1)
         # edge_index = self.idp_sk.transform_reduced_bond(*edge_number)
-        edge_index = data[AtomicDataDict.EDGE_TYPE_KEY].flatten()
-        edge_number = self.idp_sk.untransform_reduced_bond(edge_index).T
+        edge_index = data[AtomicDataDict.EDGE_TYPE_KEY].flatten() # it is bond_type index, transform it to reduced bond index
+        edge_number = self.idp_sk.untransform_bond(edge_index).T
+        edge_index = self.idp_sk.transform_reduced_bond(*edge_number)
 
         r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number-1].sum(0)
 
@@ -239,7 +240,6 @@ class NNSK(torch.nn.Module):
         nnsk = {
             "onsite": onsite,
             "hopping": hopping,
-            "freeze": freeze,
         }
 
 

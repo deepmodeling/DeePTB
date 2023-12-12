@@ -92,6 +92,34 @@ def train(
     
     jdata = j_loader(INPUT)
     jdata = normalize(jdata)
+    # update basis if init_model or restart
+    # update jdata
+    # this is not necessary, because if we init model from checkpoint, the build_model will load the model_options from checkpoints if not provided
+    # since here we want to output jdata as a config file to inform the user what model options are used, we need to update the jdata
+    
+    if restart or init_model:
+        f = restart if restart else init_model
+        f = torch.load(f)
+        # update basis
+        basis = f["config"]["common_options"]["basis"]
+        for asym, orb in jdata["common_options"]["basis"].items():
+            assert asym in basis.keys(), f"Atom {asym} not found in model's basis"
+            assert orb == basis[asym], f"Orbital {orb} of Atom {asym} not consistent with the model's basis"
+
+        jdata["common_options"]["basis"] = basis # use the old basis, because it will be used to build the orbital mapper for dataset
+
+        if jdata.get("model_options", None):
+            jdata["model_options"] = f["config"]["model_options"]
+
+        if restart:
+            jdata["train_options"] = f["config"]["train_options"]
+        else:
+            j_must_have(jdata, "train_options")
+        del f
+    else:
+        j_must_have(jdata, "model_options")
+        j_must_have(jdata, "train_options")
+
 
     # setup seed
     setup_seed(seed=jdata["common_options"]["seed"])
@@ -109,24 +137,6 @@ def train(
         reference_datasets = build_dataset(set_options=jdata["data_options"]["reference"], common_options=jdata["common_options"])
     else:
         reference_datasets = None
-
-    # update jdata
-    # this is not necessary, because if we init model from checkpoint, the build_model will load the model_options from checkpoints if not provided
-    # since here we want to output jdata as a config file to inform the user what model options are used, we need to update the jdata
-    
-    if restart or init_model:
-        f = torch.load(restart)
-        if jdata.get("model_options", None):
-            jdata["model_options"] = f["config"]["model_options"]
-
-        if restart:
-            jdata["train_options"] = f["config"]["train_options"]
-        else:
-            j_must_have(jdata, "train_options")
-        del f
-    else:
-        j_must_have(jdata, "model_options")
-        j_must_have(jdata, "train_options")
 
     if restart:
         trainer = Trainer.restart(

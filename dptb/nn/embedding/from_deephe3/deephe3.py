@@ -403,38 +403,38 @@ class Net(nn.Module):
         node_one_hot = F.one_hot(data[AtomicDataDict.ATOM_TYPE_KEY].flatten(), num_classes=self.num_species).type(torch.get_default_dtype())
         edge_one_hot = F.one_hot(self.num_species * data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[data[AtomicDataDict.EDGE_INDEX_KEY][0]] + data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[data[AtomicDataDict.EDGE_INDEX_KEY][1]],
                                  num_classes=self.num_species**2).type(torch.get_default_dtype()) # ! might not be good if dataset has many elements
-        env_one_hot = F.one_hot(self.num_species * data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[data[AtomicDataDict.ENV_INDEX_KEY][0]] + data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[data[AtomicDataDict.ENV_INDEX_KEY][1]],
-                                 num_classes=self.num_species**2).type(torch.get_default_dtype()) # ! might not be good if dataset has many elements
+        # env_one_hot = F.one_hot(self.num_species * data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[data[AtomicDataDict.ENV_INDEX_KEY][0]] + data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[data[AtomicDataDict.ENV_INDEX_KEY][1]],
+        #                          num_classes=self.num_species**2).type(torch.get_default_dtype()) # ! might not be good if dataset has many elements
 
         node_fea = self.embedding(node_one_hot)
 
         edge_length = data[AtomicDataDict.EDGE_LENGTH_KEY]
         edge_vec = torch.cat([edge_length.reshape(-1, 1), data[AtomicDataDict.EDGE_VECTORS_KEY][:, [1, 2, 0]]], dim=-1) # (y, z, x) order
-        env_length = data[AtomicDataDict.ENV_LENGTH_KEY]
-        env_vec = torch.cat([env_length.reshape(-1, 1), data[AtomicDataDict.ENV_VECTORS_KEY][:, [1, 2, 0]]], dim=-1) # (y, z, x) order
+        # env_length = data[AtomicDataDict.ENV_LENGTH_KEY]
+        # env_vec = torch.cat([env_length.reshape(-1, 1), data[AtomicDataDict.ENV_VECTORS_KEY][:, [1, 2, 0]]], dim=-1) # (y, z, x) order
 
         if self.use_sbf:
             edge_sh = self.sh(edge_length, edge_vec)
-            env_sh = self.sh(env_length, env_vec)
+            # env_sh = self.sh(env_length, env_vec)
         else:
             edge_sh = self.sh(edge_vec).type(torch.get_default_dtype())
-            env_sh = self.sh(env_vec).type(torch.get_default_dtype())
+            # env_sh = self.sh(env_vec).type(torch.get_default_dtype())
         # edge_length_embedded = (self.basis(data["edge_attr"][:, 0] + epsilon) * self.cutoff(data["edge_attr"][:, 0])[:, None]).type(torch.get_default_dtype())
         edge_length_embedded = self.basis(edge_length)
-        env_length_embedded = self.basis(env_length)
+        # env_length_embedded = self.basis(env_length)
         
         selfloop_edge = None
         if self.only_ij:
-            selfloop_edge = env_length < 1e-7
+            selfloop_edge = edge_length < 1e-7
 
         # edge_fea = self.edge_update_block_init(node_fea, edge_sh, None, edge_length_embedded, data["edge_index"])
         edge_fea = self.distance_expansion(edge_length).type(torch.get_default_dtype())
-        env_fea = self.distance_expansion(env_length).type(torch.get_default_dtype())
+        # env_fea = self.distance_expansion(env_length).type(torch.get_default_dtype())
         for node_update_block, edge_update_block in zip(self.node_update_blocks, self.edge_update_blocks):
-            node_fea = node_update_block(node_fea, node_one_hot, env_sh, env_fea, env_length_embedded, data[AtomicDataDict.ENV_INDEX_KEY], data[AtomicDataDict.BATCH_KEY], selfloop_edge, env_length)
+            node_fea = node_update_block(node_fea, node_one_hot, edge_sh, edge_fea, edge_length_embedded, data[AtomicDataDict.EDGE_INDEX_KEY], data[AtomicDataDict.BATCH_KEY], selfloop_edge, edge_length)
             if edge_update_block is not None:
                 edge_fea = edge_update_block(node_fea, edge_one_hot, edge_sh, edge_fea, edge_length_embedded, data[AtomicDataDict.EDGE_INDEX_KEY], data[AtomicDataDict.BATCH_KEY])
-                env_fea = edge_update_block(node_fea, env_one_hot, env_sh, env_fea, env_length_embedded, data[AtomicDataDict.ENV_INDEX_KEY], data[AtomicDataDict.BATCH_KEY])
+                # env_fea = edge_update_block(node_fea, env_one_hot, env_sh, env_fea, env_length_embedded, data[AtomicDataDict.ENV_INDEX_KEY], data[AtomicDataDict.BATCH_KEY])
 
         node_fea = self.lin_node(node_fea)
         edge_fea = self.lin_edge(edge_fea)

@@ -103,7 +103,8 @@ def build_dataset(set_options, common_options):
         "r_max": common_options["bond_cutoff"],
         "er_max": common_options.get("env_cutoff", None),
         "oer_max": common_options.get("onsite_cutoff", None),
-        "pbc": set_options["pbc"]
+        "pbc": set_options["pbc"],
+        "reduce_edge": set_options["reduce_edge"],
     }
 
     dataset = ABACUSDataset(

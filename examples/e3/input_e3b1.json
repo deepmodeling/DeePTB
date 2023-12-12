@@ -1,6 +1,7 @@
 {
     "common_options": {
         "bond_cutoff": 7.0,
+        "env_cutoff": 7.0,
         "seed": 12342,
         "basis": {
             "Al": "4s4p1d",
@@ -12,14 +13,18 @@
     },
     "model_options": {
         "embedding":{
-            "method": "deeph-e3",
-            "rc": 7.0,
-            "irreps_mid": "32x0e+32x1o+32x1e+16x2e+8x2o+8x3o+4x3e+2x4e+1x5o"
+            "method": "e3baseline",
+            "r_max": 7.0,
+            "irreps_hidden": "68x0e+80x1o+34x1e+50x2e+16x2o+16x3o+2x3e+2x4e",
+            "lmax": 4,
+            "n_layers": 3,
+            "n_radial_basis": 100,
+            "env_embed_multiplicity":20,
+            "avg_num_neighbors": 63
         },
         "prediction":{
             "method": "e3tb",
-	    "scales_trainable":true,
-	    "shifts_trainable":true
+            "scales_trainable":true
         }
     },
     "train_options": {
@@ -31,7 +36,7 @@
         },
         "lr_scheduler": {
             "type": "exp",
-            "gamma": 0.9995
+            "gamma": 0.998
         },
         "loss_options":{
             "train":{"method": "hamil"}
