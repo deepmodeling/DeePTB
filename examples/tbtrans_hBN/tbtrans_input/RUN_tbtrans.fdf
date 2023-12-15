@@ -1,0 +1,43 @@
+TBT.HS structure.nc
+TBT.Directory ./T
+
+# Play with this number to get a converged result
+TBT.k [1 100 1]
+
+
+TBT.DM.GF       false 
+TBT.DM.A        false
+TBT.DOS.Gf    false
+TBT.DOS.Elecs   false
+TBT.DOS.A   false
+TBT.DOS.A.All   false
+TBT.T.All   false
+TBT.T.Bulk  false
+
+
+
+%block TBT.Elec.Left
+  HS lead_L.nc
+  semi-inf-direction -A3
+  electrode-position 1
+%endblock TBT.Elec.Left
+%block TBT.Elec.Right
+  HS lead_R.nc
+  semi-inf-direction +A3
+  electrode-position end -1
+%endblock TBT.Elec.Right
+
+
+%block TBT.Contours
+  neq
+%endblock TBT.Contours
+
+%block TBT.Contour.neq
+  part line
+   from   -39.25000 eV to -4.25 eV
+    delta    0.04 eV
+     method mid-rule
+%endblock TBT.Contour.neq
+
+
+TBT.BTD.Pivot.Device orb+none
