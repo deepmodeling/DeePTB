@@ -51,7 +51,11 @@ class BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
             self.epoch()
             # run plugins of epoch events.
             self.call_plugins(queue_name='epoch', time=i)
-            self.lr_scheduler.step()  # modify the lr at each epoch (should we add it to pluggins so we could record the lr scheduler process?)
+
+            if isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                self.lr_scheduler.step(self.stats["train_loss"]["epoch_mean"])
+            else:
+                self.lr_scheduler.step()  # modify the lr at each epoch (should we add it to pluggins so we could record the lr scheduler process?)
             self.update()
             self.ep += 1
 

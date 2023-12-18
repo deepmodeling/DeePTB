@@ -16,6 +16,7 @@ class HR2HK(torch.nn.Module):
             overlap: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
+            reduce: bool = True,
             ):
         super(HR2HK, self).__init__()
 
@@ -24,6 +25,7 @@ class HR2HK(torch.nn.Module):
         self.dtype = dtype
         self.device = device
         self.overlap = overlap
+        self.reduce = reduce
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
@@ -86,7 +88,11 @@ class HR2HK(torch.nn.Module):
         for i, oblock in enumerate(onsite_block):
             mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
             masked_oblock = oblock[mask][:,mask]
-            block[:,ist:ist+masked_oblock.shape[0],ist:ist+masked_oblock.shape[1]] = 0.5 * masked_oblock.squeeze(0)
+            if self.reduce:
+                factor = 0.5
+            else:
+                factor = 1.0
+            block[:,ist:ist+masked_oblock.shape[0],ist:ist+masked_oblock.shape[1]] = factor * masked_oblock.squeeze(0)
             atom_id_to_indices[i] = slice(ist, ist+masked_oblock.shape[0])
             ist += masked_oblock.shape[0]
         
@@ -102,7 +108,8 @@ class HR2HK(torch.nn.Module):
             block[:,iatom_indices,jatom_indices] += masked_hblock.squeeze(0).type_as(block) * \
                 torch.exp(-1j * 2 * torch.pi * (data[AtomicDataDict.KPOINT_KEY] @ data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i])).reshape(-1,1,1)
 
-        block = block + block.transpose(1,2).conj()
+        if self.reduce:
+            block = block + block.transpose(1,2).conj()
         block = block.contiguous()
 
         data[self.out_field] = block

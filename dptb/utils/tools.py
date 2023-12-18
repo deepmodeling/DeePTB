@@ -140,8 +140,10 @@ def get_lr_scheduler(type: str, optimizer: optim.Optimizer, **sch_options):
         scheduler = optim.lr_scheduler.ExponentialLR(optimizer=optimizer, **sch_options)
     elif type == 'linear':
         scheduler = optim.lr_scheduler.LinearLR(optimizer=optimizer, **sch_options)
+    elif type == "rop":
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, **sch_options)
     else:
-        raise RuntimeError("Scheduler should be exp/linear/..., not {}".format(type))
+        raise RuntimeError("Scheduler should be exp/linear/rop..., not {}".format(type))
 
     return scheduler
 

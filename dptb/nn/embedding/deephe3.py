@@ -18,7 +18,7 @@ class E3DeePH(nn.Module):
             n_atom: int=1, 
             irreps_embed: o3.Irreps=o3.Irreps("64e"), 
             lmax: int=3,
-            irreps_mid: o3.Irreps=o3.Irreps("64x0e+32x1o+16x2e+8x3o+8x4e+4x5o"), 
+            irreps_mid: o3.Irreps=o3.Irreps("64x0e+32x1o+16x2e+8x3o+8x4e+4x5o"),
             n_layer: int=3, 
             rc: float=5.0, 
             n_basis: int=128,

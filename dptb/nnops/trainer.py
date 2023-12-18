@@ -177,7 +177,6 @@ class Trainer(BaseTrainer):
             else:
                 self.iteration(ibatch)
 
-
     def update(self, **kwargs):
         pass
 

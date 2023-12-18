@@ -143,12 +143,42 @@ def LinearLR():
         Argument("total_iters", int, optional=True, default=5, doc=doc_total_iters)
     ]
 
+def ReduceOnPlateau():
+    doc_mode = "One of min, max. In min mode, lr will be reduced when the quantity monitored has stopped decreasing; \
+        in max mode it will be reduced when the quantity monitored has stopped increasing. Default: 'min'."
+    doc_factor = "Factor by which the learning rate will be reduced. new_lr = lr * factor. Default: 0.1."
+    doc_patience = "Number of epochs with no improvement after which learning rate will be reduced. For example, \
+        if patience = 2, then we will ignore the first 2 epochs with no improvement, \
+        and will only decrease the LR after the 3rd epoch if the loss still hasn't improved then. Default: 10."
+    doc_threshold = "Threshold for measuring the new optimum, to only focus on significant changes. Default: 1e-4."
+    doc_threshold_mode = "One of rel, abs. In rel mode, dynamic_threshold = best * ( 1 + threshold ) in 'max' mode or \
+        best * ( 1 - threshold ) in min mode. In abs mode, \
+        dynamic_threshold = best + threshold in max mode or best - threshold in min mode. Default: 'rel'."
+    doc_cooldown = "Number of epochs to wait before resuming normal operation after lr has been reduced. Default: 0."
+    doc_min_lr = "A scalar or a list of scalars. \
+        A lower bound on the learning rate of all param groups or each group respectively. Default: 0."
+    doc_eps = "Minimal decay applied to lr. \
+        If the difference between new and old lr is smaller than eps, the update is ignored. Default: 1e-8."
+
+    return [
+        Argument("mode", str, optional=True, default="min", doc=doc_mode),
+        Argument("factor", float, optional=True, default=0.1, doc=doc_factor),
+        Argument("patience", int, optional=True, default=10, doc=doc_patience),
+        Argument("threshold", float, optional=True, default=1e-4, doc=doc_threshold),
+        Argument("threshold_mode", str, optional=True, default="rel", doc=doc_threshold_mode),
+        Argument("cooldown", int, optional=True, default=0, doc=doc_cooldown),
+        Argument("min_lr", [float, list], optional=True, default=0, doc=doc_min_lr),
+        Argument("eps", float, optional=True, default=1e-8, doc=doc_eps),
+    ]
+
+
 def lr_scheduler():
     doc_type = "select type of lr_scheduler, support type includes `exp`, `linear`"
 
     return Variant("type", [
             Argument("exp", dict, ExponentialLR()),
-            Argument("linear", dict, LinearLR())
+            Argument("linear", dict, LinearLR()),
+            Argument("rop", dict, ReduceOnPlateau(), doc="rop: reduce on plateau")
         ],optional=True, default_tag="exp", doc=doc_type)
 
 
@@ -295,7 +325,9 @@ def embedding():
             Argument("se2", dict, se2()),
             Argument("baseline", dict, baseline()),
             Argument("deeph-e3", dict, deephe3()),
-            Argument("e3baseline", dict, e3baseline())
+            Argument("e3baseline", dict, e3baseline()),
+            Argument("e3baseline_o", dict, e3baseline()),
+            Argument("e3baseline_swtp", dict, e3baseline()),
         ],optional=True, default_tag="se2", doc=doc_method)
 
 def se2():
@@ -533,6 +565,7 @@ def loss_options():
     loss_args = Variant("method", [
         Argument("hamil", dict, []),
         Argument("eigvals", dict, []),
+        Argument("hamil_abs", dict, []),
     ], optional=False, doc=doc_method)
 
     args = [
