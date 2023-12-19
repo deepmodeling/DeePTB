@@ -125,19 +125,29 @@ def build_dataset(set_options, common_options):
     if type == "ABACUSDataset":
         assert "pbc" in set_options, "PBC must be provided in `data_options` when loading ABACUS dataset."
         AtomicDataOptions["pbc"] = set_options["pbc"]
+        if "basis" in common_options:
+            idp = OrbitalMapper(common_options["basis"])
+        else:
+            idp = None
         dataset = ABACUSDataset(
             root=set_options["root"],
             preprocess_dir=set_options["preprocess_dir"],
             AtomicData_options=AtomicDataOptions,
+            type_mapper=idp,
         )
     elif type == "ABACUSInMemoryDataset":
         assert "pbc" in set_options, "PBC must be provided in `data_options` when loading ABACUS dataset."
         AtomicDataOptions["pbc"] = set_options["pbc"]
+        if "basis" in common_options:
+            idp = OrbitalMapper(common_options["basis"])
+        else:
+            idp = None
         dataset = ABACUSInMemoryDataset(
             root=set_options["root"],
             preprocess_dir=set_options["preprocess_dir"],
             include_frames=set_options.get("include_frames"),
             AtomicData_options=AtomicDataOptions,
+            type_mapper=idp,
         )     
     
     # input in common_option for Default Dataset:

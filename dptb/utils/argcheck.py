@@ -190,11 +190,11 @@ def train_data_sub():
     doc_reduce_edge = ""
     
     args = [
+        Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset"),
         Argument("root", str, optional=False, doc=doc_root),
-        Argument("preprocess_path", str, optional=False, doc=doc_preprocess_path),
-        Argument("file_names", list, optional=False, doc=doc_file_names),
+        Argument("preprocess_dir", str, optional=False, doc=doc_preprocess_path),
+        Argument("AtomicData_options", dict, optional=True, default={}, doc="The options for AtomicData class"),
         Argument("pbc", [bool, list], optional=True, default=True, doc=doc_pbc),
-        Argument("reduce_edge", bool, optional=True, default=True, doc=doc_reduce_edge)
     ]
 
     doc_train = ""
@@ -208,10 +208,11 @@ def validation_data_sub():
     doc_pbc = ""
 
     args = [
+        Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset"),
         Argument("root", str, optional=False, doc=doc_root),
-        Argument("preprocess_path", str, optional=False, doc=doc_preprocess_path),
-        Argument("file_names", list, optional=False, doc=doc_file_names),
-        Argument("pbc", [bool, list], optional=True, default=True, doc=doc_pbc)
+        Argument("preprocess_dir", str, optional=False, doc=doc_preprocess_path),
+        Argument("AtomicData_options", dict, optional=True, default={}, doc="The options for AtomicData class"),
+        Argument("pbc", [bool, list], optional=True, default=True, doc=doc_pbc),
     ]
 
     doc_validation = ""
@@ -225,10 +226,11 @@ def reference_data_sub():
     doc_pbc = ""
 
     args = [
+        Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset"),
         Argument("root", str, optional=False, doc=doc_root),
-        Argument("preprocess_path", str, optional=False, doc=doc_preprocess_path),
-        Argument("file_names", list, optional=False, doc=doc_file_names),
-        Argument("pbc", [bool, list], optional=True, default=True, doc=doc_pbc)
+        Argument("preprocess_dir", str, optional=False, doc=doc_preprocess_path),
+        Argument("AtomicData_options", dict, optional=True, default={}, doc="The options for AtomicData class"),
+        Argument("pbc", [bool, list], optional=True, default=True, doc=doc_pbc),
     ]
 
     doc_reference = ""
