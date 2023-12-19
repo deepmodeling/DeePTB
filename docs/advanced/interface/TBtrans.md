@@ -1,6 +1,8 @@
 # TBtrans
 
-Here is the instruction for an deeptb interface `tbtrans_negf`. It enpowers deeptb the ability to generate input files for TBtrans, containing sufficient information for TBtrans to calculate transport properties.
+Here is the instruction for an deeptb interface `tbtrans_negf`, which is convenient for users with needs to do NEGF calculation and are familiar with TBtrans. 
+
+This interface enpowers deeptb the ability to generate input files for TBtrans, containing sufficient information for TBtrans to calculate transport properties.
 
 ## TBtrans info
 
@@ -24,39 +26,40 @@ To run `tbtrans_negf`, only 3 files user should prepare: structure, deeptb model
 ### structure
 
 - `tbtrans_negf` support `extxyz` and `.vasp` format.
-- Following  the same convention as dptb-negf, the transport direction should be the z-direction. Pay attention to order the structure coordinates in z-direction, which is convenient for lead region definition.
+- Following  the same convention as dptb-negf, the transport direction should be the z-direction. 
 
 ### deeptb model
-- `tbtrans_negf` would use this model to generate the Hamiltonian and related info for the structure file.
+- `tbtrans_negf` would use this model to generate the Hamiltonian and related info for later transport calculation.
 
 ### input setting
 
-- `input setting` contains information of the region definition and periodic conditions. An example file is DeePTB/examples/tbtrans_hBN/tbtrans_input/RUN_tbtrans.fdf
-- For convenience, users could directly reuse setting for dptb-negf  as an setting for dptb-tbtrans. The only thing users need to do is give `task` label a new string: rename `negf` as `tbtrans_negf`.
+- `input setting` contains information of the region definition and periodic conditions. An example file is `DeePTB/examples/tbtrans_hBN/negf_tbt.json`, from which this interface would automatically extract necessary information for TBtrans calculation.
+- Users could directly reuse setting for dptb-negf  as an setting for dptb-tbtrans. The only thing users need to do is give `task` label a new string: rename `negf` as `tbtrans_negf`. 
 
 
 ## RUN
 
-Take `DeePTB/examples/tbtrans_hBN/tbtrans_input/RUN_tbtrans.fdf` as an example. 
+The interface `tbtrans_negf` has merged into DeePTB Shell Command and 
+
+Take `DeePTB/examples/tbtrans_hBN/negf_tbt.json` as an example. 
 
 ```shell
 cd DeePTB/examples/tbtrans_hBN/tbtrans_input/
-dptb run -sk RUN_tbtrans.fdf -i ./data/model/latest_nnsk_b3.600_c3.600_w0.300.pth -o tbtrans_input
+dptb run -sk negf_tbt.json -i ./data/model/latest_nnsk_b3.600_c3.600_w0.300.pth -o tbtrans_input
 ```
-Then  the input files for TBtrans would store in `tbtrans_input`. As `DeePTB/examples/tbtrans_hBN/data/model/latest_nnsk_b3.600_c3.600_w0.300.pth` is nnsk model, we need to add `-sk` here to the command line.
-
+ As `DeePTB/examples/tbtrans_hBN/data/model/latest_nnsk_b3.600_c3.600_w0.300.pth` is nnsk model, we need to add `-sk` here to the command line. Then  the input files for TBtrans would store in `tbtrans_input`.
 
 ## Output
 
-- structure files
+- **structure files**
   - lead_L_tbtrans.xyz, lead_R_tbtrans.xyz: lead region of the whole structre, being easy for users to check and visulize their definiton of leads.
-  - srtuctre_tbtrans.vasp, structure_tbtrans.xyz: the whold structure, being easy for visulization.
+  - srtuctre_tbtrans.vasp, structure_tbtrans.xyz: the whole structure, being easy for visulization in vasp format.
 
-- nc files
-  - lead_L.nc, lead_R.nc: Hamiltonian and overlap matrix of lead_L and lead_R,  necessary for TBtrans to calculate self energy.
+- **nc files**
+  - lead_L.nc, lead_R.nc: Hamiltonian and overlap matrix of lead_L and lead_R,  necessary for TBtrans to calculate lead self energy.
   - structure.nc: Hamiltonian and overlap matrix of the whole structure
 
-- To run TBtrans successfully, users need master the basic skills for using TBtrans and prepare their own setting files (usually named `RUN_tbtrans.fdf`) for the code. Here we provide an simple example `DeePTB/examples/tbtrans_hBN/tbtrans_input/RUN_tbtrans.fdf` 
+- To run TBtrans successfully, users should know the basic principles in NEGF and prepare their own setting files (usually named `RUN_tbtrans.fdf`) for TBtrans. Here we provide an simple example `DeePTB/examples/tbtrans_hBN/tbtrans_input/RUN_tbtrans.fdf` . 
 
 ## Example
 
