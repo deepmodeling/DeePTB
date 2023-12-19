@@ -117,11 +117,12 @@ class LearningRateMonitor(Monitor):
     def _get_value(self, **kwargs):
         return kwargs.get('lr', None)
 
+
 class Validationer(Monitor):
     stat_name = 'validation_loss'
 
     def _get_value(self, **kwargs):
         if kwargs.get('field') == "iteration":
-            return self.trainer.validation(quick=True)
+            return self.trainer.validation(fast=True)
         else:
             return self.trainer.validation()

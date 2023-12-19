@@ -28,8 +28,8 @@ class PluginUser(object):
         self.stats = {}  # the status of Trainer.
         self.plugin_queues = {'disposable': [], 'iteration': [], 'epoch': [], 'batch': [], 'update': []}
 
-    def register_plugin(self, plugin):
-        plugin.register(self)
+    def register_plugin(self, plugin, **kwargs):
+        plugin.register(self, **kwargs)
 
         # the trigger interval of plugin, with the form like: [(1, 'iteration'), (1, 'epoch')]
         intervals = plugin.trigger_interval

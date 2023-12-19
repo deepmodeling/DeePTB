@@ -1,0 +1,67 @@
+{
+    "common_options": {
+        "bond_cutoff": 5.0,
+        "env_cutoff": 5.0,
+        "seed": 12342,
+        "basis": {
+            "Al": ["3s", "3p", "d*"],
+            "As": ["4s", "4p", "d*"]
+        },
+        "device": "cuda",
+        "dtype": "float32",
+        "overlap": false
+    },
+    "model_options": {
+        "embedding":{
+            "method": "se2",
+            "rc": 5.0,
+            "rs": 2.0,
+            "n_axis": 10,
+            "radial_net": {
+                "neurons": [20,40,60],
+                "activation": "tanh",
+                "if_batch_normalized": false
+            }
+        },
+        "prediction":{
+            "method": "sktb",
+            "neurons": [128,128,128],
+            "activation": "tanh",
+            "if_batch_normalized": false
+        }
+    },
+    "train_options": {
+        "num_epoch": 4000,
+        "batch_size": 1,
+        "optimizer": {
+            "lr": 0.01,
+            "type": "Adam"
+        },
+        "lr_scheduler": {
+            "type": "exp",
+            "gamma": 0.995
+        },
+        "loss_options":{
+            "train":{"method": "eigvals"}
+        },
+        "save_freq": 10,
+        "validation_freq": 10,
+        "display_freq": 1
+    },
+    "data_options": {
+        "train": {
+            "root": "/share/semicond/lmp_abacus/abacus_hse_data/AlAs/result-prod-alas/prod-alas/AlAs/sys-000/",
+            "preprocess_path": "/share/semicond/lmp_abacus/abacus_hse_data/AlAs/result-prod-alas/prod-alas/AlAs/sys-000/atomic_data/",
+            "file_names": [
+                "T100/frame-29/AtomicData.h5",
+                "T500/frame-100/AtomicData.h5",
+                "T500/frame-44/AtomicData.h5",
+                "T1000/frame-27/AtomicData.h5",
+                "T1000/frame-52/AtomicData.h5",
+                "T1500/frame-35/AtomicData.h5",
+                "T1500/frame-89/AtomicData.h5"
+            ],
+            "pbc": true
+        }
+    }
+}

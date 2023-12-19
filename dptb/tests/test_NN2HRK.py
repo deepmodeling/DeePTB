@@ -1,8 +1,8 @@
 import pytest
-from dptb.plugins.init_nnsk import InitSKModel
-from dptb.plugins.init_dptb import InitDPTBModel
-from dptb.nnops.NN2HRK import NN2HRK
-from dptb.nnops.apihost import NNSKHost,DPTBHost
+from dptb.v1.init_nnsk import InitSKModel
+from dptb.v1.init_dptb import InitDPTBModel
+from dptb.nnops.v1.NN2HRK import NN2HRK
+from dptb.nnops.v1.apihost import NNSKHost,DPTBHost
 from dptb.entrypoints.run import run
 from dptb.structure.structure import BaseStruct
 import torch
@@ -441,7 +441,6 @@ def test_nnsk_nn2hrk_nrl(root_directory):
         nhrk = NN2HRK(apihost=nnskapi, mode='nnsk')
         nhrk.update_struct(struct)
         allbonds, hamil_blocks, overlap_blocks  = nhrk.get_HR()
-
         assert torch.equal(allbonds, allbonds_true) 
         assert len(hamil_blocks) == len(hamil_blocks_true)
         assert len(overlap_blocks) == len(overlap_blocks_true)

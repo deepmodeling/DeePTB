@@ -1,8 +1,8 @@
 #test_negf_Device_set_leadLR
 from dptb.negf.device_property import DeviceProperty
-from dptb.plugins.init_nnsk import InitSKModel
-from dptb.nnops.NN2HRK import NN2HRK
-from dptb.nnops.apihost import NNSKHost
+from dptb.v1.init_nnsk import InitSKModel
+from dptb.nnops.v1.NN2HRK import NN2HRK
+from dptb.nnops.v1.apihost import NNSKHost
 from dptb.utils.tools import j_must_have
 from dptb.utils.tools import j_loader
 import numpy as np
