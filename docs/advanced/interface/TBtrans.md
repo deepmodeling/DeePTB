@@ -62,9 +62,18 @@ Then  the input files for TBtrans would store in `tbtrans_input`. As `DeePTB/exa
 
 We design an example of `tbtrans_negf` for hBN in `DeePTB/examples/tbtrans_hBN`， and `DeePTB/examples/tbtrans_hBN/tbtrans_hBN_show.ipynb` shows the results of TBtrans transmission calculation. The detailed information and results are concluded in  `DeePTB/examples/tbtrans_hBN/tbtrans_hBN_show.ipynb`.
 
+Firstly we calculate the $\Gamma$ point transmission, which evidently shows the band gap in the middle.
 <div align=center>
-<img src="https://raw.githubusercontent.com/AsymmetryChou/DeePTB/docs/img/hBN_gamma_trans.png" width = "80%" height = "50%" alt="hBN gamma transmission" align=center />
+<img src="https://raw.githubusercontent.com/AsymmetryChou/DeePTB/tbtrans_doc/docs/img/hBN_gamma_trans.png" width = "60%" height = "50%" alt="hBN gamma transmission" align=center />
+</div>
+Sum up all the k points we get k-average transmission. 
+<div align=center>
+<img src="https://raw.githubusercontent.com/AsymmetryChou/DeePTB/tbtrans_doc/docs/img/hBN_kavg_trans.png" width = "60%" height = "50%" alt="hBN gamma transmission" align=center />
+</div>
+Finally we calculate directly I-V in non-self-consistent manner 
+<div align=center>
+<img src="https://raw.githubusercontent.com/AsymmetryChou/DeePTB/tbtrans_doc/docs/img/hBN_IV.png" width = "60%" height = "50%" alt="hBN gamma transmission" align=center />
 </div>
 
 
-Combining the example and the above information would be the most efficient way to master `tbtrans_negf`. 
+Combining this example would be the most efficient way to master `tbtrans_negf` interface. 
