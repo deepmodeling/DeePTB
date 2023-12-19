@@ -1,20 +1,7 @@
 TBT.HS structure.nc
 TBT.Directory ./T
 
-# Play with this number to get a converged result
-TBT.k [1 100 1]
-
-
-TBT.DM.GF       false 
-TBT.DM.A        false
-TBT.DOS.Gf    false
-TBT.DOS.Elecs   false
-TBT.DOS.A   false
-TBT.DOS.A.All   false
-TBT.T.All   false
-TBT.T.Bulk  false
-
-
+TBT.k [1 100 1] # set the k points along x/y/z axis
 
 %block TBT.Elec.Left
   HS lead_L.nc
@@ -35,7 +22,7 @@ TBT.T.Bulk  false
 %block TBT.Contour.neq
   part line
    from   -39.25000 eV to -4.25 eV
-    delta    0.04 eV
+    delta    0.02 eV
      method mid-rule
 %endblock TBT.Contour.neq
 

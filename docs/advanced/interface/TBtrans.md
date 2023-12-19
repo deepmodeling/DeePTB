@@ -56,10 +56,15 @@ Then  the input files for TBtrans would store in `tbtrans_input`. As `DeePTB/exa
   - lead_L.nc, lead_R.nc: Hamiltonian and overlap matrix of lead_L and lead_R,  necessary for TBtrans to calculate self energy.
   - structure.nc: Hamiltonian and overlap matrix of the whole structure
 
-
+- To run TBtrans successfully, users need master the basic skills for using TBtrans and prepare their own setting files (usually named `RUN_tbtrans.fdf`) for the code. Here we provide an simple example `DeePTB/examples/tbtrans_hBN/tbtrans_input/RUN_tbtrans.fdf` 
 
 ## Example
 
-We design an example of `tbtrans_negf` for hBN in `DeePTB/examples/tbtrans_hBN`， and `DeePTB/examples/tbtrans_hBN/tbtrans_hBN_show.ipynb` shows the results of TBtrans transmission calculation.
+We design an example of `tbtrans_negf` for hBN in `DeePTB/examples/tbtrans_hBN`， and `DeePTB/examples/tbtrans_hBN/tbtrans_hBN_show.ipynb` shows the results of TBtrans transmission calculation. The detailed information and results are concluded in  `DeePTB/examples/tbtrans_hBN/tbtrans_hBN_show.ipynb`.
+
+<div align=center>
+<img src="https://raw.githubusercontent.com/AsymmetryChou/DeePTB/docs/img/hBN_gamma_trans.png" width = "80%" height = "50%" alt="hBN gamma transmission" align=center />
+</div>
+
 
 Combining the example and the above information would be the most efficient way to master `tbtrans_negf`. 
