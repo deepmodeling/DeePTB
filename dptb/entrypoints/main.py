@@ -7,6 +7,7 @@ from dptb.entrypoints.config import config
 from dptb.entrypoints.test import _test
 from dptb.entrypoints.run import run
 from dptb.entrypoints.bond import bond
+from dptb.entrypoints.data import data
 from dptb.utils.loggers import set_log_handles
 
 def get_ll(log_level: str) -> int:
@@ -246,6 +247,20 @@ def main_parser() -> argparse.ArgumentParser:
         help="Use nnsktb correction when training dptb",
     )
 
+    # preprocess data
+    parser_data = subparsers.add_parser(
+        "data",
+        parents=[parser_log],
+        help="preprocess software output",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser_data.add_argument(
+        "INPUT", help="the input parameter file in json or yaml format",
+        type=str,
+        default=None
+    )
+
     return parser
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
@@ -293,3 +308,6 @@ def main():
 
     elif args.command == 'run':
         run(**dict_args)
+
+    elif args.command == 'data':
+        data(**dict_args)

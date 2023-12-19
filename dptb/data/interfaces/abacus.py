@@ -45,7 +45,7 @@ class OrbAbacus2DeepTB:
         block_rights = block_diag(*[self.get_U(l_right) for l_right in l_rights])
         return block_lefts @ mat @ block_rights.T
     
-def recursive_parse(input_dir, preprocess_dir, data_name="OUT.ABACUS", only_overlap=False, get_Ham=False, add_overlap=False, get_eigenvalues=False):
+def recursive_parse(input_dir, preprocess_dir, data_name="OUT.ABACUS", only_overlap=False, get_Hamiltonian=False, add_overlap=False, get_eigenvalues=False):
     input_dir = os.path.abspath(input_dir)
     preprocess_dir = os.path.abspath(preprocess_dir)
     os.makedirs(preprocess_dir, exist_ok=True)
@@ -57,9 +57,9 @@ def recursive_parse(input_dir, preprocess_dir, data_name="OUT.ABACUS", only_over
                 if os.path.exists(os.path.join(input_dir, file, data_name, "hscsr.tgz")):
                     os.system("cd "+os.path.join(input_dir, file, data_name) + " && tar -zxvf hscsr.tgz && mv OUT.ABACUS/* ./")
                 try:
-                    _abacus_parse(os.path.join(input_dir, file), os.path.join(preprocess_dir, file), data_name, only_S=only_overlap, get_Ham=get_Ham,
+                    _abacus_parse(os.path.join(input_dir, file), os.path.join(preprocess_dir, file), data_name, only_S=only_overlap, get_Ham=get_Hamiltonian,
                                 add_overlap=add_overlap, get_eigenvalues=get_eigenvalues)
-                    h5file_names.append(os.path.join(preprocess_dir, file, "AtomicData.h5"))
+                    h5file_names.append(os.path.join(file, "AtomicData.h5"))
                 except Exception as e:
                     print(f"Error in {data_name}: {e}")
                     continue
@@ -128,7 +128,7 @@ def _abacus_parse(input_path,
             site_norbits_dict[atom_type] = current_site_norbits
             orbital_types_dict[atom_type] = current_orbital_types
 
-        print(orbital_types_dict)
+        #print(orbital_types_dict)
 
         line = find_target_line(f, "TOTAL ATOM NUMBER")
         assert line is not None, 'Cannot find "TOTAL ATOM NUMBER" in log file'
@@ -305,7 +305,7 @@ def _abacus_parse(input_path,
 
         assert len(band) == len(kpts)
         np.savetxt(os.path.join(output_path, "kpoints.dat"), kpts)
-        np.savetxt(os.path.join(output_path, "eigenvalue.dat"), band)
+        np.savetxt(os.path.join(output_path, "eigenvalues.dat"), band)
 
     with h5py.File(os.path.join(output_path, "AtomicData.h5"), "w") as f:
         f["cell"] = lattice
@@ -323,8 +323,8 @@ def _abacus_parse(input_path,
         # else:
         #     f["hamiltonian_blocks"] = False
         if get_eigenvalues:
-            f["kpoint"] = kpts
-            f["eigenvalue"] = band
+            f["kpoints"] = kpts
+            f["eigenvalues"] = band
         # else:
         #     f["kpoint"] = False
         #     f["eigenvalue"] = False

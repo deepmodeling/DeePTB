@@ -2,12 +2,13 @@ from ._base_datasets import AtomicDataset, AtomicInMemoryDataset
 from ._ase_dataset import ASEDataset
 from ._npz_dataset import NpzDataset
 from ._hdf5_dataset import HDF5Dataset
-from ._abacus_dataset import ABACUSDataset
+from ._abacus_dataset import ABACUSDataset, ABACUSInMemoryDataset
 from ._deeph_dataset import DeePHE3Dataset
-from ._abacus_dataset_mem import ABACUSInMemoryDataset
+from ._default_dataset import DefaultDataset
 
 
 __all__ = [
+    DefaultDataset,
     DeePHE3Dataset,
     ABACUSInMemoryDataset,
     ABACUSDataset, 
