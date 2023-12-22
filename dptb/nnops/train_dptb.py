@@ -295,14 +295,24 @@ class DPTBTrainer(Trainer):
     def validation(self, quick=False):
         with torch.no_grad():
             total_loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
-            for processor in self.validation_processor_list:
+            data_set_seq = []
+            total_batch = 0
+            for ip in range(len(self.validation_processor_list)):
+                data_set_seq += [ip] * self.train_processor_list[ip].n_batch
+                total_batch += self.train_processor_list[ip].n_batch
+            
+            data_set_seq = np.array(data_set_seq)[np.random.choice(total_batch, size=total_batch, replace=False)]
+            
+            for iset in data_set_seq:
+                processor  = self.validation_processor_list[iset]
                 self.validation_loss_options.update(processor.bandinfo)
                 for data in processor:
                     eigenvalues_pred, eigenvalues_lbl = self.calc(*data)
                     total_loss += self.validation_lossfunc(eig_pred=eigenvalues_pred,eig_label=eigenvalues_lbl,**self.validation_loss_options)
                     if quick:
                         break
-                    
+                if quick:
+                    break
         with torch.enable_grad():
             return total_loss.detach()
 
