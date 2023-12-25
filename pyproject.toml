@@ -44,6 +44,14 @@ optional = true
 ifermi = "*"
 pymatgen = "*"
 
+[tool.poetry.group.tbtrans_init]
+optional = true
+
+[tool.poetry.group.tbtrans_init.dependencies]
+sisl = "*"
+
+
+
 [tool.poetry.scripts]
 dptb = 'dptb.__main__:main'
 
