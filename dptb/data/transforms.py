@@ -628,16 +628,20 @@ class OrbitalMapper(BondMapper):
         # simply get a 1-d slice for each atom species.
 
         self.orbital_maps = {}
+        self.norbs = {}
 
         for ib in self.basis.keys():
             orbital_list = self.basis[ib]
             slices = {}
             start_index = 0
 
+            self.norbs.setdefault(ib, 0)
             for orb in orbital_list:
                 orb_l = re.findall(r'[A-Za-z]', orb)[0]
                 increment = (2*anglrMId[orb_l]+1)
+                self.norbs[ib] += increment
                 end_index = start_index + increment
+
                 slices[orb] = slice(start_index, end_index)
                 start_index = end_index
             
@@ -687,3 +691,6 @@ class OrbitalMapper(BondMapper):
     
     def __eq__(self, other):
         return self.basis == other.basis and self.method == other.method
+    
+    def transform_rme(self):
+        pass

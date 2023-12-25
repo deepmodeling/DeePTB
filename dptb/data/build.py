@@ -106,6 +106,8 @@ def build_dataset(set_options, common_options):
         "reduce_edge": set_options.get("reduce_edge", None)
     }
 
+    AtomicDataOptions.update(set_options.get("AtomicData_options", {}))
+
     type = set_options["type"]
 
     # input in set_option needed for ABACUS Dataset:

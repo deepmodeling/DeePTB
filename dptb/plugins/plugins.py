@@ -41,9 +41,9 @@ class Saver(Plugin):
 
         updated_loss = self.trainer.stats.get('validation_loss')
         if updated_loss is not None:
-            updated_loss = updated_loss.get('last',1e6)
+            updated_loss = updated_loss.get('epoch_mean',1e6)
         else:
-            updated_loss = self.trainer.stats.get("train_loss").get("last",1e6)
+            updated_loss = self.trainer.stats.get("train_loss").get("epoch_mean",1e6)
 
 
         if updated_loss < self.best_loss:

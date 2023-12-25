@@ -98,12 +98,15 @@ class E3BaseLineModelSWTP(torch.nn.Module):
 
         assert all(ir in irreps_out for _, ir in pair_irreps), "hidden irreps should at least cover all the reqired irreps in the hamiltonian data {}".format(pair_irreps)
         
+        # TODO: check if the tp in first layer can produce the required irreps for hidden states
+
         self.sh = SphericalHarmonics(
             irreps_sh, sh_normalized, sh_normalization
         )
         self.onehot = OneHotAtomEncoding(num_types=n_atom, set_features=False)
 
         self.init_layer = InitLayer(
+            idp=self.idp,
             num_types=n_atom,
             n_radial_basis=n_radial_basis,
             r_max=r_max,
@@ -173,11 +176,11 @@ class E3BaseLineModelSWTP(torch.nn.Module):
         data = self.onehot(data)
         node_one_hot = data[_keys.NODE_ATTRS_KEY]
         atom_type = data[_keys.ATOM_TYPE_KEY].flatten()
-        latents, features, cutoff_coeffs, active_edges = self.init_layer(edge_index, edge_sh, edge_length, node_one_hot)
-
+        bond_type = data[_keys.EDGE_TYPE_KEY].flatten()
+        latents, features, cutoff_coeffs, active_edges = self.init_layer(edge_index, bond_type, edge_sh, edge_length, node_one_hot)
+    
         for layer in self.layers:
             latents, features, cutoff_coeffs, active_edges = layer(edge_index, edge_sh, atom_type, latents, features, cutoff_coeffs, active_edges)
-
         
         if self.layers[-1].env_sum_normalizations.ndim < 1:
             norm_const = self.layers[-1].env_sum_normalizations
@@ -410,6 +413,7 @@ class InitLayer(torch.nn.Module):
     def __init__(
             self,
             # required params
+            idp,
             num_types: int,
             n_radial_basis: int,
             r_max: float,
@@ -436,7 +440,22 @@ class InitLayer(torch.nn.Module):
         super(InitLayer, self).__init__()
         SCALAR = o3.Irrep("0e")
         self.num_types = num_types
-        self.r_max = torch.tensor(r_max, device=device, dtype=dtype)
+        if isinstance(r_max, float) or isinstance(r_max, int):
+            self.r_max = torch.tensor(r_max, device=device, dtype=dtype)
+            self.r_max_dict = None
+        elif isinstance(r_max, dict):
+            c_set = set(list(r_max.values()))
+            self.r_max = torch.tensor(max(list(r_max.values())), device=device, dtype=dtype)
+            if len(r_max) == 1 or len(c_set) == 1:
+                self.r_max_dict = None
+            else:
+                self.r_max_dict = {}
+                for k,v in r_max.items():
+                    self.r_max_dict[k] = torch.tensor(v, device=device, dtype=dtype)
+        else:
+            raise TypeError("r_max should be either float, int or dict")
+                  
+        self.idp = idp
         self.two_body_latent_kwargs = two_body_latent_kwargs
         self.r_start_cos_ratio = r_start_cos_ratio
         self.polynomial_cutoff_p = PolynomialCutoff_p
@@ -479,11 +498,12 @@ class InitLayer(torch.nn.Module):
                         mlp_output_dimension=self._env_weighter.weight_numel,
                         **env_embed_kwargs,
                     )
+        
         self.bessel = BesselBasis(r_max=self.r_max, num_basis=n_radial_basis, trainable=True)
 
 
 
-    def forward(self, edge_index, edge_sh, edge_length, node_one_hot):
+    def forward(self, edge_index, bond_type, edge_sh, edge_length, node_one_hot):
         edge_center = edge_index[0]
         edge_neighbor = edge_index[1]
 
@@ -491,24 +511,56 @@ class InitLayer(torch.nn.Module):
         node_invariants = node_one_hot
 
         # Vectorized precompute per layer cutoffs
-        if self.cutoff_type == "cosine":
-            cutoff_coeffs = cosine_cutoff(
-                edge_length,
-                self.r_max.reshape(-1),
-                r_start_cos_ratio=self.r_start_cos_ratio,
-            ).flatten()
+        if self.r_max_dict is None:
+            if self.cutoff_type == "cosine":
+                cutoff_coeffs = cosine_cutoff(
+                    edge_length,
+                    self.r_max.reshape(-1),
+                    r_start_cos_ratio=self.r_start_cos_ratio,
+                ).flatten()
 
-        elif self.cutoff_type == "polynomial":
-            cutoff_coeffs = polynomial_cutoff(
-                edge_length, self.r_max.reshape(-1), p=self.polynomial_cutoff_p
-            ).flatten()
+            elif self.cutoff_type == "polynomial":
+                cutoff_coeffs = polynomial_cutoff(
+                    edge_length, self.r_max.reshape(-1), p=self.polynomial_cutoff_p
+                ).flatten()
 
+            else:
+                # This branch is unreachable (cutoff type is checked in __init__)
+                # But TorchScript doesn't know that, so we need to make it explicitly
+                # impossible to make it past so it doesn't throw
+                # "cutoff_coeffs_all is not defined in the false branch"
+                assert False, "Invalid cutoff type"
         else:
-            # This branch is unreachable (cutoff type is checked in __init__)
-            # But TorchScript doesn't know that, so we need to make it explicitly
-            # impossible to make it past so it doesn't throw
-            # "cutoff_coeffs_all is not defined in the false branch"
-            assert False, "Invalid cutoff type"
+            cutoff_coeffs = torch.zeros(edge_index.shape[1], dtype=self.dtype, device=self.device)
+
+            for bond, ty in self.idp.bond_to_type.items():
+                mask = bond_type == ty
+                index = mask.nonzero().squeeze(-1)
+
+                if mask.any():
+                    iatom, jatom = bond.split("-")
+                    if self.cutoff_type == "cosine":
+                        c_coeff = cosine_cutoff(
+                            edge_length[mask],
+                            0.5*(self.r_max_dict[iatom]+self.r_max_dict[jatom]),
+                            r_start_cos_ratio=self.r_start_cos_ratio,
+                        ).flatten()
+                    elif self.cutoff_type == "polynomial":
+                        c_coeff = polynomial_cutoff(
+                            edge_length[mask],
+                            0.5*(self.r_max_dict[iatom]+self.r_max_dict[jatom]),
+                            p=self.polynomial_cutoff_p
+                        ).flatten()
+
+                    else:
+                        # This branch is unreachable (cutoff type is checked in __init__)
+                        # But TorchScript doesn't know that, so we need to make it explicitly
+                        # impossible to make it past so it doesn't throw
+                        # "cutoff_coeffs_all is not defined in the false branch"
+                        assert False, "Invalid cutoff type"
+
+                    cutoff_coeffs = torch.index_copy(cutoff_coeffs, 0, index, c_coeff)
+
 
         # Determine which edges are still in play
         prev_mask = cutoff_coeffs > 0
@@ -526,6 +578,7 @@ class InitLayer(torch.nn.Module):
             node_invariants[edge_neighbor],
             edge_invariants,
         ], dim=-1)[prev_mask])
+
         # Apply cutoff, which propagates through to everything else
         new_latents = cutoff_coeffs[active_edges].unsqueeze(-1) * new_latents
         latents = torch.index_copy(latents, 0, active_edges, new_latents)
@@ -871,5 +924,4 @@ class Layer(torch.nn.Module):
             latents = torch.index_copy(latents, 0, active_edges, new_latents)
         
         return latents, features, cutoff_coeffs, active_edges
-        
-        
+    

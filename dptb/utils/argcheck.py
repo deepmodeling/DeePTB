@@ -418,7 +418,7 @@ def e3baseline():
             Argument("irreps_hidden", str, optional=True, default="64x0e+32x1o+16x2e+8x3o+8x4e+4x5o", doc=doc_irreps_hidden),
             Argument("lmax", int, optional=True, default=3, doc=doc_lmax),
             Argument("avg_num_neighbors", [int, float], optional=True, default=50, doc=doc_avg_num_neighbors),
-            Argument("r_max", float, optional=False, doc=doc_r_max),
+            Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
             Argument("n_layers", int, optional=True, default=3, doc=doc_n_layers),
             Argument("n_radial_basis", int, optional=True, default=3, doc=doc_n_radial_basis),
             Argument("env_embed_multiplicity", int, optional=True, default=10, doc=doc_env_embed_multiplicity),

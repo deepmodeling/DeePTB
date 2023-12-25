@@ -5,6 +5,9 @@ import torch
 import re
 import e3nn.o3 as o3
 import h5py
+import logging
+
+log = logging.getLogger(__name__)
 
 def ham_block_to_feature(data, idp, Hamiltonian_blocks, overlap_blocks=False): 
     # Hamiltonian_blocks should be a h5 group in the current version
@@ -53,15 +56,30 @@ def ham_block_to_feature(data, idp, Hamiltonian_blocks, overlap_blocks=False):
 
     for atom_i, atom_j, R_shift in zip(edge_index[0], edge_index[1], edge_cell_shift):
         block_index = '_'.join(map(str, map(int, [atom_i+1, atom_j+1] + list(R_shift))))
-        try:
-            block = Hamiltonian_blocks[block_index]
-            if overlap_blocks:
-                block_s = overlap_blocks[block_index]
-        except:
-            raise IndexError("Hamiltonian block for hopping not found, r_cut may be too big for input R.")
-
         symbol_i = ase.data.chemical_symbols[atomic_numbers[atom_i]]
         symbol_j = ase.data.chemical_symbols[atomic_numbers[atom_j]]
+
+        # try:
+        #     block = Hamiltonian_blocks[block_index]
+        #     if overlap_blocks:
+        #         block_s = overlap_blocks[block_index]
+        # except:
+        #     raise IndexError("Hamiltonian block for hopping not found, r_cut may be too big for input R.")
+
+        block = Hamiltonian_blocks.get(block_index, 0)
+        if overlap_blocks:
+            block_s = overlap_blocks.get(block_index, 0)
+        if block == 0:
+            block = torch.zeros(idp.norbs[symbol_i], idp.norbs[symbol_j])
+            log.warning("Hamiltonian block for hopping {} not found, r_cut may be too big for input R.".format(block_index))
+        if overlap_blocks:
+            if block_s == 0:
+                block_s = torch.zeros(idp.norbs[symbol_i], idp.norbs[symbol_j])
+                log.warning("Overlap block for hopping {} not found, r_cut may be too big for input R.".format(block_index))
+
+        assert block.shape == (idp.norbs[symbol_i], idp.norbs[symbol_j])
+
+        
         basis_i_list = idp.basis[symbol_i]
         basis_j_list = idp.basis[symbol_j]
         hopping_out = np.zeros(idp.edge_reduced_matrix_element)

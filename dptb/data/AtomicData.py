@@ -929,51 +929,55 @@ def neighbor_list_and_relative_vec(
     #     second_idex = second_idex[keep_edge]
     #     shifts = shifts[keep_edge]
 
-    if reduce:
-        """
-        bond list is: i, j, shift; but i j shift and j i -shift are the same bond. so we need to remove the duplicate bonds.s
-        first for i != j; we only keep i < j; then the j i -shift will be removed.
-        then, for i == j; we only keep i i shift and remove i i -shift.
-        """
-        # 1. for i != j, keep i < j
-        assert atomic_numbers is not None
-        atomic_numbers = torch.as_tensor(atomic_numbers, dtype=torch.long)
-        mask = first_idex <= second_idex
-        first_idex = first_idex[mask]
-        second_idex = second_idex[mask]
-        shifts = shifts[mask]
+    """
+    bond list is: i, j, shift; but i j shift and j i -shift are the same bond. so we need to remove the duplicate bonds.s
+    first for i != j; we only keep i < j; then the j i -shift will be removed.
+    then, for i == j; we only keep i i shift and remove i i -shift.
+    """
+    # 1. for i != j, keep i < j
+    assert atomic_numbers is not None
+    atomic_numbers = torch.as_tensor(atomic_numbers, dtype=torch.long)
+    mask = first_idex <= second_idex
+    first_idex = first_idex[mask]
+    second_idex = second_idex[mask]
+    shifts = shifts[mask]
 
-        # 2. for i == j
-        
-        mask = torch.ones(len(first_idex), dtype=torch.bool)
-        mask[first_idex == second_idex] = False
-        # get index bool type ~mask  for i == j.
-        o_first_idex = first_idex[~mask]
-        o_second_idex = second_idex[~mask]
-        o_shift = shifts[~mask]
-        o_mask = mask[~mask]  # this is all False, with length being the number all  the bonds with i == j.
+    # 2. for i == j
+    
+    mask = torch.ones(len(first_idex), dtype=torch.bool)
+    mask[first_idex == second_idex] = False
+    # get index bool type ~mask  for i == j.
+    o_first_idex = first_idex[~mask]
+    o_second_idex = second_idex[~mask]
+    o_shift = shifts[~mask]
+    o_mask = mask[~mask]  # this is all False, with length being the number all  the bonds with i == j.
 
-        
-        # using the dict key to remove the duplicate bonds, because it is O(1) to check if a key is in the dict.
-        rev_dict = {}
-        for i in range(len(o_first_idex)):
-            key = str(o_first_idex[i])+str(o_shift[i])
-            key_rev = str(o_first_idex[i])+str(-o_shift[i])
-            rev_dict[key] = True
-            # key_rev is the reverse key of key, if key_rev is in the dict, then the bond is duplicate.
-            # so， only when key_rev is not in the dict, we keep the bond. that is when rev_dict.get(key_rev, False) is False, we set o_mast = True.
-            if not (rev_dict.get(key_rev, False) and rev_dict.get(key, False)):
-                o_mask[i] = True
-        del rev_dict
-        del o_first_idex
-        del o_second_idex
-        del o_shift
-        mask[~mask] = o_mask
-        del o_mask
-        
-        first_idex = first_idex[mask]
-        second_idex = second_idex[mask]
-        shifts = shifts[mask]
+    
+    # using the dict key to remove the duplicate bonds, because it is O(1) to check if a key is in the dict.
+    rev_dict = {}
+    for i in range(len(o_first_idex)):
+        key = str(o_first_idex[i])+str(o_shift[i])
+        key_rev = str(o_first_idex[i])+str(-o_shift[i])
+        rev_dict[key] = True
+        # key_rev is the reverse key of key, if key_rev is in the dict, then the bond is duplicate.
+        # so， only when key_rev is not in the dict, we keep the bond. that is when rev_dict.get(key_rev, False) is False, we set o_mast = True.
+        if not (rev_dict.get(key_rev, False) and rev_dict.get(key, False)):
+            o_mask[i] = True
+    del rev_dict
+    del o_first_idex
+    del o_second_idex
+    del o_shift
+    mask[~mask] = o_mask
+    del o_mask
+    
+    first_idex = first_idex[mask]
+    second_idex = second_idex[mask]
+    shifts = shifts[mask]
+
+    if not reduce:
+        first_idex = torch.stack((first_idex, second_idex), dim=0)
+        second_idex = torch.stack((second_idex, first_idex), dim=0)
+        shifts = torch.cat((shifts, -shifts), dim=0)
 
     # Build output:
     edge_index = torch.vstack(
