@@ -239,5 +239,5 @@ def save2json(input_dict:dict, nrl_tb_dict:dict, outdir='./out'):
     with open(f'{outdir}/input_nrl_auto.json','w') as f:
         json.dump(input_dict,f,indent=4)
     
-    with open(f'{outdir}/nrl_tb_ckpt.json','w') as f:
+    with open(f'{outdir}/nrl_ckpt.json','w') as f:
         json.dump(nrl_tb_dict,f,indent=4)
