@@ -3,7 +3,7 @@ from dptb.utils.constants import atomic_num_dict_r
 from dptb.nnsktb.formula import SKFormula
 from dptb.utils.index_mapping import Index_Mapings
 from dptb.nnsktb.skintTypes import all_skint_types, all_onsite_intgrl_types, NRL_skint_type_constants
-
+import re
 
 # define the function for output all the hoppongs for given i,j.
 
@@ -20,7 +20,7 @@ class SKintHops(SKFormula):
             self.bond_index_dict = sk_bond_ind_dict
             self.para_Consts = None 
             
-            if functype == 'NRL':
+            if re.search("NRL",functype): 
                 self.para_Consts = NRL_skint_type_constants(reducted_skint_types)
                 # call to get the para constants!
         # special onsite mode for strain, which use same sk strategy as hopping.

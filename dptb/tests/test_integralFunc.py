@@ -85,7 +85,7 @@ class TestSKintHops:
                      'N-B-2p-2s-0': torch.tensor([-9.8684613477e-05,  2.5365813053e-04, -7.5873947935e-04,-3.9372156607e-04]),
                      'B-B-2s-2s-0': torch.tensor([ 3.7772103678e-04,  1.5700524091e-04, -6.5438426100e-04,-9.9891236459e-05])}
         
-        skhops  = SKintHops(proj_atom_anglr_m=self.proj_atom_anglr_m, mode='hopping', functype='NRL')
+        skhops  = SKintHops(proj_atom_anglr_m=self.proj_atom_anglr_m, mode='hopping', functype='NRLv1')
         batch_hoppings = skhops.get_skhops(batch_bonds=self.batch_bonds, coeff_paras=coeffdict, rcut=3.0, w=0.3)
 
         with  pytest.raises(AssertionError):
@@ -106,7 +106,7 @@ class TestSKintHops:
             for i in range(len(batch_hoppings[kf])):
                 assert torch.allclose(batch_hoppings[kf][i], batch_hoppings_true[kf][i])
         
-        skhops_overlap  = SKintHops(proj_atom_anglr_m=self.proj_atom_anglr_m, mode='hopping', functype='NRL',overlap=True)
+        skhops_overlap  = SKintHops(proj_atom_anglr_m=self.proj_atom_anglr_m, mode='hopping', functype='NRLv1',overlap=True)
         batch_hoppings_2 = skhops_overlap.get_skhops(batch_bonds=self.batch_bonds, coeff_paras=coeffdict, rcut=3.0, w=0.3)
         
         assert isinstance(batch_hoppings_2, dict)
