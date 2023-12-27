@@ -7,6 +7,7 @@ from dptb.entrypoints.config import config
 from dptb.entrypoints.test import _test
 from dptb.entrypoints.run import run
 from dptb.entrypoints.bond import bond
+from dptb.entrypoints.nrl2json import nrl2json
 from dptb.utils.loggers import set_log_handles
 
 def get_ll(log_level: str) -> int:
@@ -109,6 +110,33 @@ def main_parser() -> argparse.ArgumentParser:
         type=float,
         default=6.0,
         help="The cutoff radius of bond search.",
+    )
+
+    # nrl2json
+    parser_nrl2json = subparsers.add_parser(
+        "n2j",
+        parents=[parser_log],
+        help="using DeePTB tools to convert NRL file to json model.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_nrl2json.add_argument(
+        "INPUT", help="the input parameter file in json or yaml format",
+        type=str,
+        default=None   
+    )
+    parser_nrl2json.add_argument(
+        "-nrl",
+        "--nrl_file",
+        type=str,
+        default=None,
+        help="The NRL file name"
+    )
+    parser_nrl2json.add_argument(
+        "-o",
+        "--outdir",
+        type=str,
+        default="./",
+        help="The output files to save the transfered model and updated input."
     )
 
     # train parser
@@ -321,3 +349,6 @@ def main():
 
     elif args.command == 'run':
         run(**dict_args)
+
+    elif args.command == 'n2j':
+        nrl2json(**dict_args)
