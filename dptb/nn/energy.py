@@ -22,7 +22,6 @@ class Eigenvalues(nn.Module):
             s_edge_field: str = None,
             s_node_field: str = None,
             s_out_field: str = None,
-            reduce: bool = True,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu")):
         super(Eigenvalues, self).__init__()
@@ -33,8 +32,7 @@ class Eigenvalues(nn.Module):
             node_field=h_node_field, 
             out_field=h_out_field, 
             dtype=dtype, 
-            device=device, 
-            reduce=reduce,
+            device=device,
             )
         
         if s_edge_field is not None:
@@ -45,8 +43,7 @@ class Eigenvalues(nn.Module):
                 node_field=s_node_field, 
                 out_field=s_out_field, 
                 dtype=dtype, 
-                device=device, 
-                reduce=reduce
+                device=device,
                 )
             
             self.overlap = True
@@ -56,7 +53,6 @@ class Eigenvalues(nn.Module):
         self.out_field = out_field
         self.h_out_field = h_out_field
         self.s_out_field = s_out_field
-        self.reduce = reduce
 
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:

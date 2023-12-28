@@ -58,12 +58,12 @@ class OnsiteFormula(BaseOnsite):
         
         self.idp = idp
         if self.functype in ["uniform", "none", "strain"]:
-            self.E_base = torch.zeros(self.idp.num_types, self.idp.node_reduced_matrix_element, dtype=dtype, device=device)
+            self.E_base = torch.zeros(self.idp.num_types, self.idp.n_onsite_Es, dtype=dtype, device=device)
             for asym, idx in self.idp.chemical_symbol_to_type.items():
-                self.E_base[idx] = torch.zeros(self.idp.node_reduced_matrix_element)
+                self.E_base[idx] = torch.zeros(self.idp.n_onsite_Es)
                 for ot in self.idp.basis[asym]:
                     fot = self.idp.basis_to_full_basis[asym][ot]
-                    self.E_base[idx][self.idp.node_maps[fot+"-"+fot]] = onsite_energy_database[asym][ot]
+                    self.E_base[idx][self.idp.skonsite_maps[fot]] = onsite_energy_database[asym][ot]
         
     def get_skEs(self, **kwargs):
         if self.functype == 'uniform':

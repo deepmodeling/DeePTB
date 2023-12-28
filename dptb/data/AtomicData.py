@@ -358,7 +358,6 @@ class AtomicData(Data):
         pbc: Optional[PBC] = None,
         er_max: Optional[float] = None,
         oer_max: Optional[float] = None,
-        reduce_edge: bool = True,
         **kwargs,
     ):
         """Build neighbor graph from points, optionally with PBC.
@@ -402,7 +401,7 @@ class AtomicData(Data):
             r_max=r_max,
             self_interaction=self_interaction,
             cell=cell,
-            reduce=reduce_edge,
+            reduce=False,
             atomic_numbers=kwargs.get("atomic_numbers", None),
             pbc=pbc,
         )
@@ -424,6 +423,7 @@ class AtomicData(Data):
                 self_interaction=self_interaction,
                 cell=cell,
                 reduce=False,
+                atomic_numbers=kwargs.get("atomic_numbers", None),
                 pbc=pbc,
             )
 
@@ -439,6 +439,7 @@ class AtomicData(Data):
                 self_interaction=self_interaction,
                 cell=cell,
                 reduce=False,
+                atomic_numbers=kwargs.get("atomic_numbers", None),
                 pbc=pbc
             )
 
@@ -970,24 +971,17 @@ def neighbor_list_and_relative_vec(
     mask[~mask] = o_mask
     del o_mask
     
-    first_idex = first_idex[mask]
-    second_idex = second_idex[mask]
-    shifts = shifts[mask]
+    first_idex = torch.LongTensor(first_idex[mask], device=out_device)
+    second_idex = torch.LongTensor(second_idex[mask], device=out_device)
+    shifts = torch.as_tensor(shifts[mask], dtype=out_dtype, device=out_device)
 
     if not reduce:
-        first_idex = torch.stack((first_idex, second_idex), dim=0)
-        second_idex = torch.stack((second_idex, first_idex), dim=0)
+        first_idex, second_idex = torch.cat((first_idex, second_idex), dim=0), torch.cat((second_idex, first_idex), dim=0)
         shifts = torch.cat((shifts, -shifts), dim=0)
-
+    
     # Build output:
     edge_index = torch.vstack(
         (torch.LongTensor(first_idex), torch.LongTensor(second_idex))
-    ).to(device=out_device)
-
-    shifts = torch.as_tensor(
-        shifts,
-        dtype=out_dtype,
-        device=out_device,
     )
 
     return edge_index, shifts, cell_tensor

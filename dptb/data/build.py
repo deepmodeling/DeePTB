@@ -103,7 +103,6 @@ def build_dataset(set_options, common_options):
         "r_max": common_options["bond_cutoff"],
         "er_max": common_options.get("env_cutoff", None),
         "oer_max": common_options.get("onsite_cutoff", None),
-        "reduce_edge": set_options.get("reduce_edge", None)
     }
 
     AtomicDataOptions.update(set_options.get("AtomicData_options", {}))

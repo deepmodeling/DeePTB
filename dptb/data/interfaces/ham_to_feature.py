@@ -6,6 +6,7 @@ import re
 import e3nn.o3 as o3
 import h5py
 import logging
+from dptb.utils.constants import anglrMId
 
 log = logging.getLogger(__name__)
 
@@ -17,8 +18,7 @@ def ham_block_to_feature(data, idp, Hamiltonian_blocks, overlap_blocks=False):
         edge_overlap = []
 
     idp.get_orbital_maps()
-    idp.get_node_maps()
-    idp.get_pair_maps()
+    idp.get_orbpair_maps()
 
     atomic_numbers = data[_keys.ATOMIC_NUMBERS_KEY]
 
@@ -32,7 +32,7 @@ def ham_block_to_feature(data, idp, Hamiltonian_blocks, overlap_blocks=False):
 
         symbol = ase.data.chemical_symbols[atomic_numbers[atom]]
         basis_list = idp.basis[symbol]
-        onsite_out = np.zeros(idp.node_reduced_matrix_element)
+        onsite_out = np.zeros(idp.reduced_matrix_element)
 
         for index, basis_i in enumerate(basis_list):
             slice_i = idp.orbital_maps[symbol][basis_i]  
@@ -44,7 +44,7 @@ def ham_block_to_feature(data, idp, Hamiltonian_blocks, overlap_blocks=False):
 
                 # fill onsite vector
                 pair_ij = full_basis_i + "-" + full_basis_j
-                feature_slice = idp.node_maps[pair_ij]
+                feature_slice = idp.orbpair_maps[pair_ij]
                 onsite_out[feature_slice] = block_ij.flatten()
 
         onsite_ham.append(onsite_out)
@@ -82,27 +82,28 @@ def ham_block_to_feature(data, idp, Hamiltonian_blocks, overlap_blocks=False):
         
         basis_i_list = idp.basis[symbol_i]
         basis_j_list = idp.basis[symbol_j]
-        hopping_out = np.zeros(idp.edge_reduced_matrix_element)
+        hopping_out = np.zeros(idp.reduced_matrix_element)
         if overlap_blocks:
-            overlap_out = np.zeros(idp.edge_reduced_matrix_element)
+            overlap_out = np.zeros(idp.reduced_matrix_element)
 
         for basis_i in basis_i_list:
             slice_i = idp.orbital_maps[symbol_i][basis_i]
             for basis_j in basis_j_list:
                 slice_j = idp.orbital_maps[symbol_j][basis_j]
-                block_ij = block[slice_i, slice_j]
-                if overlap_blocks:
-                    block_s_ij = block_s[slice_i, slice_j]
                 full_basis_i = idp.basis_to_full_basis[symbol_i][basis_i]
                 full_basis_j = idp.basis_to_full_basis[symbol_j][basis_j]
+                if idp.full_basis.index(full_basis_i) <= idp.full_basis.index(full_basis_j):
+                    block_ij = block[slice_i, slice_j]
+                    if overlap_blocks:
+                        block_s_ij = block_s[slice_i, slice_j]
 
-                # fill hopping vector
-                pair_ij = full_basis_i + "-" + full_basis_j
-                feature_slice = idp.pair_maps[pair_ij]
+                    # fill hopping vector
+                    pair_ij = full_basis_i + "-" + full_basis_j
+                    feature_slice = idp.orbpair_maps[pair_ij]
 
-                hopping_out[feature_slice] = block_ij.flatten()
-                if overlap_blocks:
-                    overlap_out[feature_slice] = block_s_ij.flatten()
+                    hopping_out[feature_slice] = block_ij.flatten()
+                    if overlap_blocks:
+                        overlap_out[feature_slice] = block_s_ij.flatten()
 
         edge_ham.append(hopping_out)
         if overlap_blocks:
@@ -135,8 +136,7 @@ def openmx_to_deeptb(data, idp, openmx_hpath):
     edge_ham = []
 
     idp.get_orbital_maps()
-    idp.get_node_maps()
-    idp.get_pair_maps()
+    idp.get_orbpair_maps()
 
     atomic_numbers = data[_keys.ATOMIC_NUMBERS_KEY]
 
@@ -152,7 +152,7 @@ def openmx_to_deeptb(data, idp, openmx_hpath):
         symbol = ase.data.chemical_symbols[atomic_numbers[atom]]
         block = rot_blocks[symbol] @ block @ rot_blocks[symbol].T
         basis_list = idp.basis[symbol]
-        onsite_out = np.zeros(idp.node_reduced_matrix_element)
+        onsite_out = np.zeros(idp.reduced_matrix_element)
 
         for index, basis_i in enumerate(basis_list):
             slice_i = idp.orbital_maps[symbol][basis_i]  
@@ -164,7 +164,7 @@ def openmx_to_deeptb(data, idp, openmx_hpath):
 
                 # fill onsite vector
                 pair_ij = full_basis_i + "-" + full_basis_j
-                feature_slice = idp.node_maps[pair_ij]
+                feature_slice = idp.orbpair_maps[pair_ij]
                 onsite_out[feature_slice] = block_ij.flatten()
 
         onsite_ham.append(onsite_out)
@@ -186,7 +186,7 @@ def openmx_to_deeptb(data, idp, openmx_hpath):
         block = rot_blocks[symbol_i] @ block @ rot_blocks[symbol_j].T
         basis_i_list = idp.basis[symbol_i]
         basis_j_list = idp.basis[symbol_j]
-        hopping_out = np.zeros(idp.edge_reduced_matrix_element)
+        hopping_out = np.zeros(idp.reduced_matrix_element)
 
         for basis_i in basis_i_list:
             slice_i = idp.orbital_maps[symbol_i][basis_i]
@@ -196,10 +196,11 @@ def openmx_to_deeptb(data, idp, openmx_hpath):
                 full_basis_i = idp.basis_to_full_basis[symbol_i][basis_i]
                 full_basis_j = idp.basis_to_full_basis[symbol_j][basis_j]
 
-                # fill hopping vector
-                pair_ij = full_basis_i + "-" + full_basis_j
-                feature_slice = idp.pair_maps[pair_ij]
-                hopping_out[feature_slice] = block_ij.flatten()
+                if idp.full_basis.index(full_basis_i) <= idp.full_basis.index(full_basis_j):
+                    # fill hopping vector
+                    pair_ij = full_basis_i + "-" + full_basis_j
+                    feature_slice = idp.orbpair_maps[pair_ij]
+                    hopping_out[feature_slice] = block_ij.flatten()
 
         edge_ham.append(hopping_out)
 

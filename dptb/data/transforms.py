@@ -408,11 +408,10 @@ class OrbitalMapper(BondMapper):
 
 
         if self.method == "e3tb":
-            self.edge_reduced_matrix_element = self.full_basis_norb ** 2
-            self.node_reduced_matrix_element = int(((orbtype_count["s"] + 9 * orbtype_count["p"] + 25 * orbtype_count["d"] + 49 * orbtype_count["f"]) + \
-                                                    self.edge_reduced_matrix_element)/2)
+            self.reduced_matrix_element = int(((orbtype_count["s"] + 9 * orbtype_count["p"] + 25 * orbtype_count["d"] + 49 * orbtype_count["f"]) + \
+                                                    self.full_basis_norb ** 2)/2)
         else:
-            self.edge_reduced_matrix_element = (
+            self.reduced_matrix_element = (
                 1 * orbtype_count["s"] * orbtype_count["s"] + \
                 2 * orbtype_count["s"] * orbtype_count["p"] + \
                 2 * orbtype_count["s"] * orbtype_count["d"] + \
@@ -428,11 +427,11 @@ class OrbitalMapper(BondMapper):
                 2 * orbtype_count["d"] * orbtype_count["f"]
                 ) + \
             4 * (orbtype_count["f"] * orbtype_count["f"])
-            
-            self.node_reduced_matrix_element = orbtype_count["s"] + orbtype_count["p"] + orbtype_count["d"] + orbtype_count["f"]
-                                     
-        
 
+            self.reduced_matrix_element = self.reduced_matrix_element + orbtype_count["s"] + 2*orbtype_count["p"] + 3*orbtype_count["d"] + 4*orbtype_count["f"]
+            self.reduced_matrix_element = int(self.reduced_matrix_element / 2)
+            self.n_onsite_Es = orbtype_count["s"] + orbtype_count["p"] + orbtype_count["d"] + orbtype_count["f"]
+                                     
         # sort the basis
         for ib in self.basis.keys():
             self.basis[ib] = sorted(
@@ -460,6 +459,13 @@ class OrbitalMapper(BondMapper):
 
                 self.basis_to_full_basis[ib][o] = str(count_dict[io])+io
         
+        # get the mapping from full basis to list basis
+        self.full_basis_to_basis = {}
+        for at, maps in self.basis_to_full_basis.items():
+            self.full_basis_to_basis[at] = {}
+            for k,v in maps.items():
+                self.full_basis_to_basis[at].update({v:k})
+        
         # Get the mask for mapping from full basis to atom specific basis
         self.mask_to_basis = torch.zeros(len(self.type_names), self.full_basis_norb, device=self.device, dtype=torch.bool)
         
@@ -475,18 +481,16 @@ class OrbitalMapper(BondMapper):
 
         assert (self.mask_to_basis.sum(dim=1).int()-self.atom_norb).abs().sum() <= 1e-6
 
-        self.get_pair_maps()
-        self.get_node_maps()
-
-        self.mask_to_erme = torch.zeros(len(self.bond_types), self.edge_reduced_matrix_element, dtype=torch.bool, device=self.device)
-        self.mask_to_nrme = torch.zeros(len(self.type_names), self.node_reduced_matrix_element, dtype=torch.bool, device=self.device)
+        self.get_orbpair_maps()
+        self.mask_to_erme = torch.zeros(len(self.bond_types), self.reduced_matrix_element, dtype=torch.bool, device=self.device)
+        self.mask_to_nrme = torch.zeros(len(self.type_names), self.reduced_matrix_element, dtype=torch.bool, device=self.device)
         for ib, bb in self.basis.items():
             for io in bb:
                 iof = self.basis_to_full_basis[ib][io]
                 for jo in bb:
                     jof = self.basis_to_full_basis[ib][jo]
-                    if self.node_maps.get(iof+"-"+jof) is not None:
-                        self.mask_to_nrme[self.chemical_symbol_to_type[ib]][self.node_maps[iof+"-"+jof]] = True
+                    if self.orbpair_maps.get(iof+"-"+jof) is not None:
+                        self.mask_to_nrme[self.chemical_symbol_to_type[ib]][self.orbpair_maps[iof+"-"+jof]] = True
         
         for ib in self.bond_to_type.keys():
             a,b = ib.split("-")
@@ -494,22 +498,23 @@ class OrbitalMapper(BondMapper):
                 iof = self.basis_to_full_basis[a][io]
                 for jo in self.basis[b]:
                     jof = self.basis_to_full_basis[b][jo]
-                    if self.pair_maps.get(iof+"-"+jof) is not None:
-                        self.mask_to_erme[self.bond_to_type[ib]][self.pair_maps[iof+"-"+jof]] = True
+                    if self.orbpair_maps.get(iof+"-"+jof) is not None:
+                        self.mask_to_erme[self.bond_to_type[ib]][self.orbpair_maps[iof+"-"+jof]] = True
+                    elif self.orbpair_maps.get(jof+"-"+iof) is not None:
+                        self.mask_to_erme[self.bond_to_type[ib]][self.orbpair_maps[jof+"-"+iof]] = True
 
-            
-    def get_pairtype_maps(self):
+    def get_orbpairtype_maps(self):
         """
-        The function `get_pairtype_maps` creates a mapping of orbital pair types, such as s-s, "s-p",
+        The function `get_orbpairtype_maps` creates a mapping of orbital pair types, such as s-s, "s-p",
         to slices based on the number of hops between them.
         :return: a dictionary called `pairtype_map`.
         """
         
-        self.pairtype_maps = {}
+        self.orbpairtype_maps = {}
         ist = 0
-        for io in ["s", "p", "d", "f"]:
+        for i, io in enumerate(["s", "p", "d", "f"]):
             if self.orbtype_count[io] != 0:
-                for jo in ["s", "p", "d", "f"]:
+                for jo in ["s", "p", "d", "f"][i:]:
                     if self.orbtype_count[jo] != 0:
                         orb_pair = io+"-"+jo
                         il, jl = anglrMId[io], anglrMId[jo]
@@ -518,110 +523,82 @@ class OrbitalMapper(BondMapper):
                         else:
                             n_rme = min(il, jl)+1
                         numhops =  self.orbtype_count[io] * self.orbtype_count[jo] * n_rme
-                        self.pairtype_maps[orb_pair] = slice(ist, ist+numhops)
+                        if io == jo:
+                            numhops +=  self.orbtype_count[jo] * n_rme
+                            numhops = int(numhops / 2)
+                        self.orbpairtype_maps[orb_pair] = slice(ist, ist+numhops)
 
                         ist += numhops
-
-        return self.pairtype_maps
+                        
+        return self.orbpairtype_maps
     
-    def get_pair_maps(self):
+    def get_orbpair_maps(self):
 
-        # here we have the map from basis to full basis, but to define a map between basis pair to full basis pair,
-        # one need to consider the id of the full basis pairs. Specifically, if we want to know the position where
-        # "s*-2s" lies, we map it to the pair in full basis as "1s-2s", but we need to know the id of "1s-2s" in the 
-        # features vector. For a full basis have three s: [1s, 2s, 3s], it will have 9 s features. Therefore, we need
-        # to build a map from the full basis pair to the position in the vector.
+        if hasattr(self, "orbpair_maps"):
+            return self.orbpair_maps
 
-        # We define the feature vector should look like [1s-1s, 1s-2s, 1s-3s, 2s-1s, 2s-2s, 2s-3s, 3s-1s, 3s-2s, 3s-3s,...]
-        # it is sorted by the index of the left basis first, then the right basis. Therefore, we can build a map:
-
-        # to do so we need the pair type maps first
-        if hasattr(self, "pair_maps"):
-            return self.pair_maps
+        if not hasattr(self, "orbpairtype_maps"):
+            self.get_orbpairtype_maps()
         
-        if not hasattr(self, "pairtype_maps"):
-            self.pairtype_maps = self.get_pairtype_maps()
-        self.pair_maps = {}
-        for io in self.full_basis:
-            for jo in self.full_basis:
-                full_basis_pair = io+"-"+jo
-                ir, jr = int(full_basis_pair[0]), int(full_basis_pair[3])
-                iio, jjo = full_basis_pair[1], full_basis_pair[4]
-
-                if self.method == "e3tb":
-                    n_feature = (2*anglrMId[iio]+1) * (2*anglrMId[jjo]+1)
-                else:
-                    n_feature = min(anglrMId[iio], anglrMId[jjo])+1
-                
-
-                start = self.pairtype_maps[iio+"-"+jjo].start + \
-                    n_feature * ((ir-1)*self.orbtype_count[jjo]+(jr-1))
-                
-                self.pair_maps[io+"-"+jo] = slice(start, start+n_feature)
-
-        return self.pair_maps
-    
-    def get_node_maps(self):
-
-        if hasattr(self, "node_maps"):
-            return self.node_maps
-
-        if not hasattr(self, "nodetype_maps"):
-            self.get_nodetype_maps()
-        
-        self.node_maps = {}
+        self.orbpair_maps = {}
         for i, io in enumerate(self.full_basis):
             for jo in self.full_basis[i:]:
                 full_basis_pair = io+"-"+jo
                 ir, jr = int(full_basis_pair[0]), int(full_basis_pair[3])
                 iio, jjo = full_basis_pair[1], full_basis_pair[4]
+                il, jl = anglrMId[iio], anglrMId[jjo]
 
                 if self.method == "e3tb":
-                    n_feature = (2*anglrMId[iio]+1) * (2*anglrMId[jjo]+1)
-                    if iio == jjo:
-                        start = self.nodetype_maps[iio+"-"+jjo].start + \
-                            n_feature * ((2*self.orbtype_count[jjo]+2-ir) * (ir-1) / 2 + (jr - ir))
-                    else:
-                        start = self.nodetype_maps[iio+"-"+jjo].start + \
-                            n_feature * ((ir-1)*self.orbtype_count[jjo]+(jr-1))
-                    start = int(start)
-                    self.node_maps[io+"-"+jo] = slice(start, start+n_feature)
+                    n_feature = (2*il+1) * (2*jl+1)
                 else:
-                    if io == jo:
-                        start = int(self.nodetype_maps[iio+"-"+jjo].start + (ir-1))
-                        self.node_maps[io+"-"+jo] = slice(start, start+1)
+                    n_feature = min(il, jl)+1
+                if iio == jjo:
+                    start = self.orbpairtype_maps[iio+"-"+jjo].start + \
+                        n_feature * ((2*self.orbtype_count[jjo]+2-ir) * (ir-1) / 2 + (jr - ir))
+                else:
+                    start = self.orbpairtype_maps[iio+"-"+jjo].start + \
+                        n_feature * ((ir-1)*self.orbtype_count[jjo]+(jr-1))
+                start = int(start)
+                self.orbpair_maps[io+"-"+jo] = slice(start, start+n_feature)
 
-        return self.node_maps
+        return self.orbpair_maps
+    
+    def get_skonsite_maps(self):
 
-    def get_nodetype_maps(self):
-        self.nodetype_maps = {}
+        assert self.method == "sktb", "Only sktb orbitalmapper have skonsite maps."
+
+        if hasattr(self, "skonsite_maps"):
+            return self.skonsite_maps
+
+        if not hasattr(self, "skonsitetype_maps"):
+            self.get_skonsitetype_maps()
+        
+        self.skonsite_maps = {}
+        for i, io in enumerate(self.full_basis):
+            ir= int(io[0])
+            iio = io[1]
+
+            start = int(self.skonsitetype_maps[iio].start + (ir-1))
+            self.skonsite_maps[io] = slice(start, start+1)
+
+        return self.skonsite_maps
+
+    def get_skonsitetype_maps(self):
+        self.skonsitetype_maps = {}
         ist = 0
 
+        assert self.method == "sktb", "Only sktb orbitalmapper have skonsite maps."
         for i, io in enumerate(["s", "p", "d", "f"]):
             if self.orbtype_count[io] != 0:
-                for jo in ["s", "p", "d", "f"][i:]:
-                    if self.orbtype_count[jo] != 0:
-                        orb_pair = io+"-"+jo
-                        il, jl = anglrMId[io], anglrMId[jo]
-                        if self.method == "e3tb":
-                            numonsites =  self.orbtype_count[io] * self.orbtype_count[jo] * (2*il+1) * (2*jl+1)
-                            if io == jo:
-                                numonsites +=  self.orbtype_count[jo] * (2*il+1) * (2*jl+1)
-                                numonsites = int(numonsites / 2)
-                        else:
-                            if io == jo:
-                                numonsites = self.orbtype_count[io]
-                            else:
-                                numonsites = 0
+                il = anglrMId[io]
+                numonsites = self.orbtype_count[io]
 
-                        self.nodetype_maps[orb_pair] = slice(ist, ist+numonsites)
+                self.skonsitetype_maps[io] = slice(ist, ist+numonsites)
 
-                        ist += numonsites
+                ist += numonsites
 
+        return self.skonsitetype_maps
 
-        return self.nodetype_maps
-
-        
         # also need to think if we modify as this, how can we add extra basis when fitting.
 
     def get_orbital_maps(self):
@@ -653,15 +630,12 @@ class OrbitalMapper(BondMapper):
         assert self.method == "e3tb", "Only support e3tb method for now."
         self.no_parity=True
 
-        if hasattr(self, "node_irreps") and hasattr(self, "pair_irreps"):
+        if hasattr(self, "orbpair_irreps"):
             if self.no_parity == no_parity:
-                return self.node_maps, self.pair_irreps
+                return self.orbpair_irreps
 
-        if not hasattr(self, "nodetype_maps"):
-            self.get_nodetype_maps()
-
-        if not hasattr(self, "pairtype_maps"):
-            self.get_pairtype_maps()
+        if not hasattr(self, "orbpairtype_maps"):
+            self.get_orbpairtype_maps()
 
         irs = []
         if no_parity:
@@ -669,28 +643,16 @@ class OrbitalMapper(BondMapper):
         else:
             factor = -1
 
-        for pair, sli in self.pairtype_maps.items():
-            l1, l2 = anglrMId[pair[0]], anglrMId[pair[2]]
-            p = factor**(l1+l2)
-            required_ls = range(abs(l1 - l2), l1 + l2 + 1)
-            required_irreps = [(1,(l, p)) for l in required_ls]
-            irs += required_irreps*int((sli.stop-sli.start)/(2*l1+1)/(2*l2+1))
-
-        self.pair_irreps = o3.Irreps(irs)
-
         irs = []
-        for pair, sli in self.nodetype_maps.items():
+        for pair, sli in self.orbpairtype_maps.items():
             l1, l2 = anglrMId[pair[0]], anglrMId[pair[2]]
             p = factor**(l1+l2)
             required_ls = range(abs(l1 - l2), l1 + l2 + 1)
             required_irreps = [(1,(l, p)) for l in required_ls]
             irs += required_irreps*int((sli.stop-sli.start)/(2*l1+1)/(2*l2+1))
         
-        self.node_irreps = o3.Irreps(irs)
-        return self.node_irreps, self.pair_irreps
+        self.orbpair_irreps = o3.Irreps(irs)
+        return self.orbpair_irreps
     
     def __eq__(self, other):
         return self.basis == other.basis and self.method == other.method
-    
-    def transform_rme(self):
-        pass

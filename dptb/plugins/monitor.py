@@ -1,6 +1,8 @@
 from dptb.plugins.base_plugin import Plugin
 import logging
 import time
+import torch
+from dptb.data import AtomicData
 
 log = logging.getLogger(__name__)
 

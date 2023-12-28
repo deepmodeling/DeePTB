@@ -92,19 +92,16 @@ class DPTB(nn.Module):
             self.idp = idp
             
         self.basis = self.idp.basis
-        self.idp.get_node_maps()
-        self.idp.get_pair_maps()
+        self.idp.get_orbpair_maps()
 
         n_species = len(self.basis.keys())
-
-
         # initialize the embedding layer
         self.embedding = Embedding(**embedding, dtype=dtype, device=device, idp=self.idp, n_atom=n_species)
         
         # initialize the prediction layer
             
         if self.method == "sktb":
-            prediction["neurons"] = [self.embedding.out_node_dim] + prediction["neurons"] + [self.idp.node_reduced_matrix_element]
+            prediction["neurons"] = [self.embedding.out_node_dim] + prediction["neurons"] + [self.idp.n_onsite_Es]
             prediction["config"] = get_neuron_config(prediction["neurons"])
 
             self.node_prediction_h = AtomicResNet(
@@ -116,7 +113,7 @@ class DPTB(nn.Module):
             )
 
             prediction["neurons"][0] = self.embedding.out_edge_dim
-            prediction["neurons"][-1] = self.idp.edge_reduced_matrix_element
+            prediction["neurons"][-1] = self.idp.reduced_matrix_element
             prediction["config"] = get_neuron_config(prediction["neurons"])
             self.edge_prediction_h = AtomicResNet(
                 **prediction,

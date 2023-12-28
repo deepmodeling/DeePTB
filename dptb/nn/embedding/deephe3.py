@@ -56,12 +56,12 @@ class E3DeePH(nn.Module):
                 irreps_embed_node=irreps_embed, 
                 irreps_sh=irreps_sh,
                 irreps_mid_node=irreps_mid, 
-                irreps_post_node=self.idp.node_irreps.sort()[0].simplify(), # it can be derived from the basis
-                irreps_out_node=self.idp.node_irreps, # it can be dervied from the basis
+                irreps_post_node=self.idp.orbpair_irreps.sort()[0].simplify(), # it can be derived from the basis
+                irreps_out_node=self.idp.orbpair_irreps, # it can be dervied from the basis
                 irreps_edge_init=irreps_embed,
                 irreps_mid_edge=irreps_mid, 
-                irreps_post_edge=self.idp.pair_irreps.sort()[0].simplify(), # it can be dervied from the basis
-                irreps_out_edge=self.idp.pair_irreps, # it can be dervied from the basis
+                irreps_post_edge=self.idp.orbpair_irreps.sort()[0].simplify(), # it can be dervied from the basis
+                irreps_out_edge=self.idp.orbpair_irreps, # it can be dervied from the basis
                 num_block=n_layer,
                 r_max=rc, 
                 use_sc=False,

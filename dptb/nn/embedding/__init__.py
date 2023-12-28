@@ -4,15 +4,16 @@ from .baseline import BASELINE
 from .mpnn import MPNN
 from .deephe3 import E3DeePH
 from .e3baseline import E3BaseLineModel
-from .e3baseline_org import E3BaseLineModel_org
-from .e3baseline_swtp import E3BaseLineModelSWTP
+from .e3baseline_local import E3BaseLineModelLocal
+from .e3baseline_nonlocal import E3BaseLineModelNonLocal
+from .e3baseline_nonlocal_wnode import E3BaseLineModelNonLocalWNODE
 
 __all__ = [
     "Descriptor",
     "SE2Descriptor",
     "Identity",
     "E3DeePH",
-    "E3BaseLineModel",
-    "E3BaseLineModel_org",
-    "E3BaseLineModelSWTP",
+    "E3BaseLineModelLocal",
+    "E3BaseLineModelNonLocal",
+    "E3BaseLineModelNonLocalWNODE",
 ]

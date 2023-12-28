@@ -30,8 +30,8 @@ from dptb.data.AtomicDataDict import with_edge_vectors, with_env_vectors, with_b
 
 from math import ceil
 
-@Embedding.register("e3baseline_swtp")
-class E3BaseLineModelSWTP(torch.nn.Module):
+@Embedding.register("e3baseline_nonlocal")
+class E3BaseLineModelNonLocal(torch.nn.Module):
     def __init__(
             self,
             basis: Dict[str, Union[str, list]]=None,
@@ -66,7 +66,7 @@ class E3BaseLineModelSWTP(torch.nn.Module):
             device: Union[str, torch.device] = torch.device("cpu"),
             ):
         
-        super(E3BaseLineModelSWTP, self).__init__()
+        super(E3BaseLineModelNonLocal, self).__init__()
 
         irreps_hidden = o3.Irreps(irreps_hidden)
 
@@ -87,16 +87,16 @@ class E3BaseLineModelSWTP(torch.nn.Module):
         self.idp.get_irreps(no_parity=False)
 
         irreps_sh=o3.Irreps([(1, (i, (-1) ** i)) for i in range(lmax + 1)])
-        pair_irreps = self.idp.pair_irreps.sort()[0].simplify()
+        orbpair_irreps = self.idp.orbpair_irreps.sort()[0].simplify()
 
         # check if the irreps setting satisfied the requirement of idp
         irreps_out = []
         for mul, ir1 in irreps_hidden:
-            for _, ir2 in pair_irreps:
+            for _, ir2 in orbpair_irreps:
                 irreps_out += [o3.Irrep(str(irr)) for irr in ir1*ir2]
         irreps_out = o3.Irreps(irreps_out).sort()[0].simplify()
 
-        assert all(ir in irreps_out for _, ir in pair_irreps), "hidden irreps should at least cover all the reqired irreps in the hamiltonian data {}".format(pair_irreps)
+        assert all(ir in irreps_out for _, ir in orbpair_irreps), "hidden irreps should at least cover all the reqired irreps in the hamiltonian data {}".format(orbpair_irreps)
         
         # TODO: check if the tp in first layer can produce the required irreps for hidden states
 
@@ -137,7 +137,7 @@ class E3BaseLineModelSWTP(torch.nn.Module):
                 irreps_in = irreps_hidden
             
             if i == n_layers - 1:
-                irreps_out = pair_irreps.sort()[0].simplify()
+                irreps_out = orbpair_irreps.sort()[0].simplify()
             else:
                 irreps_out = irreps_hidden
 
@@ -160,8 +160,8 @@ class E3BaseLineModelSWTP(torch.nn.Module):
             )
 
         # initilize output_layer
-        self.out_edge = Linear(self.layers[-1].irreps_out, self.idp.pair_irreps, shared_weights=True, internal_weights=True, biases=True)
-        self.out_node = Linear(self.layers[-1].irreps_out, self.idp.node_irreps, shared_weights=True, internal_weights=True, biases=True)
+        self.out_edge = Linear(self.layers[-1].irreps_out, self.idp.orbpair_irreps, shared_weights=True, internal_weights=True, biases=True)
+        self.out_node = Linear(self.layers[-1].irreps_out, self.idp.orbpair_irreps, shared_weights=True, internal_weights=True, biases=True)
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         data = with_edge_vectors(data, with_lengths=True)
@@ -187,7 +187,7 @@ class E3BaseLineModelSWTP(torch.nn.Module):
         else:
             norm_const = self.layers[-1].env_sum_normalizations[atom_type.flatten()].unsqueeze(-1)
 
-        data[_keys.EDGE_FEATURES_KEY] = torch.zeros(edge_index.shape[1], self.idp.pair_irreps.dim, dtype=self.dtype, device=self.device)
+        data[_keys.EDGE_FEATURES_KEY] = torch.zeros(edge_index.shape[1], self.idp.orbpair_irreps.dim, dtype=self.dtype, device=self.device)
         data[_keys.EDGE_FEATURES_KEY] = torch.index_copy(data[_keys.EDGE_FEATURES_KEY], 0, active_edges, self.out_edge(features))
         node_features = scatter(features, edge_index[0][active_edges], dim=0)
         data[_keys.NODE_FEATURES_KEY] = self.out_node(node_features * norm_const)
@@ -561,7 +561,6 @@ class InitLayer(torch.nn.Module):
 
                     cutoff_coeffs = torch.index_copy(cutoff_coeffs, 0, index, c_coeff)
 
-
         # Determine which edges are still in play
         prev_mask = cutoff_coeffs > 0
         active_edges = (cutoff_coeffs > 0).nonzero().squeeze(-1)
@@ -732,8 +731,8 @@ class Layer(torch.nn.Module):
         )
         
         self.tp = SeparateWeightTensorProduct(
-            irreps_in1=self.irreps_in,
-            irreps_in2=self._env_weighter.irreps_out,
+            irreps_in1=self._env_weighter.irreps_out+self.irreps_in+self._env_weighter.irreps_out,
+            irreps_in2=irreps_sh,
             irreps_out=self.activation.irreps_in,
         )
         
@@ -865,10 +864,18 @@ class Layer(torch.nn.Module):
         local_env_per_edge = self.env_linears(local_env_per_edge)
         
         # local_env_per_edge = torch.cat([local_env_per_edge[edge_center[active_edges]], local_env_per_edge[edge_neighbor[active_edges]]], dim=-1)
-        local_env_per_edge = local_env_per_edge[edge_center[active_edges]]
+        # local_env_per_edge = local_env_per_edge[edge_center[active_edges]]
         # Now do the TP
         # recursively tp current features with the environment embeddings
-        new_features = self.tp(self.lin_pre(features), local_env_per_edge) # full_out_irreps
+        new_features = self.tp(
+            torch.cat(
+                [
+                    local_env_per_edge[edge_center[active_edges]], 
+                    self.lin_pre(features), 
+                    local_env_per_edge[edge_neighbor[active_edges]]
+                    ], dim=-1),
+                edge_sh[active_edges]) # full_out_irreps
+        
         new_features = self.activation(new_features)
         # # do the linear
         # new_features = self.linears(new_features)

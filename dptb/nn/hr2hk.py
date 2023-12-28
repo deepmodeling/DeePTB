@@ -16,7 +16,6 @@ class HR2HK(torch.nn.Module):
             overlap: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
-            reduce: bool = True,
             ):
         super(HR2HK, self).__init__()
 
@@ -25,7 +24,6 @@ class HR2HK(torch.nn.Module):
         self.dtype = dtype
         self.device = device
         self.overlap = overlap
-        self.reduce = reduce
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
@@ -37,8 +35,7 @@ class HR2HK(torch.nn.Module):
             self.idp = idp
         
         self.basis = self.idp.basis
-        self.idp.get_node_maps()
-        self.idp.get_pair_maps()
+        self.idp.get_orbpair_maps()
 
         self.edge_field = edge_field
         self.node_field = node_field
@@ -47,9 +44,11 @@ class HR2HK(torch.nn.Module):
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
 
         # construct bond wise hamiltonian block from obital pair wise node/edge features
+        # we assume the edge feature have the similar format as the node feature, which is reduced from orbitals index oj-oi with j>i
+
         orbpair_hopping = data[self.edge_field]
         orbpair_onsite = data.get(self.node_field)
-        bondwise_hopping = torch.zeros_like(orbpair_hopping).reshape(-1, self.idp.full_basis_norb, self.idp.full_basis_norb)
+        bondwise_hopping = torch.zeros((len(orbpair_hopping), self.idp.full_basis_norb, self.idp.full_basis_norb), dtype=self.dtype, device=self.device)
         bondwise_hopping.to(self.device)
         bondwise_hopping.type(self.dtype)
         onsite_block = torch.zeros((len(data[AtomicDataDict.ATOM_TYPE_KEY]), self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
@@ -62,23 +61,31 @@ class HR2HK(torch.nn.Module):
                 orbpair = iorb + "-" + jorb
                 lj = anglrMId[re.findall(r"[a-zA-Z]+", jorb)[0]]
                 
-                bondwise_hopping[:,ist:ist+2*li+1,jst:jst+2*lj+1] = orbpair_hopping[:,self.idp.pair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
-                
+                # constructing hopping blocks
+                if iorb == jorb:
+                    factor = 0.5
+                else:
+                    factor = 1.0
+
+                if i <= j:
+                    bondwise_hopping[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_hopping[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
+
+
+                # constructing onsite blocks
                 if self.overlap:
                     if iorb == jorb:
-                        onsite_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = torch.eye(2*li+1, dtype=self.dtype, device=self.device).reshape(1, 2*li+1, 2*lj+1).repeat(onsite_block.shape[0], 1, 1)
+                        onsite_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = factor * torch.eye(2*li+1, dtype=self.dtype, device=self.device).reshape(1, 2*li+1, 2*lj+1).repeat(onsite_block.shape[0], 1, 1)
                 else:
                     if i <= j:
-                        onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = orbpair_onsite[:,self.idp.node_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
-                    else:
-                        onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = onsite_block[:,jst:jst+2*lj+1,ist:ist+2*li+1].transpose(1,2)
+                        onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
+
                 jst += 2*lj+1
             ist += 2*li+1
         self.onsite_block = onsite_block
         self.bondwise_hopping = bondwise_hopping
 
 
-        # R2K procedure can be done for all kpoint at once, try to implement this.
+        # R2K procedure can be done for all kpoint at once.
         all_norb = self.idp.atom_norb[data[AtomicDataDict.ATOM_TYPE_KEY]].sum()
         block = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], all_norb, all_norb, dtype=self.dtype, device=self.device)
         block = torch.complex(block, torch.zeros_like(block))
@@ -88,11 +95,7 @@ class HR2HK(torch.nn.Module):
         for i, oblock in enumerate(onsite_block):
             mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
             masked_oblock = oblock[mask][:,mask]
-            if self.reduce:
-                factor = 0.5
-            else:
-                factor = 1.0
-            block[:,ist:ist+masked_oblock.shape[0],ist:ist+masked_oblock.shape[1]] = factor * masked_oblock.squeeze(0)
+            block[:,ist:ist+masked_oblock.shape[0],ist:ist+masked_oblock.shape[1]] = masked_oblock.squeeze(0)
             atom_id_to_indices[i] = slice(ist, ist+masked_oblock.shape[0])
             ist += masked_oblock.shape[0]
         
@@ -108,8 +111,7 @@ class HR2HK(torch.nn.Module):
             block[:,iatom_indices,jatom_indices] += masked_hblock.squeeze(0).type_as(block) * \
                 torch.exp(-1j * 2 * torch.pi * (data[AtomicDataDict.KPOINT_KEY] @ data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i])).reshape(-1,1,1)
 
-        if self.reduce:
-            block = block + block.transpose(1,2).conj()
+        block = block + block.transpose(1,2).conj()
         block = block.contiguous()
 
         data[self.out_field] = block

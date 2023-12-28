@@ -190,7 +190,7 @@ class NodeUpdateBlock(nn.Module):
         
         if self.use_sc:
             node_self_connection = self.sc(node_fea, node_one_hot)
-
+ 
         node_fea = self.lin_pre(node_fea)
 
         index_i = edge_index[0]

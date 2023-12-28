@@ -26,7 +26,6 @@ class Loss:
         else:
             raise Exception(f"Loss method: {method} is not registered!")
 
-
 @Loss.register("eigvals")
 class EigLoss(nn.Module):
     def __init__(
@@ -34,7 +33,6 @@ class EigLoss(nn.Module):
             basis: Dict[str, Union[str, list]]=None,
             idp: Union[OrbitalMapper, None]=None,
             overlap: bool=False,
-            reduce: bool=True,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             **kwargs,
@@ -42,7 +40,6 @@ class EigLoss(nn.Module):
         super(EigLoss, self).__init__()
         self.loss = nn.MSELoss()
         self.device = device
-        self.reduce = reduce
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
@@ -64,7 +61,6 @@ class EigLoss(nn.Module):
                 s_out_field = None, 
                 dtype=dtype, 
                 device=device,
-                reduce=reduce,
                 )
         else:
             self.eigenvalue = Eigenvalues(
@@ -78,7 +74,6 @@ class EigLoss(nn.Module):
                 s_out_field = AtomicDataDict.OVERLAP_KEY, 
                 dtype=dtype, 
                 device=device,
-                reduce=reduce,
                 )
 
         self.overlap = overlap
@@ -260,4 +255,4 @@ class HamilLossAbs(nn.Module):
 
             return (1/3) * (hopping_loss + onsite_loss + overlap_loss)
         else:
-            return 0.5 * (hopping_loss + onsite_loss)
+            return 0.5 * (hopping_loss + onsite_loss) 
