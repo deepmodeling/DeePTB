@@ -30,6 +30,7 @@ class _TrajData(object):
     "hamiltonians.h5": h5 file storing atom-wise hamiltonian blocks labeled by frames id and `i0_jR_Rx_Ry_Rz`.
     "overlaps.h5": the same format of overlap blocks as `hamiltonians.h5`
     '''
+    
     def __init__(self, root: str, AtomicData_options: Dict[str, Any] = {},):
         self.root = root
         self.AtomicData_options = AtomicData_options

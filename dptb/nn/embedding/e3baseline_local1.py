@@ -30,8 +30,8 @@ from dptb.data.AtomicDataDict import with_edge_vectors, with_env_vectors, with_b
 
 from math import ceil
 
-@Embedding.register("e3baseline_local")
-class E3BaseLineModelLocal(torch.nn.Module):
+@Embedding.register("e3baseline_local1")
+class E3BaseLineModelLocal1(torch.nn.Module):
     def __init__(
             self,
             basis: Dict[str, Union[str, list]]=None,
@@ -66,7 +66,7 @@ class E3BaseLineModelLocal(torch.nn.Module):
             device: Union[str, torch.device] = torch.device("cpu"),
             ):
         
-        super(E3BaseLineModelLocal, self).__init__()
+        super(E3BaseLineModelLocal1, self).__init__()
 
         irreps_hidden = o3.Irreps(irreps_hidden)
 
@@ -662,10 +662,11 @@ class Layer(torch.nn.Module):
                 ]
             )
 
-        mul_irreps_sh = o3.Irreps([(env_embed_multiplicity, ir) for _, ir in irreps_sh])
+        # mul_irreps_sh = o3.Irreps([(env_embed_multiplicity, ir) for _, ir in irreps_sh])
+        irreps_weighted = o3.Irreps([(env_embed_multiplicity, ir) for _, ir in irreps_in])
         self._env_weighter = Linear(
-            irreps_in=irreps_sh,
-            irreps_out=mul_irreps_sh,
+            irreps_in=irreps_in,
+            irreps_out=irreps_weighted,
             internal_weights=False,
             shared_weights=False,
             path_normalization = "element",
@@ -676,8 +677,8 @@ class Layer(torch.nn.Module):
 
         if self.linear_after_env_embed:
             self.env_linears = Linear(
-                mul_irreps_sh,
-                mul_irreps_sh,
+                irreps_weighted,
+                irreps_weighted,
                 shared_weights=True,
                 internal_weights=True,
             )
@@ -733,8 +734,6 @@ class Layer(torch.nn.Module):
         
         irreps_scalar = o3.Irreps(str(self.irreps_out[0]))
         irreps_gated = o3.Irreps([(mul, ir) for mul, ir in self.irreps_out if ir.l > 0]).simplify()
-        
-        
         irreps_gates = o3.Irreps([(mul, (0,1)) for mul, _ in irreps_gated]).simplify()
         act={1: torch.nn.functional.silu, -1: torch.tanh}
         act_gates={1: torch.sigmoid, -1: torch.tanh}
@@ -746,7 +745,7 @@ class Layer(torch.nn.Module):
         )
         
         self.tp = SeparateWeightTensorProduct(
-            irreps_in1=self.irreps_in,
+            irreps_in1=irreps_sh,
             irreps_in2=self._env_weighter.irreps_out,
             irreps_out=self.activation.irreps_in,
         )
@@ -841,7 +840,7 @@ class Layer(torch.nn.Module):
             self.register_buffer(
                 "_latent_resnet_update_params", latent_resnet_update_params
             )
-
+    
     def forward(self, edge_index, edge_sh, atom_type, latents, features, cutoff_coeffs, active_edges):
         # update V
         # update X
@@ -868,7 +867,7 @@ class Layer(torch.nn.Module):
         # have weights for (env_w) anyway.
         # So we mask out the edges in the sum:
         local_env_per_edge = scatter(
-            self._env_weighter(edge_sh[active_edges], weights),
+            self._env_weighter(features, weights),
             edge_center[active_edges],
             dim=0,
         )
@@ -889,7 +888,7 @@ class Layer(torch.nn.Module):
         # local_env_per_edge = local_env_per_edge[edge_center[active_edges]]
         # Now do the TP
         # recursively tp current features with the environment embeddings
-        new_features = self.tp(self.lin_pre(features), local_env_per_edge[edge_center[active_edges]]) # full_out_irreps
+        new_features = self.tp(edge_sh[active_edges], local_env_per_edge[edge_center[active_edges]]) # full_out_irreps
         
         new_features = self.activation(new_features)
         # # do the linear

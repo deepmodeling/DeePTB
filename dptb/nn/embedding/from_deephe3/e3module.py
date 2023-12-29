@@ -115,7 +115,7 @@ class e3LayerNorm(nn.Module):
         self.irreps_in = Irreps(irreps_in)
         self.eps = eps
         
-        if affine:          
+        if affine:
             ib, iw = 0, 0
             weight_slices, bias_slices = [], []
             for mul, ir in irreps_in:
