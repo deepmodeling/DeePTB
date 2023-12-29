@@ -67,15 +67,15 @@ We design an example of `tbtrans_negf` for hBN in `DeePTB/examples/tbtrans_hBN`ï
 
 Firstly we calculate the $\Gamma$ point transmission, which evidently shows the band gap in the middle.
 <div align=center>
-<img src="https://raw.githubusercontent.com/AsymmetryChou/DeePTB/tbtrans_doc/docs/img/hBN_gamma_trans.png" width = "60%" height = "50%" alt="hBN gamma transmission" align=center />
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hBN_gamma_trans.png" width = "60%" height = "50%" alt="hBN gamma transmission" align=center />
 </div>
 Sum up all the k points we get k-average transmission. 
 <div align=center>
-<img src="https://raw.githubusercontent.com/AsymmetryChou/DeePTB/tbtrans_doc/docs/img/hBN_kavg_trans.png" width = "60%" height = "50%" alt="hBN gamma transmission" align=center />
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hBN_kavg_trans.png" width = "60%" height = "50%" alt="hBN gamma transmission" align=center />
 </div>
 Finally we calculate directly I-V in non-self-consistent manner 
 <div align=center>
-<img src="https://raw.githubusercontent.com/AsymmetryChou/DeePTB/tbtrans_doc/docs/img/hBN_IV.png" width = "60%" height = "50%" alt="hBN gamma transmission" align=center />
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hBN_IV.png" width = "60%" height = "50%" alt="hBN gamma transmission" align=center />
 </div>
 
 
