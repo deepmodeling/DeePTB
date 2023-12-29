@@ -2,7 +2,7 @@
 import torch as th
 from abc import ABC, abstractmethod
 from dptb.nnsktb.bondlengthDB import bond_length
-
+import re
 
 class BaseSK(ABC):
     def __init__(self) -> None:
@@ -35,14 +35,13 @@ class SKFormula(BaseSK):
             self.num_paras = 2
             assert hasattr(self, 'powerlaw')
 
-        elif functype == 'NRL':
+        elif re.search("NRL",functype):
             self.functype = functype
             self.num_paras = 4
             assert hasattr(self, 'NRL_HOP')
             if overlap:
                 self.overlap_num_paras = 4
                 assert hasattr(self, 'NRL_OVERLAP')
-
 
         elif functype =='custom':
              # the functype custom, is for user to define their own formula.
@@ -68,7 +67,7 @@ class SKFormula(BaseSK):
             return self.varTang96(rij=rij, **kwargs)
         elif self.functype == 'powerlaw':
             return self.powerlaw(rij=rij, **kwargs)
-        elif self.functype == 'NRL':
+        elif re.search("NRL",self.functype):
             return self.NRL_HOP(rij=rij, **kwargs)
         else:
             raise ValueError('No such formula')
@@ -83,8 +82,13 @@ class SKFormula(BaseSK):
         '''
         assert self.overlap, 'overlap is False, no overlap function is defined.'
 
-        if self.functype == 'NRL':
-            return self.NRL_OVERLAP(rij=rij, **kwargs)
+        if self.functype == 'NRLv0':
+            return self.NRL_OVERLAP(rij=rij,overlap_type=0, **kwargs)
+        elif self.functype == 'NRLv1':
+            return self.NRL_OVERLAP(rij=rij,overlap_type=1, **kwargs)
+        elif self.functype == "NRL":
+            # default is designed for overlap type 1.
+            return self.NRL_OVERLAP(rij=rij,overlap_type=1, **kwargs)
         else:
             raise ValueError('No such formula')
 
@@ -146,7 +150,7 @@ class SKFormula(BaseSK):
 
         return (a + b * rij + c * rij**2) * th.exp(-d**2 * rij)*f_rij
 
-    def NRL_OVERLAP(self, rij, paraArray, paraconst, rcut:th.float32 = th.tensor(6), w:th.float32 = 0.1, **kwargs):
+    def NRL_OVERLAP(self, rij, paraArray, paraconst, rcut:th.float32 = th.tensor(6), w:th.float32 = 0.1, overlap_type=1, **kwargs):
         """
         This function calculates the Overlap value of the form of NRL-TB 
 
@@ -175,4 +179,9 @@ class SKFormula(BaseSK):
         f_rij = 1/(1+th.exp((rij-rcut+5*w)/w))
         f_rij[rij>=rcut] = 0.0
 
-        return (delta_ll + a * rij + b * rij**2 + c * rij**3) * th.exp(-d**2 * rij)*f_rij
+        if overlap_type==1:
+            return (delta_ll + a * rij + b * rij**2 + c * rij**3) * th.exp(-d**2 * rij)*f_rij
+        elif overlap_type ==0:
+            return (a + b * rij + c * rij**2) * th.exp(-d**2 * rij)*f_rij
+        else:
+            raise ValueError('No such overlap type')
