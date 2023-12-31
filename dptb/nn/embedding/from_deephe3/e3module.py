@@ -5,10 +5,12 @@ from torch_scatter import scatter
 from torch_geometric.utils import degree
 from scipy.optimize import brentq
 from scipy import special as sp
-
+from e3nn.util.jit import compile_mode
 from e3nn.o3 import Irrep, Irreps, wigner_3j, matrix_to_angles, Linear, FullyConnectedTensorProduct, TensorProduct, SphericalHarmonics
 from e3nn.nn import Extract
 import numpy as np
+from typing import Union
+import e3nn.o3 as o3
 from ...cutoff import polynomial_cutoff
 import sympy as sym
 
@@ -196,7 +198,6 @@ class e3LayerNorm(nn.Module):
                 
         return out
 
-
 class e3ElementWise:
     def __init__(self, irreps_in):
         self.irreps_in = Irreps(irreps_in)
@@ -280,11 +281,11 @@ class SelfTp(nn.Module):
         weights = torch.cat(weights)
         return self.tp(x, x, weights)
     
-
+@compile_mode("script")
 class SeparateWeightTensorProduct(nn.Module):
-    def __init__(self, irreps_in1, irreps_in2, irreps_out, **kwargs):
+    def __init__(self, irreps_in1: Union[str, o3.Irreps], irreps_in2: Union[str, o3.Irreps], irreps_out: Union[str, o3.Irreps], **kwargs):
         '''z_i = W'_{ij}x_j W''_{ik}y_k'''
-        super().__init__()
+        super(SeparateWeightTensorProduct, self).__init__()
         
         assert not kwargs.pop('internal_weights', False) # internal weights must be True
         assert kwargs.pop('shared_weights', True) # shared weights must be false
@@ -292,6 +293,9 @@ class SeparateWeightTensorProduct(nn.Module):
         irreps_in1 = Irreps(irreps_in1)
         irreps_in2 = Irreps(irreps_in2)
         irreps_out = Irreps(irreps_out)
+        self.irreps_in1 = irreps_in1
+        self.irreps_in2 = irreps_in2
+        self.irreps_out = irreps_out
                 
         instr_tp = []
         weights1, weights2 = [], []
@@ -308,7 +312,7 @@ class SeparateWeightTensorProduct(nn.Module):
         self.weights1 = nn.ParameterList(weights1)
         self.weights2 = nn.ParameterList(weights2)
         
-    def forward(self, x1, x2):
+    def forward(self, x1: torch.Tensor, x2: torch.Tensor):
         weights = []
         for weight1, weight2 in zip(self.weights1, self.weights2):
             weight = weight1[:, None, :] * weight2[None, :, :]

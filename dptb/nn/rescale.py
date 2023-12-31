@@ -6,7 +6,9 @@ import logging
 from typing import Optional, List, Union
 import torch.nn.functional
 from e3nn.o3 import Linear
+from e3nn.util.jit import compile_mode
 from dptb.data import AtomicDataDict
+import e3nn.o3 as o3
 
 class PerSpeciesScaleShift(torch.nn.Module):
     """Scale and/or shift a predicted per-atom property based on (learnable) per-species/type parameters.
@@ -410,3 +412,82 @@ class E3PerSpeciesScaleShift(torch.nn.Module):
             in_field[:, self.shift_index>=0] = shifts + in_field[:, self.shift_index>=0]
         data[self.out_field] = in_field
         return data
+    
+
+@compile_mode("script")
+class E3ElementLinear(torch.nn.Module):
+    """Sum edgewise energies.
+    Includes optional per-species-pair edgewise energy scales.
+    """
+
+    weight_numel: int
+
+    def __init__(
+        self,
+        irreps_in: o3.Irreps,
+        dtype: Union[str, torch.dtype] = torch.float32,
+        device: Union[str, torch.device] = torch.device("cpu"),
+        **kwargs,
+    ):
+        super(E3ElementLinear, self).__init__()
+        self.irreps_in = irreps_in
+        self.num_scalar = 0
+        self.device = device
+        self.dtype = dtype
+        self.shift_index = []
+        self.scale_index = []
+
+        count_scales= 0
+        count_shift = 0
+        for mul, ir in irreps_in:
+            if str(ir) == "0e":
+                self.num_scalar += mul
+                self.shift_index += list(range(count_shift, count_shift + mul))
+                count_shift += mul
+            else:
+                self.shift_index += [-1] * mul * ir.dim
+
+            for _ in range(mul):
+                self.scale_index += [count_scales] * ir.dim
+                count_scales += 1
+        
+        self.shift_index = torch.as_tensor(self.shift_index, dtype=torch.int64, device=self.device)
+        self.scale_index = torch.as_tensor(self.scale_index, dtype=torch.int64, device=self.device)
+
+        self.weight_numel = irreps_in.num_irreps + self.num_scalar
+        assert count_scales + count_shift == self.weight_numel
+        self.num_scales = count_scales
+        self.num_shifts = count_shift
+
+    def forward(self, x: torch.Tensor, weights: Optional[torch.Tensor]=None):
+        
+        scales = weights[:, :self.num_scales] if weights is not None else None
+        if weights is not None:
+            if weights.shape[1] > self.num_scales:
+                shifts = weights[:, self.num_scales:]
+            else:
+                shifts = None
+        else:
+            shifts = None
+
+        if scales is not None:
+            assert len(scales) == len(
+                x
+            ), "in_field doesnt seem to have correct shape as scales"
+            x = scales[:,self.scale_index].reshape(x.shape[0], -1) * x
+        else:
+            x = x
+
+        if shifts is not None:
+            assert len(shifts) == len(
+                x
+            ), "in_field doesnt seem to have correct shape as shifts"
+            
+            # bias = torch.zeros_like(x)
+            # bias[:, self.shift_index.ge(0)] = shifts[:,self.shift_index[self.shift_index.ge(0)]].reshape(-1, self.num_scalar)
+            # x = x + bias
+            x[:, self.shift_index.ge(0)] = shifts[:,self.shift_index[self.shift_index.ge(0)]].reshape(-1, self.num_scalar) + x[:, self.shift_index.ge(0)]
+        else:
+            x = x
+
+        return x

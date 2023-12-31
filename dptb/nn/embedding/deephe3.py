@@ -33,6 +33,8 @@ class E3DeePH(nn.Module):
             dtype = getattr(torch, dtype)
         self.dtype = dtype
         self.device = device
+
+        irreps_mid = o3.Irreps(irreps_mid)
         
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb")
@@ -76,7 +78,7 @@ class E3DeePH(nn.Module):
         
         self.net.to(self.device)
 
-        self.out_irreps = irreps_mid
+        self.out_irreps = self.idp.orbpair_irreps
         
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         data = with_edge_vectors(data, with_lengths=True)

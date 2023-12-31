@@ -413,6 +413,7 @@ def e3baseline():
     doc_env_embed_multiplicity = ""
     doc_linear_after_env_embed = ""
     doc_latent_resnet_update_ratios_learnable = ""
+    doc_latent_kwargs = ""
 
     return [
             Argument("irreps_hidden", str, optional=True, default="64x0e+32x1o+16x2e+8x3o+8x4e+4x5o", doc=doc_irreps_hidden),
@@ -421,6 +422,7 @@ def e3baseline():
             Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
             Argument("n_layers", int, optional=True, default=3, doc=doc_n_layers),
             Argument("n_radial_basis", int, optional=True, default=3, doc=doc_n_radial_basis),
+            Argument("latent_kwargs", [dict, None], optional=True, default=None, doc=doc_latent_kwargs),
             Argument("env_embed_multiplicity", int, optional=True, default=10, doc=doc_env_embed_multiplicity),
             Argument("linear_after_env_embed", bool, optional=True, default=False, doc=doc_linear_after_env_embed),
             Argument("latent_resnet_update_ratios_learnable", bool, optional=True, default=False, doc=doc_latent_resnet_update_ratios_learnable)

@@ -144,6 +144,7 @@ class DPTB(nn.Module):
                 device=self.device,
                 **prediction,
             )
+            
             self.edge_prediction_h = E3PerEdgeSpeciesScaleShift(
                 field=AtomicDataDict.EDGE_FEATURES_KEY,
                 num_types=n_species,

@@ -300,53 +300,72 @@ class HamilLossAnalysis(object):
         with torch.no_grad():
             out = {}
             err = data[AtomicDataDict.NODE_FEATURES_KEY] - ref_data[AtomicDataDict.NODE_FEATURES_KEY]
+            amp = ref_data[AtomicDataDict.NODE_FEATURES_KEY].abs()
             mask = self.idp.mask_to_nrme[data["atom_types"].flatten()]
             onsite = out.setdefault("onsite", {})
             for at, tp in self.idp.chemical_symbol_to_type.items():
                 onsite_mask = mask[data["atom_types"].flatten().eq(tp)]
                 onsite_err = err[data["atom_types"].flatten().eq(tp)]
                 onsite_err = torch.stack([vec[ma] for vec, ma in zip(onsite_err, onsite_mask)])
+                onsite_amp = torch.stack([vec[ma] for vec, ma in zip(amp, onsite_mask)])
                 rmserr = (onsite_err**2).mean(dim=0).sqrt()
                 maerr = onsite_err.abs().mean(dim=0)
+                l1amp = onsite_amp.abs().mean(dim=0)
+                l2amp = (onsite_amp**2).mean(dim=0).sqrt()
                 onsite[at] = {
                     "rmse":(rmserr**2).mean().sqrt(),
                     "mae":maerr.mean(),
                     "rmse_per_block_element":rmserr, 
-                    "mae_per_block_element":maerr
+                    "mae_per_block_element":maerr,
+                    "l1amp":l1amp,
+                    "l2amp":l2amp,
                     }
 
             err = data[AtomicDataDict.EDGE_FEATURES_KEY] - ref_data[AtomicDataDict.EDGE_FEATURES_KEY]
+            amp = ref_data[AtomicDataDict.EDGE_FEATURES_KEY].abs()
             mask = self.idp.mask_to_erme[data["edge_type"].flatten()]
             hopping = out.setdefault("hopping", {})
             for bt, tp in self.idp.bond_to_type.items():
                 hopping_mask = mask[data["edge_type"].flatten().eq(tp)]
                 hopping_err = err[data["edge_type"].flatten().eq(tp)]
                 hopping_err = torch.stack([vec[ma] for vec, ma in zip(hopping_err, hopping_mask)])
+                hopping_amp = torch.stack([vec[ma] for vec, ma in zip(amp, hopping_mask)])
                 rmserr = (hopping_err**2).mean(dim=0).sqrt()
                 maerr = hopping_err.abs().mean(dim=0)
+                l1amp = hopping_amp.abs().mean(dim=0)
+                l2amp = (hopping_amp**2).mean(dim=0).sqrt()
                 hopping[bt] = {
                     "rmse":(rmserr**2).mean().sqrt(),
                     "mae":maerr.mean(),
                     "rmse_per_block_element":rmserr, 
-                    "mae_per_block_element":maerr
+                    "mae_per_block_element":maerr,
+                    "l1amp":l1amp,
+                    "l2amp":l2amp,
                     }
             
             if self.overlap:
                 err = data[AtomicDataDict.EDGE_OVERLAP_KEY] - ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
+                amp = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY].abs()
                 mask = self.idp.mask_to_erme[data["edge_type"].flatten()]
                 overlap = out.setdefault("overlap", {})
+
                 for bt, tp in self.idp.bond_to_type.items():
                     hopping_mask = mask[data["edge_type"].flatten().eq(tp)]
                     hopping_err = err[data["edge_type"].flatten().eq(tp)]
                     hopping_err = torch.stack([vec[ma] for vec, ma in zip(hopping_err, hopping_mask)])
+                    hopping_amp = torch.stack([vec[ma] for vec, ma in zip(amp, hopping_mask)])
                     rmserr = (hopping_err**2).mean(dim=0).sqrt()
                     maerr = hopping_err.abs().mean(dim=0)
+                    l1amp = hopping_amp.abs().mean(dim=0)
+                    l2amp = (hopping_amp**2).mean(dim=0).sqrt()
 
                     overlap[bt] = {
                         "rmse":(rmserr**2).mean().sqrt(),
                         "mae":maerr.mean(),
                         "rmse_per_block_element":rmserr, 
-                        "mae_per_block_element":maerr
+                        "mae_per_block_element":maerr,
+                        "l1amp":l1amp,
+                        "l2amp":l2amp,
                         }
 
         return out
