@@ -97,6 +97,8 @@ def train(
     # this is not necessary, because if we init model from checkpoint, the build_model will load the model_options from checkpoints if not provided
     # since here we want to output jdata as a config file to inform the user what model options are used, we need to update the jdata
     
+    torch.set_default_dtype(getattr(torch, jdata["common_options"]["dtype"]))
+
     if restart or init_model:
         f = restart if restart else init_model
         f = torch.load(f)

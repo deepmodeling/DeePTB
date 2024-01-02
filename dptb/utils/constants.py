@@ -3,8 +3,6 @@ import ase
 from scipy.constants import Boltzmann, pi, elementary_charge, hbar
 import torch
 
-torch.set_default_dtype(torch.float32)
-
 anglrMId = {'s':0,'p':1,'d':2,'f':3}
 SKBondType = {0:'sigma',1:'pi',2:'delta'}
 au2Ang = 0.529177249
