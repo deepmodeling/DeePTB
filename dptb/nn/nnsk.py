@@ -11,6 +11,7 @@ from typing import Tuple, Union, Dict
 from dptb.data.transforms import OrbitalMapper
 from dptb.data import AtomicDataDict
 import numpy as np
+import torch.nn as nn
 from .sktb import OnsiteFormula, bond_length_list, HoppingFormula
 from dptb.utils.constants import atomic_num_dict_r, atomic_num_dict
 from dptb.nn.hamiltonian import SKHamiltonian
@@ -66,23 +67,31 @@ class NNSK(torch.nn.Module):
         
         # init_param
         # 
-        self.hopping_param = torch.nn.Parameter(torch.randn([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device))
+        hopping_param = torch.empty([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device)
+        nn.init.normal_(hopping_param, mean=0.0, std=0.01)
+        self.hopping_param = torch.nn.Parameter(hopping_param)
         if overlap:
-            self.overlap_param = torch.nn.Parameter(torch.randn([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device))
+            overlap_param = torch.empty([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device)
+            nn.init.normal_(overlap_param, mean=0.0, std=0.01)
+            self.overlap_param = torch.nn.Parameter(overlap_param)
 
         if self.onsite_options["method"] == "strain":
             self.onsite_param = None
         elif self.onsite_options["method"] == "none":
             self.onsite_param = None
         else:
-            self.onsite_param = torch.nn.Parameter(torch.randn([len(self.idp_sk.type_names), self.idp_sk.n_onsie_Es, self.onsite_fn.num_paras], dtype=self.dtype, device=self.device))
+            onsite_param = torch.empty([len(self.idp_sk.type_names), self.idp_sk.n_onsite_Es, self.onsite_fn.num_paras], dtype=self.dtype, device=self.device)
+            nn.init.normal_(onsite_param, mean=0.0, std=0.01)
+            self.onsite_param = torch.nn.Parameter(onsite_param)
         
         if self.onsite_options["method"] == "strain":
             # AB [ss, sp, sd, ps, pp, pd, ds, dp, dd]
             # AA [...]
             # but need to map to all pairs and all orbital pairs like AB, AA, BB, BA for [ss, sp, sd, ps, pp, pd, ds, dp, dd]
             # with this map: BA[sp, sd] = AB[ps, ds]
-            self.strain_param = torch.nn.Parameter(torch.randn([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device))
+            strain_param = torch.empty([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device)
+            nn.init.normal_(strain_param, mean=0.0, std=0.01)
+            self.strain_param = torch.nn.Parameter(strain_param)
             # symmetrize the env for same atomic spices
             
         self.hamiltonian = SKHamiltonian(idp_sk=self.idp_sk, dtype=self.dtype, device=self.device, strain=hasattr(self, "strain_param"))
@@ -253,6 +262,7 @@ class NNSK(torch.nn.Module):
         nnsk = {
             "onsite": onsite,
             "hopping": hopping,
+            "freeze": freeze,
         }
 
 
@@ -263,7 +273,7 @@ class NNSK(torch.nn.Module):
                 assert v is not None, f"You need to provide {k} when you are initializing a model from a json file."
 
             v1_model = j_loader(checkpoint)
-            ref_model = cls.from_model_v1(
+            model = cls._from_model_v1(
                 v1_model=v1_model,
                 **nnsk,
                 **common_options,
@@ -280,10 +290,10 @@ class NNSK(torch.nn.Module):
                 if v is None:
                     nnsk[k] = f["config"]["model_options"]["nnsk"][k]
 
-            ref_model = cls(**common_options, **nnsk)
+            model = cls(**common_options, **nnsk)
 
             if f["config"]["common_options"]["basis"] == basis:
-                ref_model.load_state_dict(f["model_state_dict"])
+                model.load_state_dict(f["model_state_dict"])
             else:
                 #TODO: handle the situation when ref_model config is not the same as the current model
                 # load hopping
@@ -292,53 +302,88 @@ class NNSK(torch.nn.Module):
 
                 ref_idp.get_orbpair_maps()
                 idp.get_orbpair_maps()
-                
+
+
                 params = f["model_state_dict"]["hopping_param"]
-                for ref_forbpair in ref_idp.orbpair_maps.keys():
-                    rfiorb, rfjorb = ref_forbpair.split("-")
-                    riorb, rjorb = ref_idp.full_basis_to_basis[rfiorb], ref_idp.full_basis_to_basis[rfjorb]
-                    fiorb, fjorb = idp.basis_to_full_basis.get(riorb), idp.basis_to_full_basis.get(rjorb)
-                    if fiorb is not None and fjorb is not None:
-                        ref_model.hopping_param.data[:,idp.orbpair_maps[f"{fiorb}-{fjorb}"]] = params[:,ref_idp.orbpair_maps[ref_forbpair]]
+                for bond in ref_idp.bond_types:
+                    if bond in idp.bond_types:
+                        iasym, jasym = bond.split("-")
+                        for ref_forbpair in ref_idp.orbpair_maps.keys():
+                            rfiorb, rfjorb = ref_forbpair.split("-")
+                            riorb, rjorb = ref_idp.full_basis_to_basis[iasym][rfiorb], ref_idp.full_basis_to_basis[jasym][rfjorb]
+                            fiorb, fjorb = idp.basis_to_full_basis[iasym].get(riorb), idp.basis_to_full_basis[jasym].get(rjorb)
+                            if fiorb is not None and fjorb is not None:
+                                sli = idp.orbpair_maps.get(f"{fiorb}-{fjorb}")
+                                b = bond
+                                if sli is None:
+                                    sli = idp.orbpair_maps.get(f"{fjorb}-{fiorb}")
+                                    b = f"{jasym}-{iasym}"
+                                model.hopping_param.data[idp.bond_to_type[b],sli] = \
+                                    params[ref_idp.bond_to_type[b],ref_idp.orbpair_maps[ref_forbpair]]
 
                 # load overlap
-                if hasattr(ref_model, "overlap_param") and f["model_state_dict"].get("overlap_param") != None:
+                if hasattr(model, "overlap_param") and f["model_state_dict"].get("overlap_param") != None:
                     params = f["model_state_dict"]["overlap_param"]
-                    for ref_forbpair in ref_idp.orbpair_maps.keys():
-                        rfiorb, rfjorb = ref_forbpair.split("-")
-                        riorb, rjorb = ref_idp.full_basis_to_basis[rfiorb], ref_idp.full_basis_to_basis[rfjorb]
-                        fiorb, fjorb = idp.basis_to_full_basis.get(riorb), idp.basis_to_full_basis.get(rjorb)
-                        if fiorb is not None and fjorb is not None:
-                            ref_model.overlap_param.data[:,idp.orbpair_maps[f"{fiorb}-{fjorb}"]] = params[:,ref_idp.orbpair_maps[ref_forbpair]]
+                    for bond in ref_idp.bond_types:
+                        if bond in idp.bond_types:
+                            iasym, jasym = bond.split("-")
+                            for ref_forbpair in ref_idp.orbpair_maps.keys():
+                                rfiorb, rfjorb = ref_forbpair.split("-")
+                                riorb, rjorb = ref_idp.full_basis_to_basis[rfiorb], ref_idp.full_basis_to_basis[rfjorb]
+                                fiorb, fjorb = idp.basis_to_full_basis.get(riorb), idp.basis_to_full_basis.get(rjorb)
+                                if fiorb is not None and fjorb is not None:
+                                    sli = idp.orbpair_maps.get(f"{fiorb}-{fjorb}")
+                                    b = bond
+                                    if sli is None:
+                                        sli = idp.orbpair_maps.get(f"{fjorb}-{fiorb}")
+                                        b = f"{jasym}-{iasym}"
+                                    model.overlap_param.data[idp.bond_to_type[b],sli] = \
+                                        params[ref_idp.bond_to_type[b],ref_idp.orbpair_maps[ref_forbpair]]
                 
                 # load onsite
-                if ref_model.onsite_param != None and f["model_state_dict"].get("onsite_param") != None:
+                if model.onsite_param != None and f["model_state_dict"].get("onsite_param") != None:
                     params = f["model_state_dict"]["onsite_param"]
                     ref_idp.get_skonsite_maps()
                     idp.get_skonsite_maps()
-                    for ref_forb in ref_idp.skonsite_maps.keys():
-                        rorb = ref_idp.full_basis_to_basis[ref_forb]
-                        forb = idp.basis_to_full_basis.get(rorb)
-                        if forb is not None:
-                            ref_model.overlap_param.data[:,idp.skonsite_maps[forb]] = params[:,ref_idp.skonsite_maps[ref_forb]]
+                    for asym in ref_idp.type_names:
+                        if asym in idp.type_names:
+                            for ref_forb in ref_idp.skonsite_maps.keys():
+                                rorb = ref_idp.full_basis_to_basis[asym][ref_forb]
+                                forb = idp.basis_to_full_basis[asym].get(rorb)
+                                if forb is not None:
+                                    model.onsite_param.data[idp.chemical_symbol_to_type[asym],idp.skonsite_maps[forb]] = \
+                                        params[ref_idp.chemical_symbol_to_type[asym],ref_idp.skonsite_maps[ref_forb]]
 
                 # load strain
-                if hasattr(ref_model, "strain_param") and f["model_state_dict"].get("strain_param") != None:
+                if hasattr(model, "strain_param") and f["model_state_dict"].get("strain_param") != None:
                     params = f["model_state_dict"]["strain_param"]
-                    for ref_forbpair in ref_idp.orbpair_maps.keys():
-                        rfiorb, rfjorb = ref_forbpair.split("-")
-                        riorb, rjorb = ref_idp.full_basis_to_basis[rfiorb], ref_idp.full_basis_to_basis[rfjorb]
-                        fiorb, fjorb = idp.basis_to_full_basis.get(riorb), idp.basis_to_full_basis.get(rjorb)
-                        if fiorb is not None and fjorb is not None:
-                            ref_model.strain_param.data[:,idp.orbpair_maps[f"{fiorb}-{fjorb}"]] = params[:,ref_idp.orbpair_maps[ref_forbpair]]
+                    for bond in ref_idp.bond_types:
+                        if bond in idp.bond_types:
+                            for ref_forbpair in ref_idp.orbpair_maps.keys():
+                                rfiorb, rfjorb = ref_forbpair.split("-")
+                                riorb, rjorb = ref_idp.full_basis_to_basis[rfiorb], ref_idp.full_basis_to_basis[rfjorb]
+                                fiorb, fjorb = idp.basis_to_full_basis.get(riorb), idp.basis_to_full_basis.get(rjorb)
+                                if fiorb is not None and fjorb is not None:
+                                    sli = idp.orbpair_maps.get(f"{fiorb}-{fjorb}")
+                                    b = bond
+                                    if sli is None:
+                                        sli = idp.orbpair_maps.get(f"{fjorb}-{fiorb}")
+                                        b = f"{jasym}-{iasym}"
+                                    model.strain_param.data[idp.bond_to_type[b], sli] = \
+                                        params[ref_idp.bond_to_type[b],ref_idp.orbpair_maps[ref_forbpair]]
 
-                pass
             del f
 
-        return ref_model
+        if freeze:
+            for (name, param) in model.named_parameters():
+                param.requires_grad = False
+            else:
+                param.requires_grad = True # in case initilizing some frozen checkpoint while with current freeze setted as False
+
+        return model
 
     @classmethod
-    def from_model_v1(
+    def _from_model_v1(
         cls, 
         v1_model: dict, 
         basis: Dict[str, Union[str, list]]=None,

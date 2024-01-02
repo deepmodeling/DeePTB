@@ -682,6 +682,12 @@ class Layer(torch.nn.Module):
                 dtype=dtype,
                 device=device,
             )
+
+            self._edge_weighter = E3ElementLinear(
+                irreps_in=irreps_out,
+                dtype=dtype,
+                device=device,
+            )
         
         # == Remove unneeded paths ==
         #TODO: add the remove unseen paths
@@ -837,11 +843,13 @@ class Layer(torch.nn.Module):
                 mlp_latent_dimensions=[],
                 mlp_output_dimension=self._node_weighter.weight_numel,
             )
+            
             self.edge_embed_mlps = ScalarMLPFunction(
                 mlp_input_dimension=latent_in,
                 mlp_latent_dimensions=[],
-                mlp_output_dimension=self._env_weighter.weight_numel,
+                mlp_output_dimension=self._edge_weighter.weight_numel,
             )
+            
         # - layer resnet update weights -
         if latent_resnet_update_ratios is None:
             # We initialize to zeros, which under the sigmoid() become 0.5
@@ -989,7 +997,7 @@ class Layer(torch.nn.Module):
             )
             node_features = node_features * norm_const
 
-            weights = self.edge_embed_mlps(latents[active_edges])
+            edge_weights = self.edge_embed_mlps(latents[active_edges])
 
             # the features's inclusion of the radial weight here is the only place
             # where features are weighted according to the radial distance
@@ -1001,7 +1009,12 @@ class Layer(torch.nn.Module):
                         local_env_per_edge[edge_neighbor[active_edges]],
                     ], dim=-1
                 ),
-                self._env_weighter(edge_sh[active_edges], weights)
+                edge_sh[active_edges],
+            )
+
+            features = self._edge_weighter(
+                features,
+                edge_weights,
             )
 
             return node_features, features, cutoff_coeffs, active_edges

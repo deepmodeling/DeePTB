@@ -454,6 +454,8 @@ class AtomicData(Data):
         cls,
         atoms,
         r_max,
+        er_max: Optional[float] = None,
+        oer_max: Optional[float] = None,
         key_mapping: Optional[Dict[str, str]] = {},
         include_keys: Optional[list] = [],
         **kwargs,
@@ -489,7 +491,7 @@ class AtomicData(Data):
                 "numbers",
                 "positions",
             ]  # ase internal names for position and atomic_numbers
-            + ["pbc", "cell", "pos", "r_max"]  # arguments for from_points method
+            + ["pbc", "cell", "pos", "r_max", "er_max", "oer_max"]  # arguments for from_points method
             + list(kwargs.keys())
         )
         # the keys that are duplicated in kwargs are removed from the include_keys
@@ -563,6 +565,8 @@ class AtomicData(Data):
         return cls.from_points(
             pos=atoms.positions,
             r_max=r_max,
+            er_max=er_max,
+            oer_max=oer_max,
             cell=cell,
             pbc=pbc,
             **kwargs,

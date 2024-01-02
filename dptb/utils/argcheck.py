@@ -422,7 +422,16 @@ def e3baseline():
             Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
             Argument("n_layers", int, optional=True, default=3, doc=doc_n_layers),
             Argument("n_radial_basis", int, optional=True, default=3, doc=doc_n_radial_basis),
-            Argument("latent_kwargs", [dict, None], optional=True, default=None, doc=doc_latent_kwargs),
+            Argument(
+                "latent_kwargs", dict,
+                optional={
+                "mlp_latent_dimensions": [128, 128, 256],
+                "mlp_nonlinearity": "silu",
+                "mlp_initialization": "uniform"
+            }, 
+            default=None, 
+            doc=doc_latent_kwargs
+            ),
             Argument("env_embed_multiplicity", int, optional=True, default=10, doc=doc_env_embed_multiplicity),
             Argument("linear_after_env_embed", bool, optional=True, default=False, doc=doc_linear_after_env_embed),
             Argument("latent_resnet_update_ratios_learnable", bool, optional=True, default=False, doc=doc_latent_resnet_update_ratios_learnable)

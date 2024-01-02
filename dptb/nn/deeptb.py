@@ -44,6 +44,7 @@ class DPTB(nn.Module):
             transform: bool = True,
             **kwargs,
     ):
+        
         """The top level DeePTB model class.
 
         Parameters
@@ -240,6 +241,7 @@ class DPTB(nn.Module):
             "basis": basis,
             "overlap": overlap,
         }
+
         model_options = {
             "embedding": embedding,
             "prediction": prediction,
@@ -252,7 +254,7 @@ class DPTB(nn.Module):
             if v is None:
                 common_options[k] = ckpt["config"]["common_options"][k]
         
-        model = cls(**model_options, **common_options)
+        model = cls(**model_options, **common_options, transform=transform)
         model.load_state_dict(ckpt["model_state_dict"])
 
         del ckpt

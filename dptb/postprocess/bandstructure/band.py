@@ -6,6 +6,7 @@ import ase
 from typing import Union
 import matplotlib.pyplot as plt
 import torch
+from typing import Optional
 import matplotlib
 import logging
 log = logging.getLogger(__name__)
@@ -165,25 +166,23 @@ class bandcalc(object):
 class Band(object):
     def __init__ (
             self, 
-            model: torch.nn.Module, 
-            outpath: str=None, 
-            ref_band: Union[str, np.array, torch.Tensor, bool]=None, 
+            model: torch.nn.Module,
+            results_path: Optional[str]=None,
             use_gui=False,
+            overlap=False,
             device: Union[str, torch.device]=torch.device('cpu')
             ):
         
         if isinstance(device, str):
             device = torch.device(device)
         self.device = device
-        self.out_path = outpath
         self.model = model
         self.model.eval()
-        self.ref_band = ref_band
-        if isinstance(ref_band, str):
-            self.ref_band = np.load(ref_band)
         self.use_gui = use_gui
+        self.results_path = results_path
+        self.overlap = overlap
 
-        if model.overlap:
+        if overlap:
             self.eigv = Eigenvalues(
                 idp=model.idp,
                 device=self.device,
@@ -199,69 +198,90 @@ class Band(object):
                 dtype=model.dtype,
             )
             
-    def get_bands(self, data: [AtomicData, ase.Atoms, str], kpath_kwargs: dict):
+    def get_bands(self, data: Union[AtomicData, ase.Atoms, str], kpath_kwargs: dict, AtomicData_options: dict={}):
         kline_type = kpath_kwargs['kline_type']
 
         # get the AtomicData structure and the ase structure
-        structase = None
+        if isinstance(data, str):
+            structase = read(data)
+            data = AtomicData.from_ase(structase, **AtomicData_options)
+        elif isinstance(data, ase.Atoms):
+            structase = data
+            data = AtomicData.from_ase(structase, **AtomicData_options)
+        elif isinstance(data, AtomicData):
+            structase = data.to_ase()
+            data = data
+        
+        
+        data = AtomicData.to_AtomicDataDict(data.to(self.device))
+        data = self.model.idp(data)
+
+        if self.overlap == True:
+            assert data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is not None
+            
         
         if kline_type == 'ase':
-            self.kpath = kpath_kwargs['kpath']
-            self.nkpoints = kpath_kwargs['nkpoints']
-            self.klist, self.xlist, self.high_sym_kpoints, self.labels = ase_kpath(structase=structase, pathstr=self.kpath, total_nkpoints=self.nkpoints)
+            kpath = kpath_kwargs['kpath']
+            nkpoints = kpath_kwargs['nkpoints']
+            klist, xlist, high_sym_kpoints, labels = ase_kpath(structase=structase, pathstr=kpath, total_nkpoints=nkpoints)
 
         elif kline_type == 'abacus':
-            self.kpath = kpath_kwargs['kpath']
-            self.labels = kpath_kwargs['klabels']
-            self.klist, self.xlist, self.high_sym_kpoints  = abacus_kpath(structase=structase, kpath=self.kpath)
+            kpath = kpath_kwargs['kpath']
+            labels = kpath_kwargs['klabels']
+            klist, xlist, high_sym_kpoints  = abacus_kpath(structase=structase, kpath=kpath)
         
         elif kline_type == 'vasp':
-            self.kpath = kpath_kwargs['kpath']
+            kpath = kpath_kwargs['kpath']
             high_sym_kpoints_dict = kpath_kwargs['high_sym_kpoints']
             number_in_line = kpath_kwargs['number_in_line']
-            self.klist, self.xlist, self.high_sym_kpoints, self.labels = vasp_kpath(structase=structase,
-                                                 pathstr=self.kpath, high_sym_kpoints_dict=high_sym_kpoints_dict, number_in_line=number_in_line)
+            klist, xlist, high_sym_kpoints, labels = vasp_kpath(structase=structase,
+                                                 pathstr=kpath, high_sym_kpoints_dict=high_sym_kpoints_dict, number_in_line=number_in_line)
         else:
             log.error('Error, now, kline_type only support ase_kpath, abacus, or vasp.')
             raise ValueError
         
-        # set the kpoint of the AtomicData 
+        # set the kpoint of the AtomicData
+        data[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(klist, dtype=self.model.dtype, device=self.device)
 
         # get the eigenvalues
-        all_bonds, hamil_blocks, overlap_blocks = self.apiH.get_HR()
-        self.eigenvalues, self.estimated_E_fermi = self.apiH.get_eigenvalues(self.klist)
+        data = self.model(data)
+        data = self.eigv(data)
 
-        if self.band_plot_options.get('E_fermi',None) != None:
-            self.E_fermi = self.band_plot_options['E_fermi']
-            log.info(f'set E_fermi from jdata: {self.E_fermi}, While the estimated value in line-mode is {self.estimated_E_fermi}')
-        else:
-            self.E_fermi = 0.0
-            log.info(f'set E_fermi = 0.0, While the estimated value in line-mode is {self.estimated_E_fermi}')
+        # get the E_fermi from data
+        estimated_E_fermi = None
 
-        eigenstatus = {'klist': self.klist,
-                        'xlist': self.xlist,
-                        'high_sym_kpoints': self.high_sym_kpoints,
-                        'labels': self.labels,
-                        'eigenvalues': self.eigenvalues,
-                        'E_fermi': self.E_fermi }
+        self.eigenstatus = {'klist': klist,
+                            'xlist': xlist,
+                            'high_sym_kpoints': high_sym_kpoints,
+                            'labels': labels,
+                            'eigenvalues': data[AtomicDataDict.ENERGY_EIGENVALUE_KEY].detach().cpu().numpy(),
+                            'E_fermi': estimated_E_fermi}
 
-        np.save(f'{self.results_path}/bandstructure',eigenstatus)
+        if self.results_path is not None:
+            np.save(f'{self.results_path}/bandstructure',self.eigenstatus)
 
-        return  eigenstatus
+        return self.eigenstatus
 
-    
-    def get_HR(self):
-        all_bonds, hamil_blocks, overlap_blocks = self.apiH.get_HR()
+    def band_plot(
+            self, 
+            ref_band: Union[str, np.array, torch.Tensor, bool]=None,
+            E_fermi: Optional[float]=None,
+            emin: Optional[float]=None,
+            emax: Optional[float]=None,
+            ):
         
-        return all_bonds, hamil_blocks, overlap_blocks
+        if isinstance(ref_band, str):
+            ref_band = np.load(ref_band)
 
-    def band_plot(self):
+        if E_fermi != None and self.eigenstatus["E_fermi"] != E_fermi:
+            log.info(f'use input fermi energy: {E_fermi}, While the estimated value in line-mode is {self.eigenstatus["E_fermi"]}')
+        else:
+            E_fermi = self.eigenstatus["E_fermi"]
+            log.info(f'The fermi energy is not provided, use the estimated value in line-mode: {self.eigenstatus["E_fermi"]}')
+
         matplotlib.rcParams['font.size'] = 7
         matplotlib.rcParams['pdf.fonttype'] = 42
         # plt.rcParams['font.sans-serif'] = ['Times New Roman']
-
-        emin = self.band_plot_options.get('emin')
-        emax = self.band_plot_options.get('emax')
 
         fig = plt.figure(figsize=(4.5,4),dpi=100)
 
@@ -270,32 +290,31 @@ class Band(object):
         band_color = '#5d5d5d'
         # plot the line
         
-        if self.ref_band:
-            ref_eigenvalues = np.load(self.ref_band)
-            if len(ref_eigenvalues.shape) == 3:
-                ref_eigenvalues = ref_eigenvalues.reshape(ref_eigenvalues.shape[1:])
-            elif len(ref_eigenvalues.shape) != 2:
+        if ref_band:
+            if len(ref_band.shape) == 3:
+                assert ref_band.shape[0] == 1
+                ref_band = ref_band.reshape(ref_band.shape[1:])
+            elif len(ref_band.shape) != 2:
                 log.error("Reference Eigenvalues' shape mismatch.")
                 raise ValueError
 
-            if ref_eigenvalues.shape[0] != self.eigenvalues.shape[0]:
+            if ref_band.shape[0] != self.eigenstatus["eigenvalues"].shape[0]:
                 log.error("Reference Eigenvalues' should have sampled from the sample kpath as model's prediction.")
                 raise ValueError
-            ref_eigenvalues = ref_eigenvalues - (np.min(ref_eigenvalues) - np.min(self.eigenvalues))
+            ref_band = ref_band - (np.min(ref_band) - np.min(self.eigenstatus["eigenvalues"]))
 
-            nkplot = (len(np.unique(self.high_sym_kpoints))-1) * 7
-            nintp = len(self.xlist) // nkplot 
+            nkplot = (len(np.unique(self.eigenstatus["high_sym_kpoints"]))-1) * 7
+            nintp = len(self.eigenstatus["xlist"]) // nkplot 
             if nintp == 0:
                 nintp = 1
-            band_ref = ax.plot(self.xlist[::nintp], ref_eigenvalues[::nintp] - self.E_fermi, 'o', ms=4, color=band_color, alpha=0.8, label="Ref")
-            band_pre = ax.plot(self.xlist, self.eigenvalues - self.E_fermi, color="tab:red", lw=1.5, alpha=0.8, label="DeePTB")
-
+            band_ref = ax.plot(self.eigenstatus["xlist"][::nintp], ref_band[::nintp] - E_fermi, 'o', ms=4, color=band_color, alpha=0.8, label="Ref")
+            band_pre = ax.plot(self.eigenstatus["xlist"], self.eigenstatus["eigenvalues"] - E_fermi, color="tab:red", lw=1.5, alpha=0.8, label="DeePTB")
 
         else:
-            ax.plot(self.xlist, self.eigenvalues - self.E_fermi, color="tab:red",lw=1.5, alpha=0.8)
+            ax.plot(self.eigenstatus["xlist"], self.eigenstatus["eigenvalues"] - E_fermi, color="tab:red",lw=1.5, alpha=0.8)
 
         # add verticle line
-        for ii in self.high_sym_kpoints[1:-1]:
+        for ii in self.eigenstatus["high_sym_kpoints"][1:-1]:
             ax.axvline(ii, color='gray', lw=1,ls='--')
 
         # add shadow
@@ -306,7 +325,7 @@ class Band(object):
         if not (emin is None or emax is None):
             ax.set_ylim(emin,emax)
 
-        ax.set_xlim(self.xlist.min()-0.03,self.xlist.max()+0.03)
+        ax.set_xlim(self.eigenstatus["xlist"].min()-0.03,self.eigenstatus["xlist"].max()+0.03)
         ax.set_ylabel('E - EF (eV)',fontsize=12)
         ax.yaxis.set_minor_locator(MultipleLocator(1.0))
         ax.tick_params(which='both', direction='in', labelsize=12, width=1.5)
@@ -314,7 +333,7 @@ class Band(object):
         ax.tick_params(which='minor', length=4, color='gray')
         
         # ax.set_yticks(None, fontsize=12)
-        ax.set_xticks(self.high_sym_kpoints, self.labels, fontsize=12)
+        ax.set_xticks(self.eigenstatus["high_sym_kpoints"], self.eigenstatus["labels"], fontsize=12)
 
         ax.grid(color='gray', alpha=0.2, linestyle='-', linewidth=1)
         ax.set_axisbelow(True)
@@ -325,12 +344,13 @@ class Band(object):
             spine.set_edgecolor('#5d5d5d')
             spine.set_linewidth(1.5)
         
-        if self.ref_band:
+        if ref_band:
             plt.legend(handles=[band_pre[0], band_ref[0]], loc="best")
         
         plt.tight_layout()
         # remove the box around the plot
         ax.set_frame_on(False)
-        plt.savefig(f'{self.results_path}/band.png',dpi=300)
+        if self.results_path is not None:
+            plt.savefig(f'{self.results_path}/band.png',dpi=300)
         if self.use_gui:
             plt.show()
