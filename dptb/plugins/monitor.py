@@ -98,6 +98,10 @@ class TrainLossMonitor(Monitor):
     # It's a Monitor that records the loss.
     # stat_name is used in the Monitor class to register.
     stat_name = 'train_loss'
+    def __init__(self):
+        super(TrainLossMonitor, self).__init__(
+            precision=7,
+        )
     def _get_value(self, **kwargs):
         return kwargs.get('train_loss', None)
 

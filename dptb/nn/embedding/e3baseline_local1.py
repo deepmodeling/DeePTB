@@ -9,20 +9,20 @@ from torch_runstats.scatter import scatter
 from torch import fx
 from e3nn.util.codegen import CodeGenMixin
 from e3nn import o3
-from e3nn.nn import Gate, Activation
+from e3nn.nn import Gate
 from e3nn.nn._batchnorm import BatchNorm
-from e3nn.o3 import TensorProduct, Linear, SphericalHarmonics, FullyConnectedTensorProduct
+from e3nn.o3 import Linear, SphericalHarmonics
 from e3nn.math import normalize2mom
 from e3nn.util.jit import compile_mode
 
 from dptb.data import AtomicDataDict
 from dptb.nn.embedding.emb import Embedding
 from ..radial_basis import BesselBasis
-from dptb.nn.graph_mixin import GraphModuleMixin
 from dptb.nn.embedding.from_deephe3.deephe3 import tp_path_exists
 from dptb.nn.embedding.from_deephe3.e3module import SeparateWeightTensorProduct
 from dptb.data import _keys
 from dptb.nn.cutoff import cosine_cutoff, polynomial_cutoff
+from dptb.nn.rescale import E3ElementLinear
 import math
 from dptb.data.transforms import OrbitalMapper
 from ..type_encode.one_hot import OneHotAtomEncoding
@@ -30,7 +30,7 @@ from dptb.data.AtomicDataDict import with_edge_vectors, with_env_vectors, with_b
 
 from math import ceil
 
-@Embedding.register("e3baseline_local1")
+@Embedding.register("e3baseline_local_wnode")
 class E3BaseLineModelLocal1(torch.nn.Module):
     def __init__(
             self,
@@ -73,6 +73,8 @@ class E3BaseLineModelLocal1(torch.nn.Module):
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype)
         self.dtype = dtype
+        if isinstance(device, str):
+            device = torch.device(device)
         self.device = device
         
         if basis is not None:
@@ -159,6 +161,8 @@ class E3BaseLineModelLocal1(torch.nn.Module):
                 latent_resnet_update_ratios=latent_resnet_update_ratios,
                 latent_resnet_update_ratios_learnable=latent_resnet_update_ratios_learnable,
                 last_layer=last_layer,
+                dtype=dtype,
+                device=device,
                 )
             )
 
@@ -192,16 +196,10 @@ class E3BaseLineModelLocal1(torch.nn.Module):
     
         for layer in self.layers:
             latents, features, cutoff_coeffs, active_edges = layer(edge_index, edge_sh, atom_type, latents, features, cutoff_coeffs, active_edges)
-        
-        if self.layers[-1].env_sum_normalizations.ndim < 1:
-            norm_const = self.layers[-1].env_sum_normalizations
-        else:
-            norm_const = self.layers[-1].env_sum_normalizations[atom_type.flatten()].unsqueeze(-1)
 
         data[_keys.EDGE_FEATURES_KEY] = torch.zeros(edge_index.shape[1], self.idp.orbpair_irreps.dim, dtype=self.dtype, device=self.device)
         data[_keys.EDGE_FEATURES_KEY] = torch.index_copy(data[_keys.EDGE_FEATURES_KEY], 0, active_edges, self.out_edge(features))
-        node_features = scatter(latents, edge_index[0][active_edges], dim=0)
-        data[_keys.NODE_FEATURES_KEY] = self.out_node(node_features * norm_const)
+        data[_keys.NODE_FEATURES_KEY] = self.out_node(latents)
 
         return data
 
@@ -265,7 +263,7 @@ class MakeWeightedChannels(torch.nn.Module):
 
     def __init__(
         self,
-        irreps_in,
+        irreps_in: o3.Irreps,
         multiplicity_out: Union[int, list],
         pad_to_alignment: int = 1,
     ):
@@ -310,7 +308,7 @@ class MakeWeightedChannels(torch.nn.Module):
         )
     
 @torch.jit.script
-def ShiftedSoftPlus(x):
+def ShiftedSoftPlus(x: torch.Tensor):
     return torch.nn.functional.softplus(x) - math.log(2.0)
 
 class ScalarMLPFunction(CodeGenMixin, torch.nn.Module):
@@ -625,8 +623,13 @@ class Layer(torch.nn.Module):
         last_layer: bool = False,
         latent_resnet_update_ratios: Optional[List[float]] = None,
         latent_resnet_update_ratios_learnable: bool = False,
+        dtype: Union[str, torch.dtype] = torch.float32,
+        device: Union[str, torch.device] = torch.device("cpu"),
     ):
         super().__init__()
+
+        assert latent_in == latent_kwargs["mlp_latent_dimensions"][-1]
+
         SCALAR = o3.Irrep("0e")
         self.latent_resnet = latent_resnet
         self.avg_num_neighbors = avg_num_neighbors
@@ -634,6 +637,8 @@ class Layer(torch.nn.Module):
         self.irreps_in = irreps_in
         self.irreps_out = irreps_out
         self.last_layer = last_layer
+        self.dtype = dtype
+        self.device = device
 
         assert all(mul==1 for mul, _ in irreps_sh)
 
@@ -662,26 +667,39 @@ class Layer(torch.nn.Module):
                 ]
             )
 
-        # mul_irreps_sh = o3.Irreps([(env_embed_multiplicity, ir) for _, ir in irreps_sh])
-        irreps_weighted = o3.Irreps([(env_embed_multiplicity, ir) for _, ir in irreps_in])
+        mul_irreps_sh = o3.Irreps([(env_embed_multiplicity, ir) for _, ir in irreps_sh])
         self._env_weighter = Linear(
-            irreps_in=irreps_in,
-            irreps_out=irreps_weighted,
+            irreps_in=irreps_sh,
+            irreps_out=mul_irreps_sh,
             internal_weights=False,
             shared_weights=False,
             path_normalization = "element",
         )
+
+        if last_layer:
+            self._node_weighter = E3ElementLinear(
+                irreps_in=irreps_out,
+                dtype=dtype,
+                device=device,
+            )
+
+            self._edge_weighter = E3ElementLinear(
+                irreps_in=irreps_out,
+                dtype=dtype,
+                device=device,
+            )
         
         # == Remove unneeded paths ==
         #TODO: add the remove unseen paths
 
         if self.linear_after_env_embed:
             self.env_linears = Linear(
-                irreps_weighted,
-                irreps_weighted,
+                mul_irreps_sh,
+                mul_irreps_sh,
                 shared_weights=True,
                 internal_weights=True,
             )
+
         else:
             self.env_linears = torch.nn.Identity()
 
@@ -732,8 +750,10 @@ class Layer(torch.nn.Module):
         #     )
         # build activation
         
-        irreps_scalar = o3.Irreps(str(self.irreps_out[0]))
+        irreps_scalar = o3.Irreps([(mul, ir) for mul, ir in self.irreps_out if ir.l == 0]).simplify()
         irreps_gated = o3.Irreps([(mul, ir) for mul, ir in self.irreps_out if ir.l > 0]).simplify()
+        
+        
         irreps_gates = o3.Irreps([(mul, (0,1)) for mul, _ in irreps_gated]).simplify()
         act={1: torch.nn.functional.silu, -1: torch.tanh}
         act_gates={1: torch.sigmoid, -1: torch.tanh}
@@ -745,7 +765,7 @@ class Layer(torch.nn.Module):
         )
         
         self.tp = SeparateWeightTensorProduct(
-            irreps_in1=irreps_sh,
+            irreps_in1=self.irreps_in,
             irreps_in2=self._env_weighter.irreps_out,
             irreps_out=self.activation.irreps_in,
         )
@@ -766,7 +786,7 @@ class Layer(torch.nn.Module):
         #     )
         
         self.lin_post = Linear(
-            self.irreps_out,
+            self.activation.irreps_out,
             self.irreps_out,
             shared_weights=True, 
             internal_weights=True,
@@ -780,13 +800,14 @@ class Layer(torch.nn.Module):
             normalization="component",
         )
 
-        self.linear_res = Linear(
-            self.irreps_in,
-            self.irreps_out,
-            shared_weights=True, 
-            internal_weights=True,
-            biases=True,
-        )
+        if latent_resnet:
+            self.linear_res = Linear(
+                self.irreps_in,
+                self.irreps_out,
+                shared_weights=True, 
+                internal_weights=True,
+                biases=True,
+            )
         
         # we extract the scalars from the first irrep of the tp
         # assert full_out_irreps[0].ir == SCALAR
@@ -800,8 +821,11 @@ class Layer(torch.nn.Module):
         
         # the embedded latent invariants from the previous layer(s)
         # and the invariants extracted from the last layer's TP:
+        # we need to make sure all scalars in tp.irreps_out all contains in the first irreps
+        all_tp_scalar = o3.Irreps([(mul, ir) for mul, ir in self.tp.irreps_out if ir.l == 0]).simplify()
+        assert all_tp_scalar.dim == self.tp.irreps_out[0].dim
         self.latents = latent(
-            mlp_input_dimension=latent_in+self.irreps_out[0].dim,
+            mlp_input_dimension=latent_in+self.tp.irreps_out[0].dim,
             mlp_output_dimension=None,
         )
         
@@ -812,6 +836,27 @@ class Layer(torch.nn.Module):
                 mlp_latent_dimensions=[],
                 mlp_output_dimension=self._env_weighter.weight_numel,
             )
+        
+        if last_layer:
+            self.node_embed_mlps = ScalarMLPFunction(
+                mlp_input_dimension=latent_in,
+                mlp_latent_dimensions=[],
+                mlp_output_dimension=self._node_weighter.weight_numel,
+            )
+            
+            self.edge_embed_mlps = ScalarMLPFunction(
+                mlp_input_dimension=latent_in,
+                mlp_latent_dimensions=[],
+                mlp_output_dimension=self._edge_weighter.weight_numel,
+            )
+
+            self.node_bn = BatchNorm(
+                irreps=self.irreps_out,
+                affine=True,
+                instance=False,
+                normalization="component",
+            )
+            
         # - layer resnet update weights -
         if latent_resnet_update_ratios is None:
             # We initialize to zeros, which under the sigmoid() become 0.5
@@ -840,7 +885,7 @@ class Layer(torch.nn.Module):
             self.register_buffer(
                 "_latent_resnet_update_params", latent_resnet_update_params
             )
-    
+
     def forward(self, edge_index, edge_sh, atom_type, latents, features, cutoff_coeffs, active_edges):
         # update V
         # update X
@@ -867,7 +912,7 @@ class Layer(torch.nn.Module):
         # have weights for (env_w) anyway.
         # So we mask out the edges in the sum:
         local_env_per_edge = scatter(
-            self._env_weighter(features, weights),
+            self._env_weighter(edge_sh[active_edges], weights),
             edge_center[active_edges],
             dim=0,
         )
@@ -888,8 +933,9 @@ class Layer(torch.nn.Module):
         # local_env_per_edge = local_env_per_edge[edge_center[active_edges]]
         # Now do the TP
         # recursively tp current features with the environment embeddings
-        new_features = self.tp(edge_sh[active_edges], local_env_per_edge[edge_center[active_edges]]) # full_out_irreps
+        new_features = self.tp(self.lin_pre(features), local_env_per_edge[edge_center[active_edges]]) # full_out_irreps
         
+        scalars = new_features[:, :self.tp.irreps_out[0].dim]
         new_features = self.activation(new_features)
         # # do the linear
         # new_features = self.linears(new_features)
@@ -897,7 +943,6 @@ class Layer(torch.nn.Module):
         
         # features has shape [N_edge, full_feature_out.dim]
         # we know scalars are first
-        scalars = new_features[:, :self.irreps_out[0].dim]
         assert len(scalars.shape) == 2
 
         new_features = self.lin_post(new_features)
@@ -913,8 +958,61 @@ class Layer(torch.nn.Module):
             features = new_features
 
         # whether it is the last layer
+            
+        latent_inputs_to_cat = [
+            latents[active_edges],
+            scalars,
+        ]
+        
+        new_latents = self.latents(torch.cat(latent_inputs_to_cat, dim=-1))
+        new_latents = cutoff_coeffs[active_edges].unsqueeze(-1) * new_latents
+        # At init, we assume new and old to be approximately uncorrelated
+        # Thus their variances add
+        # we always want the latent space to be normalized to variance = 1.0,
+        # because it is critical for learnability. Still, we want to preserve
+        # the _relative_ magnitudes of the current latent and the residual update
+        # to be controled by `this_layer_update_coeff`
+        # Solving the simple system for the two coefficients:
+        #   a^2 + b^2 = 1  (variances add)   &    a * this_layer_update_coeff = b
+        # gives
+        #   a = 1 / sqrt(1 + this_layer_update_coeff^2)  &  b = this_layer_update_coeff / sqrt(1 + this_layer_update_coeff^2)
+        # rsqrt is reciprocal sqrt
+
+        if self.latent_resnet:
+            update_coefficients = self._latent_resnet_update_params.sigmoid()
+            coefficient_old = torch.rsqrt(update_coefficients.square() + 1)
+            coefficient_new = update_coefficients * coefficient_old
+            latents = torch.index_add(
+                coefficient_old * latents,
+                0,
+                active_edges,
+                coefficient_new * new_latents,
+            )
+
+        else:
+            latents = torch.index_copy(latents, 0, active_edges, new_latents)
+
         if self.last_layer:
-            out_features = self.tp_out(
+            node_weights = self.node_embed_mlps(latents[active_edges])
+            
+            node_features = scatter(
+                self._node_weighter(
+                    features,
+                    node_weights,
+                    ),
+                edge_center[active_edges],
+                dim=0,
+            )
+
+            node_features = node_features * norm_const
+
+            node_features = self.node_bn(node_features)
+
+            edge_weights = self.edge_embed_mlps(latents[active_edges])
+
+            # the features's inclusion of the radial weight here is the only place
+            # where features are weighted according to the radial distance
+            features = self.tp_out(
                 torch.cat(
                     [
                         features,
@@ -922,43 +1020,15 @@ class Layer(torch.nn.Module):
                         local_env_per_edge[edge_neighbor[active_edges]],
                     ], dim=-1
                 ),
-                edge_sh[active_edges]
+                edge_sh[active_edges],
             )
-        
-        if not self.last_layer:
-            # update X
-            latent_inputs_to_cat = [
-                    latents[active_edges],
-                    scalars,
-                ]
-            
-            new_latents = self.latents(torch.cat(latent_inputs_to_cat, dim=-1))
-            new_latents = cutoff_coeffs[active_edges].unsqueeze(-1) * new_latents
-            # At init, we assume new and old to be approximately uncorrelated
-            # Thus their variances add
-            # we always want the latent space to be normalized to variance = 1.0,
-            # because it is critical for learnability. Still, we want to preserve
-            # the _relative_ magnitudes of the current latent and the residual update
-            # to be controled by `this_layer_update_coeff`
-            # Solving the simple system for the two coefficients:
-            #   a^2 + b^2 = 1  (variances add)   &    a * this_layer_update_coeff = b
-            # gives
-            #   a = 1 / sqrt(1 + this_layer_update_coeff^2)  &  b = this_layer_update_coeff / sqrt(1 + this_layer_update_coeff^2)
-            # rsqrt is reciprocal sqrt
-            if self.latent_resnet:
-                update_coefficients = self._latent_resnet_update_params.sigmoid()
-                coefficient_old = torch.rsqrt(update_coefficients.square() + 1)
-                coefficient_new = update_coefficients * coefficient_old
-                latents = torch.index_add(
-                    coefficient_old * latents,
-                    0,
-                    active_edges,
-                    coefficient_new * new_latents,
-                )
-            else:
-                latents = torch.index_copy(latents, 0, active_edges, new_latents)
-        
-        if self.last_layer:
-            return features, out_features, cutoff_coeffs, active_edges
-        return latents, features, cutoff_coeffs, active_edges
+
+            features = self._edge_weighter(
+                features,
+                edge_weights,
+            )
+
+            return node_features, features, cutoff_coeffs, active_edges
+        else:
+            return latents, features, cutoff_coeffs, active_edges
     

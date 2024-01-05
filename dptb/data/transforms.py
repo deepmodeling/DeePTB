@@ -351,7 +351,29 @@ class OrbitalMapper(BondMapper):
             method: str ="e3tb",
             device: Union[str, torch.device] = torch.device("cpu")
             ):
-        """_summary_
+        
+        """
+        This class is used to map the orbital pair index to the index of the reduced matrix element (or sk integrals when method is sktb). To construct a reduced matrix element features in each edge/node with equal sizes as well as their mappings, the following steps will be conducted:
+        
+        1. The basis of each atom will be sorted according to their names. For example, The basis ["2s", "1s", "s*", "2p"] of atom A will be sorted as ["s*", "1s", "2s", "2p"].
+
+        2. The sorted basis will be transformed into a general basis, dubbed as full_basis. It is the least required set covering all the basis number and types of each atom. The basis will be renamed according to their angular momentum and the order after sorting. Take s orbital as a example, the first s* will be named as "1s", the second s* will be named as "2s", and so on. Same for p, d, f orbitals.
+
+        Then the mappings and masks used to guide the construction of hamiltonian will be constructed. The mappings includes:
+        
+        Mappings:
+            fullbasis_to_basis, basis_to_fullbasis: which function as their names
+            orbpair_maps: the mapping from orbital pairs of full basis to the reduced matrix element (or sk integrals)  index.
+            orbpairtype_maps: the mapping from the types of orbital pair (e.g. "s-s", "s-p", "p-p") to the reduced matrix element (or sk integrals) index.
+            skonsite_maps: the mapping from the orbital to the sk onsite energies index.
+            skonsitetype_maps: the mapping from the orbital type (e.g. "s", "p", "d", "f") to the sk onsite energies index.
+            orbital_maps: the mapping from the orbital to the index of the corresponding lines/column in hamiltonian blocks.
+            orbpair_irreps: the e3nn irreducible representations of the full reduced matrix element edge/node features.
+
+        Masks:
+            mask_to_basis: the mask used to map the (line/column of) hamiltonian of full basis to the (line/column of) block of original basis of each atom.
+            mask_to_erme: the mask used to map the hopping block's flattened reduced matrix element (up tri-diagonal block of hamiltonian) of full basis to it of the original basis.
+            mask_to_nrme: the mask used to map the onsite block's flattened reduced matrix element (diagonal block of hamiltonian) of full basis to it of the original basis.
 
         Parameters
         ----------
@@ -360,9 +382,10 @@ class OrbitalMapper(BondMapper):
             {"A":"2s2p3d1f", "B":"1s2f3d1f"} or
             {"A":["2s", "2p"], "B":["2s", "2p"]}
             when list, "2s" indicate a "s" orbital in the second shell.
-            when str, "2s" indicates two s orbital, 
+            when str, "2s" indicates two s orbitals, 
             "2s2p3d4f" is equivilent to ["1s","2s", "1p", "2p", "1d", "2d", "3d", "1f"]
         """
+
         #TODO: use OrderedDict to fix the order of the dict used as index map
         if chemical_symbol_to_type is not None:
             assert set(basis.keys()) == set(chemical_symbol_to_type.keys())
@@ -402,7 +425,7 @@ class OrbitalMapper(BondMapper):
             
             for ko in orbtype_count.keys():
                 orbtype_count[ko] = max(orbtype_count[ko])
-
+ 
         self.orbtype_count = orbtype_count
         self.full_basis_norb = 1 * orbtype_count["s"] + 3 * orbtype_count["p"] + 5 * orbtype_count["d"] + 7 * orbtype_count["f"]
 

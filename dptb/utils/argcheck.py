@@ -328,7 +328,7 @@ def embedding():
             Argument("baseline", dict, baseline()),
             Argument("deeph-e3", dict, deephe3()),
             Argument("e3baseline_local", dict, e3baseline()),
-            Argument("e3baseline_local1", dict, e3baseline()),
+            Argument("e3baseline_local_wnode", dict, e3baseline()),
             Argument("e3baseline_nonlocal", dict, e3baseline()),
         ],optional=True, default_tag="se2", doc=doc_method)
 

@@ -256,7 +256,7 @@ class HamilLossAbs(nn.Module):
 
             return (1/3) * (hopping_loss + onsite_loss + overlap_loss)
         else:
-            return 0.5 * (hopping_loss + onsite_loss) 
+            return 0.5 * (onsite_loss + hopping_loss)
         
 
 class HamilLossAnalysis(object):
