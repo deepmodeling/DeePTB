@@ -3,10 +3,11 @@
 # Current version is capable of coping with f-orbitals
 
 import os
-import sys
+import glob
 import json
 import re
 from collections import Counter
+from tqdm import tqdm
 
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -45,33 +46,69 @@ class OrbAbacus2DeepTB:
         block_rights = block_diag(*[self.get_U(l_right) for l_right in l_rights])
         return block_lefts @ mat @ block_rights.T
     
-def recursive_parse(input_dir, preprocess_dir, data_name="OUT.ABACUS", only_overlap=False, get_Hamiltonian=False, add_overlap=False, get_eigenvalues=False):
-    input_dir = os.path.abspath(input_dir)
+def recursive_parse(input_path, 
+                    preprocess_dir, 
+                    data_name="OUT.ABACUS", 
+                    only_overlap=False, 
+                    parse_Hamiltonian=False, 
+                    add_overlap=False, 
+                    parse_eigenvalues=False,
+                    prefix="data"):
+    """
+    Parse ABACUS single point SCF calculation outputs.
+    Input:
+    `input_dir`: target dictionary(ies) containing "OUT.ABACUS" folder.
+                 can be wildcard characters or a string list.
+    `preprocess_dir`: output dictionary of all processed data files.
+    `data_name`: output dictionary name of ABACUS, by default "OUT.ABACUS".
+    `only_overlap`: usually `False`. 
+                    set to `True` if the calculation job is getting overlap matrix ONLY.
+    `parse_Hamiltonian`: determine whether parsing the Hamiltonian `.csr` file or not.
+    `add_overlap`: determine whether parsing the overlap `.csr` file or not.
+                   `parse_Hamiltonian` must be true to add overlap.
+    `parse_eigenvalues`: determine whether parsing `kpoints.dat` and `BAND_1.dat` or not.
+                         that is, the k-points will always be loaded with bands.
+    `prefix`: prefix of the processed data folders' names. 
+    """
+    if isinstance(input_path, list) and all(isinstance(item, str) for item in input_path):
+        input_path = input_path
+    else:
+        input_path = glob.glob(input_path)
     preprocess_dir = os.path.abspath(preprocess_dir)
     os.makedirs(preprocess_dir, exist_ok=True)
-    h5file_names = []
-    for file in os.listdir(input_dir):
-        if os.path.isdir(os.path.join(input_dir, file)):
-            datafiles = os.listdir(os.path.join(input_dir, file))
+    # h5file_names = []
+
+    folders = [item for item in input_path if os.path.isdir(item)]
+
+    with tqdm(total=len(folders)) as pbar:
+        for index, folder in enumerate(folders):
+            datafiles = os.listdir(folder)
             if data_name in datafiles:
-                if os.path.exists(os.path.join(input_dir, file, data_name, "hscsr.tgz")):
-                    os.system("cd "+os.path.join(input_dir, file, data_name) + " && tar -zxvf hscsr.tgz && mv OUT.ABACUS/* ./")
+                # The follwing `if` block is used by us only.
+                if os.path.exists(os.path.join(folder, data_name, "hscsr.tgz")):
+                    os.system("cd "+os.path.join(folder, data_name) + " && tar -zxvf hscsr.tgz && mv OUT.ABACUS/* ./")
                 try:
-                    _abacus_parse(os.path.join(input_dir, file), os.path.join(preprocess_dir, file), data_name, only_S=only_overlap, get_Ham=get_Hamiltonian,
-                                add_overlap=add_overlap, get_eigenvalues=get_eigenvalues)
-                    h5file_names.append(os.path.join(file, "AtomicData.h5"))
+                    _abacus_parse(folder, 
+                                  os.path.join(preprocess_dir, f"{prefix}.{index}"), 
+                                  data_name, 
+                                  only_S=only_overlap, 
+                                  get_Ham=parse_Hamiltonian,
+                                  add_overlap=add_overlap, 
+                                  get_eigenvalues=parse_eigenvalues)
+                    #h5file_names.append(os.path.join(file, "AtomicData.h5"))
+                    pbar.update(1)
                 except Exception as e:
-                    print(f"Error in {data_name}: {e}")
+                    print(f"Error in {folder}/{data_name}: {e}")
                     continue
-    return h5file_names
+    #return h5file_names
 
 def _abacus_parse(input_path, 
-                 output_path, 
-                 data_name, 
-                 only_S=False, 
-                 get_Ham=False,
-                 add_overlap=False, 
-                 get_eigenvalues=False):
+                  output_path, 
+                  data_name, 
+                  only_S=False, 
+                  get_Ham=False,
+                  add_overlap=False, 
+                  get_eigenvalues=False):
     
     input_path = os.path.abspath(input_path)
     output_path = os.path.abspath(output_path)
@@ -88,6 +125,12 @@ def _abacus_parse(input_path,
         log_file_name = "running_get_S.log"
     else:
         log_file_name = "running_scf.log"
+
+    with open(os.path.join(input_path, data_name, log_file_name), 'r') as f_chk:
+        lines = f_chk.readlines()
+        if not lines or " Total  Time  :" not in lines[-1]:
+            raise ValueError(f"Job is not normal ending!")
+
     with open(os.path.join(input_path, data_name, log_file_name), 'r') as f:
         f.readline()
         line = f.readline()
@@ -184,9 +227,9 @@ def _abacus_parse(input_path,
     cart_coords = frac_coords @ lattice
     np.savetxt(os.path.join(output_path, "positions.dat").format(output_path), cart_coords)
     np.savetxt(os.path.join(output_path, "atomic_numbers.dat"), element, fmt='%d')
-    info = {'nsites' : nsites, 'isorthogonal': False, 'isspinful': spinful, 'norbits': norbits}
-    with open('{}/info.json'.format(output_path), 'w') as info_f:
-        json.dump(info, info_f)
+    #info = {'nsites' : nsites, 'isorthogonal': False, 'isspinful': spinful, 'norbits': norbits}
+    #with open('{}/info.json'.format(output_path), 'w') as info_f:
+    #    json.dump(info, info_f)
     with open(os.path.join(output_path, "basis.dat"), 'w') as f:
         for atomic_number in element:
             counter = Counter(orbital_types_dict[atomic_number])
@@ -275,11 +318,16 @@ def _abacus_parse(input_path,
 
         if not only_S:
             with h5py.File(os.path.join(output_path, "hamiltonians.h5"), 'w') as fid:
+                # creating a default group here adapting to the format used in DefaultDataset.
+                # by the way DefaultDataset loading h5 file, the index should be "1" here.
+                default_group = fid.create_group("1")
                 for key_str, value in hamiltonian_dict.items():
-                    fid[key_str] = value
-        with h5py.File(os.path.join(output_path, "overlaps.h5"), 'w') as fid:
-            for key_str, value in overlap_dict.items():
-                fid[key_str] = value
+                    default_group[key_str] = value
+            if add_overlap:
+                with h5py.File(os.path.join(output_path, "overlaps.h5"), 'w') as fid:
+                    default_group = fid.create_group("1")
+                    for key_str, value in overlap_dict.items():
+                        default_group[key_str] = value
     
     if get_eigenvalues:
         kpts = []
@@ -304,27 +352,27 @@ def _abacus_parse(input_path,
         band = np.array(band)
 
         assert len(band) == len(kpts)
-        np.savetxt(os.path.join(output_path, "kpoints.dat"), kpts)
-        np.savetxt(os.path.join(output_path, "eigenvalues.dat"), band)
+        np.save(os.path.join(output_path, "kpoints.npy"), kpts)
+        np.save(os.path.join(output_path, "eigenvalues.npy"), band)
 
-    with h5py.File(os.path.join(output_path, "AtomicData.h5"), "w") as f:
-        f["cell"] = lattice
-        f["pos"] = cart_coords
-        f["atomic_numbers"] = element
-        basis = f.create_group("basis")
-        for key, value in atomic_basis.items():
-            basis[key] = value
-        if get_Ham:
-            f["hamiltonian_blocks"] = h5py.ExternalLink("hamiltonians.h5", "/")
-            if add_overlap:
-                f["overlap_blocks"] = h5py.ExternalLink("overlaps.h5", "/")
-            # else:
-            #     f["overlap_blocks"] = False
-        # else:
-        #     f["hamiltonian_blocks"] = False
-        if get_eigenvalues:
-            f["kpoints"] = kpts
-            f["eigenvalues"] = band
-        # else:
-        #     f["kpoint"] = False
-        #     f["eigenvalue"] = False
+    #with h5py.File(os.path.join(output_path, "AtomicData.h5"), "w") as f:
+    #    f["cell"] = lattice
+    #    f["pos"] = cart_coords
+    #    f["atomic_numbers"] = element
+    #    basis = f.create_group("basis")
+    #    for key, value in atomic_basis.items():
+    #        basis[key] = value
+    #    if get_Ham:
+    #        f["hamiltonian_blocks"] = h5py.ExternalLink("hamiltonians.h5", "/")
+    #        if add_overlap:
+    #            f["overlap_blocks"] = h5py.ExternalLink("overlaps.h5", "/")
+    #        # else:
+    #        #     f["overlap_blocks"] = False
+    #    # else:
+    #    #     f["hamiltonian_blocks"] = False
+    #    if get_eigenvalues:
+    #        f["kpoints"] = kpts
+    #        f["eigenvalues"] = band
+    #    # else:
+    #    #     f["kpoint"] = False
+    #    #     f["eigenvalue"] = False

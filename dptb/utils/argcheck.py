@@ -18,16 +18,16 @@ def common_options():
             Default: `float32`\n\n"
     
     doc_seed = "The random seed used to initialize the parameters and determine the shuffling order of datasets. Default: `3982377700`"
-    doc_onsite_cutoff = "The cutoff-range considered when using strain mode correction. Out of which the atom are assume to have no effect on current atom's onsite energy."
-    doc_bond_cutoff = "The cutoff-range of bond hoppings, beyond which it assume the atom pairs have 0 hopping integrals."
-    doc_env_cutoff = "The cutoff-range of DeePTB environmental correction, recommand range is: (0.5*bond_cutoff, bond_cutoff)"
+    #doc_onsite_cutoff = "The cutoff-range considered when using strain mode correction. Out of which the atom are assume to have no effect on current atom's onsite energy."
+    #doc_bond_cutoff = "The cutoff-range of bond hoppings, beyond which it assume the atom pairs have 0 hopping integrals."
+    #doc_env_cutoff = "The cutoff-range of DeePTB environmental correction, recommand range is: (0.5*bond_cutoff, bond_cutoff)"
     doc_basis = "The atomic orbitals used to construct the basis. E.p. {'A':'2s','2p','s*','B':'3s','3p' }"
     doc_overlap = ""
 
     args = [
-        Argument("onsite_cutoff", float, optional = True, doc = doc_onsite_cutoff),
-        Argument("bond_cutoff", float, optional = False, doc = doc_bond_cutoff),
-        Argument("env_cutoff", float, optional = True, doc = doc_env_cutoff),
+        #Argument("onsite_cutoff", float, optional = True, doc = doc_onsite_cutoff),
+        #Argument("bond_cutoff", float, optional = False, doc = doc_bond_cutoff),
+        #Argument("env_cutoff", float, optional = True, doc = doc_env_cutoff),
         Argument("basis", dict, optional=False, doc=doc_basis),
         Argument("seed", int, optional=True, default=3982377700, doc=doc_seed),
         Argument("overlap", bool, optional=True, default=False, doc=doc_overlap),
@@ -183,18 +183,17 @@ def lr_scheduler():
 
 
 def train_data_sub():
-    doc_root = ""
-    doc_preprocess_path = ""
-    doc_file_names = ""
-    doc_pbc = ""
-    doc_reduce_edge = ""
+    doc_root = "This is where the dataset stores data files."
+    doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
+    doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
+    doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
     
     args = [
-        Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset"),
+        Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
-        Argument("preprocess_dir", str, optional=False, doc=doc_preprocess_path),
-        Argument("AtomicData_options", dict, optional=True, default={}, doc="The options for AtomicData class"),
-        Argument("pbc", [bool, list], optional=True, default=True, doc=doc_pbc),
+        Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
+        Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
+        Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
     doc_train = ""
@@ -1146,3 +1145,50 @@ def normalize_bandinfo(data):
 
     return data
 
+def bandinfo_sub():
+    doc_band_min = ""
+    doc_band_max = ""
+    doc_emin = ""
+    doc_emax = ""
+    
+    args = [
+        Argument("band_min", int, optional=True, doc=doc_band_min, default=0),
+        Argument("band_max", [int, None], optional=True, doc=doc_band_max, default=None),
+        Argument("emin", [float, None], optional=True, doc=doc_emin,default=None),
+        Argument("emax", [float, None], optional=True, doc=doc_emax,default=None),
+    ]
+
+    return Argument("bandinfo", dict, optional=True, sub_fields=args, sub_variants=[], doc="")
+
+def AtomicData_options_sub():
+    doc_r_max = ""
+    doc_er_max = ""
+    doc_oer_max = ""
+    doc_pbc = ""
+    
+    args = [
+        Argument("r_max", float, optional=False, doc=doc_r_max, default=4.0),
+        Argument("er_max", float, optional=True, doc=doc_er_max, default=None),
+        Argument("oer_max", float, optional=True, doc=doc_oer_max,default=None),
+        Argument("pbc", bool, optional=False, doc=doc_pbc, default=True),
+    ]
+
+    return Argument("AtomicData_options", dict, optional=False, sub_fields=args, sub_variants=[], doc="")
+
+def normalize_setinfo(data):
+    doc_nframes = "Number of frames in this trajectory."
+    doc_natoms = "Number of atoms in each frame."
+    doc_pos_type = "Type of atomic position input. Can be frac / cart / ase."
+
+    args = [
+        Argument("nframes", int, optional=False, doc=doc_nframes),
+        Argument("natoms", int, optional=False, doc=doc_natoms),
+        Argument("pos_type", str, optional=False, doc=doc_pos_type),
+        bandinfo_sub(),
+        AtomicData_options_sub()
+    ]
+    setinfo = Argument("setinfo", dict, sub_fields=args)
+    data = setinfo.normalize_value(data)
+    setinfo.check_value(data, strict=True)
+
+    return data
