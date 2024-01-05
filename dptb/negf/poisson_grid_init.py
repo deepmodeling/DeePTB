@@ -50,11 +50,17 @@ class gate(object):
 
 class interface3D(object):
     def __init__(self,grid,*args):
+        assert grid.__class__.__name__ == 'grid'
         self.grid = grid
+        self.eps = np.zeros(grid.Np)
+        self.boudnary_points = np.full(grid.Np,False,dtype=bool) # initialize all points to be inner points
+        self.gate_potential = np.zeros(grid.Np) # no gate potential initially; only would be non-zero in gate region
 
         region_name = ['gate','medium']
         
         for i in range(0,len(args)):
             if not args[i].__class__.__name__ in region_name:
                 raise ValueError('Unknown region type: ',args[i])
+            
+        
         
