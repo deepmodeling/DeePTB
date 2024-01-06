@@ -1,5 +1,7 @@
 import inspect
 import os
+from copy import deepcopy
+import glob
 from importlib import import_module
 
 from dptb.data.dataset import DefaultDataset
@@ -131,12 +133,17 @@ def build_dataset(set_options, common_options):
         prefix = set_options.get("prefix", None)
         include_folders = []
         for dir_name in os.listdir(root):
-            if os.path.isdir(os.path.join(root, dir_name)):
-                if prefix is not None:
-                    if dir_name[:len(prefix)] == prefix:
+            dir_path = os.path.join(root, dir_name)
+            if os.path.isdir(dir_path):
+                # If the `processed_dataset` or other folder is here too, they do not have the proper traj data files.
+                # And we will have problem in generating TrajData! 
+                # So we test it here: the data folder must have `.dat` or `.traj` file.
+                if glob.glob(os.path.join(dir_path, '*.dat')) or glob.glob(os.path.join(dir_path, '*.traj')):
+                    if prefix is not None:
+                        if dir_name[:len(prefix)] == prefix:
+                            include_folders.append(dir_name)
+                    else:
                         include_folders.append(dir_name)
-                else:
-                    include_folders.append(dir_name)
 
         # We need to check the `setinfo.json` very carefully here.
         # Different `setinfo` points to different dataset, 
@@ -160,7 +167,8 @@ def build_dataset(set_options, common_options):
                 info_files[file] = info
             elif public_info is not None:
                 # use public info instead
-                info_files[file] = public_info
+                # yaml will not dump correctly if this is not a deepcopy.
+                info_files[file] = deepcopy(public_info)
             else:
                 # no info for this file
                 raise Exception(f"info.json is not properly provided for `{file}`.")
