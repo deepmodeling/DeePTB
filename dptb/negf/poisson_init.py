@@ -5,9 +5,7 @@ class grid(object):
     # define the grid in 3D space
     def __init__(self,xg,yg,zg,xa,ya,za):
         # xg,yg,zg are the coordinates of the basic grid points
-        self.xg = np.around(xg,decimals=5)
-        self.yg = np.around(yg,decimals=5)
-        self.zg = np.around(zg,decimals=5)
+        self.xg = np.around(xg,decimals=5);self.yg = np.around(yg,decimals=5);self.zg = np.around(zg,decimals=5)
         # xa,ya,za are the coordinates of the atoms
         # atom should be within the grid
         assert xa.all() >= np.min(xg) and xa.all() <= np.max(xg)
@@ -15,13 +13,12 @@ class grid(object):
         assert za.all() >= np.min(zg) and za.all() <= np.max(zg)
 
         self.Na = len(xa) # number of atoms
-        uxa = np.unique(xa)
-        uya = np.unique(ya)
-        uza = np.unique(za)
+        uxa = np.unique(xa);uya = np.unique(ya);uza = np.unique(za)
         # x,y,z are the coordinates of the grid points
         self.xall = np.unique(np.concatenate((uxa,self.xg),0)) # unique results are sorted
         self.yall = np.unique(np.concatenate((uya,self.yg),0))
         self.zall = np.unique(np.concatenate((uza,self.zg),0))
+        self.shape = (len(self.xall),len(self.yall),len(self.zall))
 
 
         # create meshgrid
@@ -30,6 +27,9 @@ class grid(object):
         self.ymesh = ymesh.flatten()
         self.zmesh = zmesh.flatten()
         self.grid_coord = np.array([self.xmesh,self.ymesh,self.zmesh]).T #(Np,3)
+        sorted_indices = np.lexsort((self.xmesh , self.ymesh , self.zmesh))
+        self.grid_coord = self.grid_coord[sorted_indices] # sort the grid points firstly along x, then y, lastly z        
+
 
         self.Np = int(len(self.xall)*len(self.yall)*len(self.zall))
         assert self.Np == len(self.xmesh)
@@ -39,6 +39,20 @@ class grid(object):
 
         self.atom_index = self.find_atom_index(xa,ya,za)
 
+
+        # create surface area for each grid point
+        surface_grid = np.zeros((self.Np,3))
+        x_vorlen = self.cal_vorlen(self.xall);y_vorlen = self.cal_vorlen(self.yall);z_vorlen = self.cal_vorlen(self.zall)
+        
+        ## surface along x-axis (yz-plane)
+        XD,YD = np.meshgrid(x_vorlen,y_vorlen)
+        ax,bx = np.meshgrid(YD.flatten(),z_vorlen)
+        surface_grid[:,0] = abs((ax*bx).flatten())
+        ## surface along y-axis (xz-plane) 
+        
+
+
+
     def find_atom_index(self,xa,ya,za):
         # find the index of the atoms in the grid
         swap = {}
@@ -47,6 +61,16 @@ class grid(object):
                 if xa[i]==self.xmesh[j] and ya[i]==self.ymesh[j] and za[i]==self.zmesh[j]:
                     swap.update({i:j})
         return swap
+    
+    def cal_vorlen(self,x):
+        # compute the length of the Voronoi segment of a one-dimensional array x
+        xd = np.zeros(len(x))
+        xd[0] = abs(x[0]-x[1])/2
+        xd[-1] = abs(x[-1]-x[-2])/2
+        for i in range(1,len(x)-1):
+            xd[i] = (abs(x[i]-x[i-1])+abs(x[i]-x[i+1]))/2
+        return xd
+
 
 class gate(object):
     def __init__(self,xmin,xmax,ymin,ymax,zmin,zmax):
@@ -122,10 +146,35 @@ class interface3D(object):
                 else:
                     self.eps[index] = args[i].eps
         
+    def to_pyamg(self,dtype=None):
+        # convert to amg format A,b matrix
+        if dtype == None:
+            dtype = np.float64
+        A = poisson(self.grid.shape,format='csr',dtype=dtype)
+        b = np.zeros(A.shape[0],dtype=A.dtype)
+        self.set_amg_boundary(A,b)
+        
+        return A,b
+    
+    def set_amg_boundary(self,A,b):
+
+        def Dirichlet(idx,A,b): #第一类边界条件
+            # Default pyamg Poisson matrix has Dirichlet BC
+            b[idx] = 0.0  #为何要将边界点的值设为0
 
 
 
+        # def Neumann(idx_bc, idx_p1): #第二类边界条件
+        #     # Set all boundary equations to 0 
+        #     s = _a.array_arange(A.indptr[idx_bc], A.indptr[idx_bc + 1])
+        #     A.data[s] = 0
+        #     # force the boundary cells to equal the neighbouring cell
+        #     A[idx_bc, idx_bc] = 1
+        #     A[idx_bc, idx_p1] = -1
+        #     A.eliminate_zeros()
+        #     b[idx_bc] = 0.0
 
+        
 
 
     
