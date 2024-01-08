@@ -75,10 +75,9 @@ class interface3D(object):
         self.boudnary_points = {i:"in" for i in range(self.grid.Np)} # initially set all points as internal
         self.boudnary_points_init()
 
-        self.lead_gate_potential = np.zeros(grid.Np) # no gate potential initially; only would be non-zero in gate region
+        self.lead_gate_potential = np.zeros(grid.Np) # no gate potential initially
         self.gatepotential_eps_init(args)
 
-        
 
     def boudnary_points_init(self):
         # set the boundary points
@@ -115,6 +114,8 @@ class interface3D(object):
                 else:
                     self.eps[index] = args[i].eps
         
+
+
 
 
 
