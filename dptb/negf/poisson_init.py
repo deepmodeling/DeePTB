@@ -1,5 +1,5 @@
 import numpy as np 
-
+from pyamg.gallery import poisson
 
 class grid(object):
     # define the grid in 3D space
@@ -29,13 +29,13 @@ class grid(object):
         self.xmesh = xmesh.flatten()
         self.ymesh = ymesh.flatten()
         self.zmesh = zmesh.flatten()
-        self.gird_coord = np.array([self.xmesh,self.ymesh,self.zmesh]).T #(Np,3)
+        self.grid_coord = np.array([self.xmesh,self.ymesh,self.zmesh]).T #(Np,3)
 
         self.Np = int(len(self.xall)*len(self.yall)*len(self.zall))
         assert self.Np == len(self.xmesh)
-        assert self.gird_coord.shape[0] == self.Np
+        assert self.grid_coord.shape[0] == self.Np
 
-        print('Number of grid points: ',self.Np)
+        print('Number of grid points: ',self.Np,' grid shape: ',self.grid_coord.shape,' Number of atoms: ',self.Na)
 
         self.atom_index = self.find_atom_index(xa,ya,za)
 
@@ -49,13 +49,20 @@ class grid(object):
         return swap
 
 class gate(object):
-    def __init__(self):
+    def __init__(self,xmin,xmax,ymin,ymax,zmin,zmax):
         self.Ef = 0.0
+        # gate region
+        self.xmin = xmin; self.xmax = xmax
+        self.ymin = ymin; self.ymax = ymax
+        self.zmin = zmin; self.zmax = zmax
 
 class medium(object):
-    def __init__(self):
+    def __init__(self,xmin,xmax,ymin,ymax,zmin,zmax):
         self.eps = 1.0
-
+        # gate region
+        self.xmin = xmin; self.xmax = xmax
+        self.ymin = ymin; self.ymax = ymax
+        self.zmin = zmin; self.zmax = zmax
 
 class interface3D(object):
     def __init__(self,grid,*args):
@@ -76,7 +83,7 @@ class interface3D(object):
         self.boudnary_points_init()
 
         self.lead_gate_potential = np.zeros(grid.Np) # no gate potential initially
-        self.gatepotential_eps_init(args)
+        self.gate_potential_eps_init(args)
 
 
     def boudnary_points_init(self):
@@ -100,15 +107,16 @@ class interface3D(object):
                 internal_NP += 1
         self.internal_NP = internal_NP
     
-    def gatepotential_eps_init(self,args):
+    def gate_potential_eps_init(self,args):
         # set the gate potential
+        # ingore the lead potential temporarily
         for i in range(len(args)):
             if args[i].__class__.__name__ == 'gate' or args[i].__class__.__name__ == 'medium':
                 
                 # find gate region in grid
-                index=np.nonzero((args[i].xmin<=self.grid_coord[0])&(args[i].xmax>=self.grid_coord[0])&
-                            (args[i].ymin<=self.grid_coord[1])&(args[i].ymax>=self.grid_coord[1])&
-                            (args[i].zmin<=self.grid_coord[2])&(args[i].zmax>=self.grid_coord[2]))
+                index=np.nonzero((args[i].xmin<=self.grid.grid_coord[0])&(args[i].xmax>=self.grid.grid_coord[0])&
+                            (args[i].ymin<=self.grid.grid_coord[1])&(args[i].ymax>=self.grid.grid_coord[1])&
+                            (args[i].zmin<=self.grid.grid_coord[2])&(args[i].zmax>=self.grid.grid_coord[2]))
                 if args[i].__class__.__name__ == 'gate': #attribute gate potential to the corresponding grid points
                     self.lead_gate_potential[index] = args[i].Ef 
                 else:
