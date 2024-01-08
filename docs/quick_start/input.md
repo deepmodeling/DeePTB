@@ -4,7 +4,7 @@ The following files are the central input files for DeePTB. Before executing the
 
 ## Inputs
 ### Data
-The dataset of one structure is recommended to prepare in the following format:
+The dataset of one structure is recommended to be prepared in the following format:
 ```
 data/
 -- set.x
@@ -13,7 +13,7 @@ data/
 -- -- xdat.traj        # ase trajectory file with num_frame
 -- -- bandinfo.json    # defining the training objective of this bandstructure
 ```
-One should prepare the **atomic structures** and **electronic band structures**. The **atomic structures** data is in ASE trade binary format, where each structure is stored using an **Atom** class defined in ASE package. The **band structures** data contains the kpoints list and eigenvalues in the binary format of npy. The shape of kpoints data is **[num_kpoint,3]** and eigenvalues is **[num_frame,nk,nbands]**. nsnaps is the number of snapshots, nk is the number of kpoints and nbands is the number of bands.
+One should prepare the **atomic structures** and **electronic band structures**. The **atomic structures** data is in ASE trajectory binary format, where each structure is stored using an **Atom** class defined in ASE package. The **band structures** data contains the kpoints list and eigenvalues in the binary format of npy. The shape of kpoints data is **[num_kpoint,3]** and eigenvalues is **[num_frame,nk,nbands]**. nsnaps is the number of snapshots, nk is the number of kpoints and nbands is the number of bands.
 
 ### Bandinfo
 
@@ -29,7 +29,7 @@ The **bandinfo.json** file looks like this:
     "weight": [1] # optional, indicating the weight for each band separately
 }
 ```
-**note:** The `0` energy point is located at the lowest energy eigenvalues of the data files, to generalize bandstructure data compute by different DFT packages.
+**note:** The `0` energy point is located at the lowest energy eigenvalues of the data files, to generalize bandstructure data computed by different DFT packages.
 
 
 ### Input.json
@@ -38,7 +38,7 @@ The **bandinfo.json** file looks like this:
 dptb config <generated input config path> [-full]
 ```
 The template config file will be generated at the path `./input.json`.
-For the full document about the input parameters, we refer to the detail [document](https://deeptb.readthedocs.io/en/latest). For now, we only need to consider a few vital parameters that can setup the training:
+For the full document about the input parameters, we refer to the detail [document](https://deeptb.readthedocs.io/en/latest). For now, we only need to consider a few vital parameters that can set the training:
 
 ```json
 "common_options": {
