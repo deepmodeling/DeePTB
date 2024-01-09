@@ -194,8 +194,8 @@ class NEGF(object):
         # create interface
         interface_poisson = Interface3D(grid,gate_list,dielectric_list)
 
-        normad = 1e30
-        while normad > acc:
+        max_diff = 1e30
+        while max_diff > acc:
 
             # update Hamiltonian by modifying onsite energy with potential
             atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values())
@@ -210,9 +210,18 @@ class NEGF(object):
             self.negf_compute(scf_require=True,Vbias=potential_tensor)
             
 
+            # update electron density for solving Poisson equation
+            DM_eq,DM_neq = self.out["DM_eq"], self.out["DM_neq"]
+            DM = DM_eq + DM_neq
+            elec_density = torch.diag(DM)
+            density_list = []
+            pre_atom_orbs = 0
+            for i in range(len(device_atom_norbs)):
+                density_list.append(torch.sum(elec_density[pre_atom_orbs : pre_atom_orbs+atom_gridpoint_index[i]]))
+                pre_atom_orbs += device_atom_norbs[i]
 
-
-            interface_poisson.solve_poisson(method='pyamg')
+            interface_poisson.free_charge[atom_gridpoint_index] = np.array(density_list)
+            max_diff = interface_poisson.solve_poisson(method='pyamg')
 
 
 
@@ -262,7 +271,15 @@ class NEGF(object):
                         if self.out_ldos:
                             prop = self.out.setdefault("LDOS", [])
                             prop.append(self.compute_LDOS(k))
+
+
+            # whether scf_require is True or False, density are computed for Poisson-NEGF SCF
+            if self.out_density or self.out_potential:
+                self.out["DM_eq"], self.out["DM_neq"] = self.compute_density(k)
             
+            if self.out_potential:
+                pass
+
             if scf_require==False:
                 if self.out_dos:
                     self.out["DOS"] = torch.stack(self.out["DOS"])
@@ -273,37 +290,31 @@ class NEGF(object):
                 # computing properties that are not functions of E (improvement can be made here in properties related to integration of energy window of fermi functions)
                 if self.out_current:
                     pass
-            
-            # whether scf_require is True or False, the following properties are computed
-            if self.out_density or self.out_potential:
-                self.out["DM_eq"], self.out["DM_neq"] = self.compute_density(k)
-            
-            if self.out_potential:
-                pass
+        
+                if self.out_lcurrent:
+                    lcurrent = 0
+                    for i, e in enumerate(self.int_grid):
+                        log.info(msg="computing green's function at e = {:.3f}".format(float(e)))
+                        leads = self.stru_options.keys()
+                        for ll in leads:
+                            if ll.startswith("lead"):
+                                getattr(self.deviceprop, ll).self_energy(
+                                    energy=e, 
+                                    kpoint=k, 
+                                    eta_lead=self.jdata["eta_lead"],
+                                    method=self.jdata["sgf_solver"]
+                                    )
+                                
+                        self.deviceprop.cal_green_function(
+                            energy=e,
+                            kpoint=k, 
+                            eta_device=self.jdata["eta_device"], 
+                            block_tridiagonal=self.block_tridiagonal
+                            )
+                        
+                        lcurrent += self.int_weight[i] * self.compute_lcurrent(k)
+                    self.out["LOCAL_CURRENT"] = lcurrent
 
-            if self.out_lcurrent:
-                lcurrent = 0
-                for i, e in enumerate(self.int_grid):
-                    log.info(msg="computing green's function at e = {:.3f}".format(float(e)))
-                    leads = self.stru_options.keys()
-                    for ll in leads:
-                        if ll.startswith("lead"):
-                            getattr(self.deviceprop, ll).self_energy(
-                                energy=e, 
-                                kpoint=k, 
-                                eta_lead=self.jdata["eta_lead"],
-                                method=self.jdata["sgf_solver"]
-                                )
-                            
-                    self.deviceprop.cal_green_function(
-                        energy=e,
-                        kpoint=k, 
-                        eta_device=self.jdata["eta_device"], 
-                        block_tridiagonal=self.block_tridiagonal
-                        )
-                    
-                    lcurrent += self.int_weight[i] * self.compute_lcurrent(k)
-                self.out["LOCAL_CURRENT"] = lcurrent
 
             if scf_require == False:
                 torch.save(self.out, self.results_path+"/negf.k{}.out.pth".format(ik))
