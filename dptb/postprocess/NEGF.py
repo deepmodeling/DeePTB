@@ -19,6 +19,8 @@ from dptb.utils.tools import j_must_have
 import numpy as np
 from dptb.utils.make_kpoints import kmesh_sampling
 import logging
+from negf.poisson_scf import poisson_negf_scf # TODO : move this to dptb.negf
+from negf.poisson_init import Grid,Interface3D,Gate,Dielectric
 
 log = logging.getLogger(__name__)
 
@@ -105,6 +107,11 @@ class NEGF(object):
         self.generate_energy_grid()
         self.out = {}
 
+        ## Poisson equation
+        self.poisson_grid = jdata["poisson_grid"]
+        self.gate_region = jdata["gate_region"]
+        self.dielectric_region = jdata["dielectric_region"]
+
 
     def generate_energy_grid(self):
 
@@ -146,13 +153,75 @@ class NEGF(object):
 
     def compute(self):
 
-        # check if scf is required
         if self.scf:
-            # perform k-point sampling and scf calculation to get the converged density
-            for k in self.kpoints:
-                pass
+            if not self.out_density:
+                raise RuntimeError("Error! scf calculation requires density matrix. Please set out_density to True")
+            self.poisson_negf_scf()
         else:
-            pass
+            self.negf_compute(scf_require=False)
+
+
+    def poisson_negf_scf(self,acc=1e-6,max_iter=100):
+
+        
+        # create grid
+        xg,yg,zg,xa,ya,za = self.read_grid(self.structase, self.poisson_grid) #TODO:write read_grid
+        grid = Grid(xg,yg,zg,xa,ya,za)
+        # create gate
+        gate_list = []
+        gates = self.gate_region.keys()
+        for gg in gates:
+            if gg.startswith("gate"):
+                xmin,xmax = self.gate_region[gg].get("x_range",None).split('-')
+                ymin,ymax = self.gate_region[gg].get("y_range",None).split('-')
+                zmin,zmax = self.gate_region[gg].get("z_range",None).split('-')
+                gate_init = Gate(xmin,xmax,ymin,ymax,zmin,zmax)
+                gate_init.Ef = self.gate_region[gg].get("Ef",None)
+                gate_list.append(gate_init)
+                      
+        # create dielectric
+        dielectric_list = []
+        dielectric = self.dielectric_region.keys()
+        for dd in dielectric:
+            if dd.startswith("dielectric"):
+                xmin,xmax = self.dielectric_region[dd].get("x_range",None).split('-')
+                ymin,ymax = self.dielectric_region[dd].get("y_range",None).split('-')
+                zmin,zmax = self.dielectric_region[dd].get("z_range",None).split('-')
+                dielectric_init = Dielectric(xmin,xmax,ymin,ymax,zmin,zmax)
+                dielectric_init.eps = self.dielectric_region[dd].get("Ef",None)
+                dielectric_list.append(dielectric_init)        
+
+        # create interface
+        interface_poisson = Interface3D(grid,gate_list,dielectric_list)
+
+        normad = 1e30
+        while normad > acc:
+
+            # update Hamiltonian by modifying onsite energy with potential
+            potential_grid_atom = interface_poisson.phi[interface_poisson.grid.atom_index] # a vector with length of number of atoms
+            device_atom_norbs = self.negf_hamiltonian.atom_norbs[self.negf_hamiltonian.proj_device_id[0]:self.negf_hamiltonian.proj_device_id[1]]
+            
+            potential_list = []
+            for i in range(len(device_atom_norbs)):
+                potential_list.append(potential_grid_atom[i]*torch.ones(device_atom_norbs[i]))
+            potential_tensor = torch.cat(potential_list)
+            self.negf_compute(scf_require=True,Vbias=potential_tensor)
+            
+
+
+
+            interface_poisson.solve_poisson(method='pyamg')
+
+
+
+    def negf_compute(self,scf_require=False,Vbias=None):
+        # check if scf is required
+        # if self.scf:
+        #     # perform k-point sampling and scf calculation to get the converged density
+        #     for k in self.kpoints:
+        #         pass
+        # else:
+        #     pass
         
         # computing output properties
         for ik, k in enumerate(self.kpoints):
@@ -178,31 +247,32 @@ class NEGF(object):
                         energy=e, 
                         kpoint=k, 
                         eta_device=self.jdata["eta_device"], 
-                        block_tridiagonal=self.block_tridiagonal
+                        block_tridiagonal=self.block_tridiagonal,
+                        Vbias=Vbias
                         )
-
-                    if self.out_dos:
-                        prop = self.out.setdefault("DOS", [])
-                        prop.append(self.compute_DOS(k))
-                    if self.out_tc or self.out_current_nscf:
-                        prop = self.out.setdefault("TC", [])
-                        prop.append(self.compute_TC(k))
-                    if self.out_ldos:
-                        prop = self.out.setdefault("LDOS", [])
-                        prop.append(self.compute_LDOS(k))
-
-            if self.out_dos:
-                self.out["DOS"] = torch.stack(self.out["DOS"])
-            if self.out_tc or self.out_current_nscf:
-                self.out["TC"] = torch.stack(self.out["TC"])
+                    if scf_require==False:
+                        if self.out_dos:
+                            prop = self.out.setdefault("DOS", [])
+                            prop.append(self.compute_DOS(k))
+                        if self.out_tc or self.out_current_nscf:
+                            prop = self.out.setdefault("TC", [])
+                            prop.append(self.compute_TC(k))
+                        if self.out_ldos:
+                            prop = self.out.setdefault("LDOS", [])
+                            prop.append(self.compute_LDOS(k))
             
-            if self.out_current_nscf:
-                self.out["BIAS_POTENTIAL_NSCF"], self.out["CURRENT_NSCF"] = self.compute_current_nscf(k, self.uni_grid, self.out["TC"])
+            if scf_require==False:
+                if self.out_dos:
+                    self.out["DOS"] = torch.stack(self.out["DOS"])
+                if self.out_tc or self.out_current_nscf:
+                    self.out["TC"] = torch.stack(self.out["TC"])
+                if self.out_current_nscf:
+                    self.out["BIAS_POTENTIAL_NSCF"], self.out["CURRENT_NSCF"] = self.compute_current_nscf(k, self.uni_grid, self.out["TC"]) 
+                # computing properties that are not functions of E (improvement can be made here in properties related to integration of energy window of fermi functions)
+                if self.out_current:
+                    pass
             
-            # computing properties that are not functions of E (improvement can be made here in properties related to integration of energy window of fermi functions)
-            if self.out_current:
-                pass
-
+            # whether scf_require is True or False, the following properties are computed
             if self.out_density or self.out_potential:
                 self.out["DM_eq"], self.out["DM_neq"] = self.compute_density(k)
             
@@ -233,7 +303,8 @@ class NEGF(object):
                     lcurrent += self.int_weight[i] * self.compute_lcurrent(k)
                 self.out["LOCAL_CURRENT"] = lcurrent
 
-            torch.save(self.out, self.results_path+"/negf.k{}.out.pth".format(ik))
+            if scf_require == False:
+                torch.save(self.out, self.results_path+"/negf.k{}.out.pth".format(ik))
 
             # plotting
             

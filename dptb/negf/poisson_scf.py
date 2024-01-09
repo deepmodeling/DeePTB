@@ -2,7 +2,7 @@
 
 
 
-def Poisson_NEGF_SCF(grid,interface,device,acc=1e-6,max_iter=100):
+def poisson_negf_scf(grid,interface,device,acc=1e-6,max_iter=100):
     
     interface.phi_old = interface.phi.copy()
     scf_count = 0
