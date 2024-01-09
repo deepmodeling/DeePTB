@@ -105,7 +105,7 @@ class DeviceProperty(object):
         self.lead_R = lead_R
         self.mu = self.efermi - 0.5*(self.lead_L.voltage + self.lead_R.voltage)
 
-    def cal_green_function(self, energy, kpoint, eta_device=0., block_tridiagonal=True):
+    def cal_green_function(self, energy, kpoint, eta_device=0., block_tridiagonal=True, Vbias=None):
         ''' computes the Green's function for a given energy and k-point in device.
 
         the tags used here to identify different Green's functions follows the NEGF theory 
@@ -139,12 +139,15 @@ class DeviceProperty(object):
         # else:
         #     HD_ = HD
 
-        if os.path.exists(os.path.join(self.results_path, "POTENTIAL.pth")):
-            self.V = torch.load(os.path.join(self.results_path, "POTENTIAL.pth"))
-        elif abs(self.mu - self.efermi) > 1e-7:
-            self.V = self.efermi - self.mu
+        if Vbias is None:
+            if os.path.exists(os.path.join(self.results_path, "POTENTIAL.pth")):
+                self.V = torch.load(os.path.join(self.results_path, "POTENTIAL.pth"))
+            elif abs(self.mu - self.efermi) > 1e-7:
+                self.V = self.efermi - self.mu
+            else:
+                self.V = 0.
         else:
-            self.V = 0.
+            self.V = Vbias
         
         if not hasattr(self, "hd") or not hasattr(self, "sd"):
             self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
