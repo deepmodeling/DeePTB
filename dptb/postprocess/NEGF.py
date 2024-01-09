@@ -198,12 +198,14 @@ class NEGF(object):
         while normad > acc:
 
             # update Hamiltonian by modifying onsite energy with potential
-            potential_grid_atom = interface_poisson.phi[interface_poisson.grid.atom_index] # a vector with length of number of atoms
+            atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values())
+            potential_atom = interface_poisson.phi[atom_gridpoint_index] # a vector with length of number of atoms
+            # number of orbitals on atoms in device region
             device_atom_norbs = self.negf_hamiltonian.atom_norbs[self.negf_hamiltonian.proj_device_id[0]:self.negf_hamiltonian.proj_device_id[1]]
             
             potential_list = []
             for i in range(len(device_atom_norbs)):
-                potential_list.append(potential_grid_atom[i]*torch.ones(device_atom_norbs[i]))
+                potential_list.append(potential_atom[i]*torch.ones(device_atom_norbs[i]))
             potential_tensor = torch.cat(potential_list)
             self.negf_compute(scf_require=True,Vbias=potential_tensor)
             

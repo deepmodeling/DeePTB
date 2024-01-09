@@ -44,7 +44,7 @@ class Grid(object):
         print('Number of grid points: ',self.Np,' grid shape: ',self.grid_coord.shape,' Number of atoms: ',self.Na)
 
         # find the index of the atoms in the grid
-        self.atom_index = self.find_atom_index(xa,ya,za)
+        self.atom_index_dict = self.find_atom_index(xa,ya,za)
 
 
         # create surface area for each grid point along x,y,z axis
@@ -71,10 +71,10 @@ class Grid(object):
     def find_atom_index(self,xa,ya,za):
         # find the index of the atoms in the grid
         swap = {}
-        for i in range(self.Na):
-            for j in range(self.Np):
-                if xa[i]==self.xmesh[j] and ya[i]==self.ymesh[j] and za[i]==self.zmesh[j]:
-                    swap.update({i:j})
+        for atom_index in range(self.Na):
+            for gp_index in range(self.Np):
+                if xa[atom_index]==self.xmesh[gp_index] and ya[atom_index]==self.ymesh[gp_index] and za[atom_index]==self.zmesh[gp_index]:
+                    swap.update({atom_index:gp_index})
         return swap
     
     def cal_vorlen(self,x):
