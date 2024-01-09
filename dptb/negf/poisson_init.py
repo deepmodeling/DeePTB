@@ -8,9 +8,9 @@ class grid(object):
         self.xg = np.around(xg,decimals=5);self.yg = np.around(yg,decimals=5);self.zg = np.around(zg,decimals=5)
         # xa,ya,za are the coordinates of the atoms
         # atom should be within the grid
-        assert xa.all() >= np.min(xg) and xa.all() <= np.max(xg)
-        assert ya.all() >= np.min(yg) and ya.all() <= np.max(yg)
-        assert za.all() >= np.min(zg) and za.all() <= np.max(zg)
+        assert (xa-np.min(xg)).all() and (xa-np.max(xg)).all()
+        assert (ya-np.min(yg)).all() and (ya-np.max(yg)).all()
+        assert (za-np.min(zg)).all() and (za-np.max(zg)).all()
 
         self.Na = len(xa) # number of atoms
         uxa = np.unique(xa);uya = np.unique(ya);uza = np.unique(za)
@@ -29,26 +29,34 @@ class grid(object):
         self.grid_coord = np.array([self.xmesh,self.ymesh,self.zmesh]).T #(Np,3)
         sorted_indices = np.lexsort((self.xmesh , self.ymesh , self.zmesh))
         self.grid_coord = self.grid_coord[sorted_indices] # sort the grid points firstly along x, then y, lastly z        
-
-
+        ## check the number of grid points
         self.Np = int(len(self.xall)*len(self.yall)*len(self.zall))
         assert self.Np == len(self.xmesh)
         assert self.grid_coord.shape[0] == self.Np
 
         print('Number of grid points: ',self.Np,' grid shape: ',self.grid_coord.shape,' Number of atoms: ',self.Na)
 
+        # find the index of the atoms in the grid
         self.atom_index = self.find_atom_index(xa,ya,za)
 
 
-        # create surface area for each grid point
+        # create surface area for each grid point along x,y,z axis
+        # each grid point corresponds to a Voronoi cell(box)
         surface_grid = np.zeros((self.Np,3))
         x_vorlen = self.cal_vorlen(self.xall);y_vorlen = self.cal_vorlen(self.yall);z_vorlen = self.cal_vorlen(self.zall)
         
-        ## surface along x-axis (yz-plane)
         XD,YD = np.meshgrid(x_vorlen,y_vorlen)
+        ## surface along x-axis (yz-plane)
         ax,bx = np.meshgrid(YD.flatten(),z_vorlen)
         surface_grid[:,0] = abs((ax*bx).flatten())
         ## surface along y-axis (xz-plane) 
+        ay,by = np.meshgrid(XD.flatten(),z_vorlen)
+        surface_grid[:,1] = abs((ay*by).flatten())
+        ## surface along z-axis (xy-plane)
+        az,_ = np.meshgrid((XD*YD).flatten(),self.zall)
+        surface_grid[:,2] = abs(az.flatten())
+
+        self.surface_grid = surface_grid  # grid points order are the same as that of  self.grid_coord
         
 
 
