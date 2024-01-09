@@ -87,6 +87,7 @@ class Grid(object):
         return xd
 
 
+    
 class Gate(object):
     def __init__(self,xmin,xmax,ymin,ymax,zmin,zmax):
         self.Ef = 0.0
@@ -95,7 +96,7 @@ class Gate(object):
         self.ymin = ymin; self.ymax = ymax
         self.zmin = zmin; self.zmax = zmax
 
-class Medium(object):
+class Dielectric(object):
     def __init__(self,xmin,xmax,ymin,ymax,zmin,zmax):
         self.eps = 1.0
         # gate region
@@ -110,14 +111,17 @@ class Medium(object):
 
 
 class Interface3D(object):
-    def __init__(self,grid,*args):
+    def __init__(self,grid,gate_list,dielectric_list):
         assert grid.__class__.__name__ == 'Grid'
 
-        region_name = ['Gate','Medium']
-        for i in range(0,len(args)):
-            if not args[i].__class__.__name__ in region_name:
-                raise ValueError('Unknown region type: ',args[i].__class__.__name__)
-
+        
+        for i in range(0,len(gate_list)):
+            if not gate_list[i].__class__.__name__ == 'Gate':
+                raise ValueError('Unknown region type: ',gate_list[i].__class__.__name__)
+        for i in range(0,len(dielectric_list)):
+            if not dielectric_list[i].__class__.__name__ == 'Dielectric':
+                raise ValueError('Unknown region type: ',dielectric_list[i].__class__.__name__)
+            
         self.grid = grid
         self.eps = np.zeros(grid.Np) # dielectric permittivity
         self.phi = np.zeros(grid.Np) # potential
@@ -133,7 +137,8 @@ class Interface3D(object):
         self.boudnary_points_get()
 
         self.lead_gate_potential = np.zeros(grid.Np) # no gate potential initially, all grid points are set to zero
-        self.potential_eps_get(*args)
+        self.potential_eps_get(gate_list)
+        self.potential_eps_get(dielectric_list)
 
 
     def boudnary_points_get(self):
@@ -157,21 +162,21 @@ class Interface3D(object):
                 internal_NP += 1
         self.internal_NP = internal_NP
     
-    def potential_eps_get(self,*args):
+    def potential_eps_get(self,region_list):
         # set the gate potential
         # ingore the lead potential temporarily
-        for i in range(len(args)):
-            if args[i].__class__.__name__ == 'Gate' or args[i].__class__.__name__ == 'Medium':
-                
-                # find gate region in grid
-                index=np.nonzero((args[i].xmin<=self.grid.grid_coord[0])&(args[i].xmax>=self.grid.grid_coord[0])&
-                            (args[i].ymin<=self.grid.grid_coord[1])&(args[i].ymax>=self.grid.grid_coord[1])&
-                            (args[i].zmin<=self.grid.grid_coord[2])&(args[i].zmax>=self.grid.grid_coord[2]))
-                if args[i].__class__.__name__ == 'Gate': #attribute gate potential to the corresponding grid points
-                    self.boudnary_points[index] = "Gate"
-                    self.lead_gate_potential[index] = args[i].Ef 
-                else:
-                    self.eps[index] = args[i].eps
+        for i in range(len(region_list)):    
+            # find gate region in grid
+            index=np.nonzero((region_list[i].xmin<=self.grid.grid_coord[0])&(region_list[i].xmax>=self.grid.grid_coord[0])&
+                        (region_list[i].ymin<=self.grid.grid_coord[1])&(region_list[i].ymax>=self.grid.grid_coord[1])&
+                        (region_list[i].zmin<=self.grid.grid_coord[2])&(region_list[i].zmax>=self.grid.grid_coord[2]))
+            if region_list[i].__class__.__name__ == 'Gate': #attribute gate potential to the corresponding grid points
+                self.boudnary_points[index] = "Gate"
+                self.lead_gate_potential[index] = region_list[i].Ef 
+            elif region_list[i].__class__.__name__ == 'Dielectric':
+                self.eps[index] = region_list[i].eps
+            else:
+                raise ValueError('Unknown region type: ',region_list[i].__class__.__name__)
         
     def to_pyamg(self,dtype=None):
         # convert to amg format A,b matrix
