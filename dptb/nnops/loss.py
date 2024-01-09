@@ -34,6 +34,9 @@ class EigLoss(nn.Module):
             basis: Dict[str, Union[str, list]]=None,
             idp: Union[OrbitalMapper, None]=None,
             overlap: bool=False,
+            diff_on: bool=False,
+            eout_weight: float=0.01,
+            diff_weight: float=0.01,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             **kwargs,
@@ -41,6 +44,9 @@ class EigLoss(nn.Module):
         super(EigLoss, self).__init__()
         self.loss = nn.MSELoss()
         self.device = device
+        self.diff_on = diff_on
+        self.eout_weight = eout_weight
+        self.diff_weight = diff_weight
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
@@ -109,7 +115,7 @@ class EigLoss(nn.Module):
             num_kp = eig_label.shape[-2]
 
             assert num_kp == eig_pred.shape[-2]
-            up_nband = min(norbs+band_min,nbanddft)
+            up_nband = min(norbs, nbanddft)
 
             if band_max == None:
                 band_max = up_nband
@@ -123,7 +129,7 @@ class EigLoss(nn.Module):
             assert len(eig_pred.shape) == 2 and len(eig_label.shape) == 2
 
             # 对齐eig_pred和eig_label
-            eig_pred_cut = eig_pred[:,:band_max-band_min]
+            eig_pred_cut = eig_pred[:,:band_max:band_min]
             eig_label_cut = eig_label[:,band_min:band_max]
 
 
@@ -135,24 +141,47 @@ class EigLoss(nn.Module):
             
             if emax != None and emin != None:
                 mask_in = eig_label_cut.lt(emax) * eig_label_cut.gt(emin)
+                mask_out = eig_label_cut.gt(emax) + eig_label_cut.lt(emin)
             elif emax != None:
                 mask_in = eig_label_cut.lt(emax)
+                mask_out = eig_label_cut.gt(emax)
             elif emin != None:
                 mask_in = eig_label_cut.gt(emin)
+                mask_out = eig_label_cut.lt(emin)
             else:
                 mask_in = None
+                mask_out = None
 
             if mask_in is not None:
                 if torch.any(mask_in).item():
                     loss = mse_loss(eig_pred_cut.masked_select(mask_in), eig_label_cut.masked_select(mask_in))
+                if torch.any(mask_out).item():
+                    loss = loss + self.eout_weight * mse_loss(eig_pred_cut.masked_select(mask_out), eig_label_cut.masked_select(mask_out))
             else:
                 loss = mse_loss(eig_pred_cut, eig_label_cut)
+
+            if self.diff_on:
+                assert num_kp >= 1
+                # randon choose nk_diff kps' eigenvalues to gen Delta eig.
+                # nk_diff = max(nkps//4,1)     
+                nk_diff = num_kp
+                k_diff_i = torch.randint(0, num_kp, (nk_diff,), device=self.device)
+                k_diff_j = torch.randint(0, num_kp, (nk_diff,), device=self.device)
+                while (k_diff_i==k_diff_j).all():
+                    k_diff_j = torch.randint(0, num_kp, (nk_diff,), device=self.device)
+                if mask_in is not None:
+                    eig_diff_lbl = eig_label_cut.masked_fill(mask_in, 0.)[:, k_diff_i,:] - eig_label_cut.masked_fill(mask_in, 0.)[:,k_diff_j,:]
+                    eig_ddiff_pred = eig_pred_cut.masked_fill(mask_in, 0.)[:,k_diff_i,:] - eig_pred_cut.masked_fill(mask_in, 0.)[:,k_diff_j,:]
+                else:
+                    eig_diff_lbl = eig_label_cut[:,k_diff_i,:] - eig_label_cut[:,k_diff_j,:]
+                    eig_ddiff_pred = eig_pred_cut[:,k_diff_i,:]  - eig_pred_cut[:,k_diff_j,:]
+                loss_diff =  mse_loss(eig_diff_lbl, eig_ddiff_pred) 
+                
+                loss = loss + self.diff_weight * loss_diff
 
             total_loss += loss
 
         return total_loss / len(datalist)
-    
-
 
 @Loss.register("hamil")
 class HamilLoss(nn.Module):
@@ -306,8 +335,9 @@ class HamilLossAnalysis(object):
             for at, tp in self.idp.chemical_symbol_to_type.items():
                 onsite_mask = mask[data["atom_types"].flatten().eq(tp)]
                 onsite_err = err[data["atom_types"].flatten().eq(tp)]
+                onsite_amp = amp[data["atom_types"].flatten().eq(tp)]
                 onsite_err = torch.stack([vec[ma] for vec, ma in zip(onsite_err, onsite_mask)])
-                onsite_amp = torch.stack([vec[ma] for vec, ma in zip(amp, onsite_mask)])
+                onsite_amp = torch.stack([vec[ma] for vec, ma in zip(onsite_amp, onsite_mask)])
                 rmserr = (onsite_err**2).mean(dim=0).sqrt()
                 maerr = onsite_err.abs().mean(dim=0)
                 l1amp = onsite_amp.abs().mean(dim=0)
@@ -328,8 +358,9 @@ class HamilLossAnalysis(object):
             for bt, tp in self.idp.bond_to_type.items():
                 hopping_mask = mask[data["edge_type"].flatten().eq(tp)]
                 hopping_err = err[data["edge_type"].flatten().eq(tp)]
+                hopping_amp = amp[data["edge_type"].flatten().eq(tp)]
                 hopping_err = torch.stack([vec[ma] for vec, ma in zip(hopping_err, hopping_mask)])
-                hopping_amp = torch.stack([vec[ma] for vec, ma in zip(amp, hopping_mask)])
+                hopping_amp = torch.stack([vec[ma] for vec, ma in zip(hopping_amp, hopping_mask)])
                 rmserr = (hopping_err**2).mean(dim=0).sqrt()
                 maerr = hopping_err.abs().mean(dim=0)
                 l1amp = hopping_amp.abs().mean(dim=0)
@@ -352,8 +383,9 @@ class HamilLossAnalysis(object):
                 for bt, tp in self.idp.bond_to_type.items():
                     hopping_mask = mask[data["edge_type"].flatten().eq(tp)]
                     hopping_err = err[data["edge_type"].flatten().eq(tp)]
+                    hopping_amp = amp[data["edge_type"].flatten().eq(tp)]
                     hopping_err = torch.stack([vec[ma] for vec, ma in zip(hopping_err, hopping_mask)])
-                    hopping_amp = torch.stack([vec[ma] for vec, ma in zip(amp, hopping_mask)])
+                    hopping_amp = torch.stack([vec[ma] for vec, ma in zip(hopping_amp, hopping_mask)])
                     rmserr = (hopping_err**2).mean(dim=0).sqrt()
                     maerr = hopping_err.abs().mean(dim=0)
                     l1amp = hopping_amp.abs().mean(dim=0)

@@ -432,7 +432,7 @@ class OrbitalMapper(BondMapper):
 
         if self.method == "e3tb":
             self.reduced_matrix_element = int(((orbtype_count["s"] + 9 * orbtype_count["p"] + 25 * orbtype_count["d"] + 49 * orbtype_count["f"]) + \
-                                                    self.full_basis_norb ** 2)/2)
+                                                    self.full_basis_norb ** 2)/2) # reduce onsite elements by blocks. we cannot reduce it by element since the rme will pass into CG basis to form the whole block
         else:
             self.reduced_matrix_element = (
                 1 * orbtype_count["s"] * orbtype_count["s"] + \
@@ -505,6 +505,7 @@ class OrbitalMapper(BondMapper):
         assert (self.mask_to_basis.sum(dim=1).int()-self.atom_norb).abs().sum() <= 1e-6
 
         self.get_orbpair_maps()
+        # the mask to map the full basis reduced matrix element to the original basis reduced matrix element
         self.mask_to_erme = torch.zeros(len(self.bond_types), self.reduced_matrix_element, dtype=torch.bool, device=self.device)
         self.mask_to_nrme = torch.zeros(len(self.type_names), self.reduced_matrix_element, dtype=torch.bool, device=self.device)
         for ib, bb in self.basis.items():
