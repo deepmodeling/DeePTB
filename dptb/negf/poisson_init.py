@@ -1,6 +1,9 @@
 import numpy as np 
 from pyamg.gallery import poisson
 
+eps0 = 8.854187817e-12 # vacuum permittivity
+
+
 class grid(object):
     # define the grid in 3D space
     def __init__(self,xg,yg,zg,xa,ya,za):
@@ -160,16 +163,33 @@ class interface3D(object):
             dtype = np.float64
         A = poisson(self.grid.shape,format='csr',dtype=dtype)
         b = np.zeros(A.shape[0],dtype=A.dtype)
-        self.set_amg_boundary(A,b)
+        self.construct_poisson(A,b)
         
         return A,b
     
-    def set_amg_boundary(self,A,b):
+    def construct_poisson(self,A,b):
 
         def Dirichlet(idx,A,b): #第一类边界条件
             # Default pyamg Poisson matrix has Dirichlet BC
             b[idx] = 0.0  #为何要将边界点的值设为0
 
+        Nx = self.grid.shape[0];Ny = self.grid.shape[1];Nz = self.grid.shape[2]
+        for gp_index in range(self.grid.Np):
+            if self.boudnary_points[gp_index] == "in":
+                flux_xm = self.grid.surface_grid[gp_index,0]*eps0*(self.eps[gp_index-1]+self.eps[gp_index])*0.5\
+                *(self.phi[gp_index-1]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index,0]-self.grid.grid_coord[gp_index-1,0])
+                flux_xp = self.grid.surface_grid[gp_index,0]*eps0*(self.eps[gp_index+1]+self.eps[gp_index])*0.5\
+                *(self.phi[gp_index+1]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index+1,0]-self.grid.grid_coord[gp_index,0])
+                
+                flux_ym = self.grid.surface_grid[gp_index,1]*eps0*(self.eps[gp_index-Nx]+self.eps[gp_index])*0.5\
+                *(self.phi[gp_index-Nx]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index-Nx,1]-self.grid.grid_coord[gp_index,1])
+                flux_yp = self.grid.surface_grid[gp_index,1]*eps0*(self.eps[gp_index+Nx]+self.eps[gp_index])*0.5\
+                *(self.phi[gp_index+Nx]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index+Nx,1]-self.grid.grid_coord[gp_index,1])
+
+                flux_zm = self.grid.surface_grid[gp_index,2]*eps0*(self.eps[gp_index-Nx*Ny]+self.eps[gp_index])*0.5\
+                *(self.phi[gp_index-Nx*Ny]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index-Nx*Ny,2]-self.grid.grid_coord[gp_index,2])
+                flux_zp = self.grid.surface_grid[gp_index,2]*eps0*(self.eps[gp_index+Nx*Ny]+self.eps[gp_index])*0.5\
+                *(self.phi[gp_index+Nx*Ny]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index+Nx*Ny,2]-self.grid.grid_coord[gp_index,2])
 
 
         # def Neumann(idx_bc, idx_p1): #第二类边界条件
