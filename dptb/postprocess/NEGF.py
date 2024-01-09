@@ -161,7 +161,7 @@ class NEGF(object):
             self.negf_compute(scf_require=False)
 
 
-    def poisson_negf_scf(self,acc=1e-6,max_iter=100):
+    def poisson_negf_scf(self,diff_acc=1e-6,max_iter=100,mix_rate=0.3):
 
         
         # create grid
@@ -194,8 +194,8 @@ class NEGF(object):
         # create interface
         interface_poisson = Interface3D(grid,gate_list,dielectric_list)
 
-        max_diff = 1e30
-        while max_diff > acc:
+        max_diff = 1e30; iter_count=0
+        while max_diff > diff_acc:
 
             # update Hamiltonian by modifying onsite energy with potential
             atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values())
@@ -223,6 +223,14 @@ class NEGF(object):
             interface_poisson.free_charge[atom_gridpoint_index] = np.array(density_list)
             max_diff = interface_poisson.solve_poisson(method='pyamg')
 
+            interface_poisson.phi = interface_poisson.phi + mix_rate*(interface_poisson.phi - interface_poisson.phi_old)
+            interface_poisson.phi_old = interface_poisson.phi.copy()
+
+            iter_count += 1
+            print('Poisson iteration: ',iter_count,' max_diff: ',max_diff)
+            if iter_count > max_iter:
+                print('Poisson iteration exceeds max_iter')
+                break
 
 
     def negf_compute(self,scf_require=False,Vbias=None):

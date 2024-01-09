@@ -297,8 +297,6 @@ class Interface3D(object):
             self.phi = self.solve_poisson_pyamg(A,b)
 
             max_diff = np.max(abs(self.phi-self.phi_old))
-            self.phi_old = self.phi.copy()
-
             return max_diff
         else:
             raise ValueError('Unknown Poisson solver: ',method)
