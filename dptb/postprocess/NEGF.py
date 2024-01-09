@@ -162,8 +162,7 @@ class NEGF(object):
 
 
     def poisson_negf_scf(self,diff_acc=1e-6,max_iter=100,mix_rate=0.3):
-
-        
+       
         # create grid
         xg,yg,zg,xa,ya,za = self.read_grid(self.structase, self.poisson_grid) #TODO:write read_grid
         grid = Grid(xg,yg,zg,xa,ya,za)
@@ -229,8 +228,11 @@ class NEGF(object):
             iter_count += 1
             print('Poisson iteration: ',iter_count,' max_diff: ',max_diff)
             if iter_count > max_iter:
-                print('Poisson iteration exceeds max_iter')
-                break
+                raise RuntimeError('Poisson iteration exceeds max_iter')
+
+
+        # calculate transport properties with converged potential
+        self.negf_compute(scf_require=False)
 
 
     def negf_compute(self,scf_require=False,Vbias=None):
