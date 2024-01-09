@@ -1,4 +1,5 @@
 import numpy as np 
+import pyamg
 from pyamg.gallery import poisson
 from utils.constants import elementary_charge as q
 from utils.constants import Boltzmann
@@ -7,7 +8,7 @@ from scipy.constants import epsilon_0 as eps0  #TODO:later add to untils.constan
 
 
 
-class grid(object):
+class Grid(object):
     # define the grid in 3D space
     def __init__(self,xg,yg,zg,xa,ya,za):
         # xg,yg,zg are the coordinates of the basic grid points
@@ -86,7 +87,7 @@ class grid(object):
         return xd
 
 
-class gate(object):
+class Gate(object):
     def __init__(self,xmin,xmax,ymin,ymax,zmin,zmax):
         self.Ef = 0.0
         # gate region
@@ -94,7 +95,7 @@ class gate(object):
         self.ymin = ymin; self.ymax = ymax
         self.zmin = zmin; self.zmax = zmax
 
-class medium(object):
+class Medium(object):
     def __init__(self,xmin,xmax,ymin,ymax,zmin,zmax):
         self.eps = 1.0
         # gate region
@@ -102,11 +103,17 @@ class medium(object):
         self.ymin = ymin; self.ymax = ymax
         self.zmin = zmin; self.zmax = zmax
 
-class interface3D(object):
-    def __init__(self,grid,*args):
-        assert grid.__class__.__name__ == 'grid'
 
-        region_name = ['gate','medium']
+
+
+
+
+
+class Interface3D(object):
+    def __init__(self,grid,*args):
+        assert grid.__class__.__name__ == 'Grid'
+
+        region_name = ['Gate','Medium']
         for i in range(0,len(args)):
             if not args[i].__class__.__name__ in region_name:
                 raise ValueError('Unknown region type: ',args[i].__class__.__name__)
@@ -114,18 +121,19 @@ class interface3D(object):
         self.grid = grid
         self.eps = np.zeros(grid.Np) # dielectric permittivity
         self.phi = np.zeros(grid.Np) # potential
+        self.phi_old = np.zeros(grid.Np) # potential in the previous iteration
         self.free_charge = np.zeros(grid.Np) # free charge density
         self.fixed_charge = np.zeros(grid.Np) # fixed charge density
 
         self.Temperature = 300.0 # temperature in unit of Kelvin
-        self.KBT = Boltzmann*self.Temperature # thermal energy
+        self.kBT = Boltzmann*self.Temperature # thermal energy
 
         # store the boundary information: xmin,xmax,ymin,ymax,zmin,zmax,gate
         self.boudnary_points = {i:"in" for i in range(self.grid.Np)} # initially set all points as internal
         self.boudnary_points_get()
 
         self.lead_gate_potential = np.zeros(grid.Np) # no gate potential initially, all grid points are set to zero
-        self.gate_potential_eps_get(*args)
+        self.potential_eps_get(*args)
 
 
     def boudnary_points_get(self):
@@ -149,18 +157,18 @@ class interface3D(object):
                 internal_NP += 1
         self.internal_NP = internal_NP
     
-    def gate_potential_eps_get(self,*args):
+    def potential_eps_get(self,*args):
         # set the gate potential
         # ingore the lead potential temporarily
         for i in range(len(args)):
-            if args[i].__class__.__name__ == 'gate' or args[i].__class__.__name__ == 'medium':
+            if args[i].__class__.__name__ == 'Gate' or args[i].__class__.__name__ == 'Medium':
                 
                 # find gate region in grid
                 index=np.nonzero((args[i].xmin<=self.grid.grid_coord[0])&(args[i].xmax>=self.grid.grid_coord[0])&
                             (args[i].ymin<=self.grid.grid_coord[1])&(args[i].ymax>=self.grid.grid_coord[1])&
                             (args[i].zmin<=self.grid.grid_coord[2])&(args[i].zmax>=self.grid.grid_coord[2]))
-                if args[i].__class__.__name__ == 'gate': #attribute gate potential to the corresponding grid points
-                    self.boudnary_points[index] = "gate"
+                if args[i].__class__.__name__ == 'Gate': #attribute gate potential to the corresponding grid points
+                    self.boudnary_points[index] = "Gate"
                     self.lead_gate_potential[index] = args[i].Ef 
                 else:
                     self.eps[index] = args[i].eps
@@ -222,7 +230,7 @@ class interface3D(object):
                 A[gp_index,gp_index+Nx*Ny] = flux_zp
 
                 b[gp_index] = -q*self.free_charge[gp_index]\
-                    *np.exp(-np.sign(self.free_charge[gp_index])*(self.phi[gp_index]-self.phi_old[gp_index])/self.KBT)\
+                    *np.exp(-np.sign(self.free_charge[gp_index])*(self.phi[gp_index]-self.phi_old[gp_index])/self.kBT)\
                     -q*self.fixed_charge[gp_index]
                 # the above free_charge form accelerate the convergence of the Poisson equation
                 # only internal points have non-zero free_charge and fixed_charge
@@ -241,11 +249,50 @@ class interface3D(object):
                     A[gp_index,gp_index+Nx*Ny] = -1.0
                 elif self.boudnary_points[gp_index] == "zmax":
                     A[gp_index,gp_index-Nx*Ny] = -1.0
-                elif self.boudnary_points[gp_index] == "gate":
+                elif self.boudnary_points[gp_index] == "Gate":
                     b[gp_index] = -1*self.lead_gate_potential[gp_index]
 
                 #TODO: add lead potential. For dptb-negf, we only need to change zmin and zmax as lead
 
+
+    def solve_poisson_pyamg(self,A,b,tolerance=1e-12,accel=None):
+        # solve the Poisson equation
+        print('Solve Poisson equation by pyamg')
+        pyamg_solver = pyamg.aggregation.smoothed_aggregation_solver(A, max_levels=1000)
+        del A
+        print('Poisson equation solver: ',pyamg_solver)
+        residuals = []
+
+        def callback(x):
+        # residuals calculated in solver is a pre-conditioned residual
+        # residuals.append(np.linalg.norm(b - A.dot(x)) ** 0.5)
+            print(
+                "    {:4d}  residual = {:.5e}   x0-residual = {:.5e}".format(
+                    len(residuals) - 1, residuals[-1], residuals[-1] / residuals[0]
+                )
+            )
+
+        x = pyamg_solver(
+            b,
+            tol=tolerance,
+            callback=callback,
+            residuals=residuals,
+            accel=accel,
+            cycle="W",
+            maxiter=1e7,
+        )
+        print("Done solving the Poisson equation!")
+        return x
+
+
+    def solve_poisson(self,method='pyamg'):
+        # solve poisson equation:
+        if method == 'pyamg':
+            A,b = self.to_pyamg()
+            self.phi = self.solve_poisson_pyamg(A,b)
+            self.phi_old = self.phi.copy()
+        else:
+            raise ValueError('Unknown Poisson solver: ',method)
 
 
 
