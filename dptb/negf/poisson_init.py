@@ -1,7 +1,10 @@
 import numpy as np 
 from pyamg.gallery import poisson
+from utils.constants import elementary_charge as q
+from utils.constants import Boltzmann
+from scipy.constants import epsilon_0 as eps0  #TODO:later add to untils.constants.py
 
-eps0 = 8.854187817e-12 # vacuum permittivity
+
 
 
 class grid(object):
@@ -114,14 +117,18 @@ class interface3D(object):
         self.free_charge = np.zeros(grid.Np) # free charge density
         self.fixed_charge = np.zeros(grid.Np) # fixed charge density
 
+        self.Temperature = 300.0 # temperature in unit of Kelvin
+        self.KBT = Boltzmann*self.Temperature # thermal energy
+
+        # store the boundary information: xmin,xmax,ymin,ymax,zmin,zmax,gate
         self.boudnary_points = {i:"in" for i in range(self.grid.Np)} # initially set all points as internal
-        self.boudnary_points_init()
+        self.boudnary_points_get()
 
-        self.lead_gate_potential = np.zeros(grid.Np) # no gate potential initially
-        self.gate_potential_eps_init(args)
+        self.lead_gate_potential = np.zeros(grid.Np) # no gate potential initially, all grid points are set to zero
+        self.gate_potential_eps_get(*args)
 
 
-    def boudnary_points_init(self):
+    def boudnary_points_get(self):
         # set the boundary points
         for i in range(self.grid.Np):
             if self.grid.xmesh[i] == np.min(self.grid.xall):
@@ -142,7 +149,7 @@ class interface3D(object):
                 internal_NP += 1
         self.internal_NP = internal_NP
     
-    def gate_potential_eps_init(self,args):
+    def gate_potential_eps_get(self,*args):
         # set the gate potential
         # ingore the lead potential temporarily
         for i in range(len(args)):
@@ -153,6 +160,7 @@ class interface3D(object):
                             (args[i].ymin<=self.grid.grid_coord[1])&(args[i].ymax>=self.grid.grid_coord[1])&
                             (args[i].zmin<=self.grid.grid_coord[2])&(args[i].zmax>=self.grid.grid_coord[2]))
                 if args[i].__class__.__name__ == 'gate': #attribute gate potential to the corresponding grid points
+                    self.boudnary_points[index] = "gate"
                     self.lead_gate_potential[index] = args[i].Ef 
                 else:
                     self.eps[index] = args[i].eps
@@ -163,44 +171,83 @@ class interface3D(object):
             dtype = np.float64
         A = poisson(self.grid.shape,format='csr',dtype=dtype)
         b = np.zeros(A.shape[0],dtype=A.dtype)
+        A.data[:] = 0  # set all elements to zero
+        # later we set non-zero elements to A, the indices and indptr are not changed as the default grid order in pyamg
+        # is the same as that of self.grid.grid_coord
         self.construct_poisson(A,b)
         
         return A,b
     
     def construct_poisson(self,A,b):
-
-        def Dirichlet(idx,A,b): #第一类边界条件
-            # Default pyamg Poisson matrix has Dirichlet BC
-            b[idx] = 0.0  #为何要将边界点的值设为0
-
+        # construct the Poisson equation by adding boundary conditions and free charge to the matrix A and vector b
         Nx = self.grid.shape[0];Ny = self.grid.shape[1];Nz = self.grid.shape[2]
         for gp_index in range(self.grid.Np):
             if self.boudnary_points[gp_index] == "in":
+                # flux_xm = self.grid.surface_grid[gp_index,0]*eps0*(self.eps[gp_index-1]+self.eps[gp_index])*0.5\
+                # *(self.phi[gp_index-1]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index,0]-self.grid.grid_coord[gp_index-1,0])
+                # flux_xp = self.grid.surface_grid[gp_index,0]*eps0*(self.eps[gp_index+1]+self.eps[gp_index])*0.5\
+                # *(self.phi[gp_index+1]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index+1,0]-self.grid.grid_coord[gp_index,0])
+                
+                # flux_ym = self.grid.surface_grid[gp_index,1]*eps0*(self.eps[gp_index-Nx]+self.eps[gp_index])*0.5\
+                # *(self.phi[gp_index-Nx]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index-Nx,1]-self.grid.grid_coord[gp_index,1])
+                # flux_yp = self.grid.surface_grid[gp_index,1]*eps0*(self.eps[gp_index+Nx]+self.eps[gp_index])*0.5\
+                # *(self.phi[gp_index+Nx]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index+Nx,1]-self.grid.grid_coord[gp_index,1])
+
+                # flux_zm = self.grid.surface_grid[gp_index,2]*eps0*(self.eps[gp_index-Nx*Ny]+self.eps[gp_index])*0.5\
+                # *(self.phi[gp_index-Nx*Ny]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index-Nx*Ny,2]-self.grid.grid_coord[gp_index,2])
+                # flux_zp = self.grid.surface_grid[gp_index,2]*eps0*(self.eps[gp_index+Nx*Ny]+self.eps[gp_index])*0.5\
+                # *(self.phi[gp_index+Nx*Ny]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index+Nx*Ny,2]-self.grid.grid_coord[gp_index,2])
                 flux_xm = self.grid.surface_grid[gp_index,0]*eps0*(self.eps[gp_index-1]+self.eps[gp_index])*0.5\
-                *(self.phi[gp_index-1]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index,0]-self.grid.grid_coord[gp_index-1,0])
+                /abs(self.grid.grid_coord[gp_index,0]-self.grid.grid_coord[gp_index-1,0])
                 flux_xp = self.grid.surface_grid[gp_index,0]*eps0*(self.eps[gp_index+1]+self.eps[gp_index])*0.5\
-                *(self.phi[gp_index+1]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index+1,0]-self.grid.grid_coord[gp_index,0])
+                /abs(self.grid.grid_coord[gp_index+1,0]-self.grid.grid_coord[gp_index,0])
                 
                 flux_ym = self.grid.surface_grid[gp_index,1]*eps0*(self.eps[gp_index-Nx]+self.eps[gp_index])*0.5\
-                *(self.phi[gp_index-Nx]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index-Nx,1]-self.grid.grid_coord[gp_index,1])
+                /abs(self.grid.grid_coord[gp_index-Nx,1]-self.grid.grid_coord[gp_index,1])
                 flux_yp = self.grid.surface_grid[gp_index,1]*eps0*(self.eps[gp_index+Nx]+self.eps[gp_index])*0.5\
-                *(self.phi[gp_index+Nx]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index+Nx,1]-self.grid.grid_coord[gp_index,1])
+                /abs(self.grid.grid_coord[gp_index+Nx,1]-self.grid.grid_coord[gp_index,1])
 
                 flux_zm = self.grid.surface_grid[gp_index,2]*eps0*(self.eps[gp_index-Nx*Ny]+self.eps[gp_index])*0.5\
-                *(self.phi[gp_index-Nx*Ny]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index-Nx*Ny,2]-self.grid.grid_coord[gp_index,2])
+                /abs(self.grid.grid_coord[gp_index-Nx*Ny,2]-self.grid.grid_coord[gp_index,2])
                 flux_zp = self.grid.surface_grid[gp_index,2]*eps0*(self.eps[gp_index+Nx*Ny]+self.eps[gp_index])*0.5\
-                *(self.phi[gp_index+Nx*Ny]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index+Nx*Ny,2]-self.grid.grid_coord[gp_index,2])
+                /abs(self.grid.grid_coord[gp_index+Nx*Ny,2]-self.grid.grid_coord[gp_index,2])
+
+                # add flux term to matrix A
+                A[gp_index,gp_index] = -(flux_xm+flux_xp+flux_ym+flux_yp+flux_zm+flux_zp)
+                A[gp_index,gp_index-1] = flux_xm
+                A[gp_index,gp_index+1] = flux_xp
+                A[gp_index,gp_index-Nx] = flux_ym
+                A[gp_index,gp_index+Nx] = flux_yp
+                A[gp_index,gp_index-Nx*Ny] = flux_zm
+                A[gp_index,gp_index+Nx*Ny] = flux_zp
+
+                b[gp_index] = -q*self.free_charge[gp_index]\
+                    *np.exp(-np.sign(self.free_charge[gp_index])*(self.phi[gp_index]-self.phi_old[gp_index])/self.KBT)\
+                    -q*self.fixed_charge[gp_index]
+                # the above free_charge form accelerate the convergence of the Poisson equation
+                # only internal points have non-zero free_charge and fixed_charge
+
+            else:# boundary points
+                A[gp_index,gp_index] = 1.0
+                if self.boudnary_points[gp_index] == "xmin":   
+                    A[gp_index,gp_index+1] = -1.0
+                elif self.boudnary_points[gp_index] == "xmax":
+                    A[gp_index,gp_index-1] = -1.0
+                elif self.boudnary_points[gp_index] == "ymin":
+                    A[gp_index,gp_index+Nx] = -1.0
+                elif self.boudnary_points[gp_index] == "ymax":
+                    A[gp_index,gp_index-Nx] = -1.0
+                elif self.boudnary_points[gp_index] == "zmin":
+                    A[gp_index,gp_index+Nx*Ny] = -1.0
+                elif self.boudnary_points[gp_index] == "zmax":
+                    A[gp_index,gp_index-Nx*Ny] = -1.0
+                elif self.boudnary_points[gp_index] == "gate":
+                    b[gp_index] = -1*self.lead_gate_potential[gp_index]
+
+                #TODO: add lead potential. For dptb-negf, we only need to change zmin and zmax as lead
 
 
-        # def Neumann(idx_bc, idx_p1): #第二类边界条件
-        #     # Set all boundary equations to 0 
-        #     s = _a.array_arange(A.indptr[idx_bc], A.indptr[idx_bc + 1])
-        #     A.data[s] = 0
-        #     # force the boundary cells to equal the neighbouring cell
-        #     A[idx_bc, idx_bc] = 1
-        #     A[idx_bc, idx_p1] = -1
-        #     A.eliminate_zeros()
-        #     b[idx_bc] = 0.0
+
 
         
 
