@@ -117,10 +117,10 @@ class Interface3D(object):
         
         for i in range(0,len(gate_list)):
             if not gate_list[i].__class__.__name__ == 'Gate':
-                raise ValueError('Unknown region type: ',gate_list[i].__class__.__name__)
+                raise ValueError('Unknown region type in Gate list: ',gate_list[i].__class__.__name__)
         for i in range(0,len(dielectric_list)):
             if not dielectric_list[i].__class__.__name__ == 'Dielectric':
-                raise ValueError('Unknown region type: ',dielectric_list[i].__class__.__name__)
+                raise ValueError('Unknown region type in Dielectric list: ',dielectric_list[i].__class__.__name__)
             
         self.grid = grid
         self.eps = np.zeros(grid.Np) # dielectric permittivity

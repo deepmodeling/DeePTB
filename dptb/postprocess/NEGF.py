@@ -108,9 +108,10 @@ class NEGF(object):
         self.out = {}
 
         ## Poisson equation
-        self.poisson_grid = jdata["poisson_grid"]
-        self.gate_region = jdata["gate_region"]
-        self.dielectric_region = jdata["dielectric_region"]
+        self.poisson_options = j_must_have(jdata, "poisson_options")
+        self.gate_region = [self.poisson_options[i] for i in self.poisson_options if i.startswith("gate")]
+        self.dielectric_region = [self.poisson_options[i] for i in self.poisson_options if i.startswith("dielectric")]
+
 
 
     def generate_energy_grid(self):
@@ -156,42 +157,38 @@ class NEGF(object):
         if self.scf:
             if not self.out_density:
                 raise RuntimeError("Error! scf calculation requires density matrix. Please set out_density to True")
-            self.poisson_negf_scf()
+            self.poisson_negf_scf(diff_acc=self.poisson_options['err'])
         else:
             self.negf_compute(scf_require=False)
 
 
-    def poisson_negf_scf(self,diff_acc=1e-6,max_iter=100,mix_rate=0.3):
+    def poisson_negf_scf(self,diff_acc=1e-6,max_iter=1000,mix_rate=0.3):
        
         # create grid
-        xg,yg,zg,xa,ya,za = self.read_grid(self.structase, self.poisson_grid) #TODO:write read_grid
-        grid = Grid(xg,yg,zg,xa,ya,za)
+        grid = self.read_grid(self.poisson_options["grid"],self.deviceprop.structure)
+        
         # create gate
-        gate_list = []
-        gates = self.gate_region.keys()
-        for gg in gates:
-            if gg.startswith("gate"):
-                xmin,xmax = self.gate_region[gg].get("x_range",None).split('-')
-                ymin,ymax = self.gate_region[gg].get("y_range",None).split('-')
-                zmin,zmax = self.gate_region[gg].get("z_range",None).split('-')
-                gate_init = Gate(xmin,xmax,ymin,ymax,zmin,zmax)
-                gate_init.Ef = self.gate_region[gg].get("Ef",None)
-                gate_list.append(gate_init)
+        Gate_list = []
+        for gg in range(len(self.gate_region)):
+            xmin,xmax = self.gate_region[gg].get("x_range",None).split('-')
+            ymin,ymax = self.gate_region[gg].get("y_range",None).split('-')
+            zmin,zmax = self.gate_region[gg].get("z_range",None).split('-')
+            gate_init = Gate(xmin,xmax,ymin,ymax,zmin,zmax)
+            gate_init.Ef = self.gate_region[gg].get("Ef",None)
+            Gate_list.append(gate_init)
                       
         # create dielectric
-        dielectric_list = []
-        dielectric = self.dielectric_region.keys()
-        for dd in dielectric:
-            if dd.startswith("dielectric"):
-                xmin,xmax = self.dielectric_region[dd].get("x_range",None).split('-')
-                ymin,ymax = self.dielectric_region[dd].get("y_range",None).split('-')
-                zmin,zmax = self.dielectric_region[dd].get("z_range",None).split('-')
-                dielectric_init = Dielectric(xmin,xmax,ymin,ymax,zmin,zmax)
-                dielectric_init.eps = self.dielectric_region[dd].get("Ef",None)
-                dielectric_list.append(dielectric_init)        
+        Dielectric_list = []
+        for dd in range(len(self.dielectric_region)):
+            xmin,xmax = self.dielectric_region[dd].get("x_range",None).split('-')
+            ymin,ymax = self.dielectric_region[dd].get("y_range",None).split('-')
+            zmin,zmax = self.dielectric_region[dd].get("z_range",None).split('-')
+            dielectric_init = Dielectric(xmin,xmax,ymin,ymax,zmin,zmax)
+            dielectric_init.eps = self.dielectric_region[dd].get("Ef",None)
+            Dielectric_list.append(dielectric_init)        
 
         # create interface
-        interface_poisson = Interface3D(grid,gate_list,dielectric_list)
+        interface_poisson = Interface3D(grid,Gate_list,Dielectric_list)
 
         max_diff = 1e30; iter_count=0
         while max_diff > diff_acc:
@@ -220,7 +217,7 @@ class NEGF(object):
                 pre_atom_orbs += device_atom_norbs[i]
 
             interface_poisson.free_charge[atom_gridpoint_index] = np.array(density_list)
-            max_diff = interface_poisson.solve_poisson(method='pyamg')
+            max_diff = interface_poisson.solve_poisson(method=self.poisson_options['solver'])
 
             interface_poisson.phi = interface_poisson.phi + mix_rate*(interface_poisson.phi - interface_poisson.phi_old)
             interface_poisson.phi_old = interface_poisson.phi.copy()
@@ -228,8 +225,8 @@ class NEGF(object):
             iter_count += 1
             print('Poisson iteration: ',iter_count,' max_diff: ',max_diff)
             if iter_count > max_iter:
-                raise RuntimeError('Poisson iteration exceeds max_iter')
-
+                log.info(msg="Warning! Poisson iteration exceeds max_iter {}".format(int(max_iter)))
+                break
 
         # calculate transport properties with converged potential
         self.negf_compute(scf_require=False)
@@ -331,6 +328,22 @@ class NEGF(object):
 
             # plotting
             
+
+    def read_grid(self,grid_info,structase):
+        x_start,x_end,x_step = grid_info.get("x_range",None).split('-')
+        xg = np.linspace(float(x_start),float(x_end),int(x_step))
+
+        y_start,y_end,y_step = grid_info.get("y_range",None).split('-')
+        yg = np.linspace(float(y_start),float(y_end),int(y_step))
+
+        z_start,z_end,z_step = grid_info.get("z_range",None).split('-')
+        zg = np.linspace(float(z_start),float(z_end),int(z_step))
+
+        device_atom_coords = structase.get_positions()
+        xa,ya,za = device_atom_coords[:,0],device_atom_coords[:,1],device_atom_coords[:,2]
+
+        grid = Grid(xg,yg,zg,xa,ya,za)
+        return grid       
     
     def fermi_dirac(self, x) -> torch.Tensor:
         return 1 / (1 + torch.exp(x / self.kBT))
