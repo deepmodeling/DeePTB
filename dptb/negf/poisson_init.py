@@ -2,10 +2,12 @@ import numpy as np
 import pyamg
 from pyamg.gallery import poisson
 from utils.constants import elementary_charge as q
-from utils.constants import Boltzmann
+from dptb.utils.constants import Boltzmann, eV2J
 from scipy.constants import epsilon_0 as eps0  #TODO:later add to untils.constants.py
 
-
+#eps0 = 8.854187817e-12 # in the unit of F/m
+# As length in deeptb is in the unit of Angstrom, the unit of eps0 is F/Angstrom
+eps0 = eps0*1e-10 # in the unit of F/Angstrom
 
 
 class Grid(object):
@@ -130,7 +132,7 @@ class Interface3D(object):
         self.fixed_charge = np.zeros(grid.Np) # fixed charge density
 
         self.Temperature = 300.0 # temperature in unit of Kelvin
-        self.kBT = Boltzmann*self.Temperature # thermal energy
+        self.kBT = Boltzmann*self.Temperature/eV2J # thermal energy in unit of eV
 
         # store the boundary information: xmin,xmax,ymin,ymax,zmin,zmax,gate
         self.boudnary_points = {i:"in" for i in range(self.grid.Np)} # initially set all points as internal

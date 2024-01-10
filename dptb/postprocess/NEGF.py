@@ -45,7 +45,7 @@ class NEGF(object):
         
         # get the parameters
         self.ele_T = jdata["ele_T"]
-        self.kBT = Boltzmann * self.ele_T / eV2J
+        self.kBT = Boltzmann * self.ele_T / eV2J # change to eV
         self.e_fermi = jdata["e_fermi"]
         self.stru_options = j_must_have(jdata, "stru_options")
         self.pbc = self.stru_options["pbc"]
@@ -157,12 +157,12 @@ class NEGF(object):
         if self.scf:
             if not self.out_density:
                 raise RuntimeError("Error! scf calculation requires density matrix. Please set out_density to True")
-            self.poisson_negf_scf(diff_acc=self.poisson_options['err'])
+            self.poisson_negf_scf(err=self.poisson_options['err'])
         else:
             self.negf_compute(scf_require=False)
 
 
-    def poisson_negf_scf(self,diff_acc=1e-6,max_iter=1000,mix_rate=0.3):
+    def poisson_negf_scf(self,err=1e-6,max_iter=1000,mix_rate=0.3):
        
         # create grid
         grid = self.read_grid(self.poisson_options["grid"],self.deviceprop.structure)
@@ -174,7 +174,7 @@ class NEGF(object):
             ymin,ymax = self.gate_region[gg].get("y_range",None).split('-')
             zmin,zmax = self.gate_region[gg].get("z_range",None).split('-')
             gate_init = Gate(xmin,xmax,ymin,ymax,zmin,zmax)
-            gate_init.Ef = self.gate_region[gg].get("Ef",None)
+            gate_init.Ef = self.gate_region[gg].get("voltage",None) #TODO: check the unit 
             Gate_list.append(gate_init)
                       
         # create dielectric
@@ -184,14 +184,14 @@ class NEGF(object):
             ymin,ymax = self.dielectric_region[dd].get("y_range",None).split('-')
             zmin,zmax = self.dielectric_region[dd].get("z_range",None).split('-')
             dielectric_init = Dielectric(xmin,xmax,ymin,ymax,zmin,zmax)
-            dielectric_init.eps = self.dielectric_region[dd].get("Ef",None)
+            dielectric_init.eps = self.dielectric_region[dd].get("relative permittivity",None)
             Dielectric_list.append(dielectric_init)        
 
         # create interface
         interface_poisson = Interface3D(grid,Gate_list,Dielectric_list)
 
         max_diff = 1e30; iter_count=0
-        while max_diff > diff_acc:
+        while max_diff > err:
 
             # update Hamiltonian by modifying onsite energy with potential
             atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values())
@@ -208,12 +208,11 @@ class NEGF(object):
 
             # update electron density for solving Poisson equation
             DM_eq,DM_neq = self.out["DM_eq"], self.out["DM_neq"]
-            DM = DM_eq + DM_neq
-            elec_density = torch.diag(DM)
+            elec_density = torch.diag(DM_eq+DM_neq)
             density_list = []
             pre_atom_orbs = 0
             for i in range(len(device_atom_norbs)):
-                density_list.append(torch.sum(elec_density[pre_atom_orbs : pre_atom_orbs+atom_gridpoint_index[i]]))
+                density_list.append(torch.sum(elec_density[pre_atom_orbs : pre_atom_orbs+device_atom_norbs[i]]).numpy())
                 pre_atom_orbs += device_atom_norbs[i]
 
             interface_poisson.free_charge[atom_gridpoint_index] = np.array(density_list)
@@ -229,7 +228,7 @@ class NEGF(object):
                 break
 
         # calculate transport properties with converged potential
-        self.negf_compute(scf_require=False)
+        self.negf_compute(scf_require=False,Vbias=potential_tensor)
 
 
     def negf_compute(self,scf_require=False,Vbias=None):
