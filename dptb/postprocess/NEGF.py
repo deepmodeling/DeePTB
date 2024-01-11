@@ -19,7 +19,6 @@ from dptb.utils.tools import j_must_have
 import numpy as np
 from dptb.utils.make_kpoints import kmesh_sampling
 import logging
-from negf.poisson_scf import poisson_negf_scf # TODO : move this to dptb.negf
 from negf.poisson_init import Grid,Interface3D,Gate,Dielectric
 
 log = logging.getLogger(__name__)
@@ -107,7 +106,7 @@ class NEGF(object):
         self.generate_energy_grid()
         self.out = {}
 
-        ## Poisson equation
+        ## Poisson equation settings
         self.poisson_options = j_must_have(jdata, "poisson_options")
         self.gate_region = [self.poisson_options[i] for i in self.poisson_options if i.startswith("gate")]
         self.dielectric_region = [self.poisson_options[i] for i in self.poisson_options if i.startswith("dielectric")]
