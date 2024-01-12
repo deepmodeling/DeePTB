@@ -156,12 +156,13 @@ class NEGF(object):
         if self.scf:
             if not self.out_density:
                 raise RuntimeError("Error! scf calculation requires density matrix. Please set out_density to True")
-            self.poisson_negf_scf(err=self.poisson_options['err'])
+            self.poisson_negf_scf(err=self.poisson_options['err'],tolerance=self.poisson_options['tolerance'],\
+                                  max_iter=self.poisson_options['max_iter'],mix_rate=self.poisson_options['mix_rate'])
         else:
             self.negf_compute(scf_require=False)
 
 
-    def poisson_negf_scf(self,err=1e-6,max_iter=1000,mix_rate=0.3): #TODO: add max_iter and mix_rate to jdata
+    def poisson_negf_scf(self,err=1e-6,max_iter=1000,mix_rate=0.3,tolerance=1e-7): #TODO: add max_iter and mix_rate to jdata
        
         # create grid
         grid = self.read_grid(self.poisson_options["grid"],self.deviceprop.structure)
@@ -173,7 +174,7 @@ class NEGF(object):
             ymin,ymax = self.gate_region[gg].get("y_range",None).split(':')
             zmin,zmax = self.gate_region[gg].get("z_range",None).split(':')
             gate_init = Gate(float(xmin),float(xmax),float(ymin),float(ymax),float(zmin),float(zmax))
-            gate_init.Ef = self.gate_region[gg].get("voltage",None) #TODO: check the unit 
+            gate_init.Ef = float(self.gate_region[gg].get("voltage",None)) # in unit of volt
             Gate_list.append(gate_init)
                       
         # create dielectric
@@ -215,7 +216,7 @@ class NEGF(object):
                 pre_atom_orbs += device_atom_norbs[i]
 
             interface_poisson.free_charge[atom_gridpoint_index] = np.array(density_list)
-            max_diff = interface_poisson.solve_poisson(method=self.poisson_options['solver'])
+            max_diff = interface_poisson.solve_poisson(method=self.poisson_options['solver'],tolerance=tolerance)
 
             interface_poisson.phi = interface_poisson.phi + mix_rate*(interface_poisson.phi - interface_poisson.phi_old)
             interface_poisson.phi_old = interface_poisson.phi.copy()

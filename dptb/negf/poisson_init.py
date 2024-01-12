@@ -4,7 +4,7 @@ from pyamg.gallery import poisson
 from dptb.utils.constants import elementary_charge as q
 from dptb.utils.constants import Boltzmann, eV2J
 from scipy.constants import epsilon_0 as eps0  #TODO:later add to untils.constants.py
-
+from scipy.sparse import csr_matrix
 #eps0 = 8.854187817e-12 # in the unit of F/m
 # As length in deeptb is in the unit of Angstrom, the unit of eps0 is F/Angstrom
 eps0 = eps0*1e-10 # in the unit of F/Angstrom
@@ -187,11 +187,9 @@ class Interface3D(object):
         # convert to amg format A,b matrix
         if dtype == None:
             dtype = np.float64
-        A = poisson(self.grid.shape,format='csr',dtype=dtype)
+        # A = poisson(self.grid.shape,format='csr',dtype=dtype)
+        A = csr_matrix(np.zeros((self.grid.Np,self.grid.Np),dtype=dtype))
         b = np.zeros(A.shape[0],dtype=A.dtype)
-        A.data[:] = 0  # set all elements to zero
-        # later we set non-zero elements to A, the indices and indptr are not changed as the default grid order in pyamg
-        # is the same as that of self.grid.grid_coord
         self.construct_poisson(A,b)
         
         return A,b
@@ -265,7 +263,7 @@ class Interface3D(object):
                 #TODO: add lead potential. For dptb-negf, we only need to change zmin and zmax as lead
 
 
-    def solve_poisson_pyamg(self,A,b,tolerance=1e-12,accel=None):
+    def solve_poisson_pyamg(self,A,b,tolerance=1e-7,accel=None):
         # solve the Poisson equation
         print('Solve Poisson equation by pyamg')
         pyamg_solver = pyamg.aggregation.smoothed_aggregation_solver(A, max_levels=1000)
@@ -295,11 +293,11 @@ class Interface3D(object):
         return x
 
 
-    def solve_poisson(self,method='pyamg'):
+    def solve_poisson(self,method='pyamg',tolerance=1e-7):
         # solve poisson equation:
         if method == 'pyamg':
             A,b = self.to_pyamg()
-            self.phi = self.solve_poisson_pyamg(A,b)
+            self.phi = self.solve_poisson_pyamg(A,b,tolerance)
 
             max_diff = np.max(abs(self.phi-self.phi_old))
             return max_diff
