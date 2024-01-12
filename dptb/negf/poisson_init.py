@@ -282,7 +282,7 @@ class Interface3D(object):
                 )
             )
 
-        x = pyamg_solver(
+        x = pyamg_solver.solve(
             b,
             tol=tolerance,
             callback=callback,
