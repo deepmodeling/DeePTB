@@ -328,14 +328,14 @@ class NEGF(object):
             
 
     def read_grid(self,grid_info,structase):
-        x_start,x_end,x_step = grid_info.get("x_range",None).split(':')
-        xg = np.linspace(float(x_start),float(x_end),int(x_step))
+        x_start,x_end,x_num = grid_info.get("x_range",None).split(':')
+        xg = np.linspace(float(x_start),float(x_end),int(x_num))
 
-        y_start,y_end,y_step = grid_info.get("y_range",None).split(':')
-        yg = np.linspace(float(y_start),float(y_end),int(y_step))
+        y_start,y_end,y_num = grid_info.get("y_range",None).split(':')
+        yg = np.linspace(float(y_start),float(y_end),int(y_num))
 
-        z_start,z_end,z_step = grid_info.get("z_range",None).split(':')
-        zg = np.linspace(float(z_start),float(z_end),int(z_step))
+        z_start,z_end,z_num = grid_info.get("z_range",None).split(':')
+        zg = np.linspace(float(z_start),float(z_end),int(z_num))
 
         device_atom_coords = structase.get_positions()
         xa,ya,za = device_atom_coords[:,0],device_atom_coords[:,1],device_atom_coords[:,2]

@@ -102,6 +102,7 @@ class NEGFHamiltonianInit(object):
         proj_device_id = [0,0]
         proj_device_id[0] = n_proj_atom_pre
         proj_device_id[1] = n_proj_atom_pre + n_proj_atom_device
+        self.proj_device_id = proj_device_id
         projatoms = self.apiH.structure.projatoms
 
         self.atom_norbs = [self.apiH.structure.proj_atomtype_norbs[i] for i in self.apiH.structure.proj_atom_symbols]

@@ -169,11 +169,14 @@ class Interface3D(object):
         # ingore the lead potential temporarily
         for i in range(len(region_list)):    
             # find gate region in grid
-            index=np.nonzero((region_list[i].xmin<=self.grid.grid_coord[0])&(region_list[i].xmax>=self.grid.grid_coord[0])&
-                        (region_list[i].ymin<=self.grid.grid_coord[1])&(region_list[i].ymax>=self.grid.grid_coord[1])&
-                        (region_list[i].zmin<=self.grid.grid_coord[2])&(region_list[i].zmax>=self.grid.grid_coord[2]))
+            index=np.nonzero((region_list[i].xmin<=self.grid.grid_coord[:,0])&
+                             (region_list[i].xmax>=self.grid.grid_coord[:,0])&
+                        (region_list[i].ymin<=self.grid.grid_coord[:,1])&
+                        (region_list[i].ymax>=self.grid.grid_coord[:,1])&
+                        (region_list[i].zmin<=self.grid.grid_coord[:,2])&
+                        (region_list[i].zmax>=self.grid.grid_coord[:,2]))[0]
             if region_list[i].__class__.__name__ == 'Gate': #attribute gate potential to the corresponding grid points
-                self.boudnary_points[index] = "Gate"
+                self.boudnary_points[tuple(index)] = "Gate"
                 self.lead_gate_potential[index] = region_list[i].Ef 
             elif region_list[i].__class__.__name__ == 'Dielectric':
                 self.eps[index] = region_list[i].eps
