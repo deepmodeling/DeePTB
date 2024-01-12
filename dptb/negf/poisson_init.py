@@ -1,7 +1,7 @@
 import numpy as np 
-import pyamg
+import pyamg #TODO: later add it to optional dependencies,like sisl
 from pyamg.gallery import poisson
-from utils.constants import elementary_charge as q
+from dptb.utils.constants import elementary_charge as q
 from dptb.utils.constants import Boltzmann, eV2J
 from scipy.constants import epsilon_0 as eps0  #TODO:later add to untils.constants.py
 

@@ -19,7 +19,7 @@ from dptb.utils.tools import j_must_have
 import numpy as np
 from dptb.utils.make_kpoints import kmesh_sampling
 import logging
-from negf.poisson_init import Grid,Interface3D,Gate,Dielectric
+from dptb.negf.poisson_init import Grid,Interface3D,Gate,Dielectric
 
 log = logging.getLogger(__name__)
 
@@ -172,7 +172,7 @@ class NEGF(object):
             xmin,xmax = self.gate_region[gg].get("x_range",None).split('-')
             ymin,ymax = self.gate_region[gg].get("y_range",None).split('-')
             zmin,zmax = self.gate_region[gg].get("z_range",None).split('-')
-            gate_init = Gate(xmin,xmax,ymin,ymax,zmin,zmax)
+            gate_init = Gate(float(xmin),float(xmax),float(ymin),float(ymax),float(zmin),float(zmax))
             gate_init.Ef = self.gate_region[gg].get("voltage",None) #TODO: check the unit 
             Gate_list.append(gate_init)
                       
@@ -182,8 +182,8 @@ class NEGF(object):
             xmin,xmax = self.dielectric_region[dd].get("x_range",None).split('-')
             ymin,ymax = self.dielectric_region[dd].get("y_range",None).split('-')
             zmin,zmax = self.dielectric_region[dd].get("z_range",None).split('-')
-            dielectric_init = Dielectric(xmin,xmax,ymin,ymax,zmin,zmax)
-            dielectric_init.eps = self.dielectric_region[dd].get("relative permittivity",None)
+            dielectric_init = Dielectric(float(xmin),float(xmax),float(ymin),float(ymax),float(zmin),float(zmax))
+            dielectric_init.eps = float(self.dielectric_region[dd].get("relative permittivity",None))
             Dielectric_list.append(dielectric_init)        
 
         # create interface
