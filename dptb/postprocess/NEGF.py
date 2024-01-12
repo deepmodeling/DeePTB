@@ -161,7 +161,7 @@ class NEGF(object):
             self.negf_compute(scf_require=False)
 
 
-    def poisson_negf_scf(self,err=1e-6,max_iter=1000,mix_rate=0.3):
+    def poisson_negf_scf(self,err=1e-6,max_iter=1000,mix_rate=0.3): #TODO: add max_iter and mix_rate to jdata
        
         # create grid
         grid = self.read_grid(self.poisson_options["grid"],self.deviceprop.structure)
@@ -169,9 +169,9 @@ class NEGF(object):
         # create gate
         Gate_list = []
         for gg in range(len(self.gate_region)):
-            xmin,xmax = self.gate_region[gg].get("x_range",None).split('-')
-            ymin,ymax = self.gate_region[gg].get("y_range",None).split('-')
-            zmin,zmax = self.gate_region[gg].get("z_range",None).split('-')
+            xmin,xmax = self.gate_region[gg].get("x_range",None).split(':')
+            ymin,ymax = self.gate_region[gg].get("y_range",None).split(':')
+            zmin,zmax = self.gate_region[gg].get("z_range",None).split(':')
             gate_init = Gate(float(xmin),float(xmax),float(ymin),float(ymax),float(zmin),float(zmax))
             gate_init.Ef = self.gate_region[gg].get("voltage",None) #TODO: check the unit 
             Gate_list.append(gate_init)
@@ -179,9 +179,9 @@ class NEGF(object):
         # create dielectric
         Dielectric_list = []
         for dd in range(len(self.dielectric_region)):
-            xmin,xmax = self.dielectric_region[dd].get("x_range",None).split('-')
-            ymin,ymax = self.dielectric_region[dd].get("y_range",None).split('-')
-            zmin,zmax = self.dielectric_region[dd].get("z_range",None).split('-')
+            xmin,xmax = self.dielectric_region[dd].get("x_range",None).split(':')
+            ymin,ymax = self.dielectric_region[dd].get("y_range",None).split(':')
+            zmin,zmax = self.dielectric_region[dd].get("z_range",None).split(':')
             dielectric_init = Dielectric(float(xmin),float(xmax),float(ymin),float(ymax),float(zmin),float(zmax))
             dielectric_init.eps = float(self.dielectric_region[dd].get("relative permittivity",None))
             Dielectric_list.append(dielectric_init)        
@@ -328,13 +328,13 @@ class NEGF(object):
             
 
     def read_grid(self,grid_info,structase):
-        x_start,x_end,x_step = grid_info.get("x_range",None).split('-')
+        x_start,x_end,x_step = grid_info.get("x_range",None).split(':')
         xg = np.linspace(float(x_start),float(x_end),int(x_step))
 
-        y_start,y_end,y_step = grid_info.get("y_range",None).split('-')
+        y_start,y_end,y_step = grid_info.get("y_range",None).split(':')
         yg = np.linspace(float(y_start),float(y_end),int(y_step))
 
-        z_start,z_end,z_step = grid_info.get("z_range",None).split('-')
+        z_start,z_end,z_step = grid_info.get("z_range",None).split(':')
         zg = np.linspace(float(z_start),float(z_end),int(z_step))
 
         device_atom_coords = structase.get_positions()

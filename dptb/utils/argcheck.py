@@ -601,8 +601,10 @@ def PDIIS():
 def poisson_options():
     doc_solver = ""
     doc_fmm = ""
+    doc_pyamg= ""
     return Variant("solver", [
-        Argument("fmm", dict, fmm(), doc=doc_fmm)
+        Argument("fmm", dict, fmm(), doc=doc_fmm),
+        Argument("pyamg", dict, pyamg(), doc=doc_pyamg)
     ], optional=True, default_tag="fmm", doc=doc_solver)
 
 def density_options():
@@ -627,6 +629,41 @@ def fmm():
 
     return [
         Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err)
+    ]
+
+def pyamg():
+    doc_err = ""
+    doc_gate=""
+    doc_dielectric=""
+    return [
+        Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err),
+        Argument("grid_top", dict, optional=False, sub_fields=gate(), doc=doc_gate),
+        Argument("grid_bottom", dict, optional=False, sub_fields=gate(), doc=doc_gate),
+        Argument("dielectric_region", dict, optional=False, sub_fields=dielectric(), doc=doc_dielectric)
+    ]
+
+def gate():
+    doc_xrange=""
+    doc_yrange=""
+    doc_zrange=""
+    doc_voltage=""
+    return [
+        Argument("x_range", str, optional=False, doc=doc_xrange),
+        Argument("y_range", str, optional=False, doc=doc_yrange),
+        Argument("z_range", str, optional=False, doc=doc_zrange),
+        Argument("voltage", [int, float], optional=False, doc=doc_voltage)
+    ]
+
+def dielectric():
+    doc_xrange=""
+    doc_yrange=""
+    doc_zrange=""
+    doc_permittivity=""
+    return [
+        Argument("x_range", str, optional=False, doc=doc_xrange),
+        Argument("y_range", str, optional=False, doc=doc_yrange),
+        Argument("z_range", str, optional=False, doc=doc_zrange),
+        Argument("relative permittivity", [int, float], optional=False, doc=doc_permittivity)
     ]
 
 def normalize_run(data):
