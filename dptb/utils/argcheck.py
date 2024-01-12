@@ -633,13 +633,25 @@ def fmm():
 
 def pyamg():
     doc_err = ""
+    doc_grid=""
     doc_gate=""
     doc_dielectric=""
     return [
         Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err),
-        Argument("grid_top", dict, optional=False, sub_fields=gate(), doc=doc_gate),
-        Argument("grid_bottom", dict, optional=False, sub_fields=gate(), doc=doc_gate),
+        Argument("grid", dict, optional=False, sub_fields=grid(), doc=doc_grid),
+        Argument("gate_top", dict, optional=False, sub_fields=gate(), doc=doc_gate),
+        Argument("gate_bottom", dict, optional=False, sub_fields=gate(), doc=doc_gate),
         Argument("dielectric_region", dict, optional=False, sub_fields=dielectric(), doc=doc_dielectric)
+    ]
+
+def grid():
+    doc_xrange=""
+    doc_yrange=""
+    doc_zrange=""
+    return [
+        Argument("x_range", str, optional=False, doc=doc_xrange),
+        Argument("y_range", str, optional=False, doc=doc_yrange),
+        Argument("z_range", str, optional=False, doc=doc_zrange),
     ]
 
 def gate():
