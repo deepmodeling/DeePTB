@@ -18,6 +18,8 @@ from ._base_datasets import AtomicDataset, AtomicInMemoryDataset
 #from dptb.nn.hamiltonian import E3Hamiltonian
 from dptb.data.interfaces.ham_to_feature import ham_block_to_feature
 from dptb.utils.tools import j_loader
+from dptb.data.AtomicDataDict import with_edge_vectors
+from dptb.nn.hamiltonian import E3Hamiltonian
 
 class _TrajData(object):
     '''
@@ -271,3 +273,139 @@ class DefaultDataset(AtomicInMemoryDataset):
         # TODO: this is not implemented.
         return self.root
     
+    def E3statistics(self, mode: str, decay=False):
+        assert self.transform is not None
+        idp = self.transform
+        typed_dataset = idp(self.data.to_dict())
+        e3h = E3Hamiltonian(basis=idp.basis, decompose=True)
+        with torch.no_grad():
+            typed_dataset = e3h(typed_dataset)
+
+        if mode == "edge":
+            return self._E3edgespecies_stat(typed_dataset=typed_dataset, decay=decay)
+        elif mode == "node":
+            return self._E3nodespecies_stat(typed_dataset=typed_dataset)
+        else:
+            raise ValueError("Not supported E3 statistics type.")
+    
+    def _E3edgespecies_stat(self, typed_dataset, decay):
+        # we get the bond type marked dataset first
+        idp = self.transform
+        typed_dataset = typed_dataset
+
+        idp.get_irreps(no_parity=False)
+        irrep_slices = idp.orbpair_irreps.slices()
+
+        features = typed_dataset["edge_features"]
+        hopping_block_mask = idp.mask_to_erme[typed_dataset["edge_type"].flatten()]
+        typed_hopping = {}
+        for bt, tp in idp.bond_to_type.items():
+            hopping_tp_mask = hopping_block_mask[typed_dataset["edge_type"].flatten().eq(tp)]
+            hopping_tp = features[typed_dataset["edge_type"].flatten().eq(tp)]
+            filtered_vecs = torch.where(hopping_tp_mask, hopping_tp, torch.tensor(float('nan')))
+            typed_hopping[bt] = filtered_vecs
+        
+        # calculate norm & mean
+        typed_norm = {}
+        typed_norm_ave = {}
+        typed_norm_std = {}
+        typed_scalar = {}
+        typed_scalar_ave = {}
+        typed_scalar_std = {}
+        for bt in idp.bond_to_type.keys():
+            norms_per_irrep = []
+            scalars_per_irrep = []
+            for s in irrep_slices:
+                sub_tensor = typed_hopping[bt][:, s]
+                # dump the nan blocks here
+                if torch.isnan(sub_tensor).all():
+                    continue
+                norms = torch.norm(sub_tensor, p=2, dim=1)
+                if s.stop - s.start == 1:
+                    # it's a scalar
+                    scalar_tensor = typed_hopping[bt][:, s]
+                    scalars_per_irrep.append(scalar_tensor.squeeze(-1))
+                norms_per_irrep.append(norms)
+            # shape of typed_norm: (n_irreps, n_edges)
+            typed_norm[bt] = torch.stack(norms_per_irrep)
+            typed_scalar[bt] = torch.stack(scalars_per_irrep)
+
+            bt_ave = torch.mean(typed_norm[bt], dim=1)
+            typed_norm_ave[bt] = bt_ave
+            bt_std = torch.std(typed_norm[bt], dim=1)
+            typed_norm_std[bt] = bt_std
+            bt_scalar_ave = torch.mean(typed_scalar[bt], dim=1)
+            typed_scalar_ave[bt] = bt_scalar_ave
+            bt_scalar_std = torch.std(typed_scalar[bt], dim=1)
+            typed_scalar_std[bt] = bt_scalar_std
+        
+        if not decay:
+            return typed_norm_ave, typed_norm_std, typed_scalar_ave, typed_scalar_std
+        else:
+            typed_dataset = with_edge_vectors(typed_dataset)
+            decay = {}
+            for bt, tp in idp.bond_to_type.items():
+                decay_bt = {}
+                lengths_bt = typed_dataset["edge_lengths"][typed_dataset["edge_type"].flatten().eq(tp)]
+                sorted_lengths, indices = lengths_bt.sort() # from small to large
+                # sort the norms by irrep l
+                sorted_norms = typed_norm[bt][idp.orbpair_irreps.sort().inv, :]
+                # sort the norms by edge length
+                sorted_norms = sorted_norms[:, indices]
+                decay_bt["edge_length"] = sorted_lengths
+                decay_bt["norm_decay"] = sorted_norms
+                decay[bt] = decay_bt
+            return typed_norm_ave, typed_norm_std, typed_scalar_ave, typed_scalar_std, decay 
+
+    
+    def _E3nodespecies_stat(self, typed_dataset):
+        # we get the type marked dataset first
+        idp = self.transform
+        typed_dataset = typed_dataset
+
+        idp.get_irreps(no_parity=False)
+        irrep_slices = idp.orbpair_irreps.slices()
+
+        features = typed_dataset["node_features"]
+        onsite_block_mask = idp.mask_to_nrme[typed_dataset["atom_types"].flatten()]
+        typed_onsite = {}
+        for at, tp in idp.chemical_symbol_to_type.items():
+            onsite_tp_mask = onsite_block_mask[typed_dataset["atom_types"].flatten().eq(tp)]
+            onsite_tp = features[typed_dataset["atom_types"].flatten().eq(tp)]
+            filtered_vecs = torch.where(onsite_tp_mask, onsite_tp, torch.tensor(float('nan')))
+            typed_onsite[at] = filtered_vecs
+        
+        # calculate norm & mean
+        typed_norm = {}
+        typed_norm_ave = {}
+        typed_norm_std = {}
+        typed_scalar = {}
+        typed_scalar_ave = {}
+        typed_scalar_std = {}
+        for at in idp.chemical_symbol_to_type.keys():
+            norms_per_irrep = []
+            scalars_per_irrep = []
+            for s in irrep_slices:
+                sub_tensor = typed_onsite[at][:, s]
+                # dump the nan blocks here
+                if torch.isnan(sub_tensor).all():
+                    continue
+                norms = torch.norm(sub_tensor, p=2, dim=1)
+                if s.stop - s.start == 1:
+                    # it's a scalar
+                    scalar_tensor = typed_onsite[at][:, s]
+                    scalars_per_irrep.append(scalar_tensor.squeeze(-1))
+                norms_per_irrep.append(norms)
+            typed_norm[at] = torch.stack(norms_per_irrep)
+            typed_scalar[at] = torch.stack(scalars_per_irrep)
+
+            at_ave = torch.mean(typed_norm[at], dim=1)
+            typed_norm_ave[at] = at_ave
+            at_std = torch.std(typed_norm[at], dim=1)
+            typed_norm_std[at] = at_std
+            at_scalar_ave = torch.mean(typed_scalar[at], dim=1)
+            typed_scalar_ave[at] = at_scalar_ave
+            at_scalar_std = torch.std(typed_scalar[at], dim=1)
+            typed_scalar_std[at] = at_scalar_std
+
+        return typed_norm_ave, typed_norm_std, typed_scalar_ave, typed_scalar_std

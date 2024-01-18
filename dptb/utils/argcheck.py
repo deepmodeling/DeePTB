@@ -237,16 +237,17 @@ def reference_data_sub():
     return Argument("reference", dict, optional=True, sub_fields=args, sub_variants=[], doc=doc_reference)
 
 def test_data_sub():
-    doc_root = ""
-    doc_preprocess_path = ""
-    doc_file_names = ""
-    doc_pbc = ""
+    doc_root = "This is where the dataset stores data files."
+    doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
+    doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
+    doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
 
     args = [
+        Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
-        Argument("preprocess_path", str, optional=False, doc=doc_preprocess_path),
-        Argument("file_names", list, optional=False, doc=doc_file_names),
-        Argument("pbc", [bool, list], optional=True, default=True, doc=doc_pbc)
+        Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
+        Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
+        Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
     doc_reference = ""
