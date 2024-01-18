@@ -176,7 +176,7 @@ class e3LayerNorm(nn.Module):
                 field = field - mean[batch]
                 
             # compute and divide norm
-            if self.divide_norm or ir.l == 0: # do not divide norm for l>0 irreps if subtract_mean=False
+            if self.divide_norm or ir.l == 0: # do not divide norm for l>0 irreps if divide_norm=False
                 norm = scatter(field.abs().pow(2), batch, dim=0, dim_size=batch_size,
                             reduce='mean').mean(dim=[1,2], keepdim=True) # add abs here to deal with complex numbers
                 if self.normalization == 'norm':

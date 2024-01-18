@@ -79,10 +79,12 @@ class NNSK(torch.nn.Module):
             self.onsite_param = None
         elif self.onsite_options["method"] == "none":
             self.onsite_param = None
-        else:
+        elif self.onsite_options["method"] in ["NRL", "uniform"]:
             onsite_param = torch.empty([len(self.idp_sk.type_names), self.idp_sk.n_onsite_Es, self.onsite_fn.num_paras], dtype=self.dtype, device=self.device)
             nn.init.normal_(onsite_param, mean=0.0, std=0.01)
             self.onsite_param = torch.nn.Parameter(onsite_param)
+        else:
+            raise NotImplementedError(f"The onsite method {self.onsite_options['method']} is not implemented.")
         
         if self.onsite_options["method"] == "strain":
             # AB [ss, sp, sd, ps, pp, pd, ds, dp, dd]

@@ -8,12 +8,15 @@ from torch_runstats.scatter import scatter
 
 from torch import fx
 from e3nn.util.codegen import CodeGenMixin
+from dptb.nn.norm import TypeNorm
 from e3nn import o3
 from e3nn.nn import Gate
 from e3nn.nn._batchnorm import BatchNorm
+from torch_scatter import scatter_mean
 from e3nn.o3 import Linear, SphericalHarmonics
 from e3nn.math import normalize2mom
 from e3nn.util.jit import compile_mode
+from dptb.nn.rescale import E3PerSpeciesScaleShift, E3PerEdgeSpeciesScaleShift
 
 from dptb.data import AtomicDataDict
 from dptb.nn.embedding.emb import Embedding
@@ -87,6 +90,7 @@ class E3BaseLineModelLocal1(torch.nn.Module):
             
         self.basis = self.idp.basis
         self.idp.get_irreps(no_parity=False)
+        self.n_atom = n_atom
 
         irreps_sh=o3.Irreps([(1, (i, (-1) ** i)) for i in range(lmax + 1)])
         orbpair_irreps = self.idp.orbpair_irreps.sort()[0].simplify()
@@ -167,8 +171,73 @@ class E3BaseLineModelLocal1(torch.nn.Module):
             )
 
         # initilize output_layer
+        sorted_irs = self.idp.orbpair_irreps.sort()[0]
+        irs = self.idp.orbpair_irreps
+        sorted_to_origin = []
+        for ind in self.idp.orbpair_irreps.sort().p:
+            ir = sorted_irs[ind]
+            sorted_to_origin += list(range(sorted_irs[:ind].dim, sorted_irs[:ind].dim+ir.dim))
+        self.sorted_to_origin = torch.LongTensor(sorted_to_origin)
         self.out_edge = Linear(self.layers[-1].irreps_out, self.idp.orbpair_irreps, shared_weights=True, internal_weights=True, biases=True)
-        self.out_node = Linear(self.layers[-1].irreps_out, self.idp.orbpair_irreps, shared_weights=True, internal_weights=True, biases=True)
+        self.out_node_mean = Linear(self.layers[-1].irreps_out, self.idp.orbpair_irreps, shared_weights=True, internal_weights=True, biases=True)
+        self.out_node_var = Linear(self.layers[-1].irreps_out, self.idp.orbpair_irreps, shared_weights=True, internal_weights=True, biases=False)
+        # self.out_node_var_norm = BatchNorm(
+        #     irreps=self.out_node_irreps,
+        #     affine=True,
+        #     normalization="component",
+        # )
+
+        self.out_node_mean_scale = E3PerSpeciesScaleShift(
+                    field=_keys.NODE_FEATURES_KEY,
+                    num_types=n_atom,
+                    irreps_in=self.out_node_irreps,
+                    out_field = _keys.NODE_FEATURES_KEY,
+                    shifts=0.,
+                    scales=1.,
+                    dtype=self.dtype,
+                    device=self.device,
+                    scales_trainable=True,
+                    shifts_trainable=True,
+                )
+        
+        self.out_node_var_scale = E3PerSpeciesScaleShift(
+                    field=_keys.NODE_FEATURES_KEY,
+                    num_types=n_atom,
+                    irreps_in=self.out_node_irreps,
+                    out_field = _keys.NODE_FEATURES_KEY,
+                    shifts=None,
+                    scales=1.,
+                    dtype=self.dtype,
+                    device=self.device,
+                    scales_trainable=True,
+                    shifts_trainable=True,
+                )
+        
+        # self.out_edge_scale = E3PerEdgeSpeciesScaleShift(
+        #                 field=_keys.EDGE_FEATURES_KEY,
+        #                 num_types=n_atom,
+        #                 irreps_in=self.out_edge_irreps,
+        #                 out_field = _keys.EDGE_FEATURES_KEY,
+        #                 shifts=0.,
+        #                 scales=1.,
+        #                 dtype=self.dtype,
+        #                 device=self.device,
+        #                 scales_trainable=False,
+        #                 shifts_trainable=False,
+        #             )
+
+        # self.node_bn = BatchNorm(
+        #         irreps=self.out_node_irreps,
+        #         affine=True,
+        #         normalization="component",
+        #     )
+        
+        # self.nodetype_bn = TypeNorm(
+        #         irreps=self.out_node_irreps,
+        #         affine=True,
+        #         num_type=n_atom,
+        #         normalization="component",
+        #     )
 
     @property
     def out_edge_irreps(self):
@@ -178,10 +247,17 @@ class E3BaseLineModelLocal1(torch.nn.Module):
     def out_node_irreps(self):
         return self.idp.orbpair_irreps
     
+    # def set_out_scales(self, node_scales: torch.Tensor, node_shifts: torch.Tensor, edge_scales: torch.Tensor, edge_shifts: torch.Tensor):
+    #     assert node_scales.shape == self.out_node_scale.scales.shape
+    #     assert node_shifts.shape == self.out_node_scale.shifts.shape
+    #     assert edge_scales.shape == self.out_edge_scale.scales.shape
+    #     assert edge_shifts.shape == self.out_edge_scale.shifts.shape
+    
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         data = with_edge_vectors(data, with_lengths=True)
         # data = with_env_vectors(data, with_lengths=True)
         data = with_batch(data)
+        batch = data[_keys.BATCH_KEY]
 
         edge_index = data[_keys.EDGE_INDEX_KEY]
         edge_sh = self.sh(data[_keys.EDGE_VECTORS_KEY][:,[1,2,0]])
@@ -195,11 +271,20 @@ class E3BaseLineModelLocal1(torch.nn.Module):
         latents, features, cutoff_coeffs, active_edges = self.init_layer(edge_index, bond_type, edge_sh, edge_length, node_one_hot)
     
         for layer in self.layers:
-            latents, features, cutoff_coeffs, active_edges = layer(edge_index, edge_sh, atom_type, latents, features, cutoff_coeffs, active_edges)
-
+            latents, features, cutoff_coeffs, active_edges = layer(edge_index, edge_sh, atom_type, bond_type, latents, features, cutoff_coeffs, active_edges, batch)
+        scatter_index = batch * self.n_atom + atom_type
+        latents_mean = scatter_mean(latents, scatter_index, dim=0, dim_size=(batch.max()+1)*self.n_atom)
+        latents_var = latents - latents_mean[scatter_index]
+        latents_mean = self.out_node_mean(latents_mean)[scatter_index]
+        latents_var = self.out_node_var(latents_var)
+        
+        data[_keys.NODE_FEATURES_KEY] = latents_mean
+        latents_mean = self.out_node_mean_scale(data)[_keys.NODE_FEATURES_KEY]
+        data[_keys.NODE_FEATURES_KEY] = latents_var
+        data = self.out_node_var_scale(data)
+        data[_keys.NODE_FEATURES_KEY] = latents_mean + data[_keys.NODE_FEATURES_KEY]
         data[_keys.EDGE_FEATURES_KEY] = torch.zeros(edge_index.shape[1], self.idp.orbpair_irreps.dim, dtype=self.dtype, device=self.device)
         data[_keys.EDGE_FEATURES_KEY] = torch.index_copy(data[_keys.EDGE_FEATURES_KEY], 0, active_edges, self.out_edge(features))
-        data[_keys.NODE_FEATURES_KEY] = self.out_node(latents)
 
         return data
 
@@ -588,9 +673,11 @@ class InitLayer(torch.nn.Module):
         ], dim=-1)[prev_mask])
 
         # Apply cutoff, which propagates through to everything else
-        new_latents = cutoff_coeffs[active_edges].unsqueeze(-1) * new_latents
-        latents = torch.index_copy(latents, 0, active_edges, new_latents)
-        weights = self.env_embed_mlp(latents[active_edges])
+        latents = torch.index_copy(
+            latents, 0, active_edges, 
+            cutoff_coeffs[active_edges].unsqueeze(-1) * new_latents
+            )
+        weights = self.env_embed_mlp(new_latents)
 
         # embed initial edge
         features = self._env_weighter(
@@ -793,10 +880,16 @@ class Layer(torch.nn.Module):
             biases=True,
         )
 
+        # self.bn = TypeNorm(
+        #     irreps=self.irreps_out,
+        #     affine=True,
+        #     num_type=num_types*num_types,
+        #     normalization="component",
+        # )
+
         self.bn = BatchNorm(
             irreps=self.irreps_out,
             affine=True,
-            instance=False,
             normalization="component",
         )
 
@@ -850,10 +943,16 @@ class Layer(torch.nn.Module):
                 mlp_output_dimension=self._edge_weighter.weight_numel,
             )
 
+            # self.node_bn = TypeNorm(
+            #     irreps=self.irreps_out,
+            #     affine=True,
+            #     num_type=num_types,
+            #     normalization="component",
+            # )
+
             self.node_bn = BatchNorm(
                 irreps=self.irreps_out,
                 affine=True,
-                instance=False,
                 normalization="component",
             )
             
@@ -886,7 +985,7 @@ class Layer(torch.nn.Module):
                 "_latent_resnet_update_params", latent_resnet_update_params
             )
 
-    def forward(self, edge_index, edge_sh, atom_type, latents, features, cutoff_coeffs, active_edges):
+    def forward(self, edge_index, edge_sh, atom_type, bond_type, latents, features, cutoff_coeffs, active_edges, batch):
         # update V
         # update X
         # edge_index: [2, num_edges]
@@ -947,6 +1046,8 @@ class Layer(torch.nn.Module):
 
         new_features = self.lin_post(new_features)
 
+        # new_features = self.bn(new_features, bond_type[active_edges])
+        # new_features = new_features - scatter_mean(new_features, batch[edge_center[active_edges]], dim=0, dim_size=batch.max()+1)[batch[edge_center[active_edges]]]
         new_features = self.bn(new_features)
 
         if self.latent_resnet:
@@ -1006,6 +1107,7 @@ class Layer(torch.nn.Module):
 
             node_features = node_features * norm_const
 
+            # node_features = self.node_bn(node_features, atom_type)
             node_features = self.node_bn(node_features)
 
             edge_weights = self.edge_embed_mlps(latents[active_edges])

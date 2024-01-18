@@ -201,17 +201,17 @@ def train_data_sub():
     return Argument("train", dict, optional=False, sub_fields=args, sub_variants=[], doc=doc_train)
 
 def validation_data_sub():
-    doc_root = ""
-    doc_preprocess_path = ""
-    doc_file_names = ""
-    doc_pbc = ""
+    doc_root = "This is where the dataset stores data files."
+    doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
+    doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
+    doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
 
     args = [
-        Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset"),
+        Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
-        Argument("preprocess_dir", str, optional=False, doc=doc_preprocess_path),
-        Argument("AtomicData_options", dict, optional=True, default={}, doc="The options for AtomicData class"),
-        Argument("pbc", [bool, list], optional=True, default=True, doc=doc_pbc),
+        Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
+        Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
+        Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
     doc_validation = ""
@@ -219,17 +219,17 @@ def validation_data_sub():
     return Argument("validation", dict, optional=True, sub_fields=args, sub_variants=[], doc=doc_validation)
 
 def reference_data_sub():
-    doc_root = ""
-    doc_preprocess_path = ""
-    doc_file_names = ""
-    doc_pbc = ""
+    doc_root = "This is where the dataset stores data files."
+    doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
+    doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
+    doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
 
     args = [
-        Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset"),
+        Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
-        Argument("preprocess_dir", str, optional=False, doc=doc_preprocess_path),
-        Argument("AtomicData_options", dict, optional=True, default={}, doc="The options for AtomicData class"),
-        Argument("pbc", [bool, list], optional=True, default=True, doc=doc_pbc),
+        Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
+        Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
+        Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
     doc_reference = ""
@@ -421,6 +421,7 @@ def e3baseline():
             Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
             Argument("n_layers", int, optional=True, default=3, doc=doc_n_layers),
             Argument("n_radial_basis", int, optional=True, default=3, doc=doc_n_radial_basis),
+            Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
             Argument(
                 "latent_kwargs", dict,
                 optional={
@@ -431,7 +432,7 @@ def e3baseline():
             default=None, 
             doc=doc_latent_kwargs
             ),
-            Argument("env_embed_multiplicity", int, optional=True, default=10, doc=doc_env_embed_multiplicity),
+            Argument("env_embed_multiplicity", int, optional=True, default=1, doc=doc_env_embed_multiplicity),
             Argument("linear_after_env_embed", bool, optional=True, default=False, doc=doc_linear_after_env_embed),
             Argument("latent_resnet_update_ratios_learnable", bool, optional=True, default=False, doc=doc_latent_resnet_update_ratios_learnable)
         ]

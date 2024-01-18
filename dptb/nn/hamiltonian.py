@@ -36,7 +36,9 @@ class E3Hamiltonian(torch.nn.Module):
         super(E3Hamiltonian, self).__init__()
 
         if isinstance(dtype, str):
-            dtype = torch.getattr(dtype)
+            dtype = getattr(torch, dtype)
+        if isinstance(device, str):
+            device = torch.device(device)
         self.overlap = overlap
         self.dtype = dtype
         self.device = device
@@ -211,7 +213,9 @@ class SKHamiltonian(torch.nn.Module):
         super(SKHamiltonian, self).__init__()
 
         if isinstance(dtype, str):
-            dtype = torch.getattr(dtype)
+            dtype = getattr(torch, dtype)
+        if isinstance(device, str):
+            device = torch.device(device)
         self.dtype = dtype
         self.device = device
         self.overlap = overlap
