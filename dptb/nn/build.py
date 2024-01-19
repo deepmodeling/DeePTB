@@ -6,7 +6,7 @@ from dptb.utils.tools import j_must_have
 
 log = logging.getLogger(__name__)
 
-def build_model(run_options, model_options: dict={}, common_options: dict={}):
+def build_model(run_options, model_options: dict={}, common_options: dict={}, statistics: dict=None):
     """
     The build model method should composed of the following steps:
         1. process the configs from user input and the config from the checkpoint (if any).
@@ -68,6 +68,11 @@ def build_model(run_options, model_options: dict={}, common_options: dict={}):
     if from_scratch:
         if init_deeptb:
             model = DPTB(**model_options, **common_options)
+
+            # do initialization from statistics if DPTB is e3tb and statistics is provided
+            if model.method == "e3tb" and statistics is not None:
+                model.node_prediction_h.set_scale_shift(scales=statistics["node"]["norm_std"], shifts=statistics["node"]["scalar_ave"])
+                model.edge_prediction_h.set_scale_shift(scales=statistics["edge"]["norm_std"], shifts=statistics["edge"]["scalar_ave"])
 
         if init_nnsk:
             model = NNSK(**model_options["nnsk"], **common_options)

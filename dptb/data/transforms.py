@@ -650,13 +650,14 @@ class OrbitalMapper(BondMapper):
         
         return self.orbital_maps
     
-    def get_irreps(self, no_parity=True):
+    def get_irreps(self, no_parity=False):
         assert self.method == "e3tb", "Only support e3tb method for now."
-        self.no_parity=True
 
         if hasattr(self, "orbpair_irreps"):
             if self.no_parity == no_parity:
                 return self.orbpair_irreps
+        
+        self.no_parity = no_parity
 
         if not hasattr(self, "orbpairtype_maps"):
             self.get_orbpairtype_maps()

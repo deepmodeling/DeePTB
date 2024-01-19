@@ -171,7 +171,7 @@ class DPTB(nn.Module):
                 idp_sk=self.idp, 
                 dtype=self.dtype, 
                 device=self.device,
-                overlap=True
+                overlap=False,
                 )
             if self.overlap:
                 self.overlap = SKHamiltonian(

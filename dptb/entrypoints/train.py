@@ -149,7 +149,7 @@ def train(
         )
     else:
         # include the init model and from scratch
-        model = build_model(run_options=run_opt, model_options=jdata["model_options"], common_options=jdata["common_options"])
+        model = build_model(run_options=run_opt, model_options=jdata["model_options"], common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
         trainer = Trainer(
             train_options=jdata["train_options"],
             common_options=jdata["common_options"],

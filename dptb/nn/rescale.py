@@ -256,8 +256,8 @@ class E3PerEdgeSpeciesScaleShift(torch.nn.Module):
         if scales is not None:
             scales = torch.as_tensor(scales, dtype=self.dtype, device=device)
             if len(scales.reshape(-1)) == 1:
-                scales = scales * torch.ones(num_types, num_types, self.irreps_in.num_irreps, dtype=self.dtype, device=self.device)
-            assert scales.shape == (num_types, num_types,self.irreps_in.num_irreps), f"Invalid shape of scales {scales}"
+                scales = scales * torch.ones(num_types*num_types, self.irreps_in.num_irreps, dtype=self.dtype, device=self.device)
+            assert scales.shape == (num_types*num_types, self.irreps_in.num_irreps), f"Invalid shape of scales {scales}"
             self.scales_trainable = scales_trainable
             if scales_trainable:
                 self.scales = torch.nn.Parameter(scales)
@@ -267,10 +267,27 @@ class E3PerEdgeSpeciesScaleShift(torch.nn.Module):
         if shifts is not None:
             shifts = torch.as_tensor(shifts, dtype=self.dtype, device=device)
             if len(shifts.reshape(-1)) == 1:
-                shifts = shifts * torch.ones(num_types, num_types, self.num_scalar, dtype=self.dtype, device=self.device)
-            assert shifts.shape == (num_types, num_types, self.num_scalar), f"Invalid shape of shifts {shifts}"
+                shifts = shifts * torch.ones(num_types*num_types, self.num_scalar, dtype=self.dtype, device=self.device)
+            assert shifts.shape == (num_types*num_types, self.num_scalar), f"Invalid shape of shifts {shifts}"
             self.shifts_trainable = shifts_trainable
             if shifts_trainable:
+                self.shifts = torch.nn.Parameter(shifts)
+            else:
+                self.register_buffer("shifts", shifts)
+
+    def set_scale_shift(self, scales: torch.Tensor=None, shifts: torch.Tensor=None):
+        self.has_scales = scales is not None or self.has_scales
+        if scales is not None:
+            assert scales.shape == (self.num_types*self.num_types, self.irreps_in.num_irreps), f"Invalid shape of scales {scales}"
+            if self.scales_trainable:
+                self.scales = torch.nn.Parameter(scales)
+            else:
+                self.register_buffer("scales", scales)
+        
+        self.has_shifts = shifts is not None or self.has_shifts
+        if shifts is not None:
+            assert shifts.shape == (self.num_types*self.num_types, self.num_scalar), f"Invalid shape of shifts {shifts}"
+            if self.shifts_trainable:
                 self.shifts = torch.nn.Parameter(shifts)
             else:
                 self.register_buffer("shifts", shifts)
@@ -283,11 +300,8 @@ class E3PerEdgeSpeciesScaleShift(torch.nn.Module):
             return data
 
         edge_center = data[AtomicDataDict.EDGE_INDEX_KEY][0]
-        edge_neighbor = data[AtomicDataDict.EDGE_INDEX_KEY][1]
 
-        species_idx = data[AtomicDataDict.ATOM_TYPE_KEY].flatten()
-        center_species = species_idx[edge_center]
-        neighbor_species = species_idx[edge_neighbor]
+        species_idx = data[AtomicDataDict.EDGE_TYPE_KEY].flatten()
         in_field = data[self.field]
 
         assert len(in_field) == len(
@@ -295,9 +309,9 @@ class E3PerEdgeSpeciesScaleShift(torch.nn.Module):
         ), "in_field doesnt seem to have correct per-edge shape"
 
         if self.has_scales:
-            in_field = self.scales[center_species, neighbor_species][:,self.scale_index].view(-1, self.irreps_in.dim) * in_field
+            in_field = self.scales[species_idx][:,self.scale_index].view(-1, self.irreps_in.dim) * in_field
         if self.has_shifts:
-            shifts = self.shifts[center_species, neighbor_species][:,self.shift_index[self.shift_index>=0]].view(-1, self.num_scalar)
+            shifts = self.shifts[species_idx][:,self.shift_index[self.shift_index>=0]].view(-1, self.num_scalar)
             in_field[:, self.shift_index>=0] = shifts + in_field[:, self.shift_index>=0]
         
         data[self.out_field] = in_field
@@ -394,6 +408,24 @@ class E3PerSpeciesScaleShift(torch.nn.Module):
                 self.scales = torch.nn.Parameter(scales)
             else:
                 self.register_buffer("scales", scales)
+
+    def set_scale_shift(self, scales: torch.Tensor=None, shifts: torch.Tensor=None):
+        self.has_scales = scales is not None or self.has_scales
+        if scales is not None:
+            assert scales.shape == (self.num_types, self.irreps_in.num_irreps), f"Invalid shape of scales {scales}"
+            if self.scales_trainable:
+                self.scales = torch.nn.Parameter(scales)
+            else:
+                self.register_buffer("scales", scales)
+        
+        self.has_shifts = shifts is not None or self.has_shifts
+        if shifts is not None:
+            assert shifts.shape == (self.num_types, self.num_scalar), f"Invalid shape of shifts {shifts}"
+            if self.shifts_trainable:
+                self.shifts = torch.nn.Parameter(shifts)
+            else:
+                self.register_buffer("shifts", shifts)
+
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
 
