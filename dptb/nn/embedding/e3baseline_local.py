@@ -873,7 +873,7 @@ class Layer(torch.nn.Module):
             self.node_bn = BatchNorm(
                 irreps=self.irreps_out,
                 affine=True,
-                normalization="component",
+                normalization="norm",
             )
             
         # - layer resnet update weights -

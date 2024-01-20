@@ -317,7 +317,6 @@ class E3PerEdgeSpeciesScaleShift(torch.nn.Module):
         data[self.out_field] = in_field
 
         return data
-    
 
 class E3PerSpeciesScaleShift(torch.nn.Module):
     """Scale and/or shift a predicted per-atom property based on (learnable) per-species/type parameters.

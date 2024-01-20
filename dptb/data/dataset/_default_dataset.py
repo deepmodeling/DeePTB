@@ -172,11 +172,18 @@ class _TrajData(object):
             if "hamiltonian_blocks" in self.data:
                 assert idp is not None, "LCAO Basis must be provided  in `common_option` for loading Hamiltonian."
                 if "overlap_blocks" not in self.data:
-                    self.data["overlap_blocks"] = False
+                    self.data["overlap_blocks"] = [False] * self.info["nframes"]
                 # e3 = E3Hamiltonian(idp=idp, decompose=True)
-                ham_block_to_feature(atomic_data, idp, 
-                                     self.data["hamiltonian_blocks"][str(frame+1)], 
+                ham_block_to_feature(atomic_data, idp,
+                                     self.data["hamiltonian_blocks"][str(frame+1)],
                                      self.data["overlap_blocks"][str(frame+1)])
+                
+                # TODO: initialize the edge and node feature tempretely, there should be a better way.
+            else:
+                # just temporarily initialize the edge and node feature to zeros, to let the batch collate work.
+                atomic_data[AtomicDataDict.EDGE_FEATURES_KEY] = torch.zeros(atomic_data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], 1)
+                atomic_data[AtomicDataDict.NODE_FEATURES_KEY] = torch.zeros(atomic_data[AtomicDataDict.POSITIONS_KEY].shape[0], 1)
+                atomic_data[AtomicDataDict.EDGE_OVERLAP_KEY] = torch.zeros(atomic_data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], 1)
                 # with torch.no_grad():
                 #     atomic_data = e3(atomic_data.to_dict())
                 # atomic_data = AtomicData.from_dict(atomic_data)
@@ -190,12 +197,11 @@ class _TrajData(object):
                                                                                      dtype=torch.get_default_dtype())
                 if bandinfo["band_min"] is not None and bandinfo["band_max"] is not None:
                     atomic_data[AtomicDataDict.BAND_WINDOW_KEY] = torch.as_tensor([bandinfo["band_min"], bandinfo["band_max"]], 
-                                                                                  dtype=torch.get_default_dtype())
-                    atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.as_tensor(self.data["eigenvalues"][frame][bandinfo["band_min"]:bandinfo["band_max"]], 
-                                                                                dtype=torch.get_default_dtype())
-                else:
-                    atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.as_tensor(self.data["eigenvalues"][frame], 
-                                                                                dtype=torch.get_default_dtype())
+                                                                                  dtype=torch.long)
+                    # atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.as_tensor(self.data["eigenvalues"][frame][:, bandinfo["band_min"]:bandinfo["band_max"]], 
+                    #                                                             dtype=torch.get_default_dtype())
+                atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.as_tensor(self.data["eigenvalues"][frame], 
+                                                                            dtype=torch.get_default_dtype())
             data_list.append(atomic_data)
         return data_list
         
@@ -277,7 +283,7 @@ class DefaultDataset(AtomicInMemoryDataset):
         assert self.transform is not None
         idp = self.transform
 
-        if self.transform.method == "sktb":
+        if self.data[AtomicDataDict.EDGE_FEATURES_KEY].abs().sum() < 1e-7:
             return None
         
         typed_dataset = idp(self.data.clone().to_dict())
@@ -315,7 +321,6 @@ class DefaultDataset(AtomicInMemoryDataset):
         typed_norm = {}
         typed_norm_ave = torch.ones(len(idp.bond_to_type), idp.orbpair_irreps.num_irreps)
         typed_norm_std = torch.zeros(len(idp.bond_to_type), idp.orbpair_irreps.num_irreps)
-        typed_scalar = {}
         typed_scalar_ave = torch.ones(len(idp.bond_to_type), n_scalar)
         typed_scalar_std = torch.zeros(len(idp.bond_to_type), n_scalar)
         for bt, tp in idp.bond_to_type.items():
@@ -343,7 +348,9 @@ class DefaultDataset(AtomicInMemoryDataset):
 
             assert count_scalar <= n_scalar
             # shape of typed_norm: (n_irreps, n_edges)
-            typed_norm[bt] = torch.stack(norms_per_irrep)
+
+            if decay:
+                typed_norm[bt] = torch.stack(norms_per_irrep)
 
         edge_stats = {
             "norm_ave": typed_norm_ave,

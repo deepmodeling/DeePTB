@@ -71,8 +71,16 @@ def build_model(run_options, model_options: dict={}, common_options: dict={}, st
 
             # do initialization from statistics if DPTB is e3tb and statistics is provided
             if model.method == "e3tb" and statistics is not None:
-                model.node_prediction_h.set_scale_shift(scales=statistics["node"]["norm_std"], shifts=statistics["node"]["scalar_ave"])
-                model.edge_prediction_h.set_scale_shift(scales=statistics["edge"]["norm_std"], shifts=statistics["edge"]["scalar_ave"])
+                scalar_mask = torch.BoolTensor([ir.dim==1 for ir in model.idp.orbpair_irreps])
+                node_shifts = statistics["node"]["scalar_ave"]
+                node_scales = statistics["node"]["norm_ave"]
+                node_scales[:,scalar_mask] = statistics["node"]["scalar_std"]
+
+                edge_shifts = statistics["edge"]["scalar_ave"]
+                edge_scales = statistics["edge"]["norm_ave"]
+                edge_scales[:,scalar_mask] = statistics["edge"]["scalar_std"]
+                model.node_prediction_h.set_scale_shift(scales=node_scales, shifts=node_shifts)
+                model.edge_prediction_h.set_scale_shift(scales=edge_scales, shifts=edge_shifts)
 
         if init_nnsk:
             model = NNSK(**model_options["nnsk"], **common_options)

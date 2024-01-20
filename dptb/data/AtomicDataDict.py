@@ -58,6 +58,7 @@ def with_edge_vectors(data: Type, with_lengths: bool = True) -> Type:
             data[_keys.EDGE_LENGTH_KEY] = torch.linalg.norm(
                 data[_keys.EDGE_VECTORS_KEY], dim=-1
             )
+
         return data
     else:
         # Build it dynamically
@@ -92,11 +93,12 @@ def with_edge_vectors(data: Type, with_lengths: bool = True) -> Type:
                     edge_cell_shift,
                     cell.squeeze(0),  # remove batch dimension
                 )
+
         data[_keys.EDGE_VECTORS_KEY] = edge_vec
         if with_lengths:
             data[_keys.EDGE_LENGTH_KEY] = torch.linalg.norm(edge_vec, dim=-1)
         return data
-    
+
 @torch.jit.script
 def with_env_vectors(data: Type, with_lengths: bool = True) -> Type:
     """Compute the edge displacement vectors for a graph.
@@ -227,4 +229,5 @@ def with_batch(data: Type) -> Type:
             dtype=torch.long,
             device=pos.device,
         )
+        
         return data

@@ -114,12 +114,14 @@ def register_fields(
     graph_fields: Sequence[str] = [],
     long_fields: Sequence[str] = [],
 ) -> None:
+    
     r"""Register fields as being per-atom, per-edge, or per-frame.
 
     Args:
         node_permute_fields: fields that are equivariant to node permutations.
         edge_permute_fields: fields that are equivariant to edge permutations.
     """
+    
     node_fields: set = set(node_fields)
     edge_fields: set = set(edge_fields)
     env_fields: set = set(env_fields)

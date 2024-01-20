@@ -486,8 +486,8 @@ def model_options():
     doc_prediction = ""
 
     return Argument("model_options", dict, sub_fields=[
-        Argument("embedding", dict, sub_fields=[], sub_variants=[embedding()], doc=doc_embedding),
-        Argument("prediction", dict, sub_fields=[], sub_variants=[prediction()], doc=doc_prediction),
+        Argument("embedding", dict, optional=True, sub_fields=[], sub_variants=[embedding()], doc=doc_embedding),
+        Argument("prediction", dict, optional=True, sub_fields=[], sub_variants=[prediction()], doc=doc_prediction),
         nnsk(),
         ], sub_variants=[], optional=True, doc=doc_model_options)
 
@@ -1148,12 +1148,16 @@ def normalize_bandinfo(data):
     return data
 
 def bandinfo_sub():
+    doc_nkpoints = ""
+    doc_nbands = ""
     doc_band_min = ""
     doc_band_max = ""
     doc_emin = ""
     doc_emax = ""
     
     args = [
+        Argument("nkpoints", int, optional=True, doc=doc_nkpoints, default=0),
+        Argument("nbands", int, optional=True, doc=doc_nbands, default=0),
         Argument("band_min", int, optional=True, doc=doc_band_min, default=0),
         Argument("band_max", [int, None], optional=True, doc=doc_band_max, default=None),
         Argument("emin", [float, None], optional=True, doc=doc_emin,default=None),

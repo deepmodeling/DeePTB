@@ -129,7 +129,7 @@ class EigLoss(nn.Module):
             assert len(eig_pred.shape) == 2 and len(eig_label.shape) == 2
 
             # 对齐eig_pred和eig_label
-            eig_pred_cut = eig_pred[:,:band_max:band_min]
+            eig_pred_cut = eig_pred[:,band_min:band_max]
             eig_label_cut = eig_label[:,band_min:band_max]
 
 
