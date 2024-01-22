@@ -32,15 +32,15 @@ class Grid(object):
 
         # create meshgrid
         xmesh,ymesh,zmesh = np.meshgrid(self.xall,self.yall,self.zall)
-        self.xmesh = xmesh.flatten()
-        self.ymesh = ymesh.flatten()
-        self.zmesh = zmesh.flatten()
-        self.grid_coord = np.array([self.xmesh,self.ymesh,self.zmesh]).T #(Np,3)
-        sorted_indices = np.lexsort((self.xmesh , self.ymesh , self.zmesh))
+        xmesh = xmesh.flatten()
+        ymesh = ymesh.flatten()
+        zmesh = zmesh.flatten()
+        self.grid_coord = np.array([xmesh,ymesh,zmesh]).T #(Np,3)
+        sorted_indices = np.lexsort((xmesh,ymesh,zmesh))
         self.grid_coord = self.grid_coord[sorted_indices] # sort the grid points firstly along x, then y, lastly z        
         ## check the number of grid points
         self.Np = int(len(self.xall)*len(self.yall)*len(self.zall))
-        assert self.Np == len(self.xmesh)
+        assert self.Np == len(xmesh)
         assert self.grid_coord.shape[0] == self.Np
 
         print('Number of grid points: ',self.Np,' grid shape: ',self.grid_coord.shape,' Number of atoms: ',self.Na)
@@ -75,7 +75,9 @@ class Grid(object):
         swap = {}
         for atom_index in range(self.Na):
             for gp_index in range(self.Np):
-                if xa[atom_index]==self.xmesh[gp_index] and ya[atom_index]==self.ymesh[gp_index] and za[atom_index]==self.zmesh[gp_index]:
+                if xa[atom_index]==self.grid_coord[gp_index][0] and \
+                    ya[atom_index]==self.grid_coord[gp_index][1] and \
+                    za[atom_index]==self.grid_coord[gp_index][2]:
                     swap.update({atom_index:gp_index})
         return swap
     
@@ -125,7 +127,7 @@ class Interface3D(object):
                 raise ValueError('Unknown region type in Dielectric list: ',dielectric_list[i].__class__.__name__)
             
         self.grid = grid
-        self.eps = np.zeros(grid.Np) # dielectric permittivity
+        self.eps = np.ones(grid.Np) # dielectric permittivity
         self.phi = np.zeros(grid.Np) # potential
         self.phi_old = np.zeros(grid.Np) # potential in the previous iteration
         self.free_charge = np.zeros(grid.Np) # free charge density
@@ -146,17 +148,17 @@ class Interface3D(object):
     def boudnary_points_get(self):
         # set the boundary points
         for i in range(self.grid.Np):
-            if self.grid.xmesh[i] == np.min(self.grid.xall):
+            if self.grid.grid_coord[i,0] == np.min(self.grid.xall):
                 self.boudnary_points[i] = "xmin"
-            elif self.grid.xmesh[i] == np.max(self.grid.xall):
+            elif self.grid.grid_coord[i,0] == np.max(self.grid.xall):
                 self.boudnary_points[i] = "xmax"
-            elif self.grid.ymesh[i] == np.min(self.grid.yall):
+            elif self.grid.grid_coord[i,1] == np.min(self.grid.yall):
                 self.boudnary_points[i] = "ymin"
-            elif self.grid.ymesh[i] == np.max(self.grid.yall):
+            elif self.grid.grid_coord[i,1] == np.max(self.grid.yall):
                 self.boudnary_points[i] = "ymax"
-            elif self.grid.zmesh[i] == np.min(self.grid.zall):
+            elif self.grid.grid_coord[i,2] == np.min(self.grid.zall):
                 self.boudnary_points[i] = "zmin"
-            elif self.grid.zmesh[i] == np.max(self.grid.zall):
+            elif self.grid.grid_coord[i,2] == np.max(self.grid.zall):
                 self.boudnary_points[i] = "zmax"
         internal_NP = 0
         for i in range(self.grid.Np):
@@ -176,7 +178,7 @@ class Interface3D(object):
                         (region_list[i].zmin<=self.grid.grid_coord[:,2])&
                         (region_list[i].zmax>=self.grid.grid_coord[:,2]))[0]
             if region_list[i].__class__.__name__ == 'Gate': #attribute gate potential to the corresponding grid points
-                self.boudnary_points[tuple(index)] = "Gate"
+                self.boudnary_points.update({index[i]: "Gate" for i in range(len(index))})
                 self.lead_gate_potential[index] = region_list[i].Ef 
             elif region_list[i].__class__.__name__ == 'Dielectric':
                 self.eps[index] = region_list[i].eps

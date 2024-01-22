@@ -162,10 +162,10 @@ class NEGF(object):
             self.negf_compute(scf_require=False)
 
 
-    def poisson_negf_scf(self,err=1e-6,max_iter=1000,mix_rate=0.3,tolerance=1e-7): #TODO: add max_iter and mix_rate to jdata
+    def poisson_negf_scf(self,err=1e-6,max_iter=1000,mix_rate=0.3,tolerance=1e-7):
        
         # create grid
-        grid = self.read_grid(self.poisson_options["grid"],self.deviceprop.structure)
+        grid = self.get_grid(self.poisson_options["grid"],self.deviceprop.structure)
         
         # create gate
         Gate_list = []
@@ -204,9 +204,10 @@ class NEGF(object):
                 potential_list.append(potential_atom[i]*torch.ones(device_atom_norbs[i]))
             potential_tensor = torch.cat(potential_list)
             self.negf_compute(scf_require=True,Vbias=potential_tensor)
-            
+            # Vbias makes sense for orthogonal basis as in NanoTCAD
+            # TODO: check if Vbias makes sense for non-orthogonal basis 
 
-            # update electron density for solving Poisson equation
+            # update electron density for solving Poisson equation SCF
             DM_eq,DM_neq = self.out["DM_eq"], self.out["DM_neq"]
             elec_density = torch.diag(DM_eq+DM_neq)
             density_list = []
@@ -328,7 +329,7 @@ class NEGF(object):
             # plotting
             
 
-    def read_grid(self,grid_info,structase):
+    def get_grid(self,grid_info,structase):
         x_start,x_end,x_num = grid_info.get("x_range",None).split(':')
         xg = np.linspace(float(x_start),float(x_end),int(x_num))
 
