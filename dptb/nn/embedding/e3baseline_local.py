@@ -807,11 +807,11 @@ class Layer(torch.nn.Module):
         #     normalization="component",
         # )
 
-        self.bn = BatchNorm(
-            irreps=self.irreps_out,
-            affine=True,
-            normalization="component",
-        )
+        # self.bn = BatchNorm(
+        #     irreps=self.irreps_out,
+        #     affine=True,
+        #     normalization="component",
+        # )
 
         if latent_resnet:
             self.linear_res = Linear(
@@ -870,11 +870,11 @@ class Layer(torch.nn.Module):
             #     normalization="component",
             # )
 
-            self.node_bn = BatchNorm(
-                irreps=self.irreps_out,
-                affine=True,
-                normalization="norm",
-            )
+            # self.node_bn = BatchNorm(
+            #     irreps=self.irreps_out,
+            #     affine=True,
+            #     normalization="norm",
+            # )
             
         # - layer resnet update weights -
         if latent_resnet_update_ratios is None:
@@ -968,7 +968,7 @@ class Layer(torch.nn.Module):
 
         # new_features = self.bn(new_features, bond_type[active_edges])
         # new_features = new_features - scatter_mean(new_features, batch[edge_center[active_edges]], dim=0, dim_size=batch.max()+1)[batch[edge_center[active_edges]]]
-        new_features = self.bn(new_features)
+        # new_features = self.bn(new_features)
 
         if self.latent_resnet:
             update_coefficients = self._latent_resnet_update_params.sigmoid()
@@ -1028,7 +1028,7 @@ class Layer(torch.nn.Module):
             node_features = node_features * norm_const
 
             # node_features = self.node_bn(node_features, atom_type)
-            node_features = self.node_bn(node_features)
+            # node_features = self.node_bn(node_features)
 
             edge_weights = self.edge_embed_mlps(latents[active_edges])
 

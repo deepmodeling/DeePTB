@@ -290,7 +290,7 @@ class Band(object):
         band_color = '#5d5d5d'
         # plot the line
         
-        if ref_band:
+        if ref_band is not None:
             if len(ref_band.shape) == 3:
                 assert ref_band.shape[0] == 1
                 ref_band = ref_band.reshape(ref_band.shape[1:])
@@ -344,7 +344,7 @@ class Band(object):
             spine.set_edgecolor('#5d5d5d')
             spine.set_linewidth(1.5)
         
-        if ref_band:
+        if ref_band is not None:
             plt.legend(handles=[band_pre[0], band_ref[0]], loc="best")
         
         plt.tight_layout()

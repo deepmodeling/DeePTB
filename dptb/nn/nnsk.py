@@ -54,9 +54,13 @@ class NNSK(torch.nn.Module):
         self.idp_sk.get_skonsite_maps()
         self.onsite_options = onsite
         self.hopping_options = hopping
-        self.model_options = {"nnsk":{"onsite": onsite, "hopping": hopping}}
-
-
+        self.model_options = {
+            "nnsk":{
+                "onsite": onsite, 
+                "hopping": hopping,
+                "freeze": freeze,                
+                }
+            }
 
         # init_onsite, hopping, overlap formula
 
@@ -99,6 +103,7 @@ class NNSK(torch.nn.Module):
         self.hamiltonian = SKHamiltonian(idp_sk=self.idp_sk, dtype=self.dtype, device=self.device, strain=hasattr(self, "strain_param"))
         if overlap:
             self.overlap = SKHamiltonian(idp_sk=self.idp_sk, overlap=True, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
+        self.idp = self.hamiltonian.idp
         if freeze:
             for (name, param) in self.named_parameters():
                 param.requires_grad = False
