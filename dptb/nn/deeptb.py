@@ -16,7 +16,30 @@ from dptb.nn.rescale import E3PerSpeciesScaleShift, E3PerEdgeSpeciesScaleShift
 """
 
 def get_neuron_config(nl):
+    """Extracts the configuration of a neural network from a list of layer sizes.
+
+    Args:
+        nl: A list of integers representing the number of neurons in each layer.
+            If the list has an even number of elements, the last element is assumed
+            to be the output layer size.
+
+    Returns:
+        A list of dictionaries, where each dictionary describes the configuration of
+        a layer in the neural network. Each dictionary has the following keys:
+        - in_features: The number of input neurons for the layer.
+        - hidden_features: The number of hidden neurons for the layer (if applicable).
+        - out_features: The number of output neurons for the layer.
+    
+        e.g.
+        [1, 2, 3, 4, 5, 6] -> [{'in_features': 1, 'hidden_features': 2, 'out_features': 3}, 
+                               {'in_features': 3, 'hidden_features': 4, 'out_features': 5}, 
+                               {'in_features': 5, 'out_features': 6}]
+        [1, 2, 3, 4, 5]    -> [{'in_features': 1, 'hidden_features': 2, 'out_features': 3}, 
+                               {'in_features': 3, 'hidden_features': 4, 'out_features': 5}]
+    """
+    
     n = len(nl)
+    assert n > 1, "The neuron config should have at least 2 layers."
     if n % 2 == 0:
         d_out = nl[-1]
         nl = nl[:-1]

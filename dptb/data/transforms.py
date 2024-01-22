@@ -165,6 +165,26 @@ class TypeMapper:
     def format(
         data: list, type_names: List[str], element_formatter: str = ".6f"
     ) -> str:
+        """
+            Formats a list of data elements along with their type names.
+
+        Parameters:
+            data (list): The data elements to be formatted. This should be a list of numbers.
+            type_names (List[str]): The type names corresponding to the data elements. This should be a list of strings.
+            element_formatter (str, optional): The format in which the data elements should be displayed. Defaults to ".6f".
+
+        Returns:
+            str: A string representation of the data elements along with their type names.
+
+        Raises:
+            ValueError: If `data` is not None, not 0-dimensional, or not 1-dimensional with length equal to the length of `type_names`.
+        
+        Example:
+            >>> data = [1.123456789, 2.987654321]
+            >>> type_names = ['Type1', 'Type2']
+            >>> print(TypeMapper.format(data, type_names))
+                [Type1: 1.123457, Type2: 2.987654]    
+        """ 
         data = torch.as_tensor(data) if data is not None else None
         if data is None:
             return f"[{', '.join(type_names)}: None]"
@@ -434,6 +454,8 @@ class OrbitalMapper(BondMapper):
             self.reduced_matrix_element = int(((orbtype_count["s"] + 9 * orbtype_count["p"] + 25 * orbtype_count["d"] + 49 * orbtype_count["f"]) + \
                                                     self.full_basis_norb ** 2)/2) # reduce onsite elements by blocks. we cannot reduce it by element since the rme will pass into CG basis to form the whole block
         else:
+            # two factor: this outside one is the number of min(l,l')+1, ie. the number of sk integrals for each orbital pair.
+            # the inside one the type of bond considering the interaction between different orbitals. s-p -> p-s. there are 2 types of bond. and 1 type of s-s.
             self.reduced_matrix_element = (
                 1 * orbtype_count["s"] * orbtype_count["s"] + \
                 2 * orbtype_count["s"] * orbtype_count["p"] + \

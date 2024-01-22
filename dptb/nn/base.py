@@ -248,6 +248,9 @@ class AtomicResNet(torch.nn.Module):
         self.out_field = out_field
         self.layers = torch.nn.ModuleList([])
         for kk in range(len(config)-1):
+            # the first layer will take the in_field as key to take `data[in_field]` and output the out_field, data[out_field] = layer(data[in_field])
+            # the rest of the layers will take the out_field as key to take `data[out_field]` and output the out_field, data[out_field] = layer(data[out_field])
+            # That why we need to set the in_field and out_field for 1st layer and the rest of the layers.
             if kk == 0:
                 self.layers.append(
                     AtomicResBlock(
