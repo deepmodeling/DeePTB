@@ -80,7 +80,6 @@ class DPTB(nn.Module):
         
         
         self.method = prediction.get("method", "e3tb")
-        self.overlap = overlap
         # self.soc = prediction.get("soc", False)
         self.prediction = prediction
 
@@ -124,7 +123,7 @@ class DPTB(nn.Module):
                 dtype=dtype
             )
 
-            if self.overlap:
+            if overlap:
                 self.edge_prediction_s = AtomicResNet(
                     **prediction,
                     in_field=AtomicDataDict.EDGE_OVERLAP_KEY,
@@ -157,7 +156,7 @@ class DPTB(nn.Module):
                 device=self.device,
                 **prediction,
             )
-            if self.overlap:
+            if overlap:
                 raise NotImplementedError("The overlap prediction is not implemented for e3tb method.")
 
         else:
@@ -171,16 +170,16 @@ class DPTB(nn.Module):
                 idp_sk=self.idp, 
                 dtype=self.dtype, 
                 device=self.device,
-                overlap=False,
+                onsite=True,
                 )
-            if self.overlap:
+            if overlap:
                 self.overlap = SKHamiltonian(
                     idp_sk=self.idp, 
                     edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, 
                     node_field=AtomicDataDict.NODE_OVERLAP_KEY, 
                     dtype=self.dtype, 
                     device=self.device,
-                    overlap=True,
+                    onsite=False,
                     )
 
         elif self.method == "e3tb":
@@ -191,7 +190,7 @@ class DPTB(nn.Module):
                 dtype=self.dtype, 
                 device=self.device
                 )
-            if self.overlap:
+            if overlap:
                 self.overlap = E3Hamiltonian(
                     idp=self.idp, 
                     edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, 

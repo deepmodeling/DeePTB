@@ -100,9 +100,9 @@ class NNSK(torch.nn.Module):
             self.strain_param = torch.nn.Parameter(strain_param)
             # symmetrize the env for same atomic spices
             
-        self.hamiltonian = SKHamiltonian(idp_sk=self.idp_sk, dtype=self.dtype, device=self.device, strain=hasattr(self, "strain_param"))
+        self.hamiltonian = SKHamiltonian(idp_sk=self.idp_sk, onsite=True, dtype=self.dtype, device=self.device, strain=hasattr(self, "strain_param"))
         if overlap:
-            self.overlap = SKHamiltonian(idp_sk=self.idp_sk, overlap=True, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
+            self.overlap = SKHamiltonian(idp_sk=self.idp_sk, onsite=False, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
         self.idp = self.hamiltonian.idp
         if freeze:
             for (name, param) in self.named_parameters():
@@ -255,6 +255,7 @@ class NNSK(torch.nn.Module):
         dtype: Union[str, torch.dtype]=None, 
         device: Union[str, torch.device]=None,
         freeze: bool = None,
+        **kwargs,
         ):
         # the mapping from the parameters of the ref_model and the current model can be found using
         # reference model's idp and current idp
@@ -299,13 +300,14 @@ class NNSK(torch.nn.Module):
 
             model = cls(**common_options, **nnsk)
 
-            if f["config"]["common_options"]["basis"] == basis:
+            if f["config"]["common_options"]["basis"] == common_options["basis"] and \
+                f["config"]["model_options"] == model.model_options:
                 model.load_state_dict(f["model_state_dict"])
             else:
                 #TODO: handle the situation when ref_model config is not the same as the current model
                 # load hopping
                 ref_idp =  OrbitalMapper(f["config"]["common_options"]["basis"], method="sktb")
-                idp = OrbitalMapper(basis, method="sktb")
+                idp = OrbitalMapper(common_options["basis"], method="sktb")
 
                 ref_idp.get_orbpair_maps()
                 idp.get_orbpair_maps()

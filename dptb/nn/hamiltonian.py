@@ -206,7 +206,7 @@ class SKHamiltonian(torch.nn.Module):
         device: Union[str, torch.device] = torch.device("cpu"),
         edge_field: str = AtomicDataDict.EDGE_FEATURES_KEY,
         node_field: str = AtomicDataDict.NODE_FEATURES_KEY,
-        overlap: bool = False,
+        onsite: bool = False,
         strain: bool = False,
         **kwargs,
         ) -> None:
@@ -218,7 +218,7 @@ class SKHamiltonian(torch.nn.Module):
             device = torch.device(device)
         self.dtype = dtype
         self.device = device
-        self.overlap = overlap
+        self.onsite = onsite
 
         if basis is not None:
             self.idp_sk = OrbitalMapper(basis, method="sktb", device=device)
@@ -274,7 +274,7 @@ class SKHamiltonian(torch.nn.Module):
         # transform sk parameters to irreducible matrix element
 
         assert data[self.edge_field].shape[1] == self.idp_sk.reduced_matrix_element
-        if not self.overlap:
+        if self.onsite:
             assert data[self.node_field].shape[1] == self.idp_sk.n_onsite_Es
             n_node = data[self.node_field].shape[0]
             
@@ -307,7 +307,7 @@ class SKHamiltonian(torch.nn.Module):
             data[self.edge_field][:, self.idp.orbpairtype_maps[opairtype]] = HR
 
         # compute onsite blocks
-        if not self.overlap:
+        if self.onsite:
             node_feature = data[self.node_field].clone()
             data[self.node_field] = torch.zeros(n_node, self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device)
 
@@ -327,11 +327,11 @@ class SKHamiltonian(torch.nn.Module):
         # this is a little wired operation, since it acting on somekind of a edge(strain env) feature, and summed up to return a node feature.
         if self.strain:
             n_onsitenv = len(data[AtomicDataDict.ONSITENV_FEATURES_KEY])
-            for opair in self.idp.orbpair_maps.keys(): # save all env direction and pair direction like sp and ps, but only get sp
-                l1, l2 = anglrMId[opair[1]], anglrMId[opair[4]]
-                opairtype = opair[1]+"-"+opair[4]
+            for opairtype in self.idp.orbpairtype_maps.keys(): # save all env direction and pair direction like sp and ps, but only get sp
+                l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
+                # opairtype = opair[1]+"-"+opair[4]
                 n_skp = min(l1, l2)+1 # number of reduced matrix element
-                skparam = data[AtomicDataDict.ONSITENV_FEATURES_KEY][:, self.idp_sk.orbpair_maps[opair]].reshape(n_onsitenv, -1, n_skp)
+                skparam = data[AtomicDataDict.ONSITENV_FEATURES_KEY][:, self.idp_sk.orbpairtype_maps[opairtype]].reshape(n_onsitenv, -1, n_skp)
                 rme = skparam @ self.sk2irs[opairtype].T # shape (N, n_pair, n_rme)
                 rme = rme.transpose(1,2) # shape (N, n_rme, n_pair)
 
@@ -347,7 +347,7 @@ class SKHamiltonian(torch.nn.Module):
                 HR = scatter(src=HR, index=data[AtomicDataDict.ONSITENV_INDEX_KEY][0], dim=0, reduce="sum") # shape (n_node, n_pair, 2l1+1, 2l2+1)
                 # A-B o1-o2 (A-B o2-o1)= (B-A o1-o2)
                 
-                data[self.node_field][:, self.idp.orbpair_maps[opair]] += HR.flatten(1, len(HR.shape)-1) # the index type [node/pair] should align with the index of for loop
+                data[self.node_field][:, self.idp.orbpairtype_maps[opairtype]] += HR.flatten(1, len(HR.shape)-1) # the index type [node/pair] should align with the index of for loop
             
         return data
 

@@ -102,16 +102,29 @@ def train(
     if restart or init_model:
         f = restart if restart else init_model
         f = torch.load(f)
+
+        if jdata.get("model_options", None) is None:
+            jdata["model_options"] = f["config"]["model_options"]
+
         # update basis
         basis = f["config"]["common_options"]["basis"]
-        for asym, orb in jdata["common_options"]["basis"].items():
-            assert asym in basis.keys(), f"Atom {asym} not found in model's basis"
-            assert orb == basis[asym], f"Orbital {orb} of Atom {asym} not consistent with the model's basis"
+        # nnsk
+        if len(f["config"]["model_options"])==1 and f["config"]["model_options"].get("nnsk") != None:
+            for asym, orb in jdata["common_options"]["basis"].items():
+                assert asym in basis.keys(), f"Atom {asym} not found in model's basis"
+                if orb != basis[asym]:
+                    log.info(f"Initializing Orbital {orb} of Atom {asym} from {basis[asym]}")
+            # we have the orbitals in jdata basis correct, now we need to make sure all atom in basis are also contained in jdata basis
+            for asym, orb in basis.items():
+                if asym not in jdata["common_options"]["basis"].keys():
+                    jdata["common_options"]["basis"][asym] = orb # add the atomtype in the checkpoint but not in the jdata basis, because it will be used to build the orbital mapper for dataset
+        else: # not nnsk
+            for asym, orb in jdata["common_options"]["basis"].items():
+                assert asym in basis.keys(), f"Atom {asym} not found in model's basis"
+                assert orb == basis[asym], f"Orbital {orb} of Atom {asym} not consistent with the model's basis, which is only allowed in nnsk training"
 
-        jdata["common_options"]["basis"] = basis # use the old basis, because it will be used to build the orbital mapper for dataset
-
-        if jdata.get("model_options", None):
-            jdata["model_options"] = f["config"]["model_options"]
+            jdata["common_options"]["basis"] = basis
+        
 
         if restart:
             jdata["train_options"] = f["config"]["train_options"]
@@ -129,7 +142,7 @@ def train(
     # with open(os.path.join(output, "train_config.json"), "w") as fp:
     #     json.dump(jdata, fp, indent=4)
 
-    # build dataset 
+    # build dataset
     train_datasets = build_dataset(set_options=jdata["data_options"]["train"], common_options=jdata["common_options"])
     if jdata["data_options"].get("validation"):
         validation_datasets = build_dataset(set_options=jdata["data_options"]["validation"], common_options=jdata["common_options"])
