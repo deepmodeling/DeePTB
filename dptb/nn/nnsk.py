@@ -151,6 +151,9 @@ class NNSK(torch.nn.Module):
         for k in self.idp_sk.orbpair_maps.keys():
             iorb, jorb = k.split("-")
             if iorb == jorb:
+                # This is to keep the symmetry of the hopping parameters for the same orbital pairs
+                # As-Bs = Bs-As; we need to do this because for different orbital pairs, we only have one set of parameters, 
+                # eg. we only have As-Bp and Bs-Ap, but not Ap-Bs and Bp-As; and we will use Ap-Bs = Bs-Ap and Bp-As = As-Bp to calculate the hopping integral
                 self.hopping_param.data[:,self.idp_sk.orbpair_maps[k],:] = 0.5 * (params[:,self.idp_sk.orbpair_maps[k],:] + reflect_params[:,self.idp_sk.orbpair_maps[k],:])
         if hasattr(self, "overlap"):
             params = self.overlap_param.data
@@ -169,6 +172,10 @@ class NNSK(torch.nn.Module):
         edge_number = self.idp_sk.untransform_bond(edge_index).T
         edge_index = self.idp_sk.transform_bond(*edge_number)
 
+        # the edge number is the atomic number of the two atoms in the bond.
+        # The bond length list is actually the nucli radius (unit of angstrom) at the atomic number.
+        # now this bond length list is only available for the first 83 elements.
+        
         r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number-1].sum(0)
 
         data[AtomicDataDict.EDGE_FEATURES_KEY] = self.hopping_fn.get_skhij(
@@ -183,6 +190,9 @@ class NNSK(torch.nn.Module):
             for orbpair_key, slices in self.idp_sk.orbpair_maps.items():
                 if orbpair_key.split("-")[0] == orbpair_key.split("-")[1]:
                     equal_orbpair[slices] = 1.0
+            # this paraconst is to make sure the overlap between the same orbital pairs of the save atom is 1.0 
+            # this is taken from the formula of NRL-TB. 
+            # the overlap tag now is only designed to be used in the NRL-TB case. In the future, we may need to change this.
             paraconst = edge_number[0].eq(edge_number[1]).float().view(-1, 1) * equal_orbpair.unsqueeze(0)
 
             data[AtomicDataDict.EDGE_OVERLAP_KEY] = self.overlap_fn.get_sksij(

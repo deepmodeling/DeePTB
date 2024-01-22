@@ -371,6 +371,8 @@ class E3PerSpeciesScaleShift(torch.nn.Module):
         start = 0
         start_scalar = 0
         for mul, ir in irreps_in:
+            # only the scalar irreps can be shifted
+            # all the irreps can be scaled
             if str(ir) == "0e":
                 self.num_scalar += mul
                 self.shift_index += list(range(start_scalar, start_scalar + mul))
