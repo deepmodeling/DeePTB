@@ -108,6 +108,7 @@ class NEGF(object):
 
         ## Poisson equation settings
         self.poisson_options = j_must_have(jdata, "poisson_options")
+        self.poisson_zero_charge = {}
         self.gate_region = [self.poisson_options[i] for i in self.poisson_options if i.startswith("gate")]
         self.dielectric_region = [self.poisson_options[i] for i in self.poisson_options if i.startswith("dielectric")]
 
@@ -159,8 +160,8 @@ class NEGF(object):
             self.poisson_negf_scf(err=self.poisson_options['err'],tolerance=self.poisson_options['tolerance'],\
                                   max_iter=self.poisson_options['max_iter'],mix_rate=self.poisson_options['mix_rate'])
         else:
-            self.negf_compute(scf_require=False)
-
+            potential_add = None
+            self.negf_compute(scf_require=False,Vbias=potential_add)
 
     def poisson_negf_scf(self,err=1e-6,max_iter=1000,mix_rate=0.3,tolerance=1e-7):
        
@@ -190,7 +191,8 @@ class NEGF(object):
         # create interface
         interface_poisson = Interface3D(grid,Gate_list,Dielectric_list)
 
-        max_diff = 1e30; iter_count=0
+        max_diff = 1e30; max_diff_list = [] 
+        iter_count=0
         while max_diff > err:
 
             # update Hamiltonian by modifying onsite energy with potential
@@ -210,13 +212,16 @@ class NEGF(object):
             # update electron density for solving Poisson equation SCF
             DM_eq,DM_neq = self.out["DM_eq"], self.out["DM_neq"]
             elec_density = torch.diag(DM_eq+DM_neq)
-            density_list = []
+            
+
+            elec_density_per_atom = []
             pre_atom_orbs = 0
             for i in range(len(device_atom_norbs)):
-                density_list.append(torch.sum(elec_density[pre_atom_orbs : pre_atom_orbs+device_atom_norbs[i]]).numpy())
+                elec_density_per_atom.append(torch.sum(elec_density[pre_atom_orbs : pre_atom_orbs+device_atom_norbs[i]]).numpy())
                 pre_atom_orbs += device_atom_norbs[i]
 
-            interface_poisson.free_charge[atom_gridpoint_index] = np.array(density_list)
+            interface_poisson.free_charge[atom_gridpoint_index] =\
+                -1*np.array(elec_density_per_atom)+self.poisson_zero_charge[str(self.kpoints[0])].numpy()
             max_diff = interface_poisson.solve_poisson(method=self.poisson_options['solver'],tolerance=tolerance)
 
             interface_poisson.phi = interface_poisson.phi + mix_rate*(interface_poisson.phi - interface_poisson.phi_old)
@@ -224,9 +229,19 @@ class NEGF(object):
 
             iter_count += 1
             print('Poisson iteration: ',iter_count,' max_diff: ',max_diff)
+            max_diff_list.append(max_diff)
             if iter_count > max_iter:
                 log.info(msg="Warning! Poisson iteration exceeds max_iter {}".format(int(max_iter)))
                 break
+
+        self.poisson_out = {}
+        self.poisson_out['potential'] = torch.tensor(interface_poisson.phi)
+        self.poisson_out['grid_point_number'] = interface_poisson.grid.Np
+        self.poisson_out['grid'] = torch.tensor(interface_poisson.grid.grid_coord)
+        self.poisson_out['free_charge_at_atom'] = torch.tensor(interface_poisson.free_charge[atom_gridpoint_index])
+        self.poisson_out['max_diff_list'] = torch.tensor(max_diff_list)
+        
+        torch.save(self.poisson_out, self.results_path+"/poisson.out.pth")
 
         # calculate transport properties with converged potential
         self.negf_compute(scf_require=False,Vbias=potential_tensor)
