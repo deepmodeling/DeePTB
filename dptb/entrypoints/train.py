@@ -125,11 +125,26 @@ def train(
 
             jdata["common_options"]["basis"] = basis
         
-
+        # update model options and train_options
         if restart:
-            jdata["train_options"] = f["config"]["train_options"]
+            # 
+            if jdata.get("train_options", None) is not None:
+                for obj in Trainer.object_keys:
+                    if jdata["train_options"].get(obj) != f["config"]["train_options"].get(obj):
+                        log.warning(f"{obj} in config file is not consistent with the checkpoint, using the one in checkpoint")
+                        jdata["train_options"][obj] = f["config"]["train_options"][obj]
+            else:
+                jdata["train_options"] = f["config"]["train_options"]
+
+            if jdata.get("model_options", None) is None or jdata["model_options"] != f["config"]["model_options"]:
+                log.warning("model_options in config file is not consistent with the checkpoint, using the one in checkpoint")
+                jdata["model_options"] = f["config"]["model_options"] # restart does not allow to change model options
         else:
-            j_must_have(jdata, "train_options")
+            # init model mode, allow model_options change
+            if jdata.get("train_options", None) is None:
+                jdata["train_options"] = f["config"]["train_options"]
+            if jdata.get("model_options") is None:
+                jdata["model_options"] = f["config"]["model_options"]
         del f
     else:
         j_must_have(jdata, "model_options")
@@ -155,6 +170,8 @@ def train(
 
     if restart:
         trainer = Trainer.restart(
+            train_options=jdata["train_options"],
+            common_options=jdata["common_options"],
             checkpoint=restart,
             train_datasets=train_datasets,
             reference_datasets=reference_datasets,
@@ -162,6 +179,7 @@ def train(
         )
     else:
         # include the init model and from scratch
+        # build model will handle the init model cases where the model options provided is not equals to the ones in checkpoint.
         model = build_model(run_options=run_opt, model_options=jdata["model_options"], common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
         trainer = Trainer(
             train_options=jdata["train_options"],

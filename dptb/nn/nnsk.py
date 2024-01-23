@@ -104,6 +104,7 @@ class NNSK(torch.nn.Module):
         if overlap:
             self.overlap = SKHamiltonian(idp_sk=self.idp_sk, onsite=False, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
         self.idp = self.hamiltonian.idp
+        
         if freeze:
             for (name, param) in self.named_parameters():
                 param.requires_grad = False
@@ -348,8 +349,8 @@ class NNSK(torch.nn.Module):
                             iasym, jasym = bond.split("-")
                             for ref_forbpair in ref_idp.orbpair_maps.keys():
                                 rfiorb, rfjorb = ref_forbpair.split("-")
-                                riorb, rjorb = ref_idp.full_basis_to_basis[rfiorb], ref_idp.full_basis_to_basis[rfjorb]
-                                fiorb, fjorb = idp.basis_to_full_basis.get(riorb), idp.basis_to_full_basis.get(rjorb)
+                                riorb, rjorb = ref_idp.full_basis_to_basis[iasym][rfiorb], ref_idp.full_basis_to_basis[jasym][rfjorb]
+                                fiorb, fjorb = idp.basis_to_full_basis[iasym].get(riorb), idp.basis_to_full_basis[jasym].get(rjorb)
                                 if fiorb is not None and fjorb is not None:
                                     sli = idp.orbpair_maps.get(f"{fiorb}-{fjorb}")
                                     b = bond
@@ -378,10 +379,11 @@ class NNSK(torch.nn.Module):
                     params = f["model_state_dict"]["strain_param"]
                     for bond in ref_idp.bond_types:
                         if bond in idp.bond_types:
+                            iasym, jasym = bond.split("-")
                             for ref_forbpair in ref_idp.orbpair_maps.keys():
                                 rfiorb, rfjorb = ref_forbpair.split("-")
-                                riorb, rjorb = ref_idp.full_basis_to_basis[rfiorb], ref_idp.full_basis_to_basis[rfjorb]
-                                fiorb, fjorb = idp.basis_to_full_basis.get(riorb), idp.basis_to_full_basis.get(rjorb)
+                                riorb, rjorb = ref_idp.full_basis_to_basis[iasym][rfiorb], ref_idp.full_basis_to_basis[jasym][rfjorb]
+                                fiorb, fjorb = idp.basis_to_full_basis[iasym].get(riorb), idp.basis_to_full_basis[jasym].get(rjorb)
                                 if fiorb is not None and fjorb is not None:
                                     sli = idp.orbpair_maps.get(f"{fiorb}-{fjorb}")
                                     b = bond

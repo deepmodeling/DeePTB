@@ -80,7 +80,7 @@ class Trainer(BaseTrainer):
         batch = AtomicData.to_AtomicDataDict(batch)
 
         batch_for_loss = batch.copy() # make a shallow copy in case the model change the batch data
-        #TODO: the rescale/normalization can be added here
+        
         batch = self.model(batch)
 
         #TODO: this could make the loss function unjitable since t he batchinfo in batch and batch_for_loss does not necessarily 
@@ -128,10 +128,12 @@ class Trainer(BaseTrainer):
         cls,
         checkpoint: str,
         train_datasets: AtomicDataset,
+        train_options: dict={},
+        common_options: dict={},
         reference_datasets: Optional[AtomicDataset]=None,
         validation_datasets: Optional[AtomicDataset]=None,
         ):
-        """init trainer from disk"""
+        """restart the training from a checkpoint, it does not support model options change."""
 
         ckpt = torch.load(checkpoint)
 
@@ -140,6 +142,10 @@ class Trainer(BaseTrainer):
         }
 
         model = build_model(run_opt, ckpt["config"]["model_options"], ckpt["config"]["common_options"])
+        if len(train_options) == 0:
+            train_options = ckpt["config"]["train_options"]
+        if len(common_options) == 0:
+            common_options = ckpt["config"]["common_options"]
 
         # init trainer and load the trainer's states
         trainer = cls(
@@ -147,8 +153,8 @@ class Trainer(BaseTrainer):
             train_datasets=train_datasets,
             reference_datasets=reference_datasets,
             validation_datasets=validation_datasets,
-            train_options=ckpt["config"]["train_options"],
-            common_options=ckpt["config"]["common_options"],
+            train_options=train_options,
+            common_options=common_options,
             )
         
         trainer.ep = ckpt["epoch"]

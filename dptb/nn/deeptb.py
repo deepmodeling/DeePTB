@@ -227,17 +227,17 @@ class DPTB(nn.Module):
     def forward(self, data: AtomicDataDict.Type):
 
         data = self.embedding(data)
-        if self.overlap:
+        if hasattr(self, "overlap"):
             data[AtomicDataDict.EDGE_OVERLAP_KEY] = data[AtomicDataDict.EDGE_FEATURES_KEY]
         
         data = self.node_prediction_h(data)
         data = self.edge_prediction_h(data)
-        if self.overlap:
+        if hasattr(self, "overlap"):
             data = self.edge_prediction_s(data)
         
         if self.transform:
             data = self.hamiltonian(data)
-            if self.overlap:
+            if hasattr(self, "overlap"):
                 data = self.overlap(data)
 
         return data
