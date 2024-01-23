@@ -264,6 +264,8 @@ class NEGF(object):
             # computing properties that is functions of E
             if hasattr(self, "uni_grid"):
                 self.out["k"] = k
+                dE = abs(self.uni_grid[1] - self.uni_grid[0])
+                self.poisson_zero_charge.update({str(k):0}) # reset zero charge for each k
                 for e in self.uni_grid:
                     log.info(msg="computing green's function at e = {:.3f}".format(float(e)))
                     leads = self.stru_options.keys()
@@ -293,7 +295,9 @@ class NEGF(object):
                         if self.out_ldos:
                             prop = self.out.setdefault("LDOS", [])
                             prop.append(self.compute_LDOS(k))
-
+                    else:
+                        if e < 0:
+                            self.poisson_zero_charge[str(k)] += self.compute_LDOS(k)*dE
 
             # whether scf_require is True or False, density are computed for Poisson-NEGF SCF
             if self.out_density or self.out_potential:
