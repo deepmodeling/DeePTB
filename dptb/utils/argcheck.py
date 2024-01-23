@@ -500,9 +500,24 @@ def nnsk():
     # overlap = Argument("overlap", bool, optional=True, default=False, doc="The parameters to define the overlap correction of nnsk model.")
 
     return Argument("nnsk", dict, sub_fields=[
-        Argument("onsite", dict, optional=False, sub_fields=[], sub_variants=[onsite()], doc=doc_onsite), 
-        Argument("hopping", dict, optional=False, sub_fields=[], sub_variants=[hopping()], doc=doc_hopping),
-        Argument("freeze", bool, optional=True, default=False, doc=doc_freeze)], sub_variants=[], optional=True, doc=doc_nnsk)
+            Argument("onsite", dict, optional=False, sub_fields=[], sub_variants=[onsite()], doc=doc_onsite), 
+            Argument("hopping", dict, optional=False, sub_fields=[], sub_variants=[hopping()], doc=doc_hopping),
+            Argument("freeze", bool, optional=True, default=False, doc=doc_freeze),
+            push(),
+        ], sub_variants=[], optional=True, doc=doc_nnsk)
+
+def push():
+    doc_rs_thr = ""
+    doc_rc_thr = ""
+    doc_w_thr = ""
+    doc_period = ""
+
+    return Argument("push", dict, sub_fields=[
+        Argument("rs_thr", float, optional=True, default=0., doc=doc_rs_thr),
+        Argument("rc_thr", float, optional=True, default=0., doc=doc_rc_thr),
+        Argument("w_thr", float, optional=True, default=0., doc=doc_w_thr),
+        Argument("period", int, optional=True, default=100, doc=doc_period),
+    ], sub_variants=[], optional=True, default={}, doc="The parameters to define the push the soft cutoff of nnsk model.")
 
 def onsite():
     doc_method = r"The onsite correction mode, the onsite energy is expressed as the energy of isolated atoms plus the model correction, the correction mode are:\n\n\

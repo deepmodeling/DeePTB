@@ -30,6 +30,7 @@ class NNSK(torch.nn.Module):
             device: Union[str, torch.device] = torch.device("cpu"),
             transform: bool = True,
             freeze: bool = False,
+            push: Dict=None,
             **kwargs,
             ) -> None:
         
@@ -54,13 +55,17 @@ class NNSK(torch.nn.Module):
         self.idp_sk.get_skonsite_maps()
         self.onsite_options = onsite
         self.hopping_options = hopping
+        self.push = push
         self.model_options = {
             "nnsk":{
                 "onsite": onsite, 
                 "hopping": hopping,
-                "freeze": freeze,                
+                "freeze": freeze,
+                "push": push,                
                 }
             }
+        
+        self.count_push = 0
 
         # init_onsite, hopping, overlap formula
 
@@ -108,6 +113,32 @@ class NNSK(torch.nn.Module):
         if freeze:
             for (name, param) in self.named_parameters():
                 param.requires_grad = False
+    
+    def push_decay(self, rs_thr: float=0., rc_thr: float=0., w_thr: float=0., period:int=100):
+        """Push the soft cutoff function
+
+        Parameters
+        ----------
+        rs_thr : float
+            the threshold step to push the rs
+        w_thr : float
+            the threshold step to push the w
+        """
+
+
+        if self.count_push // period > 0:
+            if abs(rs_thr) > 0:
+                self.hopping_options["rs"] += rs_thr
+            if abs(w_thr) > 0:
+                self.hopping_options["w"] += w_thr
+            if abs(rc_thr) > 0:
+                self.hopping_options["rc"] += rc_thr
+
+            self.model_options["nnsk"]["hopping"] = self.hopping_options
+
+            self.count_push = 0
+        else:
+            self.count_push += 1
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         # get the env and bond from the data
@@ -145,6 +176,10 @@ class NNSK(torch.nn.Module):
         #     for k, k_r in zip(self.idp_sk.pair_maps.keys(), reflect_keys):
         #         reflect_params[:,self.idp_sk.pair_maps[k],:] += params[:,self.idp_sk.pair_maps[k_r],:]
         #     self.strain_param.data = reflect_params + params
+
+        if self.push is not None:
+            if abs(self.push.get("rs_thr")) + abs(self.push.get("rc_thr")) + abs(self.push.get("w_thr")) > 0:
+                self.push_decay(**self.push)
 
         reflective_bonds = np.array([self.idp_sk.bond_to_type["-".join(self.idp_sk.type_to_bond[i].split("-")[::-1])] for i  in range(len(self.idp_sk.bond_types))])
         params = self.hopping_param.data
@@ -265,6 +300,7 @@ class NNSK(torch.nn.Module):
         overlap: bool=None,
         dtype: Union[str, torch.dtype]=None, 
         device: Union[str, torch.device]=None,
+        push: Dict=None,
         freeze: bool = None,
         **kwargs,
         ):
@@ -282,6 +318,7 @@ class NNSK(torch.nn.Module):
             "onsite": onsite,
             "hopping": hopping,
             "freeze": freeze,
+            "push": push,
         }
 
 
