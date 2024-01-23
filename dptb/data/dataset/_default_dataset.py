@@ -91,14 +91,13 @@ class _TrajData(object):
             assert os.path.exists(os.path.join(self.root, "kpoints.npy"))
             kpoints = np.load(os.path.join(self.root, "kpoints.npy"))
             if kpoints.ndim == 2:
-                # same kpoints, then copy it to all frames.
-                if kpoints.shape[0] == self.info["bandinfo"]["nkpoints"]:
-                    kpoints = np.expand_dims(kpoints, axis=0)
-                    self.data["kpoints"] = np.broadcast_to(kpoints, (self.info["nframes"], 
-                                                                     self.info["bandinfo"]["nkpoints"], 3))
-                else:
-                    raise ValueError("kpoints in `.npy` file not equal to nkpoints in bandinfo. ")
-            elif atomic_numbers.shape[0] == self.info["nframes"]:
+                # only one frame or same kpoints, then copy it to all frames.
+                # shape: (nkpoints, 3)
+                kpoints = np.expand_dims(kpoints, axis=0)
+                self.data["kpoints"] = np.broadcast_to(kpoints, (self.info["nframes"], 
+                                                                 kpoints.shape[1], 3))
+            if kpoints.shape[0] == self.info["nframes"]:
+                # array of kpoints, (nframes, nkpoints, 3)
                 self.data["kpoints"] = kpoints
             else:
                 raise ValueError("Wrong kpoint dimensions.")
@@ -107,12 +106,8 @@ class _TrajData(object):
             if eigenvalues.ndim == 2:
                 eigenvalues = np.expand_dims(eigenvalues, axis=0)
             assert eigenvalues.shape[0] == self.info["nframes"]
-            assert eigenvalues.shape[1] == self.info["bandinfo"]["nkpoints"]
-            assert eigenvalues.shape[2] == self.info["bandinfo"]["nbands"]
-            self.data["eigenvalues"] = eigenvalues
-            #self.data["eigenvalues"] = eigenvalues.reshape(self.info["nframes"], 
-            #                                               self.info["bandinfo"]["nkpoints"], 
-            #                                               self.info["bandinfo"]["nbands"])            
+            assert eigenvalues.shape[1] == self.data["kpoints"].shape[1]
+            self.data["eigenvalues"] = eigenvalues            
         if os.path.exists(os.path.join(self.root, "hamiltonians.h5")) and get_Hamiltonian==True:
             self.data["hamiltonian_blocks"] = h5py.File(os.path.join(self.root, "hamiltonians.h5"), "r")
             if os.path.exists(os.path.join(self.root, "overlaps.h5")):
