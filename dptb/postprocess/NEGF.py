@@ -220,6 +220,9 @@ class NEGF(object):
                 elec_density_per_atom.append(torch.sum(elec_density[pre_atom_orbs : pre_atom_orbs+device_atom_norbs[i]]).numpy())
                 pre_atom_orbs += device_atom_norbs[i]
 
+            # TODO: check the sign of free_charge
+            # TODO: check the spin degenracy
+            # TODO: add k summation operation
             interface_poisson.free_charge[atom_gridpoint_index] =\
                 -1*np.array(elec_density_per_atom)+self.poisson_zero_charge[str(self.kpoints[0])].numpy()
             max_diff = interface_poisson.solve_poisson(method=self.poisson_options['solver'],tolerance=tolerance)
@@ -296,12 +299,12 @@ class NEGF(object):
                             prop = self.out.setdefault("LDOS", [])
                             prop.append(self.compute_LDOS(k))
                     else:
-                        if e < 0:
+                        if e < 0:  # 0 is the fermi level read from jdata
                             self.poisson_zero_charge[str(k)] += self.compute_LDOS(k)*dE
 
             # whether scf_require is True or False, density are computed for Poisson-NEGF SCF
             if self.out_density or self.out_potential:
-                self.out["DM_eq"], self.out["DM_neq"] = self.compute_density(k)
+                self.out["DM_eq"], self.out["DM_neq"] = self.compute_density(k,Vbias)
             
             if self.out_potential:
                 pass
@@ -389,8 +392,8 @@ class NEGF(object):
     def compute_current_nscf(self, kpoint, ee, tc):
         return self.deviceprop._cal_current_nscf_(ee, tc)
 
-    def compute_density(self, kpoint):
-        DM_eq, DM_neq = self.density.integrate(deviceprop=self.deviceprop, kpoint=kpoint)
+    def compute_density(self, kpoint,Vbias):
+        DM_eq, DM_neq = self.density.integrate(deviceprop=self.deviceprop, kpoint=kpoint, Vbias=Vbias)
         return DM_eq, DM_neq
 
     def compute_current(self, kpoint):

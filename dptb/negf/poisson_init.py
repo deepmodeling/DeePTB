@@ -169,6 +169,7 @@ class Interface3D(object):
     def potential_eps_get(self,region_list):
         # set the gate potential
         # ingore the lead potential temporarily
+        gate_point = 0
         for i in range(len(region_list)):    
             # find gate region in grid
             index=np.nonzero((region_list[i].xmin<=self.grid.grid_coord[:,0])&
@@ -180,10 +181,12 @@ class Interface3D(object):
             if region_list[i].__class__.__name__ == 'Gate': #attribute gate potential to the corresponding grid points
                 self.boudnary_points.update({index[i]: "Gate" for i in range(len(index))})
                 self.lead_gate_potential[index] = region_list[i].Ef 
+                gate_point += len(index)
             elif region_list[i].__class__.__name__ == 'Dielectric':
                 self.eps[index] = region_list[i].eps
             else:
                 raise ValueError('Unknown region type: ',region_list[i].__class__.__name__)
+        print('Number of gate points: ',gate_point)
         
     def to_pyamg(self,dtype=None):
         # convert to amg format A,b matrix
@@ -247,6 +250,7 @@ class Interface3D(object):
 
             else:# boundary points
                 A[gp_index,gp_index] = 1.0
+                assert b[gp_index] == 0.0
                 if self.boudnary_points[gp_index] == "xmin":   
                     A[gp_index,gp_index+1] = -1.0
                 elif self.boudnary_points[gp_index] == "xmax":
