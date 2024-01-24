@@ -87,6 +87,9 @@ class DeviceProperty(object):
         self.e_T = e_T
         self.efermi = efermi
         self.mu = self.efermi
+        self.kpoint = None  # kpoint for cal_green_function
+        self.newK_flag = None # whether the kpoint is new or not in cal_green_function
+        self.newV_flag = None # whether the voltage is new or not in cal_green_function
     
     def set_leadLR(self, lead_L, lead_R):
         '''initialize the left and right lead in Device object
@@ -132,26 +135,53 @@ class DeviceProperty(object):
             energy = torch.tensor(energy, dtype=torch.complex128)
 
         self.block_tridiagonal = block_tridiagonal
-        self.kpoint = kpoint
+        if self.kpoint is None:
+            self.kpoint = kpoint
+            self.newK_flag = True
+        elif abs(self.kpoint - kpoint).sum() > 1e-5:
+            self.kpoint = kpoint
+            self.newK_flag = True
+        else:
+            self.newK_flag = False
+
 
         # if V is not None:
         #     HD_ = self.attachPotential(HD, SD, V)
         # else:
         #     HD_ = HD
+        if  hasattr(self, "V"):
+            self.oldV = self.V
+        else:
+            self.oldV = None
 
         if Vbias is None:
             if os.path.exists(os.path.join(self.results_path, "POTENTIAL.pth")):
                 self.V = torch.load(os.path.join(self.results_path, "POTENTIAL.pth"))
             elif abs(self.mu - self.efermi) > 1e-7:
-                self.V = self.efermi - self.mu
+                self.V = torch.tensor(self.efermi - self.mu)
             else:
-                self.V = 0.
+                self.V = torch.tensor(0.)
         else:
             self.V = Vbias
         
+        assert torch.is_tensor(self.V)
+        if not self.oldV is None:
+            if abs(self.V - self.oldV).sum() > 1e-5:
+                self.newV_flag = True
+            else:
+                self.newV_flag = False
+        else:
+            self.newV_flag = False
+
+        
         # if not hasattr(self, "hd") or not hasattr(self, "sd"): 
         #maybe the reason why different kpoint has different green function
-        self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
+        
+        if not hasattr(self, "hd") or not hasattr(self, "sd"): 
+            self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
+        if self.newK_flag or self.newV_flag:
+            self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
+        
         s_in = [torch.zeros(i.shape).cdouble() for i in self.hd]
         
         # for i, e in tqdm(enumerate(ee), desc="Compute green functions: "):
