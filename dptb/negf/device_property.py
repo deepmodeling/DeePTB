@@ -149,7 +149,8 @@ class DeviceProperty(object):
         else:
             self.V = Vbias
         
-        # if not hasattr(self, "hd") or not hasattr(self, "sd"):
+        # if not hasattr(self, "hd") or not hasattr(self, "sd"): 
+        #maybe the reason why different kpoint has different green function
         self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
         s_in = [torch.zeros(i.shape).cdouble() for i in self.hd]
         
