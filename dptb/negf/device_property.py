@@ -179,7 +179,7 @@ class DeviceProperty(object):
         
         if not hasattr(self, "hd") or not hasattr(self, "sd"): 
             self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
-        if self.newK_flag or self.newV_flag:
+        if self.newK_flag or self.newV_flag: # check whether kpoints or Vbias change or not
             self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
         
         s_in = [torch.zeros(i.shape).cdouble() for i in self.hd]
