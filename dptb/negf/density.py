@@ -140,7 +140,7 @@ class Ozaki(Density):
         self.R = R
         self.n_gauss = n_gauss
 
-    def integrate(self, deviceprop, kpoint, eta_lead=1e-5, eta_device=0.):
+    def integrate(self, deviceprop, kpoint, eta_lead=1e-5, eta_device=0.,Vbias=None):
         '''calculates the equilibrium and non-equilibrium density matrices for a given k-point.
         
         Parameters
@@ -166,13 +166,15 @@ class Ozaki(Density):
         poles = 1j* self.poles * kBT + deviceprop.lead_L.mu - deviceprop.mu # left lead expression for rho_eq
         deviceprop.lead_L.self_energy(kpoint=kpoint, energy=1j*self.R-deviceprop.mu)
         deviceprop.lead_R.self_energy(kpoint=kpoint, energy=1j*self.R-deviceprop.mu)
-        deviceprop.cal_green_function(energy=1j*self.R-deviceprop.mu, kpoint=kpoint, block_tridiagonal=False)
+        deviceprop.cal_green_function(energy=1j*self.R-deviceprop.mu, kpoint=kpoint, block_tridiagonal=False,
+                                      Vbias = Vbias)
         g0 = deviceprop.grd[0]
         DM_eq = 1.0j * self.R * g0
         for i, e in enumerate(poles):
             deviceprop.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
             deviceprop.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
-            deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
+            deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device,\
+                                          Vbias = Vbias)
             term = ((-4 * 1j * kBT) * deviceprop.grd[0] * self.residues[i]).imag
             DM_eq -= term
         
