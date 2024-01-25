@@ -605,7 +605,7 @@ class TBTransInputSet(object):
             unit_constant = 1
            
         elif energy_unit_option=='eV':
-            unit_constant = 27.2107
+            unit_constant = 13.605662285137 * 2
             
         else:
             raise RuntimeError("energy_unit_option should be 'Hartree' or 'eV'")
