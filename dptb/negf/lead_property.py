@@ -73,6 +73,7 @@ class LeadProperty(object):
         self.e_T = e_T
         self.efermi = efermi
         self.mu = self.efermi - self.voltage
+        self.kpoint = None
 
     def self_energy(self, kpoint, energy, eta_lead: float=1e-5, method: str="Lopez-Sancho"):
         '''calculate and loads the self energy and surface green function at the given kpoint and energy.
@@ -90,12 +91,20 @@ class LeadProperty(object):
         
         '''
         assert len(np.array(kpoint).reshape(-1)) == 3
+        
         # according to given kpoint and e_mesh, calculating or loading the self energy and surface green function to self.
         if not isinstance(energy, torch.Tensor):
             energy = torch.tensor(energy)
 
-        if not hasattr(self, "HL"):
+                
+
+        if not hasattr(self, "HL") or self.kpoint is None:
             self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
+            self.kpoint = torch.tensor(kpoint)
+        elif not torch.allclose(self.kpoint, torch.tensor(kpoint), atol=1e-5):
+            self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
+            self.kpoint = torch.tensor(kpoint)
+            
 
         self.se, _ = selfEnergy(
             ee=energy,
