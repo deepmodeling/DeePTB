@@ -126,7 +126,7 @@ class LeadProperty(object):
             The Gamma function.
         
         '''
-        return -1j * (se - se.conj())
+        return -1j * (se - se.conj().T)
     
     def fermi_dirac(self, x) -> torch.Tensor:
         return 1 / (1 + torch.exp((x - self.mu)/ self.kBT))
