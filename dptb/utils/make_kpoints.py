@@ -125,6 +125,7 @@ def gamma_center(meshgrid=[1,1,1]):
     return kpoints
 
 
+
 def kmesh_sampling(meshgrid=[1,1,1], is_gamma_center=True):
     """ Generate k-points using Monkhorst-Pack method based on given meshgrid. The k-points are centered at Gamma point by default.
      
@@ -137,6 +138,65 @@ def kmesh_sampling(meshgrid=[1,1,1], is_gamma_center=True):
     else:
         kpoints = monkhorst_pack(meshgrid)
     return kpoints
+
+
+def kmesh_sampling_negf(meshgrid=[1,1,1], is_gamma_center=True, is_time_reversal=True):
+
+
+    # kpoints = np.indices(meshgrid).transpose((1, 2, 3, 0)).reshape((-1, 3))
+
+    if is_time_reversal:
+        kpoints,wk = time_symmetry_reduce(meshgrid, is_gamma_center=is_gamma_center)
+            
+    else:
+        kpoints = kmesh_sampling(meshgrid, is_gamma_center=is_gamma_center)
+        wk = np.ones(len(kpoints))/len(kpoints)
+    
+    return kpoints,wk
+
+
+def time_symmetry_reduce(meshgrid=[1,1,1], is_gamma_center=True):
+    # TODO: check the order of kpoints_unreduced, may be different from inelastica; check the weight of gamma point,may be some problem
+    assert meshgrid[2] == 1, "z-direction is not transport direction"
+    kpoints_unreduced = kmesh_sampling(meshgrid, is_gamma_center=is_gamma_center)
+
+    if is_gamma_center: 
+        # kpoints_unreduced range [0,1) in each dimension, keep the first half [0,0.5) with double weight except for k_cut = 0 and 0.5
+        wk = {kinx:0 for kinx in range(0, len(kpoints_unreduced))} 
+        if meshgrid[0] == 1: 
+            cut_axis = 1 ; transverse_axis = 0
+        else: 
+            cut_axis = 0 ; transverse_axis = 1
+        
+        for kindx in range(len(kpoints_unreduced)):
+            if kpoints_unreduced[kindx][cut_axis] == 0: # for the point on the boundary
+                if kpoints_unreduced[kindx][transverse_axis] == 0:
+                    wk[kindx] = 1
+                elif kpoints_unreduced[kindx][transverse_axis] < 0.5:
+                    wk[kindx] = 2
+                elif kpoints_unreduced[kindx][transverse_axis] == 0.5:
+                    wk[kindx] = 1
+            elif kpoints_unreduced[kindx][cut_axis] < 0.5:
+                wk[kindx] = 2
+            elif kpoints_unreduced[kindx][cut_axis] == 0.5 :
+                wk[kindx] = 1
+        # wk[0] = 1 #set the weight of gamma point to 1
+        wk = {key: value for key, value in wk.items() if value != 0}
+        
+    else: 
+        # kpoints_unreduced range (-0.5,0.5) in each dimension, keep the later half [0,0.5)  with double weight except for ki = 0
+        wk = {kinx:2 for kinx in range(len(kpoints_unreduced) // 2, len(kpoints_unreduced))}
+        k0 = kpoints_unreduced[len(kpoints_unreduced) // 2]
+        if np.dot(k0,k0) == 0: # gamma point is in kpoints_unreduced
+            wk[len(kpoints_unreduced) // 2] = 1 #set the weight of gamma point to 1
+
+    kinx_reduced, wgt = np.array(list(wk.keys())), np.array(list(wk.values()))
+    kpoints_reduced, weight_reduced = kpoints_unreduced[kinx_reduced], wgt/len(kpoints_unreduced)
+    assert weight_reduced.sum() == 1.0, "The sum of weight is not 1.0"
+
+    return kpoints_reduced, weight_reduced
+
+
 
 
 def kgrid_spacing(structase,kspacing:float,sampling='MP'):
