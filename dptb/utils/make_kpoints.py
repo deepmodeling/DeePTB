@@ -189,17 +189,18 @@ def time_symmetry_reduce(meshgrid=[1,1,1], is_gamma_center=True):
         else: 
             cut_axis = 0 ; transverse_axis = 1
         
-        for kindx in range(len(kpoints_unreduced)):
-            if kpoints_unreduced[kindx][cut_axis] == 0: # for the point on the boundary
-                if kpoints_unreduced[kindx][transverse_axis] == 0:
+        for kindx,kpoint in enumerate(kpoints_unreduced):
+
+            if kpoint[cut_axis] == 0: # for the point on the boundary
+                if kpoint[transverse_axis] == 0:
                     wk[kindx] = 1
-                elif kpoints_unreduced[kindx][transverse_axis] < 0.5:
+                elif kpoint[transverse_axis] < 0.5:
                     wk[kindx] = 2
-                elif kpoints_unreduced[kindx][transverse_axis] == 0.5:
+                elif kpoint[transverse_axis] == 0.5:
                     wk[kindx] = 1
-            elif kpoints_unreduced[kindx][cut_axis] < 0.5:
+            elif kpoint[cut_axis] < 0.5:
                 wk[kindx] = 2
-            elif kpoints_unreduced[kindx][cut_axis] == 0.5 :
+            elif kpoint[cut_axis] == 0.5 :
                 wk[kindx] = 1
         # wk[0] = 1 #set the weight of gamma point to 1
         wk = {key: value for key, value in wk.items() if value != 0}
