@@ -156,18 +156,26 @@ class NEGF(object):
         else:
             pass
         
-        self.out['k']=[]
+        self.out['k']=[]; self.out['wk']=[]
         if hasattr(self, "uni_grid"): self.out["E"] = self.uni_grid
 
-        # computing output properties
+        #  output kpoints information
+        log.info(msg="------ k-point for NEGF -----\n")
+        log.info(msg="Gamma Center: {0}".format(self.jdata["stru_options"]["gamma_center"])+"\n")
+        log.info(msg="Time Reversal: {0}".format(self.jdata["stru_options"]["time_reversal_symmetry"])+"\n")
+        log.info(msg="k-points Num: {0}".format(len(self.kpoints))+"\n")
+        log.info(msg="k-points weights: {0}".format(self.wk)+"\n")
+        log.info(msg="--------------------------------\n")
+
         for ik, k in enumerate(self.kpoints):
             self.out["k"].append(k)
+            self.out['wk'].append(self.wk[ik])
             log.info(msg="Properties computation at k = [{:.4f},{:.4f},{:.4f}]".format(float(k[0]),float(k[1]),float(k[2])))
             # computing properties that is functions of E
             if hasattr(self, "uni_grid"):
-                output_freq = int(len(self.uni_grid)/20)
-                for e in self.uni_grid:
-                    if e % output_freq == 0:
+                output_freq = int(len(self.uni_grid)/10)
+                for ie,e in enumerate(self.uni_grid):
+                    if ie % output_freq == 0:
                         log.info(msg="computing green's function at e = {:.3f}".format(float(e)))
                     leads = self.stru_options.keys()
                     for ll in leads:
@@ -195,7 +203,7 @@ class NEGF(object):
                     if self.out_tc or self.out_current_nscf:
                         # prop = self.out['TC'].setdefault(str(k), [])
                         # prop.append(self.compute_TC(k))
-                        prop = self.out.setdefault('TC', {})
+                        prop = self.out.setdefault('T_k', {})
                         propk = prop.setdefault(str(k), [])
                         propk.append(self.compute_TC(k))
                     if self.out_ldos:
@@ -209,7 +217,7 @@ class NEGF(object):
                 self.out["DOS"][str(k)] = torch.stack(self.out["DOS"][str(k)])
 
             if self.out_tc or self.out_current_nscf:
-                self.out["TC"][str(k)] = torch.stack(self.out["TC"][str(k)])
+                self.out["T_k"][str(k)] = torch.stack(self.out["T_k"][str(k)])
             
             if self.out_current_nscf:
                 prop_bias = self.out.setdefault('BIAS_POTENTIAL_NSCF', {})
@@ -256,6 +264,8 @@ class NEGF(object):
                 prop_local_current = self.out.setdefault('LOCAL_CURRENT', {})
                 prop_local_current[str(k)] = lcurrent
 
+        self.out["k"] = np.array(self.out["k"])
+        self.out['T_avg'] = torch.tensor(self.out['wk']) @ torch.stack(list(self.out["T_k"].values()))
         torch.save(self.out, self.results_path+"/negf.out.pth")
 
             
