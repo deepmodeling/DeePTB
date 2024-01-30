@@ -161,13 +161,14 @@ class NEGF(object):
 
         # computing output properties
         for ik, k in enumerate(self.kpoints):
+            self.out["k"].append(k)
             log.info(msg="Properties computation at k = [{:.4f},{:.4f},{:.4f}]".format(float(k[0]),float(k[1]),float(k[2])))
             # computing properties that is functions of E
             if hasattr(self, "uni_grid"):
-                self.out["k"].append(k)
-
+                output_freq = int(len(self.uni_grid)/20)
                 for e in self.uni_grid:
-                    log.info(msg="computing green's function at e = {:.3f}".format(float(e)))
+                    if e % output_freq == 0:
+                        log.info(msg="computing green's function at e = {:.3f}".format(float(e)))
                     leads = self.stru_options.keys()
                     for ll in leads:
                         if ll.startswith("lead"):
