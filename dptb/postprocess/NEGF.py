@@ -17,7 +17,7 @@ from dptb.utils.constants import Boltzmann, eV2J
 import os
 from dptb.utils.tools import j_must_have
 import numpy as np
-from dptb.utils.make_kpoints import kmesh_sampling
+from dptb.utils.make_kpoints import kmesh_sampling_negf
 import logging
 
 log = logging.getLogger(__name__)
@@ -48,9 +48,11 @@ class NEGF(object):
         self.stru_options = j_must_have(jdata, "stru_options")
         self.pbc = self.stru_options["pbc"]
         if not any(self.pbc):
-            self.kpoints = np.array([[0,0,0]])
+            self.kpoints,self.wk = np.array([[0,0,0]]),np.array([1.])
         else:
-            self.kpoints = kmesh_sampling(self.jdata["stru_options"]["kmesh"])
+            self.kpoints,self.wk = kmesh_sampling_negf(self.jdata["stru_options"]["kmesh"], 
+                                                       self.jdata["stru_options"]["gamma_center"],
+                                                       self.jdata["stru_options"]["time_reversal_symmetry"],)
 
         self.unit = jdata["unit"]
         self.scf = jdata["scf"]
@@ -154,14 +156,16 @@ class NEGF(object):
         else:
             pass
         
+        self.out['k']=[]
+        if hasattr(self, "uni_grid"): self.out["E"] = self.uni_grid
+
         # computing output properties
         for ik, k in enumerate(self.kpoints):
-            self.out = {}
             log.info(msg="Properties computation at k = [{:.4f},{:.4f},{:.4f}]".format(float(k[0]),float(k[1]),float(k[2])))
-
             # computing properties that is functions of E
             if hasattr(self, "uni_grid"):
-                self.out["k"] = k
+                self.out["k"].append(k)
+
                 for e in self.uni_grid:
                     log.info(msg="computing green's function at e = {:.3f}".format(float(e)))
                     leads = self.stru_options.keys()
@@ -182,29 +186,45 @@ class NEGF(object):
                         )
 
                     if self.out_dos:
-                        prop = self.out.setdefault("DOS", [])
-                        prop.append(self.compute_DOS(k))
+                        # prop = self.out['DOS'].setdefault(str(k), [])
+                        # prop.append(self.compute_DOS(k))
+                        prop = self.out.setdefault('DOS', {})
+                        propk = prop.setdefault(str(k), [])
+                        propk.append(self.compute_DOS(k))
                     if self.out_tc or self.out_current_nscf:
-                        prop = self.out.setdefault("TC", [])
-                        prop.append(self.compute_TC(k))
+                        # prop = self.out['TC'].setdefault(str(k), [])
+                        # prop.append(self.compute_TC(k))
+                        prop = self.out.setdefault('TC', {})
+                        propk = prop.setdefault(str(k), [])
+                        propk.append(self.compute_TC(k))
                     if self.out_ldos:
-                        prop = self.out.setdefault("LDOS", [])
-                        prop.append(self.compute_LDOS(k))
+                        # prop = self.out['LDOS'].setdefault(str(k), [])
+                        # prop.append(self.compute_LDOS(k))
+                        prop = self.out.setdefault('LDOS', {})
+                        propk = prop.setdefault(str(k), [])
+                        propk.append(self.compute_LDOS(k))
 
             if self.out_dos:
-                self.out["DOS"] = torch.stack(self.out["DOS"])
+                self.out["DOS"][str(k)] = torch.stack(self.out["DOS"][str(k)])
+
             if self.out_tc or self.out_current_nscf:
-                self.out["TC"] = torch.stack(self.out["TC"])
+                self.out["TC"][str(k)] = torch.stack(self.out["TC"][str(k)])
             
             if self.out_current_nscf:
-                self.out["BIAS_POTENTIAL_NSCF"], self.out["CURRENT_NSCF"] = self.compute_current_nscf(k, self.uni_grid, self.out["TC"])
+                prop_bias = self.out.setdefault('BIAS_POTENTIAL_NSCF', {})
+                prop_current = self.out.setdefault('CURRENT_NSCF', {})
+                prop_bias[str(k)], prop_current[str(k)] = self.compute_current_nscf(k, self.uni_grid, self.out["TC"][str(k)])
+                # self.out["BIAS_POTENTIAL_NSCF"][str(k)], self.out["CURRENT_NSCF"][str(k)] \
+                #     = self.compute_current_nscf(k, self.uni_grid, self.out["TC"][str(k)])
             
             # computing properties that are not functions of E (improvement can be made here in properties related to integration of energy window of fermi functions)
             if self.out_current:
                 pass
 
             if self.out_density or self.out_potential:
-                self.out["DM_eq"], self.out["DM_neq"] = self.compute_density(k)
+                prop_DM_eq = self.out.setdefault('DM_eq', {})
+                prop_DM_neq = self.out.setdefault('DM_neq', {})
+                prop_DM_eq[str(k)], prop_DM_neq[str(k)] = self.compute_density(k)
             
             if self.out_potential:
                 pass
@@ -231,11 +251,12 @@ class NEGF(object):
                         )
                     
                     lcurrent += self.int_weight[i] * self.compute_lcurrent(k)
-                self.out["LOCAL_CURRENT"] = lcurrent
+                
+                prop_local_current = self.out.setdefault('LOCAL_CURRENT', {})
+                prop_local_current[str(k)] = lcurrent
 
-            torch.save(self.out, self.results_path+"/negf.k{}.out.pth".format(ik))
+        torch.save(self.out, self.results_path+"/negf.out.pth")
 
-            # plotting
             
     
     def fermi_dirac(self, x) -> torch.Tensor:
