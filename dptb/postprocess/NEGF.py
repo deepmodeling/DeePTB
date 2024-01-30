@@ -219,10 +219,7 @@ class NEGF(object):
             if self.out_tc or self.out_current_nscf:
                 self.out["T_k"][str(k)] = torch.stack(self.out["T_k"][str(k)])
             
-            if self.out_current_nscf:
-                prop_bias = self.out.setdefault('BIAS_POTENTIAL_NSCF', {})
-                prop_current = self.out.setdefault('CURRENT_NSCF', {})
-                prop_bias[str(k)], prop_current[str(k)] = self.compute_current_nscf(k, self.uni_grid, self.out["TC"][str(k)])
+            # if self.out_current_nscf:
                 # self.out["BIAS_POTENTIAL_NSCF"][str(k)], self.out["CURRENT_NSCF"][str(k)] \
                 #     = self.compute_current_nscf(k, self.uni_grid, self.out["TC"][str(k)])
             
@@ -266,6 +263,10 @@ class NEGF(object):
 
         self.out["k"] = np.array(self.out["k"])
         self.out['T_avg'] = torch.tensor(self.out['wk']) @ torch.stack(list(self.out["T_k"].values()))
+
+        if self.out_current_nscf:
+            self.out["BIAS_POTENTIAL_NSCF"], self.out["CURRENT_NSCF"] \
+                = self.compute_current_nscf(k, self.uni_grid, self.out["T_avg"])
         torch.save(self.out, self.results_path+"/negf.out.pth")
 
             
