@@ -106,6 +106,8 @@ class DPTB(nn.Module):
         # self.soc = prediction.get("soc", False)
         self.prediction = prediction
 
+        prediction_copy = prediction.copy()
+
         if basis is not None:
             self.idp = OrbitalMapper(basis, method=self.method, device=self.device)
             if idp is not None:
@@ -124,22 +126,22 @@ class DPTB(nn.Module):
         # initialize the prediction layer
             
         if self.method == "sktb":
-            prediction["neurons"] = [self.embedding.out_node_dim] + prediction["neurons"] + [self.idp.n_onsite_Es]
-            prediction["config"] = get_neuron_config(prediction["neurons"])
+            prediction_copy["neurons"] = [self.embedding.out_node_dim] + prediction_copy["neurons"] + [self.idp.n_onsite_Es]
+            prediction_copy["config"] = get_neuron_config(prediction_copy["neurons"])
 
             self.node_prediction_h = AtomicResNet(
-                **prediction,
+                **prediction_copy,
                 in_field=AtomicDataDict.NODE_FEATURES_KEY,
                 out_field=AtomicDataDict.NODE_FEATURES_KEY,
                 device=device, 
                 dtype=dtype
             )
 
-            prediction["neurons"][0] = self.embedding.out_edge_dim
-            prediction["neurons"][-1] = self.idp.reduced_matrix_element
-            prediction["config"] = get_neuron_config(prediction["neurons"])
+            prediction_copy["neurons"][0] = self.embedding.out_edge_dim
+            prediction_copy["neurons"][-1] = self.idp.reduced_matrix_element
+            prediction_copy["config"] = get_neuron_config(prediction_copy["neurons"])
             self.edge_prediction_h = AtomicResNet(
-                **prediction,
+                **prediction_copy,
                 in_field=AtomicDataDict.EDGE_FEATURES_KEY,
                 out_field=AtomicDataDict.EDGE_FEATURES_KEY,
                 device=device, 
@@ -148,14 +150,14 @@ class DPTB(nn.Module):
 
             if overlap:
                 self.edge_prediction_s = AtomicResNet(
-                    **prediction,
+                    **prediction_copy,
                     in_field=AtomicDataDict.EDGE_OVERLAP_KEY,
                     out_field=AtomicDataDict.EDGE_OVERLAP_KEY,
                     device=device, 
                     dtype=dtype
                 )
 
-        elif prediction.get("method") == "e3tb":
+        elif prediction_copy.get("method") == "e3tb":
             self.node_prediction_h = E3PerSpeciesScaleShift(
                 field=AtomicDataDict.NODE_FEATURES_KEY,
                 num_types=n_species,
@@ -165,7 +167,7 @@ class DPTB(nn.Module):
                 scales=1.,
                 dtype=self.dtype,
                 device=self.device,
-                **prediction,
+                **prediction_copy,
             )
             
             self.edge_prediction_h = E3PerEdgeSpeciesScaleShift(
@@ -177,13 +179,13 @@ class DPTB(nn.Module):
                 scales=1.,
                 dtype=self.dtype,
                 device=self.device,
-                **prediction,
+                **prediction_copy,
             )
             if overlap:
                 raise NotImplementedError("The overlap prediction is not implemented for e3tb method.")
 
         else:
-            raise NotImplementedError("The prediction model {} is not implemented.".format(prediction["method"]))
+            raise NotImplementedError("The prediction model {} is not implemented.".format(prediction_copy["method"]))
 
         
         if self.method == "sktb":
@@ -298,6 +300,9 @@ class MIX(nn.Module):
     ):
         super(MIX, self).__init__()
 
+        if isinstance(dtype, str):
+            dtype = getattr(torch, dtype)
+
         self.dtype = dtype
         self.device = device
 
@@ -321,6 +326,7 @@ class MIX(nn.Module):
             device=device,
             transform=False,
             )
+        self.idp = self.nnsk.idp
         
         self.model_options = self.nnsk.model_options
         self.model_options.update(self.dptb.model_options)
@@ -328,6 +334,7 @@ class MIX(nn.Module):
         self.hamiltonian = self.nnsk.hamiltonian
         if overlap:
             self.overlap = self.nnsk.overlap
+
 
 
     def forward(self, data: AtomicDataDict.Type):
@@ -354,6 +361,7 @@ class MIX(nn.Module):
         overlap: bool = None,
         dtype: Union[str, torch.dtype] = None,
         device: Union[str, torch.device] = None,
+        **kwargs,
         ):
         # the mapping from the parameters of the ref_model and the current model can be found using
         # reference model's idp and current idp
