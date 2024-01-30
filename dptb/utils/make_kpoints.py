@@ -141,9 +141,9 @@ def kmesh_sampling(meshgrid=[1,1,1], is_gamma_center=True):
 
 
 def kmesh_sampling_negf(meshgrid=[1,1,1], is_gamma_center=True, is_time_reversal=True):
-
-
-    # kpoints = np.indices(meshgrid).transpose((1, 2, 3, 0)).reshape((-1, 3))
+    """ Generate k-points for NEGF based on given meshgrid. Through time symmetry reduction, the number of k-points is reduced.
+     
+    """
 
     if is_time_reversal:
         kpoints,wk = time_symmetry_reduce(meshgrid, is_gamma_center=is_gamma_center)
@@ -156,7 +156,28 @@ def kmesh_sampling_negf(meshgrid=[1,1,1], is_gamma_center=True, is_time_reversal
 
 
 def time_symmetry_reduce(meshgrid=[1,1,1], is_gamma_center=True):
-    # TODO: check the order of kpoints_unreduced, may be different from inelastica; check the weight of gamma point,may be some problem
+    '''Reduce the number of k-points in a meshgrid by applying symmetry operations.
+
+    For gamma centered meshgrid, k-points range from 0 to 1 in each dimension. We keep the firt half [0,0.5).
+    For non-gamma centered meshgrid, k-points range from -0.5 to 0.5 in each dimension. We keep the later half [0,0.5).
+    
+    Note that here we assume the transport direction is z-direction, meshgrid[2] = 1.
+
+    Parameters
+    ----------
+    meshgrid
+        The `meshgrid` parameter specifies the number of k-points in each direction. 
+    is_gamma_center, optional
+        The parameter "is_gamma_center" is a boolean value that determines whether the k-point mesh must be
+    centered around the gamma point (0, 0, 0) or not. 
+    
+    Returns
+    -------
+        the reduced k-points and their corresponding weights.
+    
+    '''
+
+
     assert meshgrid[2] == 1, "z-direction is not transport direction"
     kpoints_unreduced = kmesh_sampling(meshgrid, is_gamma_center=is_gamma_center)
 
@@ -192,7 +213,7 @@ def time_symmetry_reduce(meshgrid=[1,1,1], is_gamma_center=True):
 
     kinx_reduced, wgt = np.array(list(wk.keys())), np.array(list(wk.values()))
     kpoints_reduced, weight_reduced = kpoints_unreduced[kinx_reduced], wgt/len(kpoints_unreduced)
-    assert weight_reduced.sum() == 1.0, "The sum of weight is not 1.0"
+    assert abs(weight_reduced.sum()-1.0)<1e-8 , "The sum of weight is not 1.0"
 
     return kpoints_reduced, weight_reduced
 
