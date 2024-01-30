@@ -85,7 +85,7 @@ class LeadProperty(object):
         energy
             specific energy value.
         eta_lead : 
-            the broadening parameter for calculating lead self-energy.
+            the broadening parameter for calculating lead surface green function.
         method : 
             specify the method for calculating the self energy. At this stage it only supports "Lopez-Sancho".
         
