@@ -1,0 +1,80 @@
+{   
+	"task_options":
+        {
+            "task": "negf",
+            "scf": false,
+            "block_tridiagonal": false,
+            "ele_T": 500,
+            "unit": "Hartree",
+            "scf_options":{
+                "mode": "PDIIS",
+                "mixing_period": 3,
+                "step_size": 0.05,
+                "n_history": 6,
+                "abs_err": 1e-6,
+                "rel_err": 1e-4,
+                "max_iter": 100
+            },
+            "stru_options":{
+                "pbc":[false, true, false],
+                "kmesh":[1,3,1],
+                "gamma_center": true,
+                "time_reversal_symmetry": true,
+                "device":{
+                    "id":"16-32",
+                    "sort": true
+                },
+                "lead_L":{
+                    "id":"0-16",
+                    "voltage":0.0
+                },
+                "lead_R":{
+                    "id":"32-48",
+                    "voltage":0.0
+                }
+            },
+            "poisson_options": {
+                "solver": "fmm",
+                "err": 1e-5
+            },
+            "sgf_solver": "Sancho-Rubio",
+            "espacing": 0.2,
+            "emin": -5,
+            "emax": 5,
+            "e_fermi":  -13.638589859008789,
+            "density_options":{
+                "method": "Ozaki"
+            },
+            "eta_lead":1e-4,
+            "eta_device":1e-5,
+            "out_dos": false,
+            "out_tc": true,
+            "out_ldos": false,
+            "out_current_nscf": false,
+            "out_density": false,
+            "out_lcurrent": false
+    },
+    "common_options": {
+        "onsitemode": "none",
+        "onsite_cutoff": 2.0,
+        "bond_cutoff": 2.0,
+        "env_cutoff": 2.0,
+        "atomtype": ["C"],
+        "proj_atom_neles": {"C": 1},
+        "proj_atom_anglr_m": {
+            "C": ["2s"]
+        }    
+    },
+    "model_options": {
+        "sknetwork": {
+            "sk_hop_nhidden": 1,
+            "sk_onsite_nhidden": 1
+        },
+        "skfunction": {
+            "sk_cutoff": 1.6,
+            "sk_decay_w": 0.3,
+            "skformula": "powerlaw"
+        }
+    
+    }
+}
