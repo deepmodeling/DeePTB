@@ -96,7 +96,7 @@ def test_tbtrans_init(root_directory):
   28.12953979,  28.65762339,  28.65762339,  29.54228118,  29.54228118,
   30.78500872,  30.78500872]])
 
-    print(M_eigs[0])
+    
     assert (G_eigs[0]-G_eigs_right[0]).max()<1e-5
     assert (M_eigs[0]-M_eigs_right[0]).max()<1e-5
 
