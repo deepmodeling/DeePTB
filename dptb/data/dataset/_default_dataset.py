@@ -96,7 +96,7 @@ class _TrajData(object):
                 kpoints = np.expand_dims(kpoints, axis=0)
                 self.data["kpoints"] = np.broadcast_to(kpoints, (self.info["nframes"], 
                                                                  kpoints.shape[1], 3))
-            if kpoints.shape[0] == self.info["nframes"]:
+            elif kpoints.ndim == 3 and kpoints.shape[0] == self.info["nframes"]:
                 # array of kpoints, (nframes, nkpoints, 3)
                 self.data["kpoints"] = kpoints
             else:

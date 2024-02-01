@@ -21,10 +21,10 @@ asserts
 *.css 
 band.png
 *.pth
-*.npy
-*.traj
-*.dat
-*.vasp
+#*.npy
+#*.traj
+#*.dat
+#*.vasp
 *log*
 checkpoint.pl
 # Byte-compiled / optimized / DLL files
