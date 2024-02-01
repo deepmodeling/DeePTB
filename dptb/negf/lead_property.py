@@ -127,12 +127,12 @@ class LeadProperty(object):
         Parameters
         ----------
         se
-            The parameter "se" represents a complex number.
+            The parameter "se" represents self energy, a complex matrix.
         
         Returns
         -------
         Gamma
-            The Gamma function.
+            The Gamma function, $\Gamma = -1j(se-se^\dagger)$
         
         '''
         return -1j * (se - se.conj().T)
