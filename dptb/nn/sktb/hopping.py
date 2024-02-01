@@ -22,7 +22,8 @@ class HoppingFormula(BaseHopping):
     num_paras_dict = {
         'varTang96': 4,
         'powerlaw': 2,
-        'NRL': 4,
+        'NRL0': 4,
+        "NRL1": 4,
         'custom': None,
     }
 
@@ -36,7 +37,7 @@ class HoppingFormula(BaseHopping):
         elif functype == 'powerlaw':
             assert hasattr(self, 'powerlaw')
 
-        elif functype == 'NRL':
+        elif functype in ['NRL0', "NRL1"]:
             assert hasattr(self, 'NRL_HOP')
             if overlap:
                 assert hasattr(self, 'NRL_OVERLAP')
@@ -66,7 +67,7 @@ class HoppingFormula(BaseHopping):
             return self.varTang96(rij=rij, **kwargs)
         elif self.functype == 'powerlaw':
             return self.powerlaw(rij=rij, **kwargs)
-        elif self.functype == 'NRL':
+        elif self.functype.startswith('NRL'):
             return self.NRL_HOP(rij=rij, **kwargs)
         else:
             raise ValueError('No such formula')
@@ -81,8 +82,10 @@ class HoppingFormula(BaseHopping):
         '''
         assert self.overlap, 'overlap is False, no overlap function is defined.'
 
-        if self.functype == 'NRL':
-            return self.NRL_OVERLAP(rij=rij, **kwargs)
+        if self.functype == 'NRL0':
+            return self.NRL_OVERLAP0(rij=rij, **kwargs)
+        if self.functype == 'NRL1':
+            return self.NRL_OVERLAP1(rij=rij, **kwargs)
         elif self.functype == "powerlaw":
             return self.powerlaw(rij=rij, **kwargs)
         elif self.functype == "varTang96":
@@ -162,7 +165,32 @@ class HoppingFormula(BaseHopping):
 
         return (a + b * rij + c * rij**2) * torch.exp(-d**2 * rij)*f_rij
 
-    def NRL_OVERLAP(self, rij, paraArray, paraconst, rc:torch.float32 = torch.tensor(6), w:torch.float32 = 0.1, **kwargs):
+    def NRL_OVERLAP0(self, rij, paraArray, paraconst, rc:torch.float32 = torch.tensor(6), w:torch.float32 = 0.1, **kwargs):
+        """
+        This function calculates the Overlap value of the form of NRL-TB 
+
+            S_{ll'u} = (delta_ll' + a R + b R^2 + c R^3)exp(-d^2 R) f(R)
+            a,b,c,d are the parameters, R is r_ij
+
+            f(r_ij) = [1+exp((r_ij-rcut+5w)/w)]^-1;    (r_ij <  rcut)
+                    = 0;                               (r_ij >= rcut)
+        # delta
+        """
+
+        assert paraArray.shape[:-1] == paraconst.shape, 'paraArray and paraconst should have the same shape except the last dimenion.'
+        rij = rij.reshape(-1)
+        assert len(rij) == len(paraArray), 'rij and paraArray should have the same length.'
+
+        a, b, c, d = paraArray[..., 0], paraArray[..., 1], paraArray[..., 2], paraArray[..., 3]
+        shape = [-1]+[1] * (len(a.shape)-1)
+        rij = rij.reshape(shape)
+
+        f_rij = 1/(1+torch.exp((rij-rc+5*w)/w))
+        f_rij[rij>=rc] = 0.0
+
+        return (a + b * rij + c * rij**2) * torch.exp(-d**2 * rij)*f_rij
+    
+    def NRL_OVERLAP1(self, rij, paraArray, paraconst, rc:torch.float32 = torch.tensor(6), w:torch.float32 = 0.1, **kwargs):
         """
         This function calculates the Overlap value of the form of NRL-TB 
 

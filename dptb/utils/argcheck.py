@@ -576,7 +576,8 @@ def hopping():
     return Variant("method", [
                     Argument("powerlaw", dict, powerlaw),
                     Argument("varTang96", dict, varTang96),
-                    Argument("NRL", dict, NRL),
+                    Argument("NRL0", dict, NRL),
+                    Argument("NRL1", dict, NRL),
                     Argument("custom", dict, []),
                 ],optional=False, doc=doc_method)
     
