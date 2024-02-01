@@ -200,7 +200,7 @@ def time_symmetry_reduce(meshgrid=[1,1,1], is_gamma_center=True):
     if is_gamma_center:
         k_points_with_tr[k_points_with_tr < 0] += 1 
     else: # MP sampling
-        k_points_with_tr =  -1 * k_points_with_tr 
+        k_points_with_tr =  -1 * k_points_with_tr # due to time revesal symmetry
 
     # sort the k-points
     k_sort_indx = np.lexsort((k_points_with_tr[:, 2], k_points_with_tr[:, 1], k_points_with_tr[:, 0]))
