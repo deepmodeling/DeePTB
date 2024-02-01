@@ -11,7 +11,7 @@
         "num_epoch": 10,
         "batch_size": 1,
         "optimizer": {
-            "lr": 0.01,
+            "lr": 0.05,
             "type": "Adam"
         },
         "lr_scheduler": {
@@ -27,14 +27,14 @@
     "model_options": {
         "nnsk": {
             "onsite": {"method": "strain", "rs":2.5 ,"w":0.3},
-            "hopping": {"method": "powerlaw", "rs":2.6, "w": 0.3},
+            "hopping": {"method": "powerlaw", "rs":5.0, "w": 0.3},
             "freeze": false,
-            "push": {"rs_thr": 0.01, "period": 1}
+            "push": {"w_thr": 0.01, "period": 1}
         }
     },
     "data_options": {
         "train": {
-            "root": "./dptb/tests/data/test_data_nequip/dataset/",
+            "root": "./dptb/tests/data/test_sktb/dataset/",
             "prefix": "kpath_spk",
             "get_eigenvalues": true
         }

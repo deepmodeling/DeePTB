@@ -34,7 +34,7 @@
     },
     "data_options": {
         "train": {
-            "root": "./dptb/tests/data/test_data_nequip/dataset/",
+            "root": "./dptb/tests/data/test_sktb/dataset/",
             "prefix": "kpathmd25",
             "get_eigenvalues": true
         }
