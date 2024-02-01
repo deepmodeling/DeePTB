@@ -158,16 +158,16 @@ def kmesh_sampling_negf(meshgrid=[1,1,1], is_gamma_center=True, is_time_reversal
 def time_symmetry_reduce(meshgrid=[1,1,1], is_gamma_center=True):
     '''Reduce the number of k-points in a meshgrid by applying symmetry operations.
 
-    For gamma centered meshgrid, k-points range from 0 to 1 in each dimension. We keep the firt half [0,0.5).
-    For non-gamma centered meshgrid, k-points range from -0.5 to 0.5 in each dimension. We keep the later half [0,0.5).
-    
-    Note that here we assume the transport direction is z-direction, meshgrid[2] = 1.
+    For gamma centered meshgrid, k-points range from 0 to 1 in each dimension initially. 
+    For non-gamma centered meshgrid, k-points range from -0.5 to 0.5 in each dimension initially.
 
+    With time symmetry reduction, the number of k-points is reduced and limited to [0,0.5] in each dimension.
+    
     Parameters
     ----------
     meshgrid
         The `meshgrid` parameter specifies the number of k-points in each direction. 
-    is_gamma_center, optional
+    is_gamma_center
         The parameter "is_gamma_center" is a boolean value that determines whether the k-point mesh must be
     centered around the gamma point (0, 0, 0) or not. 
     
@@ -177,46 +177,39 @@ def time_symmetry_reduce(meshgrid=[1,1,1], is_gamma_center=True):
     
     '''
 
+    k_points = kmesh_sampling(meshgrid, is_gamma_center=is_gamma_center)
+    k_points_with_tr = []
+    kweight = []
 
-    assert meshgrid[2] == 1, "z-direction is not transport direction"
-    kpoints_unreduced = kmesh_sampling(meshgrid, is_gamma_center=is_gamma_center)
+    
+    if is_gamma_center:
+        k_points[k_points>0.5] = k_points[k_points>0.5] - 1
 
-    if is_gamma_center: 
-        # kpoints_unreduced range [0,1) in each dimension, keep the first half [0,0.5) with double weight except for k_cut = 0 and 0.5
-        wk = {kinx:0 for kinx in range(0, len(kpoints_unreduced))} 
-        if meshgrid[0] == 1: 
-            cut_axis = 1 ; transverse_axis = 0
-        else: 
-            cut_axis = 0 ; transverse_axis = 1
-        
-        for kindx,kpoint in enumerate(kpoints_unreduced):
+    k_points = np.round(k_points, decimals=5)
 
-            if kpoint[cut_axis] == 0: # for the point on the boundary
-                if kpoint[transverse_axis] == 0:
-                    wk[kindx] = 1
-                elif kpoint[transverse_axis] < 0.5:
-                    wk[kindx] = 2
-                elif kpoint[transverse_axis] == 0.5:
-                    wk[kindx] = 1
-            elif kpoint[cut_axis] < 0.5:
-                wk[kindx] = 2
-            elif kpoint[cut_axis] == 0.5 :
-                wk[kindx] = 1
-        # wk[0] = 1 #set the weight of gamma point to 1
-        wk = {key: value for key, value in wk.items() if value != 0}
-        
-    else: 
-        # kpoints_unreduced range (-0.5,0.5) in each dimension, keep the later half [0,0.5)  with double weight except for ki = 0
-        wk = {kinx:2 for kinx in range(len(kpoints_unreduced) // 2, len(kpoints_unreduced))}
-        k0 = kpoints_unreduced[len(kpoints_unreduced) // 2]
-        if np.dot(k0,k0) == 0: # gamma point is in kpoints_unreduced
-            wk[len(kpoints_unreduced) // 2] = 1 #set the weight of gamma point to 1
+    for kp in k_points:
+        if (-kp).tolist() not in k_points_with_tr:
+            k_points_with_tr.append(kp.tolist())
+            kweight.append(1)
+        else:
+            kweight[k_points_with_tr.index((-kp).tolist())] += 1
 
-    kinx_reduced, wgt = np.array(list(wk.keys())), np.array(list(wk.values()))
-    kpoints_reduced, weight_reduced = kpoints_unreduced[kinx_reduced], wgt/len(kpoints_unreduced)
-    assert abs(weight_reduced.sum()-1.0)<1e-8 , "The sum of weight is not 1.0"
+    k_points_with_tr = np.array(k_points_with_tr)
 
-    return kpoints_reduced, weight_reduced
+    # make the reduced kpoints in [0,0.5] in each direction
+    if is_gamma_center:
+        k_points_with_tr[k_points_with_tr < 0] += 1 
+    else: # MP sampling
+        k_points_with_tr =  -1 * k_points_with_tr 
+
+    # sort the k-points
+    k_sort_indx = np.lexsort((k_points_with_tr[:, 2], k_points_with_tr[:, 1], k_points_with_tr[:, 0]))
+    k_points_with_tr = k_points_with_tr[k_sort_indx]
+    kweight = np.array(kweight)/len(k_points) # normalize the weight to one
+    kweight = kweight[k_sort_indx]
+    assert kweight.sum() == 1, "The sum of weight is not 1.0"
+
+    return k_points_with_tr, kweight
 
 
 

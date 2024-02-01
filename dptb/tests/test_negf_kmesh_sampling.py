@@ -23,24 +23,25 @@ def test_negf_ksampling(root_directory):
     is_gamma_center = True
     is_time_reversal = True
     kp , wk = kmesh_sampling_negf(meshgrid, is_gamma_center, is_time_reversal)
-    assert abs(kp - np.array([[0.  , 0.  , 0.  ],[0.  , 0.25, 0.  ],[0.  , 0.5 , 0.  ]])).max()<1e-5
-    assert abs(wk - np.array([0.25, 0.5 , 0.25])).max()<1e-5
+    assert abs(kp - np.array([[0.  , 0.  , 0.  ],[0.  , 0.25, 0.  ],[0.  , 0.5 , 0.  ]])).max()<1e-5 
+    assert abs(wk - np.array([0.25, 0.5 , 0.25])).max()<1e-5 
 
     is_time_reversal = False
     kp , wk = kmesh_sampling_negf(meshgrid, is_gamma_center, is_time_reversal)
-    assert abs(kp - np.array([[0., 0., 0.],[0., 0.25, 0.],[0., 0.5, 0.],[0., 0.75, 0.]])).max()<1e-5
+    assert abs(kp - np.array([[0., 0., 0.],[0., 0.25, 0.],[0., 0.5, 0.],[0., 0.75, 0.]])).max()<1e-5 
     assert abs(wk - np.array([0.25, 0.25 ,0.25, 0.25])).max()<1e-5
 
     ### Monkhorst-Packing sampling
     is_gamma_center = False
     is_time_reversal = True
     kp , wk = kmesh_sampling_negf(meshgrid, is_gamma_center, is_time_reversal)
-    assert abs(kp-np.array([[0.  , 0.125  , 0.  ],[0.  , 0.375, 0.  ]])).max()<1e-5
+    print(kp)
+    assert abs(kp-np.array([[0.  , 0.125  , 0.  ],[0.  , 0.375, 0.  ]])).max()<1e-5 
     assert abs(wk-np.array([0.5, 0.5])).max()<1e-5
 
     is_time_reversal = False
     kp , wk = kmesh_sampling_negf(meshgrid, is_gamma_center, is_time_reversal)
-    assert abs(kp-np.array([[ 0., -0.375,  0.],[ 0., -0.125, 0.],[ 0.,0.125,0.],[ 0.,0.375, 0.]])).max()<1e-5
+    assert abs(kp-np.array([[ 0., -0.375,  0.],[ 0., -0.125, 0.],[ 0.,0.125,0.],[ 0.,0.375, 0.]])).max()<1e-5 
     assert abs(wk - np.array([0.25, 0.25, 0.25, 0.25])).max()<1e-5
 
     ## odd meshgrid
@@ -49,7 +50,7 @@ def test_negf_ksampling(root_directory):
     is_gamma_center = True
     is_time_reversal = True
     kp , wk = kmesh_sampling_negf(meshgrid, is_gamma_center, is_time_reversal)
-    assert abs(kp - np.array([[0., 0., 0.],[0., 0.2, 0. ],[0., 0.4 , 0.]])).max()<1e-5
+    assert abs(kp - np.array([[0., 0., 0.],[0., 0.2, 0. ],[0., 0.4 , 0.]])).max()<1e-5 
     assert abs(wk - np.array([0.2, 0.4, 0.4])).max()<1e-5
 
     is_time_reversal = False
@@ -61,12 +62,12 @@ def test_negf_ksampling(root_directory):
     is_gamma_center = False
     is_time_reversal = True
     kp , wk = kmesh_sampling_negf(meshgrid, is_gamma_center, is_time_reversal)
-    assert abs(kp-np.array([[0.  , 0.0  ,0 ],[0.  , 0.2  ,0 ],[0., 0.4, 0 ]])).max()<1e-5
+    assert abs(kp-np.array([[0.  , 0.0  ,0 ],[0.  , 0.2  ,0 ],[0., 0.4, 0 ]])).max()<1e-5 
     assert abs(wk-np.array([0.2, 0.4, 0.4])).max()<1e-5
 
     is_time_reversal = False
     kp , wk = kmesh_sampling_negf(meshgrid, is_gamma_center, is_time_reversal)
-    assert abs(kp-np.array([[ 0., -0.4,  0.],[ 0., -0.2, 0.],[ 0.,0.0,0.],[ 0.,0.2, 0.],[ 0.,0.4,0.]])).max()<1e-5
+    assert abs(kp-np.array([[ 0., -0.4,  0.],[ 0., -0.2, 0.],[ 0.,0.0,0.],[ 0.,0.2, 0.],[ 0.,0.4,0.]])).max()<1e-5 
     assert abs(wk - np.array([0.2, 0.2, 0.2, 0.2, 0.2])).max()<1e-5
 
     #-------- 1D ksampling-----------
@@ -93,7 +94,8 @@ def test_negf_ksampling(root_directory):
     is_gamma_center = False
     is_time_reversal = True
     kp , wk = kmesh_sampling_negf(meshgrid, is_gamma_center, is_time_reversal)
-    assert abs(kp - np.array([[ 0.25, -0.25,  0.  ],[ 0.25,  0.25,  0.  ]])).max()<1e-5
+    print(kp)
+    assert abs(kp - np.array([[0.25, -0.25,  0.  ],[0.25,  0.25,  0.  ]])).max()<1e-5
     assert abs(wk - np.array([0.5,0.5])).max()<1e-5
 
     is_time_reversal = False
@@ -132,6 +134,7 @@ def test_negf_ksampling(root_directory):
     is_gamma_center = False
     is_time_reversal = True
     kp , wk = kmesh_sampling_negf(meshgrid, is_gamma_center, is_time_reversal)
+    print(kp)
     assert abs(kp - np.array([[ 0.        ,  0.        ,  0.        ],
        [ 0.        ,  0.33333333,  0.        ],
        [ 0.33333333, -0.33333333,  0.        ],
