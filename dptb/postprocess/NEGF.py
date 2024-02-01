@@ -47,6 +47,18 @@ class NEGF(object):
         self.e_fermi = jdata["e_fermi"]
         self.stru_options = j_must_have(jdata, "stru_options")
         self.pbc = self.stru_options["pbc"]
+
+        # check the consistency of the kmesh and pbc
+        assert len(self.pbc) == 3, "pbc should be a list of length 3"
+        for i in range(3):
+            if self.pbc[i] == False and self.jdata["stru_options"]["kmesh"][i] > 1:
+                raise ValueError("kmesh should be 1 for non-periodic direction")
+            elif self.pbc[i] == False and self.jdata["stru_options"]["kmesh"][i] == 0:
+                self.jdata["stru_options"]["kmesh"][i] = 1
+                log.info(msg="Warning! kmesh should be set to 1 for non-periodic direction")
+            elif self.pbc[i] == True and self.jdata["stru_options"]["kmesh"][i] == 0:
+                raise ValueError("kmesh should be > 0 for periodic direction")
+
         if not any(self.pbc):
             self.kpoints,self.wk = np.array([[0,0,0]]),np.array([1.])
         else:
