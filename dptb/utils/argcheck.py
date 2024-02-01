@@ -547,12 +547,16 @@ def stru_options():
     doc_device = ""
     doc_lead_L = ""
     doc_lead_R = ""
+    doc_gamma_center=""
+    doc_time_reversal_symmetry=""
     return [
         Argument("device", dict, optional=False, sub_fields=device(), doc=doc_device),
         Argument("lead_L", dict, optional=False, sub_fields=lead(), doc=doc_lead_L),
         Argument("lead_R", dict, optional=False, sub_fields=lead(), doc=doc_lead_R),
         Argument("kmesh", list, optional=True, default=[1,1,1], doc=doc_kmesh),
-        Argument("pbc", list, optional=True, default=[False, False, False], doc=doc_pbc)
+        Argument("pbc", list, optional=True, default=[False, False, False], doc=doc_pbc),
+        Argument("gamma_center", list, optional=True, default=True, doc=doc_gamma_center),
+        Argument("time_reversal_symmetry", list, optional=True, default=True, doc=doc_time_reversal_symmetry)
     ]
 
 def device():

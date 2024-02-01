@@ -125,6 +125,7 @@ def gamma_center(meshgrid=[1,1,1]):
     return kpoints
 
 
+
 def kmesh_sampling(meshgrid=[1,1,1], is_gamma_center=True):
     """ Generate k-points using Monkhorst-Pack method based on given meshgrid. The k-points are centered at Gamma point by default.
      
@@ -137,6 +138,80 @@ def kmesh_sampling(meshgrid=[1,1,1], is_gamma_center=True):
     else:
         kpoints = monkhorst_pack(meshgrid)
     return kpoints
+
+
+def kmesh_sampling_negf(meshgrid=[1,1,1], is_gamma_center=True, is_time_reversal=True):
+    """ Generate k-points for NEGF based on given meshgrid. Through time symmetry reduction, the number of k-points is reduced.
+     
+    """
+
+    if is_time_reversal:
+        kpoints,wk = time_symmetry_reduce(meshgrid, is_gamma_center=is_gamma_center)
+            
+    else:
+        kpoints = kmesh_sampling(meshgrid, is_gamma_center=is_gamma_center)
+        wk = np.ones(len(kpoints))/len(kpoints)
+    
+    return kpoints,wk
+
+
+def time_symmetry_reduce(meshgrid=[1,1,1], is_gamma_center=True):
+    '''Reduce the number of k-points in a meshgrid by applying symmetry operations.
+
+    For gamma centered meshgrid, k-points range from 0 to 1 in each dimension initially. 
+    For non-gamma centered meshgrid, k-points range from -0.5 to 0.5 in each dimension initially.
+
+    With time symmetry reduction, the number of k-points is reduced and limited to [0,0.5] in x-direction.
+    
+    Parameters
+    ----------
+    meshgrid
+        The `meshgrid` parameter specifies the number of k-points in each direction. 
+    is_gamma_center
+        The parameter "is_gamma_center" is a boolean value that determines whether the k-point mesh must be
+    centered around the gamma point (0, 0, 0) or not. 
+    
+    Returns
+    -------
+        the reduced k-points and their corresponding weights.
+    
+    '''
+
+    k_points = kmesh_sampling(meshgrid, is_gamma_center=is_gamma_center)
+    k_points_with_tr = []
+    kweight = []
+
+    
+    if is_gamma_center:
+        k_points[k_points>0.5] = k_points[k_points>0.5] - 1
+
+    k_points = np.round(k_points, decimals=5)
+
+    for kp in k_points:
+        if (-kp).tolist() not in k_points_with_tr:
+            k_points_with_tr.append(kp.tolist())
+            kweight.append(1)
+        else:
+            kweight[k_points_with_tr.index((-kp).tolist())] += 1
+
+    k_points_with_tr = np.array(k_points_with_tr)
+
+    # make the reduced kpoints in [0,0.5] in x-direction
+    if is_gamma_center:
+        k_points_with_tr[k_points_with_tr < 0] += 1 
+    else: # MP sampling
+        k_points_with_tr =  -1 * k_points_with_tr # due to time revesal symmetry
+
+    # sort the k-points
+    k_sort_indx = np.lexsort((k_points_with_tr[:, 2], k_points_with_tr[:, 1], k_points_with_tr[:, 0]))
+    k_points_with_tr = k_points_with_tr[k_sort_indx]
+    kweight = np.array(kweight)/len(k_points) # normalize the weight to one
+    kweight = kweight[k_sort_indx]
+    assert kweight.sum() == 1, "The sum of weight is not 1.0"
+
+    return k_points_with_tr, kweight
+
+
 
 
 def kgrid_spacing(structase,kspacing:float,sampling='MP'):

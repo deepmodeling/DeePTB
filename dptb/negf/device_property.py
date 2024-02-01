@@ -87,6 +87,8 @@ class DeviceProperty(object):
         self.e_T = e_T
         self.efermi = efermi
         self.mu = self.efermi
+        self.kpoint = None
+        self.V = None
     
     def set_leadLR(self, lead_L, lead_R):
         '''initialize the left and right lead in Device object
@@ -132,7 +134,7 @@ class DeviceProperty(object):
             energy = torch.tensor(energy, dtype=torch.complex128)
 
         self.block_tridiagonal = block_tridiagonal
-        self.kpoint = kpoint
+        # self.kpoint = kpoint
 
         # if V is not None:
         #     HD_ = self.attachPotential(HD, SD, V)
@@ -146,8 +148,16 @@ class DeviceProperty(object):
         else:
             self.V = 0.
         
-        if not hasattr(self, "hd") or not hasattr(self, "sd"):
+        if not hasattr(self, "hd") or not hasattr(self, "sd") or self.kpoint is None:
             self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
+            self.kpoint = torch.tensor(kpoint)
+        elif not torch.allclose(self.kpoint, torch.tensor(kpoint), atol=1e-5):
+            self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
+            self.kpoint = torch.tensor(kpoint)
+
+
+
+
         s_in = [torch.zeros(i.shape).cdouble() for i in self.hd]
         
         # for i, e in tqdm(enumerate(ee), desc="Compute green functions: "):
