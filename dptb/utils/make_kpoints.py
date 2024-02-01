@@ -161,7 +161,7 @@ def time_symmetry_reduce(meshgrid=[1,1,1], is_gamma_center=True):
     For gamma centered meshgrid, k-points range from 0 to 1 in each dimension initially. 
     For non-gamma centered meshgrid, k-points range from -0.5 to 0.5 in each dimension initially.
 
-    With time symmetry reduction, the number of k-points is reduced and limited to [0,0.5] in each dimension.
+    With time symmetry reduction, the number of k-points is reduced and limited to [0,0.5] in x-direction.
     
     Parameters
     ----------
@@ -196,7 +196,7 @@ def time_symmetry_reduce(meshgrid=[1,1,1], is_gamma_center=True):
 
     k_points_with_tr = np.array(k_points_with_tr)
 
-    # make the reduced kpoints in [0,0.5] in each direction
+    # make the reduced kpoints in [0,0.5] in x-direction
     if is_gamma_center:
         k_points_with_tr[k_points_with_tr < 0] += 1 
     else: # MP sampling
