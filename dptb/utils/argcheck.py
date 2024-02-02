@@ -58,6 +58,8 @@ def train_options():
     args = [
         Argument("num_epoch", int, optional=False, doc=doc_num_epoch),
         Argument("batch_size", int, optional=True, default=1, doc=doc_batch_size),
+        Argument("ref_batch_size", int, optional=True, default=1, doc=doc_batch_size),
+        Argument("val_batch_size", int, optional=True, default=1, doc=doc_batch_size),
         Argument("optimizer", dict, sub_fields=[], optional=True, default={}, sub_variants=[optimizer()], doc = doc_optimizer),
         Argument("lr_scheduler", dict, sub_fields=[], optional=True, default={}, sub_variants=[lr_scheduler()], doc = doc_lr_scheduler),
         Argument("save_freq", int, optional=True, default=10, doc=doc_save_freq),
