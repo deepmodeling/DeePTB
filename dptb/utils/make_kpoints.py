@@ -207,7 +207,7 @@ def time_symmetry_reduce(meshgrid=[1,1,1], is_gamma_center=True):
     k_points_with_tr = k_points_with_tr[k_sort_indx]
     kweight = np.array(kweight)/len(k_points) # normalize the weight to one
     kweight = kweight[k_sort_indx]
-    assert kweight.sum() - 1.0 < 1e-5, "The sum of weight is not 1.0"
+    assert abs(kweight.sum() - 1.0) < 1e-5, "The sum of weight is not 1.0"
 
     return k_points_with_tr, kweight
 
