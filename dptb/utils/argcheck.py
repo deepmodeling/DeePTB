@@ -498,6 +498,7 @@ def nnsk():
     doc_onsite = ""
     doc_hopping = ""
     doc_freeze = ""
+    doc_std = ""
 
     # overlap = Argument("overlap", bool, optional=True, default=False, doc="The parameters to define the overlap correction of nnsk model.")
 
@@ -505,6 +506,7 @@ def nnsk():
             Argument("onsite", dict, optional=False, sub_fields=[], sub_variants=[onsite()], doc=doc_onsite), 
             Argument("hopping", dict, optional=False, sub_fields=[], sub_variants=[hopping()], doc=doc_hopping),
             Argument("freeze", bool, optional=True, default=False, doc=doc_freeze),
+            Argument("std", float, optional=True, default=0.01, doc=doc_std),
             push(),
         ], sub_variants=[], optional=True, doc=doc_nnsk)
 

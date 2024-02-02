@@ -31,6 +31,7 @@ class NNSK(torch.nn.Module):
             transform: bool = True,
             freeze: bool = False,
             push: Dict=None,
+            std: float = 0.01,
             **kwargs,
             ) -> None:
         
@@ -77,11 +78,11 @@ class NNSK(torch.nn.Module):
         # init_param
         # 
         hopping_param = torch.empty([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device)
-        nn.init.normal_(hopping_param, mean=0.0, std=0.01)
+        nn.init.normal_(hopping_param, mean=0.0, std=std)
         self.hopping_param = torch.nn.Parameter(hopping_param)
         if overlap:
             overlap_param = torch.empty([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device)
-            nn.init.normal_(overlap_param, mean=0.0, std=0.01)
+            nn.init.normal_(overlap_param, mean=0.0, std=std)
             self.overlap_param = torch.nn.Parameter(overlap_param)
 
         if self.onsite_options["method"] == "strain":
@@ -90,7 +91,7 @@ class NNSK(torch.nn.Module):
             self.onsite_param = None
         elif self.onsite_options["method"] in ["NRL", "uniform"]:
             onsite_param = torch.empty([len(self.idp_sk.type_names), self.idp_sk.n_onsite_Es, self.onsite_fn.num_paras], dtype=self.dtype, device=self.device)
-            nn.init.normal_(onsite_param, mean=0.0, std=0.01)
+            nn.init.normal_(onsite_param, mean=0.0, std=std)
             self.onsite_param = torch.nn.Parameter(onsite_param)
         else:
             raise NotImplementedError(f"The onsite method {self.onsite_options['method']} is not implemented.")
@@ -101,7 +102,7 @@ class NNSK(torch.nn.Module):
             # but need to map to all pairs and all orbital pairs like AB, AA, BB, BA for [ss, sp, sd, ps, pp, pd, ds, dp, dd]
             # with this map: BA[sp, sd] = AB[ps, ds]
             strain_param = torch.empty([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device)
-            nn.init.normal_(strain_param, mean=0.0, std=0.01)
+            nn.init.normal_(strain_param, mean=0.0, std=std)
             self.strain_param = torch.nn.Parameter(strain_param)
             # symmetrize the env for same atomic spices
             
@@ -304,6 +305,7 @@ class NNSK(torch.nn.Module):
         device: Union[str, torch.device]=None,
         push: Dict=None,
         freeze: bool = None,
+        std: float = 0.01,
         **kwargs,
         ):
         # the mapping from the parameters of the ref_model and the current model can be found using
@@ -321,6 +323,7 @@ class NNSK(torch.nn.Module):
             "hopping": hopping,
             "freeze": freeze,
             "push": push,
+            "std": std
         }
 
 
@@ -453,6 +456,7 @@ class NNSK(torch.nn.Module):
         overlap: bool = False,
         dtype: Union[str, torch.dtype] = torch.float32, 
         device: Union[str, torch.device] = torch.device("cpu"),
+        std: float = 0.01,
         ):
         # could support json file and .pth file checkpoint of nnsk
 
@@ -472,7 +476,7 @@ class NNSK(torch.nn.Module):
         idp_sk.get_orbpair_maps()
         idp_sk.get_skonsite_maps()
 
-        nnsk_model = cls(basis=basis, idp_sk=idp_sk, dtype=dtype, device=device, onsite=onsite, hopping=hopping, overlap=overlap)
+        nnsk_model = cls(basis=basis, idp_sk=idp_sk, dtype=dtype, device=device, onsite=onsite, hopping=hopping, overlap=overlap, std=std)
 
         onsite_param = v1_model["onsite"]
         hopping_param = v1_model["hopping"]

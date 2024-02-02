@@ -179,6 +179,7 @@ class AtomicResBlock(torch.nn.Module):
                  device: Union[str, torch.device] = torch.device('cpu'), 
                  dtype: Union[str, torch.dtype] = torch.float32
             ):
+        
         super(AtomicResBlock, self).__init__()
         self.in_field = in_field
         self.out_field = out_field
