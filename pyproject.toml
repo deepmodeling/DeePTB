@@ -21,6 +21,12 @@ future = "*"
 dargs = "0.3.3"
 xitorch = "0.3.0"
 fmm3dpy = "1.0.0"
+e3nn = ">=0.5.1"
+torch-runstats = "0.2.0"
+torch_scatter = "2.1.2"
+torch_geometric = ">=2.4.0"
+opt-einsum = "3.3.0"
+
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.2.0"
