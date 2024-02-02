@@ -3,7 +3,7 @@ import heapq
 import logging
 from dptb.utils.tools import get_lr_scheduler, j_must_have, get_optimizer
 from abc import ABCMeta, abstractmethod
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 from future.utils import with_metaclass
 from dptb.utils.constants import dtype_dict
 from dptb.plugins.base_plugin import PluginUser
@@ -11,13 +11,20 @@ from dptb.plugins.base_plugin import PluginUser
 
 log = logging.getLogger(__name__)
 
+class BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
 
-class Trainer(with_metaclass(ABCMeta, PluginUser)):
+    def __init__(
+            self, 
+            dtype: Union[str, torch.dtype] = torch.float32, 
+            device: Union[str, torch.device] = torch.device("cpu"),
+            ) -> None:
+        super(BaseTrainer, self).__init__()
 
-    def __init__(self, jdata) -> None:
-        super(Trainer, self).__init__()
-        self.dtype = jdata["common_options"]["dtype"]
-        self.device = jdata["common_options"]["device"]
+        if isinstance(dtype, str):
+            dtype = dtype_dict[dtype]
+        self.dtype = dtype
+        self.device = device
+
         ''' Here is for plugins.
                     plugins:
                         - iteration: events  after every batch training iteration.  
@@ -26,21 +33,13 @@ class Trainer(with_metaclass(ABCMeta, PluginUser)):
                         - epoch: events after epoch batch training 
                     The difference b/w iteration and update the parameters, iteration takes in the batch output, loss etc., while  update takes in model itself.
                 '''
-        self.iteration = 1
-        self.epoch = 1
-
-    
+        self.iter = 1
+        self.ep = 1
 
     @abstractmethod
-    def _init_param(self, jdata):
-
-        pass
-
-    @abstractmethod
-    def build(self):
-        '''
-        init the model
-        '''
+    def restart(self, checkpoint):
+        """init trainer from disk
+        """
         pass
 
     def run(self, epochs=1):
@@ -48,24 +47,30 @@ class Trainer(with_metaclass(ABCMeta, PluginUser)):
             '''对四个事件调用序列进行最小堆排序。'''
             heapq.heapify(q)
 
-        for i in range(self.epoch, epochs + 1):
-            self.train()
+        for i in range(self.ep, epochs + 1):
+            self.epoch()
             # run plugins of epoch events.
             self.call_plugins(queue_name='epoch', time=i)
-            self.lr_scheduler.step()  # modify the lr at each epoch (should we add it to pluggins so we could record the lr scheduler process?)
+
+            if isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                self.lr_scheduler.step(self.stats["train_loss"]["epoch_mean"])
+            else:
+                self.lr_scheduler.step()  # modify the lr at each epoch (should we add it to pluggins so we could record the lr scheduler process?)
             self.update()
-            self.epoch += 1
+            self.ep += 1
 
 
     @abstractmethod
-    def calc(self, **data):
+    def iteration(self, **data):
         '''
         conduct one step forward computation, used in train, test and validation.
         '''
         pass
 
     @abstractmethod
-    def train(self) -> None:
+    def epoch(self) -> None:
+        """define a training iteration process
+        """
         pass
 
     @abstractmethod

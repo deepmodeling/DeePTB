@@ -1,14 +1,12 @@
-from dptb.nnops.train_dptb import DPTBTrainer
-from dptb.nnops.train_nnsk import NNSKTrainer
+from dptb.nnops.trainer import Trainer
+from dptb.nn.build import build_model
+from dptb.data.build import build_dataset
 from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
-from dptb.plugins.init_nnsk import InitSKModel
-from dptb.plugins.init_dptb import InitDPTBModel
-from dptb.plugins.init_data import InitData
 from dptb.plugins.train_logger import Logger
 from dptb.utils.argcheck import normalize
 from dptb.plugins.plugins import Saver
 from typing import Dict, List, Optional, Any
-from dptb.utils.tools import j_loader, setup_seed
+from dptb.utils.tools import j_loader, setup_seed, j_must_have
 from dptb.utils.constants import dtype_dict
 from dptb.utils.loggers import set_log_handles
 import heapq
@@ -30,30 +28,24 @@ def train(
         INPUT: str,
         init_model: Optional[str],
         restart: Optional[str],
-        freeze:bool,
         train_soc:bool,
         output: str,
         log_level: int,
         log_path: Optional[str],
-        train_sk: bool,
-        use_correction: Optional[str],
         **kwargs
 ):
     run_opt = {
         "init_model": init_model,
         "restart": restart,
-        "freeze": freeze,
         "train_soc": train_soc,
         "log_path": log_path,
-        "log_level": log_level,
-        "train_sk": train_sk,
-        "use_correction": use_correction
+        "log_level": log_level
     }
+
+    assert train_soc is False, "train_soc is not supported yet"
 
     '''
         -1- set up input and output directories
-            noticed that, the checkpoint of sktb and dptb should be in different directory, and in train_dptb,
-            there should be a workflow to load correction model from nnsktb.
         -2- parse configuration file and start training
             
     output directories has following structure:
@@ -65,132 +57,18 @@ def train(
                 ...
             - log/
                 - log.log
-            - config_nnsktb.json
-            - config_dptb.json
+            - config.json
     '''
     # init all paths
     # if init_model, restart or init_frez, findout the input configure file
-    
-    if all((use_correction, train_sk)):
-        raise RuntimeError(
-            "--use-correction and --train_sk should not be set at the same time"
-        )
 
     # setup INPUT path
-    if train_sk:
-        if init_model:
-            skconfig_path = os.path.join(str(Path(init_model).parent.absolute()), "config_nnsktb.json")
-            mode = "init_model"
-        elif restart:
-            skconfig_path = os.path.join(str(Path(restart).parent.absolute()), "config_nnsktb.json")
-            mode = "restart"
-        elif INPUT is not None:
-            log.info(msg="Haven't assign a initializing mode, training from scratch as default.")
-            mode = "from_scratch"
-            skconfig_path = INPUT
-        else:
-            log.error("ValueError: Missing Input configuration file path.")
-            raise ValueError
-
-        # switch the init model mode from command line to config file
-        jdata = j_loader(INPUT)
-        jdata = normalize(jdata)
-
-        # check if init_model in commandline and input json are in conflict.
-
-        if all((jdata["init_model"]["path"], run_opt["init_model"])) or \
-        all((jdata["init_model"]["path"], run_opt["restart"])):
-            raise RuntimeError(
-                "init-model in config and command line is in conflict, turn off one of then to avoid this error !"
-            )
-        
-        if jdata["init_model"]["path"] is not None:
-            assert mode == "from_scratch"
-            run_opt["init_model"] = jdata["init_model"]
-            mode = "init_model"
-            if isinstance(run_opt["init_model"]["path"], str):
-                skconfig_path = os.path.join(str(Path(run_opt["init_model"]["path"]).parent.absolute()), "config_nnsktb.json")
-            else: # list
-                skconfig_path = [os.path.join(str(Path(path).parent.absolute()), "config_nnsktb.json") for path in run_opt["init_model"]["path"]]
-        elif run_opt["init_model"] is not None:
-            # format run_opt's init model to the format of jdata
-            assert mode == "init_model"
-            path = run_opt["init_model"]
-            run_opt["init_model"] = jdata["init_model"]
-            run_opt["init_model"]["path"] = path
-
-        # handling exceptions when init_model path in config file is [] and [single file]
-        if mode == "init_model":
-            if isinstance(run_opt["init_model"]["path"], list):
-                if len(run_opt["init_model"]["path"])==0:
-                    raise RuntimeError("Error! list mode init_model in config file cannot be empty!")
-
-    else:
-        if init_model:
-            dptbconfig_path = os.path.join(str(Path(init_model).parent.absolute()), "config_dptbtb.json")
-            mode = "init_model"
-        elif restart:
-            dptbconfig_path = os.path.join(str(Path(restart).parent.absolute()), "config_dptbtb.json")
-            mode = "restart"
-        elif INPUT is not None:
-            log.info(msg="Haven't assign a initializing mode, training from scratch as default.")
-            dptbconfig_path = INPUT
-            mode = "from_scratch"
-        else:
-            log.error("ValueError: Missing Input configuration file path.")
-            raise ValueError
-
-        if use_correction:
-            skconfig_path = os.path.join(str(Path(use_correction).parent.absolute()), "config_nnsktb.json")
-            # skcheckpoint_path = str(Path(str(input(f"Enter skcheckpoint_path (default ./checkpoint/best_nnsk.pth): \n"))).absolute())
-        else:
-            skconfig_path = None
-
-        # parse INPUT file
-        jdata = j_loader(INPUT)
-        jdata = normalize(jdata)
-
-        if all((jdata["init_model"]["path"], run_opt["init_model"])) or \
-        all((jdata["init_model"]["path"], run_opt["restart"])):
-            raise RuntimeError(
-                "init-model in config and command line is in conflict, turn off one of then to avoid this error !"
-            )
-        
-        if jdata["init_model"]["path"] is not None:
-            assert mode == "from_scratch"
-            log.info(msg="Init model is read from config rile.")
-            run_opt["init_model"] = jdata["init_model"]
-            mode = "init_model"
-            if isinstance(run_opt["init_model"]["path"], str):
-                dptbconfig_path = os.path.join(str(Path(run_opt["init_model"]["path"]).parent.absolute()), "config_dptb.json")
-            else: # list
-                raise RuntimeError(
-                "loading lists of checkpoints is only supported in init_nnsk!"
-            )
-        elif run_opt["init_model"] is not None:
-            assert mode == "init_model"
-            path = run_opt["init_model"]
-            run_opt["init_model"] = jdata["init_model"]
-            run_opt["init_model"]["path"] = path
-
-        if mode == "init_model":
-            if isinstance(run_opt["init_model"]["path"], list):
-                if len(run_opt["init_model"]["path"])==0:
-                    log.error(msg="Error, no checkpoint supplied!")
-                    raise RuntimeError
-                elif len(run_opt["init_model"]["path"])>1:
-                    log.error(msg="Error! list mode init_model in config only support single file in DPTB!")
-                    raise RuntimeError
 
     if all((run_opt["init_model"], restart)):
         raise RuntimeError(
             "--init-model and --restart should not be set at the same time"
         )
     
-    if mode == "init_model":
-        if isinstance(run_opt["init_model"]["path"], list):
-            if len(run_opt["init_model"]["path"]) == 1:
-                run_opt["init_model"]["path"] = run_opt["init_model"]["path"][0]
     # setup output path
     if output:
         Path(output).parent.mkdir(exist_ok=True, parents=True)
@@ -209,71 +87,137 @@ def train(
             "log_path": str(Path(log_path).absolute())
         })
 
-    run_opt.update({"mode": mode})
-    if train_sk:
-        run_opt.update({
-            "skconfig_path": skconfig_path,
-        })
-    else:
-        if use_correction:
-            run_opt.update({
-                "skconfig_path": skconfig_path
-            })
-        run_opt.update({
-            "dptbconfig_path": dptbconfig_path
-        })
-
     set_log_handles(log_level, Path(log_path) if log_path else None)
     # parse the config. Since if use init, config file may not equals to current
     
+    jdata = j_loader(INPUT)
+    jdata = normalize(jdata)
+    # update basis if init_model or restart
+    # update jdata
+    # this is not necessary, because if we init model from checkpoint, the build_model will load the model_options from checkpoints if not provided
+    # since here we want to output jdata as a config file to inform the user what model options are used, we need to update the jdata
     
+    torch.set_default_dtype(getattr(torch, jdata["common_options"]["dtype"]))
+
+    if restart or init_model:
+        f = restart if restart else init_model
+        f = torch.load(f)
+
+        if jdata.get("model_options", None) is None:
+            jdata["model_options"] = f["config"]["model_options"]
+
+        # update basis
+        basis = f["config"]["common_options"]["basis"]
+        # nnsk
+        if len(f["config"]["model_options"])==1 and f["config"]["model_options"].get("nnsk") != None:
+            for asym, orb in jdata["common_options"]["basis"].items():
+                assert asym in basis.keys(), f"Atom {asym} not found in model's basis"
+                if orb != basis[asym]:
+                    log.info(f"Initializing Orbital {orb} of Atom {asym} from {basis[asym]}")
+            # we have the orbitals in jdata basis correct, now we need to make sure all atom in basis are also contained in jdata basis
+            for asym, orb in basis.items():
+                if asym not in jdata["common_options"]["basis"].keys():
+                    jdata["common_options"]["basis"][asym] = orb # add the atomtype in the checkpoint but not in the jdata basis, because it will be used to build the orbital mapper for dataset
+        else: # not nnsk
+            for asym, orb in jdata["common_options"]["basis"].items():
+                assert asym in basis.keys(), f"Atom {asym} not found in model's basis"
+                assert orb == basis[asym], f"Orbital {orb} of Atom {asym} not consistent with the model's basis, which is only allowed in nnsk training"
+
+            jdata["common_options"]["basis"] = basis
+        
+        # update model options and train_options
+        if restart:
+            # 
+            if jdata.get("train_options", None) is not None:
+                for obj in Trainer.object_keys:
+                    if jdata["train_options"].get(obj) != f["config"]["train_options"].get(obj):
+                        log.warning(f"{obj} in config file is not consistent with the checkpoint, using the one in checkpoint")
+                        jdata["train_options"][obj] = f["config"]["train_options"][obj]
+            else:
+                jdata["train_options"] = f["config"]["train_options"]
+
+            if jdata.get("model_options", None) is None or jdata["model_options"] != f["config"]["model_options"]:
+                log.warning("model_options in config file is not consistent with the checkpoint, using the one in checkpoint")
+                jdata["model_options"] = f["config"]["model_options"] # restart does not allow to change model options
+        else:
+            # init model mode, allow model_options change
+            if jdata.get("train_options", None) is None:
+                jdata["train_options"] = f["config"]["train_options"]
+            if jdata.get("model_options") is None:
+                jdata["model_options"] = f["config"]["model_options"]
+        del f
+    else:
+        j_must_have(jdata, "model_options")
+        j_must_have(jdata, "train_options")
+
+
     # setup seed
-    setup_seed(seed=jdata["train_options"]["seed"])
+    setup_seed(seed=jdata["common_options"]["seed"])
 
     # with open(os.path.join(output, "train_config.json"), "w") as fp:
     #     json.dump(jdata, fp, indent=4)
-    
-    str_dtype = jdata["common_options"]["dtype"]
-    jdata["common_options"]["dtype"] = dtype_dict[jdata["common_options"]["dtype"]]
-    if train_sk:
-        trainer = NNSKTrainer(run_opt, jdata)
-        trainer.register_plugin(InitSKModel())
+
+    # build dataset
+    train_datasets = build_dataset(set_options=jdata["data_options"]["train"], common_options=jdata["common_options"])
+    if jdata["data_options"].get("validation"):
+        validation_datasets = build_dataset(set_options=jdata["data_options"]["validation"], common_options=jdata["common_options"])
     else:
-        trainer = DPTBTrainer(run_opt, jdata)
-        trainer.register_plugin(InitDPTBModel())
-    
-    
+        validation_datasets = None
+    if jdata["data_options"].get("reference"):
+        reference_datasets = build_dataset(set_options=jdata["data_options"]["reference"], common_options=jdata["common_options"])
+    else:
+        reference_datasets = None
+
+    if restart:
+        trainer = Trainer.restart(
+            train_options=jdata["train_options"],
+            common_options=jdata["common_options"],
+            checkpoint=restart,
+            train_datasets=train_datasets,
+            reference_datasets=reference_datasets,
+            validation_datasets=validation_datasets,
+        )
+    else:
+        # include the init model and from scratch
+        # build model will handle the init model cases where the model options provided is not equals to the ones in checkpoint.
+        model = build_model(run_options=run_opt, model_options=jdata["model_options"], common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
+        trainer = Trainer(
+            train_options=jdata["train_options"],
+            common_options=jdata["common_options"],
+            model = model,
+            train_datasets=train_datasets,
+            validation_datasets=validation_datasets,
+            reference_datasets=reference_datasets,
+        )
     
     # register the plugin in trainer, to tract training info
-    trainer.register_plugin(InitData())
-    trainer.register_plugin(Validationer())
+    log_field = ["train_loss", "lr"]
+    if validation_datasets:
+        trainer.register_plugin(Validationer())
+        log_field.append("validation_loss")
     trainer.register_plugin(TrainLossMonitor())
     trainer.register_plugin(LearningRateMonitor())
-    trainer.register_plugin(Logger(["train_loss", "validation_loss", "lr"], 
+    trainer.register_plugin(Logger(log_field, 
         interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
     
     for q in trainer.plugin_queues.values():
         heapq.heapify(q)
-    
-    trainer.build()
-
 
     if output:
         # output training configurations:
         with open(os.path.join(output, "train_config.json"), "w") as fp:
-            jdata["common_options"]["dtype"] = str_dtype
             json.dump(jdata, fp, indent=4)
 
         trainer.register_plugin(Saver(
             #interval=[(jdata["train_options"].get("save_freq"), 'epoch'), (1, 'iteration')] if jdata["train_options"].get(
             #    "save_freq") else None))
             interval=[(jdata["train_options"].get("save_freq"), 'iteration'),  (1, 'epoch')] if jdata["train_options"].get(
-                "save_freq") else None))
+                "save_freq") else None), checkpoint_path=checkpoint_path)
         # add a plugin to save the training parameters of the model, with model_output as given path
 
     start_time = time.time()
 
-    trainer.run(trainer.num_epoch)
+    trainer.run(trainer.train_options["num_epoch"])
 
     end_time = time.time()
     log.info("finished training")
