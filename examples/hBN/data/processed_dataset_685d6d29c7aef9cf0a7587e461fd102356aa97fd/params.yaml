@@ -1,0 +1,24 @@
+dtype: torch.float32
+get_Hamiltonian: false
+get_eigenvalues: true
+include_frames: null
+info_files:
+  kpath.0:
+    AtomicData_options:
+      er_max: 3.5
+      oer_max: 1.6
+      pbc: true
+      r_max: 5.5
+    bandinfo:
+      band_max: 5
+      band_min: 0
+      emax: 25.0
+      emin: -0.1
+      nbands: 0
+      nkpoints: 0
+    natoms: 2
+    nframes: 1
+    pos_type: ase
+nequip_version: 0.1.0.dev0+
+root: data
+url: null

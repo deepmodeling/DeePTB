@@ -1,0 +1,44 @@
+{
+    "common_options": {
+            "basis": {
+                "B": ["2s", "2p"],
+                "N": ["2s", "2p"]
+            },
+            "device": "cpu",
+            "dtype": "float32",
+            "overlap": false,
+            "seed": 120478
+    },
+    "train_options": {
+        "num_epoch": 10000,
+        "batch_size": 1,
+        "optimizer": {
+            "lr": 0.001,
+            "type": "Adam"
+        },
+        "lr_scheduler": {
+            "type": "exp",
+            "gamma": 0.999
+        },
+        "loss_options":{
+            "train": {"method": "eigvals"}
+        },
+        "save_freq": 1000,
+        "validation_freq": 10,
+        "display_freq": 10
+    },
+    "model_options": {
+        "nnsk": {
+            "onsite": {"method": "strain", "rs":1.6, "w":0.3},
+            "hopping": {"method": "powerlaw", "rs":3.6, "w": 0.3},
+            "freeze": false
+        }
+    },
+    "data_options": {
+        "train": {
+            "root": "./data/",
+            "prefix": "kpath",
+            "get_eigenvalues": true
+        }
+    }
+}
