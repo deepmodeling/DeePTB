@@ -321,7 +321,6 @@ def test_data_options():
 
 #     return Argument("dptb", dict, optional=True, sub_fields=args, sub_variants=[], default={}, doc=doc_dptb)
 
-
 def embedding():
     doc_method = ""
 
@@ -329,9 +328,11 @@ def embedding():
             Argument("se2", dict, se2()),
             Argument("baseline", dict, baseline()),
             Argument("deeph-e3", dict, deephe3()),
-            Argument("e3baseline_local", dict, e3baseline()),
-            Argument("e3baseline_local_wnode", dict, e3baseline()),
-            Argument("e3baseline_nonlocal", dict, e3baseline()),
+            Argument("e3baseline_0", dict, e3baseline()),
+            Argument("e3baseline_1", dict, e3baseline()),
+            Argument("e3baseline_2", dict, e3baseline()),
+            Argument("e3baseline_3", dict, e3baseline()),
+            Argument("e3baseline_4", dict, e3baseline()),
         ],optional=True, default_tag="se2", doc=doc_method)
 
 def se2():
@@ -1253,9 +1254,9 @@ def AtomicData_options_sub():
     doc_pbc = ""
     
     args = [
-        Argument("r_max", float, optional=False, doc=doc_r_max, default=4.0),
-        Argument("er_max", float, optional=True, doc=doc_er_max, default=None),
-        Argument("oer_max", float, optional=True, doc=doc_oer_max,default=None),
+        Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max, default=4.0),
+        Argument("er_max", [float, int, dict], optional=True, doc=doc_er_max, default=None),
+        Argument("oer_max", [float, int, dict], optional=True, doc=doc_oer_max,default=None),
         Argument("pbc", bool, optional=False, doc=doc_pbc, default=True),
     ]
 
@@ -1268,7 +1269,7 @@ def normalize_setinfo(data):
 
     args = [
         Argument("nframes", int, optional=False, doc=doc_nframes),
-        Argument("natoms", int, optional=False, doc=doc_natoms),
+        Argument("natoms", int, optional=True, default=-1, doc=doc_natoms),
         Argument("pos_type", str, optional=False, doc=doc_pos_type),
         bandinfo_sub(),
         AtomicData_options_sub()

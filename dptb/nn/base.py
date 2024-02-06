@@ -284,9 +284,14 @@ class AtomicResNet(torch.nn.Module):
 
         if config[-1].get('hidden_feature') is None:
             self.out_layer = AtomicLinear(in_features=config[-1]['in_features'], out_features=config[-1]['out_features'], in_field=out_field, out_field=out_field, device=device, dtype=dtype)
+            nn.init.normal_(self.out_layer.linear.weight, mean=0, std=1e-3)
+            nn.init.normal_(self.out_layer.linear.bias, mean=0, std=1e-3)
         else:
             self.out_layer = AtomicMLP(**config[-1],  if_batch_normalized=False, in_field=in_field, out_field=out_field, activation=activation, device=device, dtype=dtype)
+            nn.init.normal_(self.out_layer.out_layer.weight, mean=0, std=1e-3)
+            nn.init.normal_(self.out_layer.out_layer.bias, mean=0, std=1e-3)
         # self.out_norm = nn.LayerNorm(config[-1]['out_features'], elementwise_affine=True)
+        
 
     def forward(self, data: AtomicDataDict.Type):
 

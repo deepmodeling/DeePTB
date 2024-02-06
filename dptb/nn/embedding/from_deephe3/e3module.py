@@ -299,24 +299,29 @@ class SeparateWeightTensorProduct(nn.Module):
                 
         instr_tp = []
         weights1, weights2 = [], []
+        # weight = []
         for i1, (mul1, ir1) in enumerate(irreps_in1):
             for i2, (mul2, ir2) in enumerate(irreps_in2):
                 for i_out, (mul_out, ir3) in enumerate(irreps_out):
                     if ir3 in ir1 * ir2:
                         weights1.append(nn.Parameter(torch.randn(mul1, mul_out)))
                         weights2.append(nn.Parameter(torch.randn(mul2, mul_out)))
+                        # weight.append(nn.Parameter(torch.randn(mul1, mul2, mul_out)).view(-1))
                         instr_tp.append((i1, i2, i_out, 'uvw', True, 1.0))
         
         self.tp = TensorProduct(irreps_in1, irreps_in2, irreps_out, instr_tp, internal_weights=False, shared_weights=True, **kwargs)
         
         self.weights1 = nn.ParameterList(weights1)
         self.weights2 = nn.ParameterList(weights2)
+        # self.weight = nn.ParameterList(weight)
         
     def forward(self, x1: torch.Tensor, x2: torch.Tensor):
         weights = []
         for weight1, weight2 in zip(self.weights1, self.weights2):
             weight = weight1[:, None, :] * weight2[None, :, :]
             weights.append(weight.view(-1))
+        # for w in self.weight:
+            # weights.append(w)
         weights = torch.cat(weights)
         return self.tp(x1, x2, weights)
 
