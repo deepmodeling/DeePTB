@@ -545,4 +545,72 @@ class NNSK(torch.nn.Module):
                 nnsk_model.onsite_param.data[nline, nidx] = skparam
 
         return nnsk_model
+    
+    def to_model_v1(self):
+        # load hopping params
+        hopping = self.hopping_param.data.cpu().numpy()
+        hopping[:,:,0] /= 13.605662285137 * 2
+        hopping_param = {}
+        basis = self.idp_sk.basis
+        
+        for bt in self.idp_sk.reduced_bond_types:
+            iasym, jasym = bt.split("-")
+            if iasym != jasym:
+                temp = jasym
+                iasym = jasym
+                jasym = temp
+            ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
+            pos_line = self.idp_sk.transform_bond(ian, jan)
+            rev_line = self.idp_sk.transform_bond(jan, ian)
+            for orbpair, slices in self.idp_sk.orbpair_maps.items():
+                fiorb, fjorb = orbpair.split("-")
+                iorb = self.idp_sk.full_basis_to_basis[iasym].get(fiorb)
+                jorb = self.idp_sk.full_basis_to_basis[jasym].get(fjorb)
+                if iorb != None and jorb != None:
+                    # iasym-jasym-iorb-jorb
+                    for i in range(slices.stop-slices.start):
+                        if ian != jan:
+                            if fiorb == fjorb: # this might have problems
+                                hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = ((hopping[pos_line, i] + hopping[rev_line, i])*0.5).tolist()
+                            else:
+                                hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = hopping[pos_line, slices][i].tolist()
+                                hopping_param[f"{iasym}-{jasym}-{jorb}-{iorb}-{i}"] = hopping[rev_line, slices][i].tolist()
+                        else:
+                            hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = hopping[pos_line, slices][i].tolist()
+                            if fiorb != fjorb:
+                                hopping_param[f"{iasym}-{jasym}-{jorb}-{iorb}-{i}"] = hopping[pos_line, slices][i].tolist()
+
+        
+        if hasattr(self, "strain_param"):
+            strain = self.strain_param.data.cpu().numpy()
+            strain[:,:,0] /= 13.605662285137 * 2
+            onsite_param = {}
+            for bt in self.idp_sk.bond_types:
+                iasym, jasym = bt.split("-")
+                ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
+                for orbpair, slices in self.idp_sk.orbpair_maps.items():
+                    fiorb, fjorb = orbpair.split("-")
+                    iorb = self.idp_sk.full_basis_to_basis[iasym].get(fiorb)
+                    jorb = self.idp_sk.full_basis_to_basis[jasym].get(fjorb)
+                    if iorb != None and jorb != None and self.idp_sk.full_basis.index(fiorb) <= self.idp_sk.full_basis.index(fjorb):
+                        for i in range(slices.stop-slices.start):
+                            onsite_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = strain[pos_line, slices][i].tolist()
+
+        # onsite need more test and work
+        elif hasattr(self, "onsite_param"):
+            onsite_param = {}
+            for asym, slices in self.idp_sk.skonsite_maps.items():
+                for i in range(slices.start, slices.stop):
+                    orb = self.idp_sk.basis_to_full_basis[asym][i]
+                    onsite_param[f"{asym}-{orb}-{i}"] = self.onsite_param[self.idp_sk.chemical_symbol_to_type[asym], i].tolist()
+        
+        else:
+            onsite_param = {}
+
+        return {"onsite": onsite_param, "hopping": hopping_param}
+        
+
+
+
+
         
