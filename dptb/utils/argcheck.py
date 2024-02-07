@@ -333,6 +333,7 @@ def embedding():
             Argument("e3baseline_2", dict, e3baseline()),
             Argument("e3baseline_3", dict, e3baseline()),
             Argument("e3baseline_4", dict, e3baseline()),
+            Argument("e3baseline_5", dict, e3baseline()),
         ],optional=True, default_tag="se2", doc=doc_method)
 
 def se2():

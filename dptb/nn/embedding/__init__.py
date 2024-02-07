@@ -9,6 +9,7 @@ from .e3baseline_local1 import E3BaseLineModel1
 from .e3baseline_local2 import E3BaseLineModel2
 from .e3baseline_local3 import E3BaseLineModel3
 from .e3baseline_local4 import E3BaseLineModel4
+from .e3baseline_local5 import E3BaseLineModel5
 
 __all__ = [
     "Descriptor",
@@ -20,4 +21,5 @@ __all__ = [
     "E3BaseLineModel2",
     "E3BaseLineModel3",
     "E3BaseLineModel4",
+    "E3BaseLineModel5",
 ]
