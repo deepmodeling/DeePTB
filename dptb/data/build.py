@@ -5,6 +5,7 @@ import glob
 from importlib import import_module
 
 from dptb.data.dataset import DefaultDataset
+from dptb.data.dataset._deeph_dataset import DeePHE3Dataset
 from dptb import data
 from dptb.data.transforms import TypeMapper, OrbitalMapper
 from dptb.data import AtomicDataset, register_fields
@@ -121,7 +122,7 @@ def build_dataset(set_options, common_options):
     #        "prefix": "traj",
     #        "setinfo": "with_pbc.json"
     #    }
-    if dataset_type == "DefaultDataset":
+    if dataset_type in ["DefaultDataset", "DeePHDataset"]:
         # See if we can get a OrbitalMapper.
         if "basis" in common_options:
             idp = OrbitalMapper(common_options["basis"])
@@ -177,13 +178,22 @@ def build_dataset(set_options, common_options):
         # The order itself is not important, but must be consistant for the same list.
         info_files = {key: info_files[key] for key in sorted(info_files)}
         
-        dataset = DefaultDataset(
-            root=root,
-            type_mapper=idp,
-            get_Hamiltonian=set_options.get("get_Hamiltonian", False),
-            get_eigenvalues=set_options.get("get_eigenvalues", False),
-            info_files = info_files
-        )
+        if dataset_type == "DeePHDataset":
+            dataset = DeePHE3Dataset(
+                root=root,
+                type_mapper=idp,
+                get_Hamiltonian=set_options.get("get_Hamiltonian", False),
+                get_eigenvalues=set_options.get("get_eigenvalues", False),
+                info_files = info_files
+            )
+        else:
+            dataset = DefaultDataset(
+                root=root,
+                type_mapper=idp,
+                get_Hamiltonian=set_options.get("get_Hamiltonian", False),
+                get_eigenvalues=set_options.get("get_eigenvalues", False),
+                info_files = info_files
+            )
 
     else:
         raise ValueError(f"Not support dataset type: {type}.")

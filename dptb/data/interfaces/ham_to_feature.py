@@ -176,13 +176,17 @@ def openmx_to_deeptb(data, idp, openmx_hpath):
 
     for atom_i, atom_j, R_shift in zip(edge_index[0], edge_index[1], edge_cell_shift):
         block_index = str(list(R_shift.int().numpy())+[int(atom_i)+1, int(atom_j)+1])
-        try:
-            block = Hamiltonian_blocks[block_index][:]
-        except:
-            raise IndexError("Hamiltonian block for hopping not found, r_cut may be too big for input R.")
 
         symbol_i = ase.data.chemical_symbols[atomic_numbers[atom_i]]
         symbol_j = ase.data.chemical_symbols[atomic_numbers[atom_j]]
+
+        block = Hamiltonian_blocks.get(block_index, 0)
+        if block == 0:
+            block = torch.zeros(idp.norbs[symbol_i], idp.norbs[symbol_j])
+            log.warning("Hamiltonian block for hopping {} not found, r_cut may be too big for input R.".format(block_index))
+        else:
+            block = block[:]
+
         block = rot_blocks[symbol_i] @ block @ rot_blocks[symbol_j].T
         basis_i_list = idp.basis[symbol_i]
         basis_j_list = idp.basis[symbol_j]

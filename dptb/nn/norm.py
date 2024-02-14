@@ -4,6 +4,129 @@ from torch import nn
 from e3nn import o3
 from e3nn.util.jit import compile_mode
 from torch_scatter import scatter_mean
+from typing import Union
+
+class SeperableLayerNorm(nn.Module):
+    '''
+        1. Normalize over L = 0.
+        2. Normalize across all m components from degrees L > 0.
+        3. Do not normalize separately for different L (L > 0).
+    '''
+    def __init__(
+            self, 
+            irreps, 
+            eps=1e-5, 
+            affine=True, 
+            normalization='component', 
+            std_balance_degrees=True,
+            dtype: Union[str, torch.dtype] = torch.float32,
+            device: Union[str, torch.device] = torch.device("cpu")
+            ):
+        super().__init__()
+        if isinstance(irreps, o3.Irreps):
+            self.irreps = irreps.simplify()
+        else:
+            self.irreps = o3.Irreps(irreps).simplify()
+        if isinstance(dtype, str):
+            dtype = getattr(torch, dtype)
+        if isinstance(device, str):
+            device = torch.device(device)
+
+        self.eps = eps
+        self.lmax = self.irreps.lmax
+        self.affine = affine
+        self.num_scalar = 0
+        self.std_balance_degrees = std_balance_degrees
+        self.device = device
+        self.dtype = dtype
+
+        self.num_features = self.irreps.num_irreps
+
+        count_scales= 0
+        count_shift = 0
+        self.shift_index = []
+        self.scale_index = []
+        for mul, ir in self.irreps:
+            if str(ir) == "0e":
+                self.num_scalar += mul
+                self.shift_index += list(range(count_shift, count_shift + mul))
+                count_shift += mul
+            else:
+                self.shift_index += [-1] * mul * ir.dim
+
+            for _ in range(mul):
+                self.scale_index += [count_scales] * ir.dim
+                count_scales += 1
+        
+        self.shift_index = torch.as_tensor(self.shift_index, dtype=torch.int64, device=self.device)
+        self.scale_index = torch.as_tensor(self.scale_index, dtype=torch.int64, device=self.device)
+
+        if self.affine:
+            self.affine_weight = nn.Parameter(torch.ones(self.irreps.num_irreps))
+        else:
+            self.register_parameter('affine_weight', None)
+
+        assert normalization in ['norm', 'component']
+        self.normalization = normalization
+
+        if self.std_balance_degrees:
+            balance_degree_weight = torch.zeros(self.irreps.num_irreps)
+            count = 0
+            for mul, ir in self.irreps:
+                if ir.l == 0:
+                    balance_degree_weight[count:count+mul] = self.lmax # to make the devided value to 1.0
+                else:
+                    balance_degree_weight[count:count+mul] = (1.0 / ir.dim / mul)
+                count += mul
+            balance_degree_weight = balance_degree_weight / sum([1 for mul, ir in self.irreps if ir.l > 0])
+            self.register_buffer('balance_degree_weight', balance_degree_weight)
+        else:
+            self.balance_degree_weight = None
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(irreps={self.irreps}, eps={self.eps}, std_balance_degrees={self.std_balance_degrees})"
+
+
+    @torch.cuda.amp.autocast(enabled=False)
+    def forward(self, x):
+        '''
+            Assume input is of shape [N, sphere_basis, C]
+        '''
+        batch, dim = x.shape
+        x = x.reshape(batch, dim)  # [batch, stacked features]
+
+        # 1. shift the 0e value with their mean
+        # 2. compute the weight of all the features
+        # 3. do multiplication
+
+        # 1
+        feature_mean = x[:, self.shift_index.ge(0)].mean(dim=1, keepdim=True)
+        x = x + 0. # to avoid the inplace operation of x
+        x[:, self.shift_index.ge(0)] = x[:, self.shift_index.ge(0)] - feature_mean
+
+        # 2. compute the norm across all irreps except for 0e
+        if self.lmax > 0:
+            if self.normalization == 'norm':
+                feature_norm = x[:,self.shift_index.lt(0)].pow(2).sum(1, keepdim=True)              # [N, 1]
+            elif self.normalization == 'component':
+                if self.std_balance_degrees:
+                    feature_norm = x.pow(2)                              
+                    feature_norm = feature_norm * self.balance_degree_weight[self.scale_index] # [N, dim]
+                    feature_norm = feature_norm[:, self.shift_index.lt(0)].sum(1, keepdim=True) # [N, 1]
+                else:
+                    feature_norm = x[:,self.shift_index.lt(0)].pow(2).sum(dim=1, keepdim=True)     # [N, 1]
+        else:
+            if self.normalization == 'norm':
+                feature_norm = x[:,self.shift_index.lt(0)].pow(2).sum(1, keepdim=True)
+            else:
+                feature_norm = x[:,self.shift_index.lt(0)].pow(2).mean(1, keepdim=True)
+
+        feature_norm = (feature_norm + self.eps).pow(-0.5)
+        weight = self.affine_weight * feature_norm # [1, n_ir] * [N, 1] = [N, n_ir]
+
+        x = x * weight[:, self.scale_index]
+
+        return x
 
 @compile_mode("unsupported")
 class TypeNorm(nn.Module):

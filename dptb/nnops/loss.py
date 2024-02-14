@@ -7,6 +7,7 @@ from dptb.nn.hamiltonian import E3Hamiltonian
 from typing import Any, Union, Dict
 from dptb.data import AtomicDataDict, AtomicData
 from dptb.data.transforms import OrbitalMapper
+from e3nn.o3 import Irreps
 from dptb.utils.torch_geometric import Batch
 
 """this is the register class for descriptors
@@ -330,16 +331,23 @@ class HamilLossAnalysis(object):
             out = {}
             err = data[AtomicDataDict.NODE_FEATURES_KEY] - ref_data[AtomicDataDict.NODE_FEATURES_KEY]
             amp = ref_data[AtomicDataDict.NODE_FEATURES_KEY].abs()
-            mask = self.idp.mask_to_nrme[data["atom_types"].flatten()]
+            mask = self.idp.mask_to_nrme
             onsite = out.setdefault("onsite", {})
             for at, tp in self.idp.chemical_symbol_to_type.items():
-                onsite_mask = mask[data["atom_types"].flatten().eq(tp)]
+                onsite_mask = mask[tp]
                 onsite_err = err[data["atom_types"].flatten().eq(tp)]
                 onsite_amp = amp[data["atom_types"].flatten().eq(tp)]
-                onsite_err = torch.stack([vec[ma] for vec, ma in zip(onsite_err, onsite_mask)])
-                onsite_amp = torch.stack([vec[ma] for vec, ma in zip(onsite_amp, onsite_mask)])
+                onsite_err = onsite_err[:, onsite_mask]
+                onsite_amp = onsite_amp[:, onsite_mask]
                 rmserr = (onsite_err**2).mean(dim=0).sqrt()
                 maerr = onsite_err.abs().mean(dim=0)
+                rmse_per_irreps = torch.zeros(err.shape[1], dtype=err.dtype, device=err.device)
+                rmse_per_irreps[onsite_mask] = rmserr
+                maerr_per_irreps = torch.zeros(err.shape[1], dtype=err.dtype, device=err.device)
+                maerr_per_irreps[onsite_mask] = maerr
+
+                rmse_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, rmse_per_irreps)
+                maerr_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, maerr_per_irreps)
                 l1amp = onsite_amp.abs().mean(dim=0)
                 l2amp = (onsite_amp**2).mean(dim=0).sqrt()
                 onsite[at] = {
@@ -347,22 +355,31 @@ class HamilLossAnalysis(object):
                     "mae":maerr.mean(),
                     "rmse_per_block_element":rmserr, 
                     "mae_per_block_element":maerr,
+                    "rmse_per_irreps":rmse_per_irreps,
+                    "mae_per_irreps":maerr_per_irreps,
                     "l1amp":l1amp,
                     "l2amp":l2amp,
                     }
 
             err = data[AtomicDataDict.EDGE_FEATURES_KEY] - ref_data[AtomicDataDict.EDGE_FEATURES_KEY]
             amp = ref_data[AtomicDataDict.EDGE_FEATURES_KEY].abs()
-            mask = self.idp.mask_to_erme[data["edge_type"].flatten()]
+            mask = self.idp.mask_to_erme
             hopping = out.setdefault("hopping", {})
             for bt, tp in self.idp.bond_to_type.items():
-                hopping_mask = mask[data["edge_type"].flatten().eq(tp)]
+                hopping_mask = mask[tp]
                 hopping_err = err[data["edge_type"].flatten().eq(tp)]
                 hopping_amp = amp[data["edge_type"].flatten().eq(tp)]
-                hopping_err = torch.stack([vec[ma] for vec, ma in zip(hopping_err, hopping_mask)])
-                hopping_amp = torch.stack([vec[ma] for vec, ma in zip(hopping_amp, hopping_mask)])
+                hopping_err = hopping_err[:, hopping_mask]
+                hopping_amp = hopping_amp[:, hopping_mask]
                 rmserr = (hopping_err**2).mean(dim=0).sqrt()
                 maerr = hopping_err.abs().mean(dim=0)
+                rmse_per_irreps = torch.zeros(err.shape[1], dtype=err.dtype, device=err.device)
+                rmse_per_irreps[hopping_mask] = rmserr
+                maerr_per_irreps = torch.zeros(err.shape[1], dtype=err.dtype, device=err.device)
+                maerr_per_irreps[hopping_mask] = maerr
+
+                rmse_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, rmse_per_irreps)
+                maerr_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, maerr_per_irreps)
                 l1amp = hopping_amp.abs().mean(dim=0)
                 l2amp = (hopping_amp**2).mean(dim=0).sqrt()
                 hopping[bt] = {
@@ -370,6 +387,8 @@ class HamilLossAnalysis(object):
                     "mae":maerr.mean(),
                     "rmse_per_block_element":rmserr, 
                     "mae_per_block_element":maerr,
+                    "rmse_per_irreps":rmse_per_irreps,
+                    "mae_per_irreps":maerr_per_irreps,
                     "l1amp":l1amp,
                     "l2amp":l2amp,
                     }
@@ -377,17 +396,24 @@ class HamilLossAnalysis(object):
             if self.overlap:
                 err = data[AtomicDataDict.EDGE_OVERLAP_KEY] - ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
                 amp = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY].abs()
-                mask = self.idp.mask_to_erme[data["edge_type"].flatten()]
+                mask = self.idp.mask_to_erme
                 overlap = out.setdefault("overlap", {})
 
                 for bt, tp in self.idp.bond_to_type.items():
-                    hopping_mask = mask[data["edge_type"].flatten().eq(tp)]
+                    hopping_mask = mask[tp]
                     hopping_err = err[data["edge_type"].flatten().eq(tp)]
                     hopping_amp = amp[data["edge_type"].flatten().eq(tp)]
-                    hopping_err = torch.stack([vec[ma] for vec, ma in zip(hopping_err, hopping_mask)])
-                    hopping_amp = torch.stack([vec[ma] for vec, ma in zip(hopping_amp, hopping_mask)])
+                    hopping_err = hopping_err[:, hopping_mask]
+                    hopping_amp = hopping_amp[:, hopping_mask]
                     rmserr = (hopping_err**2).mean(dim=0).sqrt()
                     maerr = hopping_err.abs().mean(dim=0)
+                    rmse_per_irreps = torch.zeros(err.shape[1], dtype=err.dtype, device=err.device)
+                    rmse_per_irreps[hopping_mask] = rmserr
+                    maerr_per_irreps = torch.zeros(err.shape[1], dtype=err.dtype, device=err.device)
+                    maerr_per_irreps[hopping_mask] = maerr
+
+                    rmse_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, rmse_per_irreps)
+                    maerr_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, maerr_per_irreps)
                     l1amp = hopping_amp.abs().mean(dim=0)
                     l2amp = (hopping_amp**2).mean(dim=0).sqrt()
 
@@ -396,8 +422,23 @@ class HamilLossAnalysis(object):
                         "mae":maerr.mean(),
                         "rmse_per_block_element":rmserr, 
                         "mae_per_block_element":maerr,
+                        "rmse_per_irreps":rmse_per_irreps,
+                        "mae_per_irreps":maerr_per_irreps,
                         "l1amp":l1amp,
                         "l2amp":l2amp,
                         }
 
         return out
+
+    def __cal_norm__(self, irreps: Irreps, x: torch.Tensor):
+        id = 0
+        out = []
+        if len(x.shape) == 1:
+            x = x.unsqueeze_(0)
+        for mul, ir in irreps:
+            tensor = x[:,id:id+mul*ir.dim].reshape(-1, mul, ir.dim)
+            id = id + mul*ir.dim
+            tensor = tensor.norm(dim=-1)
+            out.append(tensor)
+
+        return torch.cat(out, dim=-1).squeeze(0)

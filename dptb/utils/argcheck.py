@@ -333,7 +333,8 @@ def embedding():
             Argument("e3baseline_2", dict, e3baseline()),
             Argument("e3baseline_3", dict, e3baseline()),
             Argument("e3baseline_4", dict, e3baseline()),
-            Argument("e3baseline_5", dict, e3baseline()),
+            Argument("e3baseline_5", dict, e3baselinev5()),
+            Argument("e3baseline_6", dict, e3baselinev5()),
         ],optional=True, default_tag="se2", doc=doc_method)
 
 def se2():
@@ -440,6 +441,37 @@ def e3baseline():
             Argument("env_embed_multiplicity", int, optional=True, default=1, doc=doc_env_embed_multiplicity),
             Argument("linear_after_env_embed", bool, optional=True, default=False, doc=doc_linear_after_env_embed),
             Argument("latent_resnet_update_ratios_learnable", bool, optional=True, default=False, doc=doc_latent_resnet_update_ratios_learnable)
+        ]
+
+def e3baselinev5():
+    doc_irreps_hidden = ""
+    doc_lmax = ""
+    doc_avg_num_neighbors = ""
+    doc_n_radial_basis = ""
+    doc_r_max = ""
+    doc_n_layers = ""
+    doc_env_embed_multiplicity = ""
+    doc_linear_after_env_embed = ""
+    doc_latent_resnet_update_ratios_learnable = ""
+    doc_latent_kwargs = ""
+
+    return [
+            Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
+            Argument("lmax", int, optional=False, doc=doc_lmax),
+            Argument("avg_num_neighbors", [int, float], optional=False, doc=doc_avg_num_neighbors),
+            Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
+            Argument("n_layers", int, optional=False, doc=doc_n_layers),
+            Argument("n_radial_basis", int, optional=True, default=10, doc=doc_n_radial_basis),
+            Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
+            Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
+            Argument("env_embed_multiplicity", int, optional=True, default=1, doc=doc_env_embed_multiplicity),
+            Argument("tp_radial_emb", bool, optional=True, default=False, doc="Whether to use tensor product radial embedding."),
+            Argument("tp_radial_channels", list, optional=True, default=[128, 128], doc="The number of channels in tensor product radial embedding."),
+            Argument("latent_channels", list, optional=True, default=[128, 128], doc="The number of channels in latent embedding."),
+            Argument("latent_dim", int, optional=True, default=256, doc="The dimension of latent embedding."),
+            Argument("res_update", bool, optional=True, default=True, doc="Whether to use residual update."),
+            Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
+            Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
         ]
 
 
