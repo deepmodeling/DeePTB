@@ -63,6 +63,7 @@ class SeperableLayerNorm(nn.Module):
 
         if self.affine:
             self.affine_weight = nn.Parameter(torch.ones(self.irreps.num_irreps))
+            self.affine_bias = nn.Parameter(torch.zeros(self.num_scalar))
         else:
             self.register_parameter('affine_weight', None)
 
@@ -125,6 +126,7 @@ class SeperableLayerNorm(nn.Module):
         weight = self.affine_weight * feature_norm # [1, n_ir] * [N, 1] = [N, n_ir]
 
         x = x * weight[:, self.scale_index]
+        x[:, self.shift_index.ge(0)] = x[:, self.shift_index.ge(0)] + self.affine_bias
 
         return x
 

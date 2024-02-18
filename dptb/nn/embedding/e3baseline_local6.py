@@ -396,6 +396,26 @@ class InitLayer(torch.nn.Module):
                         mlp_initialization="uniform",
                     )
 
+        self.sln_n = SeperableLayerNorm(
+            irreps=self.irreps_out,
+            eps=1e-5, 
+            affine=True, 
+            normalization='component', 
+            std_balance_degrees=True,
+            dtype=self.dtype,
+            device=self.device
+        )
+
+        self.sln_h = SeperableLayerNorm(
+            irreps=self.irreps_out,
+            eps=1e-5, 
+            affine=True, 
+            normalization='component', 
+            std_balance_degrees=True,
+            dtype=self.dtype,
+            device=self.device
+        )
+
         self._env_weighter = Linear(
             irreps_in=irreps_sh,
             irreps_out=self.irreps_out,
@@ -522,6 +542,9 @@ class InitLayer(torch.nn.Module):
         
         node_features = node_features * norm_const
 
+        node_features = self.sln_n(node_features)
+        hidden_features = self.sln_h(hidden_features)
+
         return latents, node_features, edge_features, hidden_features, cutoff_coeffs, active_edges # the radial embedding x and the sperical hidden V
 
 class UpdateNode(torch.nn.Module):
@@ -571,15 +594,15 @@ class UpdateNode(torch.nn.Module):
         #     device=self.device
         # )
 
-        # self.sln_no = SeperableLayerNorm(
-        #     irreps=self.irreps_out,
-        #     eps=1e-5, 
-        #     affine=True, 
-        #     normalization='component', 
-        #     std_balance_degrees=True,
-        #     dtype=self.dtype,
-        #     device=self.device
-        # )
+        self.sln = SeperableLayerNorm(
+            irreps=self.irreps_in,
+            eps=1e-5, 
+            affine=True, 
+            normalization='component', 
+            std_balance_degrees=True,
+            dtype=self.dtype,
+            device=self.device
+        )
 
         # self.sln_h = SeperableLayerNorm(
         #     irreps=self.irreps_hidden,
@@ -671,10 +694,10 @@ class UpdateNode(torch.nn.Module):
         edge_center = edge_index[0]
         edge_neighbor = edge_index[1]
 
-        # node_features = self.sln(node_features)
+        new_node_features = self.sln(node_features)
         message = self.tp(
             torch.cat(
-                [node_features[edge_center[active_edges]], hidden_features]
+                [new_node_features[edge_center[active_edges]], hidden_features]
                 , dim=-1), edge_vector[active_edges], latents) # full_out_irreps
         
         message = self.activation(message)
@@ -834,7 +857,6 @@ class UpdateEdge(torch.nn.Module):
         edge_center = edge_index[0]
         edge_neighbor = edge_index[1]
 
-        # node_features = self.sln_n(node_features)
         new_edge_features = self.tp(
             torch.cat(
                 [
@@ -903,15 +925,15 @@ class UpdateHidden(torch.nn.Module):
         self.ln = torch.nn.LayerNorm(latent_dim)
         self.ln_o = torch.nn.LayerNorm(latent_dim)
 
-        # self.sln_n = SeperableLayerNorm(
-        #     irreps=self.irreps_in,
-        #     eps=1e-5, 
-        #     affine=True, 
-        #     normalization='component', 
-        #     std_balance_degrees=True,
-        #     dtype=self.dtype,
-        #     device=self.device
-        # )
+        self.sln = SeperableLayerNorm(
+            irreps=self.irreps_hidden_in,
+            eps=1e-5, 
+            affine=True, 
+            normalization='component', 
+            std_balance_degrees=True,
+            dtype=self.dtype,
+            device=self.device
+        )
 
         self.tp = SO2_Linear(
             irreps_in=self.irreps_fea+self.irreps_hidden_in,
@@ -996,11 +1018,12 @@ class UpdateHidden(torch.nn.Module):
         edge_center = edge_index[0]
         edge_neighbor = edge_index[1]
 
+        new_hidden_features = self.sln(hidden_features)
         new_hidden_features = self.tp(
             torch.cat(
                 [
                     node_features[edge_center[active_edges]],
-                    hidden_features
+                    new_hidden_features
                     ]
                 , dim=-1), edge_vector[active_edges], latents)
         
@@ -1119,13 +1142,35 @@ class Layer(torch.nn.Module):
             device=device,
         )
 
+        self.sln_n = SeperableLayerNorm(
+            irreps=self.irreps_in,
+            eps=1e-5, 
+            affine=True, 
+            normalization='component', 
+            std_balance_degrees=True,
+            dtype=self.dtype,
+            device=self.device
+        )
+
+        self.sln_h = SeperableLayerNorm(
+            irreps=self.irreps_hidden_out,
+            eps=1e-5, 
+            affine=True, 
+            normalization='component', 
+            std_balance_degrees=True,
+            dtype=self.dtype,
+            device=self.device
+        )
+
     def forward(self, latents, node_features, hidden_features, edge_features, node_onehot, edge_index, edge_vector, atom_type, cutoff_coeffs, active_edges):
+        
+        n_node_features = self.sln_n(node_features)
+        hidden_features, latents = self.hidden_update(latents, n_node_features, hidden_features, node_onehot, edge_index, edge_vector, cutoff_coeffs, active_edges)
 
-        hidden_features, latents = self.hidden_update(latents, node_features, hidden_features, node_onehot, edge_index, edge_vector, cutoff_coeffs, active_edges)
+        n_hidden_features = self.sln_h(hidden_features)
+        edge_features = self.edge_update(latents, n_node_features, n_hidden_features, edge_features, edge_index, edge_vector, active_edges)
 
-        edge_features = self.edge_update(latents, node_features, hidden_features, edge_features, edge_index, edge_vector, active_edges)
-
-        node_features = self.node_update(latents, node_features, hidden_features, atom_type, node_onehot, edge_index, edge_vector, active_edges)
+        node_features = self.node_update(latents, node_features, n_hidden_features, atom_type, node_onehot, edge_index, edge_vector, active_edges)
 
         return hidden_features, node_features, edge_features
     

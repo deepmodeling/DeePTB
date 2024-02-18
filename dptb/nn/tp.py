@@ -1,4 +1,4 @@
-from e3nn.o3 import xyz_to_angles, Irrep
+from e3nn.o3 import xyz_to_angles, Irreps
 import math
 import torch
 import torch.nn as nn
@@ -51,12 +51,13 @@ class SO2_Linear(torch.nn.Module):
         radial_emb: bool = False,
         latent_dim: int = None,
         radial_channels: list = None,
+        extra_m0_outsize: int = 0,
     ):
         super(SO2_Linear, self).__init__()
         
 
         self.irreps_in = irreps_in.simplify()
-        self.irreps_out = irreps_out.simplify()
+        self.irreps_out = (Irreps(f"{extra_m0_outsize}x0e") + irreps_out).simplify()
         self.radial_emb = radial_emb
         self.latent_dim = latent_dim
         self.m_linear = nn.ModuleList()
