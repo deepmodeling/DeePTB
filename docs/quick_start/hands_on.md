@@ -53,9 +53,10 @@ Having the data file and input parameter, we can start training our first **DeeP
     
 "model_options": {
     "nnsk": {
-        "onsite": {"method": "none"},
-        "hopping": {"method": "powerlaw", "rs":1.6, "w":0.3},
-        "freeze": false
+            "onsite": {"method": "none"},
+            "hopping": {"method": "powerlaw", "rs":1.6, "w":0.3},
+            "freeze": false
+        }
     }
 ```
 We are training a **DeePTB** model using Slater-Kohster parameterization, so we need to build the `nnsk` model here. The `method` of  ```onsite``` is set to ```none```, which means we do not use onsite correction. The ```rs``` of `hopping` is set to ```1.6``` which means we use the 1st nearest neighbour for building hopping integrals for now. The ```basis``` for each element is set to ```2s``` and ```2p``` which means we use $2s$ and $2p$ orbitals as basis. 
@@ -85,6 +86,8 @@ It shows that the fitting has learned the rough shape of the bandstructure, but 
         }
     }
 ```
+> The modified input files are provided in `./inputs` as references.
+
 And we can run the training for strain model:
 
 ```bash
@@ -121,7 +124,7 @@ We finally get the model with more neighbors. We can plot the result again:
 
 We can again increase more training epochs, using the larger cutoff checkpoint. This can be done simply by assigning a large `num_epoch` in `train_options`. 
 
-And we can get a better fitting result:
+And we can get a fairly good fitting result:
 
 ![band_longtrain](../img/hBN_band_longtrain.png)
 
