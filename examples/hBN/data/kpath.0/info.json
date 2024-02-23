@@ -11,7 +11,7 @@
     "bandinfo": {
         "band_min": 0,
         "band_max": 6,
-        "emin": -0.1,
-        "emax": 25.0
+        "emin": null,
+        "emax": null
     }
 }
