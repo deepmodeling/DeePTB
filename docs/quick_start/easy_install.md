@@ -15,12 +15,15 @@ If you are installing from source, you will need:
 - ifermi (optional, install only when 3D fermi-surface plotting is needed.)
 
 First clone or download the source code from the website.
-Then, located in the repository root and running 
-
+```bash
+git clone https://github.com/deepmodeling/DeePTB.git
+```
+Then, locate in the repository root and simply running 
 ```bash
 cd path/deeptb
 pip install .
 ```
+
 ## From Pypi and Conda
 
 Will be available soon.
