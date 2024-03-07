@@ -106,7 +106,8 @@ class DeviceProperty(object):
         '''
         self.lead_L = lead_L
         self.lead_R = lead_R
-        self.mu = self.efermi - 0.5*(self.lead_L.voltage + self.lead_R.voltage)
+      # self.mu = self.efermi - 0.5*(self.lead_L.voltage + self.lead_R.voltage) # temporarily for NanoTCAD
+
 
     def cal_green_function(self, energy, kpoint, eta_device=0., block_tridiagonal=True, Vbias=None):
         ''' computes the Green's function for a given energy and k-point in device.
@@ -166,7 +167,7 @@ class DeviceProperty(object):
         
         assert torch.is_tensor(self.V)
         if not self.oldV is None:
-            if abs(self.V - self.oldV).sum() > 1e-5:
+            if torch.abs(self.V - self.oldV).sum() > 1e-5:
                 self.newV_flag = True
             else:
                 self.newV_flag = False
@@ -179,7 +180,7 @@ class DeviceProperty(object):
         
         if not hasattr(self, "hd") or not hasattr(self, "sd"): 
             self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
-        if self.newK_flag or self.newV_flag: # check whether kpoints or Vbias change or not
+        elif self.newK_flag or self.newV_flag: # check whether kpoints or Vbias change or not
             self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
         
         s_in = [torch.zeros(i.shape).cdouble() for i in self.hd]
@@ -351,7 +352,8 @@ class DeviceProperty(object):
         accmap = np.cumsum(norbs)
         ldos = torch.stack([ldos[accmap[i]:accmap[i+1]].sum() for i in range(len(accmap)-1)])
 
-        return ldos*2
+        # return ldos*2
+        return ldos #temporarily return the ldos without spin degeneracy
 
     def _cal_local_current_(self):
         '''calculate the local current between different atoms 
