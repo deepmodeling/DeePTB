@@ -1,10 +1,11 @@
 import numpy as np 
 import pyamg #TODO: later add it to optional dependencies,like sisl
 from pyamg.gallery import poisson
-from dptb.utils.constants import elementary_charge as q
+from dptb.utils.constants import elementary_charge
 from dptb.utils.constants import Boltzmann, eV2J
 from scipy.constants import epsilon_0 as eps0  #TODO:later add to untils.constants.py
 from scipy.sparse import csr_matrix
+from scipy.sparse.linalg import spsolve
 #eps0 = 8.854187817e-12 # in the unit of F/m
 # As length in deeptb is in the unit of Angstrom, the unit of eps0 is F/Angstrom
 eps0 = eps0*1e-10 # in the unit of F/Angstrom
@@ -14,12 +15,15 @@ class Grid(object):
     # define the grid in 3D space
     def __init__(self,xg,yg,zg,xa,ya,za):
         # xg,yg,zg are the coordinates of the basic grid points
-        self.xg = np.around(xg,decimals=5);self.yg = np.around(yg,decimals=5);self.zg = np.around(zg,decimals=5)
+        # self.xg = np.around(xg,decimals=5);self.yg = np.around(yg,decimals=5);self.zg = np.around(zg,decimals=5)
+        self.xg = xg
+        self.yg = yg
+        self.zg = zg
         # xa,ya,za are the coordinates of the atoms
         # atom should be within the grid
-        assert (xa-np.min(xg)).all() and (xa-np.max(xg)).all()
-        assert (ya-np.min(yg)).all() and (ya-np.max(yg)).all()
-        assert (za-np.min(zg)).all() and (za-np.max(zg)).all()
+        assert np.min(xa) >= np.min(xg) and np.max(xa) <= np.max(xg)
+        assert np.min(ya) >= np.min(yg) and np.max(ya) <= np.max(yg)
+        assert np.min(za) >= np.min(zg) and np.max(za) <= np.max(zg)
 
         self.Na = len(xa) # number of atoms
         uxa = np.unique(xa);uya = np.unique(ya);uza = np.unique(za)
@@ -29,6 +33,7 @@ class Grid(object):
         self.zall = np.unique(np.concatenate((uza,self.zg),0))
         self.shape = (len(self.xall),len(self.yall),len(self.zall))
 
+        print('unique len of zall:',len(np.unique(self.zall)))
 
         # create meshgrid
         xmesh,ymesh,zmesh = np.meshgrid(self.xall,self.yall,self.zall)
@@ -199,6 +204,19 @@ class Interface3D(object):
         
         return A,b
     
+    
+    def to_scipy(self,dtype=None):
+        # convert to amg format A,b matrix
+        if dtype == None:
+            dtype = np.float64
+        # A = poisson(self.grid.shape,format='csr',dtype=dtype)
+        Jacobian = csr_matrix(np.zeros((self.grid.Np,self.grid.Np),dtype=dtype))
+        B = np.zeros(Jacobian.shape[0],dtype=Jacobian.dtype)
+        self.NR_construct_Jacobian(Jacobian)
+        self.NR_construct_B(B)
+        # self.construct_poisson(A,b)
+        return Jacobian,B
+    
     def construct_poisson(self,A,b):
         # construct the Poisson equation by adding boundary conditions and free charge to the matrix A and vector b
         Nx = self.grid.shape[0];Ny = self.grid.shape[1];Nz = self.grid.shape[2]
@@ -242,9 +260,17 @@ class Interface3D(object):
                 A[gp_index,gp_index-Nx*Ny] = flux_zm
                 A[gp_index,gp_index+Nx*Ny] = flux_zp
 
-                b[gp_index] = -q*self.free_charge[gp_index]\
-                    *np.exp(-np.sign(self.free_charge[gp_index])*(self.phi[gp_index]-self.phi_old[gp_index])/self.kBT)\
-                    -q*self.fixed_charge[gp_index]
+                # b[gp_index] = -elementary_charge*self.free_charge[gp_index]\
+                #     *np.exp(-np.sign(self.free_charge[gp_index])*(self.phi[gp_index]-self.phi_old[gp_index])/self.kBT)\
+                #     -elementary_charge*self.fixed_charge[gp_index]
+
+                # TODO: remove damping factor temporarily
+                # b[gp_index] = -elementary_charge*self.free_charge[gp_index]\
+                #     *np.exp(-np.sign(self.free_charge[gp_index])*(self.phi[gp_index]-self.phi_initial[gp_index])/self.kBT)\
+                #     -elementary_charge*self.fixed_charge[gp_index]
+                b[gp_index] = -elementary_charge*self.free_charge[gp_index] -elementary_charge*self.fixed_charge[gp_index]
+
+                # free charge and fixed charge are number of electrons in real-space grid points
                 # the above free_charge form accelerate the convergence of the Poisson equation
                 # only internal points have non-zero free_charge and fixed_charge
 
@@ -304,7 +330,38 @@ class Interface3D(object):
         if method == 'pyamg':
             A,b = self.to_pyamg()
             self.phi = self.solve_poisson_pyamg(A,b,tolerance)
-
+            max_diff = np.max(abs(self.phi-self.phi_old))
+            return max_diff
+        elif method == 'scipy':
+            
+            print('Solve Poisson equation by scipy')
+            # NR iteration
+            self.phi_initial = self.phi.copy() # tilde_phi in paper
+            norm_avp = 1.0; NR_circle_count = 0
+            while norm_avp > 1e-3 and NR_circle_count < 100:
+                Jacobian,B = self.to_scipy()
+                norm_B = np.linalg.norm(B)
+                        
+                delta_phi = spsolve(Jacobian,B)
+                self.phi_oldstep = self.phi.copy()
+                
+                max_diff_NR = np.max(abs(delta_phi))
+                print('max_diff_NR: ',max_diff_NR)
+                norm_avp = np.linalg.norm(delta_phi)
+                self.phi += delta_phi
+                if norm_avp > 1e-3:
+                    _,B = self.to_scipy()
+                    norm_B_new = np.linalg.norm(B)
+                    print('norm_B_new: ',norm_B_new)
+                    control_count = 1
+                    while norm_B_new > norm_B and control_count < 2:
+                        self.phi -= delta_phi/np.power(2,control_count)
+                        _,B = self.to_scipy()
+                        norm_B_new = np.linalg.norm(B)
+                        control_count += 1    
+                        print('control_count: ',control_count,'  norm_B_new: ',norm_B_new)           
+                NR_circle_count += 1
+                print('NR circle: ',NR_circle_count,'  norm_avp: ', norm_avp)
             max_diff = np.max(abs(self.phi-self.phi_old))
             return max_diff
         else:
@@ -312,6 +369,103 @@ class Interface3D(object):
 
 
 
+    def NR_construct_Jacobian(self,J):
+        # construct the Jacobian matrix for the Poisson equation
+        
+        Nx = self.grid.shape[0];Ny = self.grid.shape[1];Nz = self.grid.shape[2]
+        for gp_index in range(self.grid.Np):
+            if self.boudnary_points[gp_index] == "in":
+                flux_xm = self.grid.surface_grid[gp_index,0]*eps0*(self.eps[gp_index-1]+self.eps[gp_index])*0.5\
+                /abs(self.grid.grid_coord[gp_index,0]-self.grid.grid_coord[gp_index-1,0])
+                flux_xp = self.grid.surface_grid[gp_index,0]*eps0*(self.eps[gp_index+1]+self.eps[gp_index])*0.5\
+                /abs(self.grid.grid_coord[gp_index+1,0]-self.grid.grid_coord[gp_index,0])
+                
+                flux_ym = self.grid.surface_grid[gp_index,1]*eps0*(self.eps[gp_index-Nx]+self.eps[gp_index])*0.5\
+                /abs(self.grid.grid_coord[gp_index-Nx,1]-self.grid.grid_coord[gp_index,1])
+                flux_yp = self.grid.surface_grid[gp_index,1]*eps0*(self.eps[gp_index+Nx]+self.eps[gp_index])*0.5\
+                /abs(self.grid.grid_coord[gp_index+Nx,1]-self.grid.grid_coord[gp_index,1])
+
+                flux_zm = self.grid.surface_grid[gp_index,2]*eps0*(self.eps[gp_index-Nx*Ny]+self.eps[gp_index])*0.5\
+                /abs(self.grid.grid_coord[gp_index-Nx*Ny,2]-self.grid.grid_coord[gp_index,2])
+                flux_zp = self.grid.surface_grid[gp_index,2]*eps0*(self.eps[gp_index+Nx*Ny]+self.eps[gp_index])*0.5\
+                /abs(self.grid.grid_coord[gp_index+Nx*Ny,2]-self.grid.grid_coord[gp_index,2])
+
+                # add flux term to matrix A
+                J[gp_index,gp_index] = -(flux_xm+flux_xp+flux_ym+flux_yp+flux_zm+flux_zp)\
+                    +elementary_charge*self.free_charge[gp_index]*(-np.sign(self.free_charge[gp_index]))/self.kBT*np.exp(-np.sign(self.free_charge[gp_index])*(self.phi[gp_index]-self.phi_old[gp_index])/self.kBT)
+                J[gp_index,gp_index-1] = flux_xm
+                J[gp_index,gp_index+1] = flux_xp
+                J[gp_index,gp_index-Nx] = flux_ym
+                J[gp_index,gp_index+Nx] = flux_yp
+                J[gp_index,gp_index-Nx*Ny] = flux_zm
+                J[gp_index,gp_index+Nx*Ny] = flux_zp
+
+            else:# boundary points
+                J[gp_index,gp_index] = elementary_charge
+                
+                if self.boudnary_points[gp_index] == "xmin":   
+                    J[gp_index,gp_index+1] = -1.0*elementary_charge
+                elif self.boudnary_points[gp_index] == "xmax":
+                    J[gp_index,gp_index-1] = -1.0*elementary_charge
+                elif self.boudnary_points[gp_index] == "ymin":
+                    J[gp_index,gp_index+Nx] = -1.0*elementary_charge
+                elif self.boudnary_points[gp_index] == "ymax":
+                    J[gp_index,gp_index-Nx] = -1.0*elementary_charge
+                elif self.boudnary_points[gp_index] == "zmin":
+                    J[gp_index,gp_index+Nx*Ny] = -1.0*elementary_charge
+                elif self.boudnary_points[gp_index] == "zmax":
+                    J[gp_index,gp_index-Nx*Ny] = -1.0*elementary_charge
+                elif self.boudnary_points[gp_index] == "Gate":
+                    J[gp_index,gp_index] = elementary_charge
+        
+    def NR_construct_B(self,B):
+    # construct the -B matrix in NR iteration
+    # Note that the sign of B has been changed for convenience in later NR iteration
+    # return -B
+        Nx = self.grid.shape[0];Ny = self.grid.shape[1];Nz = self.grid.shape[2]
+        for gp_index in range(self.grid.Np):
+            if self.boudnary_points[gp_index] == "in":
+                flux_xm = self.grid.surface_grid[gp_index,0]*eps0*(self.eps[gp_index-1]+self.eps[gp_index])*0.5\
+                *(self.phi[gp_index-1]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index,0]-self.grid.grid_coord[gp_index-1,0])
+                flux_xp = self.grid.surface_grid[gp_index,0]*eps0*(self.eps[gp_index+1]+self.eps[gp_index])*0.5\
+                *(self.phi[gp_index+1]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index+1,0]-self.grid.grid_coord[gp_index,0])
+                
+                flux_ym = self.grid.surface_grid[gp_index,1]*eps0*(self.eps[gp_index-Nx]+self.eps[gp_index])*0.5\
+                *(self.phi[gp_index-Nx]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index-Nx,1]-self.grid.grid_coord[gp_index,1])
+                flux_yp = self.grid.surface_grid[gp_index,1]*eps0*(self.eps[gp_index+Nx]+self.eps[gp_index])*0.5\
+                *(self.phi[gp_index+Nx]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index+Nx,1]-self.grid.grid_coord[gp_index,1])
+
+                flux_zm = self.grid.surface_grid[gp_index,2]*eps0*(self.eps[gp_index-Nx*Ny]+self.eps[gp_index])*0.5\
+                *(self.phi[gp_index-Nx*Ny]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index-Nx*Ny,2]-self.grid.grid_coord[gp_index,2])
+                flux_zp = self.grid.surface_grid[gp_index,2]*eps0*(self.eps[gp_index+Nx*Ny]+self.eps[gp_index])*0.5\
+                *(self.phi[gp_index+Nx*Ny]-self.phi[gp_index])/abs(self.grid.grid_coord[gp_index+Nx*Ny,2]-self.grid.grid_coord[gp_index,2])
+ 
+                # add flux term to matrix B
+                B[gp_index] = (flux_xm+flux_xp+flux_ym+flux_yp+flux_zm+flux_zp)
+                B[gp_index] += elementary_charge*self.free_charge[gp_index]*np.exp(-np.sign(self.free_charge[gp_index])*(self.phi[gp_index]-self.phi_old[gp_index])/self.kBT)\
+                    +elementary_charge*self.fixed_charge[gp_index]
+
+
+            else:# boundary points
+                        
+                if self.boudnary_points[gp_index] == "xmin":   
+                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index+1])*elementary_charge
+                elif self.boudnary_points[gp_index] == "xmax":
+                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index-1])*elementary_charge
+                elif self.boudnary_points[gp_index] == "ymin":
+                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index+Nx])*elementary_charge
+                elif self.boudnary_points[gp_index] == "ymax":
+                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index-Nx])*elementary_charge
+                elif self.boudnary_points[gp_index] == "zmin":
+                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index+Nx*Ny])*elementary_charge
+                elif self.boudnary_points[gp_index] == "zmax":
+                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index-Nx*Ny])*elementary_charge
+                elif self.boudnary_points[gp_index] == "Gate":
+                    B[gp_index] = (self.phi[gp_index]+self.lead_gate_potential[gp_index])*elementary_charge
+                #TODO: add lead potential. For dptb-negf, we only need to change zmin and zmax as lead
+
+            if B[gp_index]!=0: # for convenience change the sign of B in later NR iteration
+                B[gp_index] = -B[gp_index]
         
 
 
