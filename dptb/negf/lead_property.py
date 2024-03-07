@@ -92,10 +92,11 @@ class LeadProperty(object):
         assert len(np.array(kpoint).reshape(-1)) == 3
         # according to given kpoint and e_mesh, calculating or loading the self energy and surface green function to self.
         if not isinstance(energy, torch.Tensor):
-            energy = torch.tensor(energy)
+            energy = torch.tensor(energy) # energy relative to Ef
 
-        if not hasattr(self, "HL"):
-            self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
+        # if not hasattr(self, "HL"):
+        #TODO: check here whether it is necessary to calculate the self energy every time
+        self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
 
         self.se, _ = selfEnergy(
             ee=energy,
@@ -105,7 +106,7 @@ class LeadProperty(object):
             sLL=self.SLL,
             hDL=self.HDL,
             sDL=self.SDL,
-            chemiPot=self.mu,
+            chemiPot=self.efermi, # temmporarily change to self.efermi for the case in which applying lead bias to corresponding to Nanotcad
             etaLead=eta_lead, 
             method=method
         )
@@ -126,7 +127,7 @@ class LeadProperty(object):
             The Gamma function.
         
         '''
-        return -1j * (se - se.conj().T)
+        return 1j * (se - se.conj().T)
     
     def fermi_dirac(self, x) -> torch.Tensor:
         return 1 / (1 + torch.exp((x - self.mu)/ self.kBT))
