@@ -6,7 +6,7 @@ from dptb.negf.surface_green import selfEnergy
 from dptb.negf.negf_utils import quad, gauss_xw,update_kmap,leggauss
 from dptb.negf.ozaki_res_cal import ozaki_residues
 from dptb.negf.areshkin_pole_sum import pole_maker
-from ase.io import read
+from ase.io import read,write
 from dptb.negf.poisson import Density2Potential, getImg
 from dptb.negf.scf_method import SCFMethod
 import logging
@@ -106,7 +106,10 @@ class NEGFHamiltonianInit(object):
         projatoms = self.apiH.structure.projatoms
 
         self.atom_norbs = [self.apiH.structure.proj_atomtype_norbs[i] for i in self.apiH.structure.proj_atom_symbols]
-        self.apiH.get_HR()
+        allbonds,hamil_block,_ =self.apiH.get_HR()
+        torch.save(allbonds, os.path.join(self.results_path, "allbonds"+".pth"))
+        torch.save(hamil_block, os.path.join(self.results_path, "hamil_block"+".pth"))
+
         H, S = self.apiH.get_HK(kpoints=kpoints)
         d_start = int(np.sum(self.atom_norbs[:proj_device_id[0]]))
         d_end = int(np.sum(self.atom_norbs)-np.sum(self.atom_norbs[proj_device_id[1]:]))
@@ -126,6 +129,7 @@ class NEGFHamiltonianInit(object):
             if kk.startswith("lead"):
                 HS_leads = {}
                 stru_lead = self.structase[self.lead_ids[kk][0]:self.lead_ids[kk][1]]
+                write(os.path.join(self.results_path, "stru_"+kk+".vasp"), stru_lead)
                 self.apiH.update_struct(stru_lead, mode="lead", stru_options=self.stru_options.get(kk), pbc=self.stru_options["pbc"])
                 # update lead id
                 n_proj_atom_pre = np.array([1]*len(self.structase))[:self.lead_ids[kk][0]][projatoms[:self.lead_ids[kk][0]]].sum()
@@ -136,7 +140,7 @@ class NEGFHamiltonianInit(object):
 
                 l_start = int(np.sum(self.atom_norbs[:proj_lead_id[0]]))
                 l_end = int(l_start + np.sum(self.atom_norbs[proj_lead_id[0]:proj_lead_id[1]]) / 2)
-                HL, SL = H[:,l_start:l_end, l_start:l_end], S[:, l_start:l_end, l_start:l_end] # lead hamiltonian
+                HL, SL = H[:,l_start:l_end, l_start:l_end], S[:, l_start:l_end, l_start:l_end] # lead hamiltonian in one principal layer
                 HDL, SDL = H[:,d_start:d_end, l_start:l_end], S[:,d_start:d_end, l_start:l_end] # device and lead's hopping
                 HS_leads.update({
                     "HL":HL.cdouble()*self.h_factor, 
@@ -147,7 +151,10 @@ class NEGFHamiltonianInit(object):
 
                 
                 structure_leads[kk] = self.apiH.structure.struct
-                self.apiH.get_HR()
+                allbonds_lead,hamil_block_lead,_ = self.apiH.get_HR()
+                torch.save(allbonds_lead, os.path.join(self.results_path, "allbonds_"+kk+".pth"))
+                torch.save(hamil_block_lead, os.path.join(self.results_path, "hamil_block_"+kk+".pth"))
+
                 h, s = self.apiH.get_HK(kpoints=kpoints)
                 nL = int(h.shape[1] / 2)
                 HLL, SLL = h[:, :nL, nL:], s[:, :nL, nL:] # H_{L_first2L_second}
@@ -205,6 +212,9 @@ class NEGFHamiltonianInit(object):
         if block_tridiagonal:
             return hd, sd, hl, su, sl, hu
         else:
+            print('HD shape:', HD.shape)
+            print('SD shape:', SD.shape)
+            print('V shape:', V.shape)
             return [HD - V*SD], [SD], [], [], [], []
     
     def get_hs_lead(self, kpoint, tab, v):
@@ -239,7 +249,7 @@ class NEGFHamiltonianInit(object):
                          f["SL"][ix], f["SLL"][ix], f["SDL"][ix]
 
 
-        return hL-v*sL, hLL-v*sLL, hDL, sL, sLL, sDL
+        return hL-v*sL, hLL+v*sLL, hDL, sL, sLL, sDL # TODO: check hLL+v*sLL is correct or not
 
     def attach_potential():
         pass
