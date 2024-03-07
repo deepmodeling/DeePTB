@@ -105,7 +105,7 @@ class LeadProperty(object):
             sL=self.SL,
             sLL=self.SLL,
             hDL=self.HDL,
-            sDL=self.SDL,
+            sDL=self.SDL,             #TODO: check chemiPot settiing is correct or not
             chemiPot=self.efermi, # temmporarily change to self.efermi for the case in which applying lead bias to corresponding to Nanotcad
             etaLead=eta_lead, 
             method=method
