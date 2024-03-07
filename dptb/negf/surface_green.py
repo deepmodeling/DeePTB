@@ -24,7 +24,8 @@ class SurfaceGreen(torch.autograd.Function):
     def forward(ctx, H, h01, S, s01, ee, method='Lopez-Sancho'):
         # '''
         # gs = [A_l - A_{l,l-1} gs A_{l-1,l}]^{-1}
-        # 
+        # H : HL
+        # h01 : HLL
         # 1. ee can be a list, to handle a batch of samples
         # '''
 
