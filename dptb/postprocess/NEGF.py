@@ -92,7 +92,11 @@ class NEGF(object):
             self.density = Ozaki(R=self.density_options["R"], M_cut=self.density_options["M_cut"], n_gauss=self.density_options["n_gauss"])
         else:
             raise ValueError
-        
+
+        # number of orbitals on atoms in device region
+        self.device_atom_norbs = self.negf_hamiltonian.atom_norbs[self.negf_hamiltonian.proj_device_id[0]:self.negf_hamiltonian.proj_device_id[1]]
+        np.save(self.results_path+"/device_atom_norbs.npy",self.device_atom_norbs)
+
         # geting the output settings
         self.out_tc = jdata["out_tc"]
         self.out_dos = jdata["out_dos"]
@@ -108,7 +112,8 @@ class NEGF(object):
 
         ## Poisson equation settings
         self.poisson_options = j_must_have(jdata, "poisson_options")
-        self.poisson_zero_charge = {}
+        self.LDOS_integral = {}
+        self.free_charge_nanotcad = {}
         self.gate_region = [self.poisson_options[i] for i in self.poisson_options if i.startswith("gate")]
         self.dielectric_region = [self.poisson_options[i] for i in self.poisson_options if i.startswith("dielectric")]
 
@@ -141,6 +146,7 @@ class NEGF(object):
             cal_int_grid = True
 
         if self.out_dos or self.out_tc or self.out_current_nscf or self.out_ldos:
+            # Energy relative to Fermi level
             self.uni_grid = torch.linspace(start=self.jdata["emin"], end=self.jdata["emax"], steps=int((self.jdata["emax"]-self.jdata["emin"])/self.jdata["espacing"]))
 
         if cal_pole:
@@ -191,48 +197,64 @@ class NEGF(object):
         # create interface
         interface_poisson = Interface3D(grid,Gate_list,Dielectric_list)
 
+        #initial guess for electrostatic potential
+        log.info(msg="-----Initial guess for electrostatic potential----")
+        interface_poisson.solve_poisson(method=self.poisson_options['solver'],tolerance=tolerance)
+        np.save(self.results_path+"/initial_guess_phi.npy",interface_poisson.phi)
+        atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values())
+        np.save(self.results_path+"/initial_guess_phi_at_atom.npy",interface_poisson.phi[atom_gridpoint_index])
+        log.info(msg="-------------------------------------------\n")
+
         max_diff = 1e30; max_diff_list = [] 
         iter_count=0
         while max_diff > err:
 
             # update Hamiltonian by modifying onsite energy with potential
             atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values())
-            potential_atom = interface_poisson.phi[atom_gridpoint_index] # a vector with length of number of atoms
-            # number of orbitals on atoms in device region
-            device_atom_norbs = self.negf_hamiltonian.atom_norbs[self.negf_hamiltonian.proj_device_id[0]:self.negf_hamiltonian.proj_device_id[1]]
-            
+            np.save(self.results_path+"/atom_gridpoint_index.npy",atom_gridpoint_index)
+            self.potential_at_atom = interface_poisson.phi[atom_gridpoint_index] # a vector with length of number of atoms
+                       
             potential_list = []
-            for i in range(len(device_atom_norbs)):
-                potential_list.append(potential_atom[i]*torch.ones(device_atom_norbs[i]))
-            potential_tensor = torch.cat(potential_list)
-            self.negf_compute(scf_require=True,Vbias=potential_tensor)
+            for i in range(len(self.device_atom_norbs)):
+                potential_list.append(self.potential_at_atom[i]*torch.ones(self.device_atom_norbs[i]))
+            self.potential_tensor = torch.cat(potential_list)
+            torch.save(self.potential_tensor, self.results_path+"/potential_tensor.pth")
+
+            #TODO: check the sign of potential_tensor: -1 is right or not.          
+            self.negf_compute(scf_require=True,Vbias=self.potential_tensor)
             # Vbias makes sense for orthogonal basis as in NanoTCAD
             # TODO: check if Vbias makes sense for non-orthogonal basis 
 
             # update electron density for solving Poisson equation SCF
-            DM_eq,DM_neq = self.out["DM_eq"], self.out["DM_neq"]
-            elec_density = torch.diag(DM_eq+DM_neq)
+            # DM_eq,DM_neq = self.out["DM_eq"], self.out["DM_neq"]
+            # elec_density = torch.diag(DM_eq+DM_neq)
             
 
-            elec_density_per_atom = []
-            pre_atom_orbs = 0
-            for i in range(len(device_atom_norbs)):
-                elec_density_per_atom.append(torch.sum(elec_density[pre_atom_orbs : pre_atom_orbs+device_atom_norbs[i]]).numpy())
-                pre_atom_orbs += device_atom_norbs[i]
+            # elec_density_per_atom = []
+            # pre_atom_orbs = 0
+            # for i in range(len(device_atom_norbs)):
+            #     elec_density_per_atom.append(torch.sum(elec_density[pre_atom_orbs : pre_atom_orbs+device_atom_norbs[i]]).numpy())
+            #     pre_atom_orbs += device_atom_norbs[i]
 
             # TODO: check the sign of free_charge
             # TODO: check the spin degenracy
             # TODO: add k summation operation
             interface_poisson.free_charge[atom_gridpoint_index] =\
-                -1*np.array(elec_density_per_atom)+self.poisson_zero_charge[str(self.kpoints[0])].numpy()
+                np.real(self.free_charge_nanotcad[str(self.kpoints[0])].numpy())
+            
+
+            interface_poisson.phi_old = interface_poisson.phi.copy()
+
             max_diff = interface_poisson.solve_poisson(method=self.poisson_options['solver'],tolerance=tolerance)
 
-            interface_poisson.phi = interface_poisson.phi + mix_rate*(interface_poisson.phi - interface_poisson.phi_old)
-            interface_poisson.phi_old = interface_poisson.phi.copy()
+            interface_poisson.phi = interface_poisson.phi + mix_rate*(interface_poisson.phi_old-interface_poisson.phi)
+            
 
             iter_count += 1
             print('Poisson iteration: ',iter_count,' max_diff: ',max_diff)
             max_diff_list.append(max_diff)
+
+
             if iter_count > max_iter:
                 log.info(msg="Warning! Poisson iteration exceeds max_iter {}".format(int(max_iter)))
                 break
@@ -247,7 +269,7 @@ class NEGF(object):
         torch.save(self.poisson_out, self.results_path+"/poisson.out.pth")
 
         # calculate transport properties with converged potential
-        self.negf_compute(scf_require=False,Vbias=potential_tensor)
+        self.negf_compute(scf_require=False,Vbias=self.potential_tensor)
 
 
     def negf_compute(self,scf_require=False,Vbias=None):
@@ -262,32 +284,52 @@ class NEGF(object):
         # computing output properties
         for ik, k in enumerate(self.kpoints):
             self.out = {}
+            self.out["lead_L_se"] = {}
+            self.out["lead_R_se"] = {}
+            self.out["gtrans"] = {}
+            self.out['uni_grid'] = self.uni_grid
             log.info(msg="Properties computation at k = [{:.4f},{:.4f},{:.4f}]".format(float(k[0]),float(k[1]),float(k[2])))
 
             # computing properties that is functions of E
             if hasattr(self, "uni_grid"):
                 self.out["k"] = k
                 dE = abs(self.uni_grid[1] - self.uni_grid[0])
-                self.poisson_zero_charge.update({str(k):0}) # reset zero charge for each k
-                for e in self.uni_grid:
-                    log.info(msg="computing green's function at e = {:.3f}".format(float(e)))
+                self.free_charge_nanotcad.update({str(k):torch.zeros_like(torch.tensor(self.device_atom_norbs),dtype=torch.complex128)})
+                
+                output_freq = int(len(self.uni_grid)/10)
+                for ie, e in enumerate(self.uni_grid):
+
+                    if ie % output_freq == 0:
+                        log.info(msg="computing green's function at e = {:.3f}".format(float(e)))
                     leads = self.stru_options.keys()
                     for ll in leads:
                         if ll.startswith("lead"):
+                        # TODO: temporarily set the voltage to -1*potential_tensor[0] and -1*potential_tensor[-1]
+                            if Vbias is not None:
+                                if ll == 'lead_L' :
+                                    getattr(self.deviceprop, ll).voltage = Vbias[0]
+                                else:
+                                    getattr(self.deviceprop, ll).voltage = Vbias[-1]
+                            
+
                             getattr(self.deviceprop, ll).self_energy(
                                 energy=e, 
                                 kpoint=k, 
                                 eta_lead=self.jdata["eta_lead"],
                                 method=self.jdata["sgf_solver"]
                                 )
+                            self.out[str(ll)+"_se"][str(e.numpy())] = getattr(self.deviceprop, ll).se
                             
-                    self.deviceprop.cal_green_function(
+                    gtrans = self.deviceprop.cal_green_function(
                         energy=e, 
                         kpoint=k, 
                         eta_device=self.jdata["eta_device"], 
                         block_tridiagonal=self.block_tridiagonal,
                         Vbias=Vbias
                         )
+                    
+                    self.out["gtrans"][str(e.numpy())] = gtrans
+
                     if scf_require==False:
                         if self.out_dos:
                             prop = self.out.setdefault("DOS", [])
@@ -299,8 +341,9 @@ class NEGF(object):
                             prop = self.out.setdefault("LDOS", [])
                             prop.append(self.compute_LDOS(k))
                     else:
-                        if e < 0:  # 0 is the fermi level read from jdata
-                            self.poisson_zero_charge[str(k)] += self.compute_LDOS(k)*dE
+
+                        self.get_density_nanotcad(e, k, dE)
+
 
             # whether scf_require is True or False, density are computed for Poisson-NEGF SCF
             if self.out_density or self.out_potential:
@@ -364,7 +407,8 @@ class NEGF(object):
         device_atom_coords = structase.get_positions()
         xa,ya,za = device_atom_coords[:,0],device_atom_coords[:,1],device_atom_coords[:,2]
 
-        grid = Grid(xg,yg,zg,xa,ya,za)
+        # grid = Grid(xg,yg,zg,xa,ya,za)
+        grid = Grid(xg,yg,za,xa,ya,za) #TODO: change back to zg
         return grid       
     
     def fermi_dirac(self, x) -> torch.Tensor:
@@ -406,3 +450,39 @@ class NEGF(object):
 
     def SCF(self):
         pass
+
+
+    def get_density_nanotcad(self,e,kpoint,dE,eta_lead=1e-5, eta_device=0.,Vbias=None):
+
+        tx, ty = self.deviceprop.g_trans.shape
+        lx, ly = self.deviceprop.lead_L.se.shape
+        rx, ry = self.deviceprop.lead_R.se.shape
+        x0 = min(lx, tx)
+        x1 = min(rx, ty)
+
+        gammaL = torch.zeros(size=(tx, tx), dtype=torch.complex128)
+        gammaL[:x0, :x0] += self.deviceprop.lead_L.gamma[:x0, :x0]
+        gammaR = torch.zeros(size=(ty, ty), dtype=torch.complex128)
+        gammaR[-x1:, -x1:] += self.deviceprop.lead_R.gamma[-x1:, -x1:]
+
+        A_L = torch.mm(torch.mm(self.deviceprop.g_trans,gammaL),self.deviceprop.g_trans.conj().T)
+        A_R = torch.mm(torch.mm(self.deviceprop.g_trans,gammaR),self.deviceprop.g_trans.conj().T)
+
+        # Vbias = -1 * potential_tensor
+        for Ei_index, Ei_at_atom in enumerate(-1*self.potential_at_atom):
+            pre_orbs = sum(self.device_atom_norbs[:Ei_index])
+        
+            # electron density
+            if e >= Ei_at_atom: 
+                for j in range(self.device_atom_norbs[Ei_index]):
+                    self.free_charge_nanotcad[str(kpoint)][Ei_index] +=\
+                    2*(-1)/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*self.deviceprop.lead_L.fermi_dirac(e+self.deviceprop.lead_L.efermi) \
+                                  +A_R[pre_orbs+j,pre_orbs+j]*self.deviceprop.lead_R.fermi_dirac(e+self.deviceprop.lead_R.efermi))*dE
+                    # 2*(-1)/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*self.deviceprop.lead_L.fermi_dirac(e+self.deviceprop.lead_L.mu) \
+                    #               +A_R[pre_orbs+j,pre_orbs+j]*self.deviceprop.lead_R.fermi_dirac(e+self.deviceprop.lead_R.mu))*dE
+            # hole density
+            else:
+                for j in range(self.device_atom_norbs[Ei_index]):
+                    self.free_charge_nanotcad[str(kpoint)][Ei_index] +=\
+                    2*1/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*(1-self.deviceprop.lead_L.fermi_dirac(e+self.deviceprop.lead_L.efermi)) \
+                                  +A_R[pre_orbs+j,pre_orbs+j]*(1-self.deviceprop.lead_R.fermi_dirac(e+self.deviceprop.lead_R.efermi)))*dE
