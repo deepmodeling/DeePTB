@@ -1,19 +1,19 @@
 {
     "common_options": {
             "basis": {
-                "B": ["2s", "2p"],
-                "N": ["2s", "2p"]
+                "B": ["2s", "2p", "d*"],
+                "N": ["2s", "2p", "d*"]
             },
             "device": "cpu",
             "dtype": "float32",
             "overlap": false,
-            "seed": 42
+            "seed": 114514
     },
     "train_options": {
-        "num_epoch": 500,
+        "num_epoch": 1100,
         "batch_size": 1,
         "optimizer": {
-            "lr": 0.05,
+            "lr": 0.01,
             "type": "Adam"
         },
         "lr_scheduler": {
@@ -29,8 +29,9 @@
     },
     "model_options": {
         "nnsk": {
-            "onsite": {"method": "none"},
+            "onsite": {"method": "strain", "rs":1.6, "w":0.3},
             "hopping": {"method": "powerlaw", "rs":1.6, "w": 0.3},
+            "push": {"rs_thr": 0.02, "period": 10},
             "freeze": false
         }
     },
