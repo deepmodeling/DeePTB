@@ -18,8 +18,8 @@ RUN conda init
 RUN source activate deeptb 
 RUN pip install --upgrade pip
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-RUN pip install torch==2.1.1  
 RUN cd ./DeePTB && \
+    pip install torch==2.1.1 && \
     pip install . && \
     cd ..  && \ 
     rm ./DeePTB -r && \
