@@ -16,7 +16,9 @@ RUN git clone https://github.com/deepmodeling/DeePTB.git
 RUN conda create -n deeptb python=3.9.7 -c conda-forge -y 
 RUN conda init 
 RUN source activate deeptb 
-RUN pip install torch==2.2.1  
+RUN pip install --upgrade pip
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip install torch==2.1.1  
 RUN cd ./DeePTB && \
     pip install . && \
     cd ..  && \ 
