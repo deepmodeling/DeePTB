@@ -3,7 +3,7 @@
   - [Method Introduction:](#method-introduction)
   - [Example: Bulk Silicon](#example-bulk-silicon)
     - [1. Data Preparation](#1-data-preparation)
-    - [ 2. Training Neural Network Emperical TB Model (no env) ](#2-training-neural-network-emperical-tb-model-no-env)
+    - [ 2. Training Neural Network Emperical TB Model (nnsk model) ](#2-training-neural-network-emperical-tb-model-no-env)
       - [ 2.1 Training a First Nearest Neighbour Model ](#21-training-a-first-nearest-neighbour-model)
       - [ 2.2 Add More Orbitals and Neighbours ](#22-add-more-orbitals-and-neighbours)
       - [ 2.3 Training the Bond-length Dependent Parameters ](#23-training-the-bond-length-dependent-parameters)
@@ -49,42 +49,34 @@ Bulk silicon has diamond structure at room temperature and pressure. Due to its 
 
 This example can be seen in the `example/silicon` folder. The whole training procedure can be summarized as below:
 
+![procedure](../img/model_arch.png)
 
-
-This procedure contains the full steps to training an environmentally corrected **DeePTB** model. The converged model can predict the electronic structure of both perfect crystals and the configurations with atomic distortion, while can generalize to structures with more atoms. For convenience, we provide all the training checkpoints in `ckpt`:
-```bash
-deeptb/examples/silicon/ckpt/
--- md/
--- -- 2-3-25K_best_nnsk_b5.000_c5.000_w0.100.pth # nnsk model trained on 25K MD trajectory
--- -- 2-3-100K_best_nnsk_b5.000_c5.000_w0.100.pth # nnsk model trained on 100K MD trajectory
--- -- 2-3-300K_best_dptb_b5.000_c5.000_w0.100.pth # nnsk model trained on 300K MD trajectory
--- -- 2-3-300K_best_nnsk_b5.000_c5.000_w0.100.pth # dptb model trained on 300K MD trajectory
--- 2-1_best_nnsk_b2.600_c2.600_w0.300.pth
--- 2-2-1_best_nnsk_b2.600_c2.600_w0.300.pth
--- 2-2-2_best_nnsk_b5.000_c5.000_w0.100.pth
-```
-
+This procedure contains the full steps to training an environmentally corrected **DeePTB** model. The converged model can predict the electronic structure of both perfect crystals and the configurations with atomic distortion, while can generalize to structures with more atoms. 
 
 ### 1. Data Preparation
 
 The data for training and plotting contains in `data` folders:
 ```bash
 deeptb/examples/silicon/data/
--- kpath.0/ # bandstructure of primary cell
--- kpathmd25.0/ # bandstructure of 10 MD snapshots at T=25K
--- kpathmd100.0/ # bandstructure of 10 MD snapshots at T=100K
--- kpathmd300.0/ # bandstructure of 10 MD snapshots at T=300K
--- kpt.0/ # kmesh samples of primary cell
--- silicon.vasp
+|-- kpath.0                 # train data of primary cell. (k-path bands)
+|-- kpathmd25.0             # train data of 10 MD snapshots at T=25K   (k-path bands)
+|-- kpathmd100.0            # train data of 10 MD snapshots at T=100K  (k-path bands)
+|-- kpathmd300.0            # train data of 10 MD snapshots at T=300K  (k-path bands)
+|-- kpt.0                   # kmesh samples of primary cell  (k-mesh bands)
+|-- kpath_spk.0
+|-- silicon.vasp            # structure of primary cell
 ```
 Each of these folders, contains data files with required format, here we give an examples of `kpath.0`:
+
 ```bash
 deeptb/examples/silicon/data/kpath.0/
--- bandinfo.json
+-- info.json
 -- eigs.npy
 -- kpoints.npy
 -- xdat.traj
 ```
+
+The meaning and useage of the files can refer to `../quick_start/input.md`.
 
 ###  2. Training Neural Network Emperical TB Model (no env) 
 
@@ -100,146 +92,128 @@ The output will be like:
      Si-Si      2.35      3.84      4.50      5.43      5.92
 ```
 
-The fitting of empirical TB on the first nearest neighbours shares the same procedure as the `hBN` example. We suggest the user try on hBN before proceeding. This time, the training starts from the first nearest neighbour checkpoint in `ckpt` folders.
+The fitting of empirical TB on the first nearest neighbours shares the same procedure as the `hBN` example. We suggest the user try on hBN before proceeding. This time, the training starts from the first nearest neighbour checkpoint in `input` folder. Run the following command to train the first `nnsk` model:
+```bash
+dptb train ./input/2-1_input.json -o ./nnsk
+```
 
 ####  2.2 Add More Orbitals and Neighbours 
-Let's plot the converged `nnsk` model in last step, using `band.json` in `run/`, by:
+We can plot the converged `nnsk` model in last step just as in `hBN` example using `band_plot.py` script.
 
-```bash
-dptb run -sk run/band.json -i ./ckpt/2-1_best_nnsk_b2.600_c2.600_w0.300.pth -o ./band
-```
-The file `band.json` includes the parameters to plot the band structure. 
-```json
+![nnsk_first](../img/silicon_band_nnsk.png)
 
-{   
-    "structure":"./data/silicon.vasp",
-    "task_options": {
-        "task": "band",
-        "kline_type":"abacus",
-        "kpath":[[0.0000000000,  0.0000000000,   0.0000000000,  50],   
-                [0.5000000000,   0.0000000000,   0.5000000000,  50],               
-                [0.6250000000,   0.2500000000,   0.6250000000,  1],    
-                [0.3750000000,   0.3750000000,   0.7500000000,  50],     
-                [0.0000000000,   0.0000000000,   0.0000000000,  50],    
-                [0.5000000000,   0.5000000000,   0.5000000000,  50],                
-                [0.5000000000,   0.2500000000,   0.7500000000,  50],               
-                [0.5000000000,   0.0000000000,   0.5000000000,  1 ]
-                ],
-        "klabels":["G","X","X/U","K","G","L","W","X"],
-        "E_fermi":-7.5,
-        "emin":-12,
-        "emax":12,
-        "ref_band": "./data/kpath.0/eigs.npy"
-    }
-}
-```
-- `task`: the task to run, here we plot the band structure.
-- `kline_type`: the type of kpath, here we use the abacus kpath.
-- `kpath`: shape (:,4), here [:,:3] is the kpath, using the kpoints at the high symmetry points to define kpath, [:,3] is the number of kpoints in between two high symmetry points.
-- `klabels`: the labels of high symmetry points.
-- `E_fermi`: the fermi energy of the system.
-- `emin`: the minimum energy of the band structure.
-- `emax`: the maximum energy of the band structure.
-- `ref_band`: the reference bandstructure, here we use the bandstructure of the primary cell calculated by abacus with the same kpath setting.
-
-we can see, the fitted model has already captured the shape of the valance bands. However, the conductance band is less accurate since the orbitals `3s` and `3p` is not complete for the space spanned by the considered valance and conductance band. Therefore we need to include more orbitals in the model. 
-
-<div align=center>
-<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/examples/silicon/img/1_band.png" width = "60%" height = "60%" alt="Si Bands" align=center />
-</div>
+After plotting, we can find that the first fitted model has already captured the shape of the valance bands. However, the conductance band is less accurate since the orbitals `3s` and `3p` is not complete for the space spanned by the considered valance and conductance band. Therefore we need to include more orbitals in the model. 
 
 In **DeePTB**, users are able to add or remove orbitals by altering the input configuration file. Here we add `d*` orbital, which can permit us to fit the conductance band essential when calculating excitation properties such as photo-electronics and electronic transport.
 
 First, we add `d*` in `proj_atom_anglr_m` of input configuration, which looks like this:
 ```json
-"proj_atom_anglr_m": {
-     "Si": [
-          "3s",
-          "3p",
-          "d*"
-     ]
-}
+"basis": {
+    "Si": ["3s", "3p", "d*"]
+    }
 ```
 
-Also, we need to change the learning-rate to `1e-3` to maintain stability in the first few iterations. Then, we start training the model with `-i/--init-model` of our last checkpoint, by running:
+Also, we can correct the onsite energies of the TB orbitals using `strain` method. The `nnsk` model now looks like:
+```json
+    "model_options": {
+        "nnsk": {
+            "onsite": {"method": "strain", "rs":2.5 ,"w":0.3},
+            "hopping": {"method": "powerlaw", "rs":2.6, "w": 0.3},
+            "freeze": false
+        }
+    }
+```
+
+Then, we can start training the model with `-i/--init-model` of our last checkpoint, by running:
 ```bash
-dptb train -sk ./ckpt/2-2-1_input.json -i ./ckpt/2-1_best_nnsk_b2.600_c2.600_w0.300.pth -o nnsk
+dptb train ./input/2-2-1_input.json -i ./nnsk/checkpoint/nnsk.ep495.pth -o ./nnsk_2
 ```
 
 In this way, the parameters in `nnsk` model corresponding to `3s` and `3p` orbitals can be reloaded. 
-When convergence is achieved, we can plot the band structure, using the command:
-```bash
-dptb run -sk run/band.json -i ./ckpt/2-2-1_best_nnsk_b2.600_c2.600_w0.300.pth -o ./band
-```
-which shows that both the valance and conductance bands are fitted well:
+When convergence is achieved, we can plot the band structure again, which shows that both the valance and conductance bands are fitted well:
 
-<div align=center>
-<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/examples/silicon/img/2_band.png" width = "60%" height = "60%" alt="Si Bands" align=center />
-</div>
+![nnsk_strain](../img/silicon_band_strain.png)
 
 *Note: In practice, we find that training with the minimal basis set in begin, and then increasing the orbitals gradually is a better choice than directly training with full orbitals from scratch. This procedure can help to reduce the basis size and to improve the training stability.*
 
-To further enhance the model, we can enlarge the cutoff range considered, to build a model beyond the first nearest neighbours. The parameters that control the cutoff radius: 
-- `bond_cutoff` (angstrom unit): it indicates bonds that have a bond-length smaller than what is included.
+To further enhance the model, we can enlarge the cutoff range considered, to build a model beyond the first nearest neighbours. The parameter `r_max` that controls the cutoff radius is set in `info.json` in the dataset folder.
 
-We first increase the `bond_cutoff` to be larger than the bong-length of the third nearest neighbour, while shorter than the fourth. However, abrupt change in the cutoff will introduce discontinuity in the model training, we, therefore, introduce a smoothing function:
+We now increase the `r_max` to be larger than the bong-length of the third nearest neighbour, while shorter than the fourth. However, abrupt change in the cutoff will introduce discontinuity in the model training,therefore, a smoothing function is introduced:
+
 $$f_s(r)=\frac{1}{1+e^{(r-r_{skc})/\omega}}$$
- that is controlled by parameters:
+and that is controlled by parameters in `nnsk` keyword in the `model_options` section of the input file:
 
-- `sk_cutoff` (angstrom unit): $r_{skc}$ it controls the cutoff of the decay weight of each bond.
-- `sk_decay_w`: $\omega$, it decides the smoothness of the decay.
+- `rs` (angstrom unit): $r_{skc}$ it controls the cutoff of the decay weight of each bond.
+- `w`: $\omega$, it decides the smoothness of the decay.
 
-<div align=center>
-<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/examples/silicon/img/fs.png" width = "60%" height = "60%" alt="si skcutfunc" align=center />
-</div>
+![fs](../img/fs.png)
 
 As is shown in the above figure, this smoothing function will decay centred at $r_{skc}$. According to the smoothness $\omega$, this function has different smoothness. Here, to take more neighbours' terms into consideration while retaining the stability of fitting, we first set the $r_{skc}$ at the first-nearest neighbour distance, this decay function can suppress the newly included second and third neighbour terms, which brings no abrupt changes to the predicted hamiltonians.
 
-Then what is left is pushing $r_{skc}$ gradually to the value of `bond_cutoff`. This can be achieved by modifying the parameters in the input configuration and repeating along with training with initialization manually. Alternatively, **DeePTB** support to push the smooth boundary automatically. We can set the `sk_cutoff` as a list of two values: [boundary1, boundary2]. **DeePTB** will push the sk_cutoff use linear interpolation during training. It is recommended to analyse the bond distribution before pushing. The boundary-pushing often takes more training epochs. One can try to push the boundaries with configuration `ckpt/2-2-2-1_input.json` for pushing $r_{skc}$ and `2-2-2-2_input.json` for tightening $\omega$, or use the model after boundary-pushing (since this step takes a few more iterations) in `ckpt/2-2-2_best_nnsk_b5.000_c5.000_w0.100.pth` for the next step:
+Then what is left is pushing $r_{skc}$ gradually to the value of `bond_cutoff`. This can be achieved by modifying the parameters in the input configuration and repeating along with training with initialization manually. Alternatively, **DeePTB** support to push the smooth boundary automatically. We can set the `push` keyword in `nnsk` model. `push` function takes two kinds of input: either push `rs` by using `rs_ths` or push `w` by using `w_ths`. The rate of the push function is controlled by keyword `period`. An example of the input `model_options` for adding neighbors is as follow:
 
-<div align=center>
-<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/examples/silicon/img/3_band.png" width = "60%" height = "60%" alt="Si Bands" align=center />
-</div>
+```json
+    "model_options": {
+        "nnsk": {
+            "onsite": {"method": "strain", "rs":2.5 ,"w":0.3},
+            "hopping": {"method": "powerlaw", "rs":2.6, "w": 0.3},
+            "freeze": false,
+            "push": {"rs_thr": 0.024, "period": 15}
+        }
+    }
+```
+
+**DeePTB** will push the `rs` by each step in `rs_ths` in each `period` during training. It is recommended to analyse the bond distribution before pushing. The boundary-pushing often takes more training epochs. 
+
+We can push the `rs` first by running:
+```bash
+dptb train ./input/2-2-2_1_input.json -i ./nnsk_2/checkpoint/nnsk.ep501.pth -o ./nnsk_3
+```
+
+After we get the converged model, we can further push the `w` by running:
+```bash
+dptb train ./input/2-2-2_2_input.json -i ./nnsk_3/checkpoint/nnsk.ep1104.pth -o ./nnsk_4
+```
+
+After adding neighbors, the `nnsk` model can now fit the bands even better.
+
+![nnsk_push](../img/silicon_band_push.png)
 
 ####  2.3 Training the Bond-length Dependent Parameters 
 The empirical SK integrals in **DeePTB** are parameterized by various bond-length dependent functions. This provides the representative power of `nnsk` model to model the change of electronic structure by atomic distortions. If the user wants to learn the bond-length dependent parameters or would like to add environmental correction to improve the accuracy, or to fit various structures, this step is highly recommended.
 
-The training of Bond-length Dependence parameters will use the dataset of MD snapshots. By modifying the `data_options/train/prefix` in the input configuration to `kpathmd25K/kpathmd100K/kpathmd300K` and training the model with initialized checkpoints. The parameters are easily attained. The checkpoint in `ckpt/md` provide the converged checkpoint of `nnsk` models on MD snapshots with different temperature. The user can plot the bandstructure using `band_md.json`, with the command:
-
+The training of Bond-length Dependence parameters will use the dataset of MD snapshots. By modifying the `data_options/train/prefix` in the input configuration to `kpathmd25K/kpathmd100K/kpathmd300K` and training the model with initialized checkpoints. The parameters are easily attained. This can be done by running:
+```bash
+dptb train ./input/2-3_1_input.json -i ./nnsk_4/checkpoint/nnsk.ep1501.pth -o ./nnsk_md25
 ```
-dptb run -sk band_md.json -i ./ckpt/md/xxx.pth -o band
-```
+and so on. The bond length dependent model can have a good agreement with the reference bands:
 
-and check out the `band/result` folder for the plottings. Here we illustrate the bandstructure plotting on a snapshot of 25K MD trajectory:
-
-<div align=center>
-<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/examples/silicon/img/2-3_25Kband.png" width = "60%" height = "60%" alt="Si Bands" align=center />
-</div>
+![band_md](../img/silicon_band_md.png)
 
 We highly suggest training the model from a low temperature, and the transfer to a higher temperature to improve the fitting stability.
 
 ###  3. Training Deep Learning TB Models with Env. Correction 
-**DeePTB** provide powerful environmental-dependent modelling with symmetry-preserving neural networks. Based on the last step, we can further enhance the power of TB model to overcome the accuracy limit, brought by the two-centre approximation. We denote the model that builds the environmental dependence as `dptb`.  With the converged checkpoint in the last step, we can just run:
+**DeePTB** provides powerful environmental-dependent modelling with symmetry-preserving neural networks. Based on the last step, we can further enhance the power of TB model to overcome the accuracy limit, brought by the two-centre approximation. The environment correction is added by the embedding and prediction part of the model output:
+
+$$
+\begin{equation}
+h^{\text{env}}_{ll^\prime{\zeta}} =  h_{ll^\prime{\zeta}}(r_{ij}) \times \left[1+\Phi_{ll^\prime\zeta}^{o_i,o_j}\left(r_{ij},\mathcal{D}^{ij}\right)\right]	
+\end{equation}
+$$
+
+We denote the model that builds the environmental dependence as `dptb`.  To define a `dptb` model in `model_options`, we need:
+- `embedding`: defines the descriptor of environment.
+- `prediction`: defines the size of the correction network.
+- `nnsk`: just as the previous `nnsk` inputs. It is important to set keyword `freeze` to `true` when one initializes a new `dptb` model.
+
+With the converged checkpoint in the last step, we can just run:
 ```bash
-dptb train <input config> -crt <nnsk checkpoint path> [[-i|-r] <dptb checkpoint path>] [[-o] <output directory>] [-f]
-```
-To start training, e.p. if starting from the checkpoint `./ckpt/md/2-3-25K_best_nnsk_b5.000_c5.000_w0.100.pth`, we need to run:
-```bash
-dptb train ./ckpt/md/input.json -crt ./ckpt/md/2-3-25K_best_nnsk_b5.000_c5.000_w0.100.pth -o dptb300K -f
+dptb train ./input/2-4_input.json -i ./nnsk_md25/checkpoint/nnsk.ep43.pth -o ./dptb
 ```
 
-`-f` above indicate `--freeze` the `nnsk` model when training the `dptb` model. It is important to use `-f` when one initializes a new `dptb` model (i.e. without `-i/--init-model` or `-r/--restart`).
+We can use the converged model to predict the bandstructure, calculating properties supported by **DeePTB**, or get the predicted Hamiltonian directly. 
 
-The only parameter need to be considered here is the `env_cutoff`. It indicates the chemical environment radius that is centred at each atom. To ensure the spatial symmetries of the atom environment and the bond environment embeddings, the `env_cutoff` should be larger than 0.5*`bond_cutoff`.
-
-During the training procedure, the `dptb` model will be saved periodically as checkpoints. If one hasn't frozen the `nnsk` model with `-f`, the trained `nnsk` model will also be saved. Then, we can use the converged model to predict the bandstructure, calculating properties supported by **DeePTB**, or get the predicted Hamiltonian directly. We plot the bandstructure of the converged model on $T=300K$'s MD trajectory for illustration:
-One can run:
-```bash
-dptb run band_md.json -i ./ckpt/md/2-3-300K_best_dptb_b5.000_c5.000_w0.100.pth -crt ./ckpt/md/2-3-300K_best_nnsk_b5.000_c5.000_w0.100.pth -o band
-```
-<div align=center>
-<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/examples/silicon/img/2-3_300Kband.png" width = "60%" height = "60%" alt="Si Bands" align=center />
-</div>
+![band_dptb](../img/silicon_band_dptb.png)
 
 Now you know how to train a **DeePTB** model, congratulations!
 

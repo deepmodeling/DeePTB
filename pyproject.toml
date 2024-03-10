@@ -72,7 +72,7 @@ build-backend = "poetry_dynamic_versioning.backend"
 
 
 [tool.poetry-dynamic-versioning]
-enable = true
+enable = false
 vcs = "git"
 strict = true
 format-jinja = """
