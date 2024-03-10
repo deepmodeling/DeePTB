@@ -31,4 +31,5 @@ RUN apt-get update > /dev/null && \
 RUN source ~/.bashrc &&  \ 
     conda create -n deeptb python=3.9 -c conda-forge -y  && \
     source activate deeptb && \
-    pip install torch 
+    pip install torch==2.1.1 && \
+    pip install fmm3dpy==1.0.0
