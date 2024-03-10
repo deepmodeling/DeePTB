@@ -26,7 +26,6 @@ RUN apt-get update > /dev/null && \
     echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate base" >> /etc/skel/.bashrc && \
     echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate base" >> ~/.bashrc
 
+RUN source /opt/conda/etc/profile.d/conda.sh  # Source the initialization script
 RUN conda create -n deeptb python=3.9 -c conda-forge -y 
-RUN conda init bash && \
-    conda activate deeptb && \
-    pip install torch
+RUN conda activate deeptb && pip install torch  # Activate and install within the same step
