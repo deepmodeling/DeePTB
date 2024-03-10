@@ -29,5 +29,9 @@ RUN apt-get update > /dev/null && \
     echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate base" >> ~/.bashrc
 
 RUN conda create -n deeptb python=3.9 -c conda-forge -y 
-RUN source /opt/conda/etc/profile.d/conda.sh  # Source the initialization script
-RUN conda activate deeptb && pip install torch  # Activate and install within the same step
+RUN source ~/.bashrc &&  \ 
+    conda create -n deeptb python=3.9 -c conda-forge -y  && \
+    conda activate deeptb && \
+    conda install -c conda-forge -y pip && \
+    conda install -c conda-forge -y git && \
+    pip install torch 
