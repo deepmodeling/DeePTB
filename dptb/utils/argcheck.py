@@ -189,12 +189,16 @@ def train_data_sub():
     doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
     doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
+    doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
+    doc_DM = "Choose whether the density matrix is loaded when building dataset."
     
     args = [
         Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
+        Argument("get_overlap", bool, optional=False, default=False, doc=doc_vlp),
+        Argument("get_DM", bool, optional=False, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
@@ -207,12 +211,16 @@ def validation_data_sub():
     doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
     doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
+    doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
+    doc_DM = "Choose whether the density matrix is loaded when building dataset."
 
     args = [
         Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
+        Argument("get_overlap", bool, optional=False, default=False, doc=doc_vlp),
+        Argument("get_DM", bool, optional=False, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
@@ -225,12 +233,16 @@ def reference_data_sub():
     doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
     doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
+    doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
+    doc_DM = "Choose whether the density matrix is loaded when building dataset."
 
     args = [
         Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
+        Argument("get_overlap", bool, optional=False, default=False, doc=doc_vlp),
+        Argument("get_DM", bool, optional=False, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
@@ -335,6 +347,7 @@ def embedding():
             Argument("e3baseline_4", dict, e3baseline()),
             Argument("e3baseline_5", dict, e3baselinev5()),
             Argument("e3baseline_6", dict, e3baselinev5()),
+            Argument("e3baseline_nonlocal", dict, e3baselinev5()),
         ],optional=True, default_tag="se2", doc=doc_method)
 
 def se2():
@@ -634,6 +647,7 @@ def loss_options():
         Argument("hamil", dict, []),
         Argument("eigvals", dict, []),
         Argument("hamil_abs", dict, []),
+        Argument("hamil_blas", dict, []),
     ], optional=False, doc=doc_method)
 
     args = [

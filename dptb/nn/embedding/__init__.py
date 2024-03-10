@@ -11,6 +11,7 @@ from .e3baseline_local3 import E3BaseLineModel3
 from .e3baseline_local4 import E3BaseLineModel4
 from .e3baseline_local5 import E3BaseLineModel5
 from .e3baseline_local6 import E3BaseLineModel6
+from .e3baseline_nonlocal import E3BaseLineModelNonLocal
 
 __all__ = [
     "Descriptor",
@@ -24,4 +25,5 @@ __all__ = [
     "E3BaseLineModel4",
     "E3BaseLineModel5",
     "E3BaseLineModel6",
+    "E3BaseLineModelNonLocal",
 ]

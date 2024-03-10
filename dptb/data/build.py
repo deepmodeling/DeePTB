@@ -191,6 +191,8 @@ def build_dataset(set_options, common_options):
                 root=root,
                 type_mapper=idp,
                 get_Hamiltonian=set_options.get("get_Hamiltonian", False),
+                get_overlap=set_options.get("get_overlap", False),
+                get_DM=set_options.get("get_DM", False),
                 get_eigenvalues=set_options.get("get_eigenvalues", False),
                 info_files = info_files
             )

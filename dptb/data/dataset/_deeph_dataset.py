@@ -225,11 +225,17 @@ class DeePHE3Dataset(AtomicInMemoryDataset):
 
                     norms = torch.norm(sub_tensor, p=2, dim=1)
                     typed_norm_ave[tp][ir] = norms.mean()
-                    typed_norm_std[tp][ir] = norms.std()
+                    if norms.numel() > 1:
+                        typed_norm_std[tp][ir] = norms.std()
+                    else:
+                        typed_norm_std[tp][ir] = 1.0
                     if s.stop - s.start == 1:
                         # it's a scalar
                         typed_scalar_ave[tp][count_scalar-1] = sub_tensor.mean()
-                        typed_scalar_std[tp][count_scalar-1] = sub_tensor.std()
+                        if sub_tensor.numel() > 1:
+                            typed_scalar_std[tp][count_scalar-1] = sub_tensor.std()
+                        else:
+                            typed_scalar_std[tp][count_scalar-1] = 1.0
 
         edge_stats = {
             "norm_ave": typed_norm_ave,
