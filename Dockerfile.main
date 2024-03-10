@@ -30,7 +30,5 @@ RUN apt-get update > /dev/null && \
 
 RUN source ~/.bashrc &&  \ 
     conda create -n deeptb python=3.9 -c conda-forge -y  && \
-    conda activate deeptb && \
-    conda install -c conda-forge -y pip && \
-    conda install -c conda-forge -y git && \
+    source activate deeptb && \
     pip install torch 
