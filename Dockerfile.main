@@ -1,4 +1,4 @@
-FROM ubuntu:20.044
+FROM ubuntu:20.04
 
 SHELL ["/bin/bash", "-c"]  # Set default shell for subsequent RUN commands
 
