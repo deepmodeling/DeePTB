@@ -25,8 +25,8 @@ RUN apt-get update > /dev/null && \
     conda clean --force-pkgs-dirs --all --yes  && \
     echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate base" >> /etc/skel/.bashrc && \
     echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate base" >> ~/.bashrc
-    
+
 RUN conda create -n deeptb python=3.9 -c conda-forge -y 
 RUN conda init 
-RUN source activate deeptb 
+RUN conda activate deeptb
 RUN pip install torch
