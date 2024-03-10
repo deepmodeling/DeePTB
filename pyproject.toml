@@ -41,6 +41,7 @@ future = "*"
 dargs = "0.3.3"
 xitorch = "0.3.0"
 fmm3dpy = "1.0.0"
+e3nn = ">=0.5.1"
 
 
 [tool.poetry.group.3Dfermi]
@@ -67,7 +68,7 @@ build-backend = "poetry_dynamic_versioning.backend"
 
 
 [tool.poetry-dynamic-versioning]
-enable = true
+enable = false
 vcs = "git"
 strict = true
 format-jinja = """
