@@ -1,23 +1,40 @@
 FROM ubuntu:20.04
-SHELL ["/bin/bash", "-c"]
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install wget -y && apt-get clean all
-RUN apt update && apt install -y --no-install-recommends git
 
-RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
-    bash Miniconda3-latest-Linux-x86_64.sh -b -p /opt/miniconda && \
-    /opt/miniconda/bin/conda init bash && \
-    rm -rf Miniconda3-latest-Linux-x86_64.sh && \ 
-    rm -rf /var/lib/apt/lists/*
+SHELL ["/bin/bash", "-c"]  # Set default shell for subsequent RUN commands
 
-ENV PATH=/opt/miniconda/bin:$PATH
+ARG MINIFORGE_NAME=Miniforge3
+ARG MINIFORGE_VERSION=23.11.0-0
+ARG TARGETPLATFORM
+
+ENV CONDA_DIR=/opt/conda
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+ENV PATH=${CONDA_DIR}/bin:${PATH}
+
+RUN apt-get update > /dev/null && \
+    apt-get install --no-install-recommends --yes \
+        wget bzip2 ca-certificates \
+        git \
+        tini \
+        g++ \
+        > /dev/null && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    wget --no-hsts --quiet https://github.com/conda-forge/miniforge/releases/download/${MINIFORGE_VERSION}/${MINIFORGE_NAME}-${MINIFORGE_VERSION}-Linux-$(uname -m).sh -O /tmp/miniforge.sh && \
+    /bin/bash /tmp/miniforge.sh -b -p ${CONDA_DIR} && \
+    rm /tmp/miniforge.sh && \
+    conda clean --tarballs --index-cache --packages --yes && \
+    find ${CONDA_DIR} -follow -type f -name '*.a' -delete && \
+    find ${CONDA_DIR} -follow -type f -name '*.pyc' -delete && \
+    conda clean --force-pkgs-dirs --all --yes  && \
+    echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate base" >> /etc/skel/.bashrc && \
+    echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate base" >> ~/.bashrc
 
 RUN git clone https://github.com/deepmodeling/DeePTB.git
-RUN conda create -n deeptb python=3.9 -c conda-forge -y 
-RUN conda init 
-RUN source activate deeptb 
-RUN cd ./DeePTB && \
-    pip install torch && \
+RUN source ~/.bashrc &&  \ 
+    conda create -n deeptb python=3.9 -c conda-forge -y  && \
+    source activate deeptb && \
+    pip install torch==2.1.1 && \
+    cd ./DeePTB && \
     pip install . && \
     cd ..  && \ 
     rm ./DeePTB -r && \
