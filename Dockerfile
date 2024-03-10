@@ -17,7 +17,7 @@ RUN conda create -n deeptb python=3.9 -c conda-forge -y
 RUN conda init 
 RUN source activate deeptb 
 RUN cd ./DeePTB 
-RUN pip install torch==2.1.1  
+RUN pip install torch==2.2.1  
 RUN pip install .
 RUN cd .. 
 RUN rm ./DeePTB -r
