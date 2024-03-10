@@ -16,7 +16,6 @@ RUN git clone https://github.com/deepmodeling/DeePTB.git
 RUN conda create -n deeptb python=3.9.7 -c conda-forge -y 
 RUN conda init 
 RUN source activate deeptb 
-RUN pip install fmm3dpy -i https://pypi.tuna.tsinghua.edu.cn/simple
 RUN cd ./DeePTB && \
     pip install torch && \
     pip install . && \
