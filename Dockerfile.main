@@ -6,8 +6,12 @@ RUN apt-get update && apt-get install -y wget bzip2 ca-certificates libgl1-mesa-
 
 # 安装 Mambaforge
 RUN wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-$(uname -m).sh && \
-    bash Mambaforge-$(uname -m).sh -b -p /opt/mambaforge && \
+
+ENV MAMBAFORGE_SKIP_TIMEZONE_PROMPT=1
+
+RUN bash Mambaforge-$(uname -m).sh -b -p /opt/mambaforge && \
     rm Mambaforge-$(uname -m).sh
+
 
 ENV PATH=/opt/mambaforge/bin:$PATH
 
