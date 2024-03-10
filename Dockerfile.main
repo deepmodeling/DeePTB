@@ -1,18 +1,4 @@
-FROM ubuntu:20.04
-
-# 安装依赖
-RUN apt-get update && apt-get install -y wget bzip2 ca-certificates libgl1-mesa-glx libglib2.0-0 libxext6 libsm6 libxrender1 git curl && \
-    rm -rf /var/lib/apt/lists/*
-
-# 安装 Mambaforge
-RUN wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-$(uname -m).sh && \
-
-# Install Mambaforge
-RUN bash Mambaforge-$(uname -m).sh -b -p /opt/mambaforge -f /opt/mambaforge/pkgs/pro/2023.3.1/pdtxt/data/tzdata.dat && \
-    rm Mambaforge-$(uname -m).sh
-
-
-ENV PATH=/opt/mambaforge/bin:$PATH
+FROM condaforge/miniforge3:latest
 
 # 创建 Conda 虚拟环境
 RUN mamba create -n myenv python=3.9 -y && \
@@ -20,7 +6,6 @@ RUN mamba create -n myenv python=3.9 -y && \
     mamba clean --all -f -y
 
 # 激活虚拟环境
-ENV PATH=/opt/mambaforge/envs/myenv/bin:$PATH
-
+RUN source activate myenv
 # 安装 PyTorch 等依赖
 RUN pip install torch torchvision torchaudio
