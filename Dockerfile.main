@@ -16,11 +16,11 @@ RUN git clone https://github.com/deepmodeling/DeePTB.git
 RUN conda create -n deeptb python=3.9 -c conda-forge -y 
 RUN conda init 
 RUN source activate deeptb 
-RUN cd ./DeePTB 
 RUN pip install torch==2.2.1  
-RUN pip install .
-RUN cd .. 
-RUN rm ./DeePTB -r
-RUN conda clean --all -y 
-RUN rm -rf /root/.cache/pip
-RUN echo "source activate deeptb" >> ~/.bashrc
+RUN cd ./DeePTB && \
+    pip install . && \
+    cd ..  && \ 
+    rm ./DeePTB -r && \
+    conda clean --all -y && \
+    rm -rf /root/.cache/pip && \
+    echo "source activate deeptb" >> ~/.bashrc
