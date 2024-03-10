@@ -17,6 +17,7 @@ RUN git clone https://github.com/deepmodeling/DeePTB.git && \
     conda init && \
     source activate deeptb && \
     cd ./DeePTB && \
+    pip install torch==2.1.1  && \
     pip install . && \
     cd .. && \
     rm ./DeePTB -r && \
