@@ -9,7 +9,7 @@
             "seed": 120468
     },
     "train_options": {
-        "num_epoch": 5,
+        "num_epoch": 6,
         "batch_size": 1,
         "optimizer": {
             "lr": 0.05,
