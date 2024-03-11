@@ -205,7 +205,9 @@ class Interface3D(object):
         # A = poisson(self.grid.shape,format='csr',dtype=dtype)
         Jacobian = csr_matrix(np.zeros((self.grid.Np,self.grid.Np),dtype=dtype))
         B = np.zeros(Jacobian.shape[0],dtype=Jacobian.dtype)
-        self.NR_construct_Jacobian(Jacobian)
+        Jacobian_lil = Jacobian.tolil()
+        self.NR_construct_Jacobian(Jacobian_lil)
+        Jacobian = Jacobian_lil.tocsr()
         self.NR_construct_B(B)
         
         return Jacobian,B
@@ -216,7 +218,11 @@ class Interface3D(object):
         # A = poisson(self.grid.shape,format='csr',dtype=dtype)
         Jacobian = csr_matrix(np.zeros((self.grid.Np,self.grid.Np),dtype=dtype))
         B = np.zeros(Jacobian.shape[0],dtype=Jacobian.dtype)
-        self.NR_construct_Jacobian(Jacobian)
+
+        Jacobian_lil = Jacobian.tolil()
+        self.NR_construct_Jacobian(Jacobian_lil)
+        Jacobian = Jacobian_lil.tocsr()
+
         self.NR_construct_B(B)
         # self.construct_poisson(A,b)
         return Jacobian,B
@@ -332,10 +338,6 @@ class Interface3D(object):
         # solve poisson equation:
         if method == 'pyamg':
             print('Solve Poisson equation by pyamg')
-            # A,b = self.to_pyamg()
-            # self.phi = self.solve_poisson_pyamg(A,b,tolerance)
-            # max_diff = np.max(abs(self.phi-self.phi_old))
-            # return max_diff
         elif method == 'scipy':
             print('Solve Poisson equation by scipy')
         else:
@@ -379,7 +381,8 @@ class Interface3D(object):
 
     def NR_construct_Jacobian(self,J):
         # construct the Jacobian matrix for the Poisson equation
-        
+
+                
         Nx = self.grid.shape[0];Ny = self.grid.shape[1];Nz = self.grid.shape[2]
         for gp_index in range(self.grid.Np):
             if self.boudnary_points[gp_index] == "in":
@@ -426,6 +429,9 @@ class Interface3D(object):
                 elif self.boudnary_points[gp_index] == "Gate":
                     J[gp_index,gp_index] = elementary_charge
         
+        
+
+
     def NR_construct_B(self,B):
     # construct the -B matrix in NR iteration
     # Note that the sign of B has been changed for convenience in later NR iteration
