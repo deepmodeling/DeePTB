@@ -96,24 +96,32 @@ class Grid(object):
         return xd
 
 
+class region(object):
+    def __init__(self,x_range,y_range,z_range):
+        self.xmin,self.xmax = float(x_range[0]),float(x_range[1])
+        self.ymin,self.ymax = float(y_range[0]),float(y_range[1])
+        self.zmin,self.zmax = float(z_range[0]),float(z_range[1])
     
-class Gate(object):
-    def __init__(self,xrange,yrange,zrange):
-        # Fermi_level of gate (in unit eV)
-        self.Ef = 0.0
+class Gate(region):
+    def __init__(self,x_range,y_range,z_range):
         # Gate region
-        self.xmin,self.xmax = float(xrange[0]),float(xrange[1])
-        self.ymin,self.ymax = float(yrange[0]),float(yrange[1])
-        self.zmin,self.zmax = float(zrange[0]),float(zrange[1])
+        super().__init__(x_range,y_range,z_range)
+        # Fermi_level of gate (in unit eV)
+        self.Ef = 0.0        
+        # self.xmin,self.xmax = float(xrange[0]),float(xrange[1])
+        # self.ymin,self.ymax = float(yrange[0]),float(yrange[1])
+        # self.zmin,self.zmax = float(zrange[0]),float(zrange[1])
 
-class Dielectric(object):
-    def __init__(self,xrange,yrange,zrange):
+class Dielectric(region):
+    def __init__(self,x_range,y_range,z_range):
+        # dielectric region
+        super().__init__(x_range,y_range,z_range)
         # dielectric permittivity
         self.eps = 1.0
-        # gate region
-        self.xmin,self.xmax = float(xrange[0]),float(xrange[1])
-        self.ymin,self.ymax = float(yrange[0]),float(yrange[1])
-        self.zmin,self.zmax = float(zrange[0]),float(zrange[1])
+        # # gate region
+        # self.xmin,self.xmax = float(xrange[0]),float(xrange[1])
+        # self.ymin,self.ymax = float(yrange[0]),float(yrange[1])
+        # self.zmin,self.zmax = float(zrange[0]),float(zrange[1])
 
 
 class Interface3D(object):
@@ -130,42 +138,40 @@ class Interface3D(object):
             
         self.grid = grid
         self.eps = np.ones(grid.Np) # dielectric permittivity
-        self.phi = np.zeros(grid.Np) # potential
-        self.phi_old = np.zeros(grid.Np) # potential in the previous iteration
-        self.free_charge = np.zeros(grid.Np) # free charge density
-        self.fixed_charge = np.zeros(grid.Np) # fixed charge density
+        self.phi,self.phi_old = np.zeros(grid.Np),np.zeros(grid.Np) # potential
+        self.free_charge,self.fixed_charge  = np.zeros(grid.Np),np.zeros(grid.Np)  # free charge density and fixed charge density 
 
         self.Temperature = 300.0 # temperature in unit of Kelvin
         self.kBT = Boltzmann*self.Temperature/eV2J # thermal energy in unit of eV
 
         # store the boundary information: xmin,xmax,ymin,ymax,zmin,zmax,gate
         self.boudnary_points = {i:"in" for i in range(self.grid.Np)} # initially set all points as internal
-        self.boudnary_points_get()
+        self.boundary_points_get()
 
         self.lead_gate_potential = np.zeros(grid.Np) # no gate potential initially, all grid points are set to zero
         self.potential_eps_get(gate_list)
         self.potential_eps_get(dielectric_list)
 
 
-    def boudnary_points_get(self):
+    def boundary_points_get(self):
         # set the boundary points
-        for i in range(self.grid.Np):
-            if self.grid.grid_coord[i,0] == np.min(self.grid.xall):
-                self.boudnary_points[i] = "xmin"
-            elif self.grid.grid_coord[i,0] == np.max(self.grid.xall):
-                self.boudnary_points[i] = "xmax"
-            elif self.grid.grid_coord[i,1] == np.min(self.grid.yall):
-                self.boudnary_points[i] = "ymin"
-            elif self.grid.grid_coord[i,1] == np.max(self.grid.yall):
-                self.boudnary_points[i] = "ymax"
-            elif self.grid.grid_coord[i,2] == np.min(self.grid.zall):
-                self.boudnary_points[i] = "zmin"
-            elif self.grid.grid_coord[i,2] == np.max(self.grid.zall):
-                self.boudnary_points[i] = "zmax"
+        xmin,xmax = np.min(self.grid.xall),np.max(self.grid.xall)
+        ymin,ymax = np.min(self.grid.yall),np.max(self.grid.yall)
+        zmin,zmax = np.min(self.grid.zall),np.max(self.grid.zall)
         internal_NP = 0
         for i in range(self.grid.Np):
-            if self.boudnary_points[i] == "in":
-                internal_NP += 1
+            if self.grid.grid_coord[i,0] == xmin: self.boudnary_points[i] = "xmin"
+            elif self.grid.grid_coord[i,0] == xmax: self.boudnary_points[i] = "xmax"
+            elif self.grid.grid_coord[i,1] == ymin: self.boudnary_points[i] = "ymin"   
+            elif self.grid.grid_coord[i,1] == ymax: self.boudnary_points[i] = "ymax" 
+            elif self.grid.grid_coord[i,2] == zmin: self.boudnary_points[i] = "zmin"  
+            elif self.grid.grid_coord[i,2] == zmax: self.boudnary_points[i] = "zmax"
+            else: internal_NP +=1
+                
+        # internal_NP = 0
+        # for i in range(self.grid.Np):
+        #     if self.boudnary_points[i] == "in":
+        #         internal_NP += 1
         self.internal_NP = internal_NP
     
     def potential_eps_get(self,region_list):
