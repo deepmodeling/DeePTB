@@ -198,7 +198,7 @@ class Interface3D(object):
                 raise ValueError('Unknown region type: ',region_list[i].__class__.__name__)
         print('Number of gate points: ',gate_point)
         
-    def to_pyamg(self,dtype=np.float64):
+    def to_pyamg_Jac_B(self,dtype=np.float64):
         # convert to amg format A,b matrix
         # if dtype == None:
         #     dtype = np.float64
@@ -216,7 +216,7 @@ class Interface3D(object):
         return Jacobian,B
     
     
-    def to_scipy(self,dtype=np.float64):
+    def to_scipy_Jac_B(self,dtype=np.float64):
         # convert to amg format A,b matrix
         # A = poisson(self.grid.shape,format='csr',dtype=dtype)
         Jacobian = csr_matrix(np.zeros((self.grid.Np,self.grid.Np),dtype=dtype))
@@ -311,7 +311,7 @@ class Interface3D(object):
                 #TODO: add lead potential. For dptb-negf, we only need to change zmin and zmax as lead
 
 
-    def solve_pyamg(self,A,b,tolerance=1e-7,accel=None):
+    def solver_pyamg(self,A,b,tolerance=1e-7,accel=None):
         # solve the Poisson equation
         print('Solve Poisson equation by pyamg')
         pyamg_solver = pyamg.aggregation.smoothed_aggregation_solver(A, max_levels=1000)
@@ -352,12 +352,12 @@ class Interface3D(object):
         self.phi_initial = self.phi.copy() # tilde_phi in paper
         norm_avp = 1.0; NR_circle_count = 0
         while norm_avp > 1e-3 and NR_circle_count < 100:
-            Jacobian,B = self.to_scipy()
+            Jacobian,B = self.to_scipy_Jac_B()
             norm_B = np.linalg.norm(B)
             if method == 'scipy':   
                 delta_phi = spsolve(Jacobian,B)
             elif method == 'pyamg':
-                delta_phi = self.solve_pyamg(Jacobian,B,tolerance=1e-5)
+                delta_phi = self.solver_pyamg(Jacobian,B,tolerance=1e-5)
             else:
                 print('Unknown Poisson solver: ',method)
             self.phi_oldstep = self.phi.copy()
@@ -367,13 +367,13 @@ class Interface3D(object):
             norm_avp = np.linalg.norm(delta_phi)
             self.phi += delta_phi
             if norm_avp > 1e-3:
-                _,B = self.to_scipy()
+                _,B = self.to_scipy_Jac_B()
                 norm_B_new = np.linalg.norm(B)
                 print('norm_B_new: ',norm_B_new)
                 control_count = 1
                 while norm_B_new > norm_B and control_count < 2:
                     self.phi -= delta_phi/np.power(2,control_count)
-                    _,B = self.to_scipy()
+                    _,B = self.to_scipy_Jac_B()
                     norm_B_new = np.linalg.norm(B)
                     control_count += 1    
                     print('control_count: ',control_count,'  norm_B_new: ',norm_B_new)           
@@ -493,8 +493,7 @@ class Interface3D(object):
     
     def NR_construct_Jac_B(self,J,B):
         # construct the Jacobian and B for the Poisson equation
-
-                
+               
         Nx = self.grid.shape[0];Ny = self.grid.shape[1];Nz = self.grid.shape[2]
         for gp_index in range(self.grid.Np):
             if self.boudnary_points[gp_index] == "in":
@@ -536,33 +535,32 @@ class Interface3D(object):
 
                 # add flux term to matrix B
                 B[gp_index] = (flux_xm_B+flux_xp_B+flux_ym_B+flux_yp_B+flux_zm_B+flux_zp_B)
-                B[gp_index] += elementary_charge*self.free_charge[gp_index]*np.exp(-np.sign(self.free_charge[gp_index])*(self.phi[gp_index]-self.phi_old[gp_index])/self.kBT)\
-                    +elementary_charge*self.fixed_charge[gp_index]
+                B[gp_index] += elementary_charge*self.free_charge[gp_index]*np.exp(-np.sign(self.free_charge[gp_index])\
+                    *(self.phi[gp_index]-self.phi_old[gp_index])/self.kBT)+elementary_charge*self.fixed_charge[gp_index]
 
             else:# boundary points
-                J[gp_index,gp_index] = elementary_charge
+                J[gp_index,gp_index] = 1.0 # correct for both Dirichlet and Neumann boundary condition
                 
                 if self.boudnary_points[gp_index] == "xmin":   
-                    J[gp_index,gp_index+1] = -1.0*elementary_charge
-                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index+1])*elementary_charge
+                    J[gp_index,gp_index+1] = -1.0
+                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index+1])
                 elif self.boudnary_points[gp_index] == "xmax":
-                    J[gp_index,gp_index-1] = -1.0*elementary_charge
-                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index-1])*elementary_charge
+                    J[gp_index,gp_index-1] = -1.0
+                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index-1])
                 elif self.boudnary_points[gp_index] == "ymin":
-                    J[gp_index,gp_index+Nx] = -1.0*elementary_charge
-                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index+Nx])*elementary_charge
+                    J[gp_index,gp_index+Nx] = -1.0
+                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index+Nx])
                 elif self.boudnary_points[gp_index] == "ymax":
-                    J[gp_index,gp_index-Nx] = -1.0*elementary_charge
-                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index-Nx])*elementary_charge
+                    J[gp_index,gp_index-Nx] = -1.0
+                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index-Nx])
                 elif self.boudnary_points[gp_index] == "zmin":
-                    J[gp_index,gp_index+Nx*Ny] = -1.0*elementary_charge
-                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index+Nx*Ny])*elementary_charge
+                    J[gp_index,gp_index+Nx*Ny] = -1.0
+                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index+Nx*Ny])
                 elif self.boudnary_points[gp_index] == "zmax":
-                    J[gp_index,gp_index-Nx*Ny] = -1.0*elementary_charge
-                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index-Nx*Ny])*elementary_charge
+                    J[gp_index,gp_index-Nx*Ny] = -1.0
+                    B[gp_index] = (self.phi[gp_index]-self.phi[gp_index-Nx*Ny])
                 elif self.boudnary_points[gp_index] == "Gate":
-                    J[gp_index,gp_index] = elementary_charge
-                    B[gp_index] = (self.phi[gp_index]+self.lead_gate_potential[gp_index])*elementary_charge
+                    B[gp_index] = (self.phi[gp_index]+self.lead_gate_potential[gp_index])
 
             if B[gp_index]!=0: # for convenience change the sign of B in later NR iteration
                 B[gp_index] = -B[gp_index]
