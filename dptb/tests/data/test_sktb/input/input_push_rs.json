@@ -8,7 +8,7 @@
             "overlap": false
     },
     "train_options": {
-        "num_epoch": 2,
+        "num_epoch": 10,
         "batch_size": 1,
         "optimizer": {
             "lr": 0.01,

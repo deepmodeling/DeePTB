@@ -21,7 +21,7 @@
         "loss_options":{
             "train": {"method": "eigvals"}
         },
-        "save_freq": 500,
+        "save_freq": 1,
         "validation_freq": 10,
         "display_freq": 100
     },
