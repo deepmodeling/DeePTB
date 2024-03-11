@@ -43,7 +43,7 @@ def test_nnsk_push():
 def test_md():
     INPUT_file = "./dptb/tests/data/test_sktb/input/input_md.json"
     output = "./dptb/tests/data/test_sktb/output"
-    init_model = "./dptb/tests/data/test_sktb/output/test_push_w/checkpoint/nnsk.iter11.pth"
+    init_model = "./dptb/tests/data/test_sktb/output/test_push_w/checkpoint/nnsk.iter10.pth"
 
     train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False,\
           output=output+"/test_md", log_level=5, log_path=output+"/test_md.log")
