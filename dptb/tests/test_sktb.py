@@ -17,7 +17,7 @@ def test_nnsk_valence(root_directory):
 def test_nnsk_strain_polar(root_directory):
     INPUT_file = root_directory+"/dptb/tests/data/test_sktb/input/input_strain_polar.json"
     output = root_directory+"/dptb/tests/data/test_sktb/output"
-    init_model = root_directory+"/dptb/tests/data/test_sktb/output/test_valence/checkpoint/nnsk.iter6.pth"
+    init_model = root_directory+"/dptb/tests/data/test_sktb/output/test_valence/checkpoint/nnsk.iter3.pth"
 
     train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False,\
           output=output+"/test_strain_polar", log_level=5, log_path=output+"/test_strain_polar.log")
@@ -26,7 +26,7 @@ def test_nnsk_push(root_directory):
     INPUT_file_rs = root_directory + "/dptb/tests/data/test_sktb/input/input_push_rs.json"
     INPUT_file_w = root_directory + "/dptb/tests/data/test_sktb/input/input_push_w.json"
     output = root_directory + "/dptb/tests/data/test_sktb/output"
-    init_model = root_directory + "/dptb/tests/data/test_sktb/output/test_strain_polar/checkpoint/nnsk.iter6.pth"
+    init_model = root_directory + "/dptb/tests/data/test_sktb/output/test_strain_polar/checkpoint/nnsk.iter3.pth"
 
     train(INPUT=INPUT_file_rs, init_model=init_model, restart=None, train_soc=False,\
           output=output+"/test_push_rs", log_level=5, log_path=output+"/test_push_rs.log")
