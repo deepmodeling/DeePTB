@@ -112,7 +112,7 @@ class NEGF(object):
 
         ## Poisson equation settings
         self.poisson_options = j_must_have(jdata, "poisson_options")
-        self.LDOS_integral = {}
+        # self.LDOS_integral = {}  # for electron density integral
         self.free_charge_nanotcad = {}
         self.gate_region = [self.poisson_options[i] for i in self.poisson_options if i.startswith("gate")]
         self.dielectric_region = [self.poisson_options[i] for i in self.poisson_options if i.startswith("dielectric")]
@@ -146,7 +146,7 @@ class NEGF(object):
             cal_int_grid = True
 
         if self.out_dos or self.out_tc or self.out_current_nscf or self.out_ldos:
-            # Energy relative to Fermi level
+            # Energy gird is set relative to Fermi level
             self.uni_grid = torch.linspace(start=self.jdata["emin"], end=self.jdata["emax"], steps=int((self.jdata["emax"]-self.jdata["emin"])/self.jdata["espacing"]))
 
         if cal_pole:
@@ -162,7 +162,8 @@ class NEGF(object):
 
         if self.scf:
             if not self.out_density:
-                raise RuntimeError("Error! scf calculation requires density matrix. Please set out_density to True")
+                self.out_density = True
+                raise UserWarning("SCF is required, but out_density is set to False. Automatically Setting out_density to True.")
             self.poisson_negf_scf(err=self.poisson_options['err'],tolerance=self.poisson_options['tolerance'],\
                                   max_iter=self.poisson_options['max_iter'],mix_rate=self.poisson_options['mix_rate'])
         else:
@@ -171,26 +172,32 @@ class NEGF(object):
 
     def poisson_negf_scf(self,err=1e-6,max_iter=1000,mix_rate=0.3,tolerance=1e-7):
        
-        # create grid
+        # create real-space grid
         grid = self.get_grid(self.poisson_options["grid"],self.deviceprop.structure)
         
         # create gate
         Gate_list = []
         for gg in range(len(self.gate_region)):
-            xmin,xmax = self.gate_region[gg].get("x_range",None).split(':')
-            ymin,ymax = self.gate_region[gg].get("y_range",None).split(':')
-            zmin,zmax = self.gate_region[gg].get("z_range",None).split(':')
-            gate_init = Gate(float(xmin),float(xmax),float(ymin),float(ymax),float(zmin),float(zmax))
+            # xmin,xmax = self.gate_region[gg].get("x_range",None).split(':')
+            # ymin,ymax = self.gate_region[gg].get("y_range",None).split(':')
+            # zmin,zmax = self.gate_region[gg].get("z_range",None).split(':')
+            # gate_init = Gate(float(xmin),float(xmax),float(ymin),float(ymax),float(zmin),float(zmax))
+            gate_init = Gate(self.gate_region[gg].get("x_range",None).split(':'),\
+                             self.gate_region[gg].get("y_range",None).split(':'),\
+                             self.gate_region[gg].get("z_range",None).split(':'))
             gate_init.Ef = float(self.gate_region[gg].get("voltage",None)) # in unit of volt
             Gate_list.append(gate_init)
                       
         # create dielectric
         Dielectric_list = []
         for dd in range(len(self.dielectric_region)):
-            xmin,xmax = self.dielectric_region[dd].get("x_range",None).split(':')
-            ymin,ymax = self.dielectric_region[dd].get("y_range",None).split(':')
-            zmin,zmax = self.dielectric_region[dd].get("z_range",None).split(':')
-            dielectric_init = Dielectric(float(xmin),float(xmax),float(ymin),float(ymax),float(zmin),float(zmax))
+            # xmin,xmax = self.dielectric_region[dd].get("x_range",None).split(':')
+            # ymin,ymax = self.dielectric_region[dd].get("y_range",None).split(':')
+            # zmin,zmax = self.dielectric_region[dd].get("z_range",None).split(':')
+
+            dielectric_init = Gate(self.dielectric_region[dd].get("x_range",None).split(':'),\
+                self.dielectric_region[dd].get("y_range",None).split(':'),\
+                self.dielectric_region[dd].get("z_range",None).split(':'))
             dielectric_init.eps = float(self.dielectric_region[dd].get("relative permittivity",None))
             Dielectric_list.append(dielectric_init)        
 

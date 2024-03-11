@@ -98,25 +98,22 @@ class Grid(object):
 
     
 class Gate(object):
-    def __init__(self,xmin,xmax,ymin,ymax,zmin,zmax):
+    def __init__(self,xrange,yrange,zrange):
+        # Fermi_level of gate (in unit eV)
         self.Ef = 0.0
-        # gate region
-        self.xmin = xmin; self.xmax = xmax
-        self.ymin = ymin; self.ymax = ymax
-        self.zmin = zmin; self.zmax = zmax
+        # Gate region
+        self.xmin,self.xmax = float(xrange[0]),float(xrange[1])
+        self.ymin,self.ymax = float(yrange[0]),float(yrange[1])
+        self.zmin,self.zmax = float(zrange[0]),float(zrange[1])
 
 class Dielectric(object):
-    def __init__(self,xmin,xmax,ymin,ymax,zmin,zmax):
+    def __init__(self,xrange,yrange,zrange):
+        # dielectric permittivity
         self.eps = 1.0
         # gate region
-        self.xmin = xmin; self.xmax = xmax
-        self.ymin = ymin; self.ymax = ymax
-        self.zmin = zmin; self.zmax = zmax
-
-
-
-
-
+        self.xmin,self.xmax = float(xrange[0]),float(xrange[1])
+        self.ymin,self.ymax = float(yrange[0]),float(yrange[1])
+        self.zmin,self.zmax = float(zrange[0]),float(zrange[1])
 
 
 class Interface3D(object):
