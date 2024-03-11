@@ -195,7 +195,7 @@ class NEGF(object):
             # ymin,ymax = self.dielectric_region[dd].get("y_range",None).split(':')
             # zmin,zmax = self.dielectric_region[dd].get("z_range",None).split(':')
 
-            dielectric_init = Gate(self.dielectric_region[dd].get("x_range",None).split(':'),\
+            dielectric_init = Dielectric(self.dielectric_region[dd].get("x_range",None).split(':'),\
                 self.dielectric_region[dd].get("y_range",None).split(':'),\
                 self.dielectric_region[dd].get("z_range",None).split(':'))
             dielectric_init.eps = float(self.dielectric_region[dd].get("relative permittivity",None))
