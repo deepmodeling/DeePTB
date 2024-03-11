@@ -178,10 +178,6 @@ class NEGF(object):
         # create gate
         Gate_list = []
         for gg in range(len(self.gate_region)):
-            # xmin,xmax = self.gate_region[gg].get("x_range",None).split(':')
-            # ymin,ymax = self.gate_region[gg].get("y_range",None).split(':')
-            # zmin,zmax = self.gate_region[gg].get("z_range",None).split(':')
-            # gate_init = Gate(float(xmin),float(xmax),float(ymin),float(ymax),float(zmin),float(zmax))
             gate_init = Gate(self.gate_region[gg].get("x_range",None).split(':'),\
                              self.gate_region[gg].get("y_range",None).split(':'),\
                              self.gate_region[gg].get("z_range",None).split(':'))
@@ -191,10 +187,6 @@ class NEGF(object):
         # create dielectric
         Dielectric_list = []
         for dd in range(len(self.dielectric_region)):
-            # xmin,xmax = self.dielectric_region[dd].get("x_range",None).split(':')
-            # ymin,ymax = self.dielectric_region[dd].get("y_range",None).split(':')
-            # zmin,zmax = self.dielectric_region[dd].get("z_range",None).split(':')
-
             dielectric_init = Dielectric(self.dielectric_region[dd].get("x_range",None).split(':'),\
                 self.dielectric_region[dd].get("y_range",None).split(':'),\
                 self.dielectric_region[dd].get("z_range",None).split(':'))
@@ -207,8 +199,8 @@ class NEGF(object):
         #initial guess for electrostatic potential
         log.info(msg="-----Initial guess for electrostatic potential----")
         interface_poisson.solve_poisson(method=self.poisson_options['solver'],tolerance=tolerance)
-        # np.save(self.results_path+"/initial_guess_phi.npy",interface_poisson.phi)
         atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values())
+        # np.save(self.results_path+"/initial_guess_phi.npy",interface_poisson.phi)
         # np.save(self.results_path+"/initial_guess_phi_at_atom.npy",interface_poisson.phi[atom_gridpoint_index])
         log.info(msg="-------------------------------------------\n")
 
