@@ -15,6 +15,7 @@ class Saver(Plugin):
         super(Saver, self).__init__(interval)
         self.best_loss = 1e7
         self.best_quene = []
+        self.latest_quene = []
 
     def register(self, trainer, checkpoint_path):
         self.checkpoint_path = checkpoint_path
@@ -24,8 +25,15 @@ class Saver(Plugin):
         # suffix = "_b"+"%.3f"%self.trainer.common_options["bond_cutoff"]+"_c"+"%.3f"%self.trainer.onsite_options["skfunction"]["sk_cutoff"]+"_w"+\
         #         "%.3f"%self.trainer.model_options["skfunction"]["sk_decay_w"]
         suffix = ".iter{}".format(self.trainer.iter+1)
+        name = self.trainer.model.name+suffix
+        self.latest_quene.append(name)
+        if len(self.latest_quene) >= 5:
+            delete_name = self.latest_quene.pop(0)
+            delete_path = os.path.join(self.checkpoint_path, delete_name+".pth")
+            os.remove(delete_path)
+        
         self._save(
-            name=self.trainer.model.name+suffix,
+            name=name,
             model=self.trainer.model,
             model_options=self.trainer.model.model_options,
             common_options=self.trainer.common_options,
