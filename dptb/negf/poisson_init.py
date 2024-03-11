@@ -149,8 +149,8 @@ class Interface3D(object):
         self.boundary_points_get()
 
         self.lead_gate_potential = np.zeros(grid.Np) # no gate potential initially, all grid points are set to zero
-        self.potential_eps_get(gate_list)
-        self.potential_eps_get(dielectric_list)
+        self.potential_eps_get(gate_list+dielectric_list)
+        
 
 
     def boundary_points_get(self):
@@ -186,11 +186,13 @@ class Interface3D(object):
                         (region_list[i].ymax>=self.grid.grid_coord[:,1])&
                         (region_list[i].zmin<=self.grid.grid_coord[:,2])&
                         (region_list[i].zmax>=self.grid.grid_coord[:,2]))[0]
-            if region_list[i].__class__.__name__ == 'Gate': #attribute gate potential to the corresponding grid points
+            if region_list[i].__class__.__name__ == 'Gate': 
+                #attribute gate potential to the corresponding grid points
                 self.boudnary_points.update({index[i]: "Gate" for i in range(len(index))})
                 self.lead_gate_potential[index] = region_list[i].Ef 
                 gate_point += len(index)
             elif region_list[i].__class__.__name__ == 'Dielectric':
+                # attribute dielectric permittivity to the corresponding grid points
                 self.eps[index] = region_list[i].eps
             else:
                 raise ValueError('Unknown region type: ',region_list[i].__class__.__name__)

@@ -207,9 +207,9 @@ class NEGF(object):
         #initial guess for electrostatic potential
         log.info(msg="-----Initial guess for electrostatic potential----")
         interface_poisson.solve_poisson(method=self.poisson_options['solver'],tolerance=tolerance)
-        np.save(self.results_path+"/initial_guess_phi.npy",interface_poisson.phi)
+        # np.save(self.results_path+"/initial_guess_phi.npy",interface_poisson.phi)
         atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values())
-        np.save(self.results_path+"/initial_guess_phi_at_atom.npy",interface_poisson.phi[atom_gridpoint_index])
+        # np.save(self.results_path+"/initial_guess_phi_at_atom.npy",interface_poisson.phi[atom_gridpoint_index])
         log.info(msg="-------------------------------------------\n")
 
         max_diff = 1e30; max_diff_list = [] 
