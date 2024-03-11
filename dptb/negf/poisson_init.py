@@ -198,22 +198,21 @@ class Interface3D(object):
                 raise ValueError('Unknown region type: ',region_list[i].__class__.__name__)
         print('Number of gate points: ',gate_point)
         
-    def to_pyamg(self,dtype=None):
+    def to_pyamg(self,dtype=np.float64):
         # convert to amg format A,b matrix
-        if dtype == None:
-            dtype = np.float64
+        # if dtype == None:
+        #     dtype = np.float64
         # A = poisson(self.grid.shape,format='csr',dtype=dtype)
-        A = csr_matrix(np.zeros((self.grid.Np,self.grid.Np),dtype=dtype))
-        b = np.zeros(A.shape[0],dtype=A.dtype)
-        self.construct_poisson(A,b)
+        Jacobian = csr_matrix(np.zeros((self.grid.Np,self.grid.Np),dtype=dtype))
+        B = np.zeros(Jacobian.shape[0],dtype=Jacobian.dtype)
+        self.NR_construct_Jacobian(Jacobian)
+        self.NR_construct_B(B)
         
-        return A,b
+        return Jacobian,B
     
     
-    def to_scipy(self,dtype=None):
+    def to_scipy(self,dtype=np.float64):
         # convert to amg format A,b matrix
-        if dtype == None:
-            dtype = np.float64
         # A = poisson(self.grid.shape,format='csr',dtype=dtype)
         Jacobian = csr_matrix(np.zeros((self.grid.Np,self.grid.Np),dtype=dtype))
         B = np.zeros(Jacobian.shape[0],dtype=Jacobian.dtype)
@@ -300,12 +299,12 @@ class Interface3D(object):
                 #TODO: add lead potential. For dptb-negf, we only need to change zmin and zmax as lead
 
 
-    def solve_poisson_pyamg(self,A,b,tolerance=1e-7,accel=None):
+    def solve_pyamg(self,A,b,tolerance=1e-7,accel=None):
         # solve the Poisson equation
         print('Solve Poisson equation by pyamg')
         pyamg_solver = pyamg.aggregation.smoothed_aggregation_solver(A, max_levels=1000)
         del A
-        print('Poisson equation solver: ',pyamg_solver)
+        # print('Poisson equation solver: ',pyamg_solver)
         residuals = []
 
         def callback(x):
@@ -320,57 +319,61 @@ class Interface3D(object):
         x = pyamg_solver.solve(
             b,
             tol=tolerance,
-            callback=callback,
+            # callback=callback,
             residuals=residuals,
             accel=accel,
             cycle="W",
-            maxiter=1e7,
+            maxiter=1e3,
         )
-        print("Done solving the Poisson equation!")
         return x
 
 
     def solve_poisson(self,method='pyamg',tolerance=1e-7):
         # solve poisson equation:
         if method == 'pyamg':
-            A,b = self.to_pyamg()
-            self.phi = self.solve_poisson_pyamg(A,b,tolerance)
-            max_diff = np.max(abs(self.phi-self.phi_old))
-            return max_diff
+            print('Solve Poisson equation by pyamg')
+            # A,b = self.to_pyamg()
+            # self.phi = self.solve_poisson_pyamg(A,b,tolerance)
+            # max_diff = np.max(abs(self.phi-self.phi_old))
+            # return max_diff
         elif method == 'scipy':
-            
             print('Solve Poisson equation by scipy')
-            # NR iteration
-            self.phi_initial = self.phi.copy() # tilde_phi in paper
-            norm_avp = 1.0; NR_circle_count = 0
-            while norm_avp > 1e-3 and NR_circle_count < 100:
-                Jacobian,B = self.to_scipy()
-                norm_B = np.linalg.norm(B)
-                        
-                delta_phi = spsolve(Jacobian,B)
-                self.phi_oldstep = self.phi.copy()
-                
-                max_diff_NR = np.max(abs(delta_phi))
-                print('max_diff_NR: ',max_diff_NR)
-                norm_avp = np.linalg.norm(delta_phi)
-                self.phi += delta_phi
-                if norm_avp > 1e-3:
-                    _,B = self.to_scipy()
-                    norm_B_new = np.linalg.norm(B)
-                    print('norm_B_new: ',norm_B_new)
-                    control_count = 1
-                    while norm_B_new > norm_B and control_count < 2:
-                        self.phi -= delta_phi/np.power(2,control_count)
-                        _,B = self.to_scipy()
-                        norm_B_new = np.linalg.norm(B)
-                        control_count += 1    
-                        print('control_count: ',control_count,'  norm_B_new: ',norm_B_new)           
-                NR_circle_count += 1
-                print('NR circle: ',NR_circle_count,'  norm_avp: ', norm_avp)
-            max_diff = np.max(abs(self.phi-self.phi_old))
-            return max_diff
         else:
             raise ValueError('Unknown Poisson solver: ',method)
+        # NR iteration
+        self.phi_initial = self.phi.copy() # tilde_phi in paper
+        norm_avp = 1.0; NR_circle_count = 0
+        while norm_avp > 1e-3 and NR_circle_count < 100:
+            Jacobian,B = self.to_scipy()
+            norm_B = np.linalg.norm(B)
+            if method == 'scipy':   
+                delta_phi = spsolve(Jacobian,B)
+            elif method == 'pyamg':
+                delta_phi = self.solve_pyamg(Jacobian,B,tolerance=1e-5)
+            else:
+                print('Unknown Poisson solver: ',method)
+            self.phi_oldstep = self.phi.copy()
+            
+            max_diff_NR = np.max(abs(delta_phi))
+            print('max_diff_NR: ',max_diff_NR)
+            norm_avp = np.linalg.norm(delta_phi)
+            self.phi += delta_phi
+            if norm_avp > 1e-3:
+                _,B = self.to_scipy()
+                norm_B_new = np.linalg.norm(B)
+                print('norm_B_new: ',norm_B_new)
+                control_count = 1
+                while norm_B_new > norm_B and control_count < 2:
+                    self.phi -= delta_phi/np.power(2,control_count)
+                    _,B = self.to_scipy()
+                    norm_B_new = np.linalg.norm(B)
+                    control_count += 1    
+                    print('control_count: ',control_count,'  norm_B_new: ',norm_B_new)           
+            NR_circle_count += 1
+            print('NR circle: ',NR_circle_count,'  norm_avp: ', norm_avp)
+        max_diff = np.max(abs(self.phi-self.phi_old))
+        return max_diff
+
 
 
 
