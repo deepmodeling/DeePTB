@@ -26,6 +26,7 @@ torch-runstats = "0.2.0"
 torch_scatter = "2.1.2"
 torch_geometric = ">=2.4.0"
 opt-einsum = "3.3.0"
+h5py = "3.7.0"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -46,6 +47,7 @@ torch-runstats = "0.2.0"
 torch_scatter = "2.1.2"
 torch_geometric = ">=2.4.0"
 opt-einsum = "3.3.0"
+h5py = "3.7.0"
 
 
 [tool.poetry.group.3Dfermi]
