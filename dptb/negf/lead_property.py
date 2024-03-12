@@ -96,7 +96,13 @@ class LeadProperty(object):
 
         # if not hasattr(self, "HL"):
         #TODO: check here whether it is necessary to calculate the self energy every time
-        self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
+        if not hasattr(self, "HL"):
+            self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
+            self.voltage_old = self.voltage
+        elif abs(self.voltage_old-self.voltage)>1e-6:
+            self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
+            self.voltage_old = self.voltage
+        
 
         self.se, _ = selfEnergy(
             ee=energy,
