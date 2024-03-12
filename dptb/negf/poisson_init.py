@@ -244,7 +244,8 @@ class Interface3D(object):
 
 
     def solve_poisson_NRcycle(self,method='pyamg',tolerance=1e-7):
-         # solve the Poisson equation with Newton-Raphson method
+        # solve the Poisson equation with Newton-Raphson method
+        # delta_phi: the correction on the potential
       
         
         norm_delta_phi = 1.0 #  Euclidean norm of delta_phi in each step

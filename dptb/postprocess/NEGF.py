@@ -21,6 +21,8 @@ from dptb.utils.make_kpoints import kmesh_sampling
 import logging
 from dptb.negf.poisson_init import Grid,Interface3D,Gate,Dielectric
 
+from pyinstrument import Profiler
+
 log = logging.getLogger(__name__)
 
 # TODO : add common class to set all the dtype and precision.
@@ -171,7 +173,9 @@ class NEGF(object):
             self.negf_compute(scf_require=False,Vbias=potential_add)
 
     def poisson_negf_scf(self,err=1e-6,max_iter=1000,mix_rate=0.3,tolerance=1e-7):
-       
+        
+        profiler = Profiler()
+        profiler.start() 
         # create real-space grid
         grid = self.get_grid(self.poisson_options["grid"],self.deviceprop.structure)
         
@@ -198,7 +202,7 @@ class NEGF(object):
 
         #initial guess for electrostatic potential
         log.info(msg="-----Initial guess for electrostatic potential----")
-        interface_poisson.solve_poisson(method=self.poisson_options['solver'],tolerance=tolerance)
+        interface_poisson.solve_poisson_NRcycle(method=self.poisson_options['solver'],tolerance=tolerance)
         atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values())
         # np.save(self.results_path+"/initial_guess_phi.npy",interface_poisson.phi)
         # np.save(self.results_path+"/initial_guess_phi_at_atom.npy",interface_poisson.phi[atom_gridpoint_index])
@@ -244,18 +248,22 @@ class NEGF(object):
 
             interface_poisson.phi_old = interface_poisson.phi.copy()
 
-            max_diff = interface_poisson.solve_poisson(method=self.poisson_options['solver'],tolerance=tolerance)
+            max_diff = interface_poisson.solve_poisson_NRcycle(method=self.poisson_options['solver'],tolerance=tolerance)
 
             interface_poisson.phi = interface_poisson.phi + mix_rate*(interface_poisson.phi_old-interface_poisson.phi)
             
 
-            iter_count += 1
-            print('Poisson iteration: ',iter_count,' max_diff: ',max_diff)
+            iter_count += 1 # Gummel type iteration
+            print('Poisson iteration: ',iter_count,' Max Phi Diff: ',max_diff,'\n')
             max_diff_list.append(max_diff)
+
 
 
             if iter_count > max_iter:
                 log.info(msg="Warning! Poisson iteration exceeds max_iter {}".format(int(max_iter)))
+                profiler.stop()
+                with open('profile_report.html', 'w') as report_file:
+                    report_file.write(profiler.output_html())
                 break
 
         self.poisson_out = {}
@@ -270,6 +278,9 @@ class NEGF(object):
         # calculate transport properties with converged potential
         self.negf_compute(scf_require=False,Vbias=self.potential_tensor)
 
+        profiler.stop()
+        with open('profile_report.html', 'w') as report_file:
+            report_file.write(profiler.output_html())
 
     def negf_compute(self,scf_require=False,Vbias=None):
         # check if scf is required
