@@ -287,10 +287,10 @@ class Interface3D(object):
                     _,B = self.to_scipy_Jac_B()
                     norm_B_new = np.linalg.norm(B)
                     control_count += 1
-                    log.info(msg="    control_count: {:.1f}   norm_B_new: {:.5f}".format(float(control_count),norm_B_new))    
+                    log.info(msg="    control_count: {:d}   norm_B_new: {:.5f}".format(float(control_count),norm_B_new))    
                                
             NR_cycle_step += 1
-            log.info(msg="  NR cycle step: {:.1f}   norm_delta_phi: {:.10f}   max_delta_phi: {:.10f}".format(float(NR_cycle_step),norm_delta_phi,max_delta_phi))
+            log.info(msg="  NR cycle step: {:d}   norm_delta_phi: {:.10f}   max_delta_phi: {:.10f}".format(float(NR_cycle_step),norm_delta_phi,max_delta_phi))
         
         max_diff = np.max(abs(self.phi-self.phi_old))
         return max_diff
