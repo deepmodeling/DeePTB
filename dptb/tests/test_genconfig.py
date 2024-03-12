@@ -66,9 +66,9 @@ def test_config_success(root_directory):
         ("test", False, True, False): TestFullConfigSK,
         ("test", False, False, True): TestFullConfigSKEnv,
     }
-    tmp_path = root_directory + '/dptb/tests/data/test_sktb/output'
+    tmp_path = f'{root_directory}/dptb/tests/data/test_sktb/output'
     for (mode, e3tb, sktb, sktbenv), expected_config in expected_configs.items():
-        path = Path(tmp_path) / f"config_{mode}_{'E3' if e3tb else 'SK' if sktb else 'SKEnv'}.json"
+        path = f"{tmp_path}/config_{mode}_{'E3' if e3tb else 'SK' if sktb else 'SKEnv'}.json"
 
         config(
                 str(path),
