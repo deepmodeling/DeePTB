@@ -135,8 +135,15 @@ class _SE2Descriptor(MessagePassing):
             dtype = dtype_dict[dtype]
 
 
-        radial_net["config"] = get_neuron_config([2*n_atom+1]+radial_net["neurons"])
-        self.embedding_net = ResNet(**radial_net, device=device, dtype=dtype)
+        # radial_net["config"] = get_neuron_config([2*n_atom+1]+radial_net["neurons"])
+        # self.embedding_net = ResNet(**radial_net, device=device, dtype=dtype)
+        self.embedding_net = ResNet(
+            **radial_net, 
+            config=get_neuron_config([2*n_atom+1]+radial_net["neurons"]), 
+            device=device, 
+            dtype=dtype
+            )
+        
         if isinstance(rs, float):
             self.rs = torch.tensor(rs, dtype=dtype, device=device)
         else:

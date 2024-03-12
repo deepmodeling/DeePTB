@@ -689,8 +689,7 @@ def normalize_test(data):
     co = common_options()
     da = test_data_options()
     to = test_options()
-    lo = loss_options()
-
+    
     base = Argument("base", dict, [co, da, to, lo])
     data = base.normalize_value(data)
     # data = base.normalize_value(data, trim_pattern="_*")
