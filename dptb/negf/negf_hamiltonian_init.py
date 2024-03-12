@@ -249,7 +249,7 @@ class NEGFHamiltonianInit(object):
                          f["SL"][ix], f["SLL"][ix], f["SDL"][ix]
 
 
-        return hL-v*sL, hLL+v*sLL, hDL, sL, sLL, sDL # TODO: check hLL+v*sLL is correct or not
+        return hL-v*sL, hLL-v*sLL, hDL, sL, sLL, sDL # TODO: check hLL+v*sLL is correct or not
 
     def attach_potential():
         pass
