@@ -6,10 +6,12 @@ from dptb.utils.constants import Boltzmann, eV2J
 from scipy.constants import epsilon_0 as eps0  #TODO:later add to untils.constants.py
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import spsolve
+import logging
 #eps0 = 8.854187817e-12 # in the unit of F/m
 # As length in deeptb is in the unit of Angstrom, the unit of eps0 is F/Angstrom
 eps0 = eps0*1e-10 # in the unit of F/Angstrom
 
+log = logging.getLogger(__name__)
 
 class Grid(object):
     # define the grid in 3D space
@@ -32,7 +34,7 @@ class Grid(object):
         self.zall = np.unique(np.concatenate((uza,self.zg),0))
         self.shape = (len(self.xall),len(self.yall),len(self.zall))
 
-        print('unique len of zall:',len(np.unique(self.zall)))
+        
 
         # create meshgrid
         xmesh,ymesh,zmesh = np.meshgrid(self.xall,self.yall,self.zall)
@@ -46,8 +48,9 @@ class Grid(object):
         self.Np = int(len(self.xall)*len(self.yall)*len(self.zall))
         assert self.Np == len(xmesh)
         assert self.grid_coord.shape[0] == self.Np
-
-        print('Number of grid points: ',self.Np,' grid shape: ',self.grid_coord.shape,' Number of atoms: ',self.Na)
+        
+        log.info(msg="Number of grid points: {:.1f}   Number of atoms: {:.1f}".format(float(self.Np),self.Na))
+        # print('Number of grid points: ',self.Np,' grid shape: ',self.grid_coord.shape,' Number of atoms: ',self.Na)
 
         # find the index of the atoms in the grid
         self.atom_index_dict = self.find_atom_index(xa,ya,za)
@@ -71,8 +74,6 @@ class Grid(object):
 
         self.surface_grid = surface_grid  # grid points order are the same as that of  self.grid_coord
         
-
-
 
     def find_atom_index(self,xa,ya,za):
         # find the index of the atoms in the grid
@@ -187,7 +188,9 @@ class Interface3D(object):
                 self.eps[index] = region_list[i].eps
             else:
                 raise ValueError('Unknown region type: ',region_list[i].__class__.__name__)
-        print('Number of gate points: ',gate_point)
+        
+        log.info(msg="Number of gate points: {:.1f}".format(float(gate_point)))
+        
         
     def to_pyamg_Jac_B(self,dtype=np.float64):
         # convert to amg format A,b matrix
@@ -216,7 +219,8 @@ class Interface3D(object):
 
     def solver_pyamg(self,A,b,tolerance=1e-7,accel=None):
         # solve the Poisson equation
-        print('Solve Poisson equation by pyamg')
+        # log.info(msg="Solve Poisson equation by pyamg")
+        
         pyamg_solver = pyamg.aggregation.smoothed_aggregation_solver(A, max_levels=1000)
         del A
         # print('Poisson equation solver: ',pyamg_solver)
@@ -249,23 +253,23 @@ class Interface3D(object):
       
         
         norm_delta_phi = 1.0 #  Euclidean norm of delta_phi in each step
-        NR_cycle = 0
+        NR_cycle_step = 0
 
-        while norm_delta_phi > 1e-3 and NR_cycle < 100:
+        while norm_delta_phi > 1e-3 and NR_cycle_step < 100:
             # obtain the Jacobian and B for the Poisson equation
             Jacobian,B = self.to_scipy_Jac_B()
             norm_B = np.linalg.norm(B)
            
             if method == 'scipy':   
-                if NR_cycle == 0:
-                    print('Solve Poisson equation by scipy')
+                if NR_cycle_step == 0:
+                    log.info(msg="Solve Poisson equation by scipy")
                 delta_phi = spsolve(Jacobian,B)
             elif method == 'pyamg':
-                if NR_cycle == 0:
-                    print('Solve Poisson equation by pyamg')
+                if NR_cycle_step == 0:
+                    log.info(msg="Solve Poisson equation by pyamg")
                 delta_phi = self.solver_pyamg(Jacobian,B,tolerance=1e-5)
             else:
-                print('Unknown Poisson solver: ',method)
+                raise ValueError('Unknown Poisson solver: ',method)
                         
             max_delta_phi = np.max(abs(delta_phi))
             norm_delta_phi = np.linalg.norm(delta_phi)
@@ -278,14 +282,15 @@ class Interface3D(object):
                 # control the norm of B to avoid larger norm_B after one NR cycle
                 while norm_B_new > norm_B and control_count < 2:
                     if control_count==1: 
-                        print('norm_B increase after this  NR cycle, contorler starts!')
+                        log.warning(msg="norm_B increase after this  NR cycle, contorler starts!")
                     self.phi -= delta_phi/np.power(2,control_count)
                     _,B = self.to_scipy_Jac_B()
                     norm_B_new = np.linalg.norm(B)
-                    control_count += 1    
-                    print('    control_count: ',control_count,'  norm_B_new: ',norm_B_new)           
-            NR_cycle += 1
-            print('  NR cycle: ',NR_cycle,'  norm_delta_phi in NR: ', norm_delta_phi,'  max_delta_phi in NR: ',max_delta_phi)
+                    control_count += 1
+                    log.info(msg="    control_count: {:.1f}   norm_B_new: {:.5f}".format(float(control_count),norm_B_new))    
+                               
+            NR_cycle_step += 1
+            log.info(msg="  NR cycle step: {:.1f}   norm_delta_phi: {:.10f}   max_delta_phi: {:.10f}".format(float(NR_cycle_step),norm_delta_phi,max_delta_phi))
         
         max_diff = np.max(abs(self.phi-self.phi_old))
         return max_diff
