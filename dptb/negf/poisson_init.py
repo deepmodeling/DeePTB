@@ -202,8 +202,8 @@ class Interface3D(object):
     
     
     def to_scipy_Jac_B(self,dtype=np.float64):
-        # convert to amg format A,b matrix
-        # A = poisson(self.grid.shape,format='csr',dtype=dtype)
+        # create the Jacobian and B for the Poisson equation in scipy sparse format
+        
         Jacobian = csr_matrix(np.zeros((self.grid.Np,self.grid.Np),dtype=dtype))
         B = np.zeros(Jacobian.shape[0],dtype=Jacobian.dtype)
 
@@ -243,45 +243,49 @@ class Interface3D(object):
         return x
 
 
-    def solve_poisson(self,method='pyamg',tolerance=1e-7):
-        # solve poisson equation:
-        if method == 'pyamg':
-            print('Solve Poisson equation by pyamg')
-        elif method == 'scipy':
-            print('Solve Poisson equation by scipy')
-        else:
-            raise ValueError('Unknown Poisson solver: ',method)
-        # NR iteration
-        self.phi_initial = self.phi.copy() # tilde_phi in paper
-        norm_avp = 1.0; NR_circle_count = 0
-        while norm_avp > 1e-3 and NR_circle_count < 100:
+    def solve_poisson_NRcycle(self,method='pyamg',tolerance=1e-7):
+         # solve the Poisson equation with Newton-Raphson method
+      
+        
+        norm_delta_phi = 1.0 #  Euclidean norm of delta_phi in each step
+        NR_cycle = 0
+
+        while norm_delta_phi > 1e-3 and NR_cycle < 100:
+            # obtain the Jacobian and B for the Poisson equation
             Jacobian,B = self.to_scipy_Jac_B()
             norm_B = np.linalg.norm(B)
+           
             if method == 'scipy':   
+                if NR_cycle == 0:
+                    print('Solve Poisson equation by scipy')
                 delta_phi = spsolve(Jacobian,B)
             elif method == 'pyamg':
+                if NR_cycle == 0:
+                    print('Solve Poisson equation by pyamg')
                 delta_phi = self.solver_pyamg(Jacobian,B,tolerance=1e-5)
             else:
                 print('Unknown Poisson solver: ',method)
-            self.phi_oldstep = self.phi.copy()
-            
-            max_diff_NR = np.max(abs(delta_phi))
-            print('max_diff_NR: ',max_diff_NR)
-            norm_avp = np.linalg.norm(delta_phi)
+                        
+            max_delta_phi = np.max(abs(delta_phi))
+            norm_delta_phi = np.linalg.norm(delta_phi)
             self.phi += delta_phi
-            if norm_avp > 1e-3:
+
+            if norm_delta_phi > 1e-3:
                 _,B = self.to_scipy_Jac_B()
                 norm_B_new = np.linalg.norm(B)
-                print('norm_B_new: ',norm_B_new)
                 control_count = 1
+                # control the norm of B to avoid larger norm_B after one NR cycle
                 while norm_B_new > norm_B and control_count < 2:
+                    if control_count==1: 
+                        print('norm_B increase after this  NR cycle, contorler starts!')
                     self.phi -= delta_phi/np.power(2,control_count)
                     _,B = self.to_scipy_Jac_B()
                     norm_B_new = np.linalg.norm(B)
                     control_count += 1    
-                    print('control_count: ',control_count,'  norm_B_new: ',norm_B_new)           
-            NR_circle_count += 1
-            print('NR circle: ',NR_circle_count,'  norm_avp: ', norm_avp)
+                    print('    control_count: ',control_count,'  norm_B_new: ',norm_B_new)           
+            NR_cycle += 1
+            print('  NR cycle: ',NR_cycle,'  norm_delta_phi in NR: ', norm_delta_phi,'  max_delta_phi in NR: ',max_delta_phi)
+        
         max_diff = np.max(abs(self.phi-self.phi_old))
         return max_diff
 
