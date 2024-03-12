@@ -5,6 +5,9 @@ dptb/tests/**/*.pth
 dptb/tests/**/*.npy
 dptb/tests/**/*.traj
 dptb/tests/**/out*/*
+*.dat
+*.vasp
+*log*
 
 dptb/tests/data/hBN/data/set.0/xdat2.traj
 dptb/tests/data/postrun/run_config.json
@@ -27,9 +30,6 @@ results
 asserts
 *.css 
 band.png
-*.dat
-*.vasp
-*log*
 checkpoint.pl
 # Byte-compiled / optimized / DLL files
 __pycache__/
