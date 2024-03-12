@@ -70,6 +70,10 @@ def test_config_success(root_directory):
     for (mode, e3tb, sktb, sktbenv), expected_config in expected_configs.items():
         path =f"{tmp_path}/config_{mode}_{'E3' if e3tb else 'SK' if sktb else 'SKEnv'}.json"
 
+        # if tmp_path not exist, create it
+        if not Path(tmp_path).exists():
+            Path(tmp_path).mkdir(parents=True, exist_ok=True)
+            
         config(
                 str(path),
                 mode.lower() == "train",
