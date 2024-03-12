@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
-from unittest import mock
-import pytest, pytest_mock
+import pytest
 from dptb.utils.config_sk import TrainFullConfigSK, TestFullConfigSK
 from dptb.utils.config_skenv import TrainFullConfigSKEnv, TestFullConfigSKEnv
 from dptb.utils.config_e3 import TrainFullConfigE3, TestFullConfigE3
