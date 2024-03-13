@@ -77,10 +77,38 @@ def main_parser() -> argparse.ArgumentParser:
     )
 
     parser_config.add_argument(
-        "-full",
-        "--full_config",
-        action="store_true",
-        help="get the config templete with all input parameters.",
+        "-tr", 
+        "--train",
+        help="Generate the config templete for training.",
+        action="store_true"
+    )
+    
+    parser_config.add_argument(
+        "-ts", 
+        "--test",
+        help="Generate the config templete for testing.",
+        action="store_true"
+    )
+
+    parser_config.add_argument(
+        "-e3", 
+        "--e3tb",
+        help="Generate the config templete for e3nn TB model.",
+        action="store_true"
+    )
+
+    parser_config.add_argument(
+        "-sk", 
+        "--sktb",
+        help="Generate the config templete for nn-sk TB model.",
+        action="store_true"
+    )
+
+    parser_config.add_argument(
+        "-skenv", 
+        "--sktbenv",
+        help="Generate the config templete for nn-sk env TB model.",
+        action="store_true"
     )
 
     # neighbour
