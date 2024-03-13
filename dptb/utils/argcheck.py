@@ -630,7 +630,9 @@ def Ozaki():
 
 def Fiori():
     doc_n_gauss = ""
+    doc_integrate_way=""
     return [
+        Argument("integrate_way", int, optional=True, default='direct', doc=doc_integrate_way),
         Argument("n_gauss", int, optional=True, default=100, doc=doc_n_gauss)
     ]
 

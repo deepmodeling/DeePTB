@@ -278,35 +278,20 @@ class NEGF(object):
                 report_file.write(profiler.output_html())
 
     def negf_compute(self,scf_require=False,Vbias=None):
-        # check if scf is required
-        # if self.scf:
-        #     # perform k-point sampling and scf calculation to get the converged density
-        #     for k in self.kpoints:
-        #         pass
-        # else:
-        #     pass
         
-        # computing output properties
+    
+        assert scf_require is not None
+    
         for ik, k in enumerate(self.kpoints):
-            self.out = {}
-            self.out["lead_L_se"] = {}
-            self.out["lead_R_se"] = {}
-            self.out["gtrans"] = {}
-            self.out['uni_grid'] = self.uni_grid
+            self.out = {} 
+            self.out["gtrans"] = {}; self.out['uni_grid'] = self.uni_grid; self.out["k"] = k
+            self.free_charge.update({str(k):torch.zeros_like(torch.tensor(self.device_atom_norbs),dtype=torch.complex128)})
             log.info(msg="Properties computation at k = [{:.4f},{:.4f},{:.4f}]".format(float(k[0]),float(k[1]),float(k[2])))
 
-            # computing properties that is functions of E
-            if hasattr(self, "uni_grid"):
-                self.out["k"] = k
-                dE = abs(self.uni_grid[1] - self.uni_grid[0])
-                self.free_charge.update({str(k):torch.zeros_like(torch.tensor(self.device_atom_norbs),dtype=torch.complex128)})
-                
-                output_freq = int(len(self.uni_grid)/5)
-                for ie, e in enumerate(self.uni_grid):
-
-                    if ie % output_freq == 0:
-                        log.info(msg="computing green's function at e = {:.3f}".format(float(e)))
+            if scf_require:
+                if self.density_options["method"] == "Fiori":
                     leads = self.stru_options.keys()
+
                     for ll in leads:
                         if ll.startswith("lead"):
                             if Vbias is not None  and self.density_options["method"] == "Fiori":
@@ -315,27 +300,57 @@ class NEGF(object):
                                     getattr(self.deviceprop, ll).voltage = Vbias[0]
                                 else:
                                     getattr(self.deviceprop, ll).voltage = Vbias[-1]
-                            
 
-                            getattr(self.deviceprop, ll).self_energy(
-                                energy=e, 
-                                kpoint=k, 
-                                eta_lead=self.jdata["eta_lead"],
-                                method=self.jdata["sgf_solver"]
-                                )
-                            self.out[str(ll)+"_se"][str(e.numpy())] = getattr(self.deviceprop, ll).se
-                            
-                    gtrans = self.deviceprop.cal_green_function(
-                        energy=e, 
-                        kpoint=k, 
-                        eta_device=self.jdata["eta_device"], 
-                        block_tridiagonal=self.block_tridiagonal,
-                        Vbias=Vbias
-                        )
-                    
-                    self.out["gtrans"][str(e.numpy())] = gtrans
+                    self.compute_density_Fiori(
+                        e_grid = self.uni_grid, 
+                        kpoint=k,
+                        Vbias=Vbias,
+                        integrate_way = self.density_options["integrate_way"],  
+                        deviceprop=self.deviceprop,
+                        device_atom_norbs=self.device_atom_norbs,
+                        potential_at_atom = self.potential_at_atom,
+                        free_charge = self.free_charge)
+                else:
+                    # TODO: add Ozaki support for NanoTCAD-style SCF
+                    raise ValueError("Ozaki method is not supported for Poisson-NEGF SCF in this version.")
+                
 
-                    if scf_require==False:
+            # in non-scf case, computing properties in uni_gird
+            else:
+                if hasattr(self, "uni_grid"):
+                    # dE = abs(self.uni_grid[1] - self.uni_grid[0])                       
+                    output_freq = int(len(self.uni_grid)/5)
+
+                    for ie, e in enumerate(self.uni_grid):
+                        if ie % output_freq == 0:
+                            log.info(msg="computing green's function at e = {:.3f}".format(float(e)))
+                        leads = self.stru_options.keys()
+                        for ll in leads:
+                            if ll.startswith("lead"):
+                                if Vbias is not None  and self.density_options["method"] == "Fiori":
+                                    # set voltage as -1*potential_at_orb[0] and -1*potential_at_orb[-1] for self-energy same as in NanoTCAD
+                                    if ll == 'lead_L' :
+                                        getattr(self.deviceprop, ll).voltage = Vbias[0]
+                                    else:
+                                        getattr(self.deviceprop, ll).voltage = Vbias[-1]
+                                
+                                getattr(self.deviceprop, ll).self_energy(
+                                    energy=e, 
+                                    kpoint=k, 
+                                    eta_lead=self.jdata["eta_lead"],
+                                    method=self.jdata["sgf_solver"]
+                                    )
+                                # self.out[str(ll)+"_se"][str(e.numpy())] = getattr(self.deviceprop, ll).se
+                                
+                        gtrans = self.deviceprop.cal_green_function(
+                            energy=e, kpoint=k, 
+                            eta_device=self.jdata["eta_device"], 
+                            block_tridiagonal=self.block_tridiagonal,
+                            Vbias=Vbias
+                            )
+                        self.out["gtrans"][str(e.numpy())] = gtrans
+
+                        
                         if self.out_dos:
                             prop = self.out.setdefault("DOS", [])
                             prop.append(self.compute_DOS(k))
@@ -345,70 +360,61 @@ class NEGF(object):
                         if self.out_ldos:
                             prop = self.out.setdefault("LDOS", [])
                             prop.append(self.compute_LDOS(k))
-                    else:
-                        if self.density_options["method"] == "Fiori":
-                            self.compute_density_Fiori(
-                                e=e, 
-                                kpoint=k, 
-                                dE = dE, 
-                                deviceprop=self.deviceprop,
-                                device_atom_norbs=self.device_atom_norbs,
-                                potential_at_atom = self.potential_at_atom,
-                                free_charge = self.free_charge)
+                        
+                            
+                    # over energy loop in uni_gird
+                    # The following code is for output properties before NEGF ends
+                    # TODO: check following code for multiple k points calculation
+                
+                    if self.out_density or self.out_potential:
+                        if self.density_options["method"] == "Ozaki":
+                            self.out["DM_eq"], self.out["DM_neq"] = self.compute_density_Ozaki(k,Vbias)
+                        elif self.density_options["method"] == "Fiori":
+                            log.warning("Fiori method is not supported for output density in this version.")
                         else:
-                            raise ValueError("Ozaki method is not supported for Poisson-NEGF SCF in this version.")
-                        
+                            raise ValueError("Unknown method for density calculation.")
+                    if self.out_potential:
+                        pass
+                    if self.out_dos:
+                        self.out["DOS"] = torch.stack(self.out["DOS"])
+                    if self.out_tc or self.out_current_nscf:
+                        self.out["TC"] = torch.stack(self.out["TC"])
+                    if self.out_current_nscf:
+                        self.out["BIAS_POTENTIAL_NSCF"], self.out["CURRENT_NSCF"] = self.compute_current_nscf(k, self.uni_grid, self.out["TC"]) 
+                    # computing properties that are not functions of E (improvement can be made here in properties related to integration of energy window of fermi functions)
+                    if self.out_current:
+                        pass
             
-            if scf_require==False:
-                if self.out_density or self.out_potential:
-                    if self.density_options["method"] == "Ozaki":
-                        self.out["DM_eq"], self.out["DM_neq"] = self.compute_density_Ozaki(k,Vbias)
-                    elif self.density_options["method"] == "Fiori":
-                        log.warning("Fiori method is not supported for output density in this version.")
-                    else:
-                        raise ValueError("Unknown method for density calculation.")
-                if self.out_potential:
-                    pass
-                if self.out_dos:
-                    self.out["DOS"] = torch.stack(self.out["DOS"])
-                if self.out_tc or self.out_current_nscf:
-                    self.out["TC"] = torch.stack(self.out["TC"])
-                if self.out_current_nscf:
-                    self.out["BIAS_POTENTIAL_NSCF"], self.out["CURRENT_NSCF"] = self.compute_current_nscf(k, self.uni_grid, self.out["TC"]) 
-                # computing properties that are not functions of E (improvement can be made here in properties related to integration of energy window of fermi functions)
-                if self.out_current:
-                    pass
-        
-                if self.out_lcurrent:
-                    lcurrent = 0
-                    log.info(msg="computing local current at k = [{:.4f},{:.4f},{:.4f}]".format(float(k[0]),float(k[1]),float(k[2])))
-                    for i, e in enumerate(self.int_grid):
-                        log.info(msg=" computing green's function at e = {:.3f}".format(float(e)))
-                        leads = self.stru_options.keys()
-                        for ll in leads:
-                            if ll.startswith("lead"):
-                                getattr(self.deviceprop, ll).self_energy(
-                                    energy=e, 
-                                    kpoint=k, 
-                                    eta_lead=self.jdata["eta_lead"],
-                                    method=self.jdata["sgf_solver"]
-                                    )
-                                
-                        self.deviceprop.cal_green_function(
-                            energy=e,
-                            kpoint=k, 
-                            eta_device=self.jdata["eta_device"], 
-                            block_tridiagonal=self.block_tridiagonal
-                            )
-                        
-                        lcurrent += self.int_weight[i] * self.compute_lcurrent(k)
-                    self.out["LOCAL_CURRENT"] = lcurrent
+                    if self.out_lcurrent:
+                        lcurrent = 0
+                        log.info(msg="computing local current at k = [{:.4f},{:.4f},{:.4f}]".format(float(k[0]),float(k[1]),float(k[2])))
+                        for i, e in enumerate(self.int_grid):
+                            log.info(msg=" computing green's function at e = {:.3f}".format(float(e)))
+                            leads = self.stru_options.keys()
+                            for ll in leads:
+                                if ll.startswith("lead"):
+                                    getattr(self.deviceprop, ll).self_energy(
+                                        energy=e, 
+                                        kpoint=k, 
+                                        eta_lead=self.jdata["eta_lead"],
+                                        method=self.jdata["sgf_solver"]
+                                        )
+                                    
+                            self.deviceprop.cal_green_function(
+                                energy=e,
+                                kpoint=k, 
+                                eta_device=self.jdata["eta_device"], 
+                                block_tridiagonal=self.block_tridiagonal
+                                )
+                            
+                            lcurrent += self.int_weight[i] * self.compute_lcurrent(k)
+                        self.out["LOCAL_CURRENT"] = lcurrent
 
 
-            if scf_require == False:
+                
                 torch.save(self.out, self.results_path+"/negf.k{}.out.pth".format(ik))
 
-            # plotting
+                # plotting
             
 
     def get_grid(self,grid_info,structase):
@@ -457,8 +463,19 @@ class NEGF(object):
         DM_eq, DM_neq = self.density.integrate(deviceprop=self.deviceprop, kpoint=kpoint, Vbias=Vbias)
         return DM_eq, DM_neq
     
-    def compute_density_Fiori(self,e,kpoint,dE,deviceprop,device_atom_norbs,potential_at_atom,free_charge):
-        self.density.density_integrate_Fiori(e,kpoint,dE,deviceprop,device_atom_norbs,potential_at_atom,free_charge)
+    def compute_density_Fiori(self,e_grid,kpoint,Vbias,integrate_way,deviceprop,device_atom_norbs,potential_at_atom,free_charge):
+        if integrate_way == "direct":
+            self.density.density_integrate_Fiori_direct(e_grid,kpoint,Vbias,deviceprop,device_atom_norbs,
+                                                        potential_at_atom,free_charge,
+                                                        eta_lead=self.jdata["eta_lead"],
+                                                        eta_device=self.jdata["eta_device"],)
+        elif integrate_way == "gauss":
+            self.density.density_integrate_Fiori_gauss(e_grid,kpoint,Vbias,deviceprop,device_atom_norbs,
+                                                        potential_at_atom,free_charge,
+                                                        eta_lead=self.jdata["eta_lead"],
+                                                        eta_device=self.jdata["eta_device"],)
+        else:
+            raise ValueError("Unknown integrate method for density calculation.")
     
 
     def compute_current(self, kpoint):

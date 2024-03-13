@@ -238,40 +238,97 @@ class Fiori(Density):
         self.n_gauss = n_gauss
         self.xs = None
         self.wlg = None
+        self.e_grid_Fiori = None
 
-    def density_integrate_Fiori(self,e,kpoint,dE,deviceprop,device_atom_norbs,potential_at_atom,free_charge):
+    def density_integrate_Fiori_direct(self,e_grid,kpoint,Vbias,deviceprop,device_atom_norbs,potential_at_atom,free_charge, eta_lead=1e-5, eta_device=1e-5):
 
-        # xs, wlg = gauss_xw(xl=torch.scalar_tensor(xl), xu=torch.scalar_tensor(xu), n=self.n_gauss)
+        dE = e_grid[1] - e_grid[0]
+        for eidx, e in enumerate(e_grid):
+
+            deviceprop.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
+            deviceprop.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
+            deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device,Vbias = Vbias)
+
+            tx, ty = deviceprop.g_trans.shape
+            lx, ly = deviceprop.lead_L.se.shape
+            rx, ry = deviceprop.lead_R.se.shape
+            x0 = min(lx, tx)
+            x1 = min(rx, ty)
+
+            gammaL = torch.zeros(size=(tx, tx), dtype=torch.complex128)
+            gammaL[:x0, :x0] += deviceprop.lead_L.gamma[:x0, :x0]
+            gammaR = torch.zeros(size=(ty, ty), dtype=torch.complex128)
+            gammaR[-x1:, -x1:] += deviceprop.lead_R.gamma[-x1:, -x1:]
+
+            A_L = torch.mm(torch.mm(deviceprop.g_trans,gammaL),deviceprop.g_trans.conj().T)
+            A_R = torch.mm(torch.mm(deviceprop.g_trans,gammaR),deviceprop.g_trans.conj().T)
+
+            # Vbias = -1 * potential_at_orb
+            for Ei_index, Ei_at_atom in enumerate(-1*potential_at_atom):
+                pre_orbs = sum(device_atom_norbs[:Ei_index])
+            
+                # electron density
+                if e >= Ei_at_atom: 
+                    for j in range(device_atom_norbs[Ei_index]):
+                        free_charge[str(kpoint)][Ei_index] +=\
+                        2*(-1)/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi) \
+                                    +A_R[pre_orbs+j,pre_orbs+j]*deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi))*dE
+
+                # hole density
+                else:
+                    for j in range(device_atom_norbs[Ei_index]):
+                        free_charge[str(kpoint)][Ei_index] +=\
+                        2*1/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi)) \
+                                    +A_R[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi)))*dE
+                        
 
 
-        tx, ty = deviceprop.g_trans.shape
-        lx, ly = deviceprop.lead_L.se.shape
-        rx, ry = deviceprop.lead_R.se.shape
-        x0 = min(lx, tx)
-        x1 = min(rx, ty)
 
-        gammaL = torch.zeros(size=(tx, tx), dtype=torch.complex128)
-        gammaL[:x0, :x0] += deviceprop.lead_L.gamma[:x0, :x0]
-        gammaR = torch.zeros(size=(ty, ty), dtype=torch.complex128)
-        gammaR[-x1:, -x1:] += deviceprop.lead_R.gamma[-x1:, -x1:]
+    def density_integrate_Fiori_gauss(self,e_grid,kpoint,Vbias,deviceprop,device_atom_norbs,potential_at_atom,free_charge, eta_lead=1e-5, eta_device=1e-5):
 
-        A_L = torch.mm(torch.mm(deviceprop.g_trans,gammaL),deviceprop.g_trans.conj().T)
-        A_R = torch.mm(torch.mm(deviceprop.g_trans,gammaR),deviceprop.g_trans.conj().T)
+        if self.xs is None:
+            self.xs, self.wlg = gauss_xw(xl=torch.scalar_tensor(e_grid[0]), xu=torch.scalar_tensor(e_grid[-1]), n=self.n_gauss)
+            # self.xs = self.xs.numpy();self.wlg = self.wlg.numpy()
+            self.e_grid_Fiori = e_grid
+        elif self.e_grid_Fiori[0] != e_grid[0] or self.e_grid_Fiori[-1] != e_grid[-1]:
+            self.xs, self.wlg = gauss_xw(xl=torch.scalar_tensor(e_grid[0]), xu=torch.scalar_tensor(e_grid[-1]), n=self.n_gauss)
+            # self.xs = self.xs.numpy();self.wlg = self.wlg.numpy()
+            self.e_grid_Fiori = e_grid
 
-        # Vbias = -1 * potential_at_orb
-        for Ei_index, Ei_at_atom in enumerate(-1*potential_at_atom):
-            pre_orbs = sum(device_atom_norbs[:Ei_index])
-        
-            # electron density
-            if e >= Ei_at_atom: 
-                for j in range(device_atom_norbs[Ei_index]):
-                    free_charge[str(kpoint)][Ei_index] +=\
-                    2*(-1)/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi) \
-                                  +A_R[pre_orbs+j,pre_orbs+j]*deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi))*dE
+        for eidx, e in enumerate(self.xs):
 
-            # hole density
-            else:
-                for j in range(device_atom_norbs[Ei_index]):
-                    free_charge[str(kpoint)][Ei_index] +=\
-                    2*1/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi)) \
-                                  +A_R[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi)))*dE
+            deviceprop.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
+            deviceprop.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
+            deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device,Vbias = Vbias)
+
+            tx, ty = deviceprop.g_trans.shape
+            lx, ly = deviceprop.lead_L.se.shape
+            rx, ry = deviceprop.lead_R.se.shape
+            x0 = min(lx, tx)
+            x1 = min(rx, ty)
+
+            gammaL = torch.zeros(size=(tx, tx), dtype=torch.complex128)
+            gammaL[:x0, :x0] += deviceprop.lead_L.gamma[:x0, :x0]
+            gammaR = torch.zeros(size=(ty, ty), dtype=torch.complex128)
+            gammaR[-x1:, -x1:] += deviceprop.lead_R.gamma[-x1:, -x1:]
+
+            A_L = torch.mm(torch.mm(deviceprop.g_trans,gammaL),deviceprop.g_trans.conj().T)
+            A_R = torch.mm(torch.mm(deviceprop.g_trans,gammaR),deviceprop.g_trans.conj().T)
+
+            # Vbias = -1 * potential_at_orb
+            for Ei_index, Ei_at_atom in enumerate(-1*potential_at_atom):
+                pre_orbs = sum(device_atom_norbs[:Ei_index])
+            
+                # electron density
+                if e >= Ei_at_atom: 
+                    for j in range(device_atom_norbs[Ei_index]):
+                        free_charge[str(kpoint)][Ei_index] +=\
+                        self.wlg[eidx]*2*(-1)/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi) \
+                                    +A_R[pre_orbs+j,pre_orbs+j]*deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi))
+
+                # hole density
+                else:
+                    for j in range(device_atom_norbs[Ei_index]):
+                        free_charge[str(kpoint)][Ei_index] +=\
+                        self.wlg[eidx]*2*1/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi)) \
+                                    +A_R[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi)))
