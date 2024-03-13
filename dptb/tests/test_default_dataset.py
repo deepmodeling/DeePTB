@@ -11,7 +11,6 @@ import torch as th
 
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data/test_sktb/dataset")
 
-#TODO: Add TestDefaultDataset for E3TB. because there are some differences in the data structure.
 class TestDefaultDatasetSKTB:
     rootdir = f"{rootdir}"
     basis = {"Si": ["3s", "3p"]}
@@ -111,3 +110,12 @@ class TestDefaultDatasetSKTB:
     def test_E3statistics(self):
         stats = self.dataset.E3statistics()
         assert stats is None
+
+
+#TODO: Add TestDefaultDataset for E3TB. because there are some differences in the data structure.
+class TestDefaultDatasetE3TB:
+    def test_(self):
+        pass
+    def test_E3statistics(self):
+        # This is the main difference between E3TB and SKTB.
+        pass
