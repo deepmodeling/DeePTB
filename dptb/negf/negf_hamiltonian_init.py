@@ -212,9 +212,11 @@ class NEGFHamiltonianInit(object):
         if block_tridiagonal:
             return hd, sd, hl, su, sl, hu
         else:
-            print('HD shape:', HD.shape)
-            print('SD shape:', SD.shape)
-            print('V shape:', V.shape)
+            # print('HD shape:', HD.shape)
+            # print('SD shape:', SD.shape)
+            # print('V shape:', V.shape)
+            log.info(msg='Device Hamiltonian shape: {0}x{0}'.format(HD.shape[0], HD.shape[1]))
+            
             return [HD - V*SD], [SD], [], [], [], []
     
     def get_hs_lead(self, kpoint, tab, v):

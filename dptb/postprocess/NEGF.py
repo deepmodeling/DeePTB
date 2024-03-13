@@ -301,7 +301,7 @@ class NEGF(object):
                                 else:
                                     getattr(self.deviceprop, ll).voltage = Vbias[-1]
 
-                    self.compute_density_Fiori(
+                    self.density.density_integrate_Fiori(
                         e_grid = self.uni_grid, 
                         kpoint=k,
                         Vbias=Vbias,
@@ -462,21 +462,7 @@ class NEGF(object):
     def compute_density_Ozaki(self, kpoint,Vbias):
         DM_eq, DM_neq = self.density.integrate(deviceprop=self.deviceprop, kpoint=kpoint, Vbias=Vbias)
         return DM_eq, DM_neq
-    
-    def compute_density_Fiori(self,e_grid,kpoint,Vbias,integrate_way,deviceprop,device_atom_norbs,potential_at_atom,free_charge):
-        if integrate_way == "direct":
-            self.density.density_integrate_Fiori_direct(e_grid,kpoint,Vbias,deviceprop,device_atom_norbs,
-                                                        potential_at_atom,free_charge,
-                                                        eta_lead=self.jdata["eta_lead"],
-                                                        eta_device=self.jdata["eta_device"],)
-        elif integrate_way == "gauss":
-            self.density.density_integrate_Fiori_gauss(e_grid,kpoint,Vbias,deviceprop,device_atom_norbs,
-                                                        potential_at_atom,free_charge,
-                                                        eta_lead=self.jdata["eta_lead"],
-                                                        eta_device=self.jdata["eta_device"],)
-        else:
-            raise ValueError("Unknown integrate method for density calculation.")
-    
+     
 
     def compute_current(self, kpoint):
         self.deviceprop.cal_green_function(e=self.int_grid, kpoint=kpoint, block_tridiagonal=self.block_tridiagonal)
