@@ -4,6 +4,7 @@ dptb/tests/**/pre_*.pt
 dptb/tests/**/*.pth
 dptb/tests/**/*.npy
 dptb/tests/**/*.traj
+dptb/tests/data/**/out*/config_*.json
 
 dptb/tests/data/hBN/data/set.0/xdat2.traj
 dptb/tests/data/postrun/run_config.json

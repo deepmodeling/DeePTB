@@ -2,205 +2,130 @@ from typing import Dict, List, Optional, Any
 import json
 from pathlib import Path
 import os
-'''
-This file initialize all the required config items
-'''
+from dptb.utils.config_sk import TrainFullConfigSK, TestFullConfigSK
+from dptb.utils.config_skenv import TrainFullConfigSKEnv, TestFullConfigSKEnv
+from dptb.utils.config_e3 import TrainFullConfigE3, TestFullConfigE3
+import logging
 
-DEFAULT_CONFIG = {
-    "init_model": {
-        "path": None,
-        "interpolate": False
-    },
-    "common_options": {
-        "onsitemode": "strain",
-        "onsite_cutoff": 2.6,
-        "bond_cutoff": 3.5,
-        "env_cutoff": 3.5,
-        "atomtype": ["A", "B"],
-        "proj_atom_neles": {"A": 5, "B": 3},
-        "proj_atom_anglr_m": {"A": ["2s", "2p"], "B": ["2s", "2p"]}
-    },
-    "train_options": {
-        "seed":120478,
-        "num_epoch": 4000,
-        "optimizer": {"lr":5e-3}
-    },
-    "data_options": {
-        "use_reference": True,
-        "train": {
-            "batch_size": 1,
-            "path": "./data",
-            "prefix": "set"
-        },
-        "validation": {
-            "batch_size": 1,
-            "path": "./data",
-            "prefix": "set"
-        },
-        "reference": {
-            "batch_size": 1,
-            "path": "./data",
-            "prefix": "set"
-        }
-    },
-    "model_options": {
-        "sknetwork": {
-            "sk_hop_nhidden": 20,
-            "sk_onsite_nhidden": 20
-        },
-        "skfunction": {
-            "sk_cutoff": 3.5,
-            "sk_decay_w": 0.3
-        }
-    }
-}
+__all__ = ["get_full_config", "config"]
+log = logging.getLogger(__name__)
 
+def get_full_config(train, test, e3tb, sktb, sktbenv):
+    """
+    This function determines the appropriate full config based on the provided parameters.
 
-FULL_CONFIG={
-    "init_model": {
-        "path": None,
-        "interpolate": False
-    },
-    "common_options": {
-        "onsitemode": "strain",
-        "onsite_cutoff": 2.6,
-        "bond_cutoff": 3.5,
-        "env_cutoff": 3.5,
-        "atomtype": [
-            "A",
-            "B"
-        ],
-        "proj_atom_neles": {
-            "A": 5,
-            "B": 3
-        },
-        "proj_atom_anglr_m": {
-            "A": [
-                "2s",
-                "2p"
-            ],
-            "B": [
-                "2s",
-                "2p"
-            ]
-        },
-        "device": "cpu",
-        "dtype": "float32",
-        "sk_file_path": "./",
-        "time_symm": True,
-        "soc": False,
-        "unit": "Hartree"
-    },
-    "train_options": {
-        "seed": 120478,
-        "num_epoch": 4000,
-        "optimizer": {
-            "lr": 0.005,
-            "type": "Adam",
-            "betas": [
-                0.9,
-                0.999
-            ],
-            "eps": 1e-08,
-            "weight_decay": 0,
-            "amsgrad": False
-        },
-        "lr_scheduler": {
-            "type": "Exp",
-            "gamma": 0.999
-        },
-        "save_freq": 10,
-        "validation_freq": 10,
-        "display_freq": 1
-    },
-    "data_options": {
-        "use_reference": True,
-        "train": {
-            "batch_size": 1,
-            "path": "./data",
-            "prefix": "set"
-        },
-        "validation": {
-            "batch_size": 1,
-            "path": "./data",
-            "prefix": "set"
-        },
-        "reference": {
-            "batch_size": 1,
-            "path": "./data",
-            "prefix": "set"
-        }
-    },
-    "model_options": {
-        "sknetwork": {
-            "sk_hop_nhidden": 20,
-            "sk_onsite_nhidden": 20,
-            "sk_soc_nhidden": None
-        },
-        "skfunction": {
-            "sk_cutoff": 3.5,
-            "sk_decay_w": 0.3,
-            "skformula": "varTang96"
-        },
-        "dptb": {
-            "soc_env": False,
-            "axis_neuron": 10,
-            "onsite_net_neuron": [
-                128,
-                128,
-                256,
-                256
-            ],
-            "soc_net_neuron": [
-                128,
-                128,
-                256,
-                256
-            ],
-            "env_net_neuron": [
-                128,
-                128,
-                256,
-                256
-            ],
-            "hopping_net_neuron": [
-                128,
-                128,
-                256,
-                256
-            ],
-            "onsite_net_activation": "tanh",
-            "env_net_activation": "tanh",
-            "hopping_net_activation": "tanh",
-            "soc_net_activation": "tanh",
-            "onsite_net_type": "res",
-            "env_net_type": "res",
-            "hopping_net_type": "res",
-            "soc_net_type": "res",
-            "if_batch_normalized": False
-        }
-    },
-    "loss_options": {
-        "losstype": "eigs_l2dsf",
-        "sortstrength": [
-            0.01,
-            0.01
-        ],
-        "nkratio": None
-    }
-}
+    Args:
+        train (bool): Whether it's training mode.
+        test (bool): Whether it's testing mode.
+        e3tb (bool): Whether E3TB configuration is needed.
+        sktb (bool): Whether SKTB configuration is needed.
+        sktbenv (bool): Whether SKTB environment correction is needed.
+
+    Returns:
+        dict: The appropriate full configuration dictionary.
+
+    Raises:
+        ValueError: If none of the config type flags (e3tb, sktb, sktbenv) are True or
+                    if both train and test are True.
+    """
+    name = ''
+    if train:
+        name += 'train'
+        # Use train configs based on e3tb, sktb, sktbenv
+        if e3tb:
+            name += '_E3'
+            full_config = TrainFullConfigE3
+        elif sktb:
+            name += '_SK'
+            full_config = TrainFullConfigSK
+        elif sktbenv:
+            name += '_SKEnv'
+            full_config = TrainFullConfigSKEnv
+        else:
+            logging.error("Unknown config type in training mode")
+            raise ValueError("Unknown config type in training mode")
+    elif test:
+        # Use test configs based on e3tb, sktb, sktbenv
+        name += 'test'
+        if e3tb:
+            name += '_E3'
+            full_config = TestFullConfigE3
+        elif sktb:
+            name += '_SK'
+            full_config = TestFullConfigSK
+        elif sktbenv:
+            name += '_SKEnv'
+            full_config = TestFullConfigSKEnv
+        else:
+            logging.error("Unknown config type in testing mode")
+            raise ValueError("Unknown config type in testing mode")
+    else:
+        logging.error("Unknown mode")
+        raise ValueError("Unknown mode")
+    return name, full_config
+
 
 def config(
         PATH: str,
-        full_config: bool,
-        log_level: int,
-        log_path: Optional[str],
+        train: bool = True,  # Set default train mode
+        test: bool = False,
+        e3tb: bool = False,
+        sktb: bool = False,
+        sktbenv: bool = False,
+        log_level: int = logging.INFO,
+        log_path: Optional[str] = None,
         **kwargs
 ):
+    """
+    This function generates and saves a full configuration based on user input.
+
+    Args:
+        PATH (str): Path to save the configuration file.
+        train (bool, optional): Whether it's training mode (default: True).
+        test (bool, optional): Whether it's testing mode (default: False).
+        e3tb (bool, optional): Whether E3TB configuration is needed.
+        sktb (bool, optional): Whether SKTB configuration is needed.
+        sktbenv (bool, optional): Whether SKTB environment correction is needed.
+        log_level (int, optional): Logging level (default: logging.INFO).
+        log_path (Optional[str], optional): Path to log file (default: None).
+        **kwargs: Additional keyword arguments (unused in this implementation).
+
+    Returns:
+        int: 0 on success, 1 on error.
+
+    Raises:
+        ValueError: If none of the config type flags (e3tb, sktb, sktbenv) are True or
+                    if both train and test are True.
+  """
+    if not any((e3tb, sktb, sktbenv)):
+        logging.error("Please specify the type of config you want to generate.")
+        raise ValueError("Please specify the type of config you want to generate.")
+    
+    # e3tb, sktb, sktbenv are mutually exclusive
+    if sum((e3tb, sktb, sktbenv)) > 1:
+        logging.error("Please specify only one of e3tb, sktb, sktbenv.")
+        raise ValueError("Please specify only one of e3tb, sktb, sktbenv.")
+
+    if all((train, test)):
+        logging.error("Please specify only one of train and test.")
+        raise ValueError("Please specify only one of train and test.")
+    
+    if not any((train, test)):
+        logging.warning("The mode is not set for train or test. Defaulting to train.")
+        train = True
+
+    # Error handling and logic moved to get_full_config
+    name, full_config = get_full_config(train, test, e3tb, sktb, sktbenv)
+    # Ensure PATH ends with .json
     if not PATH.endswith(".json"):
         PATH = os.path.join(PATH, "input_templete.json")
+
+    # Write config to file
     with open(PATH, "w") as fp:
-        if full_config:
-            json.dump(FULL_CONFIG, fp, indent=4)
-        else:
-            json.dump(DEFAULT_CONFIG, fp, indent=4)
+        logging.info(f"Writing full config for {name} to {PATH}")
+        json.dump(full_config, fp, indent=4)
+
+    return 0  # Success
+
+# Example usage
+# config("path/to/config.json", train=True, e3tb=True)
