@@ -612,9 +612,11 @@ def poisson_options():
 def density_options():
     doc_method = ""
     doc_Ozaki = ""
+    doc_Fiori = ""
     return Variant("method", [
-        Argument("Ozaki", dict, Ozaki(), doc=doc_method)
-    ], optional=True, default_tag="Ozaki", doc=doc_Ozaki)
+        Argument("Ozaki", dict, Ozaki(), doc=doc_Ozaki),
+        Argument("Fiori", dict, Fiori(), doc=doc_Fiori)
+    ], optional=True, default_tag="Ozaki", doc=doc_method)
 
 def Ozaki():
     doc_M_cut = ""
@@ -624,6 +626,12 @@ def Ozaki():
         Argument("R", [int, float], optional=True, default=1e6, doc=doc_R),
         Argument("M_cut", int, optional=True, default=30, doc=doc_M_cut),
         Argument("n_gauss", int, optional=True, default=10, doc=doc_n_gauss),
+    ]
+
+def Fiori():
+    doc_n_gauss = ""
+    return [
+        Argument("n_gauss", int, optional=True, default=100, doc=doc_n_gauss)
     ]
 
 def fmm():

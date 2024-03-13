@@ -5,7 +5,7 @@ from dptb.negf.surface_green import selfEnergy
 from dptb.negf.negf_utils import quad, gauss_xw,leggauss,update_kmap
 from dptb.negf.ozaki_res_cal import ozaki_residues
 from dptb.negf.negf_hamiltonian_init import NEGFHamiltonianInit
-from dptb.negf.density import Ozaki
+from dptb.negf.density import Ozaki,Fiori
 from dptb.negf.areshkin_pole_sum import pole_maker
 from dptb.negf.device_property import DeviceProperty
 from dptb.negf.lead_property import LeadProperty
@@ -92,6 +92,8 @@ class NEGF(object):
         self.density_options = j_must_have(self.jdata, "density_options")
         if self.density_options["method"] == "Ozaki":
             self.density = Ozaki(R=self.density_options["R"], M_cut=self.density_options["M_cut"], n_gauss=self.density_options["n_gauss"])
+        elif self.density_options["method"] == "Fiori":
+            self.density = Fiori(n_gauss=self.density_options["n_gauss"])
         else:
             raise ValueError
 
@@ -132,10 +134,12 @@ class NEGF(object):
             v_list = [self.stru_options[i].get("voltage", None) for i in self.stru_options if i.startswith("lead")]
             v_list_b = [i == v_list[0] for i in v_list]
             if not all(v_list_b):
-                cal_pole = True
+                if self.density_options["method"] == "Ozaki": 
+                    cal_pole = True
                 cal_int_grid = True
         elif self.out_density or self.out_potential:
-            cal_pole = True
+            if self.density_options["method"] == "Ozaki":
+                cal_pole = True
             v_list = [self.stru_options[i].get("voltage", None) for i in self.stru_options if i.startswith("lead")]
             v_list_b = [i == v_list[0] for i in v_list]
             if not all(v_list_b):
@@ -151,7 +155,7 @@ class NEGF(object):
             # Energy gird is set relative to Fermi level
             self.uni_grid = torch.linspace(start=self.jdata["emin"], end=self.jdata["emax"], steps=int((self.jdata["emax"]-self.jdata["emin"])/self.jdata["espacing"]))
 
-        if cal_pole:
+        if cal_pole and  self.density_options["method"] == "Ozaki":
             self.poles, self.residues = ozaki_residues(M_cut=self.jdata["density_options"]["M_cut"])
             self.poles = 1j* self.poles * self.kBT + self.deviceprop.lead_L.mu - self.deviceprop.mu
 
@@ -163,9 +167,9 @@ class NEGF(object):
     def compute(self):
 
         if self.scf:
-            if not self.out_density:
-                self.out_density = True
-                raise UserWarning("SCF is required, but out_density is set to False. Automatically Setting out_density to True.")
+            # if not self.out_density:
+            #     self.out_density = True
+            #     raise UserWarning("SCF is required, but out_density is set to False. Automatically Setting out_density to True.")
             self.poisson_negf_scf(err=self.poisson_options['err'],tolerance=self.poisson_options['tolerance'],\
                                   max_iter=self.poisson_options['max_iter'],mix_rate=self.poisson_options['mix_rate'])
         else:
@@ -305,8 +309,8 @@ class NEGF(object):
                     leads = self.stru_options.keys()
                     for ll in leads:
                         if ll.startswith("lead"):
-                        # TODO: temporarily set the voltage to -1*potential_at_orb[0] and -1*potential_at_orb[-1]
-                            if Vbias is not None:
+                            if Vbias is not None  and self.density_options["method"] == "Fiori":
+                                # set voltage as -1*potential_at_orb[0] and -1*potential_at_orb[-1] for self-energy same as in NanoTCAD
                                 if ll == 'lead_L' :
                                     getattr(self.deviceprop, ll).voltage = Vbias[0]
                                 else:
@@ -342,24 +346,29 @@ class NEGF(object):
                             prop = self.out.setdefault("LDOS", [])
                             prop.append(self.compute_LDOS(k))
                     else:
-
-                        self.compute_density_Fiori(
-                            e, k, dE, 
-                            deviceprop=self.deviceprop,
-                            device_atom_norbs=self.device_atom_norbs,
-                            potential_at_atom = self.potential_at_atom)
+                        if self.density_options["method"] == "Fiori":
+                            self.compute_density_Fiori(
+                                e=e, 
+                                kpoint=k, 
+                                dE = dE, 
+                                deviceprop=self.deviceprop,
+                                device_atom_norbs=self.device_atom_norbs,
+                                potential_at_atom = self.potential_at_atom,
+                                free_charge = self.free_charge)
+                        else:
+                            raise ValueError("Ozaki method is not supported for Poisson-NEGF SCF in this version.")
                         
-                         
-
-
-            # whether scf_require is True or False, density are computed for Poisson-NEGF SCF
-            if self.out_density or self.out_potential:
-                self.out["DM_eq"], self.out["DM_neq"] = self.compute_density_Ozaki(k,Vbias)
             
-            if self.out_potential:
-                pass
-
             if scf_require==False:
+                if self.out_density or self.out_potential:
+                    if self.density_options["method"] == "Ozaki":
+                        self.out["DM_eq"], self.out["DM_neq"] = self.compute_density_Ozaki(k,Vbias)
+                    elif self.density_options["method"] == "Fiori":
+                        log.warning("Fiori method is not supported for output density in this version.")
+                    else:
+                        raise ValueError("Unknown method for density calculation.")
+                if self.out_potential:
+                    pass
                 if self.out_dos:
                     self.out["DOS"] = torch.stack(self.out["DOS"])
                 if self.out_tc or self.out_current_nscf:
@@ -372,8 +381,9 @@ class NEGF(object):
         
                 if self.out_lcurrent:
                     lcurrent = 0
+                    log.info(msg="computing local current at k = [{:.4f},{:.4f},{:.4f}]".format(float(k[0]),float(k[1]),float(k[2])))
                     for i, e in enumerate(self.int_grid):
-                        log.info(msg="computing green's function at e = {:.3f}".format(float(e)))
+                        log.info(msg=" computing green's function at e = {:.3f}".format(float(e)))
                         leads = self.stru_options.keys()
                         for ll in leads:
                             if ll.startswith("lead"):
@@ -447,6 +457,9 @@ class NEGF(object):
         DM_eq, DM_neq = self.density.integrate(deviceprop=self.deviceprop, kpoint=kpoint, Vbias=Vbias)
         return DM_eq, DM_neq
     
+    def compute_density_Fiori(self,e,kpoint,dE,deviceprop,device_atom_norbs,potential_at_atom,free_charge):
+        self.density.density_integrate_Fiori(e,kpoint,dE,deviceprop,device_atom_norbs,potential_at_atom,free_charge)
+    
 
     def compute_current(self, kpoint):
         self.deviceprop.cal_green_function(e=self.int_grid, kpoint=kpoint, block_tridiagonal=self.block_tridiagonal)
@@ -460,37 +473,36 @@ class NEGF(object):
         pass
 
 
-    def compute_density_Fiori(self,e,kpoint,dE,deviceprop,device_atom_norbs,potential_at_atom):
+    # def compute_density_Fiori(self,e,kpoint,dE,deviceprop,device_atom_norbs,potential_at_atom,free_charge):
 
-        tx, ty = deviceprop.g_trans.shape
-        lx, ly = deviceprop.lead_L.se.shape
-        rx, ry = deviceprop.lead_R.se.shape
-        x0 = min(lx, tx)
-        x1 = min(rx, ty)
+    #     tx, ty = deviceprop.g_trans.shape
+    #     lx, ly = deviceprop.lead_L.se.shape
+    #     rx, ry = deviceprop.lead_R.se.shape
+    #     x0 = min(lx, tx)
+    #     x1 = min(rx, ty)
 
-        gammaL = torch.zeros(size=(tx, tx), dtype=torch.complex128)
-        gammaL[:x0, :x0] += deviceprop.lead_L.gamma[:x0, :x0]
-        gammaR = torch.zeros(size=(ty, ty), dtype=torch.complex128)
-        gammaR[-x1:, -x1:] += deviceprop.lead_R.gamma[-x1:, -x1:]
+    #     gammaL = torch.zeros(size=(tx, tx), dtype=torch.complex128)
+    #     gammaL[:x0, :x0] += deviceprop.lead_L.gamma[:x0, :x0]
+    #     gammaR = torch.zeros(size=(ty, ty), dtype=torch.complex128)
+    #     gammaR[-x1:, -x1:] += deviceprop.lead_R.gamma[-x1:, -x1:]
 
-        A_L = torch.mm(torch.mm(deviceprop.g_trans,gammaL),deviceprop.g_trans.conj().T)
-        A_R = torch.mm(torch.mm(deviceprop.g_trans,gammaR),deviceprop.g_trans.conj().T)
+    #     A_L = torch.mm(torch.mm(deviceprop.g_trans,gammaL),deviceprop.g_trans.conj().T)
+    #     A_R = torch.mm(torch.mm(deviceprop.g_trans,gammaR),deviceprop.g_trans.conj().T)
 
-        # Vbias = -1 * potential_at_orb
-        for Ei_index, Ei_at_atom in enumerate(-1*potential_at_atom):
-            pre_orbs = sum(device_atom_norbs[:Ei_index])
+    #     # Vbias = -1 * potential_at_orb
+    #     for Ei_index, Ei_at_atom in enumerate(-1*potential_at_atom):
+    #         pre_orbs = sum(device_atom_norbs[:Ei_index])
         
-            # electron density
-            if e >= Ei_at_atom: 
-                for j in range(device_atom_norbs[Ei_index]):
-                    self.free_charge[str(kpoint)][Ei_index] +=\
-                    2*(-1)/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi) \
-                                  +A_R[pre_orbs+j,pre_orbs+j]*deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi))*dE
-                    # 2*(-1)/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*self.deviceprop.lead_L.fermi_dirac(e+self.deviceprop.lead_L.mu) \
-                    #               +A_R[pre_orbs+j,pre_orbs+j]*self.deviceprop.lead_R.fermi_dirac(e+self.deviceprop.lead_R.mu))*dE
-            # hole density
-            else:
-                for j in range(device_atom_norbs[Ei_index]):
-                    self.free_charge[str(kpoint)][Ei_index] +=\
-                    2*1/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi)) \
-                                  +A_R[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi)))*dE
+    #         # electron density
+    #         if e >= Ei_at_atom: 
+    #             for j in range(device_atom_norbs[Ei_index]):
+    #                 free_charge[str(kpoint)][Ei_index] +=\
+    #                 2*(-1)/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi) \
+    #                               +A_R[pre_orbs+j,pre_orbs+j]*deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi))*dE
+
+    #         # hole density
+    #         else:
+    #             for j in range(device_atom_norbs[Ei_index]):
+    #                 free_charge[str(kpoint)][Ei_index] +=\
+    #                 2*1/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi)) \
+    #                               +A_R[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi)))*dE

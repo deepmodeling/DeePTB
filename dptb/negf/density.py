@@ -228,3 +228,50 @@ class Ozaki(Density):
         onsite_density = torch.cat([torch.from_numpy(deviceprop.structure.positions), onsite_density.unsqueeze(-1)], dim=-1)
 
         return onsite_density
+    
+
+
+class Fiori(Density):
+
+    def __init__(self, n_gauss):
+        super(Fiori, self).__init__()
+        self.n_gauss = n_gauss
+        self.xs = None
+        self.wlg = None
+
+    def density_integrate_Fiori(self,e,kpoint,dE,deviceprop,device_atom_norbs,potential_at_atom,free_charge):
+
+        # xs, wlg = gauss_xw(xl=torch.scalar_tensor(xl), xu=torch.scalar_tensor(xu), n=self.n_gauss)
+
+
+        tx, ty = deviceprop.g_trans.shape
+        lx, ly = deviceprop.lead_L.se.shape
+        rx, ry = deviceprop.lead_R.se.shape
+        x0 = min(lx, tx)
+        x1 = min(rx, ty)
+
+        gammaL = torch.zeros(size=(tx, tx), dtype=torch.complex128)
+        gammaL[:x0, :x0] += deviceprop.lead_L.gamma[:x0, :x0]
+        gammaR = torch.zeros(size=(ty, ty), dtype=torch.complex128)
+        gammaR[-x1:, -x1:] += deviceprop.lead_R.gamma[-x1:, -x1:]
+
+        A_L = torch.mm(torch.mm(deviceprop.g_trans,gammaL),deviceprop.g_trans.conj().T)
+        A_R = torch.mm(torch.mm(deviceprop.g_trans,gammaR),deviceprop.g_trans.conj().T)
+
+        # Vbias = -1 * potential_at_orb
+        for Ei_index, Ei_at_atom in enumerate(-1*potential_at_atom):
+            pre_orbs = sum(device_atom_norbs[:Ei_index])
+        
+            # electron density
+            if e >= Ei_at_atom: 
+                for j in range(device_atom_norbs[Ei_index]):
+                    free_charge[str(kpoint)][Ei_index] +=\
+                    2*(-1)/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi) \
+                                  +A_R[pre_orbs+j,pre_orbs+j]*deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi))*dE
+
+            # hole density
+            else:
+                for j in range(device_atom_norbs[Ei_index]):
+                    free_charge[str(kpoint)][Ei_index] +=\
+                    2*1/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi)) \
+                                  +A_R[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi)))*dE
