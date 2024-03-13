@@ -63,3 +63,5 @@ def test_build_dataset_fail(root_directory):
     with pytest.raises(ValueError) as excinfo:
         dataset = build_dataset(set_options, common_options)
     assert "Hamiltonians must be provided" in str(excinfo.value)
+
+#TODO: Add failure test cases for build_dataset. when get_eigenvalues is True and get_Hamiltonian is False; 当我们补充E3的测试案例时，会有一个数据集，只有Hamiltonian，没有eigenvalues。我们需要测试这种情况。
