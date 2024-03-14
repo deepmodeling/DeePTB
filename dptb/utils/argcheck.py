@@ -643,12 +643,18 @@ def loss_options():
     doc_validation = ""
     doc_reference = ""
 
+    hamil = [
+        Argument("onsite_shift", bool, optional=True, default=False, doc="Whether to use onsite shift in loss function. Default: False"),
+    ]
+
     loss_args = Variant("method", [
-        Argument("hamil", dict),
-        Argument("eigvals", dict),
-        Argument("hamil_abs", dict),
-        Argument("hamil_blas", dict),
+        Argument("hamil", dict, sub_fields=hamil),
+        Argument("eigvals", dict, sub_fields=[]),
+        Argument("hamil_abs", dict, sub_fields=hamil),
+        Argument("hamil_blas", dict, sub_fields=hamil),
     ], optional=False, doc=doc_method)
+
+    
 
     args = [
         Argument("train", dict, optional=False, sub_fields=[], sub_variants=[loss_args], doc=doc_train),
