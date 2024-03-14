@@ -644,10 +644,10 @@ def loss_options():
     doc_reference = ""
 
     loss_args = Variant("method", [
-        Argument("hamil", dict, []),
-        Argument("eigvals", dict, []),
-        Argument("hamil_abs", dict, []),
-        Argument("hamil_blas", dict, []),
+        Argument("hamil", dict),
+        Argument("eigvals", dict),
+        Argument("hamil_abs", dict),
+        Argument("hamil_blas", dict),
     ], optional=False, doc=doc_method)
 
     args = [
