@@ -73,6 +73,8 @@ class LeadProperty(object):
         self.e_T = e_T
         self.efermi = efermi
         self.mu = self.efermi - self.voltage
+        self.kpoint = None
+        self.voltage_old = None
 
     def self_energy(self, kpoint, energy, eta_lead: float=1e-5, method: str="Lopez-Sancho"):
         '''calculate and loads the self energy and surface green function at the given kpoint and energy.
@@ -84,7 +86,7 @@ class LeadProperty(object):
         energy
             specific energy value.
         eta_lead : 
-            the broadening parameter for calculating lead self-energy.
+            the broadening parameter for calculating lead surface green function.
         method : 
             specify the method for calculating the self energy. At this stage it only supports "Lopez-Sancho".
         
@@ -92,17 +94,15 @@ class LeadProperty(object):
         assert len(np.array(kpoint).reshape(-1)) == 3
         # according to given kpoint and e_mesh, calculating or loading the self energy and surface green function to self.
         if not isinstance(energy, torch.Tensor):
-            energy = torch.tensor(energy) # energy relative to Ef
+            energy = torch.tensor(energy) # Energy relative to Ef
 
         # if not hasattr(self, "HL"):
         #TODO: check here whether it is necessary to calculate the self energy every time
-        if not hasattr(self, "HL"):
+        if not hasattr(self, "HL") or abs(self.voltage_old-self.voltage)>1e-6 or max(abs(self.kpoint-torch.tensor(kpoint)))>1e-6:
             self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
             self.voltage_old = self.voltage
-        elif abs(self.voltage_old-self.voltage)>1e-6:
-            self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
-            self.voltage_old = self.voltage
-        
+            self.kpoint = torch.tensor(kpoint)
+            
 
         self.se, _ = selfEnergy(
             ee=energy,
@@ -125,12 +125,12 @@ class LeadProperty(object):
         Parameters
         ----------
         se
-            The parameter "se" represents a complex number.
+            The parameter "se" represents self energy, a complex matrix.
         
         Returns
         -------
         Gamma
-            The Gamma function.
+            The Gamma function, $\Gamma = 1j(se-se^\dagger)$.
         
         '''
         return 1j * (se - se.conj().T)

@@ -242,8 +242,6 @@ class Fiori(Density):
 
     def density_integrate_Fiori(self,e_grid,kpoint,Vbias,integrate_way,deviceprop,device_atom_norbs,potential_at_atom,free_charge, eta_lead=1e-5, eta_device=1e-5):
         if integrate_way == "gauss":
-            print('ok')
-        if integrate_way == "gauss":
             if self.xs is None:
                 self.xs, self.wlg = gauss_xw(xl=torch.scalar_tensor(e_grid[0]), xu=torch.scalar_tensor(e_grid[-1]), n=self.n_gauss)
                 # self.xs = self.xs.numpy();self.wlg = self.wlg.numpy()

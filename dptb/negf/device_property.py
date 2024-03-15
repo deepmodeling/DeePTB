@@ -136,11 +136,8 @@ class DeviceProperty(object):
             energy = torch.tensor(energy, dtype=torch.complex128)
 
         self.block_tridiagonal = block_tridiagonal
-        if self.kpoint is None:
-            self.kpoint = kpoint
-            self.newK_flag = True
-        elif abs(self.kpoint - kpoint).sum() > 1e-5:
-            self.kpoint = kpoint
+        if self.kpoint is None or abs(self.kpoint - torch.tensor(kpoint)).sum() > 1e-5:
+            self.kpoint = torch.tensor(kpoint)
             self.newK_flag = True
         else:
             self.newK_flag = False
@@ -172,14 +169,14 @@ class DeviceProperty(object):
             else:
                 self.newV_flag = False
         else:
-            self.newV_flag = False
+            self.newV_flag = True  # for the first time to run cal_green_function in Poisson-NEGF SCF
 
         
         # if not hasattr(self, "hd") or not hasattr(self, "sd"): 
         #maybe the reason why different kpoint has different green function
         
         if not hasattr(self, "hd") or not hasattr(self, "sd"): 
-            self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
+            self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(self.kpoint, self.V, block_tridiagonal)
         elif self.newK_flag or self.newV_flag: # check whether kpoints or Vbias change or not
             self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
         
