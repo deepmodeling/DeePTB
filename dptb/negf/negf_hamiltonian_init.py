@@ -106,9 +106,11 @@ class NEGFHamiltonianInit(object):
         projatoms = self.apiH.structure.projatoms
 
         self.atom_norbs = [self.apiH.structure.proj_atomtype_norbs[i] for i in self.apiH.structure.proj_atom_symbols]
-        allbonds,hamil_block,_ =self.apiH.get_HR()
-        torch.save(allbonds, os.path.join(self.results_path, "allbonds"+".pth"))
-        torch.save(hamil_block, os.path.join(self.results_path, "hamil_block"+".pth"))
+        self.apiH.get_HR()
+        # output the allbonds and hamil_block for check
+        # allbonds,hamil_block,_ =self.apiH.get_HR()
+        # torch.save(allbonds, os.path.join(self.results_path, "allbonds"+".pth"))
+        # torch.save(hamil_block, os.path.join(self.results_path, "hamil_block"+".pth"))
 
         H, S = self.apiH.get_HK(kpoints=kpoints)
         d_start = int(np.sum(self.atom_norbs[:proj_device_id[0]]))
@@ -129,7 +131,7 @@ class NEGFHamiltonianInit(object):
             if kk.startswith("lead"):
                 HS_leads = {}
                 stru_lead = self.structase[self.lead_ids[kk][0]:self.lead_ids[kk][1]]
-                write(os.path.join(self.results_path, "stru_"+kk+".vasp"), stru_lead)
+                # write(os.path.join(self.results_path, "stru_"+kk+".vasp"), stru_lead)
                 self.apiH.update_struct(stru_lead, mode="lead", stru_options=self.stru_options.get(kk), pbc=self.stru_options["pbc"])
                 # update lead id
                 n_proj_atom_pre = np.array([1]*len(self.structase))[:self.lead_ids[kk][0]][projatoms[:self.lead_ids[kk][0]]].sum()
@@ -151,9 +153,11 @@ class NEGFHamiltonianInit(object):
 
                 
                 structure_leads[kk] = self.apiH.structure.struct
-                allbonds_lead,hamil_block_lead,_ = self.apiH.get_HR()
-                torch.save(allbonds_lead, os.path.join(self.results_path, "allbonds_"+kk+".pth"))
-                torch.save(hamil_block_lead, os.path.join(self.results_path, "hamil_block_"+kk+".pth"))
+                self.apiH.get_HR()
+                # output the allbonds and hamil_block for check
+                # allbonds_lead,hamil_block_lead,_ = self.apiH.get_HR()
+                # torch.save(allbonds_lead, os.path.join(self.results_path, "allbonds_"+kk+".pth"))
+                # torch.save(hamil_block_lead, os.path.join(self.results_path, "hamil_block_"+kk+".pth"))
 
                 h, s = self.apiH.get_HK(kpoints=kpoints)
                 nL = int(h.shape[1] / 2)
@@ -251,7 +255,7 @@ class NEGFHamiltonianInit(object):
                          f["SL"][ix], f["SLL"][ix], f["SDL"][ix]
 
 
-        return hL-v*sL, hLL-v*sLL, hDL, sL, sLL, sDL # TODO: check hLL+v*sLL is correct or not
+        return hL-v*sL, hLL-v*sLL, hDL, sL, sLL, sDL 
 
     def attach_potential():
         pass
