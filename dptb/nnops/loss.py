@@ -441,6 +441,8 @@ class HamilLossAnalysis(object):
             for at, tp in self.idp.chemical_symbol_to_type.items():
                 onsite_mask = mask[tp]
                 onsite_err = err[data["atom_types"].flatten().eq(tp)]
+                if onsite_err.shape[0] == 0:
+                    continue
                 onsite_amp = amp[data["atom_types"].flatten().eq(tp)]
                 onsite_err = onsite_err[:, onsite_mask]
                 onsite_amp = onsite_amp[:, onsite_mask]
@@ -482,6 +484,8 @@ class HamilLossAnalysis(object):
             for bt, tp in self.idp.bond_to_type.items():
                 hopping_mask = mask[tp]
                 hopping_err = err[data["edge_type"].flatten().eq(tp)]
+                if hopping_err.shape[0] == 0:
+                    continue
                 hopping_amp = amp[data["edge_type"].flatten().eq(tp)]
                 hopping_err = hopping_err[:, hopping_mask]
                 hopping_amp = hopping_amp[:, hopping_mask]
@@ -522,6 +526,8 @@ class HamilLossAnalysis(object):
                 for bt, tp in self.idp.bond_to_type.items():
                     hopping_mask = mask[tp]
                     hopping_err = err[data["edge_type"].flatten().eq(tp)]
+                    if hopping_err.shape[0] == 0:
+                        continue
                     hopping_amp = amp[data["edge_type"].flatten().eq(tp)]
                     hopping_err = hopping_err[:, hopping_mask]
                     hopping_amp = hopping_amp[:, hopping_mask]
@@ -555,8 +561,8 @@ class HamilLossAnalysis(object):
 
             # compute overall mae, rmse
                     
-            out["mae"] = out["mae"] / n_total
-            out["rmse"] = out["rmse"] / n_total
+            out["mae"] = out["mae"] / (n_total + 1e-6)
+            out["rmse"] = out["rmse"] / n_total + (1e-6)
             out["rmse"] = out["rmse"].sqrt()
             
         return out
