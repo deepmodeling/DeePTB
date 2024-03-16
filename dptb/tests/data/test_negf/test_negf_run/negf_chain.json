@@ -1,7 +1,7 @@
 {
     "task_options": {
         "task": "negf",
-        "scf": true,
+        "scf": false,
         "block_tridiagonal": false,
         "ele_T": 300,
         "unit": "Hartree",
