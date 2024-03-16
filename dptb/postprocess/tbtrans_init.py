@@ -602,7 +602,7 @@ class TBTransInputSet(object):
         '''
 
         if energy_unit_option=='Hartree':
-            unit_constant = 1
+            unit_constant = 1.0000
            
         elif energy_unit_option=='eV':
             unit_constant = 13.605662285137 * 2

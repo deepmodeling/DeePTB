@@ -249,7 +249,7 @@ def recursive_gf(energy, hl, hd, hu, sd, su, sl, left_se, right_se, seP=None, ch
     """
 
     shift_energy = energy + chemiPot
-    shift_energy = torch.scalar_tensor(shift_energy, dtype=torch.complex128)
+    # shift_energy = torch.scalar_tensor(shift_energy, dtype=torch.complex128)
 
     temp_mat_d_list = [hd[i] * 1. for i in range(len(hd))]
     temp_mat_l_list = [hl[i] * 1. for i in range(len(hl))]

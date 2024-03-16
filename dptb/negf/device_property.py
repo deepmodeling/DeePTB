@@ -350,7 +350,7 @@ class DeviceProperty(object):
         ldos = torch.stack([ldos[accmap[i]:accmap[i+1]].sum() for i in range(len(accmap)-1)])
 
         # return ldos*2
-        return ldos #temporarily return the ldos without spin degeneracy
+        return ldos*2
 
     def _cal_local_current_(self):
         '''calculate the local current between different atoms 
