@@ -139,18 +139,34 @@ def test_build_model_failure():
         build_model(run_options, model_options, common_options)
     assert "You need to provide model_options and common_options" in str(excinfo.value)
     
-    model_options = {"embedding":True, "nnsk":True}
-    common_options = {}
+    model_options = {"embedding":True, "prediction":False, "nnsk":True}
+    common_options = {"basis": {"Si": ["3s", "3p"]}}
     with pytest.raises(ValueError) as excinfo:
         build_model(run_options, model_options, common_options)
-    assert "You need to provide model_options and common_options" in str(excinfo.value)
+    assert "Model_options are not set correctly!" in str(excinfo.value)
     
-    model_options = {"embedding":True, "nnsk":True}
+    model_options = {"embedding":False,"prediction":True, "nnsk":True}
     common_options = {"basis": {"Si": ["3s", "3p"]}}
     with pytest.raises(ValueError) as excinfo:
         build_model(run_options, model_options, common_options)
     assert "Model_options are not set correctly!" in str(excinfo.value)
 
+    model_options = {"embedding":False,"prediction":True, "nnsk":False}
+    common_options = {"basis": {"Si": ["3s", "3p"]}}
+    with pytest.raises(ValueError) as excinfo:
+        build_model(run_options, model_options, common_options)
+    assert "Model_options are not set correctly!" in str(excinfo.value)
 
+    model_options = {"embedding":True,"prediction":False, "nnsk":False}
+    common_options = {"basis": {"Si": ["3s", "3p"]}}
+    with pytest.raises(ValueError) as excinfo:
+        build_model(run_options, model_options, common_options)
+    assert "Model_options are not set correctly!" in str(excinfo.value)
+
+    model_options = {"embedding":False,"prediction":False, "nnsk":False}
+    common_options = {"basis": {"Si": ["3s", "3p"]}}
+    with pytest.raises(ValueError) as excinfo:
+        build_model(run_options, model_options, common_options)
+    assert "Model_options are not set correctly!" in str(excinfo.value)
 #TODO: add test for dptb-e3tb from scratch
 #TODO: add test for all the cases from checkpoint, restart and init_model
