@@ -168,5 +168,7 @@ def test_build_model_failure():
     with pytest.raises(ValueError) as excinfo:
         build_model(run_options, model_options, common_options)
     assert "Model_options are not set correctly!" in str(excinfo.value)
+
+    
 #TODO: add test for dptb-e3tb from scratch
 #TODO: add test for all the cases from checkpoint, restart and init_model
