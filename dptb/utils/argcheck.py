@@ -197,8 +197,8 @@ def train_data_sub():
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
-        Argument("get_overlap", bool, optional=False, default=False, doc=doc_vlp),
-        Argument("get_DM", bool, optional=False, default=False, doc=doc_DM),
+        Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
+        Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
@@ -219,8 +219,8 @@ def validation_data_sub():
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
-        Argument("get_overlap", bool, optional=False, default=False, doc=doc_vlp),
-        Argument("get_DM", bool, optional=False, default=False, doc=doc_DM),
+        Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
+        Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
@@ -241,8 +241,8 @@ def reference_data_sub():
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
-        Argument("get_overlap", bool, optional=False, default=False, doc=doc_vlp),
-        Argument("get_DM", bool, optional=False, default=False, doc=doc_DM),
+        Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
+        Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
