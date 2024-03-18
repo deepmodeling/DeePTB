@@ -297,6 +297,7 @@ class MIX(nn.Module):
             idp_sk: Union[OrbitalMapper, None]=None,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
+            **kwargs,
     ):
         super(MIX, self).__init__()
 
@@ -305,7 +306,6 @@ class MIX(nn.Module):
 
         self.dtype = dtype
         self.device = device
-
         self.dptb = DPTB(
             embedding=embedding, 
             prediction=prediction, 

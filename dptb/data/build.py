@@ -104,23 +104,35 @@ def dataset_from_config(config, prefix: str = "dataset") -> AtomicDataset:
 
 
 def build_dataset(set_options, common_options):
+    """
+    Build a dataset based on the provided set options and common options.
 
+    Args:
+        set_options (dict): A dictionary containing the set options for building the dataset.
+            - "type" (str): The type of dataset to build. Default is "DefaultDataset".
+            - "root" (str): The main directory storing all trajectory folders.
+            - "prefix" (str, optional): Load selected trajectory folders with the specified prefix.
+            - "get_Hamiltonian" (bool, optional): Load the Hamiltonian file to edges of the graph or not.
+            - "get_eigenvalues" (bool, optional): Load the eigenvalues to the graph or not.
+            e.g.     
+            "train": {
+                "type": "DefaultDataset",
+                "root": "foo/bar/data_files_here",
+                "prefix": "set"
+            }
+
+        common_options (dict): A dictionary containing common options for building the dataset.
+            - "basis" (str, optional): The basis for the OrbitalMapper.
+
+    Returns:
+        dataset: The built dataset.
+
+    Raises:
+        ValueError: If the dataset type is not supported.
+        Exception: If the info.json file is not properly provided for a trajectory folder.
+    """
     dataset_type = set_options.get("type", "DefaultDataset")
 
-    # input in set_option for Default Dataset:
-    # "root": main dir storing all trajectory folders.
-    #         that is, each subfolder of root contains a trajectory.
-    # "prefix": optional, load selected trajectory folders.
-    # "get_Hamiltonian": load the Hamiltonian file to edges of the graph or not.
-    # "get_eigenvalues": load the eigenvalues to the graph or not.
-    # "setinfo": MUST HAVE, the name of the json file used to build dataset.
-    # Example:
-    # "train": {
-    #        "type": "DefaultDataset",
-    #        "root": "foo/bar/data_files_here",
-    #        "prefix": "traj",
-    #        "setinfo": "with_pbc.json"
-    #    }
     if dataset_type == "DefaultDataset":
         # See if we can get a OrbitalMapper.
         if "basis" in common_options:
@@ -145,8 +157,8 @@ def build_dataset(set_options, common_options):
                     else:
                         include_folders.append(dir_name)
 
-        # We need to check the `setinfo.json` very carefully here.
-        # Different `setinfo` points to different dataset, 
+        # We need to check the `info.json` very carefully here.
+        # Different `info` points to different dataset, 
         # even if the data files in `root` are basically the same.
         info_files = {}
 
