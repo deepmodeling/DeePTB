@@ -157,8 +157,8 @@ class Trainer(BaseTrainer):
             common_options=common_options,
             )
         
-        trainer.ep = ckpt["epoch"]
-        trainer.iter = ckpt["iteration"]
+        trainer.ep = ckpt["epoch"] + 1
+        trainer.iter = ckpt["iteration"] + 1
         trainer.stats = ckpt["stats"]
 
         queues_name = list(trainer.plugin_queues.keys())

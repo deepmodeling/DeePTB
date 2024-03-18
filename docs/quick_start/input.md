@@ -8,28 +8,49 @@ The dataset of one structure is recommended to be prepared in the following form
 ```
 data/
 -- set.x
--- -- eigs.npy         # numpy array of shape [num_frame, num_kpoint, num_band]
--- -- kpoints.npy      # numpy array of shape [num_kpoint, 3]
--- -- xdat.traj        # ase trajectory file with num_frame
--- -- bandinfo.json    # defining the training objective of this bandstructure
+-- -- eigenvalues.npy  # numpy array of fixed shape [nframes, nkpoints, nbands]
+-- -- kpoints.npy      # numpy array of fixed shape [nkpoints, 3]
+-- -- xdat.traj        # ase trajectory file with nframes
+-- -- info.json        # defining the parameters used in building AtomicData graph data
 ```
-One should prepare the **atomic structures** and **electronic band structures**. The **atomic structures** data is in ASE trajectory binary format, where each structure is stored using an **Atom** class defined in ASE package. The **band structures** data contains the kpoints list and eigenvalues in the binary format of npy. The shape of kpoints data is **[num_kpoint,3]** and eigenvalues is **[num_frame,nk,nbands]**. nsnaps is the number of snapshots, nk is the number of kpoints and nbands is the number of bands.
+One should prepare the **atomic structures** and **electronic band structures**. The **atomic structures** data is in ASE trajectory binary format, where each structure is stored using an **Atom** class defined in ASE package. The provided trajectory file must have suffix `.traj` and the length of the trajectory is nframes.
+> Instead of loading structures from a single binary `.traj` file, three seperate textfiles for **atomic structures** can also be provided: `atomic_numbers.dat`, `cell.dat` and `positions.dat`. The length unit used in `cell.dat` and `positions.dat` (if cartesian coordinates) is Angstrom.
 
-### Bandinfo
+The **band structures** data contains the kpoints list and eigenvalues in the binary format of npy. The shape of kpoints data is fixed as **[nkpoints,3]** and eigenvalues is fixed as **[nframes,nkpoints,nbands]**. The `nframes` here must be the same as in **atomic structures** files.
 
-`bandinfo.json` defines the settings of the training objective of each structure, basicly you can have specific settings for different structures, which enables flexible training objectives for various structures with different atom numbers and atom types.
+### Info
 
-The **bandinfo.json** file looks like this:
+In **DeePTB**, the **atomic structures** and **band structures** data are stored in AtomicData graph structure. `info.json` defines the key parameters used in building AtomicData graph dataset, which looks like:
 ```bash
 {
-    "band_min": 0,
-    "band_max": 4,
-    "emin": null, # minimum of fitting energy window
-    "emax": null, # maximum of fitting energy window
-    "weight": [1] # optional, indicating the weight for each band separately
+    "nframes": 1,
+    "natoms": 2,
+    "pos_type": "ase",
+    "AtomicData_options": {
+        "r_max": 5.0,
+        "er_max": 5.0,
+        "oer_max": 2.5,
+        "pbc": true
+    },
+    "bandinfo": {
+        "band_min": 0,
+        "band_max": 6,
+        "emin": null,
+        "emax": null
+    }
 }
 ```
-**note:** The `0` energy point is located at the lowest energy eigenvalues of the data files, to generalize bandstructure data computed by different DFT packages.
+`nframes` is the length of the trajectory, as we defined in the previous section. `natoms` is the number of atoms in each of the structures in the trajectory. `pos_type` defines the input format of the **atomic structures**, which is set to `ase` if  ASE `.traj` file is provided, and `cart` or `frac` if cartesian / fractional coordinate in `positions.dat` file provided.
+
+In the `AtomicData_options` section, the key arguments in defining graph structure is provided. `r_max` is the maximum cutoff in building neighbour list for each atom, and `pbc` assigns the PBC condition in cell. `er_max` and `oer_max` is the environment cutoff used in `dptb` model. All inputs are in Angstrom.
+
+We can get the bond cutoff by `DeePTB`'s bond analysis function, using:
+```bash
+dptb bond <structure path> [[-c] <cutoff>] [[-acc] <accuracy>]
+```
+
+`Bandinfo` defines the settings of the training objective of each structure, which enables flexible training objectives for various structures with different atom numbers and atom types.
+> **note:** The `0` energy point is located at the lowest energy eigenvalues of the data files, to generalize bandstructure data computed by different DFT packages.
 
 
 ### Input.json
@@ -40,101 +61,97 @@ dptb config <generated input config path> [-full]
 The template config file will be generated at the path `./input.json`.
 For the full document about the input parameters, we refer to the detail [document](https://deeptb.readthedocs.io/en/latest). For now, we only need to consider a few vital parameters that can set the training:
 
+`common_options` provides vital information for building **DeePTB** models and their training. 
+
 ```json
 "common_options": {
-    "onsitemode": "none",
-    "bond_cutoff": 3.2,
-    "atomtype": ["A","B"],
-    "proj_atom_anglr_m": {
-        "A": ["2s","2p"],
-        "B": ["2s","2p"]
+            "basis": {
+                "C": ["2s", "2p"],
+                "N": ["2s", "2p", "d*"]
+            },
+            "device": "cpu",
+            "dtype": "float32",
+            "seed": 42
     }
+```
+
+`train_options` section is used to spicify the training procedure.
+
+```json
+"train_options": {
+    "num_epoch": 500,
+    "batch_size": 1,
+    "optimizer": {
+        "lr": 0.05,
+        "type": "Adam"
+    },
+    "lr_scheduler": {
+        "type": "exp",
+        "gamma": 0.999
+    },
+    "loss_options":{
+        "train": {"method": "eigvals"}
+    },
+    "save_freq": 10,
+    "validation_freq": 10,
+    "display_freq": 10
 }
 ```
-We can get the bond cutoff by `DeePTB`'s bond analysis function, using:
-```bash
-dptb bond <structure path> [[-c] <cutoff>] [[-acc] <accuracy>]
-```
+
+`model_options` section is the key section that provides information to build **DeePTB** models. For a Slater-Kohster TB parameteriation model, only the `nnsk` section is provided. The example of a `nnsk` model:
 
 ```json
 "model_options": {
-    "skfunction": {
-        "sk_cutoff": 3.5,
-        "sk_decay_w": 0.3,
+    "nnsk": {
+        "onsite": {"method": "strain", "rs":2.6, "w": 0.3},
+        "hopping": {"method": "powerlaw", "rs":2.6, "w": 0.3},
+        "freeze": false
     }
 }
 ```
 
+For a environment-dependent **DeePTB** model, the `embedding`, `prediction` and `nnsk` sections are required as in this example:
+
+```json
+    "model_options": {
+        "embedding":{
+            "method": "se2", "rs": 2.5, "rc": 5.0,
+            "radial_net": {
+                "neurons": [10,20,30]
+            }
+        },
+        "prediction":{
+            "method": "sktb",
+            "neurons": [16,16,16]
+        },
+        "nnsk": {
+            "onsite": {"method": "strain", "rs":2.5 ,"w":0.3},
+            "hopping": {"method": "powerlaw", "rs":5.0, "w": 0.1},
+            "freeze": true
+        }
+    }
+```
+
+`data_options` assigns the datasets used in training.
+
 ```json
 "data_options": {
-    "use_reference": true,
     "train": {
-        "batch_size": 1,
-        "path": "./data",
-        "prefix": "set"
+        "root": "./data/",
+        "prefix": "kpathmd100",
+        "get_eigenvalues": true
     },
-    "validation": {
-        "batch_size": 1,
-        "path": "./data",
-        "prefix": "set"
-    },
-    "reference": {
-        "batch_size": 1,
-        "path": "./data",
-        "prefix": "set"
+    "test": {
+        "root": "./data/",
+        "prefix": "kpathmd100",
+        "get_eigenvalues": true
     }
 }
 ```
 
 ## Commands
 ### Training
-When data and input config file is prepared, we are ready to train the model.
-To train a neural network parameterized Slater-Koster Tight-Binding model (**nnsk**) with Gradient-Based Optimization method, we can run:
+When data and input config file is prepared, we are ready to train the model:
 ```bash
-dptb train -sk <input config> [[-o] <output directory>] [[-i|-r] <nnsk checkpoint path>]
+dptb train <input config> [[-o] <output directory>] [[-i|-r] <nnsk checkpoint path>]
 ```
-<!--
-For training a environmentally dependent Tight-Binding model (**dptb**), we can run:
-```bash
-dptb train <input config> [[-o] <output directory>] [[-i|-r] <dptb checkpoint path>]
-```
--->
-For training an environmental dependent Tight-Binding model (**dptb**), the suggested procedure is first to train a **nnsk** model, and use environment dependent neural network as a correction with the command **"-crt"** as proposed in our paper: xxx:
-```bash
-dptb train <input config> -crt <nnsk checkpoint path> [[-i|-r] <dptb checkpoint path>] [[-o] <output directory>]
-```
-
-### Testing
-After the model is converged, the testing function can be used to do the model test or compute the eigenvalues for other analyses. 
-
-Test config is just attained by a little modification of the train config. 
-Delete the `train_options` since it is not useful when testing the model. And we delete all lines contained in `data_options`, and add the `test` dataset config:
-```json
-"test": {
-    "batch_size": 1,  
-    "path": "./data", # dataset path
-    "prefix": "set"   # prefix of the data folder
-}
-```
-if test **nnsk** model, we can run:
-```bash 
-dptb test -sk <test config> -i <nnsk checkpoint path> [[-o] <output directory>]
-```
-if test **dptb** model, we can run:
-```bash
-dptb test <test config> -crt <nnsk checkpoint path> -i <dptb checkpoint path> [[-o] <output directory>]
-```
-
-### Processing
-**DeePTB** integrates multiple post-processing functionalities in `dptb run` command, including:
-- band structure plotting
-- density of states plotting
-- fermi surface plotting
-- slater-koster parameter transcription
-
-Please see the template config file in `examples/hBN/run/`, and the running command is:
-```bash
-dptb run [-sk] <run config> [[-o] <output directory>] -i <nnsk/dptb checkpoint path> [[-crt] <nnsk checkpoint path>]
-```
-
-For detailed documents, please see our [Document page](https://deeptb.readthedocs.io/en/latest).

@@ -10,6 +10,7 @@ from dptb.entrypoints.bond import bond
 from dptb.entrypoints.nrl2json import nrl2json
 from dptb.entrypoints.data import data
 from dptb.utils.loggers import set_log_handles
+from dptb.utils.config_check import check_config_train
 
 def get_ll(log_level: str) -> int:
     """Convert string to python logging level.
@@ -77,10 +78,38 @@ def main_parser() -> argparse.ArgumentParser:
     )
 
     parser_config.add_argument(
-        "-full",
-        "--full_config",
-        action="store_true",
-        help="get the config templete with all input parameters.",
+        "-tr", 
+        "--train",
+        help="Generate the config templete for training.",
+        action="store_true"
+    )
+    
+    parser_config.add_argument(
+        "-ts", 
+        "--test",
+        help="Generate the config templete for testing.",
+        action="store_true"
+    )
+
+    parser_config.add_argument(
+        "-e3", 
+        "--e3tb",
+        help="Generate the config templete for e3nn TB model.",
+        action="store_true"
+    )
+
+    parser_config.add_argument(
+        "-sk", 
+        "--sktb",
+        help="Generate the config templete for nn-sk TB model.",
+        action="store_true"
+    )
+
+    parser_config.add_argument(
+        "-skenv", 
+        "--sktbenv",
+        help="Generate the config templete for nn-sk env TB model.",
+        action="store_true"
     )
 
     # neighbour
@@ -329,6 +358,7 @@ def main():
         bond(**dict_args)
 
     elif args.command == 'train':
+        check_config_train(**dict_args)
         train(**dict_args)
 
     elif args.command == 'test':

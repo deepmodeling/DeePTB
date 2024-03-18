@@ -558,17 +558,17 @@ def nnsk():
         ], sub_variants=[], optional=True, doc=doc_nnsk)
 
 def push():
-    doc_rs_thr = ""
-    doc_rc_thr = ""
+    doc_rs_thr = "The step size for cutoff value for smooth function in the nnsk anlytical formula."
+    doc_rc_thr = "The step size for cutoff value for smooth function in the nnsk anlytical formula."
     doc_w_thr = ""
     doc_period = ""
 
-    return Argument("push", dict, sub_fields=[
-        Argument("rs_thr", float, optional=True, default=0., doc=doc_rs_thr),
-        Argument("rc_thr", float, optional=True, default=0., doc=doc_rc_thr),
-        Argument("w_thr", float, optional=True, default=0., doc=doc_w_thr),
+    return Argument("push", [None,dict], sub_fields=[
+        Argument("rs_thr", [int,float], optional=True, default=0., doc=doc_rs_thr),
+        Argument("rc_thr", [int,float], optional=True, default=0., doc=doc_rc_thr),
+        Argument("w_thr",  [int,float], optional=True,  default=0., doc=doc_w_thr),
         Argument("period", int, optional=True, default=100, doc=doc_period),
-    ], sub_variants=[], optional=True, default={}, doc="The parameters to define the push the soft cutoff of nnsk model.")
+    ], sub_variants=[], optional=True, default=None, doc="The parameters to define the push the soft cutoff of nnsk model.")
 
 def onsite():
     doc_method = r"The onsite correction mode, the onsite energy is expressed as the energy of isolated atoms plus the model correction, the correction mode are:\n\n\
@@ -743,8 +743,7 @@ def normalize_test(data):
     co = common_options()
     da = test_data_options()
     to = test_options()
-    lo = loss_options()
-
+    
     base = Argument("base", dict, [co, da, to, lo])
     data = base.normalize_value(data)
     # data = base.normalize_value(data, trim_pattern="_*")
