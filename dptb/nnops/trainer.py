@@ -51,7 +51,7 @@ class Trainer(BaseTrainer):
             self.reference_loader = DataLoader(dataset=self.reference_datesets, batch_size=train_options["ref_batch_size"], shuffle=True)
 
         if self.use_validation:
-            self.validation_loader = DataLoader(dataset=self.validation_datasets, batch_size=train_options["val_batch_size"], shuffle=False)
+            self.validation_loader = DataLoader(dataset=self.validation_datasets, batch_size=train_options["val_batch_size"], shuffle=True)
 
         # loss function
         self.train_lossfunc = Loss(**train_options["loss_options"]["train"], **common_options, idp=self.model.hamiltonian.idp)
