@@ -8,7 +8,7 @@ readme = "README.md"
 repository = "https://github.com/deepmodeling/DeePTB"
 
 [tool.poetry.dependencies]
-python = ">=3.9"
+python = ">=3.8"
 pytest = ">=7.2.0"
 numpy = "*"
 scipy = "1.9.1"
