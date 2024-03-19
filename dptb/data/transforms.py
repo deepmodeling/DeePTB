@@ -294,15 +294,28 @@ class BondMapper(TypeMapper):
                 f"Data included atomic numbers {bad_set} that are not part of the atomic number -> type mapping!"
             )
 
-        return self._ZZ_to_index.to(device=iatomic_numbers.device)[
-            iatomic_numbers - self._min_Z, jatomic_numbers - self._min_Z
-        ]
+
+        bondtypes = self._ZZ_to_index.to(device=iatomic_numbers.device)[iatomic_numbers - self._min_Z, 
+                                                                    jatomic_numbers - self._min_Z]
+        
+        if -1 in bondtypes:
+            bad_set1 = set(torch.unique(iatomic_numbers).cpu().tolist()) - self._valid_set
+            bad_set2 = set(torch.unique(jatomic_numbers).cpu().tolist()) - self._valid_set
+            bad_set = bad_set1.union(bad_set2)
+            raise ValueError(
+                f"Data included atomic numbers {bad_set} that are not part of the atomic number -> type mapping!"
+            )
+        
+        return bondtypes
     
     def transform_reduced_bond(self, iatomic_numbers, jatomic_numbers):
         
         if iatomic_numbers.device != jatomic_numbers.device:
             raise ValueError("iatomic_numbers and jatomic_numbers should be on the same device!")
         
+        if not torch.all((iatomic_numbers -jatomic_numbers)<=0):
+            raise ValueError("iatomic_numbers[i] should <= jatomic_numbers[i]")
+
         if iatomic_numbers.min() < self._min_Z or iatomic_numbers.max() > self._max_Z:
             bad_set = set(torch.unique(iatomic_numbers).cpu().tolist()) - self._valid_set
             raise ValueError(
@@ -315,9 +328,19 @@ class BondMapper(TypeMapper):
                 f"Data included atomic numbers {bad_set} that are not part of the atomic number -> type mapping!"
             )
 
-        return self._ZZ_to_reduced_index.to(device=iatomic_numbers.device)[
-            iatomic_numbers - self._min_Z, jatomic_numbers - self._min_Z
-        ]
+
+        red_bondtypes = self._ZZ_to_reduced_index.to(device=iatomic_numbers.device)[
+                                    iatomic_numbers - self._min_Z, jatomic_numbers - self._min_Z]
+        
+        if -1 in red_bondtypes:
+            bad_set1 = set(torch.unique(iatomic_numbers).cpu().tolist()) - self._valid_set
+            bad_set2 = set(torch.unique(jatomic_numbers).cpu().tolist()) - self._valid_set
+            bad_set = bad_set1.union(bad_set2)
+            raise ValueError(
+                f"Data included atomic numbers {bad_set} that are not part of the atomic number -> type mapping!"
+            )
+        
+        return red_bondtypes
     
     def untransform_atom(self, atom_types):
         """Transform atom types back into atomic numbers"""
