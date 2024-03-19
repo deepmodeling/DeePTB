@@ -134,20 +134,6 @@ def build_dataset(set_options, common_options):
     """
     dataset_type = set_options.get("type", "DefaultDataset")
 
-    # input in set_option for Default Dataset:
-    # "root": main dir storing all trajectory folders.
-    #         that is, each subfolder of root contains a trajectory.
-    # "prefix": optional, load selected trajectory folders.
-    # "get_Hamiltonian": load the Hamiltonian file to edges of the graph or not.
-    # "get_eigenvalues": load the eigenvalues to the graph or not.
-    # "setinfo": MUST HAVE, the name of the json file used to build dataset.
-    # Example:
-    # "train": {
-    #        "type": "DefaultDataset",
-    #        "root": "foo/bar/data_files_here",
-    #        "prefix": "traj",
-    #        "setinfo": "with_pbc.json"
-    #    }
     if dataset_type in ["DefaultDataset", "DeePHDataset"]:
         # See if we can get a OrbitalMapper.
         if "basis" in common_options:
