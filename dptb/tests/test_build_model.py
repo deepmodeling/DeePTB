@@ -60,7 +60,7 @@ def test_build_nnsk_from_scratch():
     assert model.idp_sk.basis == common_options["basis"]
     assert model.idp_sk.method == "sktb"
     
-def test_build_model_MIX_from_checkpoint():
+def test_build_model_MIX_from_scratch():
     run_options = {
         "init_model": None,
         "restart": None,

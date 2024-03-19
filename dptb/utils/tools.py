@@ -351,9 +351,10 @@ def format_readline(line):
     lstr = []
     for ii in range(len(lsplit)):
         strtmp = lsplit[ii]
-        if re.search('\*',strtmp):
-            strspt = re.split('\*|\n',strtmp)
+        if re.search('\\*',strtmp):
+            strspt = re.split('\\*|\n',strtmp)
             strspt = list(filter(None,strspt))
+            assert len(strspt) == 2, "The format of the line is not correct! n*value, the value is gone!"
             strfull = int(strspt[0]) * [strspt[1]]
             lstr +=strfull
         else:
@@ -490,7 +491,7 @@ def LorentzSmearing(x, x0, sigma=0.02):
     '''
     Simulate the Delta function by a Lorentzian shape function
 
-        \Delta(x) = \lim_{\sigma\to 0}  Lorentzian
+        Delta(x) = lim_{sigma to 0}  Lorentzian
     '''
 
     return 1. / np.pi * sigma**2 / ((x - x0)**2 + sigma**2)
@@ -500,7 +501,7 @@ def GaussianSmearing(x, x0, sigma=0.02):
     '''
     Simulate the Delta function by a Lorentzian shape function
 
-        \Delta(x) = \lim_{\sigma\to 0} Gaussian
+        Delta(x) = lim_{sigma to 0} Gaussian
     '''
 
     return 1. / (np.sqrt(2*np.pi) * sigma) * np.exp(-(x - x0)**2 / (2*sigma**2))

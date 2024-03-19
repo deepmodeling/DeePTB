@@ -3,7 +3,7 @@ from dptb.nn.nnsk import NNSK
 from dptb.utils.tools import j_loader
 import os
 
-model = NNSK.from_reference(checkpoint="./condband/checkpoint/nnsk.ep500.pth",
+model = NNSK.from_reference(checkpoint="./ref_ckpts/condband/checkpoint/nnsk.ep500.pth",
                             basis={'B': ['2s', '2p', 'd*'], 'N': ['2s', '2p', 'd*']})
 jdata = j_loader("./run/band.json")
 results_path = "./band_plot"
