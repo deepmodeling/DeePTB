@@ -7,22 +7,32 @@ DeePTB is a package that utilizes machine-learning method to train TB models for
 hBN is a binary compound made of equal numbers of boron (B) and nitrogen (N), we present this as a quick hands-on example. The prepared files are located in:
 ```
 deeptb/examples/hBN/
--- data/kpath.0/
--- -- info.json
--- -- xdat.traj
--- -- kpoints.npy
--- -- eigenvalues.npy
--- input/
--- -- 1_start.json
--- -- 2_strain.json
--- -- 3_varycutoff.json
--- -- 4_longtrain.json
--- run/
--- -- band.json
--- input_short.json
--- plot_band.py
+├── data
+│   ├── kpath.0
+│   │   ├── eigenvalues.npy
+│   │   ├── info.json
+│   │   ├── kpoints.npy
+│   │   └── xdat.traj
+│   └── struct.vasp
+├── input
+│   ├── 1_start.json
+│   ├── 2_condband.json
+│   ├── 3_strain.json
+│   ├── 4_varycutoff.json
+│   └── 5_longtrain.json
+├── run
+│   └── band.json
+├── input_short.json
+├── ref_ckpts/
+├── band_plot/
+├── band_plot.py
+└── band_plot.ipynb
+
 ```
-The ```input_short.json``` file contains the least number of parameters that are required to start training the **DeePTB** model. ```data``` folder contains the bandstructure data ```kpath.0```, where another important configuration file ```info.json``` is located.
+The ```input_short.json``` file contains the least number of parameters that are required to start training the **DeePTB** model. ```data``` folder contains the bandstructure data ```kpath.0```, where another important configuration file ```info.json``` is located. ```input``` folder contains the input files for different training stages. ```run``` folder contains the json for plotting the bandstructure. The ```ref_ckpts``` folder contains the reference checkpoints for the model at different training stages. The ```band_plot``` folder contains the bandstructure plot. The ```band_plot.py``` and  ```band_plot.ipynb``` is the script for plotting the bandstructure.
+
+
+
 
 First we need to specify the maximum cutoff in building the AtomicData graph in `info.json`. Here, we set the `r_max` large enough to contain the 3rd neighbour. This can be assisted by running `dptb bond` command:
 
