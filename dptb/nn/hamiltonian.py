@@ -13,7 +13,7 @@ from dptb.data.transforms import OrbitalMapper
 from dptb.data import AtomicDataDict
 import re
 from torch_runstats.scatter import scatter
-from dptb.nn.tp import wigner_D
+from dptb.nn.tensor_product import wigner_D
 
 #TODO: 1. jit acceleration 2. GPU support 3. rotate AB and BA bond together.
 

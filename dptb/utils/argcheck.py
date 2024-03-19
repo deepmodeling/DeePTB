@@ -647,9 +647,15 @@ def loss_options():
         Argument("onsite_shift", bool, optional=True, default=False, doc="Whether to use onsite shift in loss function. Default: False"),
     ]
 
+    eigvals = [
+        Argument("diff_on", bool, optional=True, default=False, doc="Whether to use random differences in loss function. Default: False"),
+        Argument("eout_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue out of range. Default: 0.01"),
+        Argument("diff_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue difference. Default: 0.01"),
+    ]
+
     loss_args = Variant("method", [
         Argument("hamil", dict, sub_fields=hamil),
-        Argument("eigvals", dict, sub_fields=[]),
+        Argument("eigvals", dict, sub_fields=eigvals),
         Argument("hamil_abs", dict, sub_fields=hamil),
         Argument("hamil_blas", dict, sub_fields=hamil),
     ], optional=False, doc=doc_method)
