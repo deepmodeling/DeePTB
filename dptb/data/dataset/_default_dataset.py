@@ -20,6 +20,7 @@ from dptb.data.interfaces.ham_to_feature import ham_block_to_feature
 from dptb.utils.tools import j_loader
 from dptb.data.AtomicDataDict import with_edge_vectors
 from dptb.nn.hamiltonian import E3Hamiltonian
+from tqdm import tqdm
 
 class _TrajData(object):
     '''
@@ -41,9 +42,13 @@ class _TrajData(object):
                  root: str, 
                  AtomicData_options: Dict[str, Any] = {},
                  get_Hamiltonian = False,
+                 get_overlap = False,
+                 get_DM = False,
                  get_eigenvalues = False,
                  info = None,
                  _clear = False):
+        
+        assert not get_Hamiltonian * get_DM, "Hamiltonian and Density Matrix can only loaded one at a time, for which will occupy the same attribute in the AtomicData."
         self.root = root
         self.AtomicData_options = AtomicData_options
         self.info = info
@@ -62,21 +67,22 @@ class _TrajData(object):
         
         # load atomic numbers
         atomic_numbers = np.loadtxt(os.path.join(root, "atomic_numbers.dat"))
+        natoms = self.info["natoms"]
+        if natoms < 0:
+            natoms = atomic_numbers.shape[-1]
         if atomic_numbers.shape[0] == self.info["natoms"]:
             # same atomic_numbers, copy it to all frames.
             atomic_numbers = np.expand_dims(atomic_numbers, axis=0)
-            self.data["atomic_numbers"] = np.broadcast_to(atomic_numbers, (self.info["nframes"], 
-                                                                           self.info["natoms"]))
-        elif atomic_numbers.shape[0] == self.info["natoms"] * self.info["nframes"]:
-            self.data["atomic_numbers"] = atomic_numbers.reshape(self.info["nframes"],
-                                                                 self.info["natoms"])
+            self.data["atomic_numbers"] = np.broadcast_to(atomic_numbers, (self.info["nframes"], natoms))
+        elif atomic_numbers.shape[0] == natoms * self.info["nframes"]:
+            self.data["atomic_numbers"] = atomic_numbers.reshape(self.info["nframes"],natoms)
         else:
             raise ValueError("Wrong atomic_number dimensions.")
         
         # load positions, stored as cartesion no matter what provided.
         pos = np.loadtxt(os.path.join(root, "positions.dat"))
-        assert pos.shape[0] == self.info["nframes"] * self.info["natoms"]
-        pos = pos.reshape(self.info["nframes"], self.info["natoms"], 3)
+        assert pos.shape[0] == self.info["nframes"] * natoms
+        pos = pos.reshape(self.info["nframes"], natoms, 3)
         # ase use cartesian by default.
         if self.info["pos_type"] == "cart" or self.info["pos_type"] == "ase":
             self.data["pos"] = pos
@@ -112,14 +118,17 @@ class _TrajData(object):
             # if get_eigenvalues is True, then the eigenvalues and kpoints must be provided. if not, raise error.
             else:  
                 raise ValueError("Eigenvalues must be provided when `get_eigenvalues` is True.")
+
         if get_Hamiltonian==True:
-            if os.path.exists(os.path.join(self.root, "hamiltonians.h5")):
-                self.data["hamiltonian_blocks"] = h5py.File(os.path.join(self.root, "hamiltonians.h5"), "r")
-                if os.path.exists(os.path.join(self.root, "overlaps.h5")):
-                    self.data["overlap_blocks"] = h5py.File(os.path.join(self.root, "overlaps.h5"), "r")
-            else:
-                raise ValueError("Hamiltonians must be provided when `get_Hamiltonian` is True.")
-              
+            assert os.path.exists(os.path.join(self.root, "hamiltonians.h5")), "Hamiltonian file not found."
+            self.data["hamiltonian_blocks"] = h5py.File(os.path.join(self.root, "hamiltonians.h5"), "r")
+        if get_overlap==True:
+            assert os.path.exists(os.path.join(self.root, "overlaps.h5")), "Overlap file not found."
+            self.data["overlap_blocks"] = h5py.File(os.path.join(self.root, "overlaps.h5"), "r")
+        if get_DM==True:
+            assert os.path.exists(os.path.join(self.root, "DM.h5")), "Density Matrix file not found."
+            self.data["DM_blocks"] = h5py.File(os.path.join(self.root, "DM.h5"), "r")
+        
         # this is used to clear the tmp files to load ase trajectory only.
         if _clear:
             os.remove(os.path.join(root, "positions.dat"))
@@ -131,8 +140,12 @@ class _TrajData(object):
                       root: str, 
                       AtomicData_options: Dict[str, Any] = {},
                       get_Hamiltonian = False,
+                      get_overlap = False,
+                      get_DM = False,
                       get_eigenvalues = False,
                       info = None):
+        
+        assert not get_Hamiltonian * get_DM, "Hamiltonian and Density Matrix can only loaded one at a time, for which will occupy the same attribute in the AtomicData."
 
         traj_file = glob.glob(f"{root}/*.traj")
         assert len(traj_file) == 1, print("only one ase trajectory file can be provided.")
@@ -157,6 +170,8 @@ class _TrajData(object):
         return cls(root=root,
                    AtomicData_options=AtomicData_options,
                    get_Hamiltonian=get_Hamiltonian,
+                   get_overlap=get_overlap,
+                   get_DM=get_DM,
                    get_eigenvalues=get_eigenvalues,
                    info=info,
                    _clear=True)
@@ -173,18 +188,27 @@ class _TrajData(object):
                 **self.AtomicData_options)
             if "hamiltonian_blocks" in self.data:
                 assert idp is not None, "LCAO Basis must be provided  in `common_option` for loading Hamiltonian."
-                if "overlap_blocks" not in self.data:
-                    self.data["overlap_blocks"] = [False] * self.info["nframes"]
-                # e3 = E3Hamiltonian(idp=idp, decompose=True)
-                ham_block_to_feature(atomic_data, idp,
-                                     self.data["hamiltonian_blocks"][str(frame+1)],
-                                     self.data["overlap_blocks"][str(frame+1)])
-                
-                # TODO: initialize the edge and node feature tempretely, there should be a better way.
+                features = self.data["hamiltonian_blocks"][str(frame+1)]
+            elif "DM_blocks" in self.data:
+                assert idp is not None, "LCAO Basis must be provided  in `common_option` for loading Density Matrix."
+                features = self.data["DM_blocks"][str(frame+1)]
             else:
-                # just temporarily initialize the edge and node feature to zeros, to let the batch collate work.
+                features = False
+            
+            if "overlap_blocks" in self.data:
+                overlaps = self.data["overlap_blocks"][str(frame+1)]
+            else:
+                overlaps = False
+            # e3 = E3Hamiltonian(idp=idp, decompose=True)
+            if features != False or overlaps != False:
+                ham_block_to_feature(atomic_data, idp, features, overlaps)
+            
+            if not hasattr(atomic_data, AtomicDataDict.EDGE_FEATURES_KEY):
+                # TODO: initialize the edge and node feature tempretely, there should be a better way.
                 atomic_data[AtomicDataDict.EDGE_FEATURES_KEY] = torch.zeros(atomic_data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], 1)
                 atomic_data[AtomicDataDict.NODE_FEATURES_KEY] = torch.zeros(atomic_data[AtomicDataDict.POSITIONS_KEY].shape[0], 1)
+                # just temporarily initialize the edge and node feature to zeros, to let the batch collate work.
+            if not hasattr(atomic_data, AtomicDataDict.EDGE_OVERLAP_KEY):
                 atomic_data[AtomicDataDict.EDGE_OVERLAP_KEY] = torch.zeros(atomic_data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], 1)
                 # with torch.no_grad():
                 #     atomic_data = e3(atomic_data.to_dict())
@@ -218,6 +242,8 @@ class DefaultDataset(AtomicInMemoryDataset):
             include_frames: Optional[List[int]] = None,   # maybe support in future
             type_mapper: TypeMapper = None,
             get_Hamiltonian: bool = False,
+            get_overlap: bool = False,
+            get_DM: bool = False,
             get_eigenvalues: bool = False,
     ):
         self.root = root
@@ -226,6 +252,8 @@ class DefaultDataset(AtomicInMemoryDataset):
         # The following flags are stored to label dataset.
         self.get_Hamiltonian = get_Hamiltonian
         self.get_eigenvalues = get_eigenvalues
+        self.get_overlap = get_overlap
+        self.get_DM = get_DM
 
         # load all data files            
         self.raw_data = []
@@ -240,12 +268,16 @@ class DefaultDataset(AtomicInMemoryDataset):
                 subdata = _TrajData.from_ase_traj(os.path.join(self.root, file), 
                                 AtomicData_options,
                                 get_Hamiltonian, 
+                                get_overlap,
+                                get_DM,
                                 get_eigenvalues,
                                 info=info)
             else:
                 subdata = _TrajData(os.path.join(self.root, file), 
                                 AtomicData_options,
-                                get_Hamiltonian, 
+                                get_Hamiltonian,
+                                get_overlap,
+                                get_DM,
                                 get_eigenvalues,
                                 info=info)
             self.raw_data.append(subdata)
@@ -264,7 +296,7 @@ class DefaultDataset(AtomicInMemoryDataset):
 
     def get_data(self):
         all_data = []
-        for subdata in self.raw_data:
+        for subdata in tqdm(self.raw_data, desc="Loading data"):
             # the type_mapper here is loaded in PyG `dataset` type as `transform` attritube
             # so the OrbitalMapper can be accessed by self.transform here
             subdata_list = subdata.toAtomicDataList(self.transform)
@@ -416,11 +448,18 @@ class DefaultDataset(AtomicInMemoryDataset):
 
                     norms = torch.norm(sub_tensor, p=2, dim=1)
                     typed_norm_ave[tp][ir] = norms.mean()
-                    typed_norm_std[tp][ir] = norms.std()
+                    if norms.numel() > 1:
+                        typed_norm_std[tp][ir] = norms.std()
+                    else:
+                        typed_norm_std[tp][ir] = 1.0
                     if s.stop - s.start == 1:
                         # it's a scalar
+                        
                         typed_scalar_ave[tp][count_scalar-1] = sub_tensor.mean()
-                        typed_scalar_std[tp][count_scalar-1] = sub_tensor.std()
+                        if sub_tensor.numel() > 1:
+                            typed_scalar_std[tp][count_scalar-1] = sub_tensor.std()
+                        else:
+                            typed_scalar_std[tp][count_scalar-1] = 1.0
 
         edge_stats = {
             "norm_ave": typed_norm_ave,

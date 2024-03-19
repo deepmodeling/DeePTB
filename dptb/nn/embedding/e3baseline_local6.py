@@ -29,8 +29,8 @@ from dptb.data.AtomicDataDict import with_edge_vectors, with_batch
 
 from math import ceil
 
-@Embedding.register("e3baseline_nonlocal")
-class E3BaseLineModelNonLocal(torch.nn.Module):
+@Embedding.register("e3baseline_6")
+class E3BaseLineModel6(torch.nn.Module):
     def __init__(
             self,
             basis: Dict[str, Union[str, list]]=None,
@@ -64,7 +64,7 @@ class E3BaseLineModelNonLocal(torch.nn.Module):
             device: Union[str, torch.device] = torch.device("cpu"),
             ):
         
-        super(E3BaseLineModelNonLocal, self).__init__()
+        super(E3BaseLineModel6, self).__init__()
 
         irreps_hidden = o3.Irreps(irreps_hidden)
 
@@ -936,7 +936,7 @@ class UpdateHidden(torch.nn.Module):
         )
 
         self.tp = SO2_Linear(
-            irreps_in=self.irreps_fea+self.irreps_hidden_in+self.irreps_fea,
+            irreps_in=self.irreps_fea+self.irreps_hidden_in,
             irreps_out=self.activation.irreps_in,
             latent_dim=latent_dim,
             radial_emb=radial_emb,
@@ -1023,8 +1023,7 @@ class UpdateHidden(torch.nn.Module):
             torch.cat(
                 [
                     node_features[edge_center[active_edges]],
-                    new_hidden_features,
-                    node_features[edge_neighbor[active_edges]]
+                    new_hidden_features
                     ]
                 , dim=-1), edge_vector[active_edges], latents)
         

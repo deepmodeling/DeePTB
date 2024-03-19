@@ -7,6 +7,8 @@ from dptb.nn.hamiltonian import E3Hamiltonian
 from typing import Any, Union, Dict
 from dptb.data import AtomicDataDict, AtomicData
 from dptb.data.transforms import OrbitalMapper
+from e3nn.o3 import Irreps
+from torch_scatter import scatter_mean
 from dptb.utils.torch_geometric import Batch
 
 """this is the register class for descriptors
@@ -245,6 +247,7 @@ class HamilLossAbs(nn.Module):
             basis: Dict[str, Union[str, list]]=None,
             idp: Union[OrbitalMapper, None]=None,
             overlap: bool=False,
+            onsite_shift: bool=False,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             **kwargs,
@@ -255,6 +258,7 @@ class HamilLossAbs(nn.Module):
         self.loss2 = nn.MSELoss()
         self.overlap = overlap
         self.device = device
+        self.onsite_shift = onsite_shift
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
@@ -269,19 +273,118 @@ class HamilLossAbs(nn.Module):
 
         # data[AtomicDataDict.NODE_FEATURES_KEY].masked_fill(~self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY]], 0.)
         # data[AtomicDataDict.EDGE_FEATURES_KEY].masked_fill(~self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY]], 0.)
+
+        if self.onsite_shift:
+            assert data["batch"].max() == 0, "The onsite shift is only supported for batchsize=1."
+            data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] = \
+                data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+                data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]].min()
+            
+            ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] = \
+                ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+                ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]].min()
         
         pre = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
-        tgt = ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+        tgt = ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
         onsite_loss = 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
 
         pre = data[AtomicDataDict.EDGE_FEATURES_KEY][self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-        tgt = ref_data[AtomicDataDict.EDGE_FEATURES_KEY][self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
+        tgt = ref_data[AtomicDataDict.EDGE_FEATURES_KEY][self.idp.mask_to_erme[ref_data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
         hopping_loss = 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
         
         if self.overlap:
             pre = data[AtomicDataDict.EDGE_OVERLAP_KEY][self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-            tgt = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY][self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
+            tgt = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY][self.idp.mask_to_erme[ref_data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
             overlap_loss = 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
+
+            return (1/3) * (hopping_loss + onsite_loss + overlap_loss)
+        else:
+            return 0.5 * (onsite_loss + hopping_loss)
+
+@Loss.register("hamil_blas")
+class HamilLossBlas(nn.Module):
+    def __init__(
+            self, 
+            basis: Dict[str, Union[str, list]]=None,
+            idp: Union[OrbitalMapper, None]=None,
+            overlap: bool=False,
+            onsite_shift: bool=False,
+            dtype: Union[str, torch.dtype] = torch.float32, 
+            device: Union[str, torch.device] = torch.device("cpu"),
+            **kwargs,
+        ):
+
+        super(HamilLossBlas, self).__init__()
+        self.overlap = overlap
+        self.device = device
+        self.onsite_shift = onsite_shift
+
+        if basis is not None:
+            self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
+            if idp is not None:
+                assert idp == self.idp, "The basis of idp and basis should be the same."
+        else:
+            assert idp is not None, "Either basis or idp should be provided."
+            self.idp = idp
+
+    def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
+        # mask the data
+        # data[AtomicDataDict.NODE_FEATURES_KEY].masked_fill(~self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY]], 0.)
+        # data[AtomicDataDict.EDGE_FEATURES_KEY].masked_fill(~self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY]], 0.)
+
+        if self.onsite_shift:
+            data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] = \
+                data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+                data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]].min()
+            
+            ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] = \
+                ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+                ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]].min()
+        
+        onsite_loss = data[AtomicDataDict.NODE_FEATURES_KEY]-ref_data[AtomicDataDict.NODE_FEATURES_KEY]
+        onsite_index = data[AtomicDataDict.ATOM_TYPE_KEY].flatten().unique()
+        onsite_loss = scatter_mean(
+            src = onsite_loss.abs(), 
+            index = data[AtomicDataDict.ATOM_TYPE_KEY].flatten(),
+            dim=0,
+            dim_size=len(self.idp.type_names)
+            )[onsite_index][self.idp.mask_to_nrme[onsite_index]].mean() + scatter_mean(
+            src = onsite_loss**2,
+            index = data[AtomicDataDict.ATOM_TYPE_KEY].flatten(),
+            dim=0,
+            dim_size=len(self.idp.type_names)
+        )[onsite_index][self.idp.mask_to_nrme[onsite_index]].mean().sqrt()
+        onsite_loss *= 0.5
+
+        hopping_index = data[AtomicDataDict.EDGE_TYPE_KEY].flatten().unique()
+        hopping_loss = data[AtomicDataDict.EDGE_FEATURES_KEY]-ref_data[AtomicDataDict.EDGE_FEATURES_KEY]
+        hopping_loss = scatter_mean(
+            src = hopping_loss.abs(), 
+            index = data[AtomicDataDict.EDGE_TYPE_KEY].flatten(),
+            dim=0,
+            dim_size=len(self.idp.bond_types)
+            )[hopping_index][self.idp.mask_to_erme[hopping_index]].mean() + scatter_mean(
+            src = hopping_loss**2,
+            index = data[AtomicDataDict.EDGE_TYPE_KEY].flatten(),
+            dim=0,
+            dim_size=len(self.idp.bond_types)
+        )[hopping_index][self.idp.mask_to_erme[hopping_index]].mean().sqrt()
+        hopping_loss *= 0.5
+        
+        if self.overlap:
+            overlap_loss = data[AtomicDataDict.EDGE_OVERLAP_KEY]-ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
+            overlap_loss = scatter_mean(
+                src = overlap_loss.abs(), 
+                index = data[AtomicDataDict.EDGE_TYPE_KEY].flatten(),
+                dim=0,
+                dim_size=len(self.idp.bond_types)
+                )[hopping_index][self.idp.mask_to_erme[hopping_index]].mean() + scatter_mean(
+                src = overlap_loss**2,
+                index = data[AtomicDataDict.EDGE_TYPE_KEY].flatten(),
+                dim=0,
+                dim_size=len(self.idp.bond_types)
+            )[self.idp.mask_to_erme].mean().sqrt()
+            overlap_loss *= 0.5
 
             return (1/3) * (hopping_loss + onsite_loss + overlap_loss)
         else:
@@ -328,76 +431,151 @@ class HamilLossAnalysis(object):
         
         with torch.no_grad():
             out = {}
+            out["mae"] = 0.
+            out["rmse"] = 0.
+            n_total = 0
             err = data[AtomicDataDict.NODE_FEATURES_KEY] - ref_data[AtomicDataDict.NODE_FEATURES_KEY]
             amp = ref_data[AtomicDataDict.NODE_FEATURES_KEY].abs()
-            mask = self.idp.mask_to_nrme[data["atom_types"].flatten()]
+            mask = self.idp.mask_to_nrme
             onsite = out.setdefault("onsite", {})
             for at, tp in self.idp.chemical_symbol_to_type.items():
-                onsite_mask = mask[data["atom_types"].flatten().eq(tp)]
+                onsite_mask = mask[tp]
                 onsite_err = err[data["atom_types"].flatten().eq(tp)]
+                if onsite_err.shape[0] == 0:
+                    continue
                 onsite_amp = amp[data["atom_types"].flatten().eq(tp)]
-                onsite_err = torch.stack([vec[ma] for vec, ma in zip(onsite_err, onsite_mask)])
-                onsite_amp = torch.stack([vec[ma] for vec, ma in zip(onsite_amp, onsite_mask)])
+                onsite_err = onsite_err[:, onsite_mask]
+                onsite_amp = onsite_amp[:, onsite_mask]
+
                 rmserr = (onsite_err**2).mean(dim=0).sqrt()
                 maerr = onsite_err.abs().mean(dim=0)
+                rmse_per_irreps = torch.zeros(err.shape[1], dtype=err.dtype, device=err.device)
+                rmse_per_irreps[onsite_mask] = rmserr
+                maerr_per_irreps = torch.zeros(err.shape[1], dtype=err.dtype, device=err.device)
+                maerr_per_irreps[onsite_mask] = maerr
+
+                rmse_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, rmse_per_irreps)
+                maerr_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, maerr_per_irreps)
                 l1amp = onsite_amp.abs().mean(dim=0)
                 l2amp = (onsite_amp**2).mean(dim=0).sqrt()
+                n_total += onsite_err.numel()
                 onsite[at] = {
                     "rmse":(rmserr**2).mean().sqrt(),
                     "mae":maerr.mean(),
                     "rmse_per_block_element":rmserr, 
                     "mae_per_block_element":maerr,
+                    "rmse_per_irreps":rmse_per_irreps,
+                    "mae_per_irreps":maerr_per_irreps,
                     "l1amp":l1amp,
                     "l2amp":l2amp,
+                    "n_element":onsite_err.numel(), 
                     }
+                
+                out["mae"] += onsite[at]["mae"] * onsite_err.numel()
+                out["rmse"] += onsite[at]["rmse"]**2 * onsite_err.numel()
+                
+
 
             err = data[AtomicDataDict.EDGE_FEATURES_KEY] - ref_data[AtomicDataDict.EDGE_FEATURES_KEY]
             amp = ref_data[AtomicDataDict.EDGE_FEATURES_KEY].abs()
-            mask = self.idp.mask_to_erme[data["edge_type"].flatten()]
+            mask = self.idp.mask_to_erme
             hopping = out.setdefault("hopping", {})
+            
             for bt, tp in self.idp.bond_to_type.items():
-                hopping_mask = mask[data["edge_type"].flatten().eq(tp)]
+                hopping_mask = mask[tp]
                 hopping_err = err[data["edge_type"].flatten().eq(tp)]
+                if hopping_err.shape[0] == 0:
+                    continue
                 hopping_amp = amp[data["edge_type"].flatten().eq(tp)]
-                hopping_err = torch.stack([vec[ma] for vec, ma in zip(hopping_err, hopping_mask)])
-                hopping_amp = torch.stack([vec[ma] for vec, ma in zip(hopping_amp, hopping_mask)])
+                hopping_err = hopping_err[:, hopping_mask]
+                hopping_amp = hopping_amp[:, hopping_mask]
+                
                 rmserr = (hopping_err**2).mean(dim=0).sqrt()
                 maerr = hopping_err.abs().mean(dim=0)
+                rmse_per_irreps = torch.zeros(err.shape[1], dtype=err.dtype, device=err.device)
+                rmse_per_irreps[hopping_mask] = rmserr
+                maerr_per_irreps = torch.zeros(err.shape[1], dtype=err.dtype, device=err.device)
+                maerr_per_irreps[hopping_mask] = maerr
+
+                rmse_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, rmse_per_irreps)
+                maerr_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, maerr_per_irreps)
                 l1amp = hopping_amp.abs().mean(dim=0)
                 l2amp = (hopping_amp**2).mean(dim=0).sqrt()
+                n_total += hopping_err.numel()
                 hopping[bt] = {
                     "rmse":(rmserr**2).mean().sqrt(),
                     "mae":maerr.mean(),
                     "rmse_per_block_element":rmserr, 
                     "mae_per_block_element":maerr,
+                    "rmse_per_irreps":rmse_per_irreps,
+                    "mae_per_irreps":maerr_per_irreps,
                     "l1amp":l1amp,
                     "l2amp":l2amp,
+                    "n_element":hopping_err.numel(),
                     }
+                
+                out["mae"] += hopping[bt]["mae"] * hopping_err.numel()
+                out["rmse"] += hopping[bt]["rmse"]**2 * hopping_err.numel()
             
             if self.overlap:
                 err = data[AtomicDataDict.EDGE_OVERLAP_KEY] - ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
                 amp = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY].abs()
-                mask = self.idp.mask_to_erme[data["edge_type"].flatten()]
+                mask = self.idp.mask_to_erme
                 overlap = out.setdefault("overlap", {})
 
                 for bt, tp in self.idp.bond_to_type.items():
-                    hopping_mask = mask[data["edge_type"].flatten().eq(tp)]
+                    hopping_mask = mask[tp]
                     hopping_err = err[data["edge_type"].flatten().eq(tp)]
+                    if hopping_err.shape[0] == 0:
+                        continue
                     hopping_amp = amp[data["edge_type"].flatten().eq(tp)]
-                    hopping_err = torch.stack([vec[ma] for vec, ma in zip(hopping_err, hopping_mask)])
-                    hopping_amp = torch.stack([vec[ma] for vec, ma in zip(hopping_amp, hopping_mask)])
+                    hopping_err = hopping_err[:, hopping_mask]
+                    hopping_amp = hopping_amp[:, hopping_mask]
                     rmserr = (hopping_err**2).mean(dim=0).sqrt()
                     maerr = hopping_err.abs().mean(dim=0)
+                    rmse_per_irreps = torch.zeros(err.shape[1], dtype=err.dtype, device=err.device)
+                    rmse_per_irreps[hopping_mask] = rmserr
+                    maerr_per_irreps = torch.zeros(err.shape[1], dtype=err.dtype, device=err.device)
+                    maerr_per_irreps[hopping_mask] = maerr
+
+                    rmse_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, rmse_per_irreps)
+                    maerr_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, maerr_per_irreps)
                     l1amp = hopping_amp.abs().mean(dim=0)
                     l2amp = (hopping_amp**2).mean(dim=0).sqrt()
 
+                    n_total += hopping_err.numel()
                     overlap[bt] = {
                         "rmse":(rmserr**2).mean().sqrt(),
                         "mae":maerr.mean(),
                         "rmse_per_block_element":rmserr, 
                         "mae_per_block_element":maerr,
+                        "rmse_per_irreps":rmse_per_irreps,
+                        "mae_per_irreps":maerr_per_irreps,
                         "l1amp":l1amp,
                         "l2amp":l2amp,
+                        "n_element":hopping_err.numel(),
                         }
+                    
+                    out["mae"] += overlap[bt]["mae"] * hopping_err.numel()
+                    out["rmse"] += overlap[bt]["rmse"]**2 * hopping_err.numel()
 
+            # compute overall mae, rmse
+                    
+            out["mae"] = out["mae"] / (n_total + 1e-6)
+            out["rmse"] = out["rmse"] / n_total + (1e-6)
+            out["rmse"] = out["rmse"].sqrt()
+            
         return out
+
+    def __cal_norm__(self, irreps: Irreps, x: torch.Tensor):
+        id = 0
+        out = []
+        if len(x.shape) == 1:
+            x = x.unsqueeze_(0)
+        for mul, ir in irreps:
+            tensor = x[:,id:id+mul*ir.dim].reshape(-1, mul, ir.dim)
+            id = id + mul*ir.dim
+            tensor = tensor.norm(dim=-1)
+            out.append(tensor)
+
+        return torch.cat(out, dim=-1).squeeze(0)

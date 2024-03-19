@@ -51,7 +51,7 @@ class Trainer(BaseTrainer):
             self.reference_loader = DataLoader(dataset=self.reference_datesets, batch_size=train_options["ref_batch_size"], shuffle=True)
 
         if self.use_validation:
-            self.validation_loader = DataLoader(dataset=self.validation_datasets, batch_size=train_options["val_batch_size"], shuffle=False)
+            self.validation_loader = DataLoader(dataset=self.validation_datasets, batch_size=train_options["val_batch_size"], shuffle=True)
 
         # loss function
         self.train_lossfunc = Loss(**train_options["loss_options"]["train"], **common_options, idp=self.model.hamiltonian.idp)
@@ -94,11 +94,11 @@ class Trainer(BaseTrainer):
         if ref_batch is not None:
             ref_batch = ref_batch.to(self.device) # AtomicData Type
             batch_info = {
-                "__slices__": batch.__slices__,
-                "__cumsum__": batch.__cumsum__,
-                "__cat_dims__": batch.__cat_dims__,
-                "__num_nodes_list__": batch.__num_nodes_list__,
-                "__data_class__": batch.__data_class__,
+                "__slices__": ref_batch.__slices__,
+                "__cumsum__": ref_batch.__cumsum__,
+                "__cat_dims__": ref_batch.__cat_dims__,
+                "__num_nodes_list__": ref_batch.__num_nodes_list__,
+                "__data_class__": ref_batch.__data_class__,
             }
 
             ref_batch = AtomicData.to_AtomicDataDict(ref_batch) # AtomicDataDict Type
@@ -179,7 +179,7 @@ class Trainer(BaseTrainer):
         for ibatch in self.train_loader:
             # iter with different structure
             if self.use_reference:
-                self.iteration(ibatch, next(self.reference_loader))
+                self.iteration(ibatch, next(iter(self.reference_loader)))
             else:
                 self.iteration(ibatch)
 

@@ -60,7 +60,7 @@ def test_build_dataset_fail(root_directory):
     }
     common_options={"basis": {"Si": ["3s", "3p"]}}
 
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(AssertionError) as excinfo:
         dataset = build_dataset(set_options, common_options)
     assert "Hamiltonians must be provided" in str(excinfo.value)
 

@@ -549,6 +549,22 @@ class OrbitalMapper(BondMapper):
                     elif self.orbpair_maps.get(jof+"-"+iof) is not None:
                         self.mask_to_erme[self.bond_to_type[ib]][self.orbpair_maps[jof+"-"+iof]] = True
 
+        # the mask to map the full basis reduced matrix element to the onsite diagonal elements of original basis reduced matrix element
+        if self.method == "e3tb":
+            self.mask_to_ndiag = torch.zeros(len(self.type_names), self.reduced_matrix_element, dtype=torch.bool, device=self.device)
+            for ib, bb in self.basis.items():
+                for io in bb:
+                    iof = self.basis_to_full_basis[ib][io]
+                    if self.orbpair_maps.get(iof+"-"+iof) is not None:
+                        sli = self.orbpair_maps[iof+"-"+iof]
+                        l = anglrMId[re.findall("[a-z]", iof)[0]]
+                        indices = torch.arange(2*l+1)
+                        indices = indices + indices * (2*l+1)
+                        indices += sli.start
+                        assert indices.max() < sli.stop
+                        self.mask_to_ndiag[self.chemical_symbol_to_type[ib]][indices] = True
+
+
     def get_orbpairtype_maps(self):
         """
         The function `get_orbpairtype_maps` creates a mapping of orbital pair types, such as s-s, "s-p",
