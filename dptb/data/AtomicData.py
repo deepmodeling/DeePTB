@@ -22,6 +22,7 @@ import e3nn.o3
 from . import AtomicDataDict
 from .util import _TORCH_INTEGER_DTYPES
 from dptb.utils.torch_geometric.data import Data
+from dptb.utils.constants import atomic_num_dict
 
 # A type representing ASE-style periodic boundary condtions, which can be partial (the tuple case)
 PBC = Union[bool, Tuple[bool, bool, bool]]
@@ -354,7 +355,7 @@ class AtomicData(Data):
     def from_points(
         cls,
         pos=None,
-        r_max: float = None,
+        r_max: Union[float, int, dict] = None,
         self_interaction: bool = False,
         cell=None,
         pbc: Optional[PBC] = None,
@@ -882,6 +883,18 @@ def neighbor_list_and_relative_vec(
     if isinstance(pbc, bool):
         pbc = (pbc,) * 3
 
+    mask_r = False
+    if isinstance(r_max, dict):
+        _r_max = max(r_max.values())
+        if _r_max - min(r_max.values()) > 1e-5:
+            mask_r = True
+        
+        if len(r_max) < len(set(atomic_numbers)):
+            raise ValueError("The number of r_max is less than the number of required atom species.")
+    else:
+        _r_max = r_max
+        assert isinstance(r_max, (float, int))
+
     # Either the position or the cell may be on the GPU as tensors
     if isinstance(pos, torch.Tensor):
         temp_pos = pos.detach().cpu().numpy()
@@ -918,7 +931,7 @@ def neighbor_list_and_relative_vec(
         pbc,
         temp_cell,
         temp_pos,
-        cutoff=float(r_max),
+        cutoff=float(_r_max),
         self_interaction=self_interaction,  # we want edges from atom to itself in different periodic images!
         use_scaled_positions=False,
     )
@@ -989,5 +1002,35 @@ def neighbor_list_and_relative_vec(
     edge_index = torch.vstack(
         (torch.LongTensor(first_idex), torch.LongTensor(second_idex))
     )
+
+    # TODO: mask the edges that is larger than r_max
+    if mask_r:
+        edge_vec = pos[edge_index[1]] - pos[edge_index[0]]
+        if cell is not None:
+            edge_vec = edge_vec + torch.einsum(
+                "ni,ij->nj",
+                shifts,
+                cell_tensor.reshape(3,3),  # remove batch dimension
+            )
+
+        edge_length = torch.linalg.norm(edge_vec, dim=-1)
+
+        atom_species_num = [atomic_num_dict[k] for k in r_max.keys()]
+        for i in set(atomic_numbers):
+            assert i in atom_species_num
+        r_map = torch.zeros(max(atom_species_num))
+        for k, v in r_max.items():
+            r_map[atomic_num_dict[k]-1] = v
+        edge_length_max = 0.5 * (r_map[atomic_numbers[edge_index[0]]-1] + r_map[atomic_numbers[edge_index[1]]-1])
+        r_mask = edge_length <= edge_length_max
+        if any(~r_mask):
+            edge_index = edge_index[:, r_mask]
+            shifts = shifts[r_mask]
+        
+        del edge_length
+        del edge_vec
+        del r_map
+        del edge_length_max
+        del r_mask
 
     return edge_index, shifts, cell_tensor

@@ -33,8 +33,8 @@ from dptb.data.AtomicDataDict import with_edge_vectors, with_env_vectors, with_b
 
 from math import ceil
 
-@Embedding.register("e3baseline_local")
-class E3BaseLineModelLocal(torch.nn.Module):
+@Embedding.register("e3baseline_0")
+class E3BaseLineModel0(torch.nn.Module):
     def __init__(
             self,
             basis: Dict[str, Union[str, list]]=None,
@@ -69,7 +69,7 @@ class E3BaseLineModelLocal(torch.nn.Module):
             device: Union[str, torch.device] = torch.device("cpu"),
             ):
         
-        super(E3BaseLineModelLocal, self).__init__()
+        super(E3BaseLineModel0, self).__init__()
 
         irreps_hidden = o3.Irreps(irreps_hidden)
 
@@ -1042,7 +1042,7 @@ class Layer(torch.nn.Module):
                         local_env_per_edge[edge_neighbor[active_edges]],
                     ], dim=-1
                 ),
-                edge_sh[active_edges],
+                local_env_per_edge[edge_center[active_edges]],
             )
 
             features = self._edge_weighter(

@@ -111,7 +111,7 @@ To train the conduction band, the energy window we previously set in `info.json`
 
 We can then start the training using the previous model and modified input:
 ```bash
-dptb train input_short.json -i ./first/checkpoint/nnsk.ep1001.pth -o ./condband
+dptb train input_short.json -i ./first/checkpoint/nnsk.ep1000.pth -o ./condband
 ```
 ``-i`` states initialize the model from the checkpoint file, where the previous model is provided.
 
@@ -137,7 +137,7 @@ We can further improve the accuracy by incorporating more features of our code, 
 After setting we can run the training for strain model:
 
 ```bash
-dptb train input_short.json  -i ./condband/checkpoint/nnsk.ep1001.pth -o ./strain
+dptb train input_short.json  -i ./condband/checkpoint/nnsk.ep500.pth -o ./strain
 ```
 
 We can also plot the band structure of the strain model:
@@ -159,7 +159,7 @@ It looks ok, we can further improve the accuracy by adding more neighbours, and 
 This means that we gradually add up the `rs` in decay function, pushing up to 3rd nearest neighbour for considering in calculating bonding. see the input file `hBN/input/3_varycutoff.json` for detail. Then we can run the training again:
 
 ```bash
-dptb train input_short.json  -i ./strain/checkpoint/nnsk.ep501.pth -o ./varycutoff
+dptb train input_short.json  -i ./strain/checkpoint/nnsk.ep500.pth -o ./varycutoff
 ```
 
 We finally get the model with more neighbors. We can plot the result again:

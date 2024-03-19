@@ -189,12 +189,16 @@ def train_data_sub():
     doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
     doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
+    doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
+    doc_DM = "Choose whether the density matrix is loaded when building dataset."
     
     args = [
         Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
+        Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
+        Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
@@ -207,12 +211,16 @@ def validation_data_sub():
     doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
     doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
+    doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
+    doc_DM = "Choose whether the density matrix is loaded when building dataset."
 
     args = [
         Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
+        Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
+        Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
@@ -225,12 +233,16 @@ def reference_data_sub():
     doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
     doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
+    doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
+    doc_DM = "Choose whether the density matrix is loaded when building dataset."
 
     args = [
         Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
+        Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
+        Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
@@ -321,7 +333,6 @@ def test_data_options():
 
 #     return Argument("dptb", dict, optional=True, sub_fields=args, sub_variants=[], default={}, doc=doc_dptb)
 
-
 def embedding():
     doc_method = ""
 
@@ -329,9 +340,14 @@ def embedding():
             Argument("se2", dict, se2()),
             Argument("baseline", dict, baseline()),
             Argument("deeph-e3", dict, deephe3()),
-            Argument("e3baseline_local", dict, e3baseline()),
-            Argument("e3baseline_local_wnode", dict, e3baseline()),
-            Argument("e3baseline_nonlocal", dict, e3baseline()),
+            Argument("e3baseline_0", dict, e3baseline()),
+            Argument("e3baseline_1", dict, e3baseline()),
+            Argument("e3baseline_2", dict, e3baseline()),
+            Argument("e3baseline_3", dict, e3baseline()),
+            Argument("e3baseline_4", dict, e3baseline()),
+            Argument("e3baseline_5", dict, e3baselinev5()),
+            Argument("e3baseline_6", dict, e3baselinev5()),
+            Argument("e3baseline_nonlocal", dict, e3baselinev5()),
         ],optional=True, default_tag="se2", doc=doc_method)
 
 def se2():
@@ -438,6 +454,37 @@ def e3baseline():
             Argument("env_embed_multiplicity", int, optional=True, default=1, doc=doc_env_embed_multiplicity),
             Argument("linear_after_env_embed", bool, optional=True, default=False, doc=doc_linear_after_env_embed),
             Argument("latent_resnet_update_ratios_learnable", bool, optional=True, default=False, doc=doc_latent_resnet_update_ratios_learnable)
+        ]
+
+def e3baselinev5():
+    doc_irreps_hidden = ""
+    doc_lmax = ""
+    doc_avg_num_neighbors = ""
+    doc_n_radial_basis = ""
+    doc_r_max = ""
+    doc_n_layers = ""
+    doc_env_embed_multiplicity = ""
+    doc_linear_after_env_embed = ""
+    doc_latent_resnet_update_ratios_learnable = ""
+    doc_latent_kwargs = ""
+
+    return [
+            Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
+            Argument("lmax", int, optional=False, doc=doc_lmax),
+            Argument("avg_num_neighbors", [int, float], optional=False, doc=doc_avg_num_neighbors),
+            Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
+            Argument("n_layers", int, optional=False, doc=doc_n_layers),
+            Argument("n_radial_basis", int, optional=True, default=10, doc=doc_n_radial_basis),
+            Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
+            Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
+            Argument("env_embed_multiplicity", int, optional=True, default=1, doc=doc_env_embed_multiplicity),
+            Argument("tp_radial_emb", bool, optional=True, default=False, doc="Whether to use tensor product radial embedding."),
+            Argument("tp_radial_channels", list, optional=True, default=[128, 128], doc="The number of channels in tensor product radial embedding."),
+            Argument("latent_channels", list, optional=True, default=[128, 128], doc="The number of channels in latent embedding."),
+            Argument("latent_dim", int, optional=True, default=256, doc="The dimension of latent embedding."),
+            Argument("res_update", bool, optional=True, default=True, doc="Whether to use residual update."),
+            Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
+            Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
         ]
 
 
@@ -596,11 +643,24 @@ def loss_options():
     doc_validation = ""
     doc_reference = ""
 
+    hamil = [
+        Argument("onsite_shift", bool, optional=True, default=False, doc="Whether to use onsite shift in loss function. Default: False"),
+    ]
+
+    eigvals = [
+        Argument("diff_on", bool, optional=True, default=False, doc="Whether to use random differences in loss function. Default: False"),
+        Argument("eout_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue out of range. Default: 0.01"),
+        Argument("diff_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue difference. Default: 0.01"),
+    ]
+
     loss_args = Variant("method", [
-        Argument("hamil", dict, []),
-        Argument("eigvals", dict, []),
-        Argument("hamil_abs", dict, []),
+        Argument("hamil", dict, sub_fields=hamil),
+        Argument("eigvals", dict, sub_fields=eigvals),
+        Argument("hamil_abs", dict, sub_fields=hamil),
+        Argument("hamil_blas", dict, sub_fields=hamil),
     ], optional=False, doc=doc_method)
+
+    
 
     args = [
         Argument("train", dict, optional=False, sub_fields=[], sub_variants=[loss_args], doc=doc_train),
@@ -1252,9 +1312,9 @@ def AtomicData_options_sub():
     doc_pbc = ""
     
     args = [
-        Argument("r_max", float, optional=False, doc=doc_r_max, default=4.0),
-        Argument("er_max", float, optional=True, doc=doc_er_max, default=None),
-        Argument("oer_max", float, optional=True, doc=doc_oer_max,default=None),
+        Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max, default=4.0),
+        Argument("er_max", [float, int, dict], optional=True, doc=doc_er_max, default=None),
+        Argument("oer_max", [float, int, dict], optional=True, doc=doc_oer_max,default=None),
         Argument("pbc", bool, optional=False, doc=doc_pbc, default=True),
     ]
 
@@ -1267,7 +1327,7 @@ def normalize_setinfo(data):
 
     args = [
         Argument("nframes", int, optional=False, doc=doc_nframes),
-        Argument("natoms", int, optional=False, doc=doc_natoms),
+        Argument("natoms", int, optional=True, default=-1, doc=doc_natoms),
         Argument("pos_type", str, optional=False, doc=doc_pos_type),
         bandinfo_sub(),
         AtomicData_options_sub()
