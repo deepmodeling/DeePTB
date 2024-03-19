@@ -53,8 +53,8 @@ def test_type_mapper_transform():
 
     # 测试无效原子编号 - 1
     invalid_atomic_numbers = torch.tensor([1, 2, 5])
-    types = mapper.transform(invalid_atomic_numbers)
-    assert torch.all(types == torch.tensor([0, 1, -1]))
+    with pytest.raises(ValueError):
+        mapper.transform(invalid_atomic_numbers)
 
     # 测试无效原子编号 - 2
     invalid_atomic_numbers = torch.tensor([1, 2, 7])

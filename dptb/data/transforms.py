@@ -149,9 +149,15 @@ class TypeMapper:
                 f"Data included atomic numbers {bad_set} that are not part of the atomic number -> type mapping!"
             )
 
-        return self._Z_to_index.to(device=atomic_numbers.device)[
-            atomic_numbers - self._min_Z
-        ]
+        types = self._Z_to_index.to(device=atomic_numbers.device)[atomic_numbers - self._min_Z]
+        
+        if -1 in types:
+            bad_set = set(torch.unique(atomic_numbers).cpu().tolist()) - self._valid_set
+            raise ValueError(
+                f"Data included atomic numbers {bad_set} that are not part of the atomic number -> type mapping!"
+            )
+
+        return types
 
     def untransform(self, atom_types):
         """Transform atom types back into atomic numbers"""
