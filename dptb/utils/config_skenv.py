@@ -29,7 +29,10 @@ TrainFullConfigSKEnv= {
         },
         "loss_options": {
             "train": {
-                "method": "eigvals"
+                "method": "eigvals",
+                "diff_on": False,
+                "eout_weight": 0.01,
+                "diff_weight": 0.01
             }
         },
         "save_freq": 1,
@@ -115,7 +118,10 @@ TestFullConfigSKEnv= {
         "display_freq": 1,
         "loss_options": {
             "train": {
-                "method": "eigvals"
+                "method": "eigvals",
+                "diff_on": False,
+                "eout_weight": 0.01,
+                "diff_weight": 0.01
             }
         }
     },
