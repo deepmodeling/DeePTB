@@ -130,7 +130,7 @@ class HoppingFormula(BaseHopping):
         """> This function calculates the value of the variational form of Tang et al 1996. without the
         environment dependent
 
-                $$ h(rij) = \alpha_1 * (rij / r_ij0)^(\lambda + \alpha_2)
+                $$ h(rij) = alpha_1 * (rij / r_ij0)^(lambda + alpha_2) $$
         """
 
         #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2

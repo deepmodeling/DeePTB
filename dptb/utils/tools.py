@@ -490,7 +490,7 @@ def LorentzSmearing(x, x0, sigma=0.02):
     '''
     Simulate the Delta function by a Lorentzian shape function
 
-        \Delta(x) = \lim_{\sigma\to 0}  Lorentzian
+        Delta(x) = lim_{sigma to 0}  Lorentzian
     '''
 
     return 1. / np.pi * sigma**2 / ((x - x0)**2 + sigma**2)
@@ -500,7 +500,7 @@ def GaussianSmearing(x, x0, sigma=0.02):
     '''
     Simulate the Delta function by a Lorentzian shape function
 
-        \Delta(x) = \lim_{\sigma\to 0} Gaussian
+        Delta(x) = lim_{sigma to 0} Gaussian
     '''
 
     return 1. / (np.sqrt(2*np.pi) * sigma) * np.exp(-(x - x0)**2 / (2*sigma**2))
