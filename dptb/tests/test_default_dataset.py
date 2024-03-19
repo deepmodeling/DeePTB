@@ -33,6 +33,8 @@ class TestDefaultDatasetSKTB:
         type_mapper=idp,
         get_Hamiltonian=False,
         get_eigenvalues=True,
+        get_overlap=False,
+        get_DM=False,
         info_files = info_files)
 
     strase = Trajectory(f"{rootdir}/kpath_spk.0/xdat.traj",'r')
@@ -44,6 +46,8 @@ class TestDefaultDatasetSKTB:
         assert isinstance(self.dataset.type_mapper, OrbitalMapper)
         assert self.dataset.get_Hamiltonian == False
         assert self.dataset.get_eigenvalues == True
+        assert self.dataset.get_overlap == False
+        assert self.dataset.get_DM == False
         assert len(self.dataset.info_files) == 1
         assert self.dataset.info_files == self.info_files
         assert self.dataset.AtomicData_options == {}
