@@ -351,9 +351,10 @@ def format_readline(line):
     lstr = []
     for ii in range(len(lsplit)):
         strtmp = lsplit[ii]
-        if re.search('\*',strtmp):
-            strspt = re.split('\*|\n',strtmp)
+        if re.search('\\*',strtmp):
+            strspt = re.split('\\*|\n',strtmp)
             strspt = list(filter(None,strspt))
+            assert len(strspt) == 2, "The format of the line is not correct! n*value, the value is gone!"
             strfull = int(strspt[0]) * [strspt[1]]
             lstr +=strfull
         else:
