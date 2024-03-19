@@ -2,6 +2,7 @@ import pytest
 import torch
 import ase.data
 from dptb.data.transforms import TypeMapper
+from dptb.data import AtomicData, AtomicDataDict
 
 def test_type_mapper_init():
     # 测试使用化学符号初始化
@@ -68,6 +69,18 @@ def test_type_mapper_untransform():
     types = torch.tensor([0, 1, 2])
     atomic_numbers = mapper.untransform(types)
     assert torch.all(atomic_numbers == torch.tensor([1, 2, 6]))
+
+def test_call():
+    chemical_symbols = ['H', 'He', 'C']
+    mapper = TypeMapper(chemical_symbols=chemical_symbols)
+    atomic_numbers = torch.tensor([1, 2, 6])
+    data = {  AtomicDataDict.ATOMIC_NUMBERS_KEY: atomic_numbers    }
+    transformed_data = mapper(data)
+
+    assert not AtomicDataDict.ATOMIC_NUMBERS_KEY  in transformed_data
+    assert  AtomicDataDict.ATOM_TYPE_KEY  in transformed_data
+    assert torch.all(transformed_data[AtomicDataDict.ATOM_TYPE_KEY] == torch.tensor([0, 1, 2]))
+
 
 def test_type_mapper_format():
     type_names = ['Type1', 'Type2', 'Type3']
