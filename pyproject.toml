@@ -10,6 +10,7 @@ repository = "https://github.com/deepmodeling/DeePTB"
 [tool.poetry.dependencies]
 python = ">=3.8"
 pytest = ">=7.2.0"
+pytest-order = "1.2.0"
 numpy = "*"
 scipy = "1.9.1"
 spglib = "*"
@@ -31,6 +32,7 @@ h5py = "3.7.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.2.0"
+pytest-order = "1.2.0"
 numpy = "*"
 scipy = "1.9.1"
 spglib = "*"
