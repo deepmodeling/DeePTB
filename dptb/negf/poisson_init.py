@@ -27,11 +27,11 @@ class Grid(object):
         assert np.min(za) >= np.min(zg) and np.max(za) <= np.max(zg)
 
         self.Na = len(xa) # number of atoms
-        uxa = np.unique(xa);uya = np.unique(ya);uza = np.unique(za)
+        uxa = np.unique(xa).round(decimals=6);uya = np.unique(ya).round(decimals=6);uza = np.unique(za).round(decimals=6)
         # x,y,z are the coordinates of the grid points
-        self.xall = np.unique(np.concatenate((uxa,self.xg),0)) # unique results are sorted
-        self.yall = np.unique(np.concatenate((uya,self.yg),0))
-        self.zall = np.unique(np.concatenate((uza,self.zg),0))
+        self.xall = np.unique(np.concatenate((uxa,self.xg),0).round(decimals=3)) # unique results are sorted
+        self.yall = np.unique(np.concatenate((uya,self.yg),0).round(decimals=3))
+        self.zall = np.unique(np.concatenate((uza,self.zg),0).round(decimals=3))
         self.shape = (len(self.xall),len(self.yall),len(self.zall))
 
         
@@ -80,9 +80,9 @@ class Grid(object):
         swap = {}
         for atom_index in range(self.Na):
             for gp_index in range(self.Np):
-                if xa[atom_index]==self.grid_coord[gp_index][0] and \
-                    ya[atom_index]==self.grid_coord[gp_index][1] and \
-                    za[atom_index]==self.grid_coord[gp_index][2]:
+                if abs(xa[atom_index]-self.grid_coord[gp_index][0])<1e-3 and \
+                   abs(ya[atom_index]-self.grid_coord[gp_index][1])<1e-3 and \
+                   abs(za[atom_index]-self.grid_coord[gp_index][2])<1e-3:
                     swap.update({atom_index:gp_index})
         return swap
     
