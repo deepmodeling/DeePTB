@@ -450,10 +450,16 @@ class OrbitalMapper(BondMapper):
             raise ValueError
 
         if isinstance(self.basis[self.type_names[0]], str):
+            for iatom, ibasis in self.basis.items():
+                letters = [letter for letter in ibasis if letter.isalpha()]
+                if len(letters) != len(set(letters)):
+                    raise ValueError(f"Duplicate orbitals found in the basis {ibasis} of atom {iatom}")
+                
             orbtype_count = {"s":0, "p":0, "d":0, "f":0}
             orbs = map(lambda bs: re.findall(r'[1-9]+[A-Za-z]', bs), self.basis.values())
             for ib in orbs:
                 for io in ib:
+                    assert len(io) == 2
                     if int(io[0]) > orbtype_count[io[1]]:
                         orbtype_count[io[1]] = int(io[0])
             # split into list basis
@@ -480,6 +486,9 @@ class OrbitalMapper(BondMapper):
 
 
         if self.method == "e3tb":
+            # The total number of matrix elements in the full basis self.full_basis_norb ** 2
+            # since the onsite block can not be reduced, orbtype_count["s"] + 9 * orbtype_count["p"] + 25 * orbtype_count["d"] + 49 * orbtype_count["f"])
+            # Then the reduce is to sum of full and onsite block and divide by 2
             self.reduced_matrix_element = int(((orbtype_count["s"] + 9 * orbtype_count["p"] + 25 * orbtype_count["d"] + 49 * orbtype_count["f"]) + \
                                                     self.full_basis_norb ** 2)/2) # reduce onsite elements by blocks. we cannot reduce it by element since the rme will pass into CG basis to form the whole block
         else:
