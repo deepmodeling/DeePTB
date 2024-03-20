@@ -450,12 +450,18 @@ class OrbitalMapper(BondMapper):
             raise ValueError
 
         if isinstance(self.basis[self.type_names[0]], str):
+            all_orb_types = []
             for iatom, ibasis in self.basis.items():
                 letters = [letter for letter in ibasis if letter.isalpha()]
+                all_orb_types = all_orb_types + letters
                 if len(letters) != len(set(letters)):
                     raise ValueError(f"Duplicate orbitals found in the basis {ibasis} of atom {iatom}")
-                
-            orbtype_count = {"s":0, "p":0, "d":0, "f":0}
+            all_orb_types = set(all_orb_types)
+            orbtype_count = {"s":0, "p":0, "d":0, "f":0, "g":0, "h":0}
+
+            if not all_orb_types.issubset(set(orbtype_count.keys())):
+                raise ValueError(f"Invalid orbital types {all_orb_types} found in the basis. now only support {set(orbtype_count.keys())}.")
+
             orbs = map(lambda bs: re.findall(r'[1-9]+[A-Za-z]', bs), self.basis.values())
             for ib in orbs:
                 for io in ib:
@@ -465,14 +471,14 @@ class OrbitalMapper(BondMapper):
             # split into list basis
             basis = {k:[] for k in self.type_names}
             for ib in self.basis.keys():
-                for io in ["s", "p", "d", "f"]:
+                for io in ["s", "p", "d", "f", "g", "h"]:
                     if io in self.basis[ib]:
                         basis[ib].extend([str(i)+io for i in range(1, int(re.findall(r'[1-9]+'+io, self.basis[ib])[0][0])+1)])
             self.basis = basis
 
         elif isinstance(self.basis[self.type_names[0]], list):
             nb = len(self.type_names)
-            orbtype_count = {"s":[0]*nb, "p":[0]*nb, "d":[0]*nb, "f":[0]*nb}
+            orbtype_count = {"s":[0]*nb, "p":[0]*nb, "d":[0]*nb, "f":[0]*nb, "g":[0]*nb, "h":[0]*nb}
             for ib, bt in enumerate(self.type_names):
                 for io in self.basis[bt]:
                     orb = re.findall(r'[A-Za-z]', io)[0]
@@ -482,15 +488,23 @@ class OrbitalMapper(BondMapper):
                 orbtype_count[ko] = max(orbtype_count[ko])
  
         self.orbtype_count = orbtype_count
-        self.full_basis_norb = 1 * orbtype_count["s"] + 3 * orbtype_count["p"] + 5 * orbtype_count["d"] + 7 * orbtype_count["f"]
-
+        full_basis_norb = 0
+        for ko in orbtype_count.keys():
+            assert ko in anglrMId
+            full_basis_norb = full_basis_norb + (2 * anglrMId[ko] + 1) * orbtype_count[ko]
+        # self.full_basis_norb = 1 * orbtype_count["s"] + 3 * orbtype_count["p"] + 5 * orbtype_count["d"] + 7 * orbtype_count["f"]
+        self.full_basis_norb = full_basis_norb
 
         if self.method == "e3tb":
             # The total number of matrix elements in the full basis self.full_basis_norb ** 2
             # since the onsite block can not be reduced, orbtype_count["s"] + 9 * orbtype_count["p"] + 25 * orbtype_count["d"] + 49 * orbtype_count["f"])
             # Then the reduce is to sum of full and onsite block and divide by 2
-            self.reduced_matrix_element = int(((orbtype_count["s"] + 9 * orbtype_count["p"] + 25 * orbtype_count["d"] + 49 * orbtype_count["f"]) + \
-                                                    self.full_basis_norb ** 2)/2) # reduce onsite elements by blocks. we cannot reduce it by element since the rme will pass into CG basis to form the whole block
+            total_onsite_block_elements = 0
+            for ko in orbtype_count.keys():
+                total_onsite_block_elements += orbtype_count[ko] * (2 * anglrMId[ko] + 1)**2
+            self.reduced_matrix_element = int((self.full_basis_norb ** 2 + total_onsite_block_elements)/2)
+            #self.reduced_matrix_element = int(((orbtype_count["s"] + 9 * orbtype_count["p"] + 25 * orbtype_count["d"] + 49 * orbtype_count["f"]) + \
+            #                                        self.full_basis_norb ** 2)/2) # reduce onsite elements by blocks. we cannot reduce it by element since the rme will pass into CG basis to form the whole block
         else:
             # two factor: this outside one is the number of min(l,l')+1, ie. the number of sk integrals for each orbital pair.
             # the inside one the type of bond considering the interaction between different orbitals. s-p -> p-s. there are 2 types of bond. and 1 type of s-s.
@@ -511,6 +525,8 @@ class OrbitalMapper(BondMapper):
                 ) + \
             4 * (orbtype_count["f"] * orbtype_count["f"])
 
+            assert orbtype_count['g'] + orbtype_count['h'] == 0, "g and h orbitals are not supported in sktb method."
+
             self.reduced_matrix_element = self.reduced_matrix_element + orbtype_count["s"] + 2*orbtype_count["p"] + 3*orbtype_count["d"] + 4*orbtype_count["f"]
             self.reduced_matrix_element = int(self.reduced_matrix_element / 2)
             self.n_onsite_Es = orbtype_count["s"] + orbtype_count["p"] + orbtype_count["d"] + orbtype_count["f"]
@@ -524,7 +540,7 @@ class OrbitalMapper(BondMapper):
 
         # TODO: get full basis set
         full_basis = []
-        for io in ["s", "p", "d", "f"]:
+        for io in ["s", "p", "d", "f", "g", "h"]:
             full_basis = full_basis + [str(i)+io for i in range(1, orbtype_count[io]+1)]
         self.full_basis = full_basis
 
@@ -532,7 +548,7 @@ class OrbitalMapper(BondMapper):
         self.basis_to_full_basis = {}
         self.atom_norb = torch.zeros(len(self.type_names), dtype=torch.long, device=self.device)
         for ib in self.basis.keys():
-            count_dict = {"s":0, "p":0, "d":0, "f":0}
+            count_dict = {"s":0, "p":0, "d":0, "f":0, "g":0, "h":0}
             self.basis_to_full_basis.setdefault(ib, {})
             for o in self.basis[ib]:
                 io = re.findall(r"[a-z]", o)[0]
@@ -612,9 +628,9 @@ class OrbitalMapper(BondMapper):
         
         self.orbpairtype_maps = {}
         ist = 0
-        for i, io in enumerate(["s", "p", "d", "f"]):
+        for i, io in enumerate(["s", "p", "d", "f", "g", "h"]):
             if self.orbtype_count[io] != 0:
-                for jo in ["s", "p", "d", "f"][i:]:
+                for jo in ["s", "p", "d", "f", "g", "h"][i:]:
                     if self.orbtype_count[jo] != 0:
                         orb_pair = io+"-"+jo
                         il, jl = anglrMId[io], anglrMId[jo]
@@ -688,7 +704,7 @@ class OrbitalMapper(BondMapper):
         ist = 0
 
         assert self.method == "sktb", "Only sktb orbitalmapper have skonsite maps."
-        for i, io in enumerate(["s", "p", "d", "f"]):
+        for i, io in enumerate(["s", "p", "d", "f", "g", "h"]):
             if self.orbtype_count[io] != 0:
                 il = anglrMId[io]
                 numonsites = self.orbtype_count[io]
