@@ -139,7 +139,7 @@ def test_orbital_mapper_init_str_sktb():
 
 def test_orbital_mapper_init_list_spdf_sktb():
     basis = {"C": ['2s','2p','s*'], "O": ['2s','2p','f*']}
-    orbmap = OrbitalMapper(basis=basis, method="e3tb", device=torch.device("cpu"))
+    orbmap = OrbitalMapper(basis=basis, method="sktb", device=torch.device("cpu"))
     assert orbmap.method == "sktb"
     assert orbmap.basis =={'C': ['s*', '2s', '2p'], 'O': ['2s', '2p', 'f*']}
     assert orbmap.orbtype_count == {'s': 2, 'p': 1, 'd': 0, 'f': 1, 'g': 0, 'h': 0}
