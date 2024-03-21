@@ -433,6 +433,8 @@ class OrbitalMapper(BondMapper):
             when list, "2s" indicate a "s" orbital in the second shell.
             when str, "2s" indicates two s orbitals, 
             "2s2p3d4f" is equivilent to ["1s","2s", "1p", "2p", "1d", "2d", "3d", "1f"]
+
+            Note: the list basis can be used for both e3tb and sktb. but the string basis can only be used for e3tb.
         """
 
         #TODO: use OrderedDict to fix the order of the dict used as index map
@@ -450,6 +452,7 @@ class OrbitalMapper(BondMapper):
             raise ValueError
 
         if isinstance(self.basis[self.type_names[0]], str):
+            assert method == "e3tb", "The method should be e3tb when the basis is given as string."
             all_orb_types = []
             for iatom, ibasis in self.basis.items():
                 letters = [letter for letter in ibasis if letter.isalpha()]
