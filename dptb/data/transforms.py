@@ -584,7 +584,7 @@ class OrbitalMapper(BondMapper):
         assert (self.mask_to_basis.sum(dim=1).int()-self.atom_norb).abs().sum() <= 1e-6
 
         self.get_orbpair_maps()
-        # the mask to map the full basis reduced matrix element to the original basis reduced matrix element
+        # the mask to map the full basis edge/node reduced matrix element (erme/nrme) to the original basis reduced matrix element
         self.mask_to_erme = torch.zeros(len(self.bond_types), self.reduced_matrix_element, dtype=torch.bool, device=self.device)
         self.mask_to_nrme = torch.zeros(len(self.type_names), self.reduced_matrix_element, dtype=torch.bool, device=self.device)
         for ib, bb in self.basis.items():
