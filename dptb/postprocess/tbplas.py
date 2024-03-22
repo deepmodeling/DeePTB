@@ -10,7 +10,9 @@ import os
 import torch
 import logging
 from dptb.utils.tools import write_skparam
+from typing import Optional, Union
 from scipy import integrate
+from dptb.data import AtomicData, AtomicDataDict
 
 log = logging.getLogger(__name__)
 
@@ -20,6 +22,74 @@ except ImportError:
     log.error('TBPLaS is not installed. Thus the ifermiaip is not available, Please install it first.')
 
 class TBPLaS(object):
+    def __init__ (
+            self, 
+            model: torch.nn.Module,
+            results_path: Optional[str]=None,
+            use_gui=False,
+            overlap=False,
+            device: Union[str, torch.device]=torch.device('cpu')
+            ):
+        
+        if isinstance(device, str):
+            device = torch.device(device)
+        self.device = device
+        self.model = model
+        self.model.eval()
+        self.use_gui = use_gui
+        self.results_path = results_path
+        self.overlap = overlap
+
+    def get_cell(self, data: Union[AtomicData, ase.Atoms, str], AtomicData_options: dict={}):
+
+        # get the AtomicData structure and the ase structure
+        if isinstance(data, str):
+            structase = read(data)
+            data = AtomicData.from_ase(structase, **AtomicData_options)
+        elif isinstance(data, ase.Atoms):
+            structase = data
+            data = AtomicData.from_ase(structase, **AtomicData_options)
+        elif isinstance(data, AtomicData):
+            structase = data.to_ase()
+            data = data
+
+        data = AtomicData.to_AtomicDataDict(data.to(self.device))
+        data = self.model.idp(data)
+
+        if self.overlap == True:
+            assert data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is not None
+
+        # get the HR
+        data = self.model(data)
+
+        cell = data[AtomicDataDict.CELL_KEY]
+        tbplus_cell = tb.PrimitiveCell(lat_vec=cell, unit=tb.ANG)
+
+        orbs = {}
+        norbs = {}
+        # get_orbs
+        for atomtype, orb_dict in self.model.idp.basis.items():
+            split = orbs.setdefault(atomtype, [])  # split get the address of orbs's value [] of the key atomtype.
+            norbs.setdefault(atomtype, 0)
+            for o in orb_dict:
+                if "s" in o:
+                    split += [o]
+                    # print(orbs[atomtype])
+                    norbs[atomtype] += 1
+                elif "p" in o:
+                    split += [o+x for x in ["y", "z", "x"]]
+                    norbs[atomtype] += 3
+                elif "d" in o:
+                    split += [o+x for x in ["xy ", "yz", "z2", "xz", "x2-y2"]]
+                    norbs[atomtype] += 5
+                else:
+                    log.error("The appeared orbital is not permited in current implementation.")
+                    raise RuntimeError
+
+
+
+
+class _TBPLaS(object):
     def __init__(self, apiHrk, run_opt, jdata):
         self.apiH = apiHrk
 
@@ -36,7 +106,7 @@ class TBPLaS(object):
         self.apiH.update_struct(self.structase)
         self.model_config = self.apiH.apihost.model_config
         self.jdata = jdata
-
+ 
     def write(self):
         # 1. lattice vector
         # 2. coordinates
