@@ -215,6 +215,7 @@ class NNSK(torch.nn.Module):
         assert (edge_number <= 83).all(), "The bond length list is only available for the first 83 elements."
         
         r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number-1].sum(0)
+        assert (r0 > 0).all(), "The bond length list is only available for atomic numbers < 84 and excluding the lanthanides."
 
         data[AtomicDataDict.EDGE_FEATURES_KEY] = self.hopping_fn.get_skhij(
             rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
