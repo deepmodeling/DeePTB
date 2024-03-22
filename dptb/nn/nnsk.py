@@ -212,8 +212,7 @@ class NNSK(torch.nn.Module):
         # the edge number is the atomic number of the two atoms in the bond.
         # The bond length list is actually the nucli radius (unit of angstrom) at the atomic number.
         # now this bond length list is only available for the first 83 elements.
-        assert (edge_number <= 83).all(), "The bond length list is only available for the first 83 elements."
-        
+        # assert (edge_number <= 83).all(), "The bond length list is only available for the first 83 elements."
         r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number-1].sum(0)
         assert (r0 > 0).all(), "The bond length list is only available for atomic numbers < 84 and excluding the lanthanides."
 
