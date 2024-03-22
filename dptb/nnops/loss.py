@@ -595,7 +595,7 @@ class HamilLossAnalysis(object):
             # compute overall mae, rmse
                     
             self.stats["mae"] = self.stats["mae"] / (n_total + 1e-6)
-            self.stats["rmse"] = self.stats["rmse"] / n_total + (1e-6)
+            self.stats["rmse"] = self.stats["rmse"] / (n_total + 1e-6)
             self.stats["rmse"] = self.stats["rmse"].sqrt()
             
         return self.stats
