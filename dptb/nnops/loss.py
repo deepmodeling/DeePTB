@@ -407,6 +407,8 @@ class HamilLossAnalysis(object):
         self.overlap = overlap
         self.device = device
         self.decompose = decompose
+        self.dtype = dtype
+        self.device = device
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
@@ -420,32 +422,70 @@ class HamilLossAnalysis(object):
             self.e3h = E3Hamiltonian(idp=idp, decompose=decompose, overlap=False, device=device, dtype=dtype)
             self.e3s = E3Hamiltonian(idp=idp, decompose=decompose, overlap=True, device=device, dtype=dtype)
     
-    def __call__(self, data: AtomicDataDict, ref_data: AtomicDataDict):
+    def __call__(self, data: AtomicDataDict, ref_data: AtomicDataDict, running_avg: bool=False):
         if self.decompose:
             data = self.e3h(data)
             ref_data = self.e3h(ref_data)
             if self.overlap:
                 data = self.e3s(data)
                 ref_data = self.e3s(ref_data)
+        
+        if not running_avg or not hasattr(self, "stats"):
+            self.stats = {}
+            self.stats["mae"] = 0.
+            self.stats["rmse"] = 0.
+            self.stats["n_element"] = 0
 
+            # init the self.stats
+            self.stats.setdefault("onsite", {})
+            self.stats.setdefault("hopping", {})
+            if self.overlap:
+                self.stats.setdefault("overlap", {})
+
+            for at, tp in self.idp.chemical_symbol_to_type.items():
+                self.stats["onsite"][at] = {
+                    "rmse":0.,
+                    "mae":0.,
+                    "rmse_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device), 
+                    "mae_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device),
+                    "rmse_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
+                    "mae_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
+                    "n_element":0,
+                }
+            
+            for bt, tp in self.idp.bond_to_type.items():
+                self.stats["hopping"][bt] = {
+                    "rmse":0.,
+                    "mae":0.,
+                    "rmse_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device), 
+                    "mae_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device),
+                    "rmse_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
+                    "mae_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
+                    "n_element":0,
+                }
+
+                self.stats["overlap"][bt] = {
+                    "rmse":0.,
+                    "mae":0.,
+                    "rmse_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device), 
+                    "mae_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device),
+                    "rmse_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
+                    "mae_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
+                    "n_element":0,
+                }
+                
         
         with torch.no_grad():
-            out = {}
-            out["mae"] = 0.
-            out["rmse"] = 0.
             n_total = 0
             err = data[AtomicDataDict.NODE_FEATURES_KEY] - ref_data[AtomicDataDict.NODE_FEATURES_KEY]
-            amp = ref_data[AtomicDataDict.NODE_FEATURES_KEY].abs()
             mask = self.idp.mask_to_nrme
-            onsite = out.setdefault("onsite", {})
+            onsite = self.stats.get("onsite")
             for at, tp in self.idp.chemical_symbol_to_type.items():
                 onsite_mask = mask[tp]
                 onsite_err = err[data["atom_types"].flatten().eq(tp)]
                 if onsite_err.shape[0] == 0:
                     continue
-                onsite_amp = amp[data["atom_types"].flatten().eq(tp)]
-                onsite_err = onsite_err[:, onsite_mask]
-                onsite_amp = onsite_amp[:, onsite_mask]
+                onsite_err = onsite_err[:, onsite_mask] # [N_atom_i, n_element]
 
                 rmserr = (onsite_err**2).mean(dim=0).sqrt()
                 maerr = onsite_err.abs().mean(dim=0)
@@ -456,39 +496,34 @@ class HamilLossAnalysis(object):
 
                 rmse_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, rmse_per_irreps)
                 maerr_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, maerr_per_irreps)
-                l1amp = onsite_amp.abs().mean(dim=0)
-                l2amp = (onsite_amp**2).mean(dim=0).sqrt()
-                n_total += onsite_err.numel()
+                n_total += n_element_old + onsite_err.numel()
+                
+                n_element_old = onsite[at]["n_element"]
+                ratio = n_element_old / (n_element_old + onsite_err.numel())
                 onsite[at] = {
-                    "rmse":(rmserr**2).mean().sqrt(),
-                    "mae":maerr.mean(),
-                    "rmse_per_block_element":rmserr, 
-                    "mae_per_block_element":maerr,
-                    "rmse_per_irreps":rmse_per_irreps,
-                    "mae_per_irreps":maerr_per_irreps,
-                    "l1amp":l1amp,
-                    "l2amp":l2amp,
-                    "n_element":onsite_err.numel(), 
+                    "rmse": ((onsite[at]["rmse"]**2) * ratio + (rmserr**2).mean() * (1-ratio)).sqrt(),
+                    "mae":onsite[at]["mae"] * ratio + maerr.mean() * (1-ratio),
+                    "rmse_per_block_element": ((onsite[at]["rmse_per_block_element"]**2) * ratio + rmserr**2 * (1-ratio)).sqrt(),
+                    "mae_per_block_element": onsite[at]["mae_per_block_element"]*ratio + maerr * (1-ratio),
+                    "rmse_per_irreps": ((onsite[at]["rmse_per_irreps"]**2) * ratio + rmse_per_irreps**2 * (1-ratio)).sqrt(),
+                    "mae_per_irreps": onsite[at]["mae_per_irreps"] * ratio + maerr_per_irreps * (1-ratio),
+                    "n_element":n_element_old + onsite_err.numel(), 
                     }
                 
-                out["mae"] += onsite[at]["mae"] * onsite_err.numel()
-                out["rmse"] += onsite[at]["rmse"]**2 * onsite_err.numel()
-                
-
+                self.stats["mae"] += onsite[at]["mae"] * onsite["at"]["n_element"]
+                self.stats["rmse"] += onsite[at]["rmse"]**2 * onsite["at"]["n_element"]
 
             err = data[AtomicDataDict.EDGE_FEATURES_KEY] - ref_data[AtomicDataDict.EDGE_FEATURES_KEY]
             amp = ref_data[AtomicDataDict.EDGE_FEATURES_KEY].abs()
             mask = self.idp.mask_to_erme
-            hopping = out.setdefault("hopping", {})
+            hopping = self.stats.get("hopping", {})
             
             for bt, tp in self.idp.bond_to_type.items():
                 hopping_mask = mask[tp]
                 hopping_err = err[data["edge_type"].flatten().eq(tp)]
                 if hopping_err.shape[0] == 0:
                     continue
-                hopping_amp = amp[data["edge_type"].flatten().eq(tp)]
                 hopping_err = hopping_err[:, hopping_mask]
-                hopping_amp = hopping_amp[:, hopping_mask]
                 
                 rmserr = (hopping_err**2).mean(dim=0).sqrt()
                 maerr = hopping_err.abs().mean(dim=0)
@@ -499,38 +534,37 @@ class HamilLossAnalysis(object):
 
                 rmse_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, rmse_per_irreps)
                 maerr_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, maerr_per_irreps)
-                l1amp = hopping_amp.abs().mean(dim=0)
-                l2amp = (hopping_amp**2).mean(dim=0).sqrt()
-                n_total += hopping_err.numel()
+                n_total += n_element_old + hopping_err.numel()
+
+                n_element_old = hopping[bt]["n_element"]
+                ratio = n_element_old / (n_element_old + hopping_err.numel())
+
                 hopping[bt] = {
-                    "rmse":(rmserr**2).mean().sqrt(),
-                    "mae":maerr.mean(),
-                    "rmse_per_block_element":rmserr, 
-                    "mae_per_block_element":maerr,
-                    "rmse_per_irreps":rmse_per_irreps,
-                    "mae_per_irreps":maerr_per_irreps,
-                    "l1amp":l1amp,
-                    "l2amp":l2amp,
-                    "n_element":hopping_err.numel(),
+                    "rmse": ((hopping[bt]["rmse"]**2) * ratio + (rmserr**2).mean() * (1-ratio)).sqrt(),
+                    "mae":hopping[bt]["mae"] * ratio + maerr.mean() * (1-ratio),
+                    "rmse_per_block_element": ((hopping[bt]["rmse_per_block_element"]**2) * ratio + rmserr**2 * (1-ratio)).sqrt(),
+                    "mae_per_block_element": hopping[bt]["mae_per_block_element"]*ratio + maerr * (1-ratio),
+                    "rmse_per_irreps": ((hopping[bt]["rmse_per_irreps"]**2) * ratio + rmse_per_irreps**2 * (1-ratio)).sqrt(),
+                    "mae_per_irreps": hopping[bt]["mae_per_irreps"] * ratio + maerr_per_irreps * (1-ratio),
+                    "n_element":n_element_old + hopping_err.numel(), 
                     }
                 
-                out["mae"] += hopping[bt]["mae"] * hopping_err.numel()
-                out["rmse"] += hopping[bt]["rmse"]**2 * hopping_err.numel()
+                self.stats["mae"] += hopping[bt]["mae"] * hopping[bt]["n_element"]
+                self.stats["rmse"] += hopping[bt]["rmse"]**2 * hopping[bt]["n_element"]
             
             if self.overlap:
                 err = data[AtomicDataDict.EDGE_OVERLAP_KEY] - ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
                 amp = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY].abs()
                 mask = self.idp.mask_to_erme
-                overlap = out.setdefault("overlap", {})
+                hopping = self.stats.get("overlap", {})
 
                 for bt, tp in self.idp.bond_to_type.items():
                     hopping_mask = mask[tp]
                     hopping_err = err[data["edge_type"].flatten().eq(tp)]
                     if hopping_err.shape[0] == 0:
                         continue
-                    hopping_amp = amp[data["edge_type"].flatten().eq(tp)]
                     hopping_err = hopping_err[:, hopping_mask]
-                    hopping_amp = hopping_amp[:, hopping_mask]
+                    
                     rmserr = (hopping_err**2).mean(dim=0).sqrt()
                     maerr = hopping_err.abs().mean(dim=0)
                     rmse_per_irreps = torch.zeros(err.shape[1], dtype=err.dtype, device=err.device)
@@ -540,32 +574,31 @@ class HamilLossAnalysis(object):
 
                     rmse_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, rmse_per_irreps)
                     maerr_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, maerr_per_irreps)
-                    l1amp = hopping_amp.abs().mean(dim=0)
-                    l2amp = (hopping_amp**2).mean(dim=0).sqrt()
+                    n_total += n_element_old + hopping_err.numel()
 
-                    n_total += hopping_err.numel()
-                    overlap[bt] = {
-                        "rmse":(rmserr**2).mean().sqrt(),
-                        "mae":maerr.mean(),
-                        "rmse_per_block_element":rmserr, 
-                        "mae_per_block_element":maerr,
-                        "rmse_per_irreps":rmse_per_irreps,
-                        "mae_per_irreps":maerr_per_irreps,
-                        "l1amp":l1amp,
-                        "l2amp":l2amp,
-                        "n_element":hopping_err.numel(),
+                    n_element_old = hopping[bt]["n_element"]
+                    ratio = n_element_old / (n_element_old + hopping_err.numel())
+
+                    hopping[bt] = {
+                        "rmse": ((hopping[bt]["rmse"]**2) * ratio + (rmserr**2).mean() * (1-ratio)).sqrt(),
+                        "mae":hopping[bt]["mae"] * ratio + maerr.mean() * (1-ratio),
+                        "rmse_per_block_element": ((hopping[bt]["rmse_per_block_element"]**2) * ratio + rmserr**2 * (1-ratio)).sqrt(),
+                        "mae_per_block_element": hopping[bt]["mae_per_block_element"]*ratio + maerr * (1-ratio),
+                        "rmse_per_irreps": ((hopping[bt]["rmse_per_irreps"]**2) * ratio + rmse_per_irreps**2 * (1-ratio)).sqrt(),
+                        "mae_per_irreps": hopping[bt]["mae_per_irreps"] * ratio + maerr_per_irreps * (1-ratio),
+                        "n_element":n_element_old + hopping_err.numel(), 
                         }
                     
-                    out["mae"] += overlap[bt]["mae"] * hopping_err.numel()
-                    out["rmse"] += overlap[bt]["rmse"]**2 * hopping_err.numel()
+                    self.stats["mae"] += hopping[bt]["mae"] * hopping[bt]["n_element"]
+                    self.stats["rmse"] += hopping[bt]["rmse"]**2 * hopping[bt]["n_element"]
 
             # compute overall mae, rmse
                     
-            out["mae"] = out["mae"] / (n_total + 1e-6)
-            out["rmse"] = out["rmse"] / n_total + (1e-6)
-            out["rmse"] = out["rmse"].sqrt()
+            self.stats["mae"] = self.stats["mae"] / (n_total + 1e-6)
+            self.stats["rmse"] = self.stats["rmse"] / n_total + (1e-6)
+            self.stats["rmse"] = self.stats["rmse"].sqrt()
             
-        return out
+        return self.stats
 
     def __cal_norm__(self, irreps: Irreps, x: torch.Tensor):
         id = 0
