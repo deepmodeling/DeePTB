@@ -243,7 +243,7 @@ class NNSK(torch.nn.Module):
 
         atomic_numbers = self.idp_sk.untransform_atom(data[AtomicDataDict.ATOM_TYPE_KEY].flatten())
         if self.onsite_fn.functype == "NRL":
-            data = AtomicDataDict.with_env_vectors(data, with_lengths=True)
+            data = AtomicDataDict.with_onsitenv_vectors(data, with_lengths=True)
             data[AtomicDataDict.NODE_FEATURES_KEY] = self.onsite_fn.get_skEs(
                 # atomic_numbers=data[AtomicDataDict.ATOMIC_NUMBERS_KEY],
                 atomic_numbers=atomic_numbers,
