@@ -464,15 +464,16 @@ class HamilLossAnalysis(object):
                     "n_element":0,
                 }
 
-                self.stats["overlap"][bt] = {
-                    "rmse":0.,
-                    "mae":0.,
-                    "rmse_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device), 
-                    "mae_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device),
-                    "rmse_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
-                    "mae_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
-                    "n_element":0,
-                }
+                if self.overlap:
+                    self.stats["overlap"][bt] = {
+                        "rmse":0.,
+                        "mae":0.,
+                        "rmse_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device), 
+                        "mae_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device),
+                        "rmse_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
+                        "mae_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
+                        "n_element":0,
+                    }
                 
         
         with torch.no_grad():
@@ -496,9 +497,9 @@ class HamilLossAnalysis(object):
 
                 rmse_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, rmse_per_irreps)
                 maerr_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, maerr_per_irreps)
-                n_total += n_element_old + onsite_err.numel()
                 
                 n_element_old = onsite[at]["n_element"]
+                n_total += n_element_old + onsite_err.numel()
                 ratio = n_element_old / (n_element_old + onsite_err.numel())
                 onsite[at] = {
                     "rmse": ((onsite[at]["rmse"]**2) * ratio + (rmserr**2).mean() * (1-ratio)).sqrt(),
@@ -510,8 +511,8 @@ class HamilLossAnalysis(object):
                     "n_element":n_element_old + onsite_err.numel(), 
                     }
                 
-                self.stats["mae"] += onsite[at]["mae"] * onsite["at"]["n_element"]
-                self.stats["rmse"] += onsite[at]["rmse"]**2 * onsite["at"]["n_element"]
+                self.stats["mae"] += onsite[at]["mae"] * onsite[at]["n_element"]
+                self.stats["rmse"] += onsite[at]["rmse"]**2 * onsite[at]["n_element"]
 
             err = data[AtomicDataDict.EDGE_FEATURES_KEY] - ref_data[AtomicDataDict.EDGE_FEATURES_KEY]
             amp = ref_data[AtomicDataDict.EDGE_FEATURES_KEY].abs()
@@ -534,9 +535,9 @@ class HamilLossAnalysis(object):
 
                 rmse_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, rmse_per_irreps)
                 maerr_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, maerr_per_irreps)
-                n_total += n_element_old + hopping_err.numel()
-
+                
                 n_element_old = hopping[bt]["n_element"]
+                n_total += n_element_old + hopping_err.numel()
                 ratio = n_element_old / (n_element_old + hopping_err.numel())
 
                 hopping[bt] = {
@@ -574,9 +575,10 @@ class HamilLossAnalysis(object):
 
                     rmse_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, rmse_per_irreps)
                     maerr_per_irreps = self.__cal_norm__(self.idp.orbpair_irreps, maerr_per_irreps)
-                    n_total += n_element_old + hopping_err.numel()
+                    
 
                     n_element_old = hopping[bt]["n_element"]
+                    n_total += n_element_old + hopping_err.numel()
                     ratio = n_element_old / (n_element_old + hopping_err.numel())
 
                     hopping[bt] = {
