@@ -2,7 +2,7 @@ import numpy as np
 from dptb.utils.tools import j_must_have, get_neighbours
 from dptb.utils.make_kpoints  import ase_kpath, abacus_kpath, vasp_kpath
 from ase.io import read
-from dptb.utils.constants import atomic_num_dict_r, anglrMId
+from dptb.utils.constants import atomic_num_dict_r, anglrMId, m_dict, anglrMId_r, atomic_num_dict
 import ase
 import matplotlib.pyplot as plt
 import re
@@ -63,7 +63,8 @@ class TBPLaS(object):
         data = self.model(data)
 
         cell = data[AtomicDataDict.CELL_KEY]
-        tbplus_cell = tb.PrimitiveCell(lat_vec=cell, unit=tb.ANG)
+        cell_inv = cell.inverse()
+        tbplus_cell = tb.PrimitiveCell(lat_vec=cell.cpu(), unit=tb.ANG)
 
         orbs = {}
         norbs = {}
@@ -73,18 +74,104 @@ class TBPLaS(object):
             norbs.setdefault(atomtype, 0)
             for o in orb_dict:
                 if "s" in o:
-                    split += [o]
+                    split += [o+"."]
                     # print(orbs[atomtype])
                     norbs[atomtype] += 1
                 elif "p" in o:
-                    split += [o+x for x in ["y", "z", "x"]]
+                    split += [o+"."+x for x in ["y", "z", "x"]]
                     norbs[atomtype] += 3
                 elif "d" in o:
-                    split += [o+x for x in ["xy ", "yz", "z2", "xz", "x2-y2"]]
+                    split += [o+"."+x for x in ["xy", "yz", "z2", "xz", "x2-y2"]]
                     norbs[atomtype] += 5
                 else:
                     log.error("The appeared orbital is not permited in current implementation.")
                     raise RuntimeError
+        
+        # onsite blocks
+        orbsidict = {}
+        orbcount = 0
+        for i, itype in enumerate(data[AtomicDataDict.ATOM_TYPE_KEY].flatten()):
+            # accum_norbs.append(norbs[label])
+            isymbol = self.model.idp.type_names[itype]
+            inumber = self.model.idp.untransform(itype).item()
+
+            onsite_blocks = data[AtomicDataDict.NODE_FEATURES_KEY][i]
+
+            for io in range(norbs[isymbol]):
+                orbsidict[str(i)+"-"+orbs[isymbol][io]] = orbcount  # e.g.: [1-s,1-py ...]
+                orbcount += 1
+                orb = orbs[isymbol][io].split(".")[0]
+                forb = self.model.idp.basis_to_full_basis[isymbol][orb]
+                l = anglrMId[''.join(re.findall(r'[A-Za-z]',orb))]
+                
+                m = m_dict[anglrMId_r[l]+orbs[isymbol][io].split(".")[1]]
+
+                energy = onsite_blocks[self.model.idp.orbpair_maps[forb+"-"+forb]].reshape(2*l+1, 2*l+1)[m+l, m+l].item()
+                
+                tbplus_cell.add_orbital(
+                    (cell_inv @ data[AtomicDataDict.POSITIONS_KEY][i]).cpu(),
+                    energy=energy,
+                    label=orbs[isymbol][io]
+                )
+        # accum_norbs = np.cumsum(accum_norbs)
+        # off-diagonal part of onsite blocks
+        for i, itype in enumerate(data[AtomicDataDict.ATOM_TYPE_KEY].flatten()):
+            isymbol = self.model.idp.type_names[itype]
+            inumber = self.model.idp.untransform(itype).item()
+            onsite_blocks = data[AtomicDataDict.NODE_FEATURES_KEY][i]
+
+            assert atomic_num_dict_r[inumber] == isymbol
+            for xo in range(norbs[isymbol]):
+                orbx = orbs[isymbol][xo].split(".")[0]
+                forbx = self.model.idp.basis_to_full_basis[isymbol][orbx]
+                lx = anglrMId[''.join(re.findall(r'[A-Za-z]',orbx))]
+                mx = m_dict[anglrMId_r[lx]+orbs[isymbol][xo].split(".")[1]]
+                for yo in range(norbs[isymbol]):
+                    orby = orbs[isymbol][yo].split(".")[0]
+                    forby = self.model.idp.basis_to_full_basis[isymbol][orby]
+                    ly = anglrMId[''.join(re.findall(r'[A-Za-z]',orby))]
+                    my = m_dict[anglrMId_r[ly]+orbs[isymbol][yo].split(".")[1]]
+                    
+                    if self.model.idp.orbpair_maps.get(forbx+"-"+forby) is None:
+                        continue
+                    energy = onsite_blocks[self.model.idp.orbpair_maps[forbx+"-"+forby]].reshape(2*lx+1, 2*ly+1)[mx+lx, my+ly].item()
+                    idx = orbsidict[str(i)+"-"+orbs[isymbol][xo]]
+                    idy = orbsidict[str(i)+"-"+orbs[isymbol][yo]]
+                    if abs(energy) > 1e-7 and not idx==idy:
+                        tbplus_cell._hopping_dict.add_hopping(rn=(0, 0, 0,), orb_i=idx, orb_j=idy, energy=energy)
+        # off-diagonal part
+                        
+        for i, iindex in enumerate(data[AtomicDataDict.EDGE_TYPE_KEY].flatten()):
+            number = self.model.idp.untransform_bond(iindex).view(-1)
+            inumber, jnumber = number[0].item(), number[1].item()
+            isymbol, jsymbol = atomic_num_dict_r[inumber], atomic_num_dict_r[jnumber]
+            indx, jndx = data[AtomicDataDict.EDGE_INDEX_KEY][0,i].item(), data[AtomicDataDict.EDGE_INDEX_KEY][1,i].item()
+            hopping_blocks = data[AtomicDataDict.EDGE_FEATURES_KEY][i]
+
+            assert atomic_num_dict_r[inumber] == isymbol
+            assert atomic_num_dict_r[jnumber] == jsymbol
+            for xo in range(norbs[isymbol]):
+                orbx = orbs[isymbol][xo].split(".")[0]
+                forbx = self.model.idp.basis_to_full_basis[isymbol][orbx]
+                lx = anglrMId[''.join(re.findall(r'[A-Za-z]',orbx))]
+                mx = m_dict[anglrMId_r[lx]+orbs[isymbol][xo].split(".")[1]]
+                for yo in range(norbs[jsymbol]):
+                    orby = orbs[jsymbol][yo].split(".")[0]
+                    forby = self.model.idp.basis_to_full_basis[jsymbol][orby]
+                    ly = anglrMId[''.join(re.findall(r'[A-Za-z]',orby))]
+                    my = m_dict[anglrMId_r[ly]+orbs[jsymbol][yo].split(".")[1]]
+                    
+                    if self.model.idp.orbpair_maps.get(forbx+"-"+forby) is None:
+                        continue
+                    energy = hopping_blocks[self.model.idp.orbpair_maps[forbx+"-"+forby]].reshape(2*lx+1, 2*ly+1)[mx+lx, my+ly].item()
+                    idx = orbsidict[str(indx)+"-"+orbs[isymbol][xo]]
+                    idy = orbsidict[str(jndx)+"-"+orbs[jsymbol][yo]]
+                    if abs(energy) > 1e-7 and not idx==idy:
+                        rn = data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i].cpu().numpy()
+                        tbplus_cell._hopping_dict.add_hopping(rn=(rn[0], rn[1], rn[2]), orb_i=idx, orb_j=idy, energy=energy)
+
+        return tbplus_cell
+        
 
 
 
@@ -192,11 +279,6 @@ class _TBPLaS(object):
                     idy = orbsidict[str(j)+"-"+orbs[jlabel][yo]]
                     if abs(energy) > 1e-7 and not \
                     ((R_bonds[ix] < 1e-14) & (idx==idy)):
-                        # tbplus_cell.add_hopping(rn=[Rx, Ry, Rz], 
-                        #                         orb_i=orbsidict[str(i)+"-"+orbs[ilabel][xo]],
-                        #                         orb_j=orbsidict[str(j)+"-"+orbs[jlabel][yo]],
-                        #                         energy=energy
-                        #                         )
                         tbplus_cell._hopping_dict.add_hopping(rn=(Rx, Ry, Rz), orb_i=idx, orb_j=idy, energy=energy)
         
         if self.jdata["cal_fermi"]:
