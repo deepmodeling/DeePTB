@@ -52,7 +52,7 @@ class TestNNSK:
     batch = next(iter(train_loader))
     batch = AtomicData.to_AtomicDataDict(batch)
 
-    def test_nnsk_onsite_none_powerlaw(self):
+    def test_nnsk_none_powerlaw(self):
         model_options = self.model_options
         model_options["nnsk"]["onsite"]["method"] = "none"
         model = NNSK(**model_options['nnsk'], **self.common_options,transform=False)
@@ -120,7 +120,7 @@ class TestNNSK:
 
         assert torch.allclose(data[AtomicDataDict.EDGE_FEATURES_KEY], expected_hopskint, atol=1e-10)
 
-    def test_nnsk_onsite_uniform_varTang96(self):
+    def test_nnsk_uniform_varTang96(self):
         model_options = self.model_options
         model_options["nnsk"]["onsite"]["method"] = "uniform"
         model_options["nnsk"]["hopping"]["method"] = "varTang96"
