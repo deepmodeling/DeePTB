@@ -386,9 +386,9 @@ class SKHamiltonian(torch.nn.Module):
             'd-p': [1,11],
             'd-d': [0,6,20]
         }
- 
-        l1, l2 = anglrMId[pairtype[0]], anglrMId[pairtype[2]]
 
+        l1, l2 = anglrMId[pairtype[0]], anglrMId[pairtype[2]]
+        assert l1 <=2 and l2 <=2, "Only support l<=2, ie. s, p, d orbitals at present."
         cg = []
         for l_ird in range(abs(l2-l1), l2+l1+1):
             cg.append(wigner_3j(int(l1), int(l2), int(l_ird), dtype=self.dtype, device=self.device) * (2*l_ird+1)**0.5)
