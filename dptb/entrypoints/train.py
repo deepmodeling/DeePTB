@@ -4,7 +4,7 @@ from dptb.data.build import build_dataset
 from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
 from dptb.plugins.train_logger import Logger
 from dptb.utils.argcheck import normalize
-from dptb.plugins.plugins import Saver
+from dptb.plugins.saver import Saver
 from typing import Dict, List, Optional, Any
 from dptb.utils.tools import j_loader, setup_seed, j_must_have
 from dptb.utils.constants import dtype_dict

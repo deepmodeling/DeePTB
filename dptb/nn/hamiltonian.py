@@ -241,8 +241,11 @@ class SKHamiltonian(torch.nn.Module):
         self.idp.get_orbpair_maps()
 
         pairtypes = self.idp_sk.orbpairtype_maps.keys()
+        
         for pairtype in pairtypes:
-            self._initialize_CG_basis(pairtype)
+            # self.cgbasis.setdefault(pairtype, None)
+            cg = self._initialize_CG_basis(pairtype)
+            self.cgbasis[pairtype] = cg
 
         self.sk2irs = {
             's-s': torch.tensor([[1.]], dtype=self.dtype, device=self.device),
@@ -373,7 +376,7 @@ class SKHamiltonian(torch.nn.Module):
         :return: the CG basis, which is a tensor containing the Clebsch-Gordan coefficients for the given
         pairtype.
         """
-        self.cgbasis.setdefault(pairtype, None)
+        
 
         irs_index = {
             's-s': [0],
@@ -386,14 +389,13 @@ class SKHamiltonian(torch.nn.Module):
             'd-p': [1,11],
             'd-d': [0,6,20]
         }
- 
-        l1, l2 = anglrMId[pairtype[0]], anglrMId[pairtype[2]]
 
+        l1, l2 = anglrMId[pairtype[0]], anglrMId[pairtype[2]]
+        assert l1 <=2 and l2 <=2, "Only support l<=2, ie. s, p, d orbitals at present."
         cg = []
         for l_ird in range(abs(l2-l1), l2+l1+1):
             cg.append(wigner_3j(int(l1), int(l2), int(l_ird), dtype=self.dtype, device=self.device) * (2*l_ird+1)**0.5)
         
         cg = torch.cat(cg, dim=-1)[:,:,irs_index[pairtype]]
-        self.cgbasis[pairtype] = cg
-
+        
         return cg

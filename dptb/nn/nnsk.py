@@ -207,14 +207,14 @@ class NNSK(torch.nn.Module):
         # edge_index = self.idp_sk.transform_reduced_bond(*edge_number)
         edge_index = data[AtomicDataDict.EDGE_TYPE_KEY].flatten() # it is bond_type index, transform it to reduced bond index
         edge_number = self.idp_sk.untransform_bond(edge_index).T
-        edge_index = self.idp_sk.transform_bond(*edge_number)
+        # edge_index = self.idp_sk.transform_bond(*edge_number)
 
         # the edge number is the atomic number of the two atoms in the bond.
         # The bond length list is actually the nucli radius (unit of angstrom) at the atomic number.
         # now this bond length list is only available for the first 83 elements.
-        assert (edge_number <= 83).all(), "The bond length list is only available for the first 83 elements."
-        
+        # assert (edge_number <= 83).all(), "The bond length list is only available for the first 83 elements."
         r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number-1].sum(0)
+        assert (r0 > 0).all(), "The bond length list is only available for atomic numbers < 84 and excluding the lanthanides."
 
         data[AtomicDataDict.EDGE_FEATURES_KEY] = self.hopping_fn.get_skhij(
             rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
@@ -243,7 +243,7 @@ class NNSK(torch.nn.Module):
 
         atomic_numbers = self.idp_sk.untransform_atom(data[AtomicDataDict.ATOM_TYPE_KEY].flatten())
         if self.onsite_fn.functype == "NRL":
-            data = AtomicDataDict.with_env_vectors(data, with_lengths=True)
+            data = AtomicDataDict.with_onsitenv_vectors(data, with_lengths=True)
             data[AtomicDataDict.NODE_FEATURES_KEY] = self.onsite_fn.get_skEs(
                 # atomic_numbers=data[AtomicDataDict.ATOMIC_NUMBERS_KEY],
                 atomic_numbers=atomic_numbers,
@@ -275,7 +275,7 @@ class NNSK(torch.nn.Module):
             #     reflect_params], dim=0)
             
             r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[onsitenv_number-1].sum(0)
-            assert (edge_number <= 83).all(), "The bond length list is only available for the first 83 elements."
+            assert (r0 > 0).all(), "The bond length list is only available for atomic numbers < 84 and excluding the lanthanides."
             onsitenv_params = self.hopping_fn.get_skhij(
             rij=data[AtomicDataDict.ONSITENV_LENGTH_KEY],
             paraArray=self.strain_param[onsitenv_index], # [N_edge, n_pairs, n_paras],
