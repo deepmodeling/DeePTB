@@ -10,7 +10,9 @@ from dptb.nn.hamiltonian import E3Hamiltonian, SKHamiltonian
 from dptb.nn.nnsk import NNSK
 from e3nn.o3 import Linear
 from dptb.nn.rescale import E3PerSpeciesScaleShift, E3PerEdgeSpeciesScaleShift
+import logging
 
+log = logging.getLogger(__name__)
 
 """ if this class is called, it suggest user choose a embedding method. If not, it should directly use _sktb.py
 """
@@ -381,6 +383,10 @@ class MIX(nn.Module):
         
         if len(nnsk) == 0:
             model_options["nnsk"] = ckpt["config"]["model_options"]["nnsk"]
+
+        if model_options["nnsk"].get("push") is not None:
+            model_options["nnsk"]["push"] = None
+            log.warning("The push option is not supported in the mixed model. The push option is only supported in the nnsk model.")
 
         if len(embedding) == 0 or len(prediction) == 0:
             assert ckpt["config"]["model_options"].get("embedding") is not None and ckpt["config"]["model_options"].get("prediction") is not None, \
