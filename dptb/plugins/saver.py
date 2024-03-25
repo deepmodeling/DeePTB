@@ -144,31 +144,3 @@ class Saver(Plugin):
         #         json.dump(json_data, f, indent=4)
             
         log.info(msg="checkpoint saved as {}".format(name))
-
-class Validationer(Plugin):
-    def __init__(self, interval=None):
-        if interval is None:
-            interval = [(1, 'iteration'), (1, 'epoch')]
-        super(Validationer, self).__init__(interval)
-
-    def register(self, trainer):
-        self.trainer = trainer
-        validation_stats = self.trainer.stats.setdefault('validation_loss', {})
-        validation_stats['log_epoch_fields'] = ['{last:.4f}']
-        validation_stats['log_iter_fields'] = ['{last:.4f}']
-
-    def epoch(self, **kwargs):
-        self.trainer.model.eval()
-
-        validation_stats = self.trainer.stats.setdefault('validation_loss', {})
-        validation_stats['last'] = self.trainer.validation()
-
-        self.trainer.model.train()
-
-    def iteration(self, **kwargs):
-        self.trainer.model.eval()
-
-        validation_stats = self.trainer.stats.setdefault('validation_loss', {})
-        validation_stats['last'] = self.trainer.validation(quick=True)
-
-        self.trainer.model.train()
