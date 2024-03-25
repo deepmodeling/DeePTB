@@ -9,6 +9,7 @@ def root_directory(request):
     return str(request.config.rootdir)
 
 # test nnsk model run, with s p orbital and non onsite.
+@pytest.mark.order(1)
 def test_nnsk_valence(root_directory):
     INPUT_file = root_directory+"/dptb/tests/data/test_sktb/input/input_valence.json"
     output = root_directory+"/dptb/tests/data/test_sktb/output"
@@ -18,6 +19,7 @@ def test_nnsk_valence(root_directory):
 
 # test nnsk model run, with s p d* orbital and strain mode for onsite.
 # using init_model of the model trained in the previous test.
+@pytest.mark.order(2)
 def test_nnsk_strain_polar(root_directory):
     INPUT_file = root_directory+"/dptb/tests/data/test_sktb/input/input_strain_polar.json"
     output = root_directory+"/dptb/tests/data/test_sktb/output"
@@ -29,6 +31,7 @@ def test_nnsk_strain_polar(root_directory):
 
 # test push  rs and w in nnsk model run, with s p d* orbital and strain mode for onsite.
 # using init_model of the model trained in the previous test. 
+@pytest.mark.order(3)
 def test_nnsk_push(root_directory):
     INPUT_file_rs = root_directory + "/dptb/tests/data/test_sktb/input/input_push_rs.json"
     INPUT_file_w = root_directory + "/dptb/tests/data/test_sktb/input/input_push_w.json"
@@ -51,6 +54,7 @@ def test_nnsk_push(root_directory):
     assert np.isclose(model_w["config"]["model_options"]["nnsk"]["hopping"]["w"], 0.35)
 
 # train on md structures.
+@pytest.mark.order(4)
 def test_md(root_directory):
     INPUT_file =root_directory + "/dptb/tests/data/test_sktb/input/input_md.json"
     output = root_directory + "/dptb/tests/data/test_sktb/output"
@@ -61,6 +65,7 @@ def test_md(root_directory):
           output=output+"/test_md", log_level=5, log_path=output+"/test_md.log")
     
 # train  dptb with env.
+@pytest.mark.order(5)
 def test_dptb(root_directory):
     INPUT_file =root_directory + "/dptb/tests/data/test_sktb/input/input_dptb.json"
     output = root_directory + "/dptb/tests/data/test_sktb/output"

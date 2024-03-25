@@ -29,7 +29,10 @@ TrainFullConfigSK={
         },
         "loss_options": {
             "train": {
-                "method": "eigvals"
+                "method": "eigvals",
+                "diff_on": False,
+                "eout_weight": 0.01,
+                "diff_weight": 0.01
             }
         },
         "save_freq": 1,
@@ -52,7 +55,7 @@ TrainFullConfigSK={
             },
             "freeze": False,
             "std": 0.01,
-            "push": None or {"w_thr": 0.01,"period": 1,"rs_thr": 0.0,"rc_thr": 0.0},
+            "push": None or {"w_thr": 0.0,"period": 1,"rs_thr": 0.0,"rc_thr": 0.0},
         }
     },
     "data_options": {
@@ -100,7 +103,10 @@ TestFullConfigSK={
         "display_freq": 1,
         "loss_options": {
             "train": {
-                "method": "eigvals"
+                "method": "eigvals",
+                "diff_on": False,
+                "eout_weight": 0.01,
+                "diff_weight": 0.01
             }
         }
     },

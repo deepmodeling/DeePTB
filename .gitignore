@@ -1,4 +1,5 @@
 test*.ipynb
+**/processed*/*
 dptb/tests/**/*.yaml
 dptb/tests/**/pre_*.pt
 dptb/tests/**/*.pth

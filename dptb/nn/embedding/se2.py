@@ -100,7 +100,7 @@ class SE2Aggregation(Aggregation):
 
         Parameters
         ----------
-        x : tensor of size (N, d), where d dimension looks like (emb(s(r)), \hat{x}, \hat{y}, \hat{z})
+        x : tensor of size (N, d), where d dimension looks like (emb(s(r)), hat{x}, hat{y}, hat{z})
             The is the embedding of the env_vectors
         index : _type_
             _description_

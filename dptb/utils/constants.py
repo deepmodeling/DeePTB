@@ -3,7 +3,7 @@ import ase
 from scipy.constants import Boltzmann, pi, elementary_charge, hbar
 import torch
 
-anglrMId = {'s':0,'p':1,'d':2,'f':3}
+anglrMId = {'s':0,'p':1,'d':2,'f':3,'g':4,'h':5}
 SKBondType = {0:'sigma',1:'pi',2:'delta'}
 au2Ang = 0.529177249
 # bond integral index in DFTB sk files. specific.
@@ -31,14 +31,18 @@ ABACUS_orbital_number_m = {
     "s": [0],
     "p": [0, 1, -1],
     "d": [0, 1, -1, 2, -2],
-    "f": [0, 1, -1, 2, -2, 3, -3]
+    "f": [0, 1, -1, 2, -2, 3, -3],
+    "g": [0, 1, -1, 2, -2, 3, -3, 4, -4],
+    "h": [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5]
 }
 
 DeePTB_orbital_number_m = {
     "s": [0],
     "p": [-1, 0, 1],
     "d": [-2, -1, 0, 1, 2],
-    "f": [-3, -2, -1, 0, 1, 2, 3]
+    "f": [-3, -2, -1, 0, 1, 2, 3],
+    "g": [-4, -3, -2, -1, 0, 1, 2, 3, 4],
+    "h": [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]
 }
 
 
@@ -46,11 +50,15 @@ ABACUS2DeePTB = {
             0: torch.eye(1),
             1: torch.eye(3)[[2, 0, 1]],
             2: torch.eye(5)[[4, 2, 0, 1, 3]],
-            3: torch.eye(7)[[6, 4, 2, 0, 1, 3, 5]]
+            3: torch.eye(7)[[6, 4, 2, 0, 1, 3, 5]],
+            4: torch.eye(9)[[8, 6, 4, 2, 0, 1, 3, 5, 7]],
+            5: torch.eye(11)[[10, 8, 6, 4, 2, 0, 1, 3, 5, 7, 9]]
         }
 ABACUS2DeePTB[1][[0, 2]] *= -1
 ABACUS2DeePTB[2][[1, 3]] *= -1
 ABACUS2DeePTB[3][[0, 6, 2, 4]] *= -1
+ABACUS2DeePTB[4][[1, 7, 3, 5]] *= -1
+ABACUS2DeePTB[5][[0, 8, 2, 6, 4]] *= -1
 
 
 dtype_dict = {"float32": torch.float32, "float64": torch.float64}

@@ -120,7 +120,7 @@ class OnsiteFormula(BaseOnsite):
     def NRL(self, atomic_numbers, onsitenv_index, onsitenv_length, nn_onsite_paras, rc:th.float32 = th.tensor(6), w:th.float32 = 0.1, lda=1.0, **kwargs):
         """ This is NRL-TB formula for onsite energies.
 
-            rho_i = \sum_j exp(- lda**2 r_ij) f(r_ij)
+            rho_i = sum_j exp(- lda**2 r_ij) f(r_ij)
         
             E_il = a_l + b_l rho_i^(2/3) + c_l rho_i^(4/3) + d_l rho_i^2
 
