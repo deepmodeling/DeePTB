@@ -40,7 +40,7 @@ class TBPLaS(object):
         self.results_path = results_path
         self.overlap = overlap
 
-    def get_cell(self, data: Union[AtomicData, ase.Atoms, str], AtomicData_options: dict={}):
+    def get_cell(self, data: Union[AtomicData, ase.Atoms, str], AtomicData_options: dict={}, e_fermi: float=0.0):
 
         # get the AtomicData structure and the ase structure
         if isinstance(data, str):
@@ -110,7 +110,7 @@ class TBPLaS(object):
                 
                 tbplus_cell.add_orbital(
                     (cell_inv @ data[AtomicDataDict.POSITIONS_KEY][i]).cpu(),
-                    energy=energy,
+                    energy=energy - e_fermi,
                     label=orbs[isymbol][io]
                 )
         # accum_norbs = np.cumsum(accum_norbs)
