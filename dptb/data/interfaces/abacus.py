@@ -15,7 +15,7 @@ from scipy.linalg import block_diag
 import h5py
 import ase
 
-orbitalId = {0:'s',1:'p',2:'d',3:'f'}
+orbitalId = {0:'s',1:'p',2:'d',3:'f',4:'g',5:'h'}
 Bohr2Ang = 0.529177249
 
 
@@ -26,19 +26,23 @@ class OrbAbacus2DeepTB:
         self.Us_abacus2deeptb[1] = np.eye(3)[[2, 0, 1]]            # 0, 1, -1 -> -1, 0, 1
         self.Us_abacus2deeptb[2] = np.eye(5)[[4, 2, 0, 1, 3]]      # 0, 1, -1, 2, -2 -> -2, -1, 0, 1, 2
         self.Us_abacus2deeptb[3] = np.eye(7)[[6, 4, 2, 0, 1, 3, 5]] # -3,-2,-1,0,1,2,3
+        self.Us_abacus2deeptb[4] = np.eye(9)[[8, 6, 4, 2, 0, 1, 3, 5, 7]]
+        self.Us_abacus2deeptb[5] = np.eye(11)[[10, 8, 6, 4, 2, 0, 1, 3, 5, 7, 9]]
 
         minus_dict = {
             1: [0, 2],
             2: [1, 3],
             3: [0, 2, 4, 6],
+            4: [1, 7, 3, 5],
+            5: [0, 8, 2, 6, 4]
         }
 
         for k, v in minus_dict.items():
             self.Us_abacus2deeptb[k][v] *= -1  # add phase (-1)^m
 
     def get_U(self, l):
-        if l > 3:
-            raise NotImplementedError("Only support l = s, p, d, f")
+        if l > 5:
+            raise NotImplementedError("Only support l = s, p, d, f, g, h.")
         return self.Us_abacus2deeptb[l]
 
     def transform(self, mat, l_lefts, l_rights):
