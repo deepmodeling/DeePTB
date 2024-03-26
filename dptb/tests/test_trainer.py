@@ -123,7 +123,7 @@ class TestTrainer:
         run_options = self.run_options
         jdata = self.jdata
         train_datasets = self.train_datasets
-        checkpoint = f"{rootdir}/test_sktb/output/test_valence/checkpoint/nnsk.ep1.pth"
+        checkpoint = f"{rootdir}/test_sktb/output/test_valence/checkpoint/nnsk.best.pth"
         run_options.update({"init_model": checkpoint, "restart": None})
         model = build_model(run_options=run_options, model_options=jdata["model_options"], 
                             common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
@@ -144,7 +144,7 @@ class TestTrainer:
         run_options = self.run_options
         jdata = self.jdata
         train_datasets = self.train_datasets
-        checkpoint = f"{rootdir}/test_sktb/output/test_valence/checkpoint/nnsk.ep1.pth"
+        checkpoint = f"{rootdir}/test_sktb/output/test_valence/checkpoint/nnsk.best.pth"
         run_options.update({"init_model": checkpoint, "restart": checkpoint})
         with pytest.raises(AssertionError):
             model = build_model(run_options=run_options, model_options=jdata["model_options"], 
@@ -154,7 +154,7 @@ class TestTrainer:
         run_options = self.run_options
         jdata = self.jdata
         train_datasets = self.train_datasets
-        checkpoint = f"{rootdir}/test_sktb/output/test_valence/checkpoint/nnsk.ep1.pth"
+        checkpoint = f"{rootdir}/test_sktb/output/test_valence/checkpoint/nnsk.best.pth"
         run_options.update({"init_model": None, "restart": checkpoint})
         trainer = Trainer.restart(
             train_options=jdata["train_options"],

@@ -84,4 +84,4 @@ def test_init_V1_json(root_directory):
     
     check_config_train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False)
     train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False,\
-          output=output+"/test_valence", log_level=5, log_path=output+"/test_v1json.log")
+          output=output+"/test_v1json", log_level=5, log_path=output+"/test_v1json.log")
