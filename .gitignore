@@ -8,7 +8,6 @@ dptb/tests/**/*.traj
 dptb/tests/**/out*/*
 examples/_*
 *.dat
-*.vasp
 *log*
 dptb/tests/data/**/out*/config_*.json
 
