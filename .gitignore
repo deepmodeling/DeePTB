@@ -10,7 +10,7 @@ examples/_*
 *.dat
 *log*
 dptb/tests/data/**/out*/config_*.json
-
+bandstructure.npy
 dptb/tests/data/hBN/data/set.0/xdat2.traj
 dptb/tests/data/postrun/run_config.json
 dptb/tests/data/test_all/test_config.json
