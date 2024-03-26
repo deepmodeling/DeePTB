@@ -305,7 +305,7 @@ class NNSK(torch.nn.Module):
         dtype: Union[str, torch.dtype]=None, 
         device: Union[str, torch.device]=None,
         push: Dict=None,
-        freeze: bool = None,
+        freeze: bool = False,
         std: float = 0.01,
         **kwargs,
         ):
@@ -332,7 +332,8 @@ class NNSK(torch.nn.Module):
             for k,v in common_options.items():
                 assert v is not None, f"You need to provide {k} when you are initializing a model from a json file."
             for k,v in nnsk.items():
-                assert v is not None, f"You need to provide {k} when you are initializing a model from a json file."
+                if k != 'push':
+                    assert v is not None, f"You need to provide {k} when you are initializing a model from a json file."
 
             v1_model = j_loader(checkpoint)
             model = cls._from_model_v1(
@@ -349,7 +350,7 @@ class NNSK(torch.nn.Module):
                 if v is None:
                     common_options[k] = f["config"]["common_options"][k]
             for k,v in nnsk.items():
-                if v is None and not k is "push" :
+                if v is None and k != "push" :
                     nnsk[k] = f["config"]["model_options"]["nnsk"][k]
 
             model = cls(**common_options, **nnsk)
@@ -458,6 +459,9 @@ class NNSK(torch.nn.Module):
         dtype: Union[str, torch.dtype] = torch.float32, 
         device: Union[str, torch.device] = torch.device("cpu"),
         std: float = 0.01,
+        freeze: bool = False,
+        push: Union[bool,None,dict] = False,
+        **kwargs
         ):
         # could support json file and .pth file checkpoint of nnsk
 
@@ -477,7 +481,8 @@ class NNSK(torch.nn.Module):
         idp_sk.get_orbpair_maps()
         idp_sk.get_skonsite_maps()
 
-        nnsk_model = cls(basis=basis, idp_sk=idp_sk, dtype=dtype, device=device, onsite=onsite, hopping=hopping, overlap=overlap, std=std)
+        nnsk_model = cls(basis=basis, idp_sk=idp_sk,  onsite=onsite,
+                          hopping=hopping, overlap=overlap, std=std,freeze=freeze, push=push, dtype=dtype, device=device,)
 
         onsite_param = v1_model["onsite"]
         hopping_param = v1_model["hopping"]
