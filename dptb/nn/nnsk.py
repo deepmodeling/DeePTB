@@ -30,7 +30,7 @@ class NNSK(torch.nn.Module):
             device: Union[str, torch.device] = torch.device("cpu"),
             transform: bool = True,
             freeze: bool = False,
-            push: Dict=None,
+            push: Union[bool,dict]=False,
             std: float = 0.01,
             **kwargs,
             ) -> None:
