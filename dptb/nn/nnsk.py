@@ -179,7 +179,7 @@ class NNSK(torch.nn.Module):
         #         reflect_params[:,self.idp_sk.pair_maps[k],:] += params[:,self.idp_sk.pair_maps[k_r],:]
         #     self.strain_param.data = reflect_params + params
 
-        if self.push is not None:
+        if self.push is not None and self.push is not False:
             if abs(self.push.get("rs_thr")) + abs(self.push.get("rc_thr")) + abs(self.push.get("w_thr")) > 0:
                 self.push_decay(**self.push)
 
