@@ -53,7 +53,8 @@ def train_options():
         - `LBFGS`: [On the limited memory BFGS method for large scale optimization.](http://users.iems.northwestern.edu/~nocedal/PDFfiles/limited-memory.pdf) \n\n\
     "
     doc_lr_scheduler = "The learning rate scheduler tools settings, the lr scheduler is used to scales down the learning rate during the training process. Proper setting can make the training more stable and efficient. The supported lr schedular includes: `Exponential Decaying (exp)`, `Linear multiplication (linear)`"
-    doc_batch_size = ""
+    doc_batch_size = "The batch size used in training, Default: 1"
+    doc_max_ckpt = "The maximum number of saved checkpoints, Default: 4"
     
     args = [
         Argument("num_epoch", int, optional=False, doc=doc_num_epoch),
@@ -65,6 +66,7 @@ def train_options():
         Argument("save_freq", int, optional=True, default=10, doc=doc_save_freq),
         Argument("validation_freq", int, optional=True, default=10, doc=doc_validation_freq),
         Argument("display_freq", int, optional=True, default=1, doc=doc_display_freq),
+        Argument("max_ckpt", int, optional=True, default=4, doc=doc_max_ckpt),
         loss_options()
     ]
 

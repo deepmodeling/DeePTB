@@ -133,6 +133,9 @@ def build_model(run_options, model_options: dict={}, common_options: dict={}, st
             model = NNSK.from_reference(checkpoint, **model_options["nnsk"], **common_options)
         if init_mixed:
             # mix model can be initilized with a mixed reference model or a nnsk model.
-            model = MIX.from_reference(checkpoint, **model_options, **common_options)
+            model = MIX.from_reference(checkpoint, **model_options, **common_options)  
     
+    if model.model_options != model_options:
+        # log.error("The model options are not consistent with the checkpoint, using the one in the checkpoint.")
+        raise ValueError("The model options are not consistent with the checkpoint, using the one in the checkpoint.")
     return model

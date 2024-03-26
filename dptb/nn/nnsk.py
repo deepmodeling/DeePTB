@@ -62,7 +62,8 @@ class NNSK(torch.nn.Module):
                 "onsite": onsite, 
                 "hopping": hopping,
                 "freeze": freeze,
-                "push": push,                
+                "push": push,
+                "std": std                
                 }
             }
         
@@ -348,7 +349,7 @@ class NNSK(torch.nn.Module):
                 if v is None:
                     common_options[k] = f["config"]["common_options"][k]
             for k,v in nnsk.items():
-                if v is None:
+                if v is None and not k is "push" :
                     nnsk[k] = f["config"]["model_options"]["nnsk"][k]
 
             model = cls(**common_options, **nnsk)
