@@ -46,8 +46,8 @@ def test_nnsk_push(root_directory):
     train(INPUT=INPUT_file_w, init_model=init_model, restart=None, train_soc=False,\
           output=output+"/test_push_w", log_level=5, log_path=output+"/test_push_w.log")
     
-    model_rs = torch.load(f"{root_directory}/dptb/tests/data/test_sktb/output/test_push_rs/checkpoint/nnsk_rs2.650_w0.300.pth")
-    model_w = torch.load(f"{root_directory}/dptb/tests/data/test_sktb/output/test_push_w/checkpoint/nnsk_rs5.000_w0.350.pth")
+    model_rs = torch.load(f"{root_directory}/dptb/tests/data/test_sktb/output/test_push_rs/checkpoint/nnsk.iter_rs2.650_w0.300.pth")
+    model_w = torch.load(f"{root_directory}/dptb/tests/data/test_sktb/output/test_push_w/checkpoint/nnsk.iter_rs5.000_w0.350.pth")
     # test push limits
     # 10 epoch, 0.01 step, 1 period -> 0.05 added.
     assert np.isclose(model_rs["config"]["model_options"]["nnsk"]["hopping"]["rs"], 2.65)
@@ -58,7 +58,7 @@ def test_nnsk_push(root_directory):
 def test_md(root_directory):
     INPUT_file =root_directory + "/dptb/tests/data/test_sktb/input/input_md.json"
     output = root_directory + "/dptb/tests/data/test_sktb/output"
-    init_model = root_directory + "/dptb/tests/data/test_sktb/output/test_push_w/checkpoint/nnsk_rs5.000_w0.350.pth"
+    init_model = root_directory + "/dptb/tests/data/test_sktb/output/test_push_w/checkpoint/nnsk.iter_rs5.000_w0.350.pth"
 
     check_config_train(INPUT=INPUT_file, init_model=None, restart=None, train_soc=False)
     train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False,\
