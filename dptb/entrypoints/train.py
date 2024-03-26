@@ -98,54 +98,77 @@ def train(
     # since here we want to output jdata as a config file to inform the user what model options are used, we need to update the jdata
     
     torch.set_default_dtype(getattr(torch, jdata["common_options"]["dtype"]))
-
+    
     if restart or init_model:
-        f = restart if restart else init_model
-        f = torch.load(f)
-
-        if jdata.get("model_options", None) is None:
-            jdata["model_options"] = f["config"]["model_options"]
-
-        # update basis
-        basis = f["config"]["common_options"]["basis"]
-        # nnsk
-        if len(f["config"]["model_options"])==1 and f["config"]["model_options"].get("nnsk") != None:
-            for asym, orb in jdata["common_options"]["basis"].items():
-                assert asym in basis.keys(), f"Atom {asym} not found in model's basis"
-                if orb != basis[asym]:
-                    log.info(f"Initializing Orbital {orb} of Atom {asym} from {basis[asym]}")
-            # we have the orbitals in jdata basis correct, now we need to make sure all atom in basis are also contained in jdata basis
-            for asym, orb in basis.items():
-                if asym not in jdata["common_options"]["basis"].keys():
-                    jdata["common_options"]["basis"][asym] = orb # add the atomtype in the checkpoint but not in the jdata basis, because it will be used to build the orbital mapper for dataset
-        else: # not nnsk
-            for asym, orb in jdata["common_options"]["basis"].items():
-                assert asym in basis.keys(), f"Atom {asym} not found in model's basis"
-                assert orb == basis[asym], f"Orbital {orb} of Atom {asym} not consistent with the model's basis, which is only allowed in nnsk training"
-
-            jdata["common_options"]["basis"] = basis
         
-        # update model options and train_options
-        if restart:
-            # 
-            if jdata.get("train_options", None) is not None:
-                for obj in Trainer.object_keys:
-                    if jdata["train_options"].get(obj) != f["config"]["train_options"].get(obj):
-                        log.warning(f"{obj} in config file is not consistent with the checkpoint, using the one in checkpoint")
-                        jdata["train_options"][obj] = f["config"]["train_options"][obj]
+        f = restart if restart else init_model
+        
+        if f.split(".")[-1] == "json":
+            assert not restart, "json model can not be used as restart! should be a checkpoint file"
+            f= j_loader(f)
+            if f.get('version', None) is None:
+                if f.get("model_options", None) is None:
+                    json_versoion=1
+                else:
+                    json_versoion=2
             else:
-                jdata["train_options"] = f["config"]["train_options"]
+                json_versoion = int(f["version"])
+            
+            if json_versoion == 1:
+                j_must_have(jdata, "model_options")
+                j_must_have(jdata, "train_options")
 
-            if jdata.get("model_options", None) is None or jdata["model_options"] != f["config"]["model_options"]:
-                log.warning("model_options in config file is not consistent with the checkpoint, using the one in checkpoint")
-                jdata["model_options"] = f["config"]["model_options"] # restart does not allow to change model options
+            elif json_versoion == 2:
+                pass
+            else:
+                raise ValueError(f"Unknown json version {json_versoion}")
+
         else:
-            # init model mode, allow model_options change
-            if jdata.get("train_options", None) is None:
-                jdata["train_options"] = f["config"]["train_options"]
-            if jdata.get("model_options") is None:
+            f = torch.load(f)
+    
+            if jdata.get("model_options", None) is None:
                 jdata["model_options"] = f["config"]["model_options"]
-        del f
+    
+            # update basis
+            basis = f["config"]["common_options"]["basis"]
+            # nnsk
+            if len(f["config"]["model_options"])==1 and f["config"]["model_options"].get("nnsk") != None:
+                for asym, orb in jdata["common_options"]["basis"].items():
+                    assert asym in basis.keys(), f"Atom {asym} not found in model's basis"
+                    if orb != basis[asym]:
+                        log.info(f"Initializing Orbital {orb} of Atom {asym} from {basis[asym]}")
+                # we have the orbitals in jdata basis correct, now we need to make sure all atom in basis are also contained in jdata basis
+                for asym, orb in basis.items():
+                    if asym not in jdata["common_options"]["basis"].keys():
+                        jdata["common_options"]["basis"][asym] = orb # add the atomtype in the checkpoint but not in the jdata basis, because it will be used to build the orbital mapper for dataset
+            else: # not nnsk
+                for asym, orb in jdata["common_options"]["basis"].items():
+                    assert asym in basis.keys(), f"Atom {asym} not found in model's basis"
+                    assert orb == basis[asym], f"Orbital {orb} of Atom {asym} not consistent with the model's basis, which is only allowed in nnsk training"
+    
+                jdata["common_options"]["basis"] = basis
+        
+            # update model options and train_options
+            if restart:
+                # 
+                if jdata.get("train_options", None) is not None:
+                    for obj in Trainer.object_keys:
+                        if jdata["train_options"].get(obj) != f["config"]["train_options"].get(obj):
+                            log.warning(f"{obj} in config file is not consistent with the checkpoint, using the one in checkpoint")
+                            jdata["train_options"][obj] = f["config"]["train_options"][obj]
+                else:
+                    jdata["train_options"] = f["config"]["train_options"]
+    
+                if jdata.get("model_options", None) is None or jdata["model_options"] != f["config"]["model_options"]:
+                    log.warning("model_options in config file is not consistent with the checkpoint, using the one in checkpoint")
+                    jdata["model_options"] = f["config"]["model_options"] # restart does not allow to change model options
+            else:
+                # init model mode, allow model_options change
+                if jdata.get("train_options", None) is None:
+                    jdata["train_options"] = f["config"]["train_options"]
+                if jdata.get("model_options") is None:
+                    jdata["model_options"] = f["config"]["model_options"]
+            del f
     else:
         j_must_have(jdata, "model_options")
         j_must_have(jdata, "train_options")
