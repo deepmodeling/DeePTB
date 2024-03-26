@@ -446,10 +446,10 @@ class HamilLossAnalysis(object):
                 self.stats["onsite"][at] = {
                     "rmse":0.,
                     "mae":0.,
-                    "rmse_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device), 
-                    "mae_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device),
-                    "rmse_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
-                    "mae_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
+                    "rmse_per_block_element":torch.zeros(1, dtype=self.dtype, device=self.device), 
+                    "mae_per_block_element":torch.zeros(1, dtype=self.dtype, device=self.device),
+                    "rmse_per_irreps":torch.zeros(1, dtype=self.dtype, device=self.device),
+                    "mae_per_irreps":torch.zeros(1, dtype=self.dtype, device=self.device),
                     "n_element":0,
                 }
             
@@ -457,10 +457,10 @@ class HamilLossAnalysis(object):
                 self.stats["hopping"][bt] = {
                     "rmse":0.,
                     "mae":0.,
-                    "rmse_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device), 
-                    "mae_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device),
-                    "rmse_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
-                    "mae_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
+                    "rmse_per_block_element":torch.zeros(1, dtype=self.dtype, device=self.device), 
+                    "mae_per_block_element":torch.zeros(1, dtype=self.dtype, device=self.device),
+                    "rmse_per_irreps":torch.zeros(1, dtype=self.dtype, device=self.device),
+                    "mae_per_irreps":torch.zeros(1, dtype=self.dtype, device=self.device),
                     "n_element":0,
                 }
 
@@ -468,10 +468,10 @@ class HamilLossAnalysis(object):
                     self.stats["overlap"][bt] = {
                         "rmse":0.,
                         "mae":0.,
-                        "rmse_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device), 
-                        "mae_per_block_element":torch.zeros(self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device),
-                        "rmse_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
-                        "mae_per_irreps":torch.zeros(self.idp.orbpair_irreps.num_irreps, dtype=self.dtype, device=self.device),
+                        "rmse_per_block_element":torch.zeros(1, dtype=self.dtype, device=self.device), 
+                        "mae_per_block_element":torch.zeros(1, dtype=self.dtype, device=self.device),
+                        "rmse_per_irreps":torch.zeros(1, dtype=self.dtype, device=self.device),
+                        "mae_per_irreps":torch.zeros(1, dtype=self.dtype, device=self.device),
                         "n_element":0,
                     }
                 
