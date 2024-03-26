@@ -56,7 +56,7 @@ TrainFullConfigSK={
             },
             "freeze": False,
             "std": 0.01,
-            "push": None or {"w_thr": 0.0,"period": 1,"rs_thr": 0.0,"rc_thr": 0.0},
+            "push": False or {"w_thr": 0.0,"period": 1,"rs_thr": 0.0,"rc_thr": 0.0},
         }
     },
     "data_options": {
