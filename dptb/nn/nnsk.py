@@ -603,13 +603,14 @@ class NNSK(torch.nn.Module):
                             onsite_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = strain[pos_line, slices][i].tolist()
 
         # onsite need more test and work
-        elif hasattr(self, "onsite_param"):
+        elif hasattr(self, "onsite_param") and self.onsite_param is not None:
             onsite_param = {}
-            for asym, slices in self.idp_sk.skonsite_maps.items():
-                for i in range(slices.start, slices.stop):
-                    orb = self.idp_sk.basis_to_full_basis[asym][i]
-                    onsite_param[f"{asym}-{orb}-{i}"] = self.onsite_param[self.idp_sk.chemical_symbol_to_type[asym], i].tolist()
-        
+            for asym in self.idp_sk.type_names:
+                for iorb, slices in self.idp_sk.skonsite_maps.items():
+                    orb = self.idp_sk.full_basis_to_basis[asym][iorb]
+                    for i in range(slices.start, slices.stop): 
+                        ind = i-slices.start      
+                        onsite_param[f"{asym}-{orb}-{ind}"] = (self.onsite_param[self.idp_sk.chemical_symbol_to_type[asym], i]/(13.605662285137 * 2)).tolist()
         else:
             onsite_param = {}
 
