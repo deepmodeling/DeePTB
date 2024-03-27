@@ -559,12 +559,8 @@ class NNSK(torch.nn.Module):
         hopping_param = {}
         basis = self.idp_sk.basis
         
-        for bt in self.idp_sk.reduced_bond_types:
+        for bt in self.idp_sk.bond_types:
             iasym, jasym = bt.split("-")
-            if iasym != jasym:
-                temp = jasym
-                iasym = jasym
-                jasym = temp
             ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
             pos_line = self.idp_sk.transform_bond(ian, jan)
             rev_line = self.idp_sk.transform_bond(jan, ian)
@@ -575,17 +571,24 @@ class NNSK(torch.nn.Module):
                 if iorb != None and jorb != None:
                     # iasym-jasym-iorb-jorb
                     for i in range(slices.stop-slices.start):
-                        if ian != jan:
+                        if ian < jan:
+                            continue
+                        elif ian > jan:
                             if fiorb == fjorb: # this might have problems
-                                hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = ((hopping[pos_line, i] + hopping[rev_line, i])*0.5).tolist()
+                                hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = ((hopping[pos_line, slices][i] + hopping[rev_line, slices][i])*0.5).tolist()
                             else:
                                 hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = hopping[pos_line, slices][i].tolist()
-                                hopping_param[f"{iasym}-{jasym}-{jorb}-{iorb}-{i}"] = hopping[rev_line, slices][i].tolist()
-                        else:
-                            hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = hopping[pos_line, slices][i].tolist()
-                            if fiorb != fjorb:
-                                hopping_param[f"{iasym}-{jasym}-{jorb}-{iorb}-{i}"] = hopping[pos_line, slices][i].tolist()
+                                iiorb = self.idp_sk.full_basis_to_basis[iasym].get(fjorb)
+                                jjorb = self.idp_sk.full_basis_to_basis[jasym].get(fiorb)
 
+                                hopping_param[f"{iasym}-{jasym}-{iiorb}-{jjorb}-{i}"] = hopping[rev_line, slices][i].tolist()
+                        elif ian == jan:
+                            if self.idp_sk.full_basis.index(fiorb) <= self.idp_sk.full_basis.index(fjorb):
+                                hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = hopping[pos_line, slices][i].tolist()
+                            #if fiorb != fjorb:
+                            #   hopping_param[f"{iasym}-{jasym}-{jorb}-{iorb}-{i}"] = hopping[pos_line, slices][i].tolist()
+                        else:
+                            raise ValueError("The atomic number should be the same or different.")
         
         if hasattr(self, "strain_param"):
             strain = self.strain_param.data.cpu().numpy()
