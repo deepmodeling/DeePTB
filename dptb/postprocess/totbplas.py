@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 try:
     import tbplas as tb
 except ImportError:
-    log.error('TBPLaS is not installed. Thus the ifermiaip is not available, Please install it first.')
+    log.error('TBPLaS is not installed. Thus the TBPLaS is not available, Please install it first.')
 
 class TBPLaS(object):
     def __init__ (
