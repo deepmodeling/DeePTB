@@ -105,24 +105,6 @@ def train(
         
         if f.split(".")[-1] == "json":
             assert not restart, "json model can not be used as restart! should be a checkpoint file"
-            f= j_loader(f)
-            if f.get('version', None) is None:
-                if f.get("model_options", None) is None:
-                    json_versoion=1
-                else:
-                    json_versoion=2
-            else:
-                json_versoion = int(f["version"])
-            
-            if json_versoion == 1:
-                j_must_have(jdata, "model_options")
-                j_must_have(jdata, "train_options")
-
-            elif json_versoion == 2:
-                pass
-            else:
-                raise ValueError(f"Unknown json version {json_versoion}")
-
         else:
             f = torch.load(f)
     
