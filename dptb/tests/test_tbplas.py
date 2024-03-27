@@ -1,5 +1,4 @@
 import pytest
-from dptb.postprocess.tbplas import TBPLaS
 from dptb.data import AtomicData
 from dptb.nn import build_model
 from ase.io import read
@@ -11,6 +10,11 @@ def root_directory(request):
 
 @pytest.mark.order(1)
 def test_tbplas_get_cell(root_directory):
+    try:
+        import tbplas
+    except:
+        pytest.skip("TBPLaS is not installed in the current image, please check the Dockerfile of the workflow.")
+    from dptb.postprocess.totbplas import TBPLaS
     common_options = {
         "basis": {
             "Si": ["3s", "3p", "d*"],
