@@ -13,32 +13,32 @@ import numpy as np
 from scipy.sparse import csr_matrix
 from scipy.linalg import block_diag
 import h5py
+from dptb.utils.constants import orbitalId, Bohr2Ang, ABACUS2DeePTB
 import ase
-
-orbitalId = {0:'s',1:'p',2:'d',3:'f',4:'g',5:'h'}
-Bohr2Ang = 0.529177249
 
 
 class OrbAbacus2DeepTB:
     def __init__(self):
-        self.Us_abacus2deeptb = {}
-        self.Us_abacus2deeptb[0] = np.eye(1)
-        self.Us_abacus2deeptb[1] = np.eye(3)[[2, 0, 1]]            # 0, 1, -1 -> -1, 0, 1
-        self.Us_abacus2deeptb[2] = np.eye(5)[[4, 2, 0, 1, 3]]      # 0, 1, -1, 2, -2 -> -2, -1, 0, 1, 2
-        self.Us_abacus2deeptb[3] = np.eye(7)[[6, 4, 2, 0, 1, 3, 5]] # -3,-2,-1,0,1,2,3
-        self.Us_abacus2deeptb[4] = np.eye(9)[[8, 6, 4, 2, 0, 1, 3, 5, 7]]
-        self.Us_abacus2deeptb[5] = np.eye(11)[[10, 8, 6, 4, 2, 0, 1, 3, 5, 7, 9]]
+        # self.Us_abacus2deeptb = {}
+        # self.Us_abacus2deeptb[0] = np.eye(1)
+        # self.Us_abacus2deeptb[1] = np.eye(3)[[2, 0, 1]]            # 0, 1, -1 -> -1, 0, 1
+        # self.Us_abacus2deeptb[2] = np.eye(5)[[4, 2, 0, 1, 3]]      # 0, 1, -1, 2, -2 -> -2, -1, 0, 1, 2
+        # self.Us_abacus2deeptb[3] = np.eye(7)[[6, 4, 2, 0, 1, 3, 5]] # -3,-2,-1,0,1,2,3
+        # self.Us_abacus2deeptb[4] = np.eye(9)[[8, 6, 4, 2, 0, 1, 3, 5, 7]]
+        # self.Us_abacus2deeptb[5] = np.eye(11)[[10, 8, 6, 4, 2, 0, 1, 3, 5, 7, 9]]
 
-        minus_dict = {
-            1: [0, 2],
-            2: [1, 3],
-            3: [0, 2, 4, 6],
-            4: [1, 7, 3, 5],
-            5: [0, 8, 2, 6, 4]
-        }
+        self.Us_abacus2deeptb = ABACUS2DeePTB
 
-        for k, v in minus_dict.items():
-            self.Us_abacus2deeptb[k][v] *= -1  # add phase (-1)^m
+        # minus_dict = {
+        #     1: [0, 2],
+        #     2: [1, 3],
+        #     3: [0, 2, 4, 6],
+        #     4: [1, 7, 3, 5],
+        #     5: [0, 8, 2, 6, 4]
+        # }
+
+        # for k, v in minus_dict.items():
+        #     self.Us_abacus2deeptb[k][v] *= -1  # add phase (-1)^m
 
     def get_U(self, l):
         if l > 5:
