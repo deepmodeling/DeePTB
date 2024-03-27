@@ -25,7 +25,7 @@ def test_nnsk_strain_polar(root_directory):
     output = root_directory+"/dptb/tests/data/test_sktb/output"
     init_model = root_directory+"/dptb/tests/data/test_sktb/output/test_valence/checkpoint/nnsk.latest.pth"
 
-    check_config_train(INPUT=INPUT_file, init_model=None, restart=None, train_soc=False)
+    check_config_train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False)
     train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False,\
           output=output+"/test_strain_polar", log_level=5, log_path=output+"/test_strain_polar.log")
 
@@ -38,11 +38,11 @@ def test_nnsk_push(root_directory):
     output = root_directory + "/dptb/tests/data/test_sktb/output"
     init_model = root_directory + "/dptb/tests/data/test_sktb/output/test_strain_polar/checkpoint/nnsk.best.pth"
     
-    check_config_train(INPUT=INPUT_file_rs, init_model=None, restart=None, train_soc=False)
+    check_config_train(INPUT=INPUT_file_rs, init_model=init_model, restart=None, train_soc=False)
     train(INPUT=INPUT_file_rs, init_model=init_model, restart=None, train_soc=False,\
           output=output+"/test_push_rs", log_level=5, log_path=output+"/test_push_rs.log")
     
-    check_config_train(INPUT=INPUT_file_w, init_model=None, restart=None, train_soc=False)
+    check_config_train(INPUT=INPUT_file_w, init_model=init_model, restart=None, train_soc=False)
     train(INPUT=INPUT_file_w, init_model=init_model, restart=None, train_soc=False,\
           output=output+"/test_push_w", log_level=5, log_path=output+"/test_push_w.log")
     
@@ -60,7 +60,7 @@ def test_md(root_directory):
     output = root_directory + "/dptb/tests/data/test_sktb/output"
     init_model = root_directory + "/dptb/tests/data/test_sktb/output/test_push_w/checkpoint/nnsk.iter_rs5.000_w0.350.pth"
 
-    check_config_train(INPUT=INPUT_file, init_model=None, restart=None, train_soc=False)
+    check_config_train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False)
     train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False,\
           output=output+"/test_md", log_level=5, log_path=output+"/test_md.log")
     
@@ -71,6 +71,17 @@ def test_dptb(root_directory):
     output = root_directory + "/dptb/tests/data/test_sktb/output"
     init_model = root_directory + "/dptb/tests/data/test_sktb/output/test_md/checkpoint/nnsk.latest.pth"
 
-    check_config_train(INPUT=INPUT_file, init_model=None, restart=None, train_soc=False)
+    check_config_train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False)
     train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False,\
           output=output+"/test_dptb", log_level=5, log_path=output+"/test_dptb.log")
+    
+
+@pytest.mark.order(2)
+def test_init_V1_json(root_directory):
+    INPUT_file =root_directory + "/dptb/tests/data/test_sktb/input/input_initv1json.json"
+    output = root_directory + "/dptb/tests/data/test_sktb/output"
+    init_model = root_directory + "/dptb/tests/data/json_model/Si_v1_nnsk_b2.600_c2.600_w0.300.json"
+    
+    check_config_train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False)
+    train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False,\
+          output=output+"/test_v1json", log_level=5, log_path=output+"/test_v1json.log")

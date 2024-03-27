@@ -329,6 +329,7 @@ class MIX(nn.Module):
             transform=False,
             )
         self.idp = self.nnsk.idp
+        assert not self.nnsk.push, "The push option is not supported in the mixed model. The push option is only supported in the nnsk model."
         
         self.model_options = self.nnsk.model_options
         self.model_options.update(self.dptb.model_options)

@@ -1,0 +1,139 @@
+{
+    "common_options": {
+        "unit": "Hartree",
+        "device": "cpu",
+        "dtype": "float32",
+        "onsite_cutoff": 3.0,
+        "bond_cutoff": 5.2,
+        "env_cutoff": 5.0,
+        "atomtype": [
+            "As",
+            "Al"
+        ],
+        "proj_atom_neles": {
+            "As": 5,
+            "Al": 3
+        },
+        "proj_atom_anglr_m": {
+            "As": [
+                "4s",
+                "4p",
+                "d*"
+            ],
+            "Al": [
+                "3s",
+                "3p",
+                "d*"
+            ]
+        },
+        "onsitemode": "uniform",
+        "time_symm": true,
+        "soc": false,
+        "sk_file_path": "./",
+        "overlap": false
+    },
+    "train_options": {
+        "num_epoch": 5000,
+        "optimizer": {
+            "lr": 0.001,
+            "type": "Adam",
+            "betas": [
+                0.9,
+                0.999
+            ],
+            "eps": 1e-08,
+            "weight_decay": 0,
+            "amsgrad": false
+        },
+        "lr_scheduler": {
+            "type": "exp",
+            "gamma": 0.998
+        },
+        "seed": 222,
+        "save_freq": 1,
+        "validation_freq": 10,
+        "display_freq": 1
+    },
+    "data_options": {
+        "use_reference": true,
+        "train": {
+            "batch_size": 1,
+            "path": "./",
+            "prefix": "set_md"
+        },
+        "validation": {
+            "batch_size": 1,
+            "path": "./",
+            "prefix": "set_md"
+        },
+        "reference": {
+            "batch_size": 1,
+            "path": "./",
+            "prefix": "set_spr"
+        },
+        "use_wannier": false
+    },
+    "model_options": {
+        "sknetwork": {
+            "sk_hop_nhidden": 1,
+            "sk_onsite_nhidden": 1,
+            "sk_soc_nhidden": null
+        },
+        "skfunction": {
+            "skformula": "powerlaw",
+            "sk_cutoff": 4.2,
+            "sk_decay_w": 0.2
+        },
+        "dptb": {
+            "axis_neuron": 40,
+            "onsite_net_neuron": [
+                100,
+                100,
+                100
+            ],
+            "env_net_neuron": [
+                40,
+                80,
+                160
+            ],
+            "hopping_net_neuron": [
+                200,
+                200,
+                200
+            ],
+            "onsite_net_activation": "tanh",
+            "env_net_activation": "tanh",
+            "hopping_net_activation": "tanh",
+            "onsite_net_type": "ffn",
+            "env_net_type": "res",
+            "hopping_net_type": "ffn",
+            "soc_env": false,
+            "soc_net_neuron": [
+                128,
+                128,
+                256,
+                256
+            ],
+            "soc_net_activation": "tanh",
+            "soc_net_type": "res",
+            "if_batch_normalized": false
+        },
+        "onsitefuncion": {
+            "onsite_func_cutoff": 6.0,
+            "onsite_func_decay_w": 0.5,
+            "onsite_func_lambda": 1.0
+        }
+    },
+    "loss_options": {
+        "losstype": "eigs_l2dsf",
+        "sortstrength": [
+            0.01,
+            0.01
+        ],
+        "nkratio": null
+    },
+    "init_model": {
+        "path": "mddecay/checkpoint/latest_nnsk_b5.200_c4.200_w0.200.pth",
+        "interpolate": false
+    }
+}

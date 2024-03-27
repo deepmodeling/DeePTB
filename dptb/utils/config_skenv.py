@@ -73,7 +73,7 @@ TrainFullConfigSKEnv= {
             },
             "freeze": True,
             "std": 0.01,
-            "push": None
+            "push": False
         }
     },
     "data_options": {

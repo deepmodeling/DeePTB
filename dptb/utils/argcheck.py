@@ -565,12 +565,12 @@ def push():
     doc_w_thr = ""
     doc_period = ""
 
-    return Argument("push", [None,dict], sub_fields=[
+    return Argument("push", [bool,dict], sub_fields=[
         Argument("rs_thr", [int,float], optional=True, default=0., doc=doc_rs_thr),
         Argument("rc_thr", [int,float], optional=True, default=0., doc=doc_rc_thr),
         Argument("w_thr",  [int,float], optional=True,  default=0., doc=doc_w_thr),
         Argument("period", int, optional=True, default=100, doc=doc_period),
-    ], sub_variants=[], optional=True, default=None, doc="The parameters to define the push the soft cutoff of nnsk model.")
+    ], sub_variants=[], optional=True, default=False, doc="The parameters to define the push the soft cutoff of nnsk model.")
 
 def onsite():
     doc_method = r"The onsite correction mode, the onsite energy is expressed as the energy of isolated atoms plus the model correction, the correction mode are:\n\n\

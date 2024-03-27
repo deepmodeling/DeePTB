@@ -1,0 +1,43 @@
+{
+    "common_options": {
+            "basis": {
+                "Si": ["3s","3p","d*"]
+            },
+            "device": "cpu",
+            "dtype": "float32",
+            "overlap": false,
+            "seed": 120468
+    },
+    "train_options": {
+        "num_epoch": 2,
+        "batch_size": 1,
+        "optimizer": {
+            "lr": 0.05,
+            "type": "Adam"
+        },
+        "lr_scheduler": {
+            "type": "exp",
+            "gamma": 0.999
+        },
+        "loss_options":{
+            "train": {"method": "eigvals"}
+        },
+        "save_freq": 1,
+        "display_freq": 10
+    },
+    "model_options": {
+        "nnsk": {
+            "onsite": {"method": "strain","rs":6.0, "w": 0.1},
+            "hopping": {"method": "powerlaw", "rs":2.6, "w": 0.3},
+            "push": false,
+            "freeze": false
+        }
+    },
+    "data_options": {
+        "train": {
+            "root": "./dptb/tests/data/test_sktb/dataset/",
+            "prefix": "kpath_spk",
+            "get_eigenvalues": true
+        }
+    }
+}
