@@ -418,9 +418,11 @@ class HamilLossAnalysis(object):
             assert idp is not None, "Either basis or idp should be provided."
             self.idp = idp
 
+        self.idp.get_irreps()
+
         if decompose:
-            self.e3h = E3Hamiltonian(idp=idp, decompose=decompose, overlap=False, device=device, dtype=dtype)
-            self.e3s = E3Hamiltonian(idp=idp, decompose=decompose, overlap=True, device=device, dtype=dtype)
+            self.e3h = E3Hamiltonian(idp=self.idp, decompose=decompose, overlap=False, device=device, dtype=dtype)
+            self.e3s = E3Hamiltonian(idp=self.idp, decompose=decompose, overlap=True, device=device, dtype=dtype)
     
     def __call__(self, data: AtomicDataDict, ref_data: AtomicDataDict, running_avg: bool=False):
         if self.decompose:
