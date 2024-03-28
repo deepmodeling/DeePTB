@@ -3,6 +3,7 @@ import logging
 from dptb.nn.nnsk import NNSK
 import torch
 from dptb.utils.tools import j_must_have
+import copy
 
 log = logging.getLogger(__name__)
 
@@ -133,6 +134,33 @@ def build_model(run_options, model_options: dict={}, common_options: dict={}, st
             model = NNSK.from_reference(checkpoint, **model_options["nnsk"], **common_options)
         if init_mixed:
             # mix model can be initilized with a mixed reference model or a nnsk model.
-            model = MIX.from_reference(checkpoint, **model_options, **common_options)
+            model = MIX.from_reference(checkpoint, **model_options, **common_options)  
+    
+    for k, v in model.model_options.items():
+        if k not in model_options:
+            log.warning(f"The model options {k} is not defined in input model_options, set to {v}.")
+        else:
+            deep_dict_difference(k, v, model_options)
     
     return model
+
+
+def deep_dict_difference(base_key, expected_value, model_options):
+    """
+    递归地记录嵌套字典中的选项差异。
+    
+    :param base_key: 基础键名，用于构建警告消息的前缀。
+    :param expected_value: 期望的值，可能是字典或非字典类型。
+    :param model_options: 用于比较的模型选项字典。
+    """
+    target_dict= copy.deepcopy(model_options) # 防止修改原始字典
+    if isinstance(expected_value, dict):
+        for subk, subv in expected_value.items():
+            if subk not in target_dict.get(base_key, {}):
+                log.warning(f"The model option {subk} in {base_key} is not defined in input model_options, set to {subv}.")
+            else:
+                target2 = copy.deepcopy(target_dict[base_key])
+                deep_dict_difference(f"{subk}", subv, target2)
+    else:
+        if expected_value != target_dict[base_key]:
+            log.warning(f"The model option {base_key} is set to {expected_value}, but in input it is {target_dict[base_key]}, make sure it it correct!")

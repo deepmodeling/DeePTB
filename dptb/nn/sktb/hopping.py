@@ -96,9 +96,9 @@ class HoppingFormula(BaseHopping):
 
     def varTang96(self, rij: torch.Tensor, paraArray: torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """> This function calculates the value of the variational form of Tang et al 1996. without the
-        environment dependent
+        environment dependence.
 
-                $$ h(rij) = \alpha_1 * (rij)^(-\alpha_2) * exp(-\alpha_3 * (rij)^(\alpha_4))$$
+                $$ h(rij) = alpha_1 * (rij)^(-alpha_2) * exp(-alpha_3 * (rij)^(alpha_4))$$
 
         Parameters
         ----------
@@ -108,7 +108,7 @@ class HoppingFormula(BaseHopping):
             The parameters for computing varTang96's type hopping integrals, the first dimension should have the 
             same length of the bond index vector, while the last dimenion if 4, which is the number of parameters
             for each varTang96's type formula.
-        rcut : torch.Tensor, optional
+        rs : torch.Tensor, optional
             cut-off by half at which value, by default torch.tensor(6)
         w : torch.Tensor, optional
             the decay factor, the larger the smoother, by default 0.1
@@ -120,15 +120,14 @@ class HoppingFormula(BaseHopping):
         """
         
         rij = rij.reshape(-1)
-        assert paraArray.shape[-1] == 4 and paraArray.shape[0] == len(rij), 'paraArray should be a 2d tensor with the last dimenion if 4, which is the number of parameters for each varTang96\'s type formula.'
+        assert paraArray.shape[-1] == 4 and paraArray.shape[0] == len(rij), 'paraArray should be a 3d tensor with the last dimenion if 4, which is the number of parameters for each varTang96\'s type formula.'
         alpha1, alpha2, alpha3, alpha4 = paraArray[..., 0], paraArray[..., 1].abs(), paraArray[..., 2].abs(), paraArray[..., 3].abs()
         shape = [-1]+[1] * (len(alpha1.shape)-1)
         rij = rij.reshape(shape)
         return alpha1 * rij**(-alpha2) * torch.exp(-alpha3 * rij**alpha4)/(1+torch.exp((rij-rs)/w))
 
     def powerlaw(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
-        """> This function calculates the value of the variational form of Tang et al 1996. without the
-        environment dependent
+        """> This function calculates SK integrals without the environment dependence of the form of powerlaw
 
                 $$ h(rij) = alpha_1 * (rij / r_ij0)^(lambda + alpha_2) $$
         """

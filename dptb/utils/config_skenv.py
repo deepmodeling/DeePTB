@@ -39,7 +39,8 @@ TrainFullConfigSKEnv= {
         "validation_freq": 10,
         "display_freq": 100,
         "ref_batch_size": 1,
-        "val_batch_size": 1
+        "val_batch_size": 1,
+        "max_ckpt":4
     },
     "model_options": {
         "embedding": {
@@ -72,7 +73,7 @@ TrainFullConfigSKEnv= {
             },
             "freeze": True,
             "std": 0.01,
-            "push": None
+            "push": False
         }
     },
     "data_options": {

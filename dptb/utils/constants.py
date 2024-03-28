@@ -5,6 +5,8 @@ import torch
 
 anglrMId = {'s':0,'p':1,'d':2,'f':3,'g':4,'h':5}
 orbitalId = {0:'s',1:'p',2:'d',3:'f',4:'g',5:'h'}
+anglrMId_r = {0:'s',1:'p',2:"d",3:"f",4:"g",5:"h"}
+
 SKBondType = {0:'sigma',1:'pi',2:'delta'}
 au2Ang = 0.529177249
 Bohr2Ang = 0.529177249
@@ -28,6 +30,9 @@ Orbital_Order_Wan_Default = { 's': ['s'],
 Orbital_Order_SK = {'s': ['s'],
                     'p': ['py','pz','px'],
                     'd': ['dxy','dyz','dz2','dxz','dx2-y2']}
+
+m_dict = {"s": 0, "py": -1, "pz": 0, "px": 1, "dxy": -2, "dyz": -1, "dz2": 0, "dxz": 1, "dx2-y2": 2}
+
 
 ABACUS_orbital_number_m = {
     "s": [0],

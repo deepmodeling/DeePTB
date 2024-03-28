@@ -4,10 +4,11 @@ on:
   pull_request:
     paths-ignore:
       - 'docs/**'
-
+      - '.github/workflows/devcontainer.yml'
+      
 jobs: 
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       output1: ${{ steps.s1.outputs.test }}
       output2: ${{ steps.s2.outputs.test }}
@@ -16,7 +17,7 @@ jobs:
     steps: 
       - name: Checkout
         id: s1
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: "refs/pull/${{ github.event.number }}/merge"
@@ -27,7 +28,7 @@ jobs:
           
           
   job2:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: build
     steps:
       - env:

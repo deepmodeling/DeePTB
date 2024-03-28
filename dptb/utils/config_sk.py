@@ -39,7 +39,8 @@ TrainFullConfigSK={
         "validation_freq": 10,
         "display_freq": 100,
         "ref_batch_size": 1,
-        "val_batch_size": 1
+        "val_batch_size": 1,
+        "max_ckpt":4
     },
     "model_options": {
         "nnsk": {
@@ -55,7 +56,7 @@ TrainFullConfigSK={
             },
             "freeze": False,
             "std": 0.01,
-            "push": None or {"w_thr": 0.0,"period": 1,"rs_thr": 0.0,"rc_thr": 0.0},
+            "push": False or {"w_thr": 0.0,"period": 1,"rs_thr": 0.0,"rc_thr": 0.0},
         }
     },
     "data_options": {

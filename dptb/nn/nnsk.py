@@ -30,7 +30,7 @@ class NNSK(torch.nn.Module):
             device: Union[str, torch.device] = torch.device("cpu"),
             transform: bool = True,
             freeze: bool = False,
-            push: Dict=None,
+            push: Union[bool,dict]=False,
             std: float = 0.01,
             **kwargs,
             ) -> None:
@@ -62,7 +62,8 @@ class NNSK(torch.nn.Module):
                 "onsite": onsite, 
                 "hopping": hopping,
                 "freeze": freeze,
-                "push": push,                
+                "push": push,
+                "std": std                
                 }
             }
         
@@ -178,7 +179,7 @@ class NNSK(torch.nn.Module):
         #         reflect_params[:,self.idp_sk.pair_maps[k],:] += params[:,self.idp_sk.pair_maps[k_r],:]
         #     self.strain_param.data = reflect_params + params
 
-        if self.push is not None:
+        if self.push is not None and self.push is not False:
             if abs(self.push.get("rs_thr")) + abs(self.push.get("rc_thr")) + abs(self.push.get("w_thr")) > 0:
                 self.push_decay(**self.push)
 
@@ -207,14 +208,14 @@ class NNSK(torch.nn.Module):
         # edge_index = self.idp_sk.transform_reduced_bond(*edge_number)
         edge_index = data[AtomicDataDict.EDGE_TYPE_KEY].flatten() # it is bond_type index, transform it to reduced bond index
         edge_number = self.idp_sk.untransform_bond(edge_index).T
-        edge_index = self.idp_sk.transform_bond(*edge_number)
+        # edge_index = self.idp_sk.transform_bond(*edge_number)
 
         # the edge number is the atomic number of the two atoms in the bond.
         # The bond length list is actually the nucli radius (unit of angstrom) at the atomic number.
         # now this bond length list is only available for the first 83 elements.
-        assert (edge_number <= 83).all(), "The bond length list is only available for the first 83 elements."
-        
+        # assert (edge_number <= 83).all(), "The bond length list is only available for the first 83 elements."
         r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number-1].sum(0)
+        assert (r0 > 0).all(), "The bond length list is only available for atomic numbers < 84 and excluding the lanthanides."
 
         data[AtomicDataDict.EDGE_FEATURES_KEY] = self.hopping_fn.get_skhij(
             rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
@@ -243,7 +244,7 @@ class NNSK(torch.nn.Module):
 
         atomic_numbers = self.idp_sk.untransform_atom(data[AtomicDataDict.ATOM_TYPE_KEY].flatten())
         if self.onsite_fn.functype == "NRL":
-            data = AtomicDataDict.with_env_vectors(data, with_lengths=True)
+            data = AtomicDataDict.with_onsitenv_vectors(data, with_lengths=True)
             data[AtomicDataDict.NODE_FEATURES_KEY] = self.onsite_fn.get_skEs(
                 # atomic_numbers=data[AtomicDataDict.ATOMIC_NUMBERS_KEY],
                 atomic_numbers=atomic_numbers,
@@ -275,7 +276,7 @@ class NNSK(torch.nn.Module):
             #     reflect_params], dim=0)
             
             r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[onsitenv_number-1].sum(0)
-            assert (edge_number <= 83).all(), "The bond length list is only available for the first 83 elements."
+            assert (r0 > 0).all(), "The bond length list is only available for atomic numbers < 84 and excluding the lanthanides."
             onsitenv_params = self.hopping_fn.get_skhij(
             rij=data[AtomicDataDict.ONSITENV_LENGTH_KEY],
             paraArray=self.strain_param[onsitenv_index], # [N_edge, n_pairs, n_paras],
@@ -304,7 +305,7 @@ class NNSK(torch.nn.Module):
         dtype: Union[str, torch.dtype]=None, 
         device: Union[str, torch.device]=None,
         push: Dict=None,
-        freeze: bool = None,
+        freeze: bool = False,
         std: float = 0.01,
         **kwargs,
         ):
@@ -331,7 +332,8 @@ class NNSK(torch.nn.Module):
             for k,v in common_options.items():
                 assert v is not None, f"You need to provide {k} when you are initializing a model from a json file."
             for k,v in nnsk.items():
-                assert v is not None, f"You need to provide {k} when you are initializing a model from a json file."
+                if k != 'push':
+                    assert v is not None, f"You need to provide {k} when you are initializing a model from a json file."
 
             v1_model = j_loader(checkpoint)
             model = cls._from_model_v1(
@@ -348,7 +350,7 @@ class NNSK(torch.nn.Module):
                 if v is None:
                     common_options[k] = f["config"]["common_options"][k]
             for k,v in nnsk.items():
-                if v is None:
+                if v is None and k != "push" :
                     nnsk[k] = f["config"]["model_options"]["nnsk"][k]
 
             model = cls(**common_options, **nnsk)
@@ -457,6 +459,9 @@ class NNSK(torch.nn.Module):
         dtype: Union[str, torch.dtype] = torch.float32, 
         device: Union[str, torch.device] = torch.device("cpu"),
         std: float = 0.01,
+        freeze: bool = False,
+        push: Union[bool,None,dict] = False,
+        **kwargs
         ):
         # could support json file and .pth file checkpoint of nnsk
 
@@ -476,7 +481,8 @@ class NNSK(torch.nn.Module):
         idp_sk.get_orbpair_maps()
         idp_sk.get_skonsite_maps()
 
-        nnsk_model = cls(basis=basis, idp_sk=idp_sk, dtype=dtype, device=device, onsite=onsite, hopping=hopping, overlap=overlap, std=std)
+        nnsk_model = cls(basis=basis, idp_sk=idp_sk,  onsite=onsite,
+                          hopping=hopping, overlap=overlap, std=std,freeze=freeze, push=push, dtype=dtype, device=device,)
 
         onsite_param = v1_model["onsite"]
         hopping_param = v1_model["hopping"]
