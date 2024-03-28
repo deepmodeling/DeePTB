@@ -82,12 +82,15 @@ def data(
         os.mkdir(os.path.join(dataset_dir, "val"))
 
         for id in tqdm(train_indices, desc="Copying files to training sets..."):
+            print("cp " + filenames[id] + " " + os.path.join(dataset_dir, "train")+" -r")
             os.system("cp " + filenames[id] + " " + os.path.join(dataset_dir, "train")+" -r")
         
         for id in tqdm(val_indices, desc="Copying files to validation sets..."):
+            print("cp " + filenames[id] + " " + os.path.join(dataset_dir, "val")+" -r")
             os.system("cp " + filenames[id] + " " + os.path.join(dataset_dir, "val")+" -r")
 
         if n_test > 0:
             os.mkdir(os.path.join(dataset_dir, "test"))
             for id in tqdm(test_indices, desc="Copying files to testing sets..."):
+                print("cp " + filenames[id] + " " + os.path.join(dataset_dir, "test")+" -r")
                 os.system("cp " + filenames[id] + " " + os.path.join(dataset_dir, "test")+" -r")
