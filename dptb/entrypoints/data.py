@@ -6,6 +6,7 @@ import glob
 from tqdm import tqdm
 from dptb.utils.argcheck import normalize
 from dptb.data.interfaces.abacus import recursive_parse
+from dptb.utils.tools import setup_seed
 
 def data(
         INPUT: str,
@@ -52,6 +53,9 @@ def data(
         #    "test_ratio": 0.2,
         #    "val_ratio": 0.2 
         # }
+
+        # setup seed
+        setup_seed(seed=jdata.get("seed", 1021312))
 
         dataset_dir = jdata.get("dataset_dir")
         filenames = list(glob.glob(os.path.join(dataset_dir, jdata.get("prefix")+"*")))
