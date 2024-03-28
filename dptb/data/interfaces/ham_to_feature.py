@@ -6,7 +6,7 @@ import re
 import e3nn.o3 as o3
 import h5py
 import logging
-from dptb.utils.constants import anglrMId
+from dptb.utils.constants import anglrMId, OPENMX2DeePTB
 
 log = logging.getLogger(__name__)
 
@@ -121,12 +121,7 @@ def ham_block_to_feature(data, idp, Hamiltonian_blocks=False, overlap_blocks=Fal
 
 def openmx_to_deeptb(data, idp, openmx_hpath):
     # Hamiltonian_blocks should be a h5 group in the current version
-    Us_openmx2wiki = {
-            "s": torch.eye(1).double(),
-            "p": torch.eye(3)[[1, 2, 0]].double(),
-            "d": torch.eye(5)[[2, 4, 0, 3, 1]].double(),
-            "f": torch.eye(7)[[6, 4, 2, 0, 1, 3, 5]].double()
-        }
+    Us_openmx2wiki = OPENMX2DeePTB
     # init_rot_mat
     rot_blocks = {}
     for asym, orbs in idp.basis.items():

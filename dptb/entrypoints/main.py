@@ -318,6 +318,20 @@ def main_parser() -> argparse.ArgumentParser:
         default=None
     )
 
+    parser_data.add_argument(
+        "-p",
+        "--parse",
+        action="store_true",
+        help="Initialize the training from the frozen model.",
+    )
+
+    parser_data.add_argument(
+        "-s",
+        "--split",
+        action="store_true",
+        help="Initialize the training from the frozen model.",
+    )
+
     return parser
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
