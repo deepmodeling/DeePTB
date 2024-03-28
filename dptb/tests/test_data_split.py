@@ -18,12 +18,12 @@ def test_data_split(root_directory):
 
     assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/train/frame.1")
     assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/train/frame.2")
-    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/train/frame.3")
+    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/train/frame.0")
     assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/train/frame.4")
 
-    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/test/frame.0")
-    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/test/frame.6")
+    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/test/frame.3")
+    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/test/frame.5")
 
-    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/val/frame.5")
+    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/val/frame.6")
 
 
