@@ -624,7 +624,7 @@ class NNSK(torch.nn.Module):
     def to_json(self,version=2):
         ckpt = {}
         # load hopping params
-        hopping = self.hopping_param.data.cpu().numpy()
+        hopping = self.hopping_param.data.cpu().clone().numpy()
         if version == 1:
             hopping[:,:,0] /= 13.605662285137 * 2
             ckpt['unit'] = 'Hartree'
@@ -685,8 +685,9 @@ class NNSK(torch.nn.Module):
                             raise ValueError("The atomic number should be the same or different.")
         
         if hasattr(self, "strain_param"):
-            strain = self.strain_param.data.cpu().numpy()
-            strain[:,:,0] /= 13.605662285137 * 2
+            strain = self.strain_param.data.cpu().clone().numpy()
+            if version == 1:
+                strain[:,:,0] /= 13.605662285137 * 2
             onsite_param = {}
             for bt in self.idp_sk.bond_types:
                 iasym, jasym = bt.split("-")
@@ -701,13 +702,16 @@ class NNSK(torch.nn.Module):
 
         # onsite need more test and work
         elif hasattr(self, "onsite_param") and self.onsite_param is not None:
+            onsite =self.onsite_param.data.cpu().clone().numpy()
+            if version == 1:
+                onsite[:,:,0] /= 13.605662285137 * 2
             onsite_param = {}
             for asym in self.idp_sk.type_names:
                 for iorb, slices in self.idp_sk.skonsite_maps.items():
                     orb = self.idp_sk.full_basis_to_basis[asym][iorb]
                     for i in range(slices.start, slices.stop): 
                         ind = i-slices.start      
-                        onsite_param[f"{asym}-{orb}-{ind}"] = (self.onsite_param[self.idp_sk.chemical_symbol_to_type[asym], i]/(13.605662285137 * 2)).tolist()
+                        onsite_param[f"{asym}-{orb}-{ind}"] = (onsite[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
         else:
             onsite_param = {}
         

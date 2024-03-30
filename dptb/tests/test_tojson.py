@@ -37,7 +37,8 @@ class TestV1Jsonuniform:
     }
 
     model = build_model(run_opt, model_option, common_options)
-    v1json = model.to_model_v1()
+    v1json = model.to_json(version=1)
+    v2json = model.to_json()
     with open(run_opt['init_model'], 'r') as f:
         ckpt = json.load(f)
         
@@ -55,7 +56,37 @@ class TestV1Jsonuniform:
             assert key in self.v1json['onsite']
             assert (np.isclose(val, self.v1json['onsite'][key], atol=1e-6)).all()
 
-class TestV1Jsonstrain:
+    def test_hopping_v2(self):
+        assert "common_options" in self.v2json
+        assert "model_option" in self.v2json
+        assert 'model_params' in self.v2json
+
+        assert 'hopping' in self.v2json['model_params']
+
+        assert len(self.v2json['model_params']['hopping']) == len(self.ckpt['hopping'])
+        for key,val in self.ckpt['hopping'].items():
+            assert key in self.v2json['model_params']['hopping']
+            val_tmp = np.array(val)
+            v2tmp = np.array(self.v2json['model_params']['hopping'][key])
+            val_tmp[0] *= 13.605662285137 * 2
+            assert (np.isclose(val_tmp, self.v2json['model_params']['hopping'][key], atol=1e-6)).all()
+
+    def test_onsite_v2(self):
+
+        assert 'model_params' in self.v2json
+        assert 'onsite' in self.v2json['model_params']
+
+        assert len(self.v2json['model_params']['onsite']) == len(self.ckpt['onsite'])
+        for key,val in self.ckpt['onsite'].items():
+            val_tmp = np.array(val)
+            v2tmp = np.array(self.v2json['model_params']['onsite'][key])
+            val_tmp[0] *= 13.605662285137 * 2
+            assert key in self.v2json['model_params']['onsite']
+            assert (np.isclose(val_tmp, self.v2json['model_params']['onsite'][key], atol=1e-6)).all()
+
+
+
+class Test2Jsonstrain:
     run_opt = {
             "init_model": f"{rootdir}/json_model/Si_v1_nnsk_b2.600_c2.600_w0.300.json",
             "restart": None,
@@ -83,20 +114,55 @@ class TestV1Jsonstrain:
     }
 
     model = build_model(run_opt, model_option, common_options)
-    v1json = model.to_model_v1()
+    v1json = model.to_json(version=1)
+    v2json = model.to_json()
+
     with open(run_opt['init_model'], 'r') as f:
         ckpt = json.load(f)
-        
-    def test_hopping(self):
+    
+    def test_hopping_v1(self):
         assert 'hopping' in self.v1json
         assert len(self.v1json['hopping']) == len(self.ckpt['hopping'])
         for key,val in self.ckpt['hopping'].items():
             assert key in self.v1json['hopping']
             assert (np.isclose(val, self.v1json['hopping'][key], atol=1e-6)).all()
     
-    def test_onsite(self):
+    def test_onsite_v1(self):
         assert 'onsite' in self.v1json
         assert len(self.v1json['onsite']) == len(self.ckpt['onsite'])
         for key,val in self.ckpt['onsite'].items():
             assert key in self.v1json['onsite']
             assert (np.isclose(val, self.v1json['onsite'][key], atol=1e-6)).all()
+
+    def test_hopping_v2(self):
+        assert "common_options" in self.v2json
+        assert "model_option" in self.v2json
+        assert 'model_params' in self.v2json
+
+        assert 'hopping' in self.v2json['model_params']
+
+        assert len(self.v2json['model_params']['hopping']) == len(self.ckpt['hopping'])
+        for key,val in self.ckpt['hopping'].items():
+            assert key in self.v2json['model_params']['hopping']
+            val_tmp = np.array(val)
+            v2tmp = np.array(self.v2json['model_params']['hopping'][key])
+            val_tmp[0] *= 13.605662285137 * 2
+            assert (np.isclose(val_tmp, self.v2json['model_params']['hopping'][key], atol=1e-6)).all()
+
+
+    def test_onsite_v2(self):
+
+        assert 'model_params' in self.v2json
+        assert 'onsite' in self.v2json['model_params']
+
+        assert len(self.v2json['model_params']['onsite']) == len(self.ckpt['onsite'])
+        for key,val in self.ckpt['onsite'].items():
+            val_tmp = np.array(val)
+            v2tmp = np.array(self.v2json['model_params']['onsite'][key])
+            val_tmp[0] *= 13.605662285137 * 2
+            assert key in self.v2json['model_params']['onsite']
+            assert (np.isclose(val_tmp, self.v2json['model_params']['onsite'][key], atol=1e-6)).all()
+
+
+
+    
