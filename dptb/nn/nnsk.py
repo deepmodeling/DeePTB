@@ -383,7 +383,11 @@ class NNSK(torch.nn.Module):
                     overlap_param = None
 
             if ckpt_version ==1:
-                v1_model = json_model
+                v1_model = {
+                    "unit": ene_unit,
+                    "onsite": json_model["onsite"],
+                    "hopping": json_model["hopping"],
+                    "overlap": overlap_param}
             else:
                 v1_model = {
                     "unit": ene_unit,
