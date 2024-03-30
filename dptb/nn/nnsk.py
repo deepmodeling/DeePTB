@@ -709,14 +709,14 @@ class NNSK(torch.nn.Module):
         
         if overlap:
             model_params = {
-                "hopping": hopping_param,
                 "onsite": onsite_param,
+                "hopping": hopping_param,
                 "overlap": None
             }
         else:
             model_params = {
-                "hopping": hopping_param,
-                "onsite": onsite_param
+                "onsite": onsite_param,
+                "hopping": hopping_param
             }
 
         if version ==1:
