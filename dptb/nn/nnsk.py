@@ -16,6 +16,9 @@ from .sktb import OnsiteFormula, bond_length_list, HoppingFormula
 from dptb.utils.constants import atomic_num_dict_r, atomic_num_dict
 from dptb.nn.hamiltonian import SKHamiltonian
 from dptb.utils.tools import j_loader
+import logging
+
+log = logging.getLogger(__name__)
 
 class NNSK(torch.nn.Module):
     name = "nnsk"
@@ -329,13 +332,65 @@ class NNSK(torch.nn.Module):
 
 
         if checkpoint.split(".")[-1] == "json":
-            for k,v in common_options.items():
-                assert v is not None, f"You need to provide {k} when you are initializing a model from a json file."
-            for k,v in nnsk.items():
-                if k != 'push':
-                    assert v is not None, f"You need to provide {k} when you are initializing a model from a json file."
+            json_model = j_loader(checkpoint)
 
-            v1_model = j_loader(checkpoint)
+            if json_model.get("model_options", None) is None and json_model.get("common_options", None) is None:
+                log.info("The json model file doesnot contain the model_options and common_options. We suppose you are using the v1 version of the model.")
+                ckpt_version = 1
+            elif json_model.get("model_params", None) is not None:
+                ckpt_version = 2
+            else:
+                raise ValueError("The format of this json model is not correct!")
+
+            for k,v in common_options.items():
+                if v is  None:
+                    if json_model.get("common_options",{}).get(k, None) is  None:
+                        raise ValueError(f"{k} is not provided in both the json model file and the input json.")     
+                    else:
+                        common_options[k] = json_model["common_options"][k]
+                        log.info(f"{k} is not provided in the input json, set to the value {common_options[k]} in the json model file.")
+            
+            for k,v in nnsk.items():
+                if k != 'push' and v is None:
+                    if json_model.get("model_options",{}).get("nnsk",{}).get(k, None) is  None:
+                        raise ValueError(f"{k} is not provided in both the json model file and the input json.")
+                    else:
+                        nnsk[k] = json_model["model_options"]["nnsk"][k]
+                        log.info(f"{k} is not provided in the input json, set to the value {nnsk[k]}in the json model file.")
+
+            if json_model.get("unit", None) is None:
+                if ckpt_version == 1:
+                    ene_unit = "Hartree"
+                    log.info('The unit is not provided in the json model file, since this is v1 version model, the default unit is Hartree.')
+                    common_options["unit"] = "eV"
+                elif ckpt_version == 2:
+                    ene_unit = "eV"
+                    log.warning("The unit is not provided in the json model file, the default unit is eV.")
+                else:
+                    raise ValueError("The version of the model is not supported.")
+            
+            if common_options['overlap']:
+                if json_model.get("model_params",{}).get("overlap", None) is None:
+                    log.error("The overlap parameters are not provided in the json model file, but the input is set to True.")
+                    raise ValueError("The overlap parameters are not provided in the json model file, but the input is set to True.")
+                else:
+                    overlap_param = json_model["model_params"]["overlap"]
+            else:
+                if json_model.get("model_params",{}).get("overlap", None) is not None:
+                    log.error("The overlap parameters are provided in the json model file, but the input is set to False.")
+                    raise ValueError("The overlap parameters are provided in the json model file, but the input is set to False.")
+                else:
+                    overlap_param = None
+
+            if ckpt_version ==1:
+                v1_model = json_model
+            else:
+                v1_model = {
+                    "unit": ene_unit,
+                    "onsite": json_model["model_params"]["onsite"],
+                    "hopping": json_model["model_params"]["hopping"],
+                    "overlap": overlap_param}
+            
             model = cls._from_model_v1(
                 v1_model=v1_model,
                 **nnsk,
@@ -349,9 +404,11 @@ class NNSK(torch.nn.Module):
             for k,v in common_options.items():
                 if v is None:
                     common_options[k] = f["config"]["common_options"][k]
+                    log.info(f"{k} is not provided in the input json, set to the value {common_options[k]} in model ckpt.")
             for k,v in nnsk.items():
                 if v is None and k != "push" :
                     nnsk[k] = f["config"]["model_options"]["nnsk"][k]
+                    log.info(f"{k} is not provided in the input json, set to the value {nnsk[k]} in model ckpt.")
 
             model = cls(**common_options, **nnsk)
 
@@ -486,13 +543,19 @@ class NNSK(torch.nn.Module):
 
         onsite_param = v1_model["onsite"]
         hopping_param = v1_model["hopping"]
+        if overlap:
+            overlap_param = v1_model["overlap"]
+
+        ene_unit = v1_model["unit"]
 
         assert len(hopping) > 0, "The hopping parameters should be provided."
+
 
         # load hopping params
         for orbpair, skparam in hopping_param.items():
             skparam = torch.tensor(skparam, dtype=dtype, device=device)
-            skparam[0] *= 13.605662285137 * 2
+            if ene_unit == "Hartree":
+                skparam[0] *= 13.605662285137 * 2
             iasym, jasym, iorb, jorb, num = list(orbpair.split("-"))
             num = int(num)
             ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
@@ -515,7 +578,8 @@ class NNSK(torch.nn.Module):
         if onsite["method"] == "strain":
             for orbpair, skparam in onsite_param.items():
                 skparam = torch.tensor(skparam, dtype=dtype, device=device)
-                skparam[0] *= 13.605662285137 * 2
+                if ene_unit == "Hartree":
+                    skparam[0] *= 13.605662285137 * 2
                 iasym, jasym, iorb, jorb, num = list(orbpair.split("-"))
                 num = int(num)
                 ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
@@ -539,7 +603,8 @@ class NNSK(torch.nn.Module):
         else:
             for orbon, skparam in onsite_param.items():
                 skparam = torch.tensor(skparam, dtype=dtype, device=device)
-                skparam *= 13.605662285137 * 2
+                if ene_unit == "Hartree":
+                    skparam *= 13.605662285137 * 2
                 iasym, iorb, num = list(orbon.split("-"))
                 num = int(num)
                 ian = torch.tensor(atomic_num_dict[iasym])
@@ -552,13 +617,38 @@ class NNSK(torch.nn.Module):
 
         return nnsk_model
     
-    def to_model_v1(self):
+    def to_json(self,version=2):
+        ckpt = {}
         # load hopping params
         hopping = self.hopping_param.data.cpu().numpy()
-        hopping[:,:,0] /= 13.605662285137 * 2
+        if version == 1:
+            hopping[:,:,0] /= 13.605662285137 * 2
+            ckpt['unit'] = 'Hartree'
+        elif version == 2:
+            ckpt['unit'] = 'eV'
+        else:
+            raise ValueError("The version of the model is not supported.")
+        
         hopping_param = {}
         basis = self.idp_sk.basis
-        
+
+        if isinstance(self.dtype, str):
+            dtype = self.dtype
+        else:
+            dtype = self.dtype.__str__().split('.')[-1]
+        overlap = hasattr(self, "overlap_param")
+        common_options = {
+            "basis": basis,
+            "dtype": dtype,
+            "device": self.device,
+            "overlap": overlap,
+        }
+
+        if version ==2:
+            ckpt.update({"model_option": self.model_options, 
+                        "common_options": common_options})
+
+
         for bt in self.idp_sk.bond_types:
             iasym, jasym = bt.split("-")
             ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
@@ -616,8 +706,27 @@ class NNSK(torch.nn.Module):
                         onsite_param[f"{asym}-{orb}-{ind}"] = (self.onsite_param[self.idp_sk.chemical_symbol_to_type[asym], i]/(13.605662285137 * 2)).tolist()
         else:
             onsite_param = {}
+        
+        if overlap:
+            model_params = {
+                "hopping": hopping_param,
+                "onsite": onsite_param,
+                "overlap": None
+            }
+        else:
+            model_params = {
+                "hopping": hopping_param,
+                "onsite": onsite_param
+            }
 
-        return {"onsite": onsite_param, "hopping": hopping_param}
+        if version ==1:
+            ckpt.update(model_params)
+        elif version == 2:
+            ckpt.update({"model_params": model_params})
+        else:
+            raise ValueError("The version of the model is not supported.")
+        
+        return ckpt
         
 
 
