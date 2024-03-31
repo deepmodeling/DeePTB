@@ -370,7 +370,7 @@ class NNSK(torch.nn.Module):
                     raise ValueError("The version of the model is not supported.")
             else:
                 ene_unit = json_model["unit"]
-                
+
             if common_options['overlap']:
                 if json_model.get("model_params",{}).get("overlap", None) is None:
                     log.error("The overlap parameters are not provided in the json model file, but the input is set to True.")
@@ -580,6 +580,29 @@ class NNSK(torch.nn.Module):
                 nline = idp_sk.transform_bond(iatomic_numbers=jan, jatomic_numbers=ian)
                 nnsk_model.hopping_param.data[nline, nidx] = skparam
         
+        if overlap:
+            for orbpair, skparam in overlap_param.items():
+                skparam = torch.tensor(skparam, dtype=dtype, device=device)
+                if ene_unit == "Hartree":
+                    skparam[0] *= 13.605662285137 * 2
+                iasym, jasym, iorb, jorb, num = list(orbpair.split("-"))
+                num = int(num)
+                ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
+                fiorb, fjorb = idp_sk.basis_to_full_basis[iasym][iorb], idp_sk.basis_to_full_basis[jasym][jorb]
+
+
+                if idp_sk.full_basis.index(fiorb) <= idp_sk.full_basis.index(fjorb):
+                    nline = idp_sk.transform_bond(iatomic_numbers=ian, jatomic_numbers=jan)
+                    nidx = idp_sk.orbpair_maps[f"{fiorb}-{fjorb}"].start + num
+                else:
+                    nline = idp_sk.transform_bond(iatomic_numbers=jan, jatomic_numbers=ian)
+                    nidx = idp_sk.orbpair_maps[f"{fjorb}-{fiorb}"].start + num
+
+                nnsk_model.overlap_param.data[nline, nidx] = skparam
+                if ian != jan and fiorb == fjorb:
+                    nline = idp_sk.transform_bond(iatomic_numbers=jan, jatomic_numbers=ian)
+                    nnsk_model.overlap_param.data[nline, nidx] = skparam
+
         # load onsite params, differently with onsite mode
         if onsite["method"] == "strain":
             for orbpair, skparam in onsite_param.items():
@@ -642,12 +665,12 @@ class NNSK(torch.nn.Module):
             dtype = self.dtype
         else:
             dtype = self.dtype.__str__().split('.')[-1]
-        overlap = hasattr(self, "overlap_param")
+        is_overlap = hasattr(self, "overlap_param")
         common_options = {
             "basis": basis,
             "dtype": dtype,
             "device": self.device,
-            "overlap": overlap,
+            "overlap": is_overlap,
         }
 
         if version ==2:
@@ -686,6 +709,38 @@ class NNSK(torch.nn.Module):
                         else:
                             raise ValueError("The atomic number should be the same or different.")
         
+        if is_overlap:
+            overlap_param={}
+            overlap = self.overlap_param.data.cpu().clone().numpy()
+            for bt in self.idp_sk.bond_types:
+                iasym, jasym = bt.split("-")
+                ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
+                pos_line = self.idp_sk.transform_bond(ian, jan)
+                rev_line = self.idp_sk.transform_bond(jan, ian)
+                for orbpair, slices in self.idp_sk.orbpair_maps.items():
+                    fiorb, fjorb = orbpair.split("-")
+                    iorb = self.idp_sk.full_basis_to_basis[iasym].get(fiorb)
+                    jorb = self.idp_sk.full_basis_to_basis[jasym].get(fjorb)
+                    if iorb != None and jorb != None:
+                        # iasym-jasym-iorb-jorb
+                        for i in range(slices.stop-slices.start):
+                            if ian < jan:
+                                continue
+                            elif ian > jan:
+                                if fiorb == fjorb: # this might have problems
+                                    overlap_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = ((overlap[pos_line, slices][i] + overlap[rev_line, slices][i])*0.5).tolist()
+                                else:
+                                    overlap_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = overlap[pos_line, slices][i].tolist()
+                                    iiorb = self.idp_sk.full_basis_to_basis[iasym].get(fjorb)
+                                    jjorb = self.idp_sk.full_basis_to_basis[jasym].get(fiorb)
+
+                                    overlap_param[f"{iasym}-{jasym}-{iiorb}-{jjorb}-{i}"] = overlap[rev_line, slices][i].tolist()
+                            elif ian == jan:
+                                if self.idp_sk.full_basis.index(fiorb) <= self.idp_sk.full_basis.index(fjorb):
+                                    overlap_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = overlap[pos_line, slices][i].tolist()
+                            else:
+                                raise ValueError("The atomic number should be the same or different.")            
+
         if hasattr(self, "strain_param"):
             strain = self.strain_param.data.cpu().clone().numpy()
             if version == 1:
@@ -717,11 +772,11 @@ class NNSK(torch.nn.Module):
         else:
             onsite_param = {}
         
-        if overlap:
+        if is_overlap:
             model_params = {
                 "onsite": onsite_param,
                 "hopping": hopping_param,
-                "overlap": None
+                "overlap": overlap_param
             }
         else:
             model_params = {
