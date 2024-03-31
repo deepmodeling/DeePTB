@@ -58,7 +58,7 @@ class TestV1Jsonuniform:
 
     def test_hopping_v2(self):
         assert "common_options" in self.v2json
-        assert "model_option" in self.v2json
+        assert "model_options" in self.v2json
         assert 'model_params' in self.v2json
 
         assert 'hopping' in self.v2json['model_params']
@@ -136,7 +136,7 @@ class Test2Jsonstrain:
 
     def test_hopping_v2(self):
         assert "common_options" in self.v2json
-        assert "model_option" in self.v2json
+        assert "model_options" in self.v2json
         assert 'model_params' in self.v2json
 
         assert 'hopping' in self.v2json['model_params']
