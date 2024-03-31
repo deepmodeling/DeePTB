@@ -368,7 +368,9 @@ class NNSK(torch.nn.Module):
                     log.warning("The unit is not provided in the json model file, the default unit is eV.")
                 else:
                     raise ValueError("The version of the model is not supported.")
-            
+            else:
+                ene_unit = json_model["unit"]
+                
             if common_options['overlap']:
                 if json_model.get("model_params",{}).get("overlap", None) is None:
                     log.error("The overlap parameters are not provided in the json model file, but the input is set to True.")
@@ -649,7 +651,7 @@ class NNSK(torch.nn.Module):
         }
 
         if version ==2:
-            ckpt.update({"model_option": self.model_options, 
+            ckpt.update({"model_options": self.model_options, 
                         "common_options": common_options})
 
 
