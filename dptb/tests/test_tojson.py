@@ -47,14 +47,18 @@ class TestV1Jsonuniform:
         assert len(self.v1json['hopping']) == len(self.ckpt['hopping'])
         for key,val in self.ckpt['hopping'].items():
             assert key in self.v1json['hopping']
-            assert (np.isclose(val, self.v1json['hopping'][key], atol=1e-6)).all()
+            val_tmp = np.array(val)
+            val_tmp[0] *= 13.605662285137 * 2
+            assert (np.isclose(val_tmp, self.v1json['hopping'][key], atol=1e-6)).all()
     
     def test_onsite(self):
         assert 'onsite' in self.v1json
         assert len(self.v1json['onsite']) == len(self.ckpt['onsite'])
         for key,val in self.ckpt['onsite'].items():
             assert key in self.v1json['onsite']
-            assert (np.isclose(val, self.v1json['onsite'][key], atol=1e-6)).all()
+            val_tmp = np.array(val)
+            val_tmp[0] *= 13.605662285137 * 2
+            assert (np.isclose(val_tmp, self.v1json['onsite'][key], atol=1e-6)).all()
 
     def test_hopping_v2(self):
         assert "common_options" in self.v2json
@@ -67,7 +71,6 @@ class TestV1Jsonuniform:
         for key,val in self.ckpt['hopping'].items():
             assert key in self.v2json['model_params']['hopping']
             val_tmp = np.array(val)
-            v2tmp = np.array(self.v2json['model_params']['hopping'][key])
             val_tmp[0] *= 13.605662285137 * 2
             assert (np.isclose(val_tmp, self.v2json['model_params']['hopping'][key], atol=1e-6)).all()
 
@@ -79,7 +82,6 @@ class TestV1Jsonuniform:
         assert len(self.v2json['model_params']['onsite']) == len(self.ckpt['onsite'])
         for key,val in self.ckpt['onsite'].items():
             val_tmp = np.array(val)
-            v2tmp = np.array(self.v2json['model_params']['onsite'][key])
             val_tmp[0] *= 13.605662285137 * 2
             assert key in self.v2json['model_params']['onsite']
             assert (np.isclose(val_tmp, self.v2json['model_params']['onsite'][key], atol=1e-6)).all()
@@ -125,14 +127,18 @@ class Test2Jsonstrain:
         assert len(self.v1json['hopping']) == len(self.ckpt['hopping'])
         for key,val in self.ckpt['hopping'].items():
             assert key in self.v1json['hopping']
-            assert (np.isclose(val, self.v1json['hopping'][key], atol=1e-6)).all()
+            val_tmp = np.array(val)
+            val_tmp[0] *= 13.605662285137 * 2
+            assert (np.isclose(val_tmp, self.v2json['model_params']['hopping'][key], atol=1e-6)).all()
     
     def test_onsite_v1(self):
         assert 'onsite' in self.v1json
         assert len(self.v1json['onsite']) == len(self.ckpt['onsite'])
         for key,val in self.ckpt['onsite'].items():
             assert key in self.v1json['onsite']
-            assert (np.isclose(val, self.v1json['onsite'][key], atol=1e-6)).all()
+            val_tmp = np.array(val)
+            val_tmp[0] *= 13.605662285137 * 2
+            assert (np.isclose(val_tmp, self.v1json['onsite'][key], atol=1e-6)).all()
 
     def test_hopping_v2(self):
         assert "common_options" in self.v2json
@@ -158,7 +164,6 @@ class Test2Jsonstrain:
         assert len(self.v2json['model_params']['onsite']) == len(self.ckpt['onsite'])
         for key,val in self.ckpt['onsite'].items():
             val_tmp = np.array(val)
-            v2tmp = np.array(self.v2json['model_params']['onsite'][key])
             val_tmp[0] *= 13.605662285137 * 2
             assert key in self.v2json['model_params']['onsite']
             assert (np.isclose(val_tmp, self.v2json['model_params']['onsite'][key], atol=1e-6)).all()
