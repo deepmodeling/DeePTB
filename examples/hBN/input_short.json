@@ -1,59 +1,44 @@
 {
     "common_options": {
-        "onsitemode": "none",
-        "onsite_cutoff": 1.6,
-        "bond_cutoff": 1.6,
-        "env_cutoff": 3.5,
-        "atomtype": [
-            "N",
-            "B"
-        ],
-        "proj_atom_neles": {
-            "N": 5,
-            "B": 3
-        },
-        "proj_atom_anglr_m": {
-            "N": [
-                "2s",
-                "2p"
-            ],
-            "B": [
-                "2s",
-                "2p"
-            ]
-        }
+            "basis": {
+                "B": ["2s", "2p"],
+                "N": ["2s", "2p"]
+            },
+            "device": "cpu",
+            "dtype": "float32",
+            "overlap": false,
+            "seed": 42
     },
     "train_options": {
-        "seed":120478,
-        "num_epoch": 200,
-        "optimizer": {"lr":1e-2}
-    },
-    "data_options": {
-        "use_reference": true,
-        "train": {
-            "batch_size": 1,
-            "path": "./data",
-            "prefix": "kpath_sparse"
+        "num_epoch": 500,
+        "batch_size": 1,
+        "optimizer": {
+            "lr": 0.05,
+            "type": "Adam"
         },
-        "validation": {
-            "batch_size": 1,
-            "path": "./data",
-            "prefix": "kpath_sparse"
+        "lr_scheduler": {
+            "type": "exp",
+            "gamma": 0.999
         },
-        "reference": {
-            "batch_size": 1,
-            "path": "./data",
-            "prefix": "kpath_sparse"
-        }
+        "loss_options":{
+            "train": {"method": "eigvals"}
+        },
+        "save_freq": 100,
+        "validation_freq": 10,
+        "display_freq": 10
     },
     "model_options": {
-        "sknetwork": {
-            "sk_hop_nhidden": 1,
-            "sk_onsite_nhidden": 1
-        },
-        "skfunction": {
-            "sk_cutoff": 1.6,
-            "sk_decay_w": 0.3
+        "nnsk": {
+            "onsite": {"method": "none"},
+            "hopping": {"method": "powerlaw", "rs":1.6, "w": 0.3},
+            "freeze": false
+        }
+    },
+    "data_options": {
+        "train": {
+            "root": "./data/",
+            "prefix": "kpath",
+            "get_eigenvalues": true
         }
     }
 }

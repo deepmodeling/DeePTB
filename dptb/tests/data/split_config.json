@@ -1,0 +1,8 @@
+{
+    "dataset_dir": "./dptb/tests/data/fake_dataset",
+    "prefix": "frame",
+    "train_ratio": 0.6,
+    "test_ratio": 0.2,
+    "val_ratio": 0.2,
+    "seed": 1021312
+}

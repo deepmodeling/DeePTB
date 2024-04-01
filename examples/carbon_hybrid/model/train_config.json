@@ -1,0 +1,134 @@
+{
+    "common_options": {
+        "onsitemode": "strain",
+        "onsite_cutoff": 1.6,
+        "bond_cutoff": 1.6,
+        "env_cutoff": 3.5,
+        "atomtype": [
+            "C"
+        ],
+        "proj_atom_neles": {
+            "C": 4
+        },
+        "proj_atom_anglr_m": {
+            "C": [
+                "2s",
+                "2p",
+                "d*"
+            ]
+        },
+        "device": "cpu",
+        "dtype": "float32",
+        "sk_file_path": "./",
+        "time_symm": true,
+        "soc": false,
+        "overlap": false,
+        "unit": "Hartree"
+    },
+    "train_options": {
+        "seed": 120478,
+        "num_epoch": 8000,
+        "optimizer": {
+            "lr": 0.0001,
+            "type": "Adam",
+            "betas": [
+                0.9,
+                0.999
+            ],
+            "eps": 1e-08,
+            "weight_decay": 0,
+            "amsgrad": false
+        },
+        "lr_scheduler": {
+            "type": "exp",
+            "gamma": 0.999
+        },
+        "save_freq": 10,
+        "validation_freq": 10,
+        "display_freq": 1
+    },
+    "data_options": {
+        "use_reference": true,
+        "train": {
+            "batch_size": 1,
+            "path": "./data",
+            "prefix": "kpath"
+        },
+        "validation": {
+            "batch_size": 1,
+            "path": "./data",
+            "prefix": "kpath"
+        },
+        "reference": {
+            "batch_size": 1,
+            "path": "./data",
+            "prefix": "kpath"
+        }
+    },
+    "model_options": {
+        "sknetwork": {
+            "sk_hop_nhidden": 1,
+            "sk_onsite_nhidden": 1,
+            "sk_soc_nhidden": null
+        },
+        "skfunction": {
+            "sk_cutoff": 1.6,
+            "sk_decay_w": 0.3,
+            "skformula": "powerlaw"
+        },
+        "onsitefuncion": {
+            "onsite_func_cutoff": 6.0,
+            "onsite_func_decay_w": 0.5,
+            "onsite_func_lambda": 1.0
+        },
+        "dptb": {
+            "soc_env": false,
+            "axis_neuron": 10,
+            "onsite_net_neuron": [
+                128,
+                128,
+                256,
+                256
+            ],
+            "soc_net_neuron": [
+                128,
+                128,
+                256,
+                256
+            ],
+            "env_net_neuron": [
+                128,
+                128,
+                256,
+                256
+            ],
+            "hopping_net_neuron": [
+                128,
+                128,
+                256,
+                256
+            ],
+            "onsite_net_activation": "tanh",
+            "env_net_activation": "tanh",
+            "hopping_net_activation": "tanh",
+            "soc_net_activation": "tanh",
+            "onsite_net_type": "res",
+            "env_net_type": "res",
+            "hopping_net_type": "res",
+            "soc_net_type": "res",
+            "if_batch_normalized": false
+        }
+    },
+    "init_model": {
+        "path": "./finetune/checkpoint/best_dptb_b1.600_c1.600_w0.300.pth",
+        "interpolate": false
+    },
+    "loss_options": {
+        "losstype": "eigs_l2dsf",
+        "sortstrength": [
+            0.01,
+            0.01
+        ],
+        "nkratio": null
+    }
+}

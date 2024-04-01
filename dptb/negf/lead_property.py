@@ -92,6 +92,7 @@ class LeadProperty(object):
         
         '''
         assert len(np.array(kpoint).reshape(-1)) == 3
+        
         # according to given kpoint and e_mesh, calculating or loading the self energy and surface green function to self.
         if not isinstance(energy, torch.Tensor):
             energy = torch.tensor(energy) # Energy relative to Ef

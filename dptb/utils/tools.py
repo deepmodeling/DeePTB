@@ -4,7 +4,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from dptb.utils.constants import atomic_num_dict, anglrMId, SKBondType
-from dptb.nnsktb.onsiteDB import onsite_energy_database
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -17,7 +16,6 @@ from typing import (
     Union,
 )
 import json
-from dptb.nnsktb.formula import SKFormula
 from pathlib import Path
 import yaml
 import torch.optim as optim
@@ -26,6 +24,11 @@ import random
 from ase.neighborlist import neighbor_list
 from ase.io.trajectory import Trajectory
 import ase
+import ssl
+import os.path as osp
+import urllib
+import zipfile
+import sys
 
 
 log = logging.getLogger(__name__)
@@ -137,8 +140,10 @@ def get_lr_scheduler(type: str, optimizer: optim.Optimizer, **sch_options):
         scheduler = optim.lr_scheduler.ExponentialLR(optimizer=optimizer, **sch_options)
     elif type == 'linear':
         scheduler = optim.lr_scheduler.LinearLR(optimizer=optimizer, **sch_options)
+    elif type == "rop":
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, **sch_options)
     else:
-        raise RuntimeError("Scheduler should be exp/linear/..., not {}".format(type))
+        raise RuntimeError("Scheduler should be exp/linear/rop..., not {}".format(type))
 
     return scheduler
 
@@ -174,6 +179,8 @@ def _get_activation_fn(activation):
         return F.gelu
     elif activation == "tanh":
         return torch.tanh
+    elif activation == "silu":
+        return torch.nn.SiLU()
 
     raise RuntimeError("activation should be relu/gelu/tanh, not {}".format(activation))
 
@@ -344,9 +351,10 @@ def format_readline(line):
     lstr = []
     for ii in range(len(lsplit)):
         strtmp = lsplit[ii]
-        if re.search('\*',strtmp):
-            strspt = re.split('\*|\n',strtmp)
+        if re.search('\\*',strtmp):
+            strspt = re.split('\\*|\n',strtmp)
             strspt = list(filter(None,strspt))
+            assert len(strspt) == 2, "The format of the line is not correct! n*value, the value is gone!"
             strfull = int(strspt[0]) * [strspt[1]]
             lstr +=strfull
         else:
@@ -483,7 +491,7 @@ def LorentzSmearing(x, x0, sigma=0.02):
     '''
     Simulate the Delta function by a Lorentzian shape function
 
-        \Delta(x) = \lim_{\sigma\to 0}  Lorentzian
+        Delta(x) = lim_{sigma to 0}  Lorentzian
     '''
 
     return 1. / np.pi * sigma**2 / ((x - x0)**2 + sigma**2)
@@ -493,7 +501,7 @@ def GaussianSmearing(x, x0, sigma=0.02):
     '''
     Simulate the Delta function by a Lorentzian shape function
 
-        \Delta(x) = \lim_{\sigma\to 0} Gaussian
+        Delta(x) = lim_{sigma to 0} Gaussian
     '''
 
     return 1. / (np.sqrt(2*np.pi) * sigma) * np.exp(-(x - x0)**2 / (2*sigma**2))
@@ -706,7 +714,53 @@ def bn_stast(traj_path: str, cutoff: float =10., nns=[3.0, 4.5], first=False, re
     
     return stast
 
+def makedirs(dir):
+    os.makedirs(dir, exist_ok=True)
 
+
+def download_url(url, folder, log=True):
+    r"""Downloads the content of an URL to a specific folder.
+
+    Args:
+        url (string): The url.
+        folder (string): The folder.
+        log (bool, optional): If :obj:`False`, will not print anything to the
+            console. (default: :obj:`True`)
+    """
+
+    filename = url.rpartition("/")[2].split("?")[0]
+    path = osp.join(folder, filename)
+
+    if osp.exists(path):  # pragma: no cover
+        if log:
+            print("Using existing file", filename, file=sys.stderr)
+        return path
+
+    if log:
+        print("Downloading", url, file=sys.stderr)
+
+    makedirs(folder)
+
+    context = ssl._create_unverified_context()
+    data = urllib.request.urlopen(url, context=context)
+
+    with open(path, "wb") as f:
+        f.write(data.read())
+
+    return path
+
+
+def extract_zip(path, folder, log=True):
+    r"""Extracts a zip archive to a specific folder.
+
+    Args:
+        path (string): The path to the tar archive.
+        folder (string): The folder.
+        log (bool, optional): If :obj:`False`, will not print anything to the
+            console. (default: :obj:`True`)
+    """
+    with zipfile.ZipFile(path, "r") as f:
+        f.extractall(folder)
 
 if __name__ == '__main__':
     print(get_neuron_config(nl=[0,1,2,3,4,5,6,7]))

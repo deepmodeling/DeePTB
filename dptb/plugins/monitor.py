@@ -1,6 +1,8 @@
 from dptb.plugins.base_plugin import Plugin
 import logging
 import time
+import torch
+from dptb.data import AtomicData
 
 log = logging.getLogger(__name__)
 
@@ -96,6 +98,10 @@ class TrainLossMonitor(Monitor):
     # It's a Monitor that records the loss.
     # stat_name is used in the Monitor class to register.
     stat_name = 'train_loss'
+    def __init__(self):
+        super(TrainLossMonitor, self).__init__(
+            precision=6,
+        )
     def _get_value(self, **kwargs):
         return kwargs.get('train_loss', None)
 
@@ -103,6 +109,11 @@ class TestLossMonitor(Monitor):
     # It's a Monitor that records the loss.
     # stat_name is used in the Monitor class to register.
     stat_name = 'test_loss'
+    def __init__(self):
+        super(TestLossMonitor, self).__init__(
+            precision=6,
+        )
+
     def _get_value(self, **kwargs):
         return kwargs.get('test_loss', None)
 class LearningRateMonitor(Monitor):
@@ -112,16 +123,21 @@ class LearningRateMonitor(Monitor):
     def __init__(self):
         super(LearningRateMonitor, self).__init__(
             running_average=False, epoch_average=False, smoothing=0.7,
-            precision=7, number_format='.{}g'.format(4), unit=''
+            precision=6, number_format='.{}g'.format(4), unit=''
         )
     def _get_value(self, **kwargs):
         return kwargs.get('lr', None)
 
+
 class Validationer(Monitor):
     stat_name = 'validation_loss'
+    def __init__(self):
+        super(Validationer, self).__init__(
+            precision=6,
+        )
 
     def _get_value(self, **kwargs):
         if kwargs.get('field') == "iteration":
-            return self.trainer.validation(quick=True)
+            return self.trainer.validation(fast=True)
         else:
             return self.trainer.validation()

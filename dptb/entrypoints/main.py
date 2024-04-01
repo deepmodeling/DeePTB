@@ -5,10 +5,12 @@ from typing import Dict, List, Optional
 from dptb.entrypoints.train import train
 from dptb.entrypoints.config import config
 from dptb.entrypoints.test import _test
-from dptb.entrypoints.run import run
+# from dptb.entrypoints.run import run
 from dptb.entrypoints.bond import bond
 from dptb.entrypoints.nrl2json import nrl2json
+from dptb.entrypoints.data import data
 from dptb.utils.loggers import set_log_handles
+from dptb.utils.config_check import check_config_train
 
 def get_ll(log_level: str) -> int:
     """Convert string to python logging level.
@@ -76,10 +78,38 @@ def main_parser() -> argparse.ArgumentParser:
     )
 
     parser_config.add_argument(
-        "-full",
-        "--full_config",
-        action="store_true",
-        help="get the config templete with all input parameters.",
+        "-tr", 
+        "--train",
+        help="Generate the config templete for training.",
+        action="store_true"
+    )
+    
+    parser_config.add_argument(
+        "-ts", 
+        "--test",
+        help="Generate the config templete for testing.",
+        action="store_true"
+    )
+
+    parser_config.add_argument(
+        "-e3", 
+        "--e3tb",
+        help="Generate the config templete for e3nn TB model.",
+        action="store_true"
+    )
+
+    parser_config.add_argument(
+        "-sk", 
+        "--sktb",
+        help="Generate the config templete for nn-sk TB model.",
+        action="store_true"
+    )
+
+    parser_config.add_argument(
+        "-skenv", 
+        "--sktbenv",
+        help="Generate the config templete for nn-sk env TB model.",
+        action="store_true"
     )
 
     # neighbour
@@ -169,13 +199,6 @@ def main_parser() -> argparse.ArgumentParser:
     )
 
     parser_train.add_argument(
-        "-sk",
-        "--train-sk",
-        action="store_true",
-        help="Trainging NNSKTB parameters.",
-    )
-
-    parser_train.add_argument(
         "-crt",
         "--use-correction",
         type=str,
@@ -186,13 +209,6 @@ def main_parser() -> argparse.ArgumentParser:
     parser_train.add_argument(
         "-s",
         "--train_soc",
-        action="store_true",
-        help="Initialize the training from the frozen model.",
-    )
-
-    parser_train.add_argument(
-        "-f",
-        "--freeze",
         action="store_true",
         help="Initialize the training from the frozen model.",
     )
@@ -224,13 +240,6 @@ def main_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="Initialize the model by the provided checkpoint.",
-    )
-
-    parser_test.add_argument(
-        "-sk",
-        "--test-sk",
-        action="store_true",
-        help="Test NNSKTB parameters.",
     )
 
     parser_test.add_argument(
@@ -288,18 +297,39 @@ def main_parser() -> argparse.ArgumentParser:
     )
 
     parser_run.add_argument(
-        "-sk",
-        "--run_sk",
-        action="store_true",
-        help="using NNSKTB parameters TB models for post-run."
-    )
-
-    parser_run.add_argument(
         "-crt",
         "--use-correction",
         type=str,
         default=None,
         help="Use nnsktb correction when training dptb",
+    )
+
+    # preprocess data
+    parser_data = subparsers.add_parser(
+        "data",
+        parents=[parser_log],
+        help="preprocess software output",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser_data.add_argument(
+        "INPUT", help="the input parameter file in json or yaml format",
+        type=str,
+        default=None
+    )
+
+    parser_data.add_argument(
+        "-p",
+        "--parse",
+        action="store_true",
+        help="Initialize the training from the frozen model.",
+    )
+
+    parser_data.add_argument(
+        "-s",
+        "--split",
+        action="store_true",
+        help="Initialize the training from the frozen model.",
     )
 
     return parser
@@ -342,6 +372,7 @@ def main():
         bond(**dict_args)
 
     elif args.command == 'train':
+        check_config_train(**dict_args)
         train(**dict_args)
 
     elif args.command == 'test':
@@ -352,3 +383,5 @@ def main():
 
     elif args.command == 'n2j':
         nrl2json(**dict_args)
+    elif args.command == 'data':
+        data(**dict_args)

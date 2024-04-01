@@ -1,1 +1,0 @@
-dptb train input_short.json -sk -i ./strain/checkpoint/best_nnsk_b1.600_c1.600_w0.300.pth -o ext

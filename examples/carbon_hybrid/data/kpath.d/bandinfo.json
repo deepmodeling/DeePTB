@@ -1,0 +1,7 @@
+{
+    "band_min": 0,
+    "band_max": 6,
+    "emin": 10.1,
+    "emax": 35.0,
+    "eout_weight":0.1
+}
