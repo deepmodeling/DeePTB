@@ -20,54 +20,75 @@ import numpy as np
 from dptb.utils.make_kpoints import kmesh_sampling_negf
 import logging
 from dptb.negf.poisson_init import Grid,Interface3D,Gate,Dielectric
-
+from typing import Optional, Union
 from pyinstrument import Profiler
+from dptb.data import AtomicData, AtomicDataDict
 
 log = logging.getLogger(__name__)
 
 # TODO : add common class to set all the dtype and precision.
 
 class NEGF(object):
-    def __init__(self, apiHrk, run_opt, jdata):
-        self.apiH = apiHrk
-        if isinstance(run_opt['structure'],str):
-            self.structase = read(run_opt['structure'])
-        elif isinstance(run_opt['structure'],ase.Atoms):
-            self.structase = run_opt['structure']
+    def __init__(self, 
+                model: torch.nn.Module,
+                AtomicData_options: dict, 
+                structure: Union[AtomicData, ase.Atoms, str],
+                ele_T: float,e_fermi: float,
+                density_options: dict,
+                unit: str,
+                scf: bool, poisson_options: dict,
+                stru_options: dict,
+                block_tridiagonal: bool,
+                results_path: Optional[str]=None,device: Union[str, torch.device]=torch.device('cpu'),
+                out_tc: bool=False,out_dos: bool=False,out_density: bool=False,out_potential: bool=False,
+                out_current: bool=False,out_current_nscf: bool=False,out_ldos: bool=False,out_lcurrent: bool=False,):
+        
+        
+        # self.apiH = apiHrk
+        # load model and structure
+        # AtomicData is 
+        self.model = model
+        if isinstance(structure,str):
+            structase = read(structure)
+            data = AtomicData.from_ase(structase, **AtomicData_options)
+        elif isinstance(structure,ase.Atoms):
+            structase = structure
+            data = AtomicData.from_ase(structase, **AtomicData_options)
+        elif isinstance(structure,AtomicData):
+            structase = structure.to_ase()
+            data = data
         else:
-            raise ValueError('structure must be ase.Atoms or str')
+            raise ValueError('structure must be AtomicData, ase.Atoms or str')
         
-        self.results_path = run_opt.get('results_path')
-        self.jdata = jdata
+        self.results_path = results_path
+        # self.jdata = jdata
         self.cdtype = torch.complex128
-        self._device = "cpu"
-        
-        
+        self.device = device
         
         # get the parameters
-        self.ele_T = jdata["ele_T"]
+        self.ele_T = ele_T
         self.kBT = Boltzmann * self.ele_T / eV2J # change to eV
-        self.e_fermi = jdata["e_fermi"]
-        self.stru_options = j_must_have(jdata, "stru_options")
+        self.e_fermi = e_fermi
+        self.stru_options = stru_options
         self.pbc = self.stru_options["pbc"]
 
         # check the consistency of the kmesh and pbc
         assert len(self.pbc) == 3, "pbc should be a list of length 3"
         for i in range(3):
-            if self.pbc[i] == False and self.jdata["stru_options"]["kmesh"][i] > 1:
+            if self.pbc[i] == False and self.stru_options["kmesh"][i] > 1:
                 raise ValueError("kmesh should be 1 for non-periodic direction")
-            elif self.pbc[i] == False and self.jdata["stru_options"]["kmesh"][i] == 0:
-                self.jdata["stru_options"]["kmesh"][i] = 1
+            elif self.pbc[i] == False and self.stru_options["kmesh"][i] == 0:
+                self.stru_options["kmesh"][i] = 1
                 log.warning(msg="kmesh should be set to 1 for non-periodic direction! Automatically Setting kmesh to 1 in direction {}.".format(i))
-            elif self.pbc[i] == True and self.jdata["stru_options"]["kmesh"][i] == 0:
+            elif self.pbc[i] == True and self.stru_options["kmesh"][i] == 0:
                 raise ValueError("kmesh should be > 0 for periodic direction")
             
         if not any(self.pbc):
             self.kpoints,self.wk = np.array([[0,0,0]]),np.array([1.])
         else:
-            self.kpoints,self.wk = kmesh_sampling_negf(self.jdata["stru_options"]["kmesh"], 
-                                                       self.jdata["stru_options"]["gamma_center"],
-                                                     self.jdata["stru_options"]["time_reversal_symmetry"])
+            self.kpoints,self.wk = kmesh_sampling_negf(self.stru_options["kmesh"], 
+                                                       self.stru_options["gamma_center"],
+                                                     self.stru_options["time_reversal_symmetry"])
         log.info(msg="------ k-point for NEGF -----")
         log.info(msg="Gamma Center: {0}".format(self.jdata["stru_options"]["gamma_center"]))
         log.info(msg="Time Reversal: {0}".format(self.jdata["stru_options"]["time_reversal_symmetry"]))
@@ -77,13 +98,13 @@ class NEGF(object):
             log.info(msg="k-points weights: {0}".format(self.wk))
         log.info(msg="--------------------------------")
 
-        self.unit = jdata["unit"]
-        self.scf = jdata["scf"]
-        self.block_tridiagonal = jdata["block_tridiagonal"]
+        self.unit = unit
+        self.scf = scf
+        self.block_tridiagonal = block_tridiagonal
         
 
-        # computing the hamiltonian
-        self.negf_hamiltonian = NEGFHamiltonianInit(apiH=self.apiH, structase=self.structase, stru_options=jdata["stru_options"], results_path=self.results_path)
+        # computing the hamiltonian  #需要改写NEGFHamiltonianInit   
+        self.negf_hamiltonian = NEGFHamiltonianInit(apiH=self.apiH, structase=structase, stru_options=self.stru_options, results_path=self.results_path)
         with torch.no_grad():
             struct_device, struct_leads = self.negf_hamiltonian.initialize(kpoints=self.kpoints)
         
@@ -97,7 +118,7 @@ class NEGF(object):
                 results_path=self.results_path,
                 e_T=self.ele_T,
                 efermi=self.e_fermi, 
-                voltage=self.jdata["stru_options"]["lead_L"]["voltage"]
+                voltage=self.stru_options["lead_L"]["voltage"]
             ),
                 lead_R=LeadProperty(
                     hamiltonian=self.negf_hamiltonian, 
@@ -106,12 +127,13 @@ class NEGF(object):
                     results_path=self.results_path, 
                     e_T=self.ele_T,
                     efermi=self.e_fermi, 
-                    voltage=self.jdata["stru_options"]["lead_R"]["voltage"]
+                    voltage=self.stru_options["lead_R"]["voltage"]
             )
         )
 
         # initialize density class
-        self.density_options = j_must_have(self.jdata, "density_options")
+        # self.density_options = j_must_have(self.jdata, "density_options")
+        self.density_options = density_options
         if self.density_options["method"] == "Ozaki":
             self.density = Ozaki(R=self.density_options["R"], M_cut=self.density_options["M_cut"], n_gauss=self.density_options["n_gauss"])
         elif self.density_options["method"] == "Fiori":
@@ -124,20 +146,20 @@ class NEGF(object):
         # np.save(self.results_path+"/device_atom_norbs.npy",self.device_atom_norbs)
 
         # geting the output settings
-        self.out_tc = jdata["out_tc"]
-        self.out_dos = jdata["out_dos"]
-        self.out_density = jdata["out_density"]
-        self.out_potential = jdata["out_potential"]
-        self.out_current = jdata["out_current"]
-        self.out_current_nscf = jdata["out_current_nscf"]
-        self.out_ldos = jdata["out_ldos"]
-        self.out_lcurrent = jdata["out_lcurrent"]
+        self.out_tc = out_tc
+        self.out_dos = out_dos
+        self.out_density = out_density
+        self.out_potential = out_potential
+        self.out_current = out_current
+        self.out_current_nscf = out_current_nscf
+        self.out_ldos = out_ldos
+        self.out_lcurrent = out_lcurrent
         assert not (self.out_lcurrent and self.block_tridiagonal)
         self.generate_energy_grid()
         self.out = {}
 
         ## Poisson equation settings
-        self.poisson_options = j_must_have(jdata, "poisson_options")
+        self.poisson_options = poisson_options
         # self.LDOS_integral = {}  # for electron density integral
         self.free_charge = {} # net charge: hole - electron
         self.gate_region = [self.poisson_options[i] for i in self.poisson_options if i.startswith("gate")]
