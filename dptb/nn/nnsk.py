@@ -372,13 +372,24 @@ class NNSK(torch.nn.Module):
                 ene_unit = json_model["unit"]
 
             if common_options['overlap']:
-                if json_model.get("model_params",{}).get("overlap", None) is None:
+                if ckpt_version == 2 and json_model.get("model_params",{}).get("overlap", None) is None:
+                    log.error("The overlap parameters are not provided in the json model file, but the input is set to True.")
+                    raise ValueError("The overlap parameters are not provided in the json model file, but the input is set to True.")
+                elif ckpt_version == 1 and json_model.get("overlap", None) is None:
                     log.error("The overlap parameters are not provided in the json model file, but the input is set to True.")
                     raise ValueError("The overlap parameters are not provided in the json model file, but the input is set to True.")
                 else:
-                    overlap_param = json_model["model_params"]["overlap"]
+                    if ckpt_version == 1:
+                        overlap_param = json_model["overlap"]
+                    elif ckpt_version == 2:
+                        overlap_param = json_model["model_params"]["overlap"]
+                    else:
+                        raise ValueError("The version of the model is not supported.")
             else:
-                if json_model.get("model_params",{}).get("overlap", None) is not None:
+                if ckpt_version == 2 and json_model.get("model_params",{}).get("overlap", None) is not None:
+                    log.error("The overlap parameters are provided in the json model file, but the input is set to False.")
+                    raise ValueError("The overlap parameters are provided in the json model file, but the input is set to False.")
+                elif ckpt_version == 1 and json_model.get("overlap", None) is not None:
                     log.error("The overlap parameters are provided in the json model file, but the input is set to False.")
                     raise ValueError("The overlap parameters are provided in the json model file, but the input is set to False.")
                 else:
