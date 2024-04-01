@@ -68,6 +68,14 @@ class NEGF(object):
             self.kpoints,self.wk = kmesh_sampling_negf(self.jdata["stru_options"]["kmesh"], 
                                                        self.jdata["stru_options"]["gamma_center"],
                                                      self.jdata["stru_options"]["time_reversal_symmetry"])
+        log.info(msg="------ k-point for NEGF -----")
+        log.info(msg="Gamma Center: {0}".format(self.jdata["stru_options"]["gamma_center"]))
+        log.info(msg="Time Reversal: {0}".format(self.jdata["stru_options"]["time_reversal_symmetry"]))
+        log.info(msg="k-points Num: {0}".format(len(self.kpoints)))
+        if len(self.wk)<10:
+            log.info(msg="k-points: {0}".format(self.kpoints))
+            log.info(msg="k-points weights: {0}".format(self.wk))
+        log.info(msg="--------------------------------")
 
         self.unit = jdata["unit"]
         self.scf = jdata["scf"]
@@ -230,8 +238,10 @@ class NEGF(object):
         while max_diff_phi > err:
             # update Hamiltonian by modifying onsite energy with potential
             atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values())
+            # print("atom_gridpoint_index",atom_gridpoint_index)
             # np.save(self.results_path+"/atom_gridpoint_index.npy",atom_gridpoint_index)
             self.potential_at_atom = interface_poisson.phi[atom_gridpoint_index]
+            # print([torch.full((norb,), p) for p, norb in zip(self.potential_at_atom, self.device_atom_norbs)])
             self.potential_at_orb = torch.cat([torch.full((norb,), p) for p, norb in zip(self.potential_at_atom, self.device_atom_norbs)])
             # torch.save(self.potential_at_orb, self.results_path+"/potential_at_orb.pth")
 
@@ -268,6 +278,10 @@ class NEGF(object):
             log.info(msg="Poisson-NEGF iteration: {}    Potential Diff Maximum: {}\n".format(iter_count,max_diff_phi))
             max_diff_list.append(max_diff_phi)
 
+            if max_diff_phi <= err:
+                log.info(msg="Poisson-NEGF SCF Converges Successfully!")
+                
+
             if iter_count > max_iter:
                 log.info(msg="Warning! Poisson-NEGF iteration exceeds the upper limit of iterations {}".format(int(max_iter)))
                 profiler.stop()
@@ -277,6 +291,7 @@ class NEGF(object):
 
         self.poisson_out = {}
         self.poisson_out['potential'] = torch.tensor(interface_poisson.phi)
+        self.poisson_out['potential_at_atom'] = self.potential_at_atom
         self.poisson_out['grid_point_number'] = interface_poisson.grid.Np
         self.poisson_out['grid'] = torch.tensor(interface_poisson.grid.grid_coord)
         self.poisson_out['free_charge_at_atom'] = torch.tensor(interface_poisson.free_charge[atom_gridpoint_index])
@@ -304,13 +319,15 @@ class NEGF(object):
 
 
             #  output kpoints information
-            if ik == 0:
-                log.info(msg="------ k-point for NEGF -----\n")
-                log.info(msg="Gamma Center: {0}".format(self.jdata["stru_options"]["gamma_center"]))
-                log.info(msg="Time Reversal: {0}".format(self.jdata["stru_options"]["time_reversal_symmetry"]))
-                log.info(msg="k-points Num: {0}".format(len(self.kpoints)))
-                log.info(msg="k-points weights: {0}".format(self.wk))
-                log.info(msg="--------------------------------\n")
+            # if ik == 0:
+            #     log.info(msg="------ k-point for NEGF -----")
+            #     log.info(msg="Gamma Center: {0}".format(self.jdata["stru_options"]["gamma_center"]))
+            #     log.info(msg="Time Reversal: {0}".format(self.jdata["stru_options"]["time_reversal_symmetry"]))
+            #     log.info(msg="k-points Num: {0}".format(len(self.kpoints)))
+            #     if len(self.wk)<10:
+            #         log.info(msg="k-points: {0}".format(self.kpoints))
+            #         log.info(msg="k-points weights: {0}".format(self.wk))
+            #     log.info(msg="--------------------------------")
 
             self.out['k'].append(k)
             self.out['wk'].append(self.wk[ik])
@@ -471,6 +488,7 @@ class NEGF(object):
 
         y_start,y_end,y_num = grid_info.get("y_range",None).split(':')
         yg = np.linspace(float(y_start),float(y_end),int(y_num))
+        # yg = np.array([(float(y_start)+float(y_end))/2]) # TODO: temporary fix for 2D case
 
         z_start,z_end,z_num = grid_info.get("z_range",None).split(':')
         zg = np.linspace(float(z_start),float(z_end),int(z_num))
