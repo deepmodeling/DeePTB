@@ -334,13 +334,19 @@ class NNSK(torch.nn.Module):
         if checkpoint.split(".")[-1] == "json":
             json_model = j_loader(checkpoint)
 
-            if json_model.get("model_options", None) is None and json_model.get("common_options", None) is None:
-                log.info("The json model file doesnot contain the model_options and common_options. We suppose you are using the v1 version of the model.")
-                ckpt_version = 1
-            elif json_model.get("model_params", None) is not None:
-                ckpt_version = 2
-            else:
-                raise ValueError("The format of this json model is not correct!")
+            assert 'version' in json_model, "The version of the model is not provided in the json model file."
+            ckpt_version = json_model.get("version")
+            if ckpt_version not in [1,2]:
+                raise ValueError("The version of the model is not supported. only 1 and 2 are supported.")
+            
+            if ckpt_version == 2:
+                assert json_model.get("model_params", None) is not None, "The model_params is not provided in the json model file."
+                assert json_model.get("unit", None) is not None, "The unit is not provided in the json model file."
+                assert json_model.get("model_options", None) is not None, "The model_options is not provided in the json model file."
+                assert json_model.get("common_options", None) is not None, "The common_options is not provided in the json model file."
+                
+                if json_model.get("unit") != 'eV':
+                    raise ValueError("The unit of the model is not supported. only eV is supported.")
 
             for k,v in common_options.items():
                 if v is  None:
@@ -358,18 +364,17 @@ class NNSK(torch.nn.Module):
                         nnsk[k] = json_model["model_options"]["nnsk"][k]
                         log.info(f"{k} is not provided in the input json, set to the value {nnsk[k]}in the json model file.")
 
-            if json_model.get("unit", None) is None:
-                if ckpt_version == 1:
+            
+            if ckpt_version == 1:
+                if json_model.get("unit", None) is None:
                     ene_unit = "Hartree"
                     log.info('The unit is not provided in the json model file, since this is v1 version model, the default unit is Hartree.')
-                    common_options["unit"] = "eV"
-                elif ckpt_version == 2:
-                    ene_unit = "eV"
-                    log.warning("The unit is not provided in the json model file, the default unit is eV.")
                 else:
-                    raise ValueError("The version of the model is not supported.")
-            else:
+                    ene_unit = json_model["unit"]
+            elif ckpt_version == 2:
                 ene_unit = json_model["unit"]
+            else:
+                raise ValueError("The version of the model is not supported.")
 
             if common_options['overlap']:
                 if ckpt_version == 2 and json_model.get("model_params",{}).get("overlap", None) is None:
@@ -571,7 +576,7 @@ class NNSK(torch.nn.Module):
         # load hopping params
         for orbpair, skparam in hopping_param.items():
             skparam = torch.tensor(skparam, dtype=dtype, device=device)
-            if ene_unit == "Hartree":
+            if ene_unit == "Hartree" and hopping['method'] not in ['NRL', 'NRL1', 'NRL2']:
                 skparam[0] *= 13.605662285137 * 2
             iasym, jasym, iorb, jorb, num = list(orbpair.split("-"))
             num = int(num)
@@ -594,8 +599,6 @@ class NNSK(torch.nn.Module):
         if overlap:
             for orbpair, skparam in overlap_param.items():
                 skparam = torch.tensor(skparam, dtype=dtype, device=device)
-                if ene_unit == "Hartree":
-                    skparam[0] *= 13.605662285137 * 2
                 iasym, jasym, iorb, jorb, num = list(orbpair.split("-"))
                 num = int(num)
                 ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
@@ -643,7 +646,7 @@ class NNSK(torch.nn.Module):
         else:
             for orbon, skparam in onsite_param.items():
                 skparam = torch.tensor(skparam, dtype=dtype, device=device)
-                if ene_unit == "Hartree":
+                if ene_unit == "Hartree" and onsite["method"] not in ['NRL', 'NRL1', 'NRL2']:
                     skparam *= 13.605662285137 * 2
                 iasym, iorb, num = list(orbon.split("-"))
                 num = int(num)
@@ -661,14 +664,10 @@ class NNSK(torch.nn.Module):
         ckpt = {}
         # load hopping params
         hopping = self.hopping_param.data.cpu().clone().numpy()
-        if version == 1:
-            hopping[:,:,0] /= 13.605662285137 * 2
-            ckpt['unit'] = 'Hartree'
-        elif version == 2:
-            ckpt['unit'] = 'eV'
-        else:
-            raise ValueError("The version of the model is not supported.")
-        
+                
+        ckpt['version'] = version
+        ckpt['unit'] = 'eV'
+
         hopping_param = {}
         basis = self.idp_sk.basis
 
@@ -754,8 +753,6 @@ class NNSK(torch.nn.Module):
 
         if hasattr(self, "strain_param"):
             strain = self.strain_param.data.cpu().clone().numpy()
-            if version == 1:
-                strain[:,:,0] /= 13.605662285137 * 2
             onsite_param = {}
             for bt in self.idp_sk.bond_types:
                 iasym, jasym = bt.split("-")
@@ -771,8 +768,6 @@ class NNSK(torch.nn.Module):
         # onsite need more test and work
         elif hasattr(self, "onsite_param") and self.onsite_param is not None:
             onsite =self.onsite_param.data.cpu().clone().numpy()
-            if version == 1:
-                onsite[:,:,0] /= 13.605662285137 * 2
             onsite_param = {}
             for asym in self.idp_sk.type_names:
                 for iorb, slices in self.idp_sk.skonsite_maps.items():
