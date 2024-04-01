@@ -215,9 +215,6 @@ class Band(object):
         
         data = AtomicData.to_AtomicDataDict(data.to(self.device))
         data = self.model.idp(data)
-
-        if self.overlap == True:
-            assert data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is not None
             
         
         if kline_type == 'ase':
@@ -245,6 +242,8 @@ class Band(object):
 
         # get the eigenvalues
         data = self.model(data)
+        if self.overlap == True:
+            assert data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is not None
         data = self.eigv(data)
 
         # get the E_fermi from data
