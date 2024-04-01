@@ -1,0 +1,33 @@
+{
+    "common_options": {
+        "basis": {
+            "Si": [
+                "3s",
+                "3p",
+                "d*"
+            ]
+        },
+        "device": "cpu",
+        "dtype": "float32",
+        "overlap": true,
+        "seed": 3982377700
+    },
+    "model_options": {
+        "nnsk": {
+            "onsite": {
+                "method": "NRL",
+                "rc": 6.6147151362875,
+                "w": 0.2645886054515,
+                "lda": 1.5269575694188455
+            },
+            "hopping": {
+                "method": "NRL1",
+                "rc": 6.6147151362875,
+                "w": 0.2645886054515
+            },
+            "freeze": false,
+            "std": 0.01,
+            "push": false
+        }
+    }
+}
