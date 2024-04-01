@@ -39,31 +39,20 @@ class NEGF(object):
                 scf: bool, poisson_options: dict,
                 stru_options: dict,
                 block_tridiagonal: bool,
-                results_path: Optional[str]=None,device: Union[str, torch.device]=torch.device('cpu'),
                 out_tc: bool=False,out_dos: bool=False,out_density: bool=False,out_potential: bool=False,
-                out_current: bool=False,out_current_nscf: bool=False,out_ldos: bool=False,out_lcurrent: bool=False,):
+                out_current: bool=False,out_current_nscf: bool=False,out_ldos: bool=False,out_lcurrent: bool=False,
+                results_path: Optional[str]=None,
+                overlap=False,
+                torch_device: Union[str, torch.device]=torch.device('cpu'),):
         
         
         # self.apiH = apiHrk
-        # load model and structure
-        # AtomicData is 
-        self.model = model
-        if isinstance(structure,str):
-            structase = read(structure)
-            data = AtomicData.from_ase(structase, **AtomicData_options)
-        elif isinstance(structure,ase.Atoms):
-            structase = structure
-            data = AtomicData.from_ase(structase, **AtomicData_options)
-        elif isinstance(structure,AtomicData):
-            structase = structure.to_ase()
-            data = data
-        else:
-            raise ValueError('structure must be AtomicData, ase.Atoms or str')
-        
+
+        self.model = model      
         self.results_path = results_path
         # self.jdata = jdata
         self.cdtype = torch.complex128
-        self.device = device
+        self.torch_device = torch_device
         
         # get the parameters
         self.ele_T = ele_T
@@ -90,8 +79,8 @@ class NEGF(object):
                                                        self.stru_options["gamma_center"],
                                                      self.stru_options["time_reversal_symmetry"])
         log.info(msg="------ k-point for NEGF -----")
-        log.info(msg="Gamma Center: {0}".format(self.jdata["stru_options"]["gamma_center"]))
-        log.info(msg="Time Reversal: {0}".format(self.jdata["stru_options"]["time_reversal_symmetry"]))
+        log.info(msg="Gamma Center: {0}".format(self.stru_options["gamma_center"]))
+        log.info(msg="Time Reversal: {0}".format(self.stru_options["time_reversal_symmetry"]))
         log.info(msg="k-points Num: {0}".format(len(self.kpoints)))
         if len(self.wk)<10:
             log.info(msg="k-points: {0}".format(self.kpoints))
@@ -104,7 +93,12 @@ class NEGF(object):
         
 
         # computing the hamiltonian  #需要改写NEGFHamiltonianInit   
-        self.negf_hamiltonian = NEGFHamiltonianInit(apiH=self.apiH, structase=structase, stru_options=self.stru_options, results_path=self.results_path)
+        self.negf_hamiltonian = NEGFHamiltonianInit(model=model,
+                                                    AtomicData_options=AtomicData_options, 
+                                                    structure=structure, 
+                                                    stru_options=self.stru_options, 
+                                                    results_path=self.results_path,
+                                                    torch_device = self.torch_device)
         with torch.no_grad():
             struct_device, struct_leads = self.negf_hamiltonian.initialize(kpoints=self.kpoints)
         
