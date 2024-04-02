@@ -85,3 +85,35 @@ def test_init_V1_json(root_directory):
     check_config_train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False)
     train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False,\
           output=output+"/test_v1json", log_level=5, log_path=output+"/test_v1json.log")
+
+@pytest.mark.order(2)
+def test_init_V2_json(root_directory):
+    INPUT_file =root_directory + "/dptb/tests/data/test_sktb/input/input_initv1json.json"
+    output = root_directory + "/dptb/tests/data/test_sktb/output"
+    init_model = root_directory + "/dptb/tests/data/json_model/Si_v2ckpt.json"
+    
+    check_config_train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False)
+    train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False,\
+          output=output+"/test_v2json", log_level=5, log_path=output+"/test_v2json.log")
+
+
+@pytest.mark.order(2)
+def test_init_nrl_json(root_directory):
+    INPUT_file =root_directory + "/dptb/tests/data/test_sktb/input/input_nrl.json"
+    output = root_directory + "/dptb/tests/data/test_sktb/output"
+    init_model = root_directory + "/dptb/tests/data/json_model/Si_nrl.json"
+    
+    check_config_train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False)
+    train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False,\
+          output=output+"/test_nrl", log_level=5, log_path=output+"/test_nrl.log")
+
+
+@pytest.mark.order(2)
+def test_init_nrl_jsonfz(root_directory):
+    INPUT_file =root_directory + "/dptb/tests/data/test_sktb/input/input_nrl_fz.json"
+    output = root_directory + "/dptb/tests/data/test_sktb/output"
+    init_model = root_directory + "/dptb/tests/data/json_model/Si_nrl.json"
+    
+    check_config_train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False)
+    train(INPUT=INPUT_file, init_model=init_model, restart=None, train_soc=False,\
+          output=output+"/test_nrlfz", log_level=5, log_path=output+"/test_nrlfz.log")

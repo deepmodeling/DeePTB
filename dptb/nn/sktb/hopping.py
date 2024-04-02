@@ -40,7 +40,7 @@ class HoppingFormula(BaseHopping):
         elif functype in ['NRL0', "NRL1"]:
             assert hasattr(self, 'NRL_HOP')
             if overlap:
-                assert hasattr(self, 'NRL_OVERLAP')
+                assert hasattr(self, 'NRL_OVERLAP0') and hasattr(self, 'NRL_OVERLAP1')
 
         elif functype =='custom':
              # the functype custom, is for user to define their own formula.

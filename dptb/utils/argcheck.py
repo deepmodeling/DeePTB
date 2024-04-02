@@ -546,7 +546,12 @@ def nnsk():
     doc_nnsk = ""
     doc_onsite = ""
     doc_hopping = ""
-    doc_freeze = ""
+    doc_freeze = """The parameters to define the freeze of nnsk model can be bool and string and list.\n
+                    Default: False\n
+                     - True: freeze all the nnsk parameters\n
+                     - False: train all the nnsk parameters\n 
+                     - 'hopping','onsite','overlap' and 'soc' to freeze the corresponding parameters.
+                     - list of the strings e.g. ['overlap','soc'] to freeze both overlap and soc parameters."""
     doc_std = ""
 
     # overlap = Argument("overlap", bool, optional=True, default=False, doc="The parameters to define the overlap correction of nnsk model.")
@@ -554,7 +559,7 @@ def nnsk():
     return Argument("nnsk", dict, sub_fields=[
             Argument("onsite", dict, optional=False, sub_fields=[], sub_variants=[onsite()], doc=doc_onsite), 
             Argument("hopping", dict, optional=False, sub_fields=[], sub_variants=[hopping()], doc=doc_hopping),
-            Argument("freeze", bool, optional=True, default=False, doc=doc_freeze),
+            Argument("freeze", [bool,str,list], optional=True, default=False, doc=doc_freeze),
             Argument("std", float, optional=True, default=0.01, doc=doc_std),
             push(),
         ], sub_variants=[], optional=True, doc=doc_nnsk)

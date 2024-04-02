@@ -1,4 +1,6 @@
 {
+    "version":1,
+    "unit": "Hartree",
     "onsite": {
         "Si-Si-3s-3s-0": [
             -0.01532896887511015,
