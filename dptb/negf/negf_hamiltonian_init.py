@@ -20,6 +20,7 @@ import ase
 from dptb.data import AtomicData, AtomicDataDict
 from typing import Optional, Union
 from dptb.nn.energy import Eigenvalues
+from dptb.nn.hamiltonian import E3Hamiltonian
 
 '''
 a Hamiltonian object  that initializes and manipulates device and  lead Hamiltonians for NEGF
@@ -89,20 +90,26 @@ class NEGFHamiltonianInit(object):
         self.overlap = overlap
 
         if overlap:
-            self.eigv = Eigenvalues(
+            self.e3H = E3Hamiltonian(
                 idp=model.idp,
-                device=self.torch_device,
-                s_edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
-                s_node_field=AtomicDataDict.NODE_OVERLAP_KEY,
-                s_out_field=AtomicDataDict.OVERLAP_KEY,
+                decompose=False,
+                edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
+                node_field=AtomicDataDict.NODE_OVERLAP_KEY,
+                overlap=True,
                 dtype=model.dtype,
+                device=self.torch_device
             )
+
         else:
-            self.eigv = Eigenvalues(
+            self.e3H = E3Hamiltonian(
                 idp=model.idp,
-                device=self.torch_device,
+                decompose=False,
+                edge_field=AtomicDataDict.EDGE_FEATURES_KEY,
+                node_field=AtomicDataDict.NODE_FEATURES_KEY,
+                overlap=False,
                 dtype=model.dtype,
-            )        
+                device=self.torch_device
+            )      
         
         self.device_id = [int(x) for x in self.stru_options['device']["id"].split("-")]
         self.lead_ids = {}
