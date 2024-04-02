@@ -3,6 +3,8 @@ import ase
 from scipy.constants import Boltzmann, pi, elementary_charge, hbar
 import torch
 
+ALLOWED_VERSIONS = [1,2]
+
 anglrMId = {'s':0,'p':1,'d':2,'f':3,'g':4,'h':5}
 anglrMId_r = {0:'s',1:'p',2:"d",3:"f",4:"g",5:"h"}
 SKBondType = {0:'sigma',1:'pi',2:'delta'}

@@ -16,6 +16,8 @@ from .sktb import OnsiteFormula, bond_length_list, HoppingFormula
 from dptb.utils.constants import atomic_num_dict_r, atomic_num_dict
 from dptb.nn.hamiltonian import SKHamiltonian
 from dptb.utils.tools import j_loader
+from dptb.utils.constants import ALLOWED_VERSIONS
+
 import logging
 
 log = logging.getLogger(__name__)
@@ -368,7 +370,7 @@ class NNSK(torch.nn.Module):
 
             assert 'version' in json_model, "The version of the model is not provided in the json model file."
             ckpt_version = json_model.get("version")
-            if ckpt_version not in [1,2]:
+            if ckpt_version not in ALLOWED_VERSIONS:
                 raise ValueError("The version of the model is not supported. only 1 and 2 are supported.")
             
             if ckpt_version == 2:
