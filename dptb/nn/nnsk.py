@@ -119,6 +119,8 @@ class NNSK(torch.nn.Module):
             self.freezefunc(freeze)
     
     def freezefunc(self, freeze: Union[bool,str,list]):
+        if freeze is False:
+            return 0
         frozen_params = []
         for name, param in self.named_parameters():
             if isinstance(freeze, str):
