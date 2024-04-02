@@ -24,7 +24,7 @@ class TestTrainer:
     
     jdata = j_loader(INPUT_file)
     jdata = normalize(jdata)
-    train_datasets = build_dataset(set_options=jdata["data_options"]["train"], common_options=jdata["common_options"])
+    train_datasets = build_dataset(**jdata["data_options"]["train"], **jdata["common_options"])
 
 
     
@@ -46,7 +46,7 @@ class TestTrainer:
         run_options = self.run_options
         jdata = self.jdata
         train_datasets = self.train_datasets
-        model = build_model(run_options=run_options, model_options=jdata["model_options"], 
+        model = build_model(None, model_options=jdata["model_options"], 
                         common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
         trainer = Trainer(
             train_options=jdata["train_options"],
@@ -70,9 +70,9 @@ class TestTrainer:
         jdata["train_options"]["loss_options"]["reference"] = jdata["train_options"]["loss_options"]["train"]
         train_datasets = self.train_datasets
 
-        reference_datasets = build_dataset(set_options=jdata["data_options"]["reference"], common_options=jdata["common_options"])
+        reference_datasets = build_dataset(**jdata["data_options"]["reference"], **jdata["common_options"])
 
-        model = build_model(run_options=run_options, model_options=jdata["model_options"], 
+        model = build_model(None, model_options=jdata["model_options"], 
                         common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
         
         trainer = Trainer(
@@ -97,9 +97,9 @@ class TestTrainer:
         jdata["train_options"]["loss_options"]["validation"] = jdata["train_options"]["loss_options"]["train"]
         train_datasets = self.train_datasets
 
-        validation_datasets = build_dataset(set_options=jdata["data_options"]["validation"], common_options=jdata["common_options"])
+        validation_datasets = build_dataset(**jdata["data_options"]["validation"], **jdata["common_options"])
 
-        model = build_model(run_options=run_options, model_options=jdata["model_options"], 
+        model = build_model(None, model_options=jdata["model_options"], 
                         common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
         
         trainer = Trainer(
@@ -125,7 +125,7 @@ class TestTrainer:
         train_datasets = self.train_datasets
         checkpoint = f"{rootdir}/test_sktb/output/test_valence/checkpoint/nnsk.best.pth"
         run_options.update({"init_model": checkpoint, "restart": None})
-        model = build_model(run_options=run_options, model_options=jdata["model_options"], 
+        model = build_model(checkpoint, model_options=jdata["model_options"], 
                             common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
         trainer = Trainer(
             train_options=jdata["train_options"],
@@ -140,15 +140,15 @@ class TestTrainer:
         self.for_iteration(trainer, batch, ref_batch=None)
         self.for_epoch(trainer, expect_ref=False)
 
-    def test_initmodel_fail(self):
-        run_options = self.run_options
-        jdata = self.jdata
-        train_datasets = self.train_datasets
-        checkpoint = f"{rootdir}/test_sktb/output/test_valence/checkpoint/nnsk.best.pth"
-        run_options.update({"init_model": checkpoint, "restart": checkpoint})
-        with pytest.raises(AssertionError):
-            model = build_model(run_options=run_options, model_options=jdata["model_options"], 
-                            common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
+    # def test_initmodel_fail(self):
+    #     run_options = self.run_options
+    #     jdata = self.jdata
+    #     train_datasets = self.train_datasets``
+    #     checkpoint = f"{rootdir}/test_sktb/output/test_valence/checkpoint/nnsk.best.pth"
+    #     run_options.update({"init_model": checkpoint, "restart": checkpoint})
+    #     with pytest.raises(AssertionError):
+    #         model = build_model(checkpoint, model_options=jdata["model_options"], 
+    #                         common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
     
     def test_restart_noref_nval(self):
         run_options = self.run_options

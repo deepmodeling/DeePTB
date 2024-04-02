@@ -41,7 +41,7 @@ def test_tbplas_get_cell(root_directory):
         )
 
 
-    model = build_model(run_opt, {}, common_options)
+    model = build_model(run_opt["init_model"], {}, common_options)
     model.to(common_options["device"])
 
     model.eval()

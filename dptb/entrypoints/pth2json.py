@@ -25,7 +25,7 @@ def pth2json(
         "log_path": log_path,
     }
     
-    model = build_model(run_options)
+    model = build_model(run_options["init_model"])
     
     if model.name == "nnsk":
         nnsk = model

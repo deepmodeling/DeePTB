@@ -55,7 +55,8 @@ def data(
         # }
 
         # setup seed
-        setup_seed(seed=jdata.get("seed", 1021312))
+        rds = np.random.RandomState(1)
+
 
         dataset_dir = jdata.get("dataset_dir")
         filenames = list(glob.glob(os.path.join(dataset_dir, jdata.get("prefix")+"*")))
@@ -73,21 +74,21 @@ def data(
         n_test = int(nfile * test_ratio)
         n_val = int(nfile * val_ratio)
 
-        indices = np.random.choice(nfile, nfile, replace=False)
+        indices = rds.choice(nfile, nfile, replace=False)
         train_indices = indices[:n_train]
         val_indices = indices[n_train:n_train+n_val]
         test_indices = indices[n_train+n_val:]
-
+        
         os.mkdir(os.path.join(dataset_dir, "train"))
         os.mkdir(os.path.join(dataset_dir, "val"))
 
         for id in tqdm(train_indices, desc="Copying files to training sets..."):
-            os.system("cp " + filenames[id] + " " + os.path.join(dataset_dir, "train")+" -r")
+            os.system(f"cp -r {filenames[id]} {dataset_dir}/train")
         
         for id in tqdm(val_indices, desc="Copying files to validation sets..."):
-            os.system("cp " + filenames[id] + " " + os.path.join(dataset_dir, "val")+" -r")
+            os.system(f"cp -r {filenames[id]} {dataset_dir}/val")
 
         if n_test > 0:
             os.mkdir(os.path.join(dataset_dir, "test"))
             for id in tqdm(test_indices, desc="Copying files to testing sets..."):
-                os.system("cp " + filenames[id] + " " + os.path.join(dataset_dir, "test")+" -r")
+                os.system(f"cp -r {filenames[id]} {dataset_dir}/test")

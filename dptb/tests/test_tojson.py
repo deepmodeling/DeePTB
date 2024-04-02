@@ -36,7 +36,7 @@ class TestV1Jsonuniform:
     "overlap": False
     }
 
-    model = build_model(run_opt, model_option, common_options)
+    model = build_model(run_opt["init_model"], model_option, common_options)
     v1json = model.to_json(version=1)
     v2json = model.to_json()
     with open(run_opt['init_model'], 'r') as f:
@@ -115,7 +115,7 @@ class Test2Jsonstrain:
     "overlap": False
     }
 
-    model = build_model(run_opt, model_option, common_options)
+    model = build_model(run_opt["init_model"], model_option, common_options)
     v1json = model.to_json(version=1)
     v2json = model.to_json()
 

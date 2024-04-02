@@ -74,8 +74,8 @@ def _test(
     jdata["model_options"] = f["config"]["model_options"]
     del f
     
-    test_datasets = build_dataset(set_options=jdata["data_options"]["test"], common_options=jdata["common_options"])
-    model = build_model(run_options=run_opt, model_options=jdata["model_options"], common_options=jdata["common_options"])
+    test_datasets = build_dataset(**jdata["data_options"]["test"], **jdata["common_options"])
+    model = build_model(run_opt["init_model"], model_options=jdata["model_options"], common_options=jdata["common_options"])
     model.eval()
     tester = Tester(
         test_options=jdata["test_options"],

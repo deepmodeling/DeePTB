@@ -56,7 +56,7 @@ class TestV1Jsonuniform:
        
 
     def test_bands(self):
-        model = build_model(self.run_opt, self.model_option, self.common_options)
+        model = build_model(self.run_opt["init_model"], self.model_option, self.common_options)
  
         kpath_kwargs = self.jdata["task_options"]
         bcal = Band(model=model, 
@@ -138,7 +138,7 @@ class TestV1Jsonstrain:
        
 
     def test_bands(self):
-        model = build_model(self.run_opt, self.model_option, self.common_options)
+        model = build_model(self.run_opt["init_model"], self.model_option, self.common_options)
  
         kpath_kwargs = self.jdata["task_options"]
         bcal = Band(model=model, 
