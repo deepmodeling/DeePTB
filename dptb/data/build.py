@@ -104,26 +104,36 @@ def dataset_from_config(config, prefix: str = "dataset") -> AtomicDataset:
     return instance
 
 
-def build_dataset(set_options, common_options):
+def build_dataset(
+        # set_options
+        root: str,
+        type: str = "DefaultDataset",
+        prefix: str = None,
+        get_Hamiltonian: bool = False,
+        get_overlap: bool = False,
+        get_DM: bool = False,
+        get_eigenvalues: bool = False,
+
+        # common_options
+        basis: str = None, 
+        **kwargs,
+        ):
+    
     """
     Build a dataset based on the provided set options and common options.
 
     Args:
-        set_options (dict): A dictionary containing the set options for building the dataset.
-            - "type" (str): The type of dataset to build. Default is "DefaultDataset".
-            - "root" (str): The main directory storing all trajectory folders.
-            - "prefix" (str, optional): Load selected trajectory folders with the specified prefix.
-            - "get_Hamiltonian" (bool, optional): Load the Hamiltonian file to edges of the graph or not.
-            - "get_eigenvalues" (bool, optional): Load the eigenvalues to the graph or not.
-            e.g.     
-            "train": {
-                "type": "DefaultDataset",
-                "root": "foo/bar/data_files_here",
-                "prefix": "set"
-            }
+        - type (str): The type of dataset to build. Default is "DefaultDataset".
+        - root (str): The main directory storing all trajectory folders.
+        - prefix (str, optional): Load selected trajectory folders with the specified prefix.
+        - get_Hamiltonian (bool, optional): Load the Hamiltonian file to edges of the graph or not.
+        - get_eigenvalues (bool, optional): Load the eigenvalues to the graph or not.
+        e.g.     
+        type = "DefaultDataset",
+        root = "foo/bar/data_files_here",
+        prefix = "set"
 
-        common_options (dict): A dictionary containing common options for building the dataset.
-            - "basis" (str, optional): The basis for the OrbitalMapper.
+        - basis (str, optional): The basis for the OrbitalMapper.
 
     Returns:
         dataset: The built dataset.
@@ -132,18 +142,16 @@ def build_dataset(set_options, common_options):
         ValueError: If the dataset type is not supported.
         Exception: If the info.json file is not properly provided for a trajectory folder.
     """
-    dataset_type = set_options.get("type", "DefaultDataset")
+    dataset_type = type
 
     if dataset_type in ["DefaultDataset", "DeePHDataset"]:
         # See if we can get a OrbitalMapper.
-        if "basis" in common_options:
-            idp = OrbitalMapper(common_options["basis"])
+        if basis is not None:
+            idp = OrbitalMapper(basis=basis)
         else:
             idp = None
 
         # Explore the dataset's folder structure.
-        root = set_options["root"]
-        prefix = set_options.get("prefix", None)
         include_folders = []
         for dir_name in os.listdir(root):
             dir_path = os.path.join(root, dir_name)
@@ -194,18 +202,18 @@ def build_dataset(set_options, common_options):
             dataset = DeePHE3Dataset(
                 root=root,
                 type_mapper=idp,
-                get_Hamiltonian=set_options.get("get_Hamiltonian", False),
-                get_eigenvalues=set_options.get("get_eigenvalues", False),
+                get_Hamiltonian=get_Hamiltonian,
+                get_eigenvalues=get_eigenvalues,
                 info_files = info_files
             )
         else:
             dataset = DefaultDataset(
                 root=root,
                 type_mapper=idp,
-                get_Hamiltonian=set_options.get("get_Hamiltonian", False),
-                get_overlap=set_options.get("get_overlap", False),
-                get_DM=set_options.get("get_DM", False),
-                get_eigenvalues=set_options.get("get_eigenvalues", False),
+                get_Hamiltonian=get_Hamiltonian,
+                get_overlap=get_overlap,
+                get_DM=get_DM,
+                get_eigenvalues=get_eigenvalues,
                 info_files = info_files
             )
 

@@ -29,7 +29,7 @@ class TestDataLoaderBatch:
     "overlap": False,
     "seed": 3982377700
     }
-    train_datasets = build_dataset(set_options=data_options["train"], common_options=common_options)
+    train_datasets = build_dataset(**data_options["train"], **common_options)
 
     def test_init(self):
         train_loader = DataLoader(dataset=self.train_datasets, batch_size=1, shuffle=True)

@@ -47,7 +47,7 @@ def test_build_nnsk_from_scratch():
         "seed": 3982377700
     }
     statistics = None
-    model = build_model(run_options, model_options, common_options, statistics)
+    model = build_model(None, model_options, common_options, statistics)
 
     assert isinstance(model, NNSK)
     assert model.device == "cpu"
@@ -113,7 +113,7 @@ def test_build_model_MIX_from_scratch():
     }
     statistics = None
 
-    model = build_model(run_options, model_options, common_options, statistics)
+    model = build_model(None, model_options, common_options, statistics)
 
     assert isinstance(model, MIX)
     assert model.name == "mix"
@@ -136,7 +136,7 @@ def test_build_model_failure():
     common_options = {}
 
     with pytest.raises(ValueError) as excinfo:
-        build_model(run_options, model_options, common_options)
+        build_model(None, model_options, common_options)
     assert "You need to provide model_options and common_options" in str(excinfo.value)
     
     common_options = {"basis": {"Si": ["3s", "3p"]}}
@@ -144,52 +144,52 @@ def test_build_model_failure():
     # T F T
     model_options = {"embedding":True, "prediction":False, "nnsk":True}
     with pytest.raises(ValueError) as excinfo:
-        build_model(run_options, model_options, common_options)
+        build_model(None, model_options, common_options)
     assert "Model_options are not set correctly!" in str(excinfo.value)
     
     # F T T
     model_options = {"embedding":False,"prediction":True, "nnsk":True}
     with pytest.raises(ValueError) as excinfo:
-        build_model(run_options, model_options, common_options)
+        build_model(None, model_options, common_options)
     assert "Model_options are not set correctly!" in str(excinfo.value)
 
     # F T F 
     model_options = {"embedding":False,"prediction":True, "nnsk":False}
     with pytest.raises(ValueError) as excinfo:
-        build_model(run_options, model_options, common_options)
+        build_model(None, model_options, common_options)
     assert "Model_options are not set correctly!" in str(excinfo.value)
 
     # T F F
     model_options = {"embedding":True,"prediction":False, "nnsk":False}
     with pytest.raises(ValueError) as excinfo:
-        build_model(run_options, model_options, common_options)
+        build_model(None, model_options, common_options)
     assert "Model_options are not set correctly!" in str(excinfo.value)
 
     # F F F
     model_options = {"embedding":False,"prediction":False, "nnsk":False}
     with pytest.raises(ValueError) as excinfo:
-        build_model(run_options, model_options, common_options)
+        build_model(None, model_options, common_options)
     assert "Model_options are not set correctly!" in str(excinfo.value)
 
 
     model_options = {"embedding":{"method":"se2"},"prediction":{"method":"e3tb"}, "nnsk":True}
     with pytest.raises(ValueError) as excinfo:
-        build_model(run_options, model_options, common_options)
+        build_model(None, model_options, common_options)
     assert "The prediction method must be sktb for mix mode." in str(excinfo.value)
 
     model_options = {"embedding":{"method":"e3"},"prediction":{"method":"sktb"}, "nnsk":True}
     with pytest.raises(ValueError) as excinfo:
-        build_model(run_options, model_options, common_options)
+        build_model(None, model_options, common_options)
     assert "The embedding method must be se2 for mix mode." in str(excinfo.value)
 
     model_options = {"embedding":{"method":"e3"},"prediction":{"method":"sktb"}, "nnsk":False}
     with pytest.raises(ValueError) as excinfo:
-        build_model(run_options, model_options, common_options)
+        build_model(None, model_options, common_options)
     assert "The embedding method must be se2 for sktb prediction in deeptb mode." in str(excinfo.value)
 
     model_options = {"embedding":{"method":"se2"},"prediction":{"method":"e3tb"}, "nnsk":False}
     with pytest.raises(ValueError) as excinfo:
-        build_model(run_options, model_options, common_options)
+        build_model(None, model_options, common_options)
     assert "The embedding method can not be se2 for e3tb prediction in deeptb mode" in str(excinfo.value)
 
 #TODO: add test for dptb-e3tb from scratch

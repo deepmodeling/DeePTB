@@ -7,7 +7,12 @@ import copy
 
 log = logging.getLogger(__name__)
 
-def build_model(run_options, model_options: dict={}, common_options: dict={}, statistics: dict=None):
+def build_model(
+        checkpoint: str=None,
+        model_options: dict={}, 
+        common_options: dict={}, 
+        statistics: dict=None
+        ):
     """
     The build model method should composed of the following steps:
         1. process the configs from user input and the config from the checkpoint (if any).
@@ -16,18 +21,13 @@ def build_model(run_options, model_options: dict={}, common_options: dict={}, st
         run_opt = {
         "init_model": init_model,
         "restart": restart,
-        "freeze": freeze,
-        "log_path": log_path,
-        "log_level": log_level,
-        "use_correction": use_correction
     }
     """
     # this is the 
     # process the model_options
-    assert not all((run_options.get("init_model"), run_options.get("restart"))), "You can only choose one of the init_model and restart options."
-    if any((run_options.get("init_model"), run_options.get("restart"))):
+    # assert not all((init_model, restart)), "You can only choose one of the init_model and restart options."
+    if checkpoint is not None:
         from_scratch = False
-        checkpoint = run_options.get("init_model") or run_options.get("restart")
     else:
         from_scratch = True
         if not all((model_options, common_options)):
