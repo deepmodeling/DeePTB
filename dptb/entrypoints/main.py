@@ -8,6 +8,7 @@ from dptb.entrypoints.test import _test
 # from dptb.entrypoints.run import run
 from dptb.entrypoints.bond import bond
 from dptb.entrypoints.nrl2json import nrl2json
+from dptb.entrypoints.pth2json import pth2json
 from dptb.entrypoints.data import data
 from dptb.utils.loggers import set_log_handles
 from dptb.utils.config_check import check_config_train
@@ -116,7 +117,7 @@ def main_parser() -> argparse.ArgumentParser:
     parser_bond = subparsers.add_parser(
         "bond",
         parents=[parser_log],
-        help="using DeePTB tools",
+        help="Bond distance analysis",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
@@ -146,7 +147,7 @@ def main_parser() -> argparse.ArgumentParser:
     parser_nrl2json = subparsers.add_parser(
         "n2j",
         parents=[parser_log],
-        help="using DeePTB tools to convert NRL file to json model.",
+        help="Convert the NRL file to json ckpt",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser_nrl2json.add_argument(
@@ -167,6 +168,28 @@ def main_parser() -> argparse.ArgumentParser:
         type=str,
         default="./",
         help="The output files to save the transfered model and updated input."
+    )
+
+    # pth2json
+    parser_pth2json = subparsers.add_parser(
+        "p2j",
+        parents=[parser_log],
+        help="Convert the PTH ckpt to json ckpt",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_pth2json.add_argument(
+        "-i",
+        "--init-model",
+        type=str,
+        default=None,
+        help="The pth ckpt to be transfered to json.",
+    )
+    parser_pth2json.add_argument(
+        "-o",
+        "--outdir",
+        type=str,
+        default="./",
+        help="The output files to save the transfered model."
     )
 
     # train parser
@@ -369,5 +392,9 @@ def main():
 
     elif args.command == 'n2j':
         nrl2json(**dict_args)
+    
+    elif args.command == 'p2j':
+        pth2json(**dict_args)
+
     elif args.command == 'data':
         data(**dict_args)
