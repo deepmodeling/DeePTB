@@ -186,36 +186,8 @@ class NNSK(torch.nn.Module):
         # calculate the hopping
         # calculate the overlap
         # return the data with updated edge/node features
-
         # map the parameters to the edge/node/env features
-        
         # compute integrals from parameters using hopping and onsite clas
-
-        # symmetrize the bond for same atomic spices
-        # reflect_keys = np.array(list(self.idp_sk.pair_maps.keys()), dtype="str").reshape(len(self.idp_sk.full_basis), len(self.idp_sk.full_basis)).transpose(1,0).reshape(-1)
-        # params = 0.5 * self.hopping_param.data[self.idp_sk.transform_reduced_bond(torch.tensor(list(self.idp_sk._valid_set)), torch.tensor(list(self.idp_sk._valid_set)))]
-        # reflect_params = torch.zeros_like(params)
-        # for k, k_r in zip(self.idp_sk.pair_maps.keys(), reflect_keys):
-        #     reflect_params[:,self.idp_sk.pair_maps[k],:] += params[:,self.idp_sk.pair_maps[k_r],:]
-        # self.hopping_param.data[self.idp_sk.transform_reduced_bond(torch.tensor(list(self.idp_sk._valid_set)), torch.tensor(list(self.idp_sk._valid_set)))] = \
-        #     reflect_params + params
-        
-        # if hasattr(self, "overlap"):
-        #     params = 0.5 * self.overlap_param.data[self.idp_sk.transform_reduced_bond(torch.tensor(list(self.idp_sk._valid_set)), torch.tensor(list(self.idp_sk._valid_set)))]
-        #     reflect_params = torch.zeros_like(params)
-        #     for k, k_r in zip(self.idp_sk.pair_maps.keys(), reflect_keys):
-        #         reflect_params[:,self.idp_sk.pair_maps[k],:] += params[:,self.idp_sk.pair_maps[k_r],:]
-        #     self.overlap_param.data[self.idp_sk.transform_reduced_bond(torch.tensor(list(self.idp_sk._valid_set)), torch.tensor(list(self.idp_sk._valid_set)))] = \
-        #         reflect_params + params
-        
-        # # in strain case, all env pair need to be symmetrized
-        # if self.onsite_fn.functype == "strain":
-        #     params = 0.5 * self.strain_param.data
-        #     reflect_params = torch.zeros_like(params)
-        #     for k, k_r in zip(self.idp_sk.pair_maps.keys(), reflect_keys):
-        #         reflect_params[:,self.idp_sk.pair_maps[k],:] += params[:,self.idp_sk.pair_maps[k_r],:]
-        #     self.strain_param.data = reflect_params + params
-
         if self.push is not None and self.push is not False:
             if abs(self.push.get("rs_thr")) + abs(self.push.get("rc_thr")) + abs(self.push.get("w_thr")) > 0:
                 self.push_decay(**self.push)
