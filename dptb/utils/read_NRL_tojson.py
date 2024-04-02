@@ -90,7 +90,6 @@ def read_nrl_file(nrl_file):
         else:
             continue
 
-
     NRL_data = {}
     NRL_data['overlap_type'] = overlap_type
     NRL_data['lambda'] = lambda_value
@@ -106,13 +105,17 @@ def read_nrl_file(nrl_file):
 
 
 
-def transfer_bohr_Ang(nrl_tb:dict, overlap_type:int):
-    factor = [1.0, 1.0/bohr2ang, 1.0/bohr2ang**2, 1.0/np.sqrt(bohr2ang)]
+def transfer_bohr_Ang_Ry_eV(nrl_tb:dict, overlap_type:int):
+    for key in nrl_tb['onsite']:
+        for i in range(4):
+            nrl_tb['onsite'][key][i] = nrl_tb['onsite'][key][i]*ryd2ev
+
+    factor = [ryd2ev, ryd2ev/bohr2ang, ryd2ev/bohr2ang**2, 1.0/np.sqrt(bohr2ang)]
     for key in nrl_tb['hopping']:
         for i in range(4):
             nrl_tb['hopping'][key][i] = nrl_tb['hopping'][key][i]*factor[i]
     if overlap_type == 0:
-        factor_s = factor
+        factor_s = [1.0, 1.0/bohr2ang, 1.0/bohr2ang**2, 1.0/np.sqrt(bohr2ang)]
     elif overlap_type ==1:
         factor_s = [1.0/bohr2ang, 1.0/bohr2ang**2, 1.0/bohr2ang**3, 1.0/np.sqrt(bohr2ang)]
 
@@ -127,11 +130,7 @@ def nrl2dptb(input, NRL_data):
     with open(input,'r') as f:
         input_nrl = json.load(f)
     
-    if input_nrl['common_options']['onsitemode'] != 'NRL':
-        log.warning('Warning! the onsite mode is not NRL, will overwrite the onsite mode.')
-        input_nrl['common_options']['onsitemode'] = 'NRL'
-
-    atom_types = input_nrl['common_options']['atomtype']
+    atom_types = list(input_nrl['common_options']['basis'].keys())
     
     if  len(atom_types) != NRL_data['n_atom_type']:
         log.error('Error! the number of atom types in input file is not consistent with the NRL file.')
@@ -141,11 +140,12 @@ def nrl2dptb(input, NRL_data):
         log.error('Error! this module only support the elementary NRL para. for now, the number of atom types in input file should be 1.')
         exit(1)
     atom_symbol = atom_types[0]
-    out_orb= input_nrl['common_options']['proj_atom_anglr_m'][atom_symbol]
+    out_orb= input_nrl['common_options']['basis'][atom_symbol]
 
-    if not input_nrl['common_options']['overlap']:
-        log.error("Error! the overlap must be true, to load the NRL para.")
-        exit(1)
+    if not input_nrl['common_options'].get('overlap',False):
+        log.warning("Warning! the overlap in common_options  must be true, we update it to True.")
+        input_nrl['common_options']['overlap'] = True
+
     orb_map = {}
     for iorb in out_orb:
         if re.findall(r"s",iorb):
@@ -205,29 +205,72 @@ def nrl2dptb(input, NRL_data):
         else:
             continue
 
-    nrl_tb = transfer_bohr_Ang(nrl_out,overlap_type=overlap_type)
+    nrl_tb = transfer_bohr_Ang_Ry_eV(nrl_out,overlap_type=overlap_type)
     
-    input_nrl['common_options']['onsite_cutoff'] = Rcut * bohr2ang
+    if input_nrl.get('model_options',{}) == {}:
+        input_nrl['model_options'] = {}
+    if input_nrl['model_options'].get('nnsk',{}) != {}:
+        log.info('Warning! the nnsk in model_options is not empty, will overwrite the nnsk.')
+    else:
+        input_nrl['model_options']['nnsk'] = {}
 
-    if input_nrl['common_options']['unit'] != 'Ry':
-        log.warning('The energy unit from NRL should be Ry')
-        input_nrl['common_options']['unit'] = 'Ry'
+    freeze = input_nrl['model_options']['nnsk'].get('freeze',False)
+    std = input_nrl['model_options']['nnsk'].get('std',0.01)
+    push = input_nrl['model_options']['nnsk'].get('push',False)
+    
+    input_nrl['model_options']['nnsk'].update(
+        {"onsite": {
+            "method": "NRL",
+            "rc": Rcut * bohr2ang,
+            "w": Lscreen * bohr2ang,
+            "lda": lambda_value/np.sqrt(bohr2ang)
+        },
+        "hopping": {
+            "method": f'NRL{overlap_type}',
+            "rc": Rcut * bohr2ang,
+            "w": Lscreen * bohr2ang
+        },
+        "freeze": freeze,
+        "std": std,
+        "push": push}
+    )
 
+   ### models 
+    model = {}
+    model['version'] =2
+    model['unit'] = 'eV'
+    model['common_options'] ={
+        "basis": {
+            atom_symbol: out_orb
+        },
+        "device": "cpu",
+        "dtype": "float32",
+        "overlap": True    
+        }
+    model['model_options'] = {
+        "nnsk": {
+            "onsite": {
+                "method": "NRL",
+                "rc": Rcut * bohr2ang,
+                "w": Lscreen * bohr2ang,
+                "lda": lambda_value/np.sqrt(bohr2ang)
+            },
+            "hopping": {
+                "method": f'NRL{overlap_type}',
+                "rc": Rcut * bohr2ang,
+                "w": Lscreen * bohr2ang
+            }
+        }
+    }
+    model['model_params'] = nrl_tb
 
-    if  not "skfunction" in input_nrl['model_options'].keys():
-        input_nrl['model_options']['skfunction'] = {}
-    input_nrl['model_options']['skfunction']['sk_cutoff'] = Rcut * bohr2ang
-    input_nrl['model_options']['skfunction']['sk_decay_w'] = Lscreen * bohr2ang
-    input_nrl['model_options']['skfunction']['skformula'] = f'NRLv{overlap_type}'
+    log.info(f"The NRL parameters are successfully transferred to DPTB.")
+    log.info(f"Please check the input json file and modify the parameters if necessary.")
+    log.info(f"!!!!!")
+    log.info(f"Important: recommend to set the info.json r_max and oer_max >= {Rcut*bohr2ang} Ang")
+    log.info(f"!!!!!")   
 
-    if not "onsitefuncion" in input_nrl['model_options'].keys():
-        input_nrl['model_options']['onsitefuncion'] = {}
-    input_nrl['model_options']['onsitefuncion']['onsite_func_cutoff'] = Rcut * bohr2ang
-    input_nrl['model_options']['onsitefuncion']['onsite_func_decay_w'] = Lscreen * bohr2ang
-    input_nrl['model_options']['onsitefuncion']['onsite_func_lambda'] = lambda_value/np.sqrt(bohr2ang)
-   
-
-    return input_nrl, nrl_tb
+    return input_nrl, model
 
 
 def save2json(input_dict:dict, nrl_tb_dict:dict, outdir='./out'):
