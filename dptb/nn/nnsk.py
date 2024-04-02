@@ -32,7 +32,7 @@ class NNSK(torch.nn.Module):
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             transform: bool = True,
-            freeze: bool = False,
+            freeze: Union[bool,str,list] = False,
             push: Union[bool,dict]=False,
             std: float = 0.01,
             **kwargs,
@@ -115,10 +115,40 @@ class NNSK(torch.nn.Module):
             self.overlap = SKHamiltonian(idp_sk=self.idp_sk, onsite=False, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
         self.idp = self.hamiltonian.idp
         
-        if freeze:
-            for (name, param) in self.named_parameters():
-                param.requires_grad = False
+        if freeze:  
+            self.freezefunc(freeze)
     
+    def freezefunc(self, freeze: Union[bool,str,list]):
+        frozen_params = []
+        for name, param in self.named_parameters():
+            if isinstance(freeze, str):
+                if freeze in name:
+                    param.requires_grad = False
+                    frozen_params.append(name)
+            elif isinstance(freeze, list):
+                for freeze_str in freeze:
+                    if freeze_str in name:
+                        param.requires_grad = False
+                        frozen_params.append(name)
+                        break
+            else:
+                param.requires_grad = False
+                frozen_params.append(name)
+        
+        if not frozen_params:
+            raise ValueError("freeze is not set to None, but No parameters are frozen. Please check the freeze tag.")
+        elif isinstance(freeze, list):
+            if len(frozen_params) != len(freeze):
+                raise ValueError("freeze is set to a list, but the number of frozen parameters is not equal to the length of the list. Please check the freeze tag.")
+        elif isinstance(freeze, str):
+            if len(frozen_params) > 1:
+                raise ValueError("freeze is a string, but multiple parameters are frozen. Please check the freeze tag.")
+        else:
+            if len(frozen_params)!=len(dict(self.named_parameters()).keys()):
+                raise ValueError("freeze is not string but bool, all parameters should frozen. But the frozen_params != all model.named_parameters. Please check the freeze tag.")
+
+        log.info(f'The {frozen_params} are frozed!')
+
     def push_decay(self, rs_thr: float=0., rc_thr: float=0., w_thr: float=0., period:int=100):
         """Push the soft cutoff function
 
@@ -308,7 +338,7 @@ class NNSK(torch.nn.Module):
         dtype: Union[str, torch.dtype]=None, 
         device: Union[str, torch.device]=None,
         push: Dict=None,
-        freeze: bool = False,
+        freeze: Union[bool,str,list] = False,
         std: float = 0.01,
         **kwargs,
         ):
@@ -517,12 +547,9 @@ class NNSK(torch.nn.Module):
                                         params[ref_idp.bond_to_type[b],ref_idp.orbpair_maps[ref_forbpair]]
 
             del f
-
-        if freeze:
-            for (name, param) in model.named_parameters():
-                param.requires_grad = False
-            else:
-                param.requires_grad = True # in case initilizing some frozen checkpoint while with current freeze setted as False
+        
+        if freeze:  
+            model.freezefunc(freeze)
 
         return model
 
@@ -538,7 +565,7 @@ class NNSK(torch.nn.Module):
         dtype: Union[str, torch.dtype] = torch.float32, 
         device: Union[str, torch.device] = torch.device("cpu"),
         std: float = 0.01,
-        freeze: bool = False,
+        freeze: Union[bool,str,list] = False,
         push: Union[bool,None,dict] = False,
         **kwargs
         ):
@@ -561,7 +588,7 @@ class NNSK(torch.nn.Module):
         idp_sk.get_skonsite_maps()
 
         nnsk_model = cls(basis=basis, idp_sk=idp_sk,  onsite=onsite,
-                          hopping=hopping, overlap=overlap, std=std,freeze=freeze, push=push, dtype=dtype, device=device,)
+                          hopping=hopping, overlap=overlap, std=std,freeze=freeze, push=push, dtype=dtype, device=device)
 
         onsite_param = v1_model["onsite"]
         hopping_param = v1_model["hopping"]
@@ -657,6 +684,9 @@ class NNSK(torch.nn.Module):
                 nidx = idp_sk.skonsite_maps[fiorb].start + num
 
                 nnsk_model.onsite_param.data[nline, nidx] = skparam
+
+        if freeze:  
+            nnsk_model.freezefunc(freeze)
 
         return nnsk_model
     
