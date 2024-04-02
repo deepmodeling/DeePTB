@@ -10,6 +10,10 @@ import json
 import torch
 import os
 from pathlib import Path
+from dptb.entrypoints.nrl2json import nrl2json
+from dptb.entrypoints.pth2json import pth2json
+
+from dptb.utils.tools import flatten_dict
 
 
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data")
@@ -83,3 +87,43 @@ def test_nrl_train_freeze():
     assert torch.any(torch.abs(model_fz.hopping_param - model.hopping_param ) > 1e-5)
     assert torch.all(torch.abs(model_fz.overlap_param - model.overlap_param ) < 1e-6)
     assert torch.any(torch.abs(model_fz.onsite_param - model.onsite_param ) > 1e-5)
+
+def flatten_dict(d, parent_key='', sep='_'):
+    items = []
+    for k, v in d.items():
+        new_key = f'{parent_key}{sep}{k}' if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+def compare_dicts(d1, d2):
+    return flatten_dict(d1) == flatten_dict(d2)
+
+def test_nrl2jsono():
+    INPUT_file = f"{rootdir}/test_sktb/input/input_nrl.json"
+    nrlfile = f"{rootdir}/json_model/Si_spd.par"
+    outdir = f"{rootdir}/out"
+    nrl2json(INPUT_file, nrlfile, outdir,log_level=5, log_path=outdir+"/test_nrl2json.log")
+
+    with open(f"{outdir}/nrl_ckpt.json",'r') as f:
+        nrl1 = json.load(f)
+    with open(f"{rootdir}/json_model/Si_nrl.json",'r') as f:
+        nrl2 = json.load(f)
+    nrl1_flat = flatten_dict(nrl1)
+    nrl2_flat = flatten_dict(nrl2)
+    for key, val in nrl1_flat.items():
+        assert key in nrl2_flat
+        if isinstance(val, list):
+            if isinstance(val[0], float):
+                assert np.allclose(val, nrl2_flat[key], atol=1e-5)
+            else:
+                assert val == nrl2_flat[key]
+        else:
+            assert val == nrl2_flat[key]
+
+def test_pth2json():
+    init_model = f"{rootdir}/test_sktb/output/test_nrl/checkpoint/nnsk.best.pth"
+    outdir = f"{rootdir}/out"
+    pth2json(init_model, outdir, log_level=5, log_path=outdir+"/test_pth2json.log")
