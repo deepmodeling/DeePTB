@@ -37,6 +37,11 @@
             "root": "./data/",
             "prefix": "kpathmd100",
             "get_eigenvalues": true
+        },
+        "reference": {
+            "root": "./data/",
+            "prefix": "kpath",
+            "get_eigenvalues": true
         }
     }
 }
