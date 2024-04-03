@@ -533,7 +533,8 @@ class OrbitalMapper(BondMapper):
             self.reduced_matrix_element = self.reduced_matrix_element + orbtype_count["s"] + 2*orbtype_count["p"] + 3*orbtype_count["d"] + 4*orbtype_count["f"]
             self.reduced_matrix_element = int(self.reduced_matrix_element / 2)
             self.n_onsite_Es = orbtype_count["s"] + orbtype_count["p"] + orbtype_count["d"] + orbtype_count["f"]
-                                     
+            self.n_onsite_socLs = orbtype_count["s"] + orbtype_count["p"] + orbtype_count["d"] + orbtype_count["f"]
+                  
         # sort the basis
         for ib in self.basis.keys():
             self.basis[ib] = sorted(
