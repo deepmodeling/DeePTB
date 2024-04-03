@@ -63,7 +63,7 @@ class HR2HK(torch.nn.Module):
                 
                 # constructing hopping blocks
                 if iorb == jorb:
-                    factor = 0.5
+                    factor = 0.5  # for diagonal elements, we need to divide by 2 for later conjugate transpose operation to construct the whole Hamiltonian
                 else:
                     factor = 1.0
 
@@ -108,6 +108,7 @@ class HR2HK(torch.nn.Module):
             jmask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[jatom]]
             masked_hblock = hblock[imask][:,jmask]
 
+            
             block[:,iatom_indices,jatom_indices] += masked_hblock.squeeze(0).type_as(block) * \
                 torch.exp(-1j * 2 * torch.pi * (data[AtomicDataDict.KPOINT_KEY] @ data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i])).reshape(-1,1,1)
 
