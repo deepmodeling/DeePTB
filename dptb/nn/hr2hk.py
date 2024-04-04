@@ -41,6 +41,8 @@ class HR2HK(torch.nn.Module):
         self.node_field = node_field
         self.out_field = out_field
 
+        self.atom_norb = []
+
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
 
         # construct bond wise hamiltonian block from obital pair wise node/edge features
@@ -97,8 +99,9 @@ class HR2HK(torch.nn.Module):
             masked_oblock = oblock[mask][:,mask]
             block[:,ist:ist+masked_oblock.shape[0],ist:ist+masked_oblock.shape[1]] = masked_oblock.squeeze(0)
             atom_id_to_indices[i] = slice(ist, ist+masked_oblock.shape[0])
+            self.atom_norb.append(masked_oblock.shape[0])
             ist += masked_oblock.shape[0]
-        
+
         for i, hblock in enumerate(bondwise_hopping):
             iatom = data[AtomicDataDict.EDGE_INDEX_KEY][0][i]
             jatom = data[AtomicDataDict.EDGE_INDEX_KEY][1][i]
@@ -108,7 +111,6 @@ class HR2HK(torch.nn.Module):
             jmask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[jatom]]
             masked_hblock = hblock[imask][:,jmask]
 
-            
             block[:,iatom_indices,jatom_indices] += masked_hblock.squeeze(0).type_as(block) * \
                 torch.exp(-1j * 2 * torch.pi * (data[AtomicDataDict.KPOINT_KEY] @ data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i])).reshape(-1,1,1)
 
