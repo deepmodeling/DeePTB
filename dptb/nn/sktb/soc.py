@@ -60,7 +60,9 @@ class SOCFormula(BaseSOC):
                     self.socL_base[idx][self.idp.skonsite_maps[fot]] = soc_strength_database[asym][ot]
         
     def get_socLs(self, **kwargs):
-        if self.functype == 'uniform':
+        if self.functype == 'none':
+            return self.none(**kwargs)
+        elif self.functype == 'uniform':
             return self.uniform(**kwargs)
         elif self.functype == 'custom':
             return self.custom(**kwargs)
