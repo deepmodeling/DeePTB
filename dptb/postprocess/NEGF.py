@@ -95,7 +95,8 @@ class NEGF(object):
         # computing the hamiltonian  #需要改写NEGFHamiltonianInit   
         self.negf_hamiltonian = NEGFHamiltonianInit(model=model,
                                                     AtomicData_options=AtomicData_options, 
-                                                    structure=structure, 
+                                                    structure=structure,
+                                                    pbc_negf = self.pbc, 
                                                     stru_options=self.stru_options, 
                                                     results_path=self.results_path,
                                                     torch_device = self.torch_device)
