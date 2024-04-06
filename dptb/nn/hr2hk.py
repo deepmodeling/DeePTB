@@ -58,7 +58,7 @@ class HR2HK(torch.nn.Module):
         onsite_block = torch.zeros((len(data[AtomicDataDict.ATOM_TYPE_KEY]), self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
 
         
-        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY]:
+        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
             if self.overlap:
                 raise NotImplementedError("Overlap is not implemented for SOC.")
             
@@ -92,7 +92,7 @@ class HR2HK(torch.nn.Module):
                     if i <= j:
                         onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
                     
-                    if data[AtomicDataDict.NODE_SOC_SWITCH_KEY] and i==j:
+                    if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all() and i==j:
                         soc_upup_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = orbpair_soc[:,self.idp.orbpair_soc_maps[orbpair],:2*li+1,:2*lj+1].reshape(-1, 2*li+1, 2*lj+1)
                         soc_updn_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = orbpair_soc[:,self.idp.orbpair_soc_maps[orbpair],:2*li+1,2*lj+1:].reshape(-1, 2*li+1, 2*lj+1)
                 
@@ -100,7 +100,7 @@ class HR2HK(torch.nn.Module):
             ist += 2*li+1
         self.onsite_block = onsite_block
         self.bondwise_hopping = bondwise_hopping
-        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY]:
+        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
             self.soc_upup_block = soc_upup_block
             self.soc_updn_block = soc_updn_block
 
@@ -108,7 +108,7 @@ class HR2HK(torch.nn.Module):
         all_norb = self.idp.atom_norb[data[AtomicDataDict.ATOM_TYPE_KEY]].sum()
         block = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
         # block = torch.complex(block, torch.zeros_like(block))
-        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY]:
+        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
             block_uu = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
             block_ud = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
         atom_id_to_indices = {}
@@ -120,7 +120,7 @@ class HR2HK(torch.nn.Module):
             atom_id_to_indices[i] = slice(ist, ist+masked_oblock.shape[0])
             ist += masked_oblock.shape[0]
         
-        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY]:
+        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
             ist = 0
             for i, soc_block in enumerate(soc_upup_block):
                 mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
@@ -149,7 +149,7 @@ class HR2HK(torch.nn.Module):
         block = block + block.transpose(1,2).conj()
         block = block.contiguous()
         
-        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY]:
+        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
             HK_SOC = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], 2*all_norb, 2*all_norb, dtype=self.ctype, device=self.device)
             HK_SOC[:,:all_norb,:all_norb] = block + block_uu
             HK_SOC[:,:all_norb,all_norb:] = block_ud

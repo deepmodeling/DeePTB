@@ -69,6 +69,7 @@ class NNSK(torch.nn.Module):
             "nnsk":{
                 "onsite": onsite, 
                 "hopping": hopping,
+                "soc": soc,
                 "freeze": freeze,
                 "push": push,
                 "std": std                
@@ -317,9 +318,15 @@ class NNSK(torch.nn.Module):
                 atomic_numbers=atomic_numbers, 
                 nn_soc_paras=self.soc_param
                 )
-            data[AtomicDataDict.NODE_SOC_SWITCH_KEY] = True
+            if AtomicDataDict.NODE_SOC_SWITCH_KEY not in data:
+                data[AtomicDataDict.NODE_SOC_SWITCH_KEY] =  torch.full((data['pbc'].shape[0], 1), True) 
+            else:
+                data[AtomicDataDict.NODE_SOC_SWITCH_KEY].fill_(True)
         else:
-            data[AtomicDataDict.NODE_SOC_SWITCH_KEY] = False
+            if AtomicDataDict.NODE_SOC_SWITCH_KEY not in data:
+                data[AtomicDataDict.NODE_SOC_SWITCH_KEY] =  torch.full((data['pbc'].shape[0], 1), False)
+            else:
+                data[AtomicDataDict.NODE_SOC_SWITCH_KEY].fill_(False)
                 
         # sk param to hamiltonian and overlap
         if self.transform:
@@ -397,7 +404,6 @@ class NNSK(torch.nn.Module):
                     else:
                         nnsk[k] = json_model["model_options"]["nnsk"][k]
                         log.info(f"{k} is not provided in the input json, set to the value {nnsk[k]}in the json model file.")
-
             
             if ckpt_version == 1:
                 if json_model.get("unit", None) is None:
@@ -434,7 +440,7 @@ class NNSK(torch.nn.Module):
                 else:
                     overlap_param = None
 
-            if soc.get("method", None) is not None:
+            if nnsk['soc'].get("method", None) is not None:
                 if ckpt_version == 2:
                     soc_param = json_model["model_params"]["soc"]
                 elif ckpt_version == 1:
@@ -617,7 +623,7 @@ class NNSK(torch.nn.Module):
         basis = idp_sk.basis
         idp_sk.get_orbpair_maps()
         idp_sk.get_skonsite_maps()
-        idp_sk.get_orbpair_soc_maps()
+        # idp_sk.get_orbpair_soc_maps()
         idp_sk.get_sksoc_maps()
 
         nnsk_model = cls(basis=basis, idp_sk=idp_sk,  onsite=onsite,
@@ -872,10 +878,11 @@ class NNSK(torch.nn.Module):
                         soc_param[f"{asym}-{orb}-{ind}"] = (soc[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
 
 
-            model_params = {
+        
+        model_params = {
                     "onsite": onsite_param,
                     "hopping": hopping_param
-            }
+        }
         if is_overlap:
             model_params.update({"overlap": overlap_param})
 

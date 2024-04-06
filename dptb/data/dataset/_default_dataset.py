@@ -215,7 +215,8 @@ class _TrajData(object):
                 # atomic_data = AtomicData.from_dict(atomic_data)
             if not hasattr(atomic_data, AtomicDataDict.NODE_SOC_KEY):
                 atomic_data[AtomicDataDict.NODE_SOC_KEY] = torch.zeros(atomic_data[AtomicDataDict.POSITIONS_KEY].shape[0], 1)
-                atomic_data[AtomicDataDict.NODE_SOC_SWITCH_KEY] = False # by default, no SOC∂∂
+                atomic_data[AtomicDataDict.NODE_SOC_SWITCH_KEY] = torch.as_tensor([False],dtype=torch.bool)
+                # torch.as_tensor([False],dtype=torch.bool) # by default, no SOC
             if "eigenvalues" in self.data and "kpoints" in self.data:
                 assert "bandinfo" in self.info, "`bandinfo` must be provided in `info.json` for loading eigenvalues."
                 bandinfo = self.info["bandinfo"]

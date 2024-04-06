@@ -348,7 +348,7 @@ class SKHamiltonian(torch.nn.Module):
 
                 data[self.node_field][:, self.idp.orbpair_maps[otype+"-"+otype]] = HR.reshape(n_node, -1)
         if self.soc:
-            assert data[AtomicDataDict.NODE_SOC_SWITCH_KEY], "The SOC switch is not turned on in data by soc is set to True."
+            assert data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all(), "The SOC switch is not turned on in data by soc is set to True."
             soc_feature = data[AtomicDataDict.NODE_SOC_KEY]
             data[AtomicDataDict.NODE_SOC_KEY] = torch.zeros(n_node, self.idp.reduced_soc_matrix_elemet, dtype= self.cdtype, device=self.device)
             for otype in self.idp_sk.sksoc_maps.keys():
