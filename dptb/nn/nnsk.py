@@ -17,6 +17,7 @@ from dptb.utils.constants import atomic_num_dict_r, atomic_num_dict
 from dptb.nn.hamiltonian import SKHamiltonian
 from dptb.utils.tools import j_loader
 from dptb.utils.constants import ALLOWED_VERSIONS
+from dptb.nn.sktb.soc import SOCFormula
 
 import logging
 
@@ -31,6 +32,7 @@ class NNSK(torch.nn.Module):
             onsite: Dict={"method": "none"},
             hopping: Dict={"method": "powerlaw", "rs":6.0, "w": 0.2},
             overlap: bool = False,
+            soc:Dict = {},
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             transform: bool = True,
@@ -61,6 +63,7 @@ class NNSK(torch.nn.Module):
         self.idp_sk.get_skonsite_maps()
         self.onsite_options = onsite
         self.hopping_options = hopping
+        self.soc_options = soc
         self.push = push
         self.model_options = {
             "nnsk":{
@@ -72,6 +75,9 @@ class NNSK(torch.nn.Module):
                 }
             }
         
+        if self.soc_options.get("method", None) is not None:
+            self.idp_sk.get_sksoc_maps()
+        
         self.count_push = 0
 
         # init_onsite, hopping, overlap formula
@@ -80,7 +86,8 @@ class NNSK(torch.nn.Module):
         self.hopping_fn = HoppingFormula(functype=self.hopping_options["method"])
         if overlap:
             self.overlap_fn = HoppingFormula(functype=self.hopping_options["method"], overlap=True)
-        
+        if self.soc_options.get("method", None) is not None:
+            self.soc_fn = SOCFormula(idp=self.idp_sk, functype=self.soc_options["method"], dtype=dtype, device=device)
         # init_param
         # 
         hopping_param = torch.empty([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device)
@@ -90,6 +97,16 @@ class NNSK(torch.nn.Module):
             overlap_param = torch.empty([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, self.hopping_fn.num_paras], dtype=self.dtype, device=self.device)
             nn.init.normal_(overlap_param, mean=0.0, std=std)
             self.overlap_param = torch.nn.Parameter(overlap_param)
+
+        if self.soc_options.get("method", None) is not None:
+            if self.soc_options.get("method", None) == 'none':
+                self.soc_param = None
+            elif self.soc_options.get("method", None) == 'uniform':
+                soc_param = torch.empty([len(self.idp_sk.type_names), self.idp_sk.n_onsite_socLs, self.soc_fn.num_paras], dtype=self.dtype, device=self.device)
+                nn.init.normal_(soc_param, mean=0.0, std=std)
+                self.soc_param = torch.nn.Parameter(soc_param)
+            else:
+                raise NotImplementedError(f"The soc method {self.soc_options['method']} is not implemented.")
 
         if self.onsite_options["method"] == "strain":
             self.onsite_param = None
@@ -295,6 +312,15 @@ class NNSK(torch.nn.Module):
             
             data[AtomicDataDict.ONSITENV_FEATURES_KEY] = onsitenv_params
 
+        if self.soc_options.get("method", None) is not None:
+            data[AtomicDataDict.NODE_SOC_KEY] = self.soc_fn.get_socLs(
+                atomic_numbers=atomic_numbers, 
+                nn_soc_paras=self.soc_param
+                )
+            data[AtomicDataDict.NODE_SOC_SWITCH_KEY] = True
+        else:
+            data[AtomicDataDict.NODE_SOC_SWITCH_KEY] = False
+                
         # sk param to hamiltonian and overlap
         if self.transform:
             data = self.hamiltonian(data)
@@ -310,6 +336,7 @@ class NNSK(torch.nn.Module):
         basis: Dict[str, Union[str, list]]=None,
         onsite: Dict=None,
         hopping: Dict=None,
+        soc:Dict=None,
         overlap: bool=None,
         dtype: Union[str, torch.dtype]=None, 
         device: Union[str, torch.device]=None,
@@ -331,6 +358,7 @@ class NNSK(torch.nn.Module):
         nnsk = {
             "onsite": onsite,
             "hopping": hopping,
+            "soc": soc,
             "freeze": freeze,
             "push": push,
             "std": std
@@ -406,18 +434,30 @@ class NNSK(torch.nn.Module):
                 else:
                     overlap_param = None
 
+            if soc.get("method", None) is not None:
+                if ckpt_version == 2:
+                    soc_param = json_model["model_params"]["soc"]
+                elif ckpt_version == 1:
+                    soc_param = json_model["soc"]
+                else:
+                    raise ValueError("The version of the model is not supported.")
+            else:
+                soc_param = None
+
             if ckpt_version ==1:
                 v1_model = {
                     "unit": ene_unit,
                     "onsite": json_model["onsite"],
                     "hopping": json_model["hopping"],
-                    "overlap": overlap_param}
+                    "overlap": overlap_param,
+                    "soc": soc_param}
             else:
                 v1_model = {
                     "unit": ene_unit,
                     "onsite": json_model["model_params"]["onsite"],
                     "hopping": json_model["model_params"]["hopping"],
-                    "overlap": overlap_param}
+                    "overlap": overlap_param,
+                    "soc": soc_param}
             
             model = cls._from_model_v1(
                 v1_model=v1_model,
@@ -503,6 +543,20 @@ class NNSK(torch.nn.Module):
                                     model.onsite_param.data[idp.chemical_symbol_to_type[asym],idp.skonsite_maps[forb]] = \
                                         params[ref_idp.chemical_symbol_to_type[asym],ref_idp.skonsite_maps[ref_forb]]
 
+                if hasattr(model, "soc_param") and model.soc_param is not None and f["model_state_dict"].get("soc_param", None) != None:
+                    ref_idp.get_orbpair_soc_maps()
+                    idp.get_orbpair_soc_maps()
+                    ref_idp.get_sksoc_maps()
+                    idp.get_sksoc_maps()
+                    params = f["model_state_dict"]["soc_param"]
+                    for asym in ref_idp.type_names:
+                        if asym in idp.type_names:
+                            for ref_forb in ref_idp.sksoc_maps.keys():
+                                rorb = ref_idp.full_basis_to_basis[asym][ref_forb]
+                                forb = idp.basis_to_full_basis[asym].get(rorb)
+                                if forb is not None:
+                                    model.soc_param.data[idp.chemical_symbol_to_type[asym],idp.sksoc_maps[forb]] = \
+                                        params[ref_idp.chemical_symbol_to_type[asym],ref_idp.sksoc_maps[ref_forb]]
                 # load strain
                 if hasattr(model, "strain_param") and f["model_state_dict"].get("strain_param") != None:
                     params = f["model_state_dict"]["strain_param"]
@@ -538,6 +592,7 @@ class NNSK(torch.nn.Module):
         onsite: Dict={"method": "none"},
         hopping: Dict={"method": "powerlaw", "rs":6.0, "w": 0.2},
         overlap: bool = False,
+        soc:Dict = {},
         dtype: Union[str, torch.dtype] = torch.float32, 
         device: Union[str, torch.device] = torch.device("cpu"),
         std: float = 0.01,
@@ -562,12 +617,15 @@ class NNSK(torch.nn.Module):
         basis = idp_sk.basis
         idp_sk.get_orbpair_maps()
         idp_sk.get_skonsite_maps()
+        idp_sk.get_orbpair_soc_maps()
+        idp_sk.get_sksoc_maps()
 
         nnsk_model = cls(basis=basis, idp_sk=idp_sk,  onsite=onsite,
-                          hopping=hopping, overlap=overlap, std=std,freeze=freeze, push=push, dtype=dtype, device=device)
+                          hopping=hopping, overlap=overlap, soc=soc, std=std,freeze=freeze, push=push, dtype=dtype, device=device)
 
         onsite_param = v1_model["onsite"]
         hopping_param = v1_model["hopping"]
+        soc_param = v1_model["soc"]
         if overlap:
             overlap_param = v1_model["overlap"]
 
@@ -660,6 +718,24 @@ class NNSK(torch.nn.Module):
                 nidx = idp_sk.skonsite_maps[fiorb].start + num
 
                 nnsk_model.onsite_param.data[nline, nidx] = skparam
+        if soc.get("method", None) is not None:
+            if soc["method"] == "none":
+                pass
+            else:
+                assert soc_param is not None, "The soc parameters should be provided."
+                for orbon, skparam in soc_param.items():
+                    skparam = torch.tensor(skparam, dtype=dtype, device=device)
+                    if ene_unit == "Hartree":
+                        skparam *= 13.605662285137 * 2
+                    iasym, iorb, num = list(orbon.split("-"))
+                    num = int(num)
+                    ian = torch.tensor(atomic_num_dict[iasym])
+                    fiorb = idp_sk.basis_to_full_basis[iasym][iorb]
+
+                    nline = idp_sk.transform_atom(atomic_numbers=ian)
+                    nidx = idp_sk.sksoc_maps[fiorb].start + num
+
+                    nnsk_model.soc_param.data[nline, nidx] = skparam
 
         if freeze:  
             nnsk_model.freezefunc(freeze)
@@ -783,18 +859,28 @@ class NNSK(torch.nn.Module):
                         onsite_param[f"{asym}-{orb}-{ind}"] = (onsite[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
         else:
             onsite_param = {}
-        
+
+        has_soc = hasattr(self, "soc_param") and self.soc_param is not None
+        if has_soc:
+            soc = self.soc_param.data.cpu().clone().numpy()
+            soc_param = {}
+            for asym in self.idp_sk.type_names:
+                for iorb, slices in self.idp_sk.sksoc_maps.items():
+                    orb = self.idp_sk.full_basis_to_basis[asym][iorb]
+                    for i in range(slices.start, slices.stop): 
+                        ind = i-slices.start      
+                        soc_param[f"{asym}-{orb}-{ind}"] = (soc[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
+
+
+            model_params = {
+                    "onsite": onsite_param,
+                    "hopping": hopping_param
+            }
         if is_overlap:
-            model_params = {
-                "onsite": onsite_param,
-                "hopping": hopping_param,
-                "overlap": overlap_param
-            }
-        else:
-            model_params = {
-                "onsite": onsite_param,
-                "hopping": hopping_param
-            }
+            model_params.update({"overlap": overlap_param})
+
+        if has_soc:
+            model_params.update({"soc": soc_param})
 
         if version ==1:
             ckpt.update(model_params)

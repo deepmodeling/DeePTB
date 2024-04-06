@@ -682,7 +682,33 @@ class OrbitalMapper(BondMapper):
                 self.orbpair_maps[io+"-"+jo] = slice(start, start+n_feature)
 
         return self.orbpair_maps
-    
+
+    def get_orbpair_soc_maps(self):
+        if hasattr(self, "orbpairt_soc_maps"):
+            return self.orbpair_soc_maps
+        
+        self.orbpair_soc_maps = {}
+        ist = 0
+        for i, io in enumerate(self.full_basis):
+            full_basis_pair = io+"-"+io   # io - io not io-jo soc only support for the same orbital for now.
+            ir, jr = int(full_basis_pair[0]), int(full_basis_pair[3])
+            iio, jjo = full_basis_pair[1], full_basis_pair[4]
+            il, jl = anglrMId[iio], anglrMId[jjo]
+
+            if self.method == 'e3tb':
+                n_feature = (2*il+1) * (2*jl+1) * 4 / 2 # 4 = 2 * 2 is to accont for the spin degree of freedom. /2 is to reduce the number of soc matrix elements.
+            else:
+                raise NotImplementedError
+            self.orbpair_soc_maps[full_basis_pair] = slice(ist, ist+n_feature)
+            ist += n_feature
+        reduced_soc_matrix_elemet = 0
+        for ko in self.orbtype_count.keys():
+            reduced_soc_matrix_elemet += self.orbtype_count[ko] * (2 * anglrMId[ko] + 1)**2 * 4 / 2
+       
+        self.reduced_soc_matrix_elemet = int(reduced_soc_matrix_elemet)
+        
+        return self.orbpair_soc_maps
+
     def get_skonsite_maps(self):
 
         assert self.method == "sktb", "Only sktb orbitalmapper have skonsite maps."
@@ -718,8 +744,44 @@ class OrbitalMapper(BondMapper):
                 ist += numonsites
 
         return self.skonsitetype_maps
+    
+    def get_sksoctype_maps(self):
+        self.sksoctype_maps = {}
+        ist = 0
 
+        assert self.method == "sktb", "Only sktb orbitalmapper have sksoctype maps."
+        for i, io in enumerate(["s", "p", "d", "f", "g", "h"]):
+            if self.orbtype_count[io] != 0:
+                il = anglrMId[io]
+                numonsites = self.orbtype_count[io]
+
+                self.sksoctype_maps[io] = slice(ist, ist+numonsites)
+
+                ist += numonsites
+
+        return self.sksoctype_maps
         # also need to think if we modify as this, how can we add extra basis when fitting.
+
+    def get_sksoc_maps(self):
+
+        assert self.method == "sktb", "Only sktb orbitalmapper have sksoc maps."
+
+        if hasattr(self, "sksoc_maps"):
+            return self.sksoc_maps
+
+        if not hasattr(self, "sksoctype_maps"):
+            self.get_sksoctype_maps()
+        
+        self.sksoc_maps = {}
+        for i, io in enumerate(self.full_basis):
+            ir= int(io[0])
+            iio = io[1]
+
+            start = int(self.sksoctype_maps[iio].start + (ir-1))
+            self.sksoc_maps[io] = slice(start, start+1)
+
+        return self.sksoc_maps
+
 
     def get_orbital_maps(self):
         # simply get a 1-d slice for each atom species.

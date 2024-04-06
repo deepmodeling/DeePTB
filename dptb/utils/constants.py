@@ -7,6 +7,7 @@ ALLOWED_VERSIONS = [1,2]
 CUBIC_MAG_NUM_DICT = {'s':[0], 'p':[-1, 0, 1], 'd':[-2, -1, 0, 1, 2]}
 LM_MAG_NUM_DICT    = {'s':[0], 'p':[-1, 0, 1], 'd':[-2, -1, 0, 1, 2]}
 
+
 anglrMId = {'s':0,'p':1,'d':2,'f':3,'g':4,'h':5}
 orbitalId = {0:'s',1:'p',2:'d',3:'f',4:'g',5:'h'}
 anglrMId_r = {0:'s',1:'p',2:"d",3:"f",4:"g",5:"h"}
