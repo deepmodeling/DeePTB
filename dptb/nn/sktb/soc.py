@@ -106,6 +106,9 @@ class SOCFormula(BaseSOC):
         if nn_soc_paras.shape[-1] == 1:
             nn_soc_paras = nn_soc_paras.squeeze(-1)
         
+        # soc strength should be positive
+        nn_soc_paras = torch.abs(nn_soc_paras)
+        
         assert len(nn_soc_paras) == self.socL_base.shape[0]
 
         idx = self.idp.transform_atom(atomic_numbers)
