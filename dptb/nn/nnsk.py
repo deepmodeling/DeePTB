@@ -142,35 +142,51 @@ class NNSK(torch.nn.Module):
     def freezefunc(self, freeze: Union[bool,str,list]):
         if freeze is False:
             return 0
-        frozen_params = []
-        for name, param in self.named_parameters():
-            if isinstance(freeze, str):
-                if freeze in name:
-                    param.requires_grad = False
-                    frozen_params.append(name)
-            elif isinstance(freeze, list):
-                for freeze_str in freeze:
+        if isinstance(freeze, str):
+            if freeze not in ['onsite', 'hopping', 'overlap', 'soc']:
+                raise ValueError("The freeze tag is not recognized. Please check the freeze tag.")
+            freeze = [freeze]
+        elif isinstance(freeze, list):
+            for freeze_str in freeze:
+                if freeze_str not in ['onsite', 'hopping', 'overlap','soc']:
+                    raise ValueError("The freeze tag is not recognized. Please check the freeze tag.")
+
+            freeze_list = freeze.copy()
+
+        frozen_params = []        
+        if freeze is True:
+            for name, param in self.named_parameters():
+                param.requires_grad = False
+                frozen_params.append(name)
+        else:
+            assert isinstance(freeze,list)
+            for name, param in self.named_parameters():
+                for freeze_str in freeze_list:
                     if freeze_str in name:
                         param.requires_grad = False
                         frozen_params.append(name)
+                        freeze_list.remove(freeze_str)
                         break
-            else:
-                param.requires_grad = False
-                frozen_params.append(name)
+                    elif freeze_str=='onsite' and 'strain' in name:
+                        # strain and onsite will not be in the model at the same time.
+                        param.requires_grad = False
+                        frozen_params.append(name)
+                        freeze_list.remove('onsite')
+                        break
+            
         
+        if len(freeze_list) > 0:
+            raise ValueError(f"The freeze tag {freeze_list} is not recognized or not contained in model. Please check the freeze tag.")
         if not frozen_params:
             raise ValueError("freeze is not set to None, but No parameters are frozen. Please check the freeze tag.")
         elif isinstance(freeze, list):
             if len(frozen_params) != len(freeze):
                 raise ValueError("freeze is set to a list, but the number of frozen parameters is not equal to the length of the list. Please check the freeze tag.")
-        elif isinstance(freeze, str):
-            if len(frozen_params) > 1:
-                raise ValueError("freeze is a string, but multiple parameters are frozen. Please check the freeze tag.")
         else:
+            assert freeze is True
             if len(frozen_params)!=len(dict(self.named_parameters()).keys()):
-                raise ValueError("freeze is not string but bool, all parameters should frozen. But the frozen_params != all model.named_parameters. Please check the freeze tag.")
-
-        log.info(f'The {frozen_params} are frozed!')
+                raise ValueError("freeze is True, all parameters should frozen. But the frozen_params != all model.named_parameters. Please check the freeze tag.")
+        log.info(f'The {frozen_params} are frozen!')
 
     def push_decay(self, rs_thr: float=0., rc_thr: float=0., w_thr: float=0., period:int=100):
         """Push the soft cutoff function
@@ -443,7 +459,11 @@ class NNSK(torch.nn.Module):
 
             if nnsk['soc'].get("method", None) is not None:
                 if ckpt_version == 2:
-                    soc_param = json_model["model_params"]["soc"]
+                    if json_model["model_params"].get("soc", None) is None:
+                        log.warning("The soc parameters are not provided in the json model file, it will be initialized randomly.")
+                        soc_param = None
+                    else:
+                        soc_param = json_model["model_params"]["soc"]
                 elif ckpt_version == 1:
                     soc_param = json_model["soc"]
                 else:
@@ -725,6 +745,8 @@ class NNSK(torch.nn.Module):
                 nnsk_model.onsite_param.data[nline, nidx] = skparam
         if soc.get("method", None) is not None:
             if soc["method"] == "none":
+                pass
+            elif soc_param is None:
                 pass
             else:
                 assert soc_param is not None, "The soc parameters should be provided."
