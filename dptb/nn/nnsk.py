@@ -130,7 +130,8 @@ class NNSK(torch.nn.Module):
             self.strain_param = torch.nn.Parameter(strain_param)
             # symmetrize the env for same atomic spices
             
-        self.hamiltonian = SKHamiltonian(idp_sk=self.idp_sk, onsite=True, dtype=self.dtype, device=self.device, strain=hasattr(self, "strain_param"))
+        self.hamiltonian = SKHamiltonian(idp_sk=self.idp_sk, onsite=True, dtype=self.dtype, device=self.device, 
+                                        strain=hasattr(self, "strain_param"),soc=hasattr(self, "soc_param"))
         if overlap:
             self.overlap = SKHamiltonian(idp_sk=self.idp_sk, onsite=False, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
         self.idp = self.hamiltonian.idp

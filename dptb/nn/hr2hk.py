@@ -93,8 +93,9 @@ class HR2HK(torch.nn.Module):
                         onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
                     
                     if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all() and i==j:
-                        soc_upup_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = orbpair_soc[:,self.idp.orbpair_soc_maps[orbpair],:2*li+1,:2*lj+1].reshape(-1, 2*li+1, 2*lj+1)
-                        soc_updn_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = orbpair_soc[:,self.idp.orbpair_soc_maps[orbpair],:2*li+1,2*lj+1:].reshape(-1, 2*li+1, 2*lj+1)
+                        soc_updn_tmp = orbpair_soc[:,self.idp.orbpair_soc_maps[orbpair]].reshape(-1, 2*li+1, 2*(2*lj+1))
+                        soc_upup_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = soc_updn_tmp[:, :2*li+1,:2*lj+1]
+                        soc_updn_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = soc_updn_tmp[:, :2*li+1,2*lj+1:]
                 
                 jst += 2*lj+1
             ist += 2*li+1

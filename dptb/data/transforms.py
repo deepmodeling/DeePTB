@@ -696,9 +696,10 @@ class OrbitalMapper(BondMapper):
             il, jl = anglrMId[iio], anglrMId[jjo]
 
             if self.method == 'e3tb':
-                n_feature = (2*il+1) * (2*jl+1) * 4 / 2 # 4 = 2 * 2 is to accont for the spin degree of freedom. /2 is to reduce the number of soc matrix elements.
+                n_feature = int((2*il+1) * (2*jl+1) * 4 / 2)# 4 = 2 * 2 is to accont for the spin degree of freedom. /2 is to reduce the number of soc matrix elements.
             else:
                 raise NotImplementedError
+            ist = int(ist)
             self.orbpair_soc_maps[full_basis_pair] = slice(ist, ist+n_feature)
             ist += n_feature
         reduced_soc_matrix_elemet = 0
