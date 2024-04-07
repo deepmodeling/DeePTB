@@ -551,8 +551,6 @@ class NNSK(torch.nn.Module):
                                         params[ref_idp.chemical_symbol_to_type[asym],ref_idp.skonsite_maps[ref_forb]]
 
                 if hasattr(model, "soc_param") and model.soc_param is not None and f["model_state_dict"].get("soc_param", None) != None:
-                    ref_idp.get_orbpair_soc_maps()
-                    idp.get_orbpair_soc_maps()
                     ref_idp.get_sksoc_maps()
                     idp.get_sksoc_maps()
                     params = f["model_state_dict"]["soc_param"]
@@ -876,7 +874,7 @@ class NNSK(torch.nn.Module):
                     orb = self.idp_sk.full_basis_to_basis[asym][iorb]
                     for i in range(slices.start, slices.stop): 
                         ind = i-slices.start      
-                        soc_param[f"{asym}-{orb}-{ind}"] = (soc[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
+                        soc_param[f"{asym}-{orb}-{ind}"] = (np.abs(soc[self.idp_sk.chemical_symbol_to_type[asym], i])).tolist()
 
 
         
