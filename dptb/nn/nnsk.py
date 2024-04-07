@@ -149,17 +149,17 @@ class NNSK(torch.nn.Module):
         elif isinstance(freeze, list):
             for freeze_str in freeze:
                 if freeze_str not in ['onsite', 'hopping', 'overlap','soc']:
-                    raise ValueError("The freeze tag is not recognized. Please check the freeze tag.")
-
-            freeze_list = freeze.copy()
+                    raise ValueError("The freeze tag is not recognized. Please check the freeze tag.")  
 
         frozen_params = []        
         if freeze is True:
             for name, param in self.named_parameters():
                 param.requires_grad = False
                 frozen_params.append(name)
+            freeze_list = []
         else:
             assert isinstance(freeze,list)
+            freeze_list = freeze.copy()
             for name, param in self.named_parameters():
                 for freeze_str in freeze_list:
                     if freeze_str in name:
