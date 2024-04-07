@@ -97,7 +97,7 @@ def creat_basis_lm(orb: str):
 
 def get_matrix_lmbasis(basis, device='cpu', dtype=torch.float32):
     '''> The function `get_matrix_lmbasis` takes a list of basis states and returns the matrix
-    representation of the operator $\mathbf{L}\cdot\mathbf{S}$ in the basis of $|l,m,s\rangle$
+    representation of the operator L cdot S in the basis of |l,m,s >
     
     Parameters
     ----------
