@@ -41,7 +41,7 @@ class HR2HK(torch.nn.Module):
         self.node_field = node_field
         self.out_field = out_field
 
-        self.atom_norb = []
+        self.atom_norbs = []
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
 
@@ -99,7 +99,7 @@ class HR2HK(torch.nn.Module):
             masked_oblock = oblock[mask][:,mask]
             block[:,ist:ist+masked_oblock.shape[0],ist:ist+masked_oblock.shape[1]] = masked_oblock.squeeze(0)
             atom_id_to_indices[i] = slice(ist, ist+masked_oblock.shape[0])
-            self.atom_norb.append(masked_oblock.shape[0])
+            self.atom_norbs.append(masked_oblock.shape[0])
             ist += masked_oblock.shape[0]
 
         for i, hblock in enumerate(bondwise_hopping):

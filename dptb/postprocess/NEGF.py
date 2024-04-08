@@ -34,16 +34,18 @@ class NEGF(object):
                 AtomicData_options: dict, 
                 structure: Union[AtomicData, ase.Atoms, str],
                 ele_T: float,e_fermi: float,
+                emin: float, emax: float, espacing: float,
                 density_options: dict,
                 unit: str,
                 scf: bool, poisson_options: dict,
-                stru_options: dict,
-                block_tridiagonal: bool,
+                stru_options: dict,eta_lead: float,eta_device: float,
+                block_tridiagonal: bool,sgf_solver: str,
                 out_tc: bool=False,out_dos: bool=False,out_density: bool=False,out_potential: bool=False,
                 out_current: bool=False,out_current_nscf: bool=False,out_ldos: bool=False,out_lcurrent: bool=False,
                 results_path: Optional[str]=None,
                 overlap=False,
-                torch_device: Union[str, torch.device]=torch.device('cpu'),):
+                torch_device: Union[str, torch.device]=torch.device('cpu'),
+                **kwargs):
         
         
         # self.apiH = apiHrk
@@ -58,7 +60,10 @@ class NEGF(object):
         self.ele_T = ele_T
         self.kBT = Boltzmann * self.ele_T / eV2J # change to eV
         self.e_fermi = e_fermi
+        self.eta_lead = eta_lead; self.eta_device = eta_device
+        self.emin = emin; self.emax = emax; self.espacing = espacing
         self.stru_options = stru_options
+        self.sgf_solver = sgf_solver
         self.pbc = self.stru_options["pbc"]
 
         # check the consistency of the kmesh and pbc
@@ -97,7 +102,8 @@ class NEGF(object):
                                                     AtomicData_options=AtomicData_options, 
                                                     structure=structure,
                                                     pbc_negf = self.pbc, 
-                                                    stru_options=self.stru_options, 
+                                                    stru_options=self.stru_options,
+                                                    unit = self.unit, 
                                                     results_path=self.results_path,
                                                     torch_device = self.torch_device)
         with torch.no_grad():
@@ -137,7 +143,7 @@ class NEGF(object):
             raise ValueError
 
         # number of orbitals on atoms in device region
-        self.device_atom_norbs = self.negf_hamiltonian.atom_norbs[self.negf_hamiltonian.proj_device_id[0]:self.negf_hamiltonian.proj_device_id[1]]
+        self.device_atom_norbs = self.negf_hamiltonian.h2k.atom_norbs[self.negf_hamiltonian.device_id[0]:self.negf_hamiltonian.device_id[1]]
         # np.save(self.results_path+"/device_atom_norbs.npy",self.device_atom_norbs)
 
         # geting the output settings
@@ -192,10 +198,10 @@ class NEGF(object):
 
         if self.out_dos or self.out_tc or self.out_current_nscf or self.out_ldos:
             # Energy gird is set relative to Fermi level
-            self.uni_grid = torch.linspace(start=self.jdata["emin"], end=self.jdata["emax"], steps=int((self.jdata["emax"]-self.jdata["emin"])/self.jdata["espacing"]))
+            self.uni_grid = torch.linspace(start=self.emin, end=self.emax, steps=int((self.emax-self.emin)/self.espacing))
 
         if cal_pole and  self.density_options["method"] == "Ozaki":
-            self.poles, self.residues = ozaki_residues(M_cut=self.jdata["density_options"]["M_cut"])
+            self.poles, self.residues = ozaki_residues(M_cut=self.density_options["M_cut"])
             self.poles = 1j* self.poles * self.kBT + self.deviceprop.lead_L.mu - self.deviceprop.mu
 
         if cal_int_grid:
@@ -400,14 +406,14 @@ class NEGF(object):
                                 getattr(self.deviceprop, ll).self_energy(
                                     energy=e, 
                                     kpoint=k, 
-                                    eta_lead=self.jdata["eta_lead"],
-                                    method=self.jdata["sgf_solver"]
+                                    eta_lead=self.eta_lead,
+                                    method=self.sgf_solver
                                     )
                                 # self.out[str(ll)+"_se"][str(e.numpy())] = getattr(self.deviceprop, ll).se
                                 
                         self.deviceprop.cal_green_function(
                             energy=e, kpoint=k, 
-                            eta_device=self.jdata["eta_device"], 
+                            eta_device=self.eta_device,
                             block_tridiagonal=self.block_tridiagonal,
                             Vbias=Vbias
                             )

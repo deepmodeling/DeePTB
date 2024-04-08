@@ -74,17 +74,21 @@ class NEGFHamiltonianInit(object):
         self.model = model
         self.AtomicData_options = AtomicData_options
         self.model.eval()
-        # self.apiH = apiH
+        
+        # get bondlist with pbc in all directions for complete chemical environment
+        # around atoms in the two ends of device when predicting HR 
         if isinstance(structure,str):
-            self.structase = read(structure)
-            self.data = AtomicData.from_ase(structure, **AtomicData_options)
+            self.structase = read(structure)           
         elif isinstance(structure,ase.Atoms):
             self.structase = structure
-            self.data = AtomicData.from_ase(structure, **AtomicData_options)
         else:
-            raise ValueError('structure must be AtomicData, ase.Atoms or str')
-        data = AtomicData.to_AtomicDataDict(data.to(self.device))
-        data = self.model.idp(data)
+            raise ValueError('structure must be ase.Atoms or str')
+        self.structase.set_pbc(pbc_negf)
+        alldata = AtomicData.from_ase(self.structase, **self.AtomicData_options)
+        # alldata[AtomicDataDict.PBC_KEY][2] = True
+
+        alldata = AtomicData.to_AtomicDataDict(alldata.to(self.torch_device))
+        self.alldata = self.model.idp(alldata)
 
         self.unit = unit
         self.stru_options = stru_options
@@ -150,7 +154,6 @@ class NEGFHamiltonianInit(object):
         assert len(np.array(kpoints).shape) == 2
 
         HS_device = {}
-        HS_leads = {}
         HS_device["kpoints"] = kpoints
 
         # self.apiH.update_struct(self.structase, mode="device", stru_options=j_must_have(self.stru_options, "device"), pbc=self.stru_options["pbc"])
@@ -163,30 +166,29 @@ class NEGFHamiltonianInit(object):
         device_id[1] = n_proj_atom_pre + n_proj_atom_device
         self.device_id = device_id
         # projatoms = self.apiH.structure.projatoms
-        #原子排序：data[AtomicDataDict.KPOINT_KEY]中的原子排序和pos相同，即和结构文件中相同
         # self.atom_norbs = [self.apiH.structure.proj_atomtype_norbs[i] for i in self.apiH.structure.proj_atom_symbols]
         # self.apiH.get_HR()
 
         
-        self.data[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(HS_device["kpoints"], dtype=self.model.dtype, device=self.torch_device)        
-        self.data = self.model(self.data)
-        for ip,p in enumerate(self.pbc_negf):# 加入pbc修正：根据想要的pbc取舍bond_list
-            if not p:
-                mask = self.data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][:,ip] == 0
-                self.data[AtomicDataDict.EDGE_INDEX_KEY] = self.data[AtomicDataDict.EDGE_INDEX_KEY][:,mask]
-        self.data = self.h2k(self.data)
-        self.atom_norbs = self.h2k.atom_norbs
-        HK = self.data[AtomicDataDict.HAMILTONIAN_KEY]
+        self.alldata[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(HS_device["kpoints"], dtype=self.model.dtype, device=self.torch_device)        
+        self.alldata = self.model(self.alldata)
+        # remove the edges corresponding to z-direction pbc for HR2HK
+        # for ip,p in enumerate(self.pbc_negf):
+        #     if not p:
+        #         mask = self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY][:,ip] == 0
+        #         self.alldata[AtomicDataDict.EDGE_INDEX_KEY] = self.alldata[AtomicDataDict.EDGE_INDEX_KEY][:,mask]
+        #         self.alldata[AtomicDataDict.EDGE_FEATURES_KEY] = self.alldata[AtomicDataDict.EDGE_FEATURES_KEY][mask]
+        self.alldata = self.h2k(self.alldata)
+        HK = self.alldata[AtomicDataDict.HAMILTONIAN_KEY]
         if self.overlap: 
-            self.data = self.s2k(self.data)
-            S = self.data[AtomicDataDict.OVERLAP_KEY]
-          
-
-        # HK中元素轨道的排序是如何的?
-       
+            self.alldata = self.s2k(self.alldata)
+            S = self.alldata[AtomicDataDict.OVERLAP_KEY]
+        else:
+            S = torch.eye(HK.shape[1], dtype=self.model.dtype, device=self.torch_device).unsqueeze(0).repeat(HK.shape[0], 1, 1)          
+      
         # H, S = self.apiH.get_HK(kpoints=kpoints)
-        d_start = int(np.sum(self.atom_norbs[:device_id[0]]))
-        d_end = int(np.sum(self.atom_norbs)-np.sum(self.atom_norbs[device_id[1]:]))
+        d_start = int(np.sum(self.h2k.atom_norbs[:device_id[0]]))
+        d_end = int(np.sum(self.h2k.atom_norbs)-np.sum(self.h2k.atom_norbs[device_id[1]:]))
         HD, SD = HK[:,d_start:d_end, d_start:d_end], S[:, d_start:d_end, d_start:d_end]
         
         if not block_tridiagnal:
@@ -206,6 +208,7 @@ class NEGFHamiltonianInit(object):
         for kk in self.stru_options:
             if kk.startswith("lead"):
                 HS_leads = {}
+                HS_leads["kpoints"] = kpoints
                 stru_lead = self.structase[self.lead_ids[kk][0]:self.lead_ids[kk][1]]
                 # write(os.path.join(self.results_path, "stru_"+kk+".vasp"), stru_lead)
                 # self.apiH.update_struct(stru_lead, mode="lead", stru_options=self.stru_options.get(kk), pbc=self.stru_options["pbc"])
@@ -216,26 +219,26 @@ class NEGFHamiltonianInit(object):
                 lead_id[0] = n_proj_atom_pre
                 lead_id[1] = n_proj_atom_pre + n_proj_atom_lead
 
-                l_start = int(np.sum(self.atom_norbs[:lead_id[0]]))
-                l_end = int(l_start + np.sum(self.atom_norbs[lead_id[0]:lead_id[1]]) / 2)
-                HL, SL = HK[:,l_start:l_end, l_start:l_end], S[:, l_start:l_end, l_start:l_end] # lead hamiltonian in one principal layer
+                l_start = int(np.sum(self.h2k.atom_norbs[:lead_id[0]]))
+                l_end = int(l_start + np.sum(self.h2k.atom_norbs[lead_id[0]:lead_id[1]]) / 2)
+                # HL, SL = HK[:,l_start:l_end, l_start:l_end], S[:, l_start:l_end, l_start:l_end] # lead hamiltonian in the first principal layer
                 HDL, SDL = HK[:,d_start:d_end, l_start:l_end], S[:,d_start:d_end, l_start:l_end] # device and lead's hopping
-                HS_leads.update({
-                    "HL":HL.cdouble()*self.h_factor, 
-                    "SL":SL.cdouble(), 
-                    "HDL":HDL.cdouble()*self.h_factor, 
-                    "SDL":SDL.cdouble()}
-                    )
+                # HS_leads.update({
+                #     "HL":HL.cdouble()*self.h_factor, 
+                #     "SL":SL.cdouble(), 
+                #     "HDL":HDL.cdouble()*self.h_factor, 
+                #     "SDL":SDL.cdouble()}
+                #     )
 
                 
-                # structure_leads[kk] = self.apiH.structure.struct
-                # self.apiH.get_HR()
                 cell = np.array(stru_lead.cell)[:2]
                 natom = lead_id[1] - lead_id[0]
                 R_vec = stru_lead[int(natom/2):].positions - stru_lead[:int(natom/2)].positions
                 assert np.abs(R_vec[0] - R_vec[-1]).sum() < 1e-5
                 R_vec = R_vec.mean(axis=0) * 2
                 cell = np.concatenate([cell, R_vec.reshape(1,-1)])
+
+                # get lead structure in ase format
                 pbc_lead = self.pbc_negf.copy()
                 pbc_lead[2] = True
                 stru_lead = Atoms(str(stru_lead.symbols), 
@@ -245,36 +248,64 @@ class NEGFHamiltonianInit(object):
                 stru_lead.set_chemical_symbols(stru_lead.get_chemical_symbols())
                 structure_leads[kk] = stru_lead
 
+                # for correct HLL, shutdown temporarily the z-direction pbc to get bondlist
+                # structure_leads[kk].pbc[2] = False 
                 lead_data = AtomicData.from_ase(structure_leads[kk], **self.AtomicData_options)
-                lead_data = AtomicData.to_AtomicDataDict(lead_data.to(self.device))
+                # open z-pbc again for the complete chemical environment (like bulk) in leads
+                # lead_data[AtomicDataDict.PBC_KEY][2] = True 
+
+                lead_data = AtomicData.to_AtomicDataDict(lead_data.to(self.torch_device))
                 lead_data = self.model.idp(lead_data)
+                lead_data[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(HS_leads["kpoints"], dtype=self.model.dtype, device=self.torch_device)
                 lead_data = self.model(lead_data)
+                # remove the edges corresponding to z-direction pbc for HR2HK
+                for ip,p in enumerate(self.pbc_negf):
+                    if not p:
+                        mask = abs(lead_data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][:,ip])<1e-7
+                        lead_data[AtomicDataDict.EDGE_CELL_SHIFT_KEY] = lead_data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][mask]
+                        lead_data[AtomicDataDict.EDGE_INDEX_KEY] = lead_data[AtomicDataDict.EDGE_INDEX_KEY][:,mask]
+                        lead_data[AtomicDataDict.EDGE_FEATURES_KEY] = lead_data[AtomicDataDict.EDGE_FEATURES_KEY][mask]
 
                 lead_data = self.h2k(lead_data)
                 HK_lead = lead_data[AtomicDataDict.HAMILTONIAN_KEY]
                 if self.overlap: 
                     lead_data = self.s2k(lead_data)
                     S_lead = lead_data[AtomicDataDict.OVERLAP_KEY]
+                else:
+                    S_lead = torch.eye(HK_lead.shape[1], dtype=self.model.dtype, device=self.torch_device).unsqueeze(0).repeat(HK_lead.shape[0], 1, 1)
 
 
                 # h, s = self.apiH.get_HK(kpoints=kpoints)
                 nL = int(HK_lead.shape[1] / 2)
                 HLL, SLL = HK_lead[:, :nL, nL:], S_lead[:, :nL, nL:] # H_{L_first2L_second}
-                err_l = (HK_lead[:, :nL, :nL] - HL).abs().max()
-                if  err_l >= 1e-4: 
-                    # check the lead hamiltonian get from device and lead calculation matches each other
-                    # a standard check to see the lead environment is bulk-like or not
-                    log.error(msg="ERROR, the lead's hamiltonian attained from diffferent methods does not match.")
-                    raise RuntimeError
-                elif 1e-7 <= err_l <= 1e-4:
-                    log.warning(msg="WARNING, the lead's hamiltonian attained from diffferent methods have slight differences {:.7f}.".format(err_l))
-
-                HS_leads.update({
-                    "HLL":HLL.cdouble()*self.h_factor, 
-                    "SLL":SLL.cdouble()}
-                    )
+                HL, SL = HK_lead[:,:nL,:nL], S[:,:nL,:nL] # lead hamiltonian in one principal layer
                 
-                HS_leads["kpoints"] = kpoints
+                HS_leads.update({
+                    "HL":HL.cdouble()*self.h_factor, 
+                    "SL":SL.cdouble(), 
+                    "HDL":HDL.cdouble()*self.h_factor, 
+                    "SDL":SDL.cdouble(),
+                    "HLL":HLL.cdouble()*self.h_factor, 
+                    "SLL":SLL.cdouble()
+                    })                
+                
+                
+                
+                # err_l = (HK_lead[:, :nL, :nL] - HL).abs().max()
+                # if  err_l >= 1e-4: 
+                #     # check the lead hamiltonian get from device and lead calculation matches each other
+                #     # a standard check to see the lead environment is bulk-like or not
+                #     log.error(msg="ERROR, the lead's hamiltonian attained from diffferent methods does not match.")
+                #     raise RuntimeError
+                # elif 1e-7 <= err_l <= 1e-4:
+                #     log.warning(msg="WARNING, the lead's hamiltonian attained from diffferent methods have slight differences {:.7f}.".format(err_l))
+
+                # HS_leads.update({
+                #     "HLL":HLL.cdouble()*self.h_factor, 
+                #     "SLL":SLL.cdouble()}
+                #     )
+                
+                # HS_leads["kpoints"] = kpoints
                 
                 torch.save(HS_leads, os.path.join(self.results_path, "HS_"+kk+".pth"))
         
@@ -368,7 +399,7 @@ class NEGFHamiltonianInit(object):
         """ 
         return the number of atoms in the device Hamiltonian
         """
-        return self.atom_norbs[self.device_id[0]:self.device_id[1]]
+        return self.h2k.atom_norbs[self.device_id[0]:self.device_id[1]]
 
     # def get_hs_block_tridiagonal(self, HD, SD):
 
