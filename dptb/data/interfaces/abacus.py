@@ -239,7 +239,7 @@ def _abacus_parse(input_path,
     with open(os.path.join(output_path, "basis.dat"), 'w') as f:
         for atomic_number in element:
             counter = Counter(orbital_types_dict[atomic_number])
-            num_orbs = [counter[i] for i in range(4)] # s, p, d, f
+            num_orbs = [counter[i] for i in range(6)] # s, p, d, f, g, h
             for index_l, l in enumerate(num_orbs):
                 if l == 0:  # no this orbit
                     continue
