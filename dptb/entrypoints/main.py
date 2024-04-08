@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 from dptb.entrypoints.train import train
 from dptb.entrypoints.config import config
 from dptb.entrypoints.test import _test
-# from dptb.entrypoints.run import run
+from dptb.entrypoints.run import run
 from dptb.entrypoints.bond import bond
 from dptb.entrypoints.nrl2json import nrl2json
 from dptb.entrypoints.pth2json import pth2json

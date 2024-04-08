@@ -169,10 +169,11 @@ class Band(object):
             model: torch.nn.Module,
             results_path: Optional[str]=None,
             use_gui=False,
-            overlap=False,
-            device: Union[str, torch.device]=torch.device('cpu')
+            device: Union[str, torch.device]=None
             ):
         
+        if  device is None:
+            device = model.device
         if isinstance(device, str):
             device = torch.device(device)
         self.device = device
@@ -180,9 +181,10 @@ class Band(object):
         self.model.eval()
         self.use_gui = use_gui
         self.results_path = results_path
-        self.overlap = overlap
+        self.overlap = hasattr(model, 'overlap')
 
-        if overlap:
+
+        if self.overlap:
             self.eigv = Eigenvalues(
                 idp=model.idp,
                 device=self.device,

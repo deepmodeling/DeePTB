@@ -764,26 +764,7 @@ def normalize_test(data):
 
     return data
 
-def task_options():
-    doc_task = "The string define the task DeePTB conduct, includes:\n\n\
-        - `band`: for band structure plotting. \n\n\
-        - `dos`: for density of states plotting.\n\n\
-        - `pdos`: for projected density of states plotting.\n\n\
-        - `FS2D`: for 2D fermi-surface plotting.\n\n\
-        - `FS3D`: for 3D fermi-surface plotting.\n\n\
-        - `write_sk`: for transcript the nnsk model to standard sk parameter table\n\n\
-        - `ifermi`: \n\n"
-    return Variant("task", [
-            Argument("band", dict, band()),
-            Argument("dos", dict, dos()),
-            Argument("pdos", dict, pdos()),
-            Argument("FS2D", dict, FS2D()),
-            Argument("FS3D", dict, FS3D()),
-            Argument("write_sk", dict, write_sk()),
-            Argument("ifermi", dict, ifermi()),
-            Argument("negf", dict, negf()),
-            Argument("tbtrans_negf", dict, tbtrans_negf())
-        ],optional=True, default_tag="band", doc=doc_task)
+
 
 
 def tbtrans_negf():
@@ -985,51 +966,15 @@ def fmm():
     ]
 
 def normalize_run(data):
-    doc_property = ""
-    doc_model_options = ""
-    doc_device = ""
-    doc_dtype = ""
-    doc_onsitemode = ""
-    doc_onsite_cutoff = ""
-    doc_bond_cutoff = ""
-    doc_env_cutoff = ""
-    doc_sk_file_path = ""
-    doc_proj_atom_neles = ""
-    doc_proj_atom_anglr_m = ""
-    doc_atomtype = ""
-    doc_time_symm = ""
-    doc_soc = ""
-    doc_unit = ""
-    doc_common_options = ""
-    doc_structure = ""
-    doc_use_correction = ""
-    doc_overlap = ""
-    doc_gui = ""
+    doc_task = "the task to run, includes: band, dos, pdos, FS2D, FS3D, ifermi"
+    doc_structure = "the structure to run the task"
+    doc_gui = "To use the GUI or not"
  
     args = [
-        Argument("onsite_cutoff", float, optional = False, doc = doc_onsite_cutoff),
-        Argument("bond_cutoff", float, optional = False, doc = doc_bond_cutoff),
-        Argument("env_cutoff", float, optional = False, doc = doc_env_cutoff),
-        Argument("atomtype", list, optional = False, doc = doc_atomtype),
-        Argument("proj_atom_neles", dict, optional = False, doc = doc_proj_atom_neles),
-        Argument("proj_atom_anglr_m", dict, optional = False, doc = doc_proj_atom_anglr_m),
-        Argument("device", str, optional = True, default="cpu", doc = doc_device),
-        Argument("dtype", str, optional = True, default="float32", doc = doc_dtype),
-        Argument("onsitemode", str, optional = True, default = "none", doc = doc_onsitemode),
-        Argument("sk_file_path", str, optional = True, default="./", doc = doc_sk_file_path),
-        Argument("time_symm", bool, optional = True, default=True, doc = doc_time_symm),
-        Argument("soc", bool, optional=True, default=False, doc=doc_soc),
-        Argument("overlap", bool, optional=True, default=False, doc=doc_overlap),
-        Argument("unit", str, optional=True, default="Hartree", doc=doc_unit)
-    ]
-
-    co = Argument("common_options", dict, optional=True, sub_fields=args, sub_variants=[], doc=doc_common_options)
-    args = [
-        co,
+        Argument("task_options", dict, sub_fields=[], optional=True, sub_variants=[task_options()], doc = doc_task),
         Argument("structure", [str,None], optional=True, default=None, doc = doc_structure),
-        Argument("use_correction", [str,None], optional=True, default=None, doc = doc_use_correction),
         Argument("use_gui", bool, optional=True, default=False, doc = doc_gui),
-        Argument("task_options", dict, sub_fields=[], optional=True, sub_variants=[task_options()], doc = doc_property)
+        AtomicData_options_sub()
     ]
 
     base = Argument("base", dict, args)
@@ -1037,7 +982,31 @@ def normalize_run(data):
     base.check_value(data, strict=True)
     
     return data
-    
+
+def task_options():
+    doc_task = '''The string define the task DeePTB conduct, includes: 
+                    - `band`: for band structure plotting. 
+                    - `dos`: for density of states plotting.
+                    - `pdos`: for projected density of states plotting.
+                    - `FS2D`: for 2D fermi-surface plotting.
+                    - `FS3D`: for 3D fermi-surface plotting.
+                    - `write_sk`: for transcript the nnsk model to standard sk parameter table
+                    - `ifermi`: for fermi surface plotting.
+                    - `negf`: for non-equilibrium green function calculation.
+                    - `tbtrans_negf`: for non-equilibrium green function calculation with tbtrans.
+                '''
+
+    return Variant("task", [
+            Argument("band", dict, band()),
+            Argument("dos", dict, dos()),
+            Argument("pdos", dict, pdos()),
+            Argument("FS2D", dict, FS2D()),
+            Argument("FS3D", dict, FS3D()),
+            Argument("write_sk", dict, write_sk()),
+            Argument("ifermi", dict, ifermi()),
+            Argument("negf", dict, negf()),
+            Argument("tbtrans_negf", dict, tbtrans_negf())
+        ],optional=False, doc=doc_task)
 
 def band():
     doc_kline_type = ""

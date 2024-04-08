@@ -2,7 +2,7 @@ from dptb.nn.deeptb import DPTB, MIX
 import logging
 from dptb.nn.nnsk import NNSK
 import torch
-from dptb.utils.tools import j_must_have
+from dptb.utils.tools import j_must_have, j_loader
 import copy
 
 log = logging.getLogger(__name__)
@@ -41,16 +41,20 @@ def build_model(
 
     # load the model_options and common_options from checkpoint if not provided
     if not from_scratch:
-        # init model from checkpoint
-        if len(model_options) == 0:
+        if checkpoint.split(".")[-1] == "json":
+            ckptconfig = j_loader(checkpoint)
+        else:
             f = torch.load(checkpoint)
-            model_options = f["config"]["model_options"]
+            ckptconfig = f['config']
             del f
 
+        # init model from checkpoint
+        if len(model_options) == 0:
+            model_options = ckptconfig["model_options"]
+
         if len(common_options) == 0:
-            f = torch.load(checkpoint)
-            common_options = f["config"]["common_options"]
-            del f
+            common_options = ckptconfig["common_options"]
+        del ckptconfig
 
     if  model_options.get("nnsk"):
         if all((model_options.get("embedding"), model_options.get("prediction"))):
