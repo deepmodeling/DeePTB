@@ -56,15 +56,15 @@ class TBPLaS(object):
         data = AtomicData.to_AtomicDataDict(data.to(self.device))
         data = self.model.idp(data)
 
-        if self.overlap == True:
-            assert data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is not None
-
         # get the HR
         data = self.model(data)
 
+        if self.overlap == True:
+            assert data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is not None
+
         cell = data[AtomicDataDict.CELL_KEY]
         cell_inv = cell.inverse()
-        tbplus_cell = tb.PrimitiveCell(lat_vec=cell.cpu(), unit=tb.ANG)
+        tbplas_cell = tb.PrimitiveCell(lat_vec=cell.cpu(), unit=tb.ANG)
 
         orbs = {}
         norbs = {}
@@ -108,7 +108,7 @@ class TBPLaS(object):
 
                 energy = onsite_blocks[self.model.idp.orbpair_maps[forb+"-"+forb]].reshape(2*l+1, 2*l+1)[m+l, m+l].item()
                 
-                tbplus_cell.add_orbital(
+                tbplas_cell.add_orbital(
                     (cell_inv @ data[AtomicDataDict.POSITIONS_KEY][i]).cpu(),
                     energy=energy - e_fermi,
                     label=orbs[isymbol][io]
@@ -138,7 +138,7 @@ class TBPLaS(object):
                     idx = orbsidict[str(i)+"-"+orbs[isymbol][xo]]
                     idy = orbsidict[str(i)+"-"+orbs[isymbol][yo]]
                     if abs(energy) > 1e-7 and not idx==idy:
-                        tbplus_cell._hopping_dict.add_hopping(rn=(0, 0, 0,), orb_i=idx, orb_j=idy, energy=energy)
+                        tbplas_cell._hopping_dict.add_hopping(rn=(0, 0, 0,), orb_i=idx, orb_j=idy, energy=energy)
         # off-diagonal part
                         
         for i, iindex in enumerate(data[AtomicDataDict.EDGE_TYPE_KEY].flatten()):
@@ -168,19 +168,19 @@ class TBPLaS(object):
                     idy = orbsidict[str(jndx)+"-"+orbs[jsymbol][yo]]
                     if abs(energy) > 1e-7:
                         rn = data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i].cpu().numpy()
-                        rev = tbplus_cell.hoppings.get((-rn[0], -rn[1], -rn[2]))
+                        rev = tbplas_cell.hoppings.get((-rn[0], -rn[1], -rn[2]))
                         if rev is not None:
                             rev = rev.get((idy,idx))
                         if rev is not None:
                             # in case of the hopping is not symmetric
                             energy = (energy + rev) / 2
-                            tbplus_cell._hopping_dict.add_hopping(rn=(rn[0], rn[1], rn[2]), orb_i=idx, orb_j=idy, energy=energy)
-                            tbplus_cell._hopping_dict.add_hopping(rn=(-rn[0], -rn[1], -rn[2]), orb_i=idy, orb_j=idx, energy=energy)
+                            tbplas_cell._hopping_dict.add_hopping(rn=(rn[0], rn[1], rn[2]), orb_i=idx, orb_j=idy, energy=energy)
+                            tbplas_cell._hopping_dict.add_hopping(rn=(-rn[0], -rn[1], -rn[2]), orb_i=idy, orb_j=idx, energy=energy)
                         else:
-                            tbplus_cell._hopping_dict.add_hopping(rn=(rn[0], rn[1], rn[2]), orb_i=idx, orb_j=idy, energy=energy)
+                            tbplas_cell._hopping_dict.add_hopping(rn=(rn[0], rn[1], rn[2]), orb_i=idx, orb_j=idy, energy=energy)
 
 
-        return tbplus_cell
+        return tbplas_cell
         
 
 
@@ -217,7 +217,7 @@ class _TBPLaS(object):
             factor = 13.605662285137
 
         lat = self.structase.cell
-        tbplus_cell = tb.PrimitiveCell(lat_vec=lat, unit=tb.ANG)
+        tbplas_cell = tb.PrimitiveCell(lat_vec=lat, unit=tb.ANG)
         
         if os.path.exists(os.path.join(self.results_path, "HR.pth")):
             f = torch.load(os.path.join(self.results_path, "HR.pth"))
@@ -270,7 +270,7 @@ class _TBPLaS(object):
                     orbsidict[str(i)+"-"+orbs[label][io]] = orbcount  # e.g.: [1-s,1-py ...]
                     orbcount += 1
                     
-                    tbplus_cell.add_orbital(self.structase[i].scaled_position, 
+                    tbplas_cell.add_orbital(self.structase[i].scaled_position, 
                                             energy=onsite_blocks[io,io].item(), label=orbs[label][io])
         # accum_norbs = np.cumsum(accum_norbs)
         # off-diagonal part
@@ -289,13 +289,13 @@ class _TBPLaS(object):
                     idy = orbsidict[str(j)+"-"+orbs[jlabel][yo]]
                     if abs(energy) > 1e-7 and not \
                     ((R_bonds[ix] < 1e-14) & (idx==idy)):
-                        tbplus_cell._hopping_dict.add_hopping(rn=(Rx, Ry, Rz), orb_i=idx, orb_j=idy, energy=energy)
+                        tbplas_cell._hopping_dict.add_hopping(rn=(Rx, Ry, Rz), orb_i=idx, orb_j=idy, energy=energy)
         
         if self.jdata["cal_fermi"]:
             
             nele = self.jdata["nele"]
 
-            super_cell = tb.SuperCell(tbplus_cell, dim=self.jdata["supercell"], pbc=self.jdata["pbc"])
+            super_cell = tb.SuperCell(tbplas_cell, dim=self.jdata["supercell"], pbc=self.jdata["pbc"])
             sample = tb.Sample(super_cell)
             sample.rescale_ham()
 
@@ -323,4 +323,4 @@ class _TBPLaS(object):
         else:
             e_fermi = self.jdata.get("e_fermi", 0)
         
-        return tbplus_cell, e_fermi
+        return tbplas_cell, e_fermi
