@@ -1016,6 +1016,7 @@ def band():
     doc_emax=""
     doc_E_fermi = ""
     doc_ref_band = ""
+    doc_nel_atom = "Dict: The valence electron number of each type of atom."
     
     return [
         Argument("kline_type", str, optional=False, doc=doc_kline_type),
@@ -1025,7 +1026,8 @@ def band():
         Argument("emin", [float, int, None], optional=True, doc=doc_emin, default=None),
         Argument("emax", [float, int, None], optional=True, doc=doc_emax, default=None),
         Argument("nkpoints", int, optional=True, doc=doc_emax, default=0),
-        Argument("ref_band", [str, None], optional=True, default=None, doc=doc_ref_band)
+        Argument("ref_band", [str, None], optional=True, default=None, doc=doc_ref_band),
+        Argument("nel_atom", [dict,None], optional=True, default=None, doc=doc_nel_atom)
     ]
 
 

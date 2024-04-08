@@ -183,7 +183,6 @@ class Band(object):
         self.results_path = results_path
         self.overlap = hasattr(model, 'overlap')
 
-
         if self.overlap:
             self.eigv = Eigenvalues(
                 idp=model.idp,
@@ -249,7 +248,21 @@ class Band(object):
         data = self.eigv(data)
 
         # get the E_fermi from data
-        estimated_E_fermi = None
+        nel_atom = kpath_kwargs.get('nel_atom', None)
+        assert isinstance(nel_atom, dict) or nel_atom is None
+        
+        if nel_atom is not None:
+            atomtype_list = data[AtomicDataDict.ATOM_TYPE_KEY].flatten().tolist()
+            atomtype_symbols = np.asarray(self.model.idp.type_names)[atomtype_list].tolist()
+            total_nel = np.array([nel_atom[s] for s in atomtype_symbols]).sum()
+            if hasattr(self.model,'soc_param'):
+                spindeg = 1
+            else:
+                spindeg = 2
+            estimated_E_fermi = self.estimate_E_fermi(data[AtomicDataDict.ENERGY_EIGENVALUE_KEY].detach().cpu().numpy(), total_nel, spindeg)
+            log.info(f'Estimated E_fermi: {estimated_E_fermi} based on the valence electrons setting nel_atom : {nel_atom} .')
+        else:
+            estimated_E_fermi = None
 
         self.eigenstatus = {'klist': klist,
                             'xlist': xlist,
@@ -262,6 +275,17 @@ class Band(object):
             np.save(f'{self.results_path}/bandstructure',self.eigenstatus)
 
         return self.eigenstatus
+
+    @classmethod
+    def estimate_E_fermi(cls, eigenvalues: np.array, total_electrons: int, spindeg: int=2):
+        assert len(eigenvalues.shape) == 2
+        nk, nband  = eigenvalues.shape
+        numek = total_electrons * nk // spindeg
+        sorteigs =  np.sort(np.reshape(eigenvalues,[-1]))
+        EF=(sorteigs[numek] + sorteigs[numek-1])/2
+
+        return EF
+        
 
     def band_plot(
             self, 
