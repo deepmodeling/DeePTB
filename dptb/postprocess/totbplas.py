@@ -166,9 +166,19 @@ class TBPLaS(object):
                     energy = hopping_blocks[self.model.idp.orbpair_maps[forbx+"-"+forby]].reshape(2*lx+1, 2*ly+1)[mx+lx, my+ly].item()
                     idx = orbsidict[str(indx)+"-"+orbs[isymbol][xo]]
                     idy = orbsidict[str(jndx)+"-"+orbs[jsymbol][yo]]
-                    if abs(energy) > 1e-7 and not idx==idy:
+                    if abs(energy) > 1e-7:
                         rn = data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i].cpu().numpy()
-                        tbplus_cell._hopping_dict.add_hopping(rn=(rn[0], rn[1], rn[2]), orb_i=idx, orb_j=idy, energy=energy)
+                        rev = tbplus_cell.hoppings.get((-rn[0], -rn[1], -rn[2]))
+                        if rev is not None:
+                            rev = rev.get((idy,idx))
+                        if rev is not None:
+                            # in case of the hopping is not symmetric
+                            energy = (energy + rev) / 2
+                            tbplus_cell._hopping_dict.add_hopping(rn=(rn[0], rn[1], rn[2]), orb_i=idx, orb_j=idy, energy=energy)
+                            tbplus_cell._hopping_dict.add_hopping(rn=(-rn[0], -rn[1], -rn[2]), orb_i=idy, orb_j=idx, energy=energy)
+                        else:
+                            tbplus_cell._hopping_dict.add_hopping(rn=(rn[0], rn[1], rn[2]), orb_i=idx, orb_j=idy, energy=energy)
+
 
         return tbplus_cell
         
