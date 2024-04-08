@@ -49,7 +49,6 @@ def test_nrl_json_band():
     bcal = Band(model=model, 
                 use_gui=True, 
                 results_path='./', 
-                overlap = True,
                 device=model.device)
 
     eigenstatus = bcal.get_bands(data=stru_data, 
