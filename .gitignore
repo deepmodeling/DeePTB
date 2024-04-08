@@ -169,3 +169,4 @@ dmypy.json
 _date.py
 _version.py
 /.idea/
+dptb/data/try_test.ipynb
