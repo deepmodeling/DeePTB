@@ -8,8 +8,9 @@
             "overlap": false
     },
     "train_options": {
-        "num_epoch": 500,
+        "num_epoch": 1500,
         "batch_size": 1,
+        "ref_batch_size": 1,
         "optimizer": {
             "lr": 0.01,
             "type": "Adam"
@@ -19,7 +20,8 @@
             "gamma": 0.999
         },
         "loss_options":{
-            "train": {"method": "eigvals"}
+            "train": {"method": "eigvals"},
+            "reference": {"method": "eigvals"}
         },
         "save_freq": 500,
         "validation_freq": 10,
@@ -36,6 +38,11 @@
         "train": {
             "root": "./data/",
             "prefix": "kpathmd100",
+            "get_eigenvalues": true
+        },
+        "reference": {
+            "root": "./data/",
+            "prefix": "kpath_spk",
             "get_eigenvalues": true
         }
     }
