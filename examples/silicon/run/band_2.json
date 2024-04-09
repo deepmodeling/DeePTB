@@ -15,9 +15,16 @@
                 [0.5000000000, -0.500000000, 0.0000000000, 1]
                 ],
         "klabels":["G","X","Y","G","Z","R_2","G","T_2","U_2","G","V_2"],
+        "nel_atom":{"Si":4},
         "E_fermi":-9.702,
         "emin":-14,
         "emax":12,
         "ref_band": "./data/kpathmd100.0/eigenvalues_ref.npy"
+    },
+    "AtomicData_options": {
+        "r_max": 5.0,
+        "er_max":5.0, 
+        "oer_max":2.5,
+        "pbc": true
     }
 }
