@@ -13,7 +13,7 @@
         "seed": 3982377700
     },
     "train_options": {
-        "num_epoch": 1500,
+        "num_epoch": 50,
         "batch_size": 1,
         "optimizer": {
             "lr": 0.001,
@@ -36,11 +36,17 @@
                 "diff_on": false,
                 "eout_weight": 0.01,
                 "diff_weight": 0.01
+            },
+            "reference": {
+                "method": "eigvals",
+                "diff_on": false,
+                "eout_weight": 0.01,
+                "diff_weight": 0.01
             }
         },
-        "save_freq": 500,
+        "save_freq": 50,
         "validation_freq": 10,
-        "display_freq": 100,
+        "display_freq": 1,
         "ref_batch_size": 1,
         "val_batch_size": 1,
         "max_ckpt": 4
@@ -83,12 +89,23 @@
                 "w": 0.1
             },
             "freeze": true,
+            "soc": {},
             "std": 0.01,
-            "push": false
+            "push": null
         }
     },
     "data_options": {
         "train": {
+            "root": "./data/",
+            "prefix": "kpathmd100",
+            "get_eigenvalues": true,
+            "type": "DefaultDataset",
+            "separator": ".",
+            "get_Hamiltonian": false,
+            "get_overlap": false,
+            "get_DM": false
+        },
+        "reference": {
             "root": "./data/",
             "prefix": "kpath_spk",
             "get_eigenvalues": true,
