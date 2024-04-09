@@ -1,0 +1,17 @@
+{
+    "nframes": 1,
+    "natoms": -1,
+    "pos_type": "ase",
+    "AtomicData_options": {
+        "r_max": 6.6147151362875,
+        "er_max": 3.5,
+        "oer_max":6.6147151362875,
+        "pbc": true
+    },
+    "bandinfo": {
+        "band_min": 0,
+        "band_max": 6,
+        "emin": -0.1,
+        "emax": 40.0
+    }
+}
