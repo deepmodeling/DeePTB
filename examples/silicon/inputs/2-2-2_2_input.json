@@ -30,7 +30,7 @@
             "onsite": {"method": "strain", "rs":2.5 ,"w":0.3},
             "hopping": {"method": "powerlaw", "rs":5.0, "w": 0.3},
             "freeze": false,
-            "push": {"w_thr": -0.005, "period": 50}
+            "push": {"w_thr": -0.007, "period": 50}
         }
     },
     "data_options": {
