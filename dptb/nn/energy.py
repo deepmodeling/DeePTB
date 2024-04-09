@@ -55,16 +55,24 @@ class Eigenvalues(nn.Module):
         self.s_out_field = s_out_field
 
 
-    def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
-        data = self.h2k(data)
-        if self.overlap:
-            data = self.s2k(data)
-            chklowt = torch.linalg.cholesky(data[self.s_out_field])
-            chklowtinv = torch.linalg.inv(chklowt)
-            Heff = (chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj())
-        else:
-            Heff = data[self.h_out_field]
-        
-        data[self.out_field] = torch.linalg.eigvalsh(Heff)
+    def forward(self, data: AtomicDataDict.Type, nk: Optional[int]=None) -> AtomicDataDict.Type:
+        num_k = data[AtomicDataDict.KPOINT_KEY].shape[0]
+        kpoints = data[AtomicDataDict.KPOINT_KEY]
+        eigvals = []
+        if nk is None:
+            nk = num_k
+        for i in range(int(np.ceil(num_k / nk))):
+            data[AtomicDataDict.KPOINT_KEY] = kpoints[i*nk:(i+1)*nk]
+            data = self.h2k(data)
+            if self.overlap:
+                data = self.s2k(data)
+                chklowt = torch.linalg.cholesky(data[self.s_out_field])
+                chklowtinv = torch.linalg.inv(chklowt)
+                data[self.h_out_field] = (chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj())
+            else:
+                data[self.h_out_field] = data[self.h_out_field]
+            
+            eigvals.append(torch.linalg.eigvalsh(data[self.h_out_field]))
+        data[self.out_field] = torch.cat(eigvals, dim=0)
 
         return data

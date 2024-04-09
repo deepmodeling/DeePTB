@@ -2,12 +2,17 @@ from dptb.nn.deeptb import DPTB, MIX
 import logging
 from dptb.nn.nnsk import NNSK
 import torch
-from dptb.utils.tools import j_must_have
+from dptb.utils.tools import j_must_have, j_loader
 import copy
 
 log = logging.getLogger(__name__)
 
-def build_model(run_options, model_options: dict={}, common_options: dict={}, statistics: dict=None):
+def build_model(
+        checkpoint: str=None,
+        model_options: dict={}, 
+        common_options: dict={}, 
+        statistics: dict=None
+        ):
     """
     The build model method should composed of the following steps:
         1. process the configs from user input and the config from the checkpoint (if any).
@@ -16,18 +21,13 @@ def build_model(run_options, model_options: dict={}, common_options: dict={}, st
         run_opt = {
         "init_model": init_model,
         "restart": restart,
-        "freeze": freeze,
-        "log_path": log_path,
-        "log_level": log_level,
-        "use_correction": use_correction
     }
     """
     # this is the 
     # process the model_options
-    assert not all((run_options.get("init_model"), run_options.get("restart"))), "You can only choose one of the init_model and restart options."
-    if any((run_options.get("init_model"), run_options.get("restart"))):
+    # assert not all((init_model, restart)), "You can only choose one of the init_model and restart options."
+    if checkpoint is not None:
         from_scratch = False
-        checkpoint = run_options.get("init_model") or run_options.get("restart")
     else:
         from_scratch = True
         if not all((model_options, common_options)):
@@ -41,16 +41,20 @@ def build_model(run_options, model_options: dict={}, common_options: dict={}, st
 
     # load the model_options and common_options from checkpoint if not provided
     if not from_scratch:
-        # init model from checkpoint
-        if len(model_options) == 0:
+        if checkpoint.split(".")[-1] == "json":
+            ckptconfig = j_loader(checkpoint)
+        else:
             f = torch.load(checkpoint)
-            model_options = f["config"]["model_options"]
+            ckptconfig = f['config']
             del f
 
+        # init model from checkpoint
+        if len(model_options) == 0:
+            model_options = ckptconfig["model_options"]
+
         if len(common_options) == 0:
-            f = torch.load(checkpoint)
-            common_options = f["config"]["common_options"]
-            del f
+            common_options = ckptconfig["common_options"]
+        del ckptconfig
 
     if  model_options.get("nnsk"):
         if all((model_options.get("embedding"), model_options.get("prediction"))):

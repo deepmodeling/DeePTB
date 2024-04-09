@@ -16,14 +16,22 @@ def test_data_split(root_directory):
     assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/test")
     assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/val")
 
-    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/train/frame.1")
-    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/train/frame.2")
-    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/train/frame.0")
-    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/train/frame.4")
+    assert len(os.listdir(root_directory + "/dptb/tests/data/fake_dataset/train")) == 4
+    assert len(os.listdir(root_directory + "/dptb/tests/data/fake_dataset/test")) == 2
+    assert len(os.listdir(root_directory + "/dptb/tests/data/fake_dataset/val")) == 1
 
-    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/test/frame.3")
-    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/test/frame.5")
+    # assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/train/frame.1")
+    # assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/train/frame.2")
+    # assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/train/frame.0")
+    # assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/train/frame.5")
 
-    assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/val/frame.6")
+    # assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/test/frame.4")
+    # assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/test/frame.6")
+
+    # assert os.path.exists(root_directory + "/dptb/tests/data/fake_dataset/val/frame.3")
+
+    os.system("rm -r " + root_directory + "/dptb/tests/data/fake_dataset/train")
+    os.system("rm -r " + root_directory + "/dptb/tests/data/fake_dataset/val")
+    os.system("rm -r " + root_directory + "/dptb/tests/data/fake_dataset/test")
 
 

@@ -1,4 +1,6 @@
 {
+    "version":1,
+    "unit": "Hartree",
     "onsite": {
         "As-4s-0": [
             -0.18473201990127563

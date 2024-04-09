@@ -18,7 +18,7 @@ def test_build_dataset_success(root_directory):
     common_options={"basis": {"Si": ["3s", "3p"]}}
 
 
-    dataset = build_dataset(set_options, common_options)
+    dataset = build_dataset(**set_options, **common_options)
 
     # Assert that the dataset is of the expected type
     assert isinstance(dataset, DefaultDataset)
@@ -61,7 +61,7 @@ def test_build_dataset_fail(root_directory):
     common_options={"basis": {"Si": ["3s", "3p"]}}
 
     with pytest.raises(AssertionError) as excinfo:
-        dataset = build_dataset(set_options, common_options)
+        dataset = build_dataset(**set_options, **common_options)
     assert "Hamiltonian file not found" in str(excinfo.value)
 
 #TODO: Add failure test cases for build_dataset. when get_eigenvalues is True and get_Hamiltonian is False; 当我们补充E3的测试案例时，会有一个数据集，只有Hamiltonian，没有eigenvalues。我们需要测试这种情况。

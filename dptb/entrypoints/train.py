@@ -163,13 +163,13 @@ def train(
     #     json.dump(jdata, fp, indent=4)
 
     # build dataset
-    train_datasets = build_dataset(set_options=jdata["data_options"]["train"], common_options=jdata["common_options"])
+    train_datasets = build_dataset(**jdata["data_options"]["train"], **jdata["common_options"])
     if jdata["data_options"].get("validation"):
-        validation_datasets = build_dataset(set_options=jdata["data_options"]["validation"], common_options=jdata["common_options"])
+        validation_datasets = build_dataset(**jdata["data_options"]["validation"], **jdata["common_options"])
     else:
         validation_datasets = None
     if jdata["data_options"].get("reference"):
-        reference_datasets = build_dataset(set_options=jdata["data_options"]["reference"], common_options=jdata["common_options"])
+        reference_datasets = build_dataset(**jdata["data_options"]["reference"], **jdata["common_options"])
     else:
         reference_datasets = None
 
@@ -185,7 +185,8 @@ def train(
     else:
         # include the init model and from scratch
         # build model will handle the init model cases where the model options provided is not equals to the ones in checkpoint.
-        model = build_model(run_options=run_opt, model_options=jdata["model_options"], common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
+        checkpoint = init_model if init_model else None
+        model = build_model(checkpoint=checkpoint, model_options=jdata["model_options"], common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
         trainer = Trainer(
             train_options=jdata["train_options"],
             common_options=jdata["common_options"],

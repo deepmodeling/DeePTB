@@ -10,6 +10,9 @@ from dptb.data.transforms import OrbitalMapper
 from e3nn.o3 import Irreps
 from torch_scatter import scatter_mean
 from dptb.utils.torch_geometric import Batch
+import matplotlib.pyplot as plt
+from dptb.utils.constants import anglrMId
+import re
 
 """this is the register class for descriptors
 
@@ -603,6 +606,110 @@ class HamilLossAnalysis(object):
             self.stats["rmse"] = self.stats["rmse"].sqrt()
             
         return self.stats
+    
+    def visualize(self):
+        assert hasattr(self, "stats"), "The stats is not computed yet."
+
+        with torch.no_grad():
+            print("Onsite:")
+            for at, tp in self.idp.chemical_symbol_to_type.items():
+                print(f"{at}:")
+                print(f"MAE: {self.stats['onsite'][at]['mae']}")
+                print(f"RMSE: {self.stats['onsite'][at]['rmse']}")
+
+                # compute the onsite per block err
+                onsite_mae = torch.zeros((self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
+                onsite_rmse = torch.zeros((self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
+                ist = 0
+                for i,iorb in enumerate(self.idp.full_basis):
+                    jst = 0
+                    li = anglrMId[re.findall(r"[a-zA-Z]+", iorb)[0]]
+                    for j,jorb in enumerate(self.idp.full_basis):
+                        orbpair = iorb + "-" + jorb
+                        lj = anglrMId[re.findall(r"[a-zA-Z]+", jorb)[0]]
+                        
+                        # constructing hopping blocks
+                        if iorb == jorb:
+                            factor = 0.5
+                        else:
+                            factor = 1.0
+
+                        # constructing onsite blocks
+                        if i <= j:
+                            onsite_mae[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * self.stats["onsite"][at]["mae_per_block_element"][self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
+                            onsite_rmse[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * self.stats["onsite"][at]["rmse_per_block_element"][self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
+
+                        jst += 2*lj+1
+                    ist += 2*li+1
+
+                onsite_mae += onsite_mae.clone().T
+                onsite_rmse += onsite_rmse.clone().T
+
+                imask = self.idp.mask_to_basis[tp]
+                onsite_mae = onsite_mae[imask][:,imask]
+                onsite_rmse = onsite_rmse[imask][:,imask]
+
+                plt.matshow(onsite_mae.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=1e-3)
+                plt.title("MAE")
+                plt.colorbar()
+                plt.show()
+
+                plt.matshow(onsite_rmse.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=1e-3)
+                plt.title("RMSE")
+                plt.colorbar()
+                plt.show()
+
+            # compute the hopping per block err
+            print("Hopping:")
+            for bt, tp in self.idp.bond_to_type.items():
+                print(f"{bt}:")
+                print(f"MAE: {self.stats['hopping'][bt]['mae']}")
+                print(f"RMSE: {self.stats['hopping'][bt]['rmse']}")
+                hopping_mae = torch.zeros((self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
+                hopping_rmse = torch.zeros((self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
+                ist = 0
+                for i,iorb in enumerate(self.idp.full_basis):
+                    jst = 0
+                    li = anglrMId[re.findall(r"[a-zA-Z]+", iorb)[0]]
+                    for j,jorb in enumerate(self.idp.full_basis):
+                        orbpair = iorb + "-" + jorb
+                        lj = anglrMId[re.findall(r"[a-zA-Z]+", jorb)[0]]
+                        
+                        # constructing hopping blocks
+                        if iorb == jorb:
+                            factor = 0.5
+                        else:
+                            factor = 1.0
+
+                        # constructing onsite blocks
+                        if i <= j:
+                            hopping_mae[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * self.stats["hopping"][bt]["mae_per_block_element"][self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
+                            hopping_rmse[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * self.stats["hopping"][bt]["rmse_per_block_element"][self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
+
+                        jst += 2*lj+1
+                    ist += 2*li+1
+
+                hopping_mae += hopping_mae.clone().T
+                hopping_rmse += hopping_rmse.clone().T
+
+                imask = self.idp.mask_to_basis[tp]
+                jmask = self.idp.mask_to_basis[tp]
+                hopping_mae = hopping_mae[imask][:,jmask]
+                hopping_rmse = hopping_rmse[imask][:,jmask]
+
+                plt.matshow(hopping_mae.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=1e-3)
+                plt.title("MAE")
+                plt.colorbar()
+                plt.show()
+
+                plt.matshow(hopping_mae.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=1e-3)
+                plt.title("RMSE")
+                plt.colorbar()
+                plt.show()
+
+        
+
+
 
     def __cal_norm__(self, irreps: Irreps, x: torch.Tensor):
         id = 0

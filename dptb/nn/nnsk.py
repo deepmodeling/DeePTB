@@ -16,6 +16,11 @@ from .sktb import OnsiteFormula, bond_length_list, HoppingFormula
 from dptb.utils.constants import atomic_num_dict_r, atomic_num_dict
 from dptb.nn.hamiltonian import SKHamiltonian
 from dptb.utils.tools import j_loader
+from dptb.utils.constants import ALLOWED_VERSIONS
+
+import logging
+
+log = logging.getLogger(__name__)
 
 class NNSK(torch.nn.Module):
     name = "nnsk"
@@ -29,7 +34,7 @@ class NNSK(torch.nn.Module):
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             transform: bool = True,
-            freeze: bool = False,
+            freeze: Union[bool,str,list] = False,
             push: Union[bool,dict]=False,
             std: float = 0.01,
             **kwargs,
@@ -112,10 +117,42 @@ class NNSK(torch.nn.Module):
             self.overlap = SKHamiltonian(idp_sk=self.idp_sk, onsite=False, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
         self.idp = self.hamiltonian.idp
         
-        if freeze:
-            for (name, param) in self.named_parameters():
-                param.requires_grad = False
+        if freeze:  
+            self.freezefunc(freeze)
     
+    def freezefunc(self, freeze: Union[bool,str,list]):
+        if freeze is False:
+            return 0
+        frozen_params = []
+        for name, param in self.named_parameters():
+            if isinstance(freeze, str):
+                if freeze in name:
+                    param.requires_grad = False
+                    frozen_params.append(name)
+            elif isinstance(freeze, list):
+                for freeze_str in freeze:
+                    if freeze_str in name:
+                        param.requires_grad = False
+                        frozen_params.append(name)
+                        break
+            else:
+                param.requires_grad = False
+                frozen_params.append(name)
+        
+        if not frozen_params:
+            raise ValueError("freeze is not set to None, but No parameters are frozen. Please check the freeze tag.")
+        elif isinstance(freeze, list):
+            if len(frozen_params) != len(freeze):
+                raise ValueError("freeze is set to a list, but the number of frozen parameters is not equal to the length of the list. Please check the freeze tag.")
+        elif isinstance(freeze, str):
+            if len(frozen_params) > 1:
+                raise ValueError("freeze is a string, but multiple parameters are frozen. Please check the freeze tag.")
+        else:
+            if len(frozen_params)!=len(dict(self.named_parameters()).keys()):
+                raise ValueError("freeze is not string but bool, all parameters should frozen. But the frozen_params != all model.named_parameters. Please check the freeze tag.")
+
+        log.info(f'The {frozen_params} are frozed!')
+
     def push_decay(self, rs_thr: float=0., rc_thr: float=0., w_thr: float=0., period:int=100):
         """Push the soft cutoff function
 
@@ -305,7 +342,7 @@ class NNSK(torch.nn.Module):
         dtype: Union[str, torch.dtype]=None, 
         device: Union[str, torch.device]=None,
         push: Dict=None,
-        freeze: bool = False,
+        freeze: Union[bool,str,list] = False,
         std: float = 0.01,
         **kwargs,
         ):
@@ -329,13 +366,87 @@ class NNSK(torch.nn.Module):
 
 
         if checkpoint.split(".")[-1] == "json":
-            for k,v in common_options.items():
-                assert v is not None, f"You need to provide {k} when you are initializing a model from a json file."
-            for k,v in nnsk.items():
-                if k != 'push':
-                    assert v is not None, f"You need to provide {k} when you are initializing a model from a json file."
+            json_model = j_loader(checkpoint)
 
-            v1_model = j_loader(checkpoint)
+            assert 'version' in json_model, "The version of the model is not provided in the json model file."
+            ckpt_version = json_model.get("version")
+            if ckpt_version not in ALLOWED_VERSIONS:
+                raise ValueError("The version of the model is not supported. only 1 and 2 are supported.")
+            
+            if ckpt_version == 2:
+                assert json_model.get("model_params", None) is not None, "The model_params is not provided in the json model file."
+                assert json_model.get("unit", None) is not None, "The unit is not provided in the json model file."
+                assert json_model.get("model_options", None) is not None, "The model_options is not provided in the json model file."
+                assert json_model.get("common_options", None) is not None, "The common_options is not provided in the json model file."
+                
+                if json_model.get("unit") != 'eV':
+                    raise ValueError("The unit of the model is not supported. only eV is supported.")
+
+            for k,v in common_options.items():
+                if v is  None:
+                    if json_model.get("common_options",{}).get(k, None) is  None:
+                        raise ValueError(f"{k} is not provided in both the json model file and the input json.")     
+                    else:
+                        common_options[k] = json_model["common_options"][k]
+                        log.info(f"{k} is not provided in the input json, set to the value {common_options[k]} in the json model file.")
+            
+            for k,v in nnsk.items():
+                if k != 'push' and v is None:
+                    if json_model.get("model_options",{}).get("nnsk",{}).get(k, None) is  None:
+                        raise ValueError(f"{k} is not provided in both the json model file and the input json.")
+                    else:
+                        nnsk[k] = json_model["model_options"]["nnsk"][k]
+                        log.info(f"{k} is not provided in the input json, set to the value {nnsk[k]}in the json model file.")
+
+            
+            if ckpt_version == 1:
+                if json_model.get("unit", None) is None:
+                    ene_unit = "Hartree"
+                    log.info('The unit is not provided in the json model file, since this is v1 version model, the default unit is Hartree.')
+                else:
+                    ene_unit = json_model["unit"]
+            elif ckpt_version == 2:
+                ene_unit = json_model["unit"]
+            else:
+                raise ValueError("The version of the model is not supported.")
+
+            if common_options['overlap']:
+                if ckpt_version == 2 and json_model.get("model_params",{}).get("overlap", None) is None:
+                    log.error("The overlap parameters are not provided in the json model file, but the input is set to True.")
+                    raise ValueError("The overlap parameters are not provided in the json model file, but the input is set to True.")
+                elif ckpt_version == 1 and json_model.get("overlap", None) is None:
+                    log.error("The overlap parameters are not provided in the json model file, but the input is set to True.")
+                    raise ValueError("The overlap parameters are not provided in the json model file, but the input is set to True.")
+                else:
+                    if ckpt_version == 1:
+                        overlap_param = json_model["overlap"]
+                    elif ckpt_version == 2:
+                        overlap_param = json_model["model_params"]["overlap"]
+                    else:
+                        raise ValueError("The version of the model is not supported.")
+            else:
+                if ckpt_version == 2 and json_model.get("model_params",{}).get("overlap", None) is not None:
+                    log.error("The overlap parameters are provided in the json model file, but the input is set to False.")
+                    raise ValueError("The overlap parameters are provided in the json model file, but the input is set to False.")
+                elif ckpt_version == 1 and json_model.get("overlap", None) is not None:
+                    log.error("The overlap parameters are provided in the json model file, but the input is set to False.")
+                    raise ValueError("The overlap parameters are provided in the json model file, but the input is set to False.")
+                else:
+                    overlap_param = None
+
+            if ckpt_version ==1:
+                v1_model = {
+                    "unit": ene_unit,
+                    "onsite": json_model["onsite"],
+                    "hopping": json_model["hopping"],
+                    "overlap": overlap_param}
+            else:
+                v1_model = {
+                    "unit": ene_unit,
+                    "onsite": json_model["model_params"]["onsite"],
+                    "hopping": json_model["model_params"]["hopping"],
+                    "overlap": overlap_param}
+            
             model = cls._from_model_v1(
                 v1_model=v1_model,
                 **nnsk,
@@ -349,9 +460,11 @@ class NNSK(torch.nn.Module):
             for k,v in common_options.items():
                 if v is None:
                     common_options[k] = f["config"]["common_options"][k]
+                    log.info(f"{k} is not provided in the input json, set to the value {common_options[k]} in model ckpt.")
             for k,v in nnsk.items():
                 if v is None and k != "push" :
                     nnsk[k] = f["config"]["model_options"]["nnsk"][k]
+                    log.info(f"{k} is not provided in the input json, set to the value {nnsk[k]} in model ckpt.")
 
             model = cls(**common_options, **nnsk)
 
@@ -438,12 +551,9 @@ class NNSK(torch.nn.Module):
                                         params[ref_idp.bond_to_type[b],ref_idp.orbpair_maps[ref_forbpair]]
 
             del f
-
-        if freeze:
-            for (name, param) in model.named_parameters():
-                param.requires_grad = False
-            else:
-                param.requires_grad = True # in case initilizing some frozen checkpoint while with current freeze setted as False
+        
+        if freeze:  
+            model.freezefunc(freeze)
 
         return model
 
@@ -459,7 +569,7 @@ class NNSK(torch.nn.Module):
         dtype: Union[str, torch.dtype] = torch.float32, 
         device: Union[str, torch.device] = torch.device("cpu"),
         std: float = 0.01,
-        freeze: bool = False,
+        freeze: Union[bool,str,list] = False,
         push: Union[bool,None,dict] = False,
         **kwargs
         ):
@@ -482,17 +592,23 @@ class NNSK(torch.nn.Module):
         idp_sk.get_skonsite_maps()
 
         nnsk_model = cls(basis=basis, idp_sk=idp_sk,  onsite=onsite,
-                          hopping=hopping, overlap=overlap, std=std,freeze=freeze, push=push, dtype=dtype, device=device,)
+                          hopping=hopping, overlap=overlap, std=std,freeze=freeze, push=push, dtype=dtype, device=device)
 
         onsite_param = v1_model["onsite"]
         hopping_param = v1_model["hopping"]
+        if overlap:
+            overlap_param = v1_model["overlap"]
+
+        ene_unit = v1_model["unit"]
 
         assert len(hopping) > 0, "The hopping parameters should be provided."
+
 
         # load hopping params
         for orbpair, skparam in hopping_param.items():
             skparam = torch.tensor(skparam, dtype=dtype, device=device)
-            skparam[0] *= 13.605662285137 * 2
+            if ene_unit == "Hartree" and hopping['method'] not in ['NRL', 'NRL1', 'NRL2']:
+                skparam[0] *= 13.605662285137 * 2
             iasym, jasym, iorb, jorb, num = list(orbpair.split("-"))
             num = int(num)
             ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
@@ -511,11 +627,33 @@ class NNSK(torch.nn.Module):
                 nline = idp_sk.transform_bond(iatomic_numbers=jan, jatomic_numbers=ian)
                 nnsk_model.hopping_param.data[nline, nidx] = skparam
         
+        if overlap:
+            for orbpair, skparam in overlap_param.items():
+                skparam = torch.tensor(skparam, dtype=dtype, device=device)
+                iasym, jasym, iorb, jorb, num = list(orbpair.split("-"))
+                num = int(num)
+                ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
+                fiorb, fjorb = idp_sk.basis_to_full_basis[iasym][iorb], idp_sk.basis_to_full_basis[jasym][jorb]
+
+
+                if idp_sk.full_basis.index(fiorb) <= idp_sk.full_basis.index(fjorb):
+                    nline = idp_sk.transform_bond(iatomic_numbers=ian, jatomic_numbers=jan)
+                    nidx = idp_sk.orbpair_maps[f"{fiorb}-{fjorb}"].start + num
+                else:
+                    nline = idp_sk.transform_bond(iatomic_numbers=jan, jatomic_numbers=ian)
+                    nidx = idp_sk.orbpair_maps[f"{fjorb}-{fiorb}"].start + num
+
+                nnsk_model.overlap_param.data[nline, nidx] = skparam
+                if ian != jan and fiorb == fjorb:
+                    nline = idp_sk.transform_bond(iatomic_numbers=jan, jatomic_numbers=ian)
+                    nnsk_model.overlap_param.data[nline, nidx] = skparam
+
         # load onsite params, differently with onsite mode
         if onsite["method"] == "strain":
             for orbpair, skparam in onsite_param.items():
                 skparam = torch.tensor(skparam, dtype=dtype, device=device)
-                skparam[0] *= 13.605662285137 * 2
+                if ene_unit == "Hartree":
+                    skparam[0] *= 13.605662285137 * 2
                 iasym, jasym, iorb, jorb, num = list(orbpair.split("-"))
                 num = int(num)
                 ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
@@ -539,7 +677,8 @@ class NNSK(torch.nn.Module):
         else:
             for orbon, skparam in onsite_param.items():
                 skparam = torch.tensor(skparam, dtype=dtype, device=device)
-                skparam *= 13.605662285137 * 2
+                if ene_unit == "Hartree" and onsite["method"] not in ['NRL', 'NRL1', 'NRL2']:
+                    skparam *= 13.605662285137 * 2
                 iasym, iorb, num = list(orbon.split("-"))
                 num = int(num)
                 ian = torch.tensor(atomic_num_dict[iasym])
@@ -550,21 +689,41 @@ class NNSK(torch.nn.Module):
 
                 nnsk_model.onsite_param.data[nline, nidx] = skparam
 
+        if freeze:  
+            nnsk_model.freezefunc(freeze)
+
         return nnsk_model
     
-    def to_model_v1(self):
+    def to_json(self,version=2):
+        ckpt = {}
         # load hopping params
-        hopping = self.hopping_param.data.cpu().numpy()
-        hopping[:,:,0] /= 13.605662285137 * 2
+        hopping = self.hopping_param.data.cpu().clone().numpy()
+                
+        ckpt['version'] = version
+        ckpt['unit'] = 'eV'
+
         hopping_param = {}
         basis = self.idp_sk.basis
-        
-        for bt in self.idp_sk.reduced_bond_types:
+
+        if isinstance(self.dtype, str):
+            dtype = self.dtype
+        else:
+            dtype = self.dtype.__str__().split('.')[-1]
+        is_overlap = hasattr(self, "overlap_param")
+        common_options = {
+            "basis": basis,
+            "dtype": dtype,
+            "device": self.device,
+            "overlap": is_overlap,
+        }
+
+        if version ==2:
+            ckpt.update({"model_options": self.model_options, 
+                        "common_options": common_options})
+
+
+        for bt in self.idp_sk.bond_types:
             iasym, jasym = bt.split("-")
-            if iasym != jasym:
-                temp = jasym
-                iasym = jasym
-                jasym = temp
             ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
             pos_line = self.idp_sk.transform_bond(ian, jan)
             rev_line = self.idp_sk.transform_bond(jan, ian)
@@ -575,21 +734,59 @@ class NNSK(torch.nn.Module):
                 if iorb != None and jorb != None:
                     # iasym-jasym-iorb-jorb
                     for i in range(slices.stop-slices.start):
-                        if ian != jan:
+                        if ian < jan:
+                            continue
+                        elif ian > jan:
                             if fiorb == fjorb: # this might have problems
-                                hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = ((hopping[pos_line, i] + hopping[rev_line, i])*0.5).tolist()
+                                hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = ((hopping[pos_line, slices][i] + hopping[rev_line, slices][i])*0.5).tolist()
                             else:
                                 hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = hopping[pos_line, slices][i].tolist()
-                                hopping_param[f"{iasym}-{jasym}-{jorb}-{iorb}-{i}"] = hopping[rev_line, slices][i].tolist()
-                        else:
-                            hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = hopping[pos_line, slices][i].tolist()
-                            if fiorb != fjorb:
-                                hopping_param[f"{iasym}-{jasym}-{jorb}-{iorb}-{i}"] = hopping[pos_line, slices][i].tolist()
+                                iiorb = self.idp_sk.full_basis_to_basis[iasym].get(fjorb)
+                                jjorb = self.idp_sk.full_basis_to_basis[jasym].get(fiorb)
 
+                                hopping_param[f"{iasym}-{jasym}-{iiorb}-{jjorb}-{i}"] = hopping[rev_line, slices][i].tolist()
+                        elif ian == jan:
+                            if self.idp_sk.full_basis.index(fiorb) <= self.idp_sk.full_basis.index(fjorb):
+                                hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = hopping[pos_line, slices][i].tolist()
+                            #if fiorb != fjorb:
+                            #   hopping_param[f"{iasym}-{jasym}-{jorb}-{iorb}-{i}"] = hopping[pos_line, slices][i].tolist()
+                        else:
+                            raise ValueError("The atomic number should be the same or different.")
         
+        if is_overlap:
+            overlap_param={}
+            overlap = self.overlap_param.data.cpu().clone().numpy()
+            for bt in self.idp_sk.bond_types:
+                iasym, jasym = bt.split("-")
+                ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
+                pos_line = self.idp_sk.transform_bond(ian, jan)
+                rev_line = self.idp_sk.transform_bond(jan, ian)
+                for orbpair, slices in self.idp_sk.orbpair_maps.items():
+                    fiorb, fjorb = orbpair.split("-")
+                    iorb = self.idp_sk.full_basis_to_basis[iasym].get(fiorb)
+                    jorb = self.idp_sk.full_basis_to_basis[jasym].get(fjorb)
+                    if iorb != None and jorb != None:
+                        # iasym-jasym-iorb-jorb
+                        for i in range(slices.stop-slices.start):
+                            if ian < jan:
+                                continue
+                            elif ian > jan:
+                                if fiorb == fjorb: # this might have problems
+                                    overlap_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = ((overlap[pos_line, slices][i] + overlap[rev_line, slices][i])*0.5).tolist()
+                                else:
+                                    overlap_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = overlap[pos_line, slices][i].tolist()
+                                    iiorb = self.idp_sk.full_basis_to_basis[iasym].get(fjorb)
+                                    jjorb = self.idp_sk.full_basis_to_basis[jasym].get(fiorb)
+
+                                    overlap_param[f"{iasym}-{jasym}-{iiorb}-{jjorb}-{i}"] = overlap[rev_line, slices][i].tolist()
+                            elif ian == jan:
+                                if self.idp_sk.full_basis.index(fiorb) <= self.idp_sk.full_basis.index(fjorb):
+                                    overlap_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = overlap[pos_line, slices][i].tolist()
+                            else:
+                                raise ValueError("The atomic number should be the same or different.")            
+
         if hasattr(self, "strain_param"):
-            strain = self.strain_param.data.cpu().numpy()
-            strain[:,:,0] /= 13.605662285137 * 2
+            strain = self.strain_param.data.cpu().clone().numpy()
             onsite_param = {}
             for bt in self.idp_sk.bond_types:
                 iasym, jasym = bt.split("-")
@@ -603,17 +800,38 @@ class NNSK(torch.nn.Module):
                             onsite_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = strain[pos_line, slices][i].tolist()
 
         # onsite need more test and work
-        elif hasattr(self, "onsite_param"):
+        elif hasattr(self, "onsite_param") and self.onsite_param is not None:
+            onsite =self.onsite_param.data.cpu().clone().numpy()
             onsite_param = {}
-            for asym, slices in self.idp_sk.skonsite_maps.items():
-                for i in range(slices.start, slices.stop):
-                    orb = self.idp_sk.basis_to_full_basis[asym][i]
-                    onsite_param[f"{asym}-{orb}-{i}"] = self.onsite_param[self.idp_sk.chemical_symbol_to_type[asym], i].tolist()
-        
+            for asym in self.idp_sk.type_names:
+                for iorb, slices in self.idp_sk.skonsite_maps.items():
+                    orb = self.idp_sk.full_basis_to_basis[asym][iorb]
+                    for i in range(slices.start, slices.stop): 
+                        ind = i-slices.start      
+                        onsite_param[f"{asym}-{orb}-{ind}"] = (onsite[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
         else:
             onsite_param = {}
+        
+        if is_overlap:
+            model_params = {
+                "onsite": onsite_param,
+                "hopping": hopping_param,
+                "overlap": overlap_param
+            }
+        else:
+            model_params = {
+                "onsite": onsite_param,
+                "hopping": hopping_param
+            }
 
-        return {"onsite": onsite_param, "hopping": hopping_param}
+        if version ==1:
+            ckpt.update(model_params)
+        elif version == 2:
+            ckpt.update({"model_params": model_params})
+        else:
+            raise ValueError("The version of the model is not supported.")
+        
+        return ckpt
         
 
 

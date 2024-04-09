@@ -16,5 +16,9 @@
         "emin":-15,
         "emax":10,
         "ref_band": "./data/kpath.0/eigenvalues.npy"
+    },
+    "AtomicData_options": {
+        "r_max": 5.0,
+        "pbc": true
     }
 }
