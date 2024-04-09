@@ -109,9 +109,9 @@ class HR2HK(torch.nn.Module):
         all_norb = self.idp.atom_norb[data[AtomicDataDict.ATOM_TYPE_KEY]].sum()
         block = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
         # block = torch.complex(block, torch.zeros_like(block))
-        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
-            block_uu = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
-            block_ud = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
+        # if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
+        #     block_uu = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
+        #     block_ud = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
         atom_id_to_indices = {}
         ist = 0
         for i, oblock in enumerate(onsite_block):
@@ -121,19 +121,19 @@ class HR2HK(torch.nn.Module):
             atom_id_to_indices[i] = slice(ist, ist+masked_oblock.shape[0])
             ist += masked_oblock.shape[0]
         
-        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
-            ist = 0
-            for i, soc_block in enumerate(soc_upup_block):
-                mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
-                masked_soc_block = soc_block[mask][:,mask]
-                block_uu[:,ist:ist+masked_soc_block.shape[0],ist:ist+masked_soc_block.shape[1]] = masked_soc_block.squeeze(0)
-                ist += masked_soc_block.shape[0]
-            ist = 0
-            for i, soc_block in enumerate(soc_updn_block):
-                mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
-                masked_soc_block = soc_block[mask][:,mask]
-                block_ud[:,ist:ist+masked_soc_block.shape[0],ist:ist+masked_soc_block.shape[1]] = masked_soc_block.squeeze(0)
-                ist += masked_soc_block.shape[0]
+        # if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
+        #     ist = 0
+        #     for i, soc_block in enumerate(soc_upup_block):
+        #         mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
+        #         masked_soc_block = soc_block[mask][:,mask]
+        #         block_uu[:,ist:ist+masked_soc_block.shape[0],ist:ist+masked_soc_block.shape[1]] = masked_soc_block.squeeze(0)
+        #         ist += masked_soc_block.shape[0]
+        #     ist = 0
+        #     for i, soc_block in enumerate(soc_updn_block):
+        #         mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
+        #         masked_soc_block = soc_block[mask][:,mask]
+        #         block_ud[:,ist:ist+masked_soc_block.shape[0],ist:ist+masked_soc_block.shape[1]] = masked_soc_block.squeeze(0)
+        #         ist += masked_soc_block.shape[0]
 
         for i, hblock in enumerate(bondwise_hopping):
             iatom = data[AtomicDataDict.EDGE_INDEX_KEY][0][i]
@@ -152,10 +152,28 @@ class HR2HK(torch.nn.Module):
         
         if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
             HK_SOC = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], 2*all_norb, 2*all_norb, dtype=self.ctype, device=self.device)
-            HK_SOC[:,:all_norb,:all_norb] = block + block_uu
-            HK_SOC[:,:all_norb,all_norb:] = block_ud
-            HK_SOC[:,all_norb:,:all_norb] = block_ud.conj()
-            HK_SOC[:,all_norb:,all_norb:] = block + block_uu.conj()
+            #HK_SOC[:,:all_norb,:all_norb] = block + block_uu
+            #HK_SOC[:,:all_norb,all_norb:] = block_ud
+            #HK_SOC[:,all_norb:,:all_norb] = block_ud.conj()
+            #HK_SOC[:,all_norb:,all_norb:] = block + block_uu.conj()
+            ist = 0
+            assert len(soc_upup_block) == len(soc_updn_block)
+            for i in range(len(soc_upup_block)):
+                assert soc_upup_block[i].shape == soc_updn_block[i].shape
+                mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
+                masked_soc_upup_block = soc_upup_block[i][mask][:,mask]
+                masked_soc_updn_block = soc_updn_block[i][mask][:,mask]
+                HK_SOC[:,ist:ist+masked_soc_upup_block.shape[0],ist:ist+masked_soc_upup_block.shape[1]] = masked_soc_upup_block.squeeze(0)
+                HK_SOC[:,ist:ist+masked_soc_updn_block.shape[0],ist+all_norb:ist+all_norb+masked_soc_updn_block.shape[1]] = masked_soc_updn_block.squeeze(0)
+                assert masked_soc_upup_block.shape[0] == masked_soc_upup_block.shape[1]
+                assert masked_soc_upup_block.shape[0] == masked_soc_updn_block.shape[0]
+                
+                ist += masked_soc_upup_block.shape[0]
+
+            HK_SOC[:,all_norb:,:all_norb] = HK_SOC[:,:all_norb,all_norb:].conj()   
+            HK_SOC[:,all_norb:,all_norb:] = HK_SOC[:,:all_norb,:all_norb].conj()  + block
+            HK_SOC[:,:all_norb,:all_norb] = HK_SOC[:,:all_norb,:all_norb] + block  
+
             data[self.out_field] = HK_SOC
         else:
             data[self.out_field] = block
