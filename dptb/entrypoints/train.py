@@ -28,7 +28,6 @@ def train(
         INPUT: str,
         init_model: Optional[str],
         restart: Optional[str],
-        train_soc:bool,
         output: str,
         log_level: int,
         log_path: Optional[str],
@@ -37,12 +36,10 @@ def train(
     run_opt = {
         "init_model": init_model,
         "restart": restart,
-        "train_soc": train_soc,
         "log_path": log_path,
         "log_level": log_level
     }
 
-    assert train_soc is False, "train_soc is not supported yet"
 
     '''
         -1- set up input and output directories

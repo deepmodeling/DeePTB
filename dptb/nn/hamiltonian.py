@@ -14,7 +14,8 @@ from dptb.data import AtomicDataDict
 import re
 from torch_runstats.scatter import scatter
 from dptb.nn.tensor_product import wigner_D
-
+from dptb.nn.sktb.socbasic import get_soc_matrix_cubic_basis
+from dptb.utils.tools import float2comlex
 #TODO: 1. jit acceleration 2. GPU support 3. rotate AB and BA bond together.
 
 # The `E3Hamiltonian` class is a PyTorch module that represents a Hamiltonian for a system with a
@@ -209,6 +210,7 @@ class SKHamiltonian(torch.nn.Module):
         node_field: str = AtomicDataDict.NODE_FEATURES_KEY,
         onsite: bool = False,
         strain: bool = False,
+        soc: bool = False,
         **kwargs,
         ) -> None:
         super(SKHamiltonian, self).__init__()
@@ -220,6 +222,7 @@ class SKHamiltonian(torch.nn.Module):
         self.dtype = dtype
         self.device = device
         self.onsite = onsite
+        self.soc = soc
 
         if basis is not None:
             self.idp_sk = OrbitalMapper(basis, method="sktb", device=device)
@@ -239,6 +242,10 @@ class SKHamiltonian(torch.nn.Module):
         self.idp_sk.get_orbpair_maps()
         self.idp_sk.get_skonsite_maps()
         self.idp.get_orbpair_maps()
+
+        if self.soc:
+            self.idp_sk.get_sksoc_maps()
+            self.idp.get_orbpair_soc_maps()
 
         pairtypes = self.idp_sk.orbpairtype_maps.keys()
         
@@ -273,6 +280,13 @@ class SKHamiltonian(torch.nn.Module):
                 ], dtype=self.dtype, device=self.device
             )
         }
+        if self.soc:
+            self.soc_base_matrix = {
+                's':get_soc_matrix_cubic_basis(orbital='s', device=self.device, dtype=self.dtype),
+                'p':get_soc_matrix_cubic_basis(orbital='p', device=self.device, dtype=self.dtype),
+                'd':get_soc_matrix_cubic_basis(orbital='d', device=self.device, dtype=self.dtype)
+            }
+            self.cdtype =  float2comlex(self.dtype)
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         # transform sk parameters to irreducible matrix element
@@ -333,6 +347,17 @@ class SKHamiltonian(torch.nn.Module):
                 # the onsite block doesnot have rotation
 
                 data[self.node_field][:, self.idp.orbpair_maps[otype+"-"+otype]] = HR.reshape(n_node, -1)
+        if self.soc:
+            assert data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all(), "The SOC switch is not turned on in data by soc is set to True."
+            soc_feature = data[AtomicDataDict.NODE_SOC_KEY]
+            data[AtomicDataDict.NODE_SOC_KEY] = torch.zeros(n_node, self.idp.reduced_soc_matrix_elemet, dtype= self.cdtype, device=self.device)
+            for otype in self.idp_sk.sksoc_maps.keys():
+                lsymbol = re.findall(r"[a-z]", otype)[0]
+                l = anglrMId[lsymbol]
+                socparam = soc_feature[:, self.idp_sk.sksoc_maps[otype]].reshape(n_node, -1, 1)
+                HR = self.soc_base_matrix[lsymbol][None, None, :, :] * socparam[:,:, None, :]
+                HR_upup_updn = HR[:,:,0:2*l+1,:]
+                data[AtomicDataDict.NODE_SOC_KEY][:, self.idp.orbpair_soc_maps[otype+"-"+otype]] = HR_upup_updn.reshape(n_node, -1)
 
         # compute if strain effect is included
         # this is a little wired operation, since it acting on somekind of a edge(strain env) feature, and summed up to return a node feature.

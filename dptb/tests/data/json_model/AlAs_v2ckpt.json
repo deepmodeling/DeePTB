@@ -11,6 +11,7 @@
                 "rs": 4.2,
                 "w": 0.2
             },
+            "soc":{},
             "freeze": false,
             "push": false,
             "std": 0.01

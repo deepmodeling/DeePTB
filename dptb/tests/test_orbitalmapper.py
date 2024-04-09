@@ -305,6 +305,33 @@ def test_get_skonsitetype_maps():
 
     assert orbmap.get_skonsitetype_maps() == {'s': slice(0, 2, None), 'p': slice(2, 3, None), 'f': slice(3, 4, None)}
 
+def test_get_sksoctype_maps():
+    basis = {"C": "2s2p3d1f1g1h", "O": "1s2p3d1f2g]"}
+    orbmap = OrbitalMapper(basis=basis, method="e3tb", device=torch.device("cpu"))
+    with pytest.raises(AssertionError) as excinfo:  
+        orbmap.get_sksoctype_maps()
+    assert "Only sktb orbitalmapper have sksoctype maps" in str(excinfo.value)
+
+    basis = {"C": ['2s','2p','s*'], "O": ['2s','2p','f*']}
+    orbmap = OrbitalMapper(basis=basis, method="sktb", device=torch.device("cpu"))
+
+    assert orbmap.get_sksoctype_maps() == {'s': slice(0, 2, None), 'p': slice(2, 3, None), 'f': slice(3, 4, None)}
+
+def test_get_sksoc_maps():
+    basis = {"C": "2s2p3d1f1g1h", "O": "1s2p3d1f2g]"}
+    orbmap = OrbitalMapper(basis=basis, method="e3tb", device=torch.device("cpu"))
+    with pytest.raises(AssertionError) as excinfo:  
+        orbmap.get_sksoc_maps()
+    assert "Only sktb orbitalmapper have sksoc maps" in str(excinfo.value)
+
+    basis = {"C": ['2s','2p','s*'], "O": ['2s','2p','f*']}
+    orbmap = OrbitalMapper(basis=basis, method="sktb", device=torch.device("cpu"))
+
+    assert orbmap.get_sksoc_maps() == {'1s': slice(0, 1, None),
+                                          '2s': slice(1, 2, None),
+                                          '1p': slice(2, 3, None),
+                                          '1f': slice(3, 4, None)}    
+
 def test_get_orbital_maps():
     basis = {"C": "2s2p3d1f1g1h", "O": "1s2p3d1f2g]"}
     orbmap = OrbitalMapper(basis=basis, method="e3tb", device=torch.device("cpu"))

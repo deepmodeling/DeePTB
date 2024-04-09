@@ -44,6 +44,19 @@ if TYPE_CHECKING:
     _PRECISION = Literal["default", "float16", "float32", "float64"]
 
 
+def float2comlex(dtype):
+    if isinstance(dtype, str):
+        dtype =  getattr(torch, dtype)
+    
+    if dtype is torch.float32:
+        cdtype = torch.complex64
+    elif dtype is torch.float64:
+        cdtype = torch.complex128
+    else:
+        raise ValueError("the dtype is not supported! now only float64, float32 is supported!")
+    return cdtype
+
+
 def flatten_dict(dictionary):
     queue = list(dictionary.items())
     f_dict = {}

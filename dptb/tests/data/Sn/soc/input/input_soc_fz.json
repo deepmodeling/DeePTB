@@ -1,0 +1,63 @@
+{
+    "common_options": {
+        "basis": {
+            "Sn": ["5s","5p","d*"]
+        },
+        "device": "cpu",
+        "dtype": "float32",
+        "overlap": false,
+        "seed": 3982377700
+    },
+    "train_options": {
+        "num_epoch": 2,
+        "batch_size": 1,
+        "optimizer": {
+            "lr": 0.01,
+            "type": "Adam",
+            "betas": [
+                0.9,
+                0.999
+            ],
+            "eps": 1e-08,
+            "weight_decay": 0,
+            "amsgrad": false
+        },
+        "lr_scheduler": {
+            "type": "exp",
+            "gamma": 0.999
+        },
+        "loss_options": {
+            "train": {
+                "method": "eigvals",
+                "diff_on": false,
+                "eout_weight": 0.01,
+                "diff_weight": 0.01
+            }
+        },
+        "save_freq": 1,
+        "validation_freq": 10,
+        "display_freq": 100,
+        "ref_batch_size": 1,
+        "val_batch_size": 1,
+        "max_ckpt": 1
+    },
+    "model_options": {
+        "nnsk": {
+            "onsite": {"method": "strain","rs":6.0, "w": 0.1},
+            "hopping": {"method": "powerlaw", "rs":6.0, "w": 0.1},
+            "soc":{"method":"uniform"},
+            "push": false,
+            "std": 0.01,
+            "freeze": ["onsite", "hopping"]
+        }
+    },
+    "data_options": {
+        "train": {
+            "root": "./dptb/tests/data/Sn/soc/dataset",
+            "prefix": "set",
+            "get_eigenvalues": true,
+            "type": "DefaultDataset",
+            "get_Hamiltonian": false
+        }
+    }
+}

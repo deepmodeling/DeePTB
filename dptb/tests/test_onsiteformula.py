@@ -26,6 +26,3 @@ def test_uniform_onsite():
     assert torch.all(torch.abs(onsite_energies - torch.tensor([[ 13.6727371216, -13.4385881424,  -5.2642369270,   0.2500000000],
         [-10.7777261734,   0.2000000030,  -3.7619719505,   0.3000000119]]))<1e-8)
 
-
-def test_NRL_onsite():
-    pass

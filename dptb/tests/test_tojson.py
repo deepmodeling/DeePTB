@@ -22,6 +22,7 @@ class TestV1Jsonuniform:
         "nnsk": {
             "onsite": {"method": "uniform"},
             "hopping": {"method": "powerlaw", "rs":4.2, "w": 0.2},
+            "soc":{},
             "push": False,
             "freeze": False
         }
@@ -102,6 +103,7 @@ class Test2Jsonstrain:
         "nnsk": {
         "onsite": {"method": "strain","rs":6, "w": 0.1},
         "hopping": {"method": "powerlaw", "rs":2.6, "w": 0.3},
+        "soc":{},
         "push": False,
         "freeze": False
         }

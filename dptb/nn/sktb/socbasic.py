@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import logging
+from dptb.utils.constants import CUBIC_MAG_NUM_DICT, LM_MAG_NUM_DICT
 
 log = logging.getLogger(__name__)
 
@@ -17,11 +18,8 @@ log = logging.getLogger(__name__)
 #       m=  2 dx2-y2
 
 # sktb 变换中轨道的顺序选择 m从小到大排列。see dptb.hamiltonian.transform_sk for more details.
-# 因此定义soc矩阵的 Cubic_Mag_Num_Dict 中每个角动量的轨道，也是按照m从小到大排序。
+# 因此定义soc矩阵的 CUBIC_MAG_NUM_DICT 中每个角动量的轨道，也是按照m从小到大排序。
 # 值得注意的是这个排序只是一种约定，保持代码中一致就可以。
-
-Cubic_Mag_Num_Dict = {'s':[0], 'p':[-1, 0, 1], 'd':[-2, -1, 0, 1, 2]}
-LM_Mag_Num_Dict    = {'s':[0], 'p':[-1, 0, 1], 'd':[-2, -1, 0, 1, 2]}
 
 
 # magnetic quantum number
@@ -90,7 +88,7 @@ def creat_basis_lm(orb: str):
     '''
     assert orb in ['s', 'p', 'd'], 'The orb parameter must be one of the s, p ,d values  in the format of str'    
     l_value = ['s', 'p', 'd'].index(orb)
-    mlist = LM_Mag_Num_Dict[orb]
+    mlist = LM_MAG_NUM_DICT[orb]
     basis = []
     for m in mlist:
         for spin in [1,-1]:
@@ -99,7 +97,7 @@ def creat_basis_lm(orb: str):
 
 def get_matrix_lmbasis(basis, device='cpu', dtype=torch.float32):
     '''> The function `get_matrix_lmbasis` takes a list of basis states and returns the matrix
-    representation of the operator $\mathbf{L}\cdot\mathbf{S}$ in the basis of $|l,m,s\rangle$
+    representation of the operator L cdot S in the basis of |l,m,s >
     
     Parameters
     ----------
@@ -189,9 +187,9 @@ def get_soc_matrix_cubic_basis(orbital: str,cubic_mag_num=None, lm_mag_num=None,
          [dnup],[dndn]]
     '''
     if cubic_mag_num is None:
-        cubic_mag_num = Cubic_Mag_Num_Dict[orbital]
+        cubic_mag_num = CUBIC_MAG_NUM_DICT[orbital]
     if lm_mag_num is None:
-        lm_mag_num = LM_Mag_Num_Dict[orbital]
+        lm_mag_num = LM_MAG_NUM_DICT[orbital]
 
     if dtype is torch.float32:
         cdtype = torch.complex64
