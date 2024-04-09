@@ -109,6 +109,7 @@ def build_dataset(
         root: str,
         type: str = "DefaultDataset",
         prefix: str = None,
+        separator:str='.',
         get_Hamiltonian: bool = False,
         get_overlap: bool = False,
         get_DM: bool = False,
@@ -168,7 +169,7 @@ def build_dataset(
         #                include_folders.append(dir_name)
 
         assert prefix is not None, "The prefix is not provided. Please provide the prefix to select the trajectory folders."
-        prefix_folders = glob.glob(f"{root}/{prefix}.*")
+        prefix_folders = glob.glob(f"{root}/{prefix}{separator}*")
         include_folders=[]
         for idir in prefix_folders:
             if os.path.isdir(idir):

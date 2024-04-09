@@ -193,11 +193,13 @@ def train_data_sub():
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
     doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
     doc_DM = "Choose whether the density matrix is loaded when building dataset."
+    doc_separator = "the sepatator used to separate the prefix and suffix in the dataset directory. Default: '.'"
     
     args = [
         Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
+        Argument("separator", str, optional=True, default='.', doc=doc_separator),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
         Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
         Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
