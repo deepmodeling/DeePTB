@@ -25,7 +25,7 @@
         },
         "save_freq": 500,
         "validation_freq": 10,
-        "display_freq": 100
+        "display_freq": 1
     },
     "model_options": {
         "nnsk": {
