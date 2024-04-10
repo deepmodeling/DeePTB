@@ -1,4 +1,4 @@
-from dptb.nn.deeptb import DPTB, MIX
+from dptb.nn.deeptb import NNENV, MIX
 import logging
 from dptb.nn.nnsk import NNSK
 import torch
@@ -35,7 +35,7 @@ def build_model(
             raise ValueError("You need to provide model_options and common_options when you are initializing a model from scratch.")
 
     # decide whether to initialize a mixed model, or a deeptb model, or a nnsk model
-    init_deeptb = False
+    init_nnenv = False
     init_nnsk = False
     init_mixed = False
 
@@ -78,7 +78,7 @@ def build_model(
             raise ValueError("Model_options are not set correctly!")
     else:
         if all((model_options.get("embedding"), model_options.get("prediction"))):
-            init_deeptb = True
+            init_nnenv = True
             if model_options["prediction"]['method'] == 'sktb':
                 log.warning("The prediction method is sktb, but the nnsk option is not set. this is highly not recommand.\n"+
                             "We recommand to train nnsk then train mix model for sktb. \n"+
@@ -103,15 +103,15 @@ def build_model(
             raise ValueError("Model_options are not set correctly!")
     
     
-    assert int(init_mixed) + int(init_deeptb) + int(init_nnsk) == 1, "You can only choose one of the mixed, deeptb, and nnsk options."
+    assert int(init_mixed) + int(init_nnenv) + int(init_nnsk) == 1, "You can only choose one of the mixed, deeptb, and nnsk options."
     # check if the model is deeptb or nnsk
 
     # init deeptb
     if from_scratch:
-        if init_deeptb:
-            model = DPTB(**model_options, **common_options)
+        if init_nnenv:
+            model = NNENV(**model_options, **common_options)
 
-            # do initialization from statistics if DPTB is e3tb and statistics is provided
+            # do initialization from statistics if NNENV is e3tb and statistics is provided
             if model.method == "e3tb" and statistics is not None:
                 scalar_mask = torch.BoolTensor([ir.dim==1 for ir in model.idp.orbpair_irreps])
                 node_shifts = statistics["node"]["scalar_ave"]
@@ -132,8 +132,8 @@ def build_model(
             
     else:
         # load the model from the checkpoint
-        if init_deeptb:
-            model = DPTB.from_reference(checkpoint, **model_options, **common_options)
+        if init_nnenv:
+            model = NNENV.from_reference(checkpoint, **model_options, **common_options)
         if init_nnsk:
             model = NNSK.from_reference(checkpoint, **model_options["nnsk"], **common_options)
         if init_mixed:
