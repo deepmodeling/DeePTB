@@ -12,27 +12,22 @@ dptb_model_config_checklist = ['dptb-if_batch_normalized', 'dptb-hopping_net_typ
 
 def common_options():
     doc_device = "The device to run the calculation, choose among `cpu` and `cuda[:int]`, Default: `cpu`"
-    doc_dtype = "The digital number's precison, choose among: \n\n\
-            - `float32`: indicating torch.float32\n\n\
-            - `float64`: indicating torch.float64\n\n\
-            Default: `float32`\n\n"
+    doc_dtype = """The digital number's precison, choose among: 
+                    Default: `float32`
+                        - `float32`: indicating torch.float32
+                        - `float64`: indicating torch.float64
+                """
     
     doc_seed = "The random seed used to initialize the parameters and determine the shuffling order of datasets. Default: `3982377700`"
-    #doc_onsite_cutoff = "The cutoff-range considered when using strain mode correction. Out of which the atom are assume to have no effect on current atom's onsite energy."
-    #doc_bond_cutoff = "The cutoff-range of bond hoppings, beyond which it assume the atom pairs have 0 hopping integrals."
-    #doc_env_cutoff = "The cutoff-range of DeePTB environmental correction, recommand range is: (0.5*bond_cutoff, bond_cutoff)"
-    doc_basis = "The atomic orbitals used to construct the basis. E.p. {'A':'2s','2p','s*','B':'3s','3p' }"
-    doc_overlap = ""
+    doc_basis = "The atomic orbitals used to construct the basis. e.p. {'A':['2s','2p','s*'],'B':'[3s','3p']}"
+    doc_overlap = "Whether to calculate the overlap matrix. Default: False"
 
     args = [
-        #Argument("onsite_cutoff", float, optional = True, doc = doc_onsite_cutoff),
-        #Argument("bond_cutoff", float, optional = False, doc = doc_bond_cutoff),
-        #Argument("env_cutoff", float, optional = True, doc = doc_env_cutoff),
         Argument("basis", dict, optional=False, doc=doc_basis),
-        Argument("seed", int, optional=True, default=3982377700, doc=doc_seed),
         Argument("overlap", bool, optional=True, default=False, doc=doc_overlap),
         Argument("device", str, optional = True, default="cpu", doc = doc_device),
         Argument("dtype", str, optional = True, default="float32", doc = doc_dtype),
+        Argument("seed", int, optional=True, default=3982377700, doc=doc_seed),
     ]
 
     doc_common_options = ""
@@ -54,13 +49,15 @@ def train_options():
     "
     doc_lr_scheduler = "The learning rate scheduler tools settings, the lr scheduler is used to scales down the learning rate during the training process. Proper setting can make the training more stable and efficient. The supported lr schedular includes: `Exponential Decaying (exp)`, `Linear multiplication (linear)`"
     doc_batch_size = "The batch size used in training, Default: 1"
+    doc_ref_batch_size = "The batch size used in reference data, Default: 1"
+    doc_val_batch_size = "The batch size used in validation data, Default: 1"
     doc_max_ckpt = "The maximum number of saved checkpoints, Default: 4"
     
     args = [
         Argument("num_epoch", int, optional=False, doc=doc_num_epoch),
         Argument("batch_size", int, optional=True, default=1, doc=doc_batch_size),
-        Argument("ref_batch_size", int, optional=True, default=1, doc=doc_batch_size),
-        Argument("val_batch_size", int, optional=True, default=1, doc=doc_batch_size),
+        Argument("ref_batch_size", int, optional=True, default=1, doc=doc_ref_batch_size),
+        Argument("val_batch_size", int, optional=True, default=1, doc=doc_val_batch_size),
         Argument("optimizer", dict, sub_fields=[], optional=True, default={}, sub_variants=[optimizer()], doc = doc_optimizer),
         Argument("lr_scheduler", dict, sub_fields=[], optional=True, default={}, sub_variants=[lr_scheduler()], doc = doc_lr_scheduler),
         Argument("save_freq", int, optional=True, default=10, doc=doc_save_freq),
@@ -76,7 +73,7 @@ def train_options():
 
 def test_options():
     doc_display_freq = "Frequency, or every how many iteration to display the training log to screem. Default: `1`"
-    doc_batch_size = ""
+    doc_batch_size = "The batch size used in testing, Default: 1"
     
     args = [
         Argument("batch_size", int, optional=True, default=1, doc=doc_batch_size),
@@ -206,7 +203,7 @@ def train_data_sub():
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
-    doc_train = ""
+    doc_train = "The dataset settings for training."
 
     return Argument("train", dict, optional=False, sub_fields=args, sub_variants=[], doc=doc_train)
 
@@ -217,18 +214,20 @@ def validation_data_sub():
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
     doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
     doc_DM = "Choose whether the density matrix is loaded when building dataset."
+    doc_separator = "the sepatator used to separate the prefix and suffix in the dataset directory. Default: '.'"
 
     args = [
         Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
+        Argument("separator", str, optional=True, default='.', doc=doc_separator),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
         Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
         Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
-    doc_validation = ""
+    doc_validation = "The dataset settings for validation."
 
     return Argument("validation", dict, optional=True, sub_fields=args, sub_variants=[], doc=doc_validation)
 
@@ -239,18 +238,20 @@ def reference_data_sub():
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
     doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
     doc_DM = "Choose whether the density matrix is loaded when building dataset."
+    doc_separator = "the sepatator used to separate the prefix and suffix in the dataset directory. Default: '.'"
 
     args = [
         Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
+        Argument("separator", str, optional=True, default='.', doc=doc_separator),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
         Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
         Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
-    doc_reference = ""
+    doc_reference = "The dataset settings for reference."
     
     return Argument("reference", dict, optional=True, sub_fields=args, sub_variants=[], doc=doc_reference)
 
@@ -259,30 +260,34 @@ def test_data_sub():
     doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
     doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
+    doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
+    doc_DM = "Choose whether the density matrix is loaded when building dataset."
+    doc_separator = "the sepatator used to separate the prefix and suffix in the dataset directory. Default: '.'"
 
     args = [
         Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
-        Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
+        Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig),
+        Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
+        Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
+        Argument("separator", str, optional=True, default='.', doc=doc_separator)
     ]
 
-    doc_reference = ""
+    doc_test = "The dataset settings for testing."
     
-    return Argument("test", dict, optional=False, sub_fields=args, default={}, sub_variants=[], doc=doc_reference)
+    return Argument("test", dict, optional=False, sub_fields=args, default={}, sub_variants=[], doc=doc_test)
 
 
 def data_options():
-    doc_use_reference = "Whether to use a reference dataset that jointly train the model. It acting as a constraint or normalization to make sure the model won't deviate too much from the reference data."
-
     args = [
             train_data_sub(),
             validation_data_sub(),
             reference_data_sub()
             ]
 
-    doc_data_options = ""
+    doc_data_options = "The options for dataset settings in training."
 
     return Argument("data_options", dict, sub_fields=args, sub_variants=[], optional=False, doc=doc_data_options)
 
@@ -292,53 +297,13 @@ def test_data_options():
         test_data_sub()
     ]
 
-    doc_test_data_options = "parameters for dataset settings in testing"
+    doc_test_data_options = "The options for dataset settings in testing"
 
     return Argument("data_options", dict, sub_fields=args, sub_variants=[], optional=False, doc=doc_test_data_options)
 
-# def dptb():
-#     doc_soc_env = "button that allow environmental correction for soc parameters, used only when soc is open, Default: False"
-#     doc_axis_neuron = "The axis_neuron specifies the size of the submatrix of the embedding matrix, the axis matrix as explained in the [DeepPot-SE paper](https://arxiv.org/abs/1805.09003)."
-#     doc_onsite_net_neuron = r"The number of hidden neurons in the network for onsites $\langle i|H|i\rangle$ of `dptb` model. Default: `[128, 128, 256, 256]`"
-#     doc_env_net_neuron = "The number of hidden neurons in the environment embedding network of `dptb` model. Default: `[128, 128, 256, 256]`"
-#     doc_hopping_net_neuron = r"The number of hidden neurons in the network for hoppings $\langle i|H|j\rangle$ of `dptb` model. Default: `[128, 128, 256, 256]`"
-#     doc_onsite_net_activation = "The activation function for onsite networks. Default: `tanh`"
-#     doc_env_net_activation = "The activation function for environment embedding networks. Default: `tanh`"
-#     doc_hopping_net_activation = "The activation function for hopping networks. Default: `tanh`"
-#     doc_soc_net_activation = "The activation function for soc networks. Default: `tanh`"
-#     doc_soc_net_neuron = r"The number of hidden neurons in the network for soc $\lambda$ of `dptb` model. Default: `[128, 128, 256, 256]`"
-#     doc_soc_net_type = "The network type for soc, the value can be:\n\n\
-#         - `res`: for feedforward Network with residual connections, for more information about residual network, we refer to [Deep Residual Learning for Image Recognition](https://openaccess.thecvf.com/content_cvpr_2016/papers/He_Deep_Residual_Learning_CVPR_2016_paper.pdf). \n\n\
-#         - `ffn`: for feedforward Network."
-#     doc_onsite_net_type = "The network type for onsites."
-#     doc_env_net_type = "The network type for environment embeddings."
-#     doc_hopping_net_type = "The network type for hoppings."
-#     doc_if_batch_normalized = "Whether to use batch normalization after each layer in neural network. The batch normalization normalize the itermidiate values in neural network with the mean and variance estimated in the batch dimension. The batch here means the batch of onsite or hopping embeddings or position vectors that processed by neural network at one time computation, which is different from the batch defined in `data_options`. Default: False."
-
-#     args = [
-#         Argument("soc_env", bool, optional=True, default=False, doc=doc_soc_env),
-#         Argument("axis_neuron", int, optional=True, default=10, doc=doc_axis_neuron),
-#         Argument("onsite_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_onsite_net_neuron),
-#         Argument("soc_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_soc_net_neuron),
-#         Argument("env_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_env_net_neuron),
-#         Argument("hopping_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_hopping_net_neuron),
-#         Argument("onsite_net_activation", str, optional=True, default="tanh", doc=doc_onsite_net_activation),
-#         Argument("env_net_activation", str, optional=True, default="tanh", doc=doc_env_net_activation),
-#         Argument("hopping_net_activation", str, optional=True, default="tanh", doc=doc_hopping_net_activation),
-#         Argument("soc_net_activation", str, optional=True, default="tanh", doc=doc_soc_net_activation),
-#         Argument("onsite_net_type", str, optional=True, default="res", doc=doc_onsite_net_type),
-#         Argument("env_net_type", str, optional=True, default="res", doc=doc_env_net_type),
-#         Argument("hopping_net_type", str, optional=True, default="res", doc=doc_hopping_net_type),
-#         Argument("soc_net_type", str, optional=True, default="res", doc=doc_soc_net_type),
-#         Argument("if_batch_normalized", bool, optional=True, default=False, doc=doc_if_batch_normalized)
-#     ]
-
-#     doc_dptb = "The parameters for `dptb` model, which maps the environmental information to Tight-Binding parameters."
-
-#     return Argument("dptb", dict, optional=True, sub_fields=args, sub_variants=[], default={}, doc=doc_dptb)
 
 def embedding():
-    doc_method = ""
+    doc_method = "The parameters to define the embedding model."
 
     return Variant("method", [
             Argument("se2", dict, se2()),
@@ -534,7 +499,7 @@ def e3tb_prediction():
 
 def model_options():
 
-    doc_model_options = "The parameters to define the `nnsk` and `dptb` model."
+    doc_model_options = "The parameters to define the `nnsk`,`mix` and `dptb` model."
     doc_embedding = ""
     doc_prediction = ""
 
@@ -685,6 +650,26 @@ def loss_options():
     doc_loss_options = ""
     return Argument("loss_options", dict, sub_fields=args, sub_variants=[], optional=False, doc=doc_loss_options)
 
+def gen_doc(*, make_anchor=True, make_link=True, **kwargs):
+    if make_link:
+        make_anchor = True
+    co = common_options()
+    tr = train_options()
+    da = data_options()
+    mo = model_options()
+    ptr = []
+    ptr.append(co.gen_doc(make_anchor=make_anchor, make_link=make_link, **kwargs))
+    ptr.append(tr.gen_doc(make_anchor=make_anchor, make_link=make_link, **kwargs))
+    ptr.append(da.gen_doc(make_anchor=make_anchor, make_link=make_link, **kwargs))
+    ptr.append(mo.gen_doc(make_anchor=make_anchor, make_link=make_link, **kwargs))
+
+    key_words = []
+    for ii in "\n\n".join(ptr).split("\n"):
+        if "argument path" in ii:
+            key_words.append(ii.split(":")[1].replace("`", "").strip())
+    # ptr.insert(0, make_index(key_words))
+
+    return "\n\n".join(ptr)
 
 def normalize(data):
 
