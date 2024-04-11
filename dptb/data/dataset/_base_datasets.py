@@ -65,7 +65,9 @@ class AtomicDataset(Dataset):
         pnames = list(inspect.signature(self.__init__).parameters)
         IGNORE_KEYS = {
             # the type mapper is applied after saving, not before, so doesn't matter to cache validity
-            "type_mapper"
+            "type_mapper",
+            # the root path of the dictionary is not important, as datasets can be transfered to anywhere
+            "root"
         }
         params = {
             k: getattr(self, k)
@@ -74,7 +76,7 @@ class AtomicDataset(Dataset):
         }
         # Add other relevant metadata:
         params["dtype"] = str(self.dtype)
-        params["nequip_version"] = dptb.__version__
+        params["dptb_version"] = dptb.__version__
 
         return params
 
