@@ -4,7 +4,7 @@ from dptb.negf.device_property import DeviceProperty
 from dptb.nn.build import build_model
 from dptb.negf.negf_hamiltonian_init import NEGFHamiltonianInit
 import torch
-from dptb.postprocess.tbtrans_init import TBTransInputSet
+# from dptb.postprocess.tbtrans_init import TBTransInputSet
 from dptb.utils.tools import j_loader
 import numpy as np
 
