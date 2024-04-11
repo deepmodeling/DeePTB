@@ -24,6 +24,13 @@ cd path/deeptb
 pip install .
 ```
 
-## From Pypi and Conda
+## From Pypi
 
-Will be available soon.
+DeePTB is available on PyPi and Conda. 
+First make sure you have python 3.8 or later installed. 
+Then make sure you have installed torch
+
+If so, you can install DeePTB by running
+```bash
+pip install dptb
+```
