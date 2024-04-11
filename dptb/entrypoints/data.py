@@ -100,13 +100,14 @@ def data(
     if collect:
         # Collect sub-folders produced by parse into one dataset.
         # {
-        #    "subfolders": "alice_*/*_bob/set.*/*",  can be a list too.
-        #    "prefix": "prefix_for_merged_dataset",
-        #    "output_dir": "path_for_collected_subfolders"
+        #    "subfolders": "alice_*/*_bob/set.*/frame.*",  can be a list too.
+        #    "name": "prefix_for_merged_dataset",
+        #    "output_dir": "path_for_collected_subsets"
         # }
         # "subfolders" should always point to folders containing the `.dat` files.
+        # IMPORTANT: collecting the `.traj` dataset folders are not supported yet.
 
-        prefix = jdata.get("prefix")
+        name = jdata.get("name")
         output_dir = jdata.get("output_dir")
         input_path = jdata.get("subfolders")
 
@@ -117,13 +118,18 @@ def data(
 
         subfolders = [item for item in input_path if os.path.isdir(item)]
 
+        assert len(subfolders) > 0, "No sub-folders found in the provided path."
+
+        os.mkdir(os.path.join(output_dir, name))  
+        output_dir = os.path.join(output_dir, name)
+
         for idx, subfolder in enumerate(tqdm(subfolders, desc="Collecting files...")):
             # Check necessary data files.
             required_files = ['positions.dat', 'cell.dat', 'atomic_numbers.dat']
             files_exist = all(os.path.isfile(os.path.join(subfolder, f)) for f in required_files)
 
             if files_exist:
-                new_folder_name = f"{prefix}.{idx}"
+                new_folder_name = f"{name}.{idx}"
                 new_folder_path = os.path.join(output_dir, new_folder_name)
                 shutil.copytree(subfolder, new_folder_path)
             else:
