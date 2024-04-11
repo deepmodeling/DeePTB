@@ -54,9 +54,9 @@ def get_neuron_config(nl):
 
     return config
 
-class DPTB(nn.Module):
+class NNENV(nn.Module):
     quantities = ["hamiltonian", "energy"]
-    name = "dptb"
+    name = "nnenv"
     def __init__(
             self,
             embedding: dict,
@@ -94,7 +94,7 @@ class DPTB(nn.Module):
         NotImplementedError
             _description_
         """
-        super(DPTB, self).__init__()
+        super(NNENV, self).__init__()
 
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype)
@@ -308,7 +308,7 @@ class MIX(nn.Module):
 
         self.dtype = dtype
         self.device = device
-        self.dptb = DPTB(
+        self.nnenv = NNENV(
             embedding=embedding, 
             prediction=prediction, 
             basis=basis, 
@@ -332,7 +332,7 @@ class MIX(nn.Module):
         assert not self.nnsk.push, "The push option is not supported in the mixed model. The push option is only supported in the nnsk model."
         
         self.model_options = self.nnsk.model_options
-        self.model_options.update(self.dptb.model_options)
+        self.model_options.update(self.nnenv.model_options)
         
         self.hamiltonian = self.nnsk.hamiltonian
         if overlap:
@@ -341,11 +341,11 @@ class MIX(nn.Module):
 
 
     def forward(self, data: AtomicDataDict.Type):
-        data_dptb = self.dptb(data)
+        data_nnenv = self.nnenv(data)
         data_nnsk = self.nnsk(data)
 
-        data_nnsk[AtomicDataDict.EDGE_FEATURES_KEY] = data_nnsk[AtomicDataDict.EDGE_FEATURES_KEY] * (1 + data_dptb[AtomicDataDict.EDGE_FEATURES_KEY])
-        data_nnsk[AtomicDataDict.NODE_FEATURES_KEY] = data_nnsk[AtomicDataDict.NODE_FEATURES_KEY] * (1 + data_dptb[AtomicDataDict.NODE_FEATURES_KEY])
+        data_nnsk[AtomicDataDict.EDGE_FEATURES_KEY] = data_nnsk[AtomicDataDict.EDGE_FEATURES_KEY] * (1 + data_nnenv[AtomicDataDict.EDGE_FEATURES_KEY])
+        data_nnsk[AtomicDataDict.NODE_FEATURES_KEY] = data_nnsk[AtomicDataDict.NODE_FEATURES_KEY] * (1 + data_nnenv[AtomicDataDict.NODE_FEATURES_KEY])
 
         data_nnsk = self.hamiltonian(data_nnsk)
         if hasattr(self, "overlap"):
