@@ -1,7 +1,9 @@
 import pytest
-from dptb.nnops.apihost import NNSKHost
-from dptb.plugins.init_nnsk import InitSKModel
-from dptb.nnops.NN2HRK import NN2HRK
+import json
+from dptb.negf.device_property import DeviceProperty
+from dptb.nn.build import build_model
+from dptb.negf.negf_hamiltonian_init import NEGFHamiltonianInit
+import torch
 from dptb.postprocess.tbtrans_init import TBTransInputSet
 from dptb.utils.tools import j_loader
 import numpy as np
@@ -20,11 +22,29 @@ def test_tbtrans_init(root_directory):
         pytest.skip('sisl is not installed which is necessary for TBtrans Input Generation. Therefore, skipping test_tbtrans_init.')
 
     model_ckpt = f'{root_directory}/dptb/tests/data/test_tbtrans/best_nnsk_b3.600_c3.600_w0.300.json'
-    config = f'{root_directory}/dptb/tests/data/test_tbtrans/negf_tbtrans.json'
-    apihost = NNSKHost(checkpoint=model_ckpt, config=config)
-    apihost.register_plugin(InitSKModel())
-    apihost.build()
-    apiHrk = NN2HRK(apihost=apihost, mode='nnsk')
+    results_path=f'{root_directory}/dptb/tests/data/test_tbtrans/'
+    input_path = root_directory +"/dptb/tests/data/test_tbtrans/negf_tbtrans.json"
+    structure=root_directory +"/dptb/tests/data/test_tbtrans/structure_tbtrans.vasp"
+
+   
+    negf_json = json.load(open(input_path))
+    model = build_model(model_ckpt,model_options=negf_json['model_options'],common_options=negf_json['common_options'])
+
+
+    hamiltonian = NEGFHamiltonianInit(model=model,
+                                    AtomicData_options=negf_json['AtomicData_options'], 
+                                    structure=structure,
+                                    pbc_negf = negf_json['task_options']["stru_options"]['pbc'], 
+                                    stru_options = negf_json['task_options']['stru_options'],
+                                    unit = negf_json['task_options']['unit'], 
+                                    results_path=results_path,
+                                    torch_device = torch.device('cpu'))
+
+      
+    # apihost = NNSKHost(checkpoint=model_ckpt, config=config)
+    # apihost.register_plugin(InitSKModel())
+    # apihost.build()
+    # apiHrk = NN2HRK(apihost=apihost, mode='nnsk')
 
     run_opt = {
             "run_sk": True,
