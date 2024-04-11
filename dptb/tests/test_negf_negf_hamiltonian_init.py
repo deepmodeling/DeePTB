@@ -100,8 +100,7 @@ def test_negf_Hamiltonian(root_directory):
         [  0.6096+0.j, -13.6386+0.j,   0.6096+0.j,   0.0000+0.j],
         [  0.0000+0.j,   0.6096+0.j, -13.6386+0.j,   0.6096+0.j],
         [  0.0000+0.j,   0.0000+0.j,   0.6096+0.j, -13.6386+0.j]],dtype=torch.complex128)
-    print(abs(h_device-h_device_standard).max())
-    assert abs(h_device-h_device_standard).max()>1e-4
+    assert abs(h_device-h_device_standard).max()<1e-4
 
     s_device = hamiltonian.get_hs_device(kpoint=np.array([0,0,0]),V=0,block_tridiagonal=False)[1][0]
     print(hamiltonian.get_hs_device(kpoint=np.array([0,0,0]),V=0,block_tridiagonal=False)[1][0])
