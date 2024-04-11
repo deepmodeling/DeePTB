@@ -22,6 +22,13 @@ These capabilities make **DeePTB** adaptable to various research scenarios, exte
 
 .. toctree::
    :maxdepth: 2
+   :caption: INPUT TAG
+   
+   input_params/index
+
+
+.. toctree::
+   :maxdepth: 2
    :caption: Advanced
 
    advanced/dptb_env
@@ -30,12 +37,6 @@ These capabilities make **DeePTB** adaptable to various research scenarios, exte
    advanced/elec_properties/index
    advanced/interface/index
    advanced/acceleration/index
-
-.. toctree::
-   :maxdepth: 2
-   :caption: INPUT TAG
-   
-   input_params/index
 
 .. toctree::
    :maxdepth: 2
