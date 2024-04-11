@@ -1006,6 +1006,20 @@ def fmm():
         Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err)
     ]
 
+def  pyamg():
+    doc_err = ""
+
+    return [
+        Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err)
+    ]
+
+def scipy():
+    doc_err = ""
+
+    return [
+        Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err)
+    ]
+
 def run_options():
     doc_task = "the task to run, includes: band, dos, pdos, FS2D, FS3D, ifermi"
     doc_structure = "the structure to run the task"
