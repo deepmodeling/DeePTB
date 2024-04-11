@@ -1,2 +1,3 @@
 
-dptb run -sk band.json  -i ./checkpoint/best_nnsk_c6.0w0.1.pth -o ./band
+dptb run band.json  -i ./v2ckpt/checkpoint/nnsk.ep100.pth -o ./band
+
