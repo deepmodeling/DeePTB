@@ -97,6 +97,10 @@ NODE_FEATURES_KEY: Final[str] = "node_features"
 NODE_ATTRS_KEY: Final[str] = "node_attrs"
 EDGE_TYPE_KEY: Final[str] = "edge_type"
 
+# SOC keys
+NODE_SOC_KEY: Final[str] = "node_soc"
+NODE_SOC_SWITCH_KEY: Final[str] = "node_soc_switch"
+
 PER_ATOM_ENERGY_KEY: Final[str] = "atomic_energy"
 TOTAL_ENERGY_KEY: Final[str] = "total_energy"
 FORCE_KEY: Final[str] = "forces"

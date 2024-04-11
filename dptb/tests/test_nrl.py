@@ -100,7 +100,7 @@ def flatten_dict(d, parent_key='', sep='_'):
 def compare_dicts(d1, d2):
     return flatten_dict(d1) == flatten_dict(d2)
 
-def test_nrl2jsono():
+def test_nrl2json():
     INPUT_file = f"{rootdir}/test_sktb/input/input_nrl.json"
     nrlfile = f"{rootdir}/json_model/Si_spd.par"
     outdir = f"{rootdir}/out"

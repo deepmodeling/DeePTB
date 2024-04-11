@@ -221,20 +221,6 @@ def main_parser() -> argparse.ArgumentParser:
         help="Restart the training from the provided checkpoint.",
     )
 
-    parser_train.add_argument(
-        "-crt",
-        "--use-correction",
-        type=str,
-        default=None,
-        help="Use nnsktb correction when training dptb",
-    )
-
-    parser_train.add_argument(
-        "-s",
-        "--train_soc",
-        action="store_true",
-        help="Initialize the training from the frozen model.",
-    )
 
     parser_train.add_argument(
         "-o",
@@ -263,14 +249,6 @@ def main_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="Initialize the model by the provided checkpoint.",
-    )
-
-    parser_test.add_argument(
-        "-crt",
-        "--use-correction",
-        type=str,
-        default=None,
-        help="Use nnsktb correction when testing dptb.",
     )
 
     parser_test.add_argument(
@@ -317,14 +295,6 @@ def main_parser() -> argparse.ArgumentParser:
         type=str,
         default="./",
         help="The output files in postprocess run."
-    )
-
-    parser_run.add_argument(
-        "-crt",
-        "--use-correction",
-        type=str,
-        default=None,
-        help="Use nnsktb correction when training dptb",
     )
 
     # preprocess data

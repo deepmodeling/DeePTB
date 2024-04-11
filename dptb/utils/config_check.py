@@ -16,7 +16,6 @@ def check_config_train(
         INPUT,
         init_model: Optional[str],
         restart: Optional[str],
-        train_soc:bool,
         **kwargs):
     
     if all((init_model, restart)):

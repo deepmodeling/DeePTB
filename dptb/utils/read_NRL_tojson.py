@@ -230,6 +230,7 @@ def nrl2dptb(input, NRL_data):
             "rc": Rcut * bohr2ang,
             "w": Lscreen * bohr2ang
         },
+        "soc":{},
         "freeze": freeze,
         "std": std,
         "push": push}
@@ -259,7 +260,11 @@ def nrl2dptb(input, NRL_data):
                 "method": f'NRL{overlap_type}',
                 "rc": Rcut * bohr2ang,
                 "w": Lscreen * bohr2ang
-            }
+            },
+            "soc":{},
+            "freeze": freeze,
+            "std": std,
+            "push": push
         }
     }
     model['model_params'] = nrl_tb

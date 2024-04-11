@@ -48,6 +48,7 @@ _DEFAULT_NODE_FIELDS: Set[str] = {
     AtomicDataDict.NODE_HAMILTONIAN_KEY,
     AtomicDataDict.NODE_OVERLAP_KEY,
     AtomicDataDict.BATCH_KEY,
+    AtomicDataDict.NODE_SOC_KEY # new
 }
 
 _DEFAULT_EDGE_FIELDS: Set[str] = {
@@ -96,7 +97,8 @@ _DEFAULT_GRAPH_FIELDS: Set[str] = {
     AtomicDataDict.OVERLAP_KEY, # new
     AtomicDataDict.ENERGY_EIGENVALUE_KEY, # new
     AtomicDataDict.ENERGY_WINDOWS_KEY, # new,
-    AtomicDataDict.BAND_WINDOW_KEY # new,
+    AtomicDataDict.BAND_WINDOW_KEY, # new,
+    AtomicDataDict.NODE_SOC_SWITCH_KEY # new
 }
 
 _NODE_FIELDS: Set[str] = set(_DEFAULT_NODE_FIELDS)

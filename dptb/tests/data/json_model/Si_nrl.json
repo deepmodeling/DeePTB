@@ -25,7 +25,11 @@
                 "method": "NRL1",
                 "rc": 6.6147151362875,
                 "w": 0.2645886054515
-            }
+            },
+            "soc": {},
+            "freeze": false,
+            "std": 0.01,
+            "push": false
         }
     },
     "model_params": {

@@ -109,6 +109,7 @@ def build_dataset(
         root: str,
         type: str = "DefaultDataset",
         prefix: str = None,
+        separator:str='.',
         get_Hamiltonian: bool = False,
         get_overlap: bool = False,
         get_DM: bool = False,
@@ -152,27 +153,40 @@ def build_dataset(
             idp = None
 
         # Explore the dataset's folder structure.
-        include_folders = []
-        for dir_name in os.listdir(root):
-            dir_path = os.path.join(root, dir_name)
-            if os.path.isdir(dir_path):
-                # If the `processed_dataset` or other folder is here too, they do not have the proper traj data files.
-                # And we will have problem in generating TrajData! 
-                # So we test it here: the data folder must have `.dat` or `.traj` file.
-                if glob.glob(os.path.join(dir_path, '*.dat')) or glob.glob(os.path.join(dir_path, '*.traj')):
-                    if prefix is not None:
-                        if dir_name[:len(prefix)] == prefix:
-                            include_folders.append(dir_name)
-                    else:
-                        include_folders.append(dir_name)
+        #include_folders = []
+        #for dir_name in os.listdir(root):
+        #    dir_path = os.path.join(root, dir_name)
+        #    if os.path.isdir(dir_path):
+        #        # If the `processed_dataset` or other folder is here too, they do not have the proper traj data files.
+        #        # And we will have problem in generating TrajData! 
+        #        # So we test it here: the data folder must have `.dat` or `.traj` file.
+        #        # If not, we will skip thi
+        #        if glob.glob(os.path.join(dir_path, '*.dat')) or glob.glob(os.path.join(dir_path, '*.traj')):
+        #            if prefix is not None:
+        #                if dir_name[:len(prefix)] == prefix:
+        #                    include_folders.append(dir_name)
+        #            else:
+        #                include_folders.append(dir_name)
 
+        assert prefix is not None, "The prefix is not provided. Please provide the prefix to select the trajectory folders."
+        prefix_folders = glob.glob(f"{root}/{prefix}{separator}*")
+        include_folders=[]
+        for idir in prefix_folders:
+            if os.path.isdir(idir):
+                if not glob.glob(os.path.join(idir, '*.dat')) and not glob.glob(os.path.join(idir, '*.traj')):
+                    raise Exception(f"{idir} does not have the proper traj data files. Please check the data files.")
+                include_folders.append(idir.split('/')[-1])
+        
+        assert isinstance(include_folders, list) and len(include_folders) > 0, "No trajectory folders are found. Please check the prefix."                
+            
         # We need to check the `info.json` very carefully here.
         # Different `info` points to different dataset, 
         # even if the data files in `root` are basically the same.
         info_files = {}
 
         # See if a public info is provided.
-        if "info.json" in os.listdir(root):
+        #if "info.json" in os.listdir(root):
+        if os.path.exists(f"{root}/info.json"):
             public_info = j_loader(os.path.join(root, "info.json"))
             public_info = normalize_setinfo(public_info)
             print("A public `info.json` file is provided, and will be used by the subfolders who do not have their own `info.json` file.")
@@ -181,9 +195,10 @@ def build_dataset(
 
         # Load info in each trajectory folders seperately.
         for file in include_folders:
-            if "info.json" in os.listdir(os.path.join(root, file)):
+            #if "info.json" in os.listdir(os.path.join(root, file)):
+            if os.path.exists(f"{root}/{file}/info.json"):
                 # use info provided in this trajectory.
-                info = j_loader(os.path.join(root, file, "info.json"))
+                info = j_loader(f"{root}/{file}/info.json")
                 info = normalize_setinfo(info)
                 info_files[file] = info
             elif public_info is not None:

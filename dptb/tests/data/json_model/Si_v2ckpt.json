@@ -13,6 +13,7 @@
                 "rs": 2.6,
                 "w": 0.3
             },
+            "soc":{},
             "freeze": false,
             "push": false,
             "std": 0.01
