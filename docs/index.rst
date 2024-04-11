@@ -36,7 +36,7 @@ These capabilities make **DeePTB** adaptable to various research scenarios, exte
    :maxdepth: 2
    :caption: INPUT TAG
    
-   input_params/input_tags
+   input_params/index
 
 .. toctree::
    :maxdepth: 2
