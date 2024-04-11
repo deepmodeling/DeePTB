@@ -86,7 +86,8 @@
             },
             "freeze":false,
             "push":false,
-            "std":0.01
+            "std":0.01,
+            "soc":{}
         }
     }
 }
