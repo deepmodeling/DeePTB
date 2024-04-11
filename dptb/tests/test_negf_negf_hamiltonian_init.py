@@ -145,6 +145,10 @@ def test_negf_Hamiltonian(root_directory):
     assert na == 4
     assert hamiltonian.device_norbs==device_norbs_standard
 
+   
+
+
+
 
 # def _test_negf_Hamiltonian(root_directory):
 
