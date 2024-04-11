@@ -10,7 +10,7 @@ def test_data_collect(root_directory):
     INPUT = root_directory + "/dptb/tests/data/collect_config.json"
 
     # clear possible left-behind output
-    if os.path.exists(root_directory + "./dptb/tests/data/fake_dataset_split/full/"):
+    if os.path.exists(root_directory + "/dptb/tests/data/fake_dataset_split/full/"):
         os.system("rm -r " + root_directory + "/dptb/tests/data/fake_dataset_split/full")
 
     data(INPUT=INPUT, collect=True)
