@@ -71,7 +71,7 @@ ABACUS2DeePTB[1][[0, 2]] *= -1
 ABACUS2DeePTB[2][[1, 3]] *= -1
 ABACUS2DeePTB[3][[0, 6, 2, 4]] *= -1
 ABACUS2DeePTB[4][[1, 7, 3, 5]] *= -1
-ABACUS2DeePTB[5][[0, 8, 2, 6, 4]] *= -1
+ABACUS2DeePTB[5][[0, 10, 8, 2, 6, 4]] *= -1
 
 OPENMX2DeePTB = {
             "s": torch.eye(1).double(),
