@@ -110,6 +110,7 @@
             "prefix": "kpath_spk",
             "get_eigenvalues": true,
             "type": "DefaultDataset",
+            "separator": ".",
             "get_Hamiltonian": false,
             "get_overlap": false,
             "get_DM": false

@@ -1,0 +1,5 @@
+{
+    "subfolders": "./dptb/tests/data/fake_dataset_split/set.*/frame.*",
+    "name": "full",
+    "output_dir": "./dptb/tests/data/fake_dataset_split/"
+}

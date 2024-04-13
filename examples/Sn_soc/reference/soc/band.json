@@ -1,5 +1,5 @@
 {   
-    "structure":"../../data/soc/Sn.vasp",
+    "structure":"./data/soc/Sn.vasp",
     "task_options": {
         "task": "band",
         "kline_type":"abacus",
@@ -16,6 +16,7 @@
         "E_fermi":-8.317,
         "emin":-12,
         "emax":8,
-        "ref_band": "../../data/soc/ref_eig_band.npy"
-    }
+        "ref_band": "./data/soc/set.0/eigenvalues.npy"
+    },
+    "AtomicData_options" : {"r_max": 6.0, "oer_max":3.0, "pbc": true}
 }
