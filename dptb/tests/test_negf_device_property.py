@@ -109,7 +109,8 @@ def test_negf_Device(root_directory):
         [ 0.0000e+00+0.0000j,  0.0000e+00+0.0000j,  0.0000e+00+0.0000j,0.0000e+00+0.0000j],
         [ 0.0000e+00+0.0000j,  0.0000e+00+0.0000j,  0.0000e+00+0.0000j,0.0000e+00+0.0000j],
         [ 0.0000e+00+0.0000j,  0.0000e+00+0.0000j,  0.0000e+00+0.0000j,-3.3171e-07-0.6096j]], dtype=torch.complex128)
-
+    print('device.lead_L.se:',device.lead_L.se)
+    print('device.lead_R.se:',device.lead_R.se)
     assert  abs(device.lead_L.se-lead_L_se_standard).max()<1e-5
     assert  abs(device.lead_R.se-lead_R_se_standard).max()<1e-5
 
@@ -170,7 +171,10 @@ def test_negf_Device(root_directory):
     assert abs(dos-dos_standard)<1e-4
 
     ldos = device._cal_ldos_()
+    torch.set_printoptions(precision=8)
+    print('ldos:',ldos)
     ldos_standard = torch.tensor([0.2611, 0.2611, 0.2611, 0.2611], dtype=torch.float64)*2
+    
     assert abs(ldos_standard-ldos).max()<1e-4
 
 
