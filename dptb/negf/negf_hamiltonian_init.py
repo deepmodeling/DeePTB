@@ -67,7 +67,10 @@ class NEGFHamiltonianInit(object):
                  overlap: bool=False,
                  torch_device: Union[str, torch.device]=torch.device('cpu')
                  ) -> None:
+        
+        # TODO: add dtype and device setting to the model
         torch.set_default_dtype(torch.float64)
+
         if isinstance(torch_device, str):
             torch_device = torch.device(torch_device)
         self.torch_device = torch_device   
