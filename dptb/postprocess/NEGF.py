@@ -378,7 +378,10 @@ class NEGF(object):
                         deviceprop=self.deviceprop,
                         device_atom_norbs=self.device_atom_norbs,
                         potential_at_atom = self.potential_at_atom,
-                        free_charge = self.free_charge)
+                        free_charge = self.free_charge,
+                        eta_lead = self.eta_lead,
+                        eta_device = self.eta_device
+                        )
                 else:
                     # TODO: add Ozaki support for NanoTCAD-style SCF
                     raise ValueError("Ozaki method does not support Poisson-NEGF SCF in this version.")
