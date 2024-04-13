@@ -25,7 +25,7 @@ def root_directory(request):
 def test_negf_Hamiltonian(root_directory):
 
     model_ckpt=root_directory +'/dptb/tests/data/test_negf/test_negf_run/nnsk_C.json'
-    results_path=root_directory +"/dptb/tests/data/test_negf"
+    results_path=root_directory +"/dptb/tests/data/test_negf/test_negf_hamiltonian/test_negf_hamiltonian_init"
     input_path = root_directory +"/dptb/tests/data/test_negf/test_negf_hamiltonian/run_input.json"
     structure=root_directory +"/dptb/tests/data/test_negf/test_negf_run/chain.vasp"
     # log_path=root_directory +"/dptb/tests/data/test_negf/test_negf_Device/test.log"
