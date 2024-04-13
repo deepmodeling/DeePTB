@@ -67,7 +67,7 @@ class NEGFHamiltonianInit(object):
                  overlap: bool=False,
                  torch_device: Union[str, torch.device]=torch.device('cpu')
                  ) -> None:
-
+        torch.set_default_dtype(torch.float64)
         if isinstance(torch_device, str):
             torch_device = torch.device(torch_device)
         self.torch_device = torch_device   
@@ -85,7 +85,7 @@ class NEGFHamiltonianInit(object):
             raise ValueError('structure must be ase.Atoms or str')
         self.structase.set_pbc(pbc_negf)
         alldata = AtomicData.from_ase(self.structase, **self.AtomicData_options)
-        # alldata[AtomicDataDict.PBC_KEY][2] = True
+        alldata[AtomicDataDict.PBC_KEY][2] = True
 
         alldata = AtomicData.to_AtomicDataDict(alldata.to(self.torch_device))
         self.alldata = self.model.idp(alldata)
@@ -173,11 +173,14 @@ class NEGFHamiltonianInit(object):
         self.alldata[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(HS_device["kpoints"], dtype=self.model.dtype, device=self.torch_device)        
         self.alldata = self.model(self.alldata)
         # remove the edges corresponding to z-direction pbc for HR2HK
-        # for ip,p in enumerate(self.pbc_negf):
-        #     if not p:
-        #         mask = self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY][:,ip] == 0
-        #         self.alldata[AtomicDataDict.EDGE_INDEX_KEY] = self.alldata[AtomicDataDict.EDGE_INDEX_KEY][:,mask]
-        #         self.alldata[AtomicDataDict.EDGE_FEATURES_KEY] = self.alldata[AtomicDataDict.EDGE_FEATURES_KEY][mask]
+        for ip,p in enumerate(self.pbc_negf):
+            if not p:
+                mask = self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY][:,ip] == 0
+                self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY] = self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY][mask]
+                self.alldata[AtomicDataDict.EDGE_INDEX_KEY] = self.alldata[AtomicDataDict.EDGE_INDEX_KEY][:,mask]
+                self.alldata[AtomicDataDict.EDGE_FEATURES_KEY] = self.alldata[AtomicDataDict.EDGE_FEATURES_KEY][mask]
+                
+
         self.alldata = self.h2k(self.alldata)
         HK = self.alldata[AtomicDataDict.HAMILTONIAN_KEY]
         if self.overlap: 
@@ -190,9 +193,11 @@ class NEGFHamiltonianInit(object):
         d_start = int(np.sum(self.h2k.atom_norbs[:device_id[0]]))
         d_end = int(np.sum(self.h2k.atom_norbs)-np.sum(self.h2k.atom_norbs[device_id[1]:]))
         HD, SD = HK[:,d_start:d_end, d_start:d_end], S[:, d_start:d_end, d_start:d_end]
+        Hall, Sall = HK, S
         
         if not block_tridiagnal:
             HS_device.update({"HD":HD.cdouble()*self.h_factor, "SD":SD.cdouble()})
+            HS_device.update({"Hall":Hall.cdouble()*self.h_factor, "Sall":Sall.cdouble()})
         else:
             hd, hu, hl, sd, su, sl = self.get_block_tridiagonal(HD*self.h_factor, SD)
             HS_device.update({"hd":hd, "hu":hu, "hl":hl, "sd":sd, "su":su, "sl":sl})
@@ -221,7 +226,7 @@ class NEGFHamiltonianInit(object):
 
                 l_start = int(np.sum(self.h2k.atom_norbs[:lead_id[0]]))
                 l_end = int(l_start + np.sum(self.h2k.atom_norbs[lead_id[0]:lead_id[1]]) / 2)
-                # HL, SL = HK[:,l_start:l_end, l_start:l_end], S[:, l_start:l_end, l_start:l_end] # lead hamiltonian in the first principal layer
+                HL, SL = HK[:,l_start:l_end, l_start:l_end], S[:, l_start:l_end, l_start:l_end] # lead hamiltonian in the first principal layer
                 HDL, SDL = HK[:,d_start:d_end, l_start:l_end], S[:,d_start:d_end, l_start:l_end] # device and lead's hopping
                 # HS_leads.update({
                 #     "HL":HL.cdouble()*self.h_factor, 
@@ -278,7 +283,14 @@ class NEGFHamiltonianInit(object):
                 # h, s = self.apiH.get_HK(kpoints=kpoints)
                 nL = int(HK_lead.shape[1] / 2)
                 HLL, SLL = HK_lead[:, :nL, nL:], S_lead[:, :nL, nL:] # H_{L_first2L_second}
-                HL, SL = HK_lead[:,:nL,:nL], S[:,:nL,:nL] # lead hamiltonian in one principal layer
+                hL, sL = HK_lead[:,:nL,:nL], S[:,:nL,:nL] # lead hamiltonian in one principal layer
+                if np.abs((hL - HL).flatten()).max() > 1e-7:
+                    log.error(msg="ERROR, the lead's hamiltonian attained from diffferent methods does not match.")
+                    raise RuntimeError
+                # if kk == "lead_L":
+                #     HDL[0][0,1]=HLL[0][0,1]
+                # else:
+                #     HDL[0][-1,0]=HLL[0][-1,0]
                 
                 HS_leads.update({
                     "HL":HL.cdouble()*self.h_factor, 
