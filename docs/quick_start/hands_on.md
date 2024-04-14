@@ -127,7 +127,7 @@ To train the conduction band, the energy window we previously set in `info.json`
 
 We can then start the training using the previous model and modified input:
 ```bash
-dptb train input_short.json -i ./first/checkpoint/nnsk.ep1000.pth -o ./condband
+dptb train input/input_condband.json -i ./first/checkpoint/nnsk.ep500.pth -o ./condband
 ```
 ``-i`` states initialize the model from the checkpoint file, where the previous model is provided.
 
@@ -153,7 +153,7 @@ We can further improve the accuracy by incorporating more features of our code, 
 After setting we can run the training for strain model:
 
 ```bash
-dptb train input_short.json  -i ./condband/checkpoint/nnsk.ep500.pth -o ./strain
+dptb train input/input_strain.json  -i ./condband/checkpoint/nnsk.ep500.pth -o ./strain
 ```
 
 We can also plot the band structure of the strain model:
@@ -167,30 +167,74 @@ It looks ok, we can further improve the accuracy by adding more neighbours, and 
         "nnsk": {
             "onsite": {"method": "strain", "rs":1.6, "w":0.3},
             "hopping": {"method": "powerlaw", "rs":1.6, "w": 0.3},
+            "soc":{},
             "push": {"rs_thr": 0.02, "period": 10},
             "freeze": false
         }
     }
 ```
-This means that we gradually add up the `rs` in decay function, pushing up to 3rd nearest neighbour for considering in calculating bonding. see the input file `hBN/input/3_varycutoff.json` for detail. Then we can run the training again:
+This means that we gradually add up the `rs` in decay function, pushing up to 3rd nearest neighbour for considering in calculating bonding. see the input file `hBN/input/input_push_rs.json` for detail. Then we can run the training again:
 
 ```bash
-dptb train input_short.json  -i ./strain/checkpoint/nnsk.ep500.pth -o ./varycutoff
+dptb train input/input_push_rs.json  -i ./strain/checkpoint/nnsk.ep500.pth -o ./push_rs
 ```
 
 We finally get the model with more neighbors. We can plot the result again:
 
-![band_varycutoff](../img/hBN_band_varycutoff.png)
+![band_varycutoff](../img/hBN_band_pushrs.png)
 
-We can again increase more training epochs, using the larger cutoff checkpoint. This can be done simply by assigning a large `num_epoch` in `train_options`. 
+
+we can further push the decay w to 0.2 and train the model again. modify the model options:
+```json
+    "model_options": {
+        "nnsk": {
+            "onsite": {"method": "strain", "rs":1.6, "w":0.3},
+            "hopping": {"method": "powerlaw", "rs":3.4, "w": 0.3},
+            "soc":{},
+            "push": {"w_thr": -0.001, "period": 10},
+            "freeze": false
+        }
+    }
+```
+note:  we change the hopping cutoff `rs` to 3.4, and the push w_thr to -0.001.
+
+see the input file `hBN/input/input_push_w.json` and run the training:
+
+```bash
+dptb train input/input_push_w.json  -i ./push_rs/checkpoint/nnsk.iter_rs3.400_w0.300.pth -o ./push_w
+```
+
+We can the plot the band structure again:
+
+![band_varycutoff](../img/hBN_band_pushw.png)
+
+
+We can again increase more training epochs, using the pushed parameters and turn off push tag. see the input file `hBN/input/input_final.json` and run the training:
+
+```json
+    "model_options": {
+        "nnsk": {
+            "onsite": {"method": "strain", "rs":1.6, "w":0.3},
+            "hopping": {"method": "powerlaw", "rs":3.4, "w": 0.2},
+            "soc":{},
+            "push": false,
+            "freeze": false
+        }
+    }
+```
+
+```bash
+dptb train input/input_final.json  -i ./push_w/checkpoint/nnsk.iter_rs3.400_w0.210.pth -o ./final
+```
+
 
 And we can get a fairly good fitting result:
 
 ![band_longtrain](../img/hBN_band_longtrain.png)
 
 Now you have learned the basis use of **DeePTB**, however, the advanced functions still need to be explored for accurate and flexible electron structure representation, such as:
-- atomic orbitals
 - environmental correction
+- spin-orbital interaction
 - ...
 
 Altogether, we can simulate the electronic structure of a crystal system in a dynamic trajectory. **DeePTB** is capable of handling atom movement, volume change under stress, SOC effect and can use DFT eigenvalues with different orbitals and xc functionals as training targets.
