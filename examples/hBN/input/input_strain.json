@@ -1,8 +1,8 @@
 {
     "common_options": {
             "basis": {
-                "B": ["2s", "2p"],
-                "N": ["2s", "2p"]
+                "B": ["2s", "2p","d*"],
+                "N": ["2s", "2p","d*"]
             },
             "device": "cpu",
             "dtype": "float32",
@@ -29,7 +29,7 @@
     },
     "model_options": {
         "nnsk": {
-            "onsite": {"method": "none"},
+            "onsite": {"method": "strain", "rs": 1.6, "w": 0.3},
             "hopping": {"method": "powerlaw", "rs":1.6, "w": 0.3},
             "soc":{},
             "freeze": false,
