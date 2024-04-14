@@ -65,7 +65,9 @@ Having the data file and input parameter, we can start training our first **DeeP
     "nnsk": {
             "onsite": {"method": "none"},
             "hopping": {"method": "powerlaw", "rs":1.6, "w":0.3},
-            "freeze": false
+            "soc":{},
+            "freeze": false,
+            "push":false
         }
     }
 ```
@@ -77,8 +79,8 @@ Since we are using only the valence orbitals at this stage, we can limit the ene
     "bandinfo": {
         "band_min": 0,
         "band_max": 6,
-        "emin": -0.1,
-        "emax": 20.0
+        "emin": null,
+        "emax": null
     }
 ```
 
@@ -86,7 +88,7 @@ Using the follwing command and we can train the first model:
 
 ```bash
 cd deeptb/examples/hBN
-dptb train input_short.json -o ./first
+dptb train ./input/input_first.json -o ./first
 ```
 
 Here ``-o`` indicate the output directory. During the fitting procedure, we can see the loss curve of hBN is decrease consistently. When finished, we get the fitting results in folders ```first```.
@@ -94,6 +96,10 @@ Here ``-o`` indicate the output directory. During the fitting procedure, we can 
 By modify the checkpoint path in the script `plot_band.py` and running it, the band structure can be obtained in `./band_plot`:
 ```bash
 python plot_band.py
+```
+or just using the command line 
+```bash
+dptb run ./run/band.json -i ./first/checkpoint/nnsk.best.pth -o ./band_plot
 ```
 > Note: the ```basis``` setting in the plotting script must be the same as in the input.
 
