@@ -1,10 +1,11 @@
 from dptb.postprocess.bandstructure.band import Band
 from dptb.nn.nnsk import NNSK
 from dptb.utils.tools import j_loader
+from dptb.nn.build import build_model
 import os
 
-model = NNSK.from_reference(checkpoint="./ref_ckpts/condband/checkpoint/nnsk.ep500.pth",
-                            basis={'B': ['2s', '2p', 'd*'], 'N': ['2s', '2p', 'd*']})
+model = build_model(checkpoint="./ref_ckpts/condband/checkpoint/nnsk.ep500.pth")
+
 jdata = j_loader("./run/band.json")
 results_path = "./band_plot"
 kpath_kwargs = jdata["task_options"]

@@ -1,8 +1,8 @@
 {
     "common_options": {
             "basis": {
-                "B": ["2s", "2p"],
-                "N": ["2s", "2p"]
+                "B": ["2s", "2p","d*"],
+                "N": ["2s", "2p","d*"]
             },
             "device": "cpu",
             "dtype": "float32",
