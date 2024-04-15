@@ -1,4 +1,4 @@
-from dptb.entrypoints import run
+from dptb.entrypoints.run import run
 import pytest
 import torch
 import numpy as np
@@ -14,24 +14,24 @@ def root_directory(request):
 # NEGF calculaion in 1D carbon chain with zero-bias transmission 1 G0
 
 def test_negf_run_chain(root_directory):
-    INPUT_file =  root_directory +"/dptb/tests/data/test_negf/test_negf_run/negf_chain.json" 
+    INPUT_file =  root_directory +"/dptb/tests/data/test_negf/test_negf_run/negf_chain_new.json" 
     output =  root_directory +"/dptb/tests/data/test_negf/test_negf_run/out_negf_chain"  
-    checkfile =  root_directory +'/dptb/tests/data/test_negf/test_negf_run/nnsk_C.json'
+    checkfile =  root_directory +'/dptb/tests/data/test_negf/test_negf_run/nnsk_C_new.json'
     structure =  root_directory +"/dptb/tests/data/test_negf/test_negf_run/chain.vasp" 
 
-    run(INPUT=INPUT_file,init_model=checkfile,output=output,run_sk=True,structure=structure,\
-    log_level=5,log_path=output+"/test.log",use_correction=False)
+    run(INPUT=INPUT_file,init_model=checkfile,structure=structure,output=output,\
+    log_level=5,log_path=output+"/output.log")
 
     negf_results = torch.load(output+"/results/negf.out.pth")
     trans = negf_results['T_avg']
     assert(abs(trans[int(len(trans)/2)]-1)<1e-5)  #compare with calculated transmission at efermi
 
-# NEGF calculation in 2D graphene with zero-bias and multiple kpoints
+
 
 def test_negf_run(root_directory):
-    INPUT_file =  root_directory +"/dptb/tests/data/test_negf/test_negf_run/negf_graphene.json" 
+    INPUT_file =  root_directory +"/dptb/tests/data/test_negf/test_negf_run/negf_graphene_new.json" 
     output =  root_directory +"/dptb/tests/data/test_negf/test_negf_run/out_negf_graphene"  
-    checkfile =  root_directory +'/dptb/tests/data/test_negf/test_negf_run/nnsk_C.json'
+    checkfile =  root_directory +'/dptb/tests/data/test_negf/test_negf_run/nnsk_C_new.json'
     structure =  root_directory +"/dptb/tests/data/test_negf/test_negf_run/graphene.xyz" 
 
     run(INPUT=INPUT_file,init_model=checkfile,output=output,run_sk=True,structure=structure,\
