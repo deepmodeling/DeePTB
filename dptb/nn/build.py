@@ -38,6 +38,7 @@ def build_model(
     init_nnenv = False
     init_nnsk = False
     init_mixed = False
+    init_sk = False
 
     # load the model_options and common_options from checkpoint if not provided
     if not from_scratch:
@@ -56,6 +57,8 @@ def build_model(
             common_options = ckptconfig["common_options"]
         del ckptconfig
 
+    if model_options.get("sk"):
+        init_sk = True
     if  model_options.get("nnsk"):
         if all((model_options.get("embedding"), model_options.get("prediction"))):
             init_mixed = True
@@ -77,6 +80,7 @@ def build_model(
                       " -  `nnsk`, set only `nnsk` options.")
             raise ValueError("Model_options are not set correctly!")
     else:
+        assert init_sk == False, "if not a nnsk model, then sk model should not be set."
         if all((model_options.get("embedding"), model_options.get("prediction"))):
             init_nnenv = True
             if model_options["prediction"]['method'] == 'sktb':
@@ -102,8 +106,11 @@ def build_model(
                       " -  `nnsk`, set only `nnsk` options.")
             raise ValueError("Model_options are not set correctly!")
     
-    
-    assert int(init_mixed) + int(init_nnenv) + int(init_nnsk) == 1, "You can only choose one of the mixed, deeptb, and nnsk options."
+    if not init_sk:
+        assert int(init_mixed) + int(init_nnenv) + int(init_nnsk) == 1, "IF not sk, you can only choose one of the mixed, deeptb, and nnsk options."
+    else:
+        assert  int(init_mixed) + int(init_nnsk) in [0, 1], "IF sk is on, You can only choose up to one of the mixed and nnsk options or none of them."
+
     # check if the model is deeptb or nnsk
 
     # init deeptb
@@ -124,29 +131,37 @@ def build_model(
                 model.node_prediction_h.set_scale_shift(scales=node_scales, shifts=node_shifts)
                 model.edge_prediction_h.set_scale_shift(scales=edge_scales, shifts=edge_shifts)
 
-        if init_nnsk:
+        elif init_nnsk:
             model = NNSK(**model_options["nnsk"], **common_options)
 
-        if init_mixed:
+        elif init_mixed:
             model = MIX(**model_options, **common_options)
-            
+        else:
+            model = None   
     else:
         # load the model from the checkpoint
         if init_nnenv:
             model = NNENV.from_reference(checkpoint, **model_options, **common_options)
-        if init_nnsk:
+        elif init_nnsk:
             model = NNSK.from_reference(checkpoint, **model_options["nnsk"], **common_options)
-        if init_mixed:
+        elif init_mixed:
             # mix model can be initilized with a mixed reference model or a nnsk model.
             model = MIX.from_reference(checkpoint, **model_options, **common_options)  
-    
+        else:
+            model = None
+
+    if init_sk:
+        skmodel = skintp(**model_options["sk"], **common_options)
+    else:
+        skmodel = None
+        
     for k, v in model.model_options.items():
         if k not in model_options:
             log.warning(f"The model options {k} is not defined in input model_options, set to {v}.")
         else:
             deep_dict_difference(k, v, model_options)
     
-    return model
+    return model, skmodel
 
 
 def deep_dict_difference(base_key, expected_value, model_options):
