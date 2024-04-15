@@ -9,6 +9,7 @@ from dptb.utils.loggers import set_log_handles
 from dptb.utils.argcheck import normalize_run
 from dptb.utils.tools import j_loader
 from dptb.utils.tools import j_must_have
+from dptb.postprocess.NEGF import NEGF
 
 log = logging.getLogger(__name__)
 
@@ -74,4 +75,16 @@ def run(
                         emin=jdata["task_options"].get("emin", None),
                         emax=jdata["task_options"].get("emax", None))
         log.info(msg='band calculation successfully completed.')
+
+    if task=='negf':
+        negf = NEGF(
+            model=model,
+            AtomicData_options=jdata['AtomicData_options'],
+            structure=structure,
+            results_path=results_path,  
+            **task_options
+            )
+   
+        negf.compute()
+        log.info(msg='negf calculation successfully completed.')
 
