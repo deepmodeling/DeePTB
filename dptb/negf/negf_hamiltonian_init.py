@@ -292,7 +292,7 @@ class NEGFHamiltonianInit(object):
                     })                
                                 
                 torch.save(HS_leads, os.path.join(self.results_path, "HS_"+kk+".pth"))
-        
+        torch.set_default_dtype(torch.float32)
         return structure_device, structure_leads
     
     def get_hs_device(self, kpoint, V, block_tridiagonal=False):
