@@ -14,7 +14,7 @@ from .. import (
 from ..transforms import TypeMapper, OrbitalMapper
 from ._base_datasets import AtomicDataset, AtomicInMemoryDataset
 #from dptb.nn.hamiltonian import E3Hamiltonian
-from dptb.data.interfaces.ham_to_feature import ham_block_to_feature
+from dptb.data.interfaces.ham_to_feature import block_to_feature
 
 orbitalLId = {0:"s", 1:"p", 2:"d", 3:"f"}
 
@@ -32,7 +32,7 @@ def _abacus_h5_reader(h5file_path, AtomicData_options):
             basis[key] = [(f"{i+1}" + orbitalLId[l]) for i, l in enumerate(value)]
         idp = OrbitalMapper(basis)
         # e3 = E3Hamiltonian(idp=idp, decompose=True)
-        ham_block_to_feature(atomic_data, idp, data.get("hamiltonian_blocks", False), data.get("overlap_blocks", False))
+        block_to_feature(atomic_data, idp, data.get("hamiltonian_blocks", False), data.get("overlap_blocks", False))
         # with torch.no_grad():
         #     atomic_data = e3(atomic_data.to_dict())
         # atomic_data = AtomicData.from_dict(atomic_data)

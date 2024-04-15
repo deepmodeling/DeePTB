@@ -210,7 +210,7 @@ class Band(object):
             structase = data
             data = AtomicData.from_ase(structase, **AtomicData_options)
         elif isinstance(data, AtomicData):
-            structase = data.to_ase()
+            structase = data.to("cpu").to_ase()
             data = data
         
         
