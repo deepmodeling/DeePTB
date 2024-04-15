@@ -996,19 +996,20 @@ def run_options():
     doc_task = "the task to run, includes: band, dos, pdos, FS2D, FS3D, ifermi"
     doc_structure = "the structure to run the task"
     doc_gui = "To use the GUI or not"
-    doc_device = "The device to run the calculation, choose among `cpu` and `cuda[:int]`, Default: `cpu`"
+    doc_device = "The device to run the calculation, choose among `cpu` and `cuda[:int]`, Default: None. default None means to use the device seeting in the model ckpt file."
     doc_dtype = """The digital number's precison, choose among: 
-                    Default: `float32`
+                    Default: None,
                         - `float32`: indicating torch.float32
                         - `float64`: indicating torch.float64
+                    default None means to use the device seeting in the model ckpt file.
                 """
  
     args = [
         Argument("task_options", dict, sub_fields=[], optional=True, sub_variants=[task_options()], doc = doc_task),
         Argument("structure", [str,None], optional=True, default=None, doc = doc_structure),
         Argument("use_gui", bool, optional=True, default=False, doc = doc_gui),
-        Argument("device", str, optional = True, default="cpu", doc = doc_device),
-        Argument("dtype", str, optional = True, default="float32", doc = doc_dtype),
+        Argument("device", [str,None], optional = True, default=None, doc = doc_device),
+        Argument("dtype", [str,None], optional = True, default=None, doc = doc_dtype),
         AtomicData_options_sub()
     ]
 
