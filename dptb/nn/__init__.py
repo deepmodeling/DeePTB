@@ -1,10 +1,10 @@
 from .build import build_model
-from .deeptb import DPTB
+from .deeptb import NNENV
 from .nnsk import NNSK
 
 __all__ = [
     build_model,
-    DPTB,
+    NNENV,
     NNSK,
 ]
 """

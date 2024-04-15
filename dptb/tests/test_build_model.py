@@ -1,7 +1,7 @@
 import pytest
 import torch
 from dptb.nn.nnsk import NNSK
-from dptb.nn.deeptb import DPTB, MIX
+from dptb.nn.deeptb import NNENV, MIX
 from dptb.utils.tools import j_must_have
 from dptb.nn.build import build_model
 import os
@@ -117,12 +117,12 @@ def test_build_model_MIX_from_scratch():
 
     assert isinstance(model, MIX)
     assert model.name == "mix"
-    assert model.dptb.method == 'sktb'
-    assert model.dptb.name == 'dptb'
+    assert model.nnenv.method == 'sktb'
+    assert model.nnenv.name == 'nnenv'
     assert model.nnsk.name == 'nnsk'
 
     assert model.nnsk.transform == False
-    assert model.dptb.transform == False
+    assert model.nnenv.transform == False
 
 def test_build_model_failure():
     run_options = {

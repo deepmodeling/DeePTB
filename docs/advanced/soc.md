@@ -33,34 +33,20 @@ Inside of the `non_soc` and `soc` folder, the following files are included:
 
 ```shell
 data
-|-- non_soc
-|   |-- BANDS_1.dat
-|   |-- Sn.vasp
-|   |-- ref_eig_band.npy
-|   |-- set.0
-|   |   |-- bandinfo.json
-|   |   |-- eigs.npy
-|   |   |-- kpoints.npy
-|   |   `-- xdat.traj
-|   `-- set_sparseK.0
-|       |-- bandinfo.json
-|       |-- eigs.npy
-|       |-- kpoints.npy
-|       `-- xdat.traj
-`-- soc
-    |-- BANDS_1.dat
-    |-- Sn.vasp
-    |-- ref_eig_band.npy
-    |-- set.0
-    |   |-- bandinfo.json
-    |   |-- eigs.npy
-    |   |-- kpoints.npy
-    |   `-- xdat.traj
-    `-- set_sparseK.0
-        |-- bandinfo.json
-        |-- eigs.npy
-        |-- kpoints.npy
-        `-- xdat.traj
+├── non_soc
+│   ├── Sn.vasp
+│   └── set.0
+│       ├── eigenvalues.npy
+│       ├── info.json
+│       ├── kpoints.npy
+│       └── xdat.traj
+└── soc
+    ├── Sn.vasp
+    └── set.0
+        ├── eigenvalues.npy
+        ├── info.json
+        ├── kpoints.npy
+        └── xdat.traj
 ```
 
 ### Training
@@ -68,11 +54,9 @@ data
 This is already explained in other examples, here we just give a model checkpoint. one can just to visualize the band structure and compare with the reference band structure.  in the `reference` folder:
 
 ```shell
-cd reference/non_soc
+cd examples/Sn_soc
 # run the command manually
-dptb run -sk band.json  -i ./checkpoint/best_nnsk_c6.0w0.1.pth -o ./band
-# or just type:
-bash run.sh
+dptb run ./reference/non_soc/band.json  -i ./reference/non_soc/v2ckpt/checkpoint/nnsk.ep100.pth -o ./band
 ```
 This will generate the non-soc band structure in the `band`.
 <div align=center>
@@ -81,68 +65,55 @@ This will generate the non-soc band structure in the `band`.
 
 
 #### 2. train the soc model
-in the `run` folder:
+in the `inputs` folder:
 
-```shell
-run
-|-- band.json
-|-- input.json
-|-- nonsoc_model
-|   |-- best_nnsk_c6.0w0.1.json
-|   |-- best_nnsk_c6.0w0.1.pth
-|   |-- latest_nnsk_c6.0w0.1.json
-|   `-- latest_nnsk_c6.0w0.1.pth
-|-- plot.sh
-|-- plotband.ipynb
-`-- train.sh
-```
-
-- `band.json`: the configuration file for ploting band structure.
-- `input.json`: the configuration file for training.
-- `nonsoc_model`: the folder contains the non-soc model checkpoint.
-- `plot.sh`: the script for ploting band structure.
-- `plotband.ipynb`: the jupyter notebook for ploting band structure.
-- `train.sh`: the script for training the soc model.
-
-For training: turn on soc in `input.json`
+For training: turn on soc in the `model_options` of `input_soc_fz.json`
 ```json
-"common_options": {
-        ...
-        ...
-        "soc":true
-    },
+    "model_options": {
+        "nnsk": {
+            ...
+            "soc":{"method":"uniform"},
+            "freeze": ["onsite", "hopping"]
+            ...
+        }
+    }
 ```
+
+or the `input_soc.json`
+```json
+    "model_options": {
+        "nnsk": {
+            ...
+            "soc":{"method":"uniform"},
+            "freeze": false
+            ...
+        }
+    }
+```
+
+Here, the tag `freeze` is to freeze parameters. In the `input_soc_fz.json` the `onsite` and `hopping` parameters are frozen and only `soc` parameters are optimized during the training.
+
 then run the command: 
 
 ```shell
-bash train.sh
-```
-or 
-```shell
-dptb train input.json -sk -i ./nonsoc_model/best_nnsk_c6.0w0.1.pth -o ./soc_model
+dptb train ./inputs/input_soc_fz.json -i ./reference/non_soc/v2ckpt/checkpoint/nnsk.ep100.pth -o ./soc_model
 ```
 
-During the training you can monitor the training process by typing the command:
+after or during the training you can monitor the training process by plotting the band structure typing the command:
 ```shell
-bash plot.sh
+dptb run ./reference/soc/band.json -i ./soc_model/checkpoint/nnsk.best.pth -o ./band
 ```
-or 
-```shell
-dptb run -sk band.json -o ./band -i ./soc/checkpoint/best_nnsk_b6.000_c6.000_w0.100.pth
-```
+
 This will plot the band structure and save the results in the `band` folder.
 
 Or you can use the jupyter notebook to plot the band structure.
 
-In the reference,  we have already trained a soc model, you can just use it to plot the band structure. 
+In the reference, we have already trained a soc model, you can just use it to plot the band structure. 
 
 ```shell
-cd reference/soc
-# run the command manually
-dptb run -sk band.json -o ./band -i ./checkpoint/best_nnsk_c6.0w0.1.pth
-# or just type:
-bash run.sh
+dptb run ./reference/soc/band.json -i ./reference/soc/v2ckpt/checkpoint/nnsk.ep100.pth -o ./band
 ```
+
 This will generate the soc band structure in the `band`.
 <div align=center>
 <img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/examples/Sn_soc/reference/soc/band_results/results/band.png" width = "50%" height = "50%" alt="soc band" align=center />

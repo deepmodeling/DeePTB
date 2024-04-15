@@ -9,8 +9,6 @@
         "pbc": true
     },
     "bandinfo": {
-        "nkpoints": 61,
-        "nbands": 14,
         "band_min": 0,
         "band_max": 6,
         "emin": null,

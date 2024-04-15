@@ -10,29 +10,80 @@ dptb_model_config_checklist = ['dptb-if_batch_normalized', 'dptb-hopping_net_typ
                         'dptb-hopping_net_neuron', 'dptb-env_net_neuron', 'dptb-soc_net_neuron', 'dptb-onsite_net_neuron', 'dptb-axis_neuron', 'skfunction-skformula', 'sknetwork-sk_onsite_nhidden', 
                         'sknetwork-sk_hop_nhidden']
 
+
+def gen_doc_train(*, make_anchor=True, make_link=True, **kwargs):
+    if make_link:
+        make_anchor = True
+    co = common_options()
+    tr = train_options()
+    da = data_options()
+    mo = model_options()
+    ptr = []
+    ptr.append(co.gen_doc(make_anchor=make_anchor, make_link=make_link, **kwargs))
+    ptr.append(tr.gen_doc(make_anchor=make_anchor, make_link=make_link, **kwargs))
+    ptr.append(da.gen_doc(make_anchor=make_anchor, make_link=make_link, **kwargs))
+    ptr.append(mo.gen_doc(make_anchor=make_anchor, make_link=make_link, **kwargs))
+
+    key_words = []
+    for ii in "\n\n".join(ptr).split("\n"):
+        if "argument path" in ii:
+            key_words.append(ii.split(":")[1].replace("`", "").strip())
+    # ptr.insert(0, make_index(key_words))
+
+    return "\n\n".join(ptr)
+
+
+def gen_doc_run(*, make_anchor=True, make_link=True, **kwargs):
+    if make_link:
+        make_anchor = True
+    rop = run_options()
+
+    ptr = []
+    ptr.append(rop.gen_doc(make_anchor=make_anchor, make_link=make_link, **kwargs))
+
+    key_words = []
+    for ii in "\n\n".join(ptr).split("\n"):
+        if "argument path" in ii:
+            key_words.append(ii.split(":")[1].replace("`", "").strip())
+    # ptr.insert(0, make_index(key_words))
+
+    return "\n\n".join(ptr)
+
+
+def gen_doc_setinfo(*, make_anchor=True, make_link=True, **kwargs):
+    if make_link:
+        make_anchor = True
+    sio = set_info_options()
+    ptr = []
+    ptr.append(sio.gen_doc(make_anchor=make_anchor, make_link=make_link, **kwargs))
+
+    key_words = []
+    for ii in "\n\n".join(ptr).split("\n"):
+        if "argument path" in ii:
+            key_words.append(ii.split(":")[1].replace("`", "").strip())
+    # ptr.insert(0, make_index(key_words))
+
+    return "\n\n".join(ptr)
+
+
 def common_options():
     doc_device = "The device to run the calculation, choose among `cpu` and `cuda[:int]`, Default: `cpu`"
-    doc_dtype = "The digital number's precison, choose among: \n\n\
-            - `float32`: indicating torch.float32\n\n\
-            - `float64`: indicating torch.float64\n\n\
-            Default: `float32`\n\n"
+    doc_dtype = """The digital number's precison, choose among: 
+                    Default: `float32`
+                        - `float32`: indicating torch.float32
+                        - `float64`: indicating torch.float64
+                """
     
     doc_seed = "The random seed used to initialize the parameters and determine the shuffling order of datasets. Default: `3982377700`"
-    #doc_onsite_cutoff = "The cutoff-range considered when using strain mode correction. Out of which the atom are assume to have no effect on current atom's onsite energy."
-    #doc_bond_cutoff = "The cutoff-range of bond hoppings, beyond which it assume the atom pairs have 0 hopping integrals."
-    #doc_env_cutoff = "The cutoff-range of DeePTB environmental correction, recommand range is: (0.5*bond_cutoff, bond_cutoff)"
-    doc_basis = "The atomic orbitals used to construct the basis. E.p. {'A':'2s','2p','s*','B':'3s','3p' }"
-    doc_overlap = ""
+    doc_basis = "The atomic orbitals used to construct the basis. e.p. {'A':['2s','2p','s*'],'B':'[3s','3p']}"
+    doc_overlap = "Whether to calculate the overlap matrix. Default: False"
 
     args = [
-        #Argument("onsite_cutoff", float, optional = True, doc = doc_onsite_cutoff),
-        #Argument("bond_cutoff", float, optional = False, doc = doc_bond_cutoff),
-        #Argument("env_cutoff", float, optional = True, doc = doc_env_cutoff),
         Argument("basis", dict, optional=False, doc=doc_basis),
-        Argument("seed", int, optional=True, default=3982377700, doc=doc_seed),
         Argument("overlap", bool, optional=True, default=False, doc=doc_overlap),
         Argument("device", str, optional = True, default="cpu", doc = doc_device),
         Argument("dtype", str, optional = True, default="float32", doc = doc_dtype),
+        Argument("seed", int, optional=True, default=3982377700, doc=doc_seed),
     ]
 
     doc_common_options = ""
@@ -54,13 +105,15 @@ def train_options():
     "
     doc_lr_scheduler = "The learning rate scheduler tools settings, the lr scheduler is used to scales down the learning rate during the training process. Proper setting can make the training more stable and efficient. The supported lr schedular includes: `Exponential Decaying (exp)`, `Linear multiplication (linear)`"
     doc_batch_size = "The batch size used in training, Default: 1"
+    doc_ref_batch_size = "The batch size used in reference data, Default: 1"
+    doc_val_batch_size = "The batch size used in validation data, Default: 1"
     doc_max_ckpt = "The maximum number of saved checkpoints, Default: 4"
     
     args = [
         Argument("num_epoch", int, optional=False, doc=doc_num_epoch),
         Argument("batch_size", int, optional=True, default=1, doc=doc_batch_size),
-        Argument("ref_batch_size", int, optional=True, default=1, doc=doc_batch_size),
-        Argument("val_batch_size", int, optional=True, default=1, doc=doc_batch_size),
+        Argument("ref_batch_size", int, optional=True, default=1, doc=doc_ref_batch_size),
+        Argument("val_batch_size", int, optional=True, default=1, doc=doc_val_batch_size),
         Argument("optimizer", dict, sub_fields=[], optional=True, default={}, sub_variants=[optimizer()], doc = doc_optimizer),
         Argument("lr_scheduler", dict, sub_fields=[], optional=True, default={}, sub_variants=[lr_scheduler()], doc = doc_lr_scheduler),
         Argument("save_freq", int, optional=True, default=10, doc=doc_save_freq),
@@ -76,7 +129,7 @@ def train_options():
 
 def test_options():
     doc_display_freq = "Frequency, or every how many iteration to display the training log to screem. Default: `1`"
-    doc_batch_size = ""
+    doc_batch_size = "The batch size used in testing, Default: 1"
     
     args = [
         Argument("batch_size", int, optional=True, default=1, doc=doc_batch_size),
@@ -206,7 +259,7 @@ def train_data_sub():
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
-    doc_train = ""
+    doc_train = "The dataset settings for training."
 
     return Argument("train", dict, optional=False, sub_fields=args, sub_variants=[], doc=doc_train)
 
@@ -217,18 +270,20 @@ def validation_data_sub():
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
     doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
     doc_DM = "Choose whether the density matrix is loaded when building dataset."
+    doc_separator = "the sepatator used to separate the prefix and suffix in the dataset directory. Default: '.'"
 
     args = [
         Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
+        Argument("separator", str, optional=True, default='.', doc=doc_separator),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
         Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
         Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
-    doc_validation = ""
+    doc_validation = "The dataset settings for validation."
 
     return Argument("validation", dict, optional=True, sub_fields=args, sub_variants=[], doc=doc_validation)
 
@@ -239,18 +294,20 @@ def reference_data_sub():
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
     doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
     doc_DM = "Choose whether the density matrix is loaded when building dataset."
+    doc_separator = "the sepatator used to separate the prefix and suffix in the dataset directory. Default: '.'"
 
     args = [
         Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
+        Argument("separator", str, optional=True, default='.', doc=doc_separator),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
         Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
         Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
     ]
 
-    doc_reference = ""
+    doc_reference = "The dataset settings for reference."
     
     return Argument("reference", dict, optional=True, sub_fields=args, sub_variants=[], doc=doc_reference)
 
@@ -259,30 +316,34 @@ def test_data_sub():
     doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
     doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
+    doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
+    doc_DM = "Choose whether the density matrix is loaded when building dataset."
+    doc_separator = "the sepatator used to separate the prefix and suffix in the dataset directory. Default: '.'"
 
     args = [
         Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
-        Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
+        Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig),
+        Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
+        Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
+        Argument("separator", str, optional=True, default='.', doc=doc_separator)
     ]
 
-    doc_reference = ""
+    doc_test = "The dataset settings for testing."
     
-    return Argument("test", dict, optional=False, sub_fields=args, default={}, sub_variants=[], doc=doc_reference)
+    return Argument("test", dict, optional=False, sub_fields=args, default={}, sub_variants=[], doc=doc_test)
 
 
 def data_options():
-    doc_use_reference = "Whether to use a reference dataset that jointly train the model. It acting as a constraint or normalization to make sure the model won't deviate too much from the reference data."
-
     args = [
             train_data_sub(),
             validation_data_sub(),
             reference_data_sub()
             ]
 
-    doc_data_options = ""
+    doc_data_options = "The options for dataset settings in training."
 
     return Argument("data_options", dict, sub_fields=args, sub_variants=[], optional=False, doc=doc_data_options)
 
@@ -292,53 +353,13 @@ def test_data_options():
         test_data_sub()
     ]
 
-    doc_test_data_options = "parameters for dataset settings in testing"
+    doc_test_data_options = "The options for dataset settings in testing"
 
     return Argument("data_options", dict, sub_fields=args, sub_variants=[], optional=False, doc=doc_test_data_options)
 
-# def dptb():
-#     doc_soc_env = "button that allow environmental correction for soc parameters, used only when soc is open, Default: False"
-#     doc_axis_neuron = "The axis_neuron specifies the size of the submatrix of the embedding matrix, the axis matrix as explained in the [DeepPot-SE paper](https://arxiv.org/abs/1805.09003)."
-#     doc_onsite_net_neuron = r"The number of hidden neurons in the network for onsites $\langle i|H|i\rangle$ of `dptb` model. Default: `[128, 128, 256, 256]`"
-#     doc_env_net_neuron = "The number of hidden neurons in the environment embedding network of `dptb` model. Default: `[128, 128, 256, 256]`"
-#     doc_hopping_net_neuron = r"The number of hidden neurons in the network for hoppings $\langle i|H|j\rangle$ of `dptb` model. Default: `[128, 128, 256, 256]`"
-#     doc_onsite_net_activation = "The activation function for onsite networks. Default: `tanh`"
-#     doc_env_net_activation = "The activation function for environment embedding networks. Default: `tanh`"
-#     doc_hopping_net_activation = "The activation function for hopping networks. Default: `tanh`"
-#     doc_soc_net_activation = "The activation function for soc networks. Default: `tanh`"
-#     doc_soc_net_neuron = r"The number of hidden neurons in the network for soc $\lambda$ of `dptb` model. Default: `[128, 128, 256, 256]`"
-#     doc_soc_net_type = "The network type for soc, the value can be:\n\n\
-#         - `res`: for feedforward Network with residual connections, for more information about residual network, we refer to [Deep Residual Learning for Image Recognition](https://openaccess.thecvf.com/content_cvpr_2016/papers/He_Deep_Residual_Learning_CVPR_2016_paper.pdf). \n\n\
-#         - `ffn`: for feedforward Network."
-#     doc_onsite_net_type = "The network type for onsites."
-#     doc_env_net_type = "The network type for environment embeddings."
-#     doc_hopping_net_type = "The network type for hoppings."
-#     doc_if_batch_normalized = "Whether to use batch normalization after each layer in neural network. The batch normalization normalize the itermidiate values in neural network with the mean and variance estimated in the batch dimension. The batch here means the batch of onsite or hopping embeddings or position vectors that processed by neural network at one time computation, which is different from the batch defined in `data_options`. Default: False."
-
-#     args = [
-#         Argument("soc_env", bool, optional=True, default=False, doc=doc_soc_env),
-#         Argument("axis_neuron", int, optional=True, default=10, doc=doc_axis_neuron),
-#         Argument("onsite_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_onsite_net_neuron),
-#         Argument("soc_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_soc_net_neuron),
-#         Argument("env_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_env_net_neuron),
-#         Argument("hopping_net_neuron", list, optional=True, default=[128, 128, 256, 256], doc=doc_hopping_net_neuron),
-#         Argument("onsite_net_activation", str, optional=True, default="tanh", doc=doc_onsite_net_activation),
-#         Argument("env_net_activation", str, optional=True, default="tanh", doc=doc_env_net_activation),
-#         Argument("hopping_net_activation", str, optional=True, default="tanh", doc=doc_hopping_net_activation),
-#         Argument("soc_net_activation", str, optional=True, default="tanh", doc=doc_soc_net_activation),
-#         Argument("onsite_net_type", str, optional=True, default="res", doc=doc_onsite_net_type),
-#         Argument("env_net_type", str, optional=True, default="res", doc=doc_env_net_type),
-#         Argument("hopping_net_type", str, optional=True, default="res", doc=doc_hopping_net_type),
-#         Argument("soc_net_type", str, optional=True, default="res", doc=doc_soc_net_type),
-#         Argument("if_batch_normalized", bool, optional=True, default=False, doc=doc_if_batch_normalized)
-#     ]
-
-#     doc_dptb = "The parameters for `dptb` model, which maps the environmental information to Tight-Binding parameters."
-
-#     return Argument("dptb", dict, optional=True, sub_fields=args, sub_variants=[], default={}, doc=doc_dptb)
 
 def embedding():
-    doc_method = ""
+    doc_method = "The parameters to define the embedding model."
 
     return Variant("method", [
             Argument("se2", dict, se2()),
@@ -356,14 +377,14 @@ def embedding():
 
 def se2():
 
-    doc_rs = ""
-    doc_rc = ""
-    doc_n_axis = ""
-    doc_radial_net = ""
+    doc_rs = "The soft cutoff where the smooth function starts."
+    doc_rc = "The hard cutoff where the smooth function value ~0.0"
+    doc_n_axis = "the out axis shape of the deepmd-se2 descriptor."
+    doc_radial_net = "network to build the descriptors."
 
-    doc_neurons = ""
-    doc_activation = ""
-    doc_if_batch_normalized = ""
+    doc_neurons = "the size of nn for descriptor"
+    doc_activation = "activation"
+    doc_if_batch_normalized = "whether to turn on the batch normalization."
 
     radial_net = [
         Argument("neurons", list, optional=False, doc=doc_neurons),
@@ -468,9 +489,6 @@ def e3baselinev5():
     doc_r_max = ""
     doc_n_layers = ""
     doc_env_embed_multiplicity = ""
-    doc_linear_after_env_embed = ""
-    doc_latent_resnet_update_ratios_learnable = ""
-    doc_latent_kwargs = ""
 
     return [
             Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
@@ -493,9 +511,8 @@ def e3baselinev5():
 
 
 def prediction():
-    doc_method = ""
-    doc_nn = ""
-    doc_linear = ""
+    doc_method = "The options to indicate the prediction model. Can be sktb or e3tb."
+    doc_nn = "neural network options for prediction model."
 
     return Variant("method", [
             Argument("sktb", dict, sktb_prediction(), doc=doc_nn),
@@ -503,12 +520,9 @@ def prediction():
         ], optional=False, doc=doc_method)
 
 def sktb_prediction():
-    doc_neurons = ""
-    doc_activation = ""
-    doc_if_batch_normalized = ""
-    doc_quantities = ""
-    doc_hamiltonian = ""
-    doc_precision = ""
+    doc_neurons = "neurons in the neural network."
+    doc_activation = "activation function."
+    doc_if_batch_normalized = "if to turn on batch normalization"
 
     nn = [
         Argument("neurons", list, optional=False, doc=doc_neurons),
@@ -520,8 +534,8 @@ def sktb_prediction():
 
 
 def e3tb_prediction():
-    doc_scales_trainable = ""
-    doc_shifts_trainable = ""
+    doc_scales_trainable = "whether to scale the trianing target."
+    doc_shifts_trainable = "whether to shift the training target."
 
     nn = [
         Argument("scales_trainable", bool, optional=True, default=False, doc=doc_scales_trainable),
@@ -534,9 +548,9 @@ def e3tb_prediction():
 
 def model_options():
 
-    doc_model_options = "The parameters to define the `nnsk` and `dptb` model."
-    doc_embedding = ""
-    doc_prediction = ""
+    doc_model_options = "The parameters to define the `nnsk`,`mix` and `dptb` model."
+    doc_embedding = "The parameters to define the embedding model."
+    doc_prediction = "The parameters to define the prediction model"
 
     return Argument("model_options", dict, sub_fields=[
         Argument("embedding", dict, optional=True, sub_fields=[], sub_variants=[embedding()], doc=doc_embedding),
@@ -574,8 +588,8 @@ def nnsk():
 def push():
     doc_rs_thr = "The step size for cutoff value for smooth function in the nnsk anlytical formula."
     doc_rc_thr = "The step size for cutoff value for smooth function in the nnsk anlytical formula."
-    doc_w_thr = ""
-    doc_period = ""
+    doc_w_thr = "The step size for decay factor w."
+    doc_period = "the interval of iterations to modify the rs w values."
 
     return Argument("push", [bool,dict], sub_fields=[
         Argument("rs_thr", [int,float], optional=True, default=0., doc=doc_rs_thr),
@@ -585,18 +599,18 @@ def push():
     ], sub_variants=[], optional=True, default=False, doc="The parameters to define the push the soft cutoff of nnsk model.")
 
 def onsite():
-    doc_method = r"The onsite correction mode, the onsite energy is expressed as the energy of isolated atoms plus the model correction, the correction mode are:\n\n\
-            - `strain`: The strain mode correct the onsite matrix densly by $$H_{i,i}^{lm,l^\prime m^\prime} = \epsilon_l^0 \delta_{ll^\prime}\delta_{mm^\prime} + \sum_p \sum_{\zeta} \Big[ \mathcal{U}_{\zeta}(\hat{\br}_{ip}) \ \epsilon_{ll^\prime \zeta} \Big]_{mm^\prime}$$ which is also parameterized as a set of Slater-Koster like integrals.\n\n\
-            - `uniform`: The correction is a energy shift respect of orbital of each atom. Which is formally written as: \n\n\
-                  $$H_{i,i}^{lm,l^\prime m^\prime} = (\epsilon_l^0+\epsilon_l^\prime) \delta_{ll^\prime}\delta_{mm^\prime}$$ Where $\epsilon_l^0$ is the isolated energy level from the DeePTB onsite database, and $\epsilon_l^\prime$ is the parameters to fit. E.p. \n\n\
-            - `split`: (not recommanded) The split onsite mode correct onsite hamiltonian with a magnetic quantum number dependent form, which violate the rotation equivariace, but some times can be effective. The formula is: \
-                $$H_{i,i}^{lm,l^\prime m^\prime} = (\epsilon_l^0+\epsilon_{lm}^\prime) \delta_{ll^\prime}\delta_{mm^\prime}$$ \n\n\
-            Default: `none`"
+    doc_method = """The onsite correction mode, the onsite energy is expressed as the energy of isolated atoms plus the model correction, the correction mode are:
+                    Default: `none`: use the database onsite energy value.
+                    - `strain`: The strain mode correct the onsite matrix densly by $$H_{i,i}^{lm,l^\prime m^\prime} = \epsilon_l^0 \delta_{ll^\prime}\delta_{mm^\prime} + \sum_p \sum_{\zeta} \Big[ \mathcal{U}_{\zeta}(\hat{\br}_{ip}) \ \epsilon_{ll^\prime \zeta} \Big]_{mm^\prime}$$ which is also parameterized as a set of Slater-Koster like integrals.\n\n\
+                    - `uniform`: The correction is a energy shift respect of orbital of each atom. Which is formally written as: 
+                                $$H_{i,i}^{lm,l^\prime m^\prime} = (\epsilon_l^0+\epsilon_l^\prime) \delta_{ll^\prime}\delta_{mm^\prime}$$ Where $\epsilon_l^0$ is the isolated energy level from the DeePTB onsite database, and $\epsilon_l^\prime$ is the parameters to fit.
+                    - `NRL`: use the NRL-TB formula.
+                """
 
-    doc_rs = ""
-    doc_w = ""
-    doc_rc = ""
-    doc_lda = ""
+    doc_rs = "The smooth cutoff `fc` for strain model. rs is where fc = 0.5"
+    doc_w = "The decay factor of `fc` for strain and nrl model."
+    doc_rc = "The smooth cutoff of `fc` for nrl model, rc is where fc ~ 0.0"
+    doc_lda = "The lambda type encoding value in nrl model. now only support elementary substance"
 
     strain = [
         Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
@@ -617,10 +631,15 @@ def onsite():
                 ],optional=False, doc=doc_method)
 
 def hopping():
-    doc_method = ""
-    doc_rs = ""
-    doc_w = ""
-    doc_rc = ""
+    doc_method = """The hopping formula. 
+                    -  `powerlaw`: the powerlaw formula for bond length dependence for sk integrals.
+                    -  `varTang96`: a variational formula based on Tang96 formula.
+                    -  `NRL0`: the old version of NRL formula for overlap, we set overlap and hopping share same options.
+                    -  `NRL1`: the new version of NRL formula for overlap. 
+                    """
+    doc_rs = "The cut-off for smooth function fc for powerlaw and varTang96, fc(rs)=0.5"
+    doc_w = " The decay w in fc"
+    doc_rc = "The cut-off for smooth function fc for NRL, fc(rc) = 0."
 
     powerlaw = [
         Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
@@ -648,14 +667,15 @@ def hopping():
     
 
 def loss_options():
-    doc_method = "The loss function type, defined by a string like `<fitting target>_<loss type>`, Default: `eigs_l2dsf`. supported loss functions includes:\n\n\
-    - `eig_l2`: The l2 norm of predicted and labeled eigenvalues.\n\n\
-    - `eigs_l2d`: The l2 norm and the random differences of the predicted and labeled eigenvalues.\n\n\
-    - `block_l2`: \n\n\
-        Notice: The loss option define here only affect the training loss function, the loss for evaluation will always be `eig_l2`, as it compute the standard MSE of fitted eigenvalues."
-    doc_train = ""
-    doc_validation = ""
-    doc_reference = ""
+    doc_method = """The loss function type, defined by a string like `<fitting target>_<loss type>`, Default: `eigs_l2dsf`. supported loss functions includes:\n\n\
+                    - `eigvals`: The mse loss predicted and labeled eigenvalues and Delta eigenvalues between different k.
+                    - `hamil`: 
+                    - `hamil_abs`:
+                    - `hamil_blas`:
+                """
+    doc_train = "Loss options for training."
+    doc_validation = "Loss options for validation."
+    doc_reference = "Loss options for reference data in training."
 
     hamil = [
         Argument("onsite_shift", bool, optional=True, default=False, doc="Whether to use onsite shift in loss function. Default: False"),
@@ -972,21 +992,34 @@ def fmm():
         Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err)
     ]
 
-def normalize_run(data):
+def run_options():
     doc_task = "the task to run, includes: band, dos, pdos, FS2D, FS3D, ifermi"
     doc_structure = "the structure to run the task"
     doc_gui = "To use the GUI or not"
+    doc_device = "The device to run the calculation, choose among `cpu` and `cuda[:int]`, Default: None. default None means to use the device seeting in the model ckpt file."
+    doc_dtype = """The digital number's precison, choose among: 
+                    Default: None,
+                        - `float32`: indicating torch.float32
+                        - `float64`: indicating torch.float64
+                    default None means to use the device seeting in the model ckpt file.
+                """
  
     args = [
         Argument("task_options", dict, sub_fields=[], optional=True, sub_variants=[task_options()], doc = doc_task),
         Argument("structure", [str,None], optional=True, default=None, doc = doc_structure),
         Argument("use_gui", bool, optional=True, default=False, doc = doc_gui),
+        Argument("device", [str,None], optional = True, default=None, doc = doc_device),
+        Argument("dtype", [str,None], optional = True, default=None, doc = doc_dtype),
         AtomicData_options_sub()
     ]
 
-    base = Argument("base", dict, args)
-    data = base.normalize_value(data)
-    base.check_value(data, strict=True)
+    return Argument("run_op", dict, args)
+
+def normalize_run(data):
+
+    run_op = run_options()
+    data = run_op.normalize_value(data)
+    run_op.check_value(data, strict=True)
     
     return data
 
@@ -1016,14 +1049,18 @@ def task_options():
         ],optional=False, doc=doc_task)
 
 def band():
-    doc_kline_type = ""
-    doc_kpath = ""
-    doc_klabels = ""
-    doc_emin=""
-    doc_emax=""
-    doc_E_fermi = ""
-    doc_ref_band = ""
-    doc_nel_atom = "Dict: The valence electron number of each type of atom."
+    doc_kline_type ="""The different type to build kpath line mode.
+                    - "abacus" : the abacus format 
+                    - "vasp" : the vasp format
+                    - "ase" : the ase format
+                    """
+    doc_kpath = "for abacus, this is list, for vasp it is a string to specifc the kpath."
+    doc_klabels = "the labels for high symmetry kpoint"
+    doc_emin="the min energy to show the band plot"
+    doc_emax="the max energy to show the band plot"
+    doc_E_fermi = "the fermi level used to plot band"
+    doc_ref_band = "the reference band structure to be ploted together with dptb bands."
+    doc_nel_atom = "the valence electron number of each type of atom."
     
     return [
         Argument("kline_type", str, optional=False, doc=doc_kline_type),
@@ -1272,16 +1309,15 @@ def normalize_bandinfo(data):
     return data
 
 def bandinfo_sub():
-    doc_nkpoints = ""
-    doc_nbands = ""
-    doc_band_min = ""
-    doc_band_max = ""
-    doc_emin = ""
-    doc_emax = ""
+    doc_band_min = """the minum band index for the training band window with respected to the correctly selected DFT bands.
+                   `important`: before setting this tag you should make sure you have already  exclude all the irrelevant in your training data.
+                                This logic for band_min and max is based on the simple fact the total number TB bands > the bands you care.   
+                   """
+    doc_band_max = "The maxmum band index for training band window"
+    doc_emin = "the minmum energy window, 0 meand the min value of the band at index band_min"
+    doc_emax = "the max energy window, emax value is respect to the min value of the band at index band_min"
     
     args = [
-        Argument("nkpoints", int, optional=True, doc=doc_nkpoints, default=0),
-        Argument("nbands", int, optional=True, doc=doc_nbands, default=0),
         Argument("band_min", int, optional=True, doc=doc_band_min, default=0),
         Argument("band_max", [int, None], optional=True, doc=doc_band_max, default=None),
         Argument("emin", [float, None], optional=True, doc=doc_emin,default=None),
@@ -1291,10 +1327,10 @@ def bandinfo_sub():
     return Argument("bandinfo", dict, optional=True, sub_fields=args, sub_variants=[], doc="")
 
 def AtomicData_options_sub():
-    doc_r_max = ""
-    doc_er_max = ""
-    doc_oer_max = ""
-    doc_pbc = ""
+    doc_r_max = "the cutoff value for bond considering in TB model."
+    doc_er_max = "The cutoff value for environment for each site for env correction model. should set for nnsk+env correction model."
+    doc_oer_max = "The cutoff value for onsite environment for nnsk model, for now only need to set in strain and NRL mode."
+    doc_pbc = "The periodic condition for the structure, can bool or list of bool to specific x,y,z direction."
     
     args = [
         Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max, default=4.0),
@@ -1305,7 +1341,7 @@ def AtomicData_options_sub():
 
     return Argument("AtomicData_options", dict, optional=False, sub_fields=args, sub_variants=[], doc="")
 
-def normalize_setinfo(data):
+def set_info_options():
     doc_nframes = "Number of frames in this trajectory."
     doc_natoms = "Number of atoms in each frame."
     doc_pos_type = "Type of atomic position input. Can be frac / cart / ase."
@@ -1317,7 +1353,12 @@ def normalize_setinfo(data):
         bandinfo_sub(),
         AtomicData_options_sub()
     ]
-    setinfo = Argument("setinfo", dict, sub_fields=args)
+
+    return Argument("setinfo", dict, sub_fields=args)
+
+def normalize_setinfo(data):
+
+    setinfo = set_info_options()
     data = setinfo.normalize_value(data)
     setinfo.check_value(data, strict=True)
 
