@@ -24,6 +24,8 @@ from dptb.nn.hamiltonian import E3Hamiltonian
 from dptb.nn.hr2hk import HR2HK
 from ase import Atoms
 
+from dptb.negf.sort_btd import sort_lexico, sort_projection, sort_capacitance
+from dptb.negf.split_btd import compute_edge,compute_blocks,show_blocks,compute_blocks_optimized,split_into_subblocks,split_into_subblocks_optimized
 '''
 a Hamiltonian object  that initializes and manipulates device and  lead Hamiltonians for NEGF
 '''
@@ -60,6 +62,7 @@ class NEGFHamiltonianInit(object):
                  model: torch.nn.Module,
                  AtomicData_options: dict, 
                  structure: ase.Atoms,
+                 block_tridiagonal: bool,
                  pbc_negf: List[bool],
                  stru_options:dict, 
                  unit: str,
@@ -86,6 +89,12 @@ class NEGFHamiltonianInit(object):
             self.structase = structure
         else:
             raise ValueError('structure must be ase.Atoms or str')
+        
+        # sort the atoms lexicographically
+        if block_tridiagonal:
+            self.structase.positions = self.structase.positions[sort_lexico(self.structase.positions)]
+            log.info(msg="The structure is sorted lexicographically in this version!")
+
 
         self.unit = unit
         self.stru_options = stru_options
@@ -295,6 +304,43 @@ class NEGFHamiltonianInit(object):
         torch.set_default_dtype(torch.float32)
         return structure_device, structure_leads
     
+
+    def get_block_tridiagonal(self,HK,SK):
+
+        hd,hu,hl,sd,su,sl = [],[],[],[],[],[]
+
+        leftmost_orb_num = 1
+        rightmost_orb_num = 1
+        subblocks = split_into_subblocks(HK[:],leftmost_orb_num,rightmost_orb_num)
+        subblocks = [0]+subblocks
+        edge1,edge2 = compute_edge(HK[:])
+
+        for id in range(len(subblocks)-1):
+            # if id== 0:
+            #     iu = id+1; il = None
+            # elif id == len(subblocks)-1:
+            #     iu = None; il = id-1
+            # else:
+            #     iu = id+1; il = id-1
+            if id < len(subblocks)-2:
+                iu = id+1
+            hd.append(HK[:,subblocks[id]:subblocks[id+1],subblocks[id]:subblocks[id+1]])
+            sd.append(SK[:,subblocks[id]:subblocks[id+1],subblocks[id]:subblocks[id+1]])
+            hu.append(HK[:,subblocks[id]:subblocks[id+1],subblocks[id+1]:subblocks[id+2]])
+            su.append(SK[:,subblocks[id]:subblocks[id+1],subblocks[id+1]:subblocks[id+2]])
+            hl.append(HK[:,subblocks[id+1]:subblocks[id+2],subblocks[id]:subblocks[id+1]])
+            sl.append(SK[:,subblocks[id+1]:subblocks[id+2],subblocks[id]:subblocks[id+1]])
+            
+            
+
+
+
+        
+
+
+
+        return hd, hu, hl, sd, su, sl
+
     def get_hs_device(self, kpoint, V, block_tridiagonal=False):
         """ get the device Hamiltonian and overlap matrix at a specific kpoint
 

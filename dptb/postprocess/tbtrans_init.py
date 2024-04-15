@@ -4,14 +4,14 @@ import shutil
 import re
 from dptb.structure.structure import BaseStruct
 from dptb.utils.tools import j_loader,j_must_have
-
+from typing import Optional, Union
 from ase.io import read,write
 from ase.build import sort
 import ase.atoms
 import torch
 
 from dptb.utils.constants import atomic_num_dict_r
-
+from dptb.data import AtomicData, AtomicDataDict
 
 log = logging.getLogger(__name__)
 
@@ -88,21 +88,28 @@ class TBTransInputSet(object):
         - overlap_block_lead_R
             The `overlap_block_lead_R` parameter is a tensor that contains the overlap matrix elements for each specific basis in the right lead.
     """
-    def __init__(self, apiHrk, run_opt, jdata):
-        self.apiHrk = apiHrk  #apiHrk has been loaded in run.py
+    def __init__(self,
+                 model: torch.nn.Module,
+                 AtomicData_options: dict, 
+                 structure: Union[AtomicData, ase.Atoms, str],
+                 stru_options: dict,
+                 results_path=Optional[str]=None,
+                 **kwargs):
+        
+        self.model = model  #apiHrk has been loaded in run.py
         self.jdata = jdata    #jdata has been loaded in run.py, jdata is written in negf.json    
 
-        self.results_path = run_opt['results_path']
+        self.results_path = results_path
         if not self.results_path.endswith('/'):self.results_path += '/'             
-        self.stru_options = j_must_have(jdata, "stru_options")
+        self.stru_options = stru_options
         self.energy_unit_option = 'eV'  # enenrgy unit for TBtrans calculation
 
        
         self.geom_all,self.geom_lead_L,self.geom_lead_R,self.all_tbtrans_stru,self.lead_L_tbtrans_stru,self.lead_R_tbtrans_stru\
-                   = self.read_rewrite_structure(run_opt['structure'],self.stru_options,self.results_path)
+                   = self.read_rewrite_structure(structure,self.stru_options,self.results_path)
         
         
-        self.orbitals_get(self.geom_all,self.geom_lead_L,self.geom_lead_R,apiHrk=apiHrk)
+        # self.orbitals_get(self.geom_all,self.geom_lead_L,self.geom_lead_R,apiHrk=apiHrk)
         
         self.H_all = sisl.Hamiltonian(self.geom_all)
         self.H_lead_L = sisl.Hamiltonian(self.geom_lead_L)
@@ -124,6 +131,41 @@ class TBTransInputSet(object):
         self.hamil_block_lead_R = None
         self.overlap_block_lead_R = None
 
+    # def __init__(self, apiHrk, run_opt, jdata):
+    #     self.apiHrk = apiHrk  #apiHrk has been loaded in run.py
+    #     self.jdata = jdata    #jdata has been loaded in run.py, jdata is written in negf.json    
+
+    #     self.results_path = run_opt['results_path']
+    #     if not self.results_path.endswith('/'):self.results_path += '/'             
+    #     self.stru_options = j_must_have(jdata, "stru_options")
+    #     self.energy_unit_option = 'eV'  # enenrgy unit for TBtrans calculation
+
+       
+    #     self.geom_all,self.geom_lead_L,self.geom_lead_R,self.all_tbtrans_stru,self.lead_L_tbtrans_stru,self.lead_R_tbtrans_stru\
+    #                = self.read_rewrite_structure(run_opt['structure'],self.stru_options,self.results_path)
+        
+        
+    #     self.orbitals_get(self.geom_all,self.geom_lead_L,self.geom_lead_R,apiHrk=apiHrk)
+        
+    #     self.H_all = sisl.Hamiltonian(self.geom_all)
+    #     self.H_lead_L = sisl.Hamiltonian(self.geom_lead_L)
+    #     self.H_lead_R = sisl.Hamiltonian(self.geom_lead_R)
+
+
+    #     #important properties for later use
+
+    #     ##allbonds matrx, hamiltonian matrix, overlap matrix for the whole structure
+    #     self.allbonds_all = None
+    #     self.hamil_block_all = None
+    #     self.overlap_block_all = None
+    #     ##allbonds matrx, hamiltonian matrix, overlap matrix for lead_L
+    #     self.allbonds_lead_L = None
+    #     self.hamil_block_lead_L = None
+    #     self.overlap_block_lead_L = None
+    #     ##allbonds matrx, hamiltonian matrix, overlap matrix for lead_R
+    #     self.allbonds_lead_R = None
+    #     self.hamil_block_lead_R = None
+    #     self.overlap_block_lead_R = None
  
     def hamil_get_write(self,write_nc:bool=True):
         
@@ -168,15 +210,6 @@ class TBTransInputSet(object):
             self.H_lead_L.write(self.results_path+'lead_R.nc')
         else:
             print('Hamiltonian matrices have been generated, but not written to nc files(TBtrans input file).')
-
-    # def hamil_write(self):
-    #     '''The function `hamil_write` writes the contents of `self.H_all`, `self.H_lead_L`, and `self.H_lead_R`
-    #     to separate files in the `results_path` directory.
-        
-    #     '''
-    #     self.H_all.write(self.results_path+'structure.nc')
-    #     self.H_lead_L.write(self.results_path+'lead_L.nc')
-    #     self.H_lead_L.write(self.results_path+'lead_R.nc')
 
 
 

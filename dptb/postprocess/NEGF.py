@@ -95,19 +95,19 @@ class NEGF(object):
         self.unit = unit
         self.scf = scf
         self.block_tridiagonal = block_tridiagonal
-        
-
         # computing the hamiltonian  #需要改写NEGFHamiltonianInit   
         self.negf_hamiltonian = NEGFHamiltonianInit(model=model,
                                                     AtomicData_options=AtomicData_options, 
                                                     structure=structure,
+                                                    block_tridiagonal=self.block_tridiagonal,
                                                     pbc_negf = self.pbc, 
                                                     stru_options=self.stru_options,
                                                     unit = self.unit, 
                                                     results_path=self.results_path,
                                                     torch_device = self.torch_device)
         with torch.no_grad():
-            struct_device, struct_leads = self.negf_hamiltonian.initialize(kpoints=self.kpoints)
+            struct_device, struct_leads = self.negf_hamiltonian.initialize(kpoints=self.kpoints,
+                                                                           block_tridiagnal=self.block_tridiagonal)
         
 
         self.deviceprop = DeviceProperty(self.negf_hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)

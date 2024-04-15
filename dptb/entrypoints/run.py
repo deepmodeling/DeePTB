@@ -10,6 +10,8 @@ from dptb.utils.argcheck import normalize_run
 from dptb.utils.tools import j_loader
 from dptb.utils.tools import j_must_have
 from dptb.postprocess.NEGF import NEGF
+from dptb.postprocess.tbtrans_init import TBTransInputSet,sisl_installed
+
 
 log = logging.getLogger(__name__)
 
@@ -88,3 +90,16 @@ def run(
         negf.compute()
         log.info(msg='negf calculation successfully completed.')
 
+    if task == 'tbtrans_negf':
+        if not(sisl_installed):
+            log.error(msg="sisl is required to perform tbtrans calculation !")
+            raise RuntimeError
+
+        tbtrans_init = TBTransInputSet(
+            model=model, 
+            AtomicData_options=jdata['AtomicData_options'],
+            structure=structure,
+            results_path=results_path,  
+            **task_options)
+        tbtrans_init.hamil_get_write(write_nc=True)
+        log.info(msg='TBtrans input files are successfully generated.')
