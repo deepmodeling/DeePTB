@@ -7,6 +7,7 @@ import e3nn.o3 as o3
 import h5py
 import logging
 from dptb.utils.constants import anglrMId, OPENMX2DeePTB
+from dptb.data import AtomicData, AtomicDataDict
 
 log = logging.getLogger(__name__)
 
@@ -23,6 +24,12 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False):
     idp.get_orbital_maps()
     idp.get_orbpair_maps()
 
+    if isinstance(data, AtomicData):
+        if not hasattr(data, _keys.ATOMIC_NUMBERS_KEY):
+            setattr(data, _keys.ATOMIC_NUMBERS_KEY, idp.untransform(data[_keys.ATOM_TYPE_KEY]))
+    if isinstance(data, dict):
+        if not data.get(_keys.ATOMIC_NUMBERS_KEY, None):
+            data[_keys.ATOMIC_NUMBERS_KEY] = idp.untransform(data[_keys.ATOM_TYPE_KEY])
     atomic_numbers = data[_keys.ATOMIC_NUMBERS_KEY]
 
     # onsite features
@@ -156,12 +163,14 @@ def feature_to_block(data, idp):
             block = torch.zeros((idp.norbs[symbol], idp.norbs[symbol]), device=node_features.device, dtype=node_features.dtype)
 
             for index, basis_i in enumerate(basis_list):
+                f_basis_i = idp.basis_to_full_basis[symbol].get(basis_i)
                 slice_i = idp.orbital_maps[symbol][basis_i]
                 li = anglrMId[re.findall(r"[a-zA-Z]+", basis_i)[0]]
                 for basis_j in basis_list[index:]:
+                    f_basis_j = idp.basis_to_full_basis[symbol].get(basis_j)
                     lj = anglrMId[re.findall(r"[a-zA-Z]+", basis_j)[0]]
                     slice_j = idp.orbital_maps[symbol][basis_j]
-                    pair_ij = basis_i + "-" + basis_j
+                    pair_ij = f_basis_i + "-" + f_basis_j
                     feature_slice = idp.orbpair_maps[pair_ij]
                     block_ij = onsite[feature_slice].reshape(2*li+1, 2*lj+1)
                     block[slice_i, slice_j] = block_ij
@@ -192,7 +201,7 @@ def feature_to_block(data, idp):
                         continue
                     lj = anglrMId[re.findall(r"[a-zA-Z]+", basis_j)[0]]
                     slice_j = idp.orbital_maps[symbol_j][basis_j]
-                    pair_ij = basis_i + "-" + basis_j
+                    pair_ij = f_basis_i + "-" + f_basis_j
                     feature_slice = idp.orbpair_maps[pair_ij]
                     block_ij = hopping[feature_slice].reshape(2*li+1, 2*lj+1)
                     if f_basis_i == f_basis_j:
