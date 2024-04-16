@@ -38,7 +38,8 @@ def test_negf_Device(root_directory):
                                     stru_options = negf_json['task_options']['stru_options'],
                                     unit = negf_json['task_options']['unit'], 
                                     results_path=results_path,
-                                    torch_device = torch.device('cpu'))
+                                    torch_device = torch.device('cpu'),
+                                    block_tridiagonal=negf_json['task_options']['block_tridiagonal'])
 
     # hamiltonian = NEGFHamiltonianInit(apiH=apiHrk, structase=structase, stru_options=task_options["stru_options"], results_path=results_path)
     kpoints= kmesh_sampling(negf_json['task_options']["stru_options"]["kmesh"])
