@@ -23,8 +23,7 @@ class SKParam:
     def __init__(self,
                 basis: Dict[str, Union[str, list]]=None,
                 idp_sk: Union[OrbitalMapper, None]=None,
-                sk_path: str=None,
-                skdict:  str=None) -> None:
+                sk_path: str=None) -> None:
 
 
 
@@ -41,16 +40,18 @@ class SKParam:
             assert iorb in ['1s','1p','1d'], "The dftb mode only supports 1s, 1p, 1d orbitals."
 
         bond_types = self.idp_sk.bond_types
+
+        assert sk_path is not None, "You need to provide the sk_path."
                 
-        if skdict is not None:
-            assert skdict.split(".")[-1] == "pth", "The skdict should be a .pth file."
-            skdata = torch.load(skdict)
+        if '.' in sk_path and sk_path.split('.')[-1] == 'pth':
+            log.info('Loading the skdict from the sk_path pth file......')
+            skdata = torch.load(sk_path)
             for ibtype in bond_types:
                 if ibtype not in skdata:
                     log.error("The bond type: " + ibtype + " is not in the skdict.")
                     sys.exit()
-
-        elif sk_path is not None:
+        else:
+            log.info('Reading the skfiles from the sk_path......')
             skfiles = {}
             for ibtype in bond_types:
                 if not os.path.exists(sk_path + '/' + ibtype + '.skf'):
@@ -59,10 +60,7 @@ class SKParam:
                 else:
                     skfiles[ibtype] = sk_path + '/' + ibtype + '.skf'
 
-            skdata = self.read_skfiles(skfiles)        
-        else:
-            log.error("You need to provide either the sk_path or the skdict.")
-            sys.exit()
+            skdata = self.read_skfiles(skfiles)
         
         assert isinstance(skdata['Distance'], dict), "The initial skdata should be raw data, directly loaded from the skfiles."
 
