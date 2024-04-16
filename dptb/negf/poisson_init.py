@@ -1,6 +1,6 @@
 import numpy as np 
-import pyamg #TODO: later add it to optional dependencies,like sisl
-from pyamg.gallery import poisson
+# import pyamg #TODO: later add it to optional dependencies,like sisl
+# from pyamg.gallery import poisson
 from dptb.utils.constants import elementary_charge
 from dptb.utils.constants import Boltzmann, eV2J
 from scipy.constants import epsilon_0 as eps0  #TODO:later add to untils.constants.py
@@ -217,35 +217,6 @@ class Interface3D(object):
         return Jacobian,B
     
 
-    def solver_pyamg(self,A,b,tolerance=1e-7,accel=None):
-        # solve the Poisson equation
-        # log.info(msg="Solve Poisson equation by pyamg")
-        
-        pyamg_solver = pyamg.aggregation.smoothed_aggregation_solver(A, max_levels=1000)
-        del A
-        # print('Poisson equation solver: ',pyamg_solver)
-        residuals = []
-
-        def callback(x):
-        # residuals calculated in solver is a pre-conditioned residual
-        # residuals.append(np.linalg.norm(b - A.dot(x)) ** 0.5)
-            print(
-                "    {:4d}  residual = {:.5e}   x0-residual = {:.5e}".format(
-                    len(residuals) - 1, residuals[-1], residuals[-1] / residuals[0]
-                )
-            )
-
-        x = pyamg_solver.solve(
-            b,
-            tol=tolerance,
-            # callback=callback,
-            residuals=residuals,
-            accel=accel,
-            cycle="W",
-            maxiter=1e3,
-        )
-        return x
-
 
     def solve_poisson_NRcycle(self,method='pyamg',tolerance=1e-7):
         # solve the Poisson equation with Newton-Raphson method
@@ -295,6 +266,38 @@ class Interface3D(object):
         max_diff = np.max(abs(self.phi-self.phi_old))
         return max_diff
 
+    def solver_pyamg(self,A,b,tolerance=1e-7,accel=None):
+        # solve the Poisson equation
+        # log.info(msg="Solve Poisson equation by pyamg")
+        try:
+            import pyamg
+        except:
+            raise ImportError("pyamg is required for Poisson solver. Please install pyamg firstly! ")
+        
+        pyamg_solver = pyamg.aggregation.smoothed_aggregation_solver(A, max_levels=1000)
+        del A
+        # print('Poisson equation solver: ',pyamg_solver)
+        residuals = []
+
+        def callback(x):
+        # residuals calculated in solver is a pre-conditioned residual
+        # residuals.append(np.linalg.norm(b - A.dot(x)) ** 0.5)
+            print(
+                "    {:4d}  residual = {:.5e}   x0-residual = {:.5e}".format(
+                    len(residuals) - 1, residuals[-1], residuals[-1] / residuals[0]
+                )
+            )
+
+        x = pyamg_solver.solve(
+            b,
+            tol=tolerance,
+            # callback=callback,
+            residuals=residuals,
+            accel=accel,
+            cycle="W",
+            maxiter=1e3,
+        )
+        return x
     
     def NR_construct_Jac_B(self,J,B):
         # construct the Jacobian and B for the Poisson equation
