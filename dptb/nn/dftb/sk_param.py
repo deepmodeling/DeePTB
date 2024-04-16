@@ -30,11 +30,12 @@ class SKParam:
         if skdict is not None:
             assert skdict.split(".")[-1] == "pth", "The skdict should be a .pth file."
             skdata = torch.load(skdict)
-            self.skdict = {} 
             for ibtype in bond_types:
                 if ibtype not in skdata:
                     log.error("The bond type: " + ibtype + " is not in the skdict.")
                     sys.exit()
+
+            self.skdict = skdata
 
         elif sk_path is not None:
             skfiles = {}
@@ -46,15 +47,11 @@ class SKParam:
                     skfiles[ibtype] = sk_path + '/' + ibtype + '.skf'
 
             skdata = self.read_skfiles(skfiles)
+            self.skdict = self.format_skparams(skdata)
             
         else:
             log.error("You need to provide either the sk_path or the skdict.")
             sys.exit()
-
-        # check the skdata is in the correct format
-
-        #self.skdict = self.format_skparams(skdata)
-        self.skdict = skdata
 
     @classmethod
     def read_skfiles(self, skfiles):
@@ -86,8 +83,11 @@ class SKParam:
         skfiletypes = list(skfiles.keys())
 
         skdict = {}
+        skdict['OnsiteE'] = {}
+        skdict['Hopping']  = {}
+        skdict['Overlap']  = {}
+        skdict["Distance"] = {}
         for isktype in skfiletypes:
-            skdict[isktype] = {}
             filename = skfiles[isktype]
             log.info('Reading SlaterKoster File......')
             log.info(' ' + filename)
@@ -99,7 +99,7 @@ class SKParam:
             gridDist, ngrid = float(datline[0]), int(datline[1])
             ngrid = ngrid - 1
 
-            skdict[isktype]['Distlist'] = torch.reshape(torch.arange(1,ngrid+1)*gridDist * 0.529177249, [1,-1])
+            skdict["Distance"][isktype] = torch.reshape(torch.arange(1,ngrid+1)*gridDist * 0.529177249, [1,-1])
 
             HSvals = torch.zeros([ngrid, NumHvals * 2])
             atomtypes = isktype.split(sep='-')
@@ -113,22 +113,21 @@ class SKParam:
                 # HubdU[atomtypes[0]] = np.array([float(datline[6 - ish]) for ish in range(MaxShells)])
                 # Occu[atomtypes[0]]  = np.array([float(datline[9 - ish]) for ish in range(MaxShells)])
 
-                skdict[isktype]['OnSiteE'] = OnSiteEs *  13.605662285137 * 2
-                
+                skdict["OnsiteE"][atomtypes[0]] = OnSiteEs *  13.605662285137 * 2
+
                 for il in range(3, 3 + ngrid):
                     datline = format_readline(data[il])
                     HSvals[il - 3] = torch.tensor([float(val) for val in datline[0:2 * NumHvals]])
                 
             else:
                 log.info('This is for Hetero-nuclear case!')
-                skdict[isktype]['OnSiteE'] = None
                 for il in range(2, 2 + ngrid):
                     datline = format_readline(data[il])
                     HSvals[il - 2] = torch.tensor([float(val) for val in datline[0:2 * NumHvals]])
 
             # HSintgrl[isktype] = HSvals
-            skdict[isktype]['Hintgrl'] = torch.as_tensor(HSvals[:,:NumHvals]).T * 13.605662285137 * 2
-            skdict[isktype]['Sintgrl'] = torch.as_tensor(HSvals[:,NumHvals:]).T
+            skdict['Hopping'][isktype] = HSvals[:,:NumHvals].T * 13.605662285137 * 2
+            skdict['Overlap'][isktype] = HSvals[:,NumHvals:].T
             
 
         return skdict
@@ -151,32 +150,37 @@ class SKParam:
         x_min = []
         x_max = []
         x_num = []
-        for ibtype in skdict:
-            x_min.append(skdict[ibtype]['Distlist'].min().item())
-            x_max.append(skdict[ibtype]['Distlist'].max().item())
-            x_num.append(skdict[ibtype]['Distlist'].shape[1])
+        for ibtype in skdict["Distance"].keys():
+            x_min.append(skdict["Distance"][ibtype].min().item())
+            x_max.append(skdict["Distance"][ibtype].max().item())
+            x_num.append(skdict["Distance"][ibtype].shape[1])
 
         x_min = torch.tensor(x_min).max()
         x_max = torch.tensor(x_max).min()
         x_num = torch.tensor(x_num).min()
-        xlist_all = torch.linspace(x_min, x_max, x_num)
+        xlist_all = torch.linspace(x_min, x_max, x_num).reshape([1,-1])
 
         format_skdict = {}
-        for ibtype in skdict:
-            format_skdict[ibtype] = {}
-            format_skdict[ibtype]['Distlist'] = xlist_all
+        format_skdict['OnsiteE'] = {}
+        format_skdict['Hopping'] = {}
+        format_skdict['Overlap'] = {}
+        format_skdict['Distance']= xlist_all
 
-            xx = skdict[ibtype]['Distlist']
-            hh = skdict[ibtype]['Hintgrl']
-            ss = skdict[ibtype]['Hintgrl']
+        format_skdict['OnsiteE'].update(skdict['OnsiteE'])
+
+        assert skdict['Hopping'].keys() == skdict['Overlap'].keys()
+
+        for ibtype in skdict['Hopping'].keys():
+            xx = skdict["Distance"][ibtype]
+            hh = skdict['Hopping'][ibtype]
+            ss = skdict['Overlap'][ibtype]
             assert hh.shape[0] == ss.shape[0] == 10
             xx = torch.tile(xx.reshape([1,-1]), (10,1))
-            xx_int = torch.tile(xlist_all.reshape([1,-1]), (10,1))
+            xx_int = torch.tile(xlist_all, (10,1))
             intp = Interp1D(x=xx, method='linear')
 
-            format_skdict[ibtype]['Hintgrl'] = intp(xq=xx_int, y=hh)
-            format_skdict[ibtype]['Sintgrl'] = intp(xq=xx_int, y=ss)
-            format_skdict[ibtype]['OnSiteE'] = skdict[ibtype]['OnSiteE']
+            format_skdict['Hopping'][ibtype] = intp(xq=xx_int, y=hh)
+            format_skdict['Overlap'][ibtype] = intp(xq=xx_int, y=ss)
 
         return format_skdict
 
