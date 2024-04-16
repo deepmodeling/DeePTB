@@ -30,6 +30,7 @@ class OnsiteFormula(BaseOnsite):
         'none': 0,
         'strain': 0,
         "NRL": 4,
+        "dftb":0,
         "custom": None,
     }
 
@@ -37,11 +38,14 @@ class OnsiteFormula(BaseOnsite):
             self, 
             idp: Union[OrbitalMapper, None]=None,
             functype='none', 
+            dftb_onsiteE:dict=None,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu")) -> None:
         super().__init__() 
-        if functype in ['none', 'strain']:
+        if functype == 'strain':
             pass
+        elif functype == 'none':
+            assert hasattr(self, 'none')
         elif functype == 'uniform':
             assert hasattr(self, 'uniform')
 
@@ -50,6 +54,8 @@ class OnsiteFormula(BaseOnsite):
 
         elif functype == 'custom':
             assert hasattr(self, 'custom')
+        elif functype == 'dftb':
+            assert hasattr(self, 'dftb')
         else:
             raise ValueError('No such formula')
         
@@ -65,6 +71,21 @@ class OnsiteFormula(BaseOnsite):
                     fot = self.idp.basis_to_full_basis[asym][ot]
                     self.E_base[idx][self.idp.skonsite_maps[fot]] = onsite_energy_database[asym][ot]
         
+        if self.functype == 'dftb':
+            assert dftb_onsiteE is not None, "The dftb_onsiteE dict should be provided for dftb formula."
+            support_full_basis = ['1s', '1p', '1d']
+            onsite_orb_map = {'1s': 0, '1p': 1, '1d': 2}
+            for iorb in self.idp.full_basis:
+                assert iorb in support_full_basis, "The dftb onsite formula only supports 1s, 1p, 1d orbitals."
+
+            self.E_dftb = torch.zeros(self.idp.num_types, self.idp.n_onsite_Es, dtype=dtype, device=device)
+            for asym, idx in self.idp.chemical_symbol_to_type.items():
+                self.E_dftb[idx] = torch.zeros(self.idp.n_onsite_Es)
+                for ot in self.idp.basis[asym]:
+                    fot = self.idp.basis_to_full_basis[asym][ot]
+                    indt = onsite_orb_map[fot]
+                    self.E_dftb[idx][self.idp.skonsite_maps[fot]] = dftb_onsiteE[asym][indt]     
+
     def get_skEs(self, **kwargs):
         if self.functype == 'uniform':
             return self.uniform(**kwargs)
@@ -72,7 +93,27 @@ class OnsiteFormula(BaseOnsite):
             return self.NRL(**kwargs)
         if self.functype in ['none', 'strain']:
             return self.none(**kwargs)
+        if self.functype == 'dftb':
+            return self.dftb(**kwargs)
+    
+    def dftb(self, atomic_numbers: torch.Tensor, **kwargs):
+        """The dftb onsite function, the energy output is directly loaded from the onsite Database.
+        Parameters
+        ----------
+        atomic_numbers : torch.Tensor(N)
+            The atomic number list.
+
+        Returns
+        -------
+        torch.Tensor(N, n_orb)
+            the onsite energies by composing results from nn and ones from database.
+        """
+        atomic_numbers = atomic_numbers.reshape(-1)
+
+        idx = self.idp.transform_atom(atomic_numbers)
         
+        return self.E_dftb[idx]
+
     def none(self, atomic_numbers: torch.Tensor, **kwargs):
         """The none onsite function, the energy output is directly loaded from the onsite Database.
         Parameters
