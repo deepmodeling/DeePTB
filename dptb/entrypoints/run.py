@@ -102,12 +102,13 @@ def run(
         if not(sisl_installed):
             log.error(msg="sisl is required to perform tbtrans calculation !")
             raise RuntimeError
-
+        basis_dict = json.load(open(init_model))['common_options']['basis']
         tbtrans_init = TBTransInputSet(
             model=model, 
             AtomicData_options=jdata['AtomicData_options'],
             structure=structure,
-            results_path=results_path,  
+            basis_dict=basis_dict,
+            results_path=results_path,
             **task_options)
         tbtrans_init.hamil_get_write(write_nc=True)
         log.info(msg='TBtrans input files are successfully generated.')
