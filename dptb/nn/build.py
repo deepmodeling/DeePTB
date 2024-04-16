@@ -59,59 +59,63 @@ def build_model(
 
     if model_options.get("sk"):
         init_sk = True
-    if  model_options.get("nnsk"):
-        if all((model_options.get("embedding"), model_options.get("prediction"))):
-            init_mixed = True
-            if not model_options['prediction']['method'] == 'sktb':
-                log.error("The prediction method must be sktb for mix mode.")
-                raise ValueError("The prediction method must be sktb for mix mode.")
-            
-            if not model_options['embedding']['method'] in ['se2']:
-                log.error("The embedding method must be se2 for mix mode.")
-                raise ValueError("The embedding method must be se2 for mix mode.")
 
-        elif not any((model_options.get("embedding"), model_options.get("prediction"))):
-            init_nnsk = True
-        else:
-            log.error("Model_options are not set correctly! \n" + 
-                      "You can only choose one of the mixed, deeptb, and nnsk modes.\n" + 
-                      " -  `mixed`, set all the `nnsk` `embedding` and `prediction` options.\n" +
-                      " -  `deeptb`, set `embedding` and `prediction` options and no `nnsk`.\n" +
-                      " -  `nnsk`, set only `nnsk` options.")
-            raise ValueError("Model_options are not set correctly!")
-    else:
-        assert init_sk == False, "if not a nnsk model, then sk model should not be set."
-        if all((model_options.get("embedding"), model_options.get("prediction"))):
-            init_nnenv = True
-            if model_options["prediction"]['method'] == 'sktb':
-                log.warning("The prediction method is sktb, but the nnsk option is not set. this is highly not recommand.\n"+
-                            "We recommand to train nnsk then train mix model for sktb. \n"+
-                            "Please make sure you know what you are doing!")
-                if not model_options['embedding']['method'] in ['se2']:
-                    log.error("The embedding method must be se2 for sktb prediction in deeptb mode.")
-                    raise ValueError("The embedding method must be se2 for sktb prediction in deeptb mode.")
-            if model_options["prediction"]['method'] == 'e3tb':
-                # 对于E3 statistics 一定会设置的吗？
-                # if statistics is None:
-                #    log.error("The statistics must be provided for e3tb prediction method.")
-                #     raise ValueError("The statistics must be provided for e3tb prediction method.")
-                if  model_options['embedding']['method'] in ['se2']:
-                    log.error("The embedding method can not be se2 for e3tb prediction in deeptb mode.")
-                    raise ValueError("The embedding method can not be se2 for e3tb prediction in deeptb mode.")
-        else:
-            log.error("Model_options are not set correctly! \n" + 
-                      "You can only choose one of the mixed, deeptb, and nnsk modes.\n" + 
-                      " -  `mixed`, set all the `nnsk` `embedding` and `prediction` options.\n" +
-                      " -  `deeptb`, set `embedding` and `prediction` options and no `nnsk`.\n" +
-                      " -  `nnsk`, set only `nnsk` options.")
-            raise ValueError("Model_options are not set correctly!")
+        assert  int(init_nnsk) in [0, 1], "IF sk is on, You can only choose up to one of the mixed and nnsk options or none of them."
+        assert  not (init_mixed), "IF sk is on, mixed is not supported."
     
-    if not init_sk:
-        assert int(init_mixed) + int(init_nnenv) + int(init_nnsk) == 1, "IF not sk, you can only choose one of the mixed, deeptb, and nnsk options."
     else:
-        assert  int(init_mixed) + int(init_nnsk) in [0, 1], "IF sk is on, You can only choose up to one of the mixed and nnsk options or none of them."
+        assert init_sk == False, "if not a nnsk model, then sk model should not be set."   
+        if  model_options.get("nnsk"):
+            if all((model_options.get("embedding"), model_options.get("prediction"))):
+                init_mixed = True
+                if not model_options['prediction']['method'] == 'sktb':
+                    log.error("The prediction method must be sktb for mix mode.")
+                    raise ValueError("The prediction method must be sktb for mix mode.")
 
-    # check if the model is deeptb or nnsk
+                if not model_options['embedding']['method'] in ['se2']:
+                    log.error("The embedding method must be se2 for mix mode.")
+                    raise ValueError("The embedding method must be se2 for mix mode.")
+
+            elif not any((model_options.get("embedding"), model_options.get("prediction"))):
+                init_nnsk = True
+            else:
+                log.error("Model_options are not set correctly! \n" + 
+                          "You can only choose one of the mixed, deeptb, and nnsk modes.\n" + 
+                          " -  `mixed`, set all the `nnsk` `embedding` and `prediction` options.\n" +
+                          " -  `deeptb`, set `embedding` and `prediction` options and no `nnsk`.\n" +
+                          " -  `nnsk`, set only `nnsk` options.")
+                raise ValueError("Model_options are not set correctly!")
+        else:
+            if all((model_options.get("embedding"), model_options.get("prediction"))):
+                init_nnenv = True
+                if model_options["prediction"]['method'] == 'sktb':
+                    log.warning("The prediction method is sktb, but the nnsk option is not set. this is highly not recommand.\n"+
+                                "We recommand to train nnsk then train mix model for sktb. \n"+
+                                "Please make sure you know what you are doing!")
+                    if not model_options['embedding']['method'] in ['se2']:
+                        log.error("The embedding method must be se2 for sktb prediction in deeptb mode.")
+                        raise ValueError("The embedding method must be se2 for sktb prediction in deeptb mode.")
+                if model_options["prediction"]['method'] == 'e3tb':
+                    # 对于E3 statistics 一定会设置的吗？
+                    # if statistics is None:
+                    #    log.error("The statistics must be provided for e3tb prediction method.")
+                    #     raise ValueError("The statistics must be provided for e3tb prediction method.")
+                    if  model_options['embedding']['method'] in ['se2']:
+                        log.error("The embedding method can not be se2 for e3tb prediction in deeptb mode.")
+                        raise ValueError("The embedding method can not be se2 for e3tb prediction in deeptb mode.")
+            else:
+                log.error("Model_options are not set correctly! \n" + 
+                          "You can only choose one of the mixed, deeptb, and nnsk modes.\n" + 
+                          " -  `mixed`, set all the `nnsk` `embedding` and `prediction` options.\n" +
+                          " -  `deeptb`, set `embedding` and `prediction` options and no `nnsk`.\n" +
+                          " -  `nnsk`, set only `nnsk` options.")
+                raise ValueError("Model_options are not set correctly!")
+
+        
+        assert int(init_mixed) + int(init_nnenv) + int(init_nnsk) == 1, "IF not sk, you can only choose one of the mixed, deeptb, and nnsk options."
+
+
+        # check if the model is deeptb or nnsk
 
     # init deeptb
     if from_scratch:
@@ -161,7 +165,7 @@ def build_model(
         else:
             deep_dict_difference(k, v, model_options)
     
-    return model, skmodel
+    return model
 
 
 def deep_dict_difference(base_key, expected_value, model_options):
