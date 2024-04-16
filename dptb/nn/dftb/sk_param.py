@@ -11,12 +11,23 @@ from dptb.utils._xitorch.interpolate import Interp1D
 log = logging.getLogger(__name__)
 
 class SKParam:
+    # 键积分存储顺序
+    intgl_order = {
+        "s-s": slice(9,10,None),
+        "s-p": slice(8,9,None),
+        "s-d": slice(7,8,None),
+        "p-p": slice(5,7,None),
+        "p-d": slice(3,5,None),
+        "d-d": slice(0,3,None)
+    }
     def __init__(self,
                 basis: Dict[str, Union[str, list]]=None,
                 idp_sk: Union[OrbitalMapper, None]=None,
                 sk_path: str=None,
                 skdict:  str=None) -> None:
-    
+
+
+
         if basis is not None:
             self.idp_sk = OrbitalMapper(basis, method="sktb")
             if idp_sk is not None:
@@ -24,6 +35,10 @@ class SKParam:
         else:
             assert idp_sk is not None, "Either basis or idp should be provided."
             self.idp_sk = idp_sk
+
+        assert len(self.idp_sk.full_basis)<=3, "The dftb mode only supports 1s, 1p, 1d orbitals. maxmum of orbitals is 3." 
+        for iorb in self.idp_sk.full_basis:
+            assert iorb in ['1s','1p','1d'], "The dftb mode only supports 1s, 1p, 1d orbitals."
 
         bond_types = self.idp_sk.bond_types
                 
@@ -35,8 +50,6 @@ class SKParam:
                     log.error("The bond type: " + ibtype + " is not in the skdict.")
                     sys.exit()
 
-            self.skdict = skdata
-
         elif sk_path is not None:
             skfiles = {}
             for ibtype in bond_types:
@@ -46,12 +59,14 @@ class SKParam:
                 else:
                     skfiles[ibtype] = sk_path + '/' + ibtype + '.skf'
 
-            skdata = self.read_skfiles(skfiles)
-            self.skdict = self.format_skparams(skdata)
-            
+            skdata = self.read_skfiles(skfiles)        
         else:
             log.error("You need to provide either the sk_path or the skdict.")
             sys.exit()
+        
+        assert isinstance(skdata['Distance'], dict), "The initial skdata should be raw data, directly loaded from the skfiles."
+
+        self.skdict = self.format_skparams(skdata)
 
     @classmethod
     def read_skfiles(self, skfiles):
@@ -97,6 +112,7 @@ class SKParam:
             # Line 1
             datline = format_readline(data[0])
             gridDist, ngrid = float(datline[0]), int(datline[1])
+            assert gridDist >0, "The grid distance should be positive."
             ngrid = ngrid - 1
 
             skdict["Distance"][isktype] = torch.reshape(torch.arange(1,ngrid+1)*gridDist * 0.529177249, [1,-1])
@@ -132,20 +148,25 @@ class SKParam:
 
         return skdict
     
-    @classmethod
     def format_skparams(self, skdict):
-        '''It formats the skdict to the format that is used in the DeePTB model.
+        """
+            Formats the given skdict to ensure that all parameters have the same length and values for x. 
+            And pick out the orbital-pair sk integrals according to the idp_sk.orbpairtype_maps and saveed in the same order.
 
-        Parameters
-        ----------
-        skdict
-            the skdict from the read_skfiles method.
+            Args:
+                skdict (dict): A dictionary containing the parameters for the sk fils.
 
-        Returns
-        -------
-        skparams
-            the formatted skparams.
-        '''
+            Returns:
+                dict: A formatted skdict.
+                {"Distance": torch.tensor,
+                    "OnsiteE": dict,
+                    "Hopping": dict,
+                    "Overlap": dict
+                }
+                "OnsiteE": {atomtype: torch.tensor[Es,Ep,Ed]},
+                "Hopping": {bondtype: torch.tensor[orbpair, x]},
+                "Overlap": {bondtype: torch.tensor[orbpair, x]},
+        """
         # 固定 x 的长度。使得所有的参数都是具有相同的x的长度和数值。
         x_min = []
         x_max = []
@@ -170,17 +191,28 @@ class SKParam:
 
         assert skdict['Hopping'].keys() == skdict['Overlap'].keys()
 
-        for ibtype in skdict['Hopping'].keys():
+        for ibtype in skdict['Hopping'].keys(): # ibtype: 'C-C'
             xx = skdict["Distance"][ibtype]
             hh = skdict['Hopping'][ibtype]
             ss = skdict['Overlap'][ibtype]
             assert hh.shape[0] == ss.shape[0] == 10
-            xx = torch.tile(xx.reshape([1,-1]), (10,1))
-            xx_int = torch.tile(xlist_all, (10,1))
+            
+            # 提取需要的轨道积分:
+            assert self.idp_sk.reduced_matrix_element <= 10, "The reduced_matrix_element should be no more than 10."
+            hh_pick = torch.zeros([self.idp_sk.reduced_matrix_element, hh.shape[1]])
+            ss_pick = torch.zeros([self.idp_sk.reduced_matrix_element, ss.shape[1]])
+            for ipt in self.idp_sk.orbpairtype_maps.keys():
+                slc = self.idp_sk.orbpairtype_maps[ipt]
+                hh_pick[slc] = hh[self.intgl_order[ipt]]
+                ss_pick[slc] = ss[self.intgl_order[ipt]]
+
+            num_intgrls = hh_pick.shape[0] 
+            xx = torch.tile(xx.reshape([1,-1]), (num_intgrls,1))
+            xx_int = torch.tile(xlist_all, (num_intgrls,1))
             intp = Interp1D(x=xx, method='linear')
 
-            format_skdict['Hopping'][ibtype] = intp(xq=xx_int, y=hh)
-            format_skdict['Overlap'][ibtype] = intp(xq=xx_int, y=ss)
+            format_skdict['Hopping'][ibtype] = intp(xq=xx_int, y=hh_pick)
+            format_skdict['Overlap'][ibtype] = intp(xq=xx_int, y=ss_pick)
 
         return format_skdict
 
