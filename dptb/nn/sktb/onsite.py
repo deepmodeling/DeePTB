@@ -30,7 +30,7 @@ class OnsiteFormula(BaseOnsite):
         'none': 0,
         'strain': 0,
         "NRL": 4,
-        "dftb":0,
+        "dftb":1,
         "custom": None,
     }
 
@@ -38,7 +38,6 @@ class OnsiteFormula(BaseOnsite):
             self, 
             idp: Union[OrbitalMapper, None]=None,
             functype='none', 
-            dftb_onsiteE:dict=None,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu")) -> None:
         super().__init__() 
@@ -70,21 +69,6 @@ class OnsiteFormula(BaseOnsite):
                 for ot in self.idp.basis[asym]:
                     fot = self.idp.basis_to_full_basis[asym][ot]
                     self.E_base[idx][self.idp.skonsite_maps[fot]] = onsite_energy_database[asym][ot]
-        
-        if self.functype == 'dftb':
-            assert dftb_onsiteE is not None, "The dftb_onsiteE dict should be provided for dftb formula."
-            support_full_basis = ['1s', '1p', '1d']
-            onsite_orb_map = {'1s': 0, '1p': 1, '1d': 2}
-            for iorb in self.idp.full_basis:
-                assert iorb in support_full_basis, "The dftb onsite formula only supports 1s, 1p, 1d orbitals."
-
-            self.E_dftb = torch.zeros(self.idp.num_types, self.idp.n_onsite_Es, dtype=dtype, device=device)
-            for asym, idx in self.idp.chemical_symbol_to_type.items():
-                self.E_dftb[idx] = torch.zeros(self.idp.n_onsite_Es)
-                for ot in self.idp.basis[asym]:
-                    fot = self.idp.basis_to_full_basis[asym][ot]
-                    indt = onsite_orb_map[fot]
-                    self.E_dftb[idx][self.idp.skonsite_maps[fot]] = dftb_onsiteE[asym][indt]     
 
     def get_skEs(self, **kwargs):
         if self.functype == 'uniform':
@@ -96,7 +80,7 @@ class OnsiteFormula(BaseOnsite):
         if self.functype == 'dftb':
             return self.dftb(**kwargs)
     
-    def dftb(self, atomic_numbers: torch.Tensor, **kwargs):
+    def dftb(self, atomic_numbers: torch.Tensor, nn_onsite_paras: torch.Tensor, **kwargs):
         """The dftb onsite function, the energy output is directly loaded from the onsite Database.
         Parameters
         ----------
@@ -110,9 +94,11 @@ class OnsiteFormula(BaseOnsite):
         """
         atomic_numbers = atomic_numbers.reshape(-1)
 
+        if nn_onsite_paras.shape[-1] == 1:
+            nn_onsite_paras = nn_onsite_paras.squeeze(-1)
         idx = self.idp.transform_atom(atomic_numbers)
-        
-        return self.E_dftb[idx]
+        return nn_onsite_paras[idx]
+    
 
     def none(self, atomic_numbers: torch.Tensor, **kwargs):
         """The none onsite function, the energy output is directly loaded from the onsite Database.
