@@ -130,4 +130,48 @@ class DFTBSK(torch.nn.Module):
                 data = self.overlap(data)
 
         return data
+    
+    @classmethod
+    def from_reference(
+        cls, 
+        checkpoint: str, 
+        basis: Dict[str, Union[str, list]]=None,
+        skdata: str=None,
+        overlap: bool=None,
+        dtype: Union[str, torch.dtype]=None, 
+        device: Union[str, torch.device]=None,
+        **kwargs,
+        ):
 
+        common_options = {
+            "dtype": dtype,
+            "device": device,
+            "basis": basis,
+            "overlap": overlap,
+        }
+
+        dftb={
+                "skdata": skdata         
+        }
+
+        assert checkpoint.split(".")[-1] == "pth", "The checkpoint should be a pth file." 
+        f = torch.load(checkpoint, map_location=device)
+
+        for k,v in common_options.items():
+            if v is None:
+                common_options[k] = f["config"]["common_options"][k]
+                log.info(f"{k} is not provided in the input json, set to the value {common_options[k]} in model ckpt.")
+        for k,v in dftb.items():
+            if v is None:
+                dftb[k] = f["config"]["model_options"]["dftb"][k]
+                log.info(f"{k} is not provided in the input json, set to the value {dftb[k]} in model ckpt.")
+
+        num_xgrid = f["model_state_dict"]["distance_param"].shape[0]
+        model = cls(**common_options, **dftb, num_xgrid=num_xgrid)
+        
+        if f["config"]["common_options"]["basis"] == common_options["basis"]:
+            model.load_state_dict(f["model_state_dict"])
+        else:
+            log.warning("The basis in the input json is different from the basis in the model ckpt, the model state is not loaded.")
+        
+        return model
