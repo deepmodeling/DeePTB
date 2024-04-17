@@ -6,7 +6,6 @@ class HoppingIntp(BaseHopping):
 
     def __init__(
             self,
-            xdist:torch.tensor,
             num_ingrls:int,
             method:str='linear',
             **kwargs,
@@ -15,17 +14,19 @@ class HoppingIntp(BaseHopping):
 
         assert method in ['linear', 'cspline'], "Only linear and cspline are supported."
 
-        xx = torch.tile(xdist.reshape([1,-1]), (num_ingrls,1))
         self.num_ingrls = num_ingrls
-        self.intpfunc = Interp1D(xx, method=method)
-
+        self.intp_method = method   
 
     def get_skhij(self, rij, **kwargs):
         
         return self.dftb(rij, **kwargs)
     
-    def dftb(self, rij:torch.Tensor, yy:torch.Tensor, **kwargs):
-
+    def dftb(self, rij:torch.Tensor, xx:torch.Tensor, yy:torch.Tensor, **kwargs):  
+        if not hasattr(self, 'intpfunc'):  #or torch.max(torch.abs(self.xx - xx)) > 1e-5:
+            self.xx = xx
+            xx = xx.reshape(1, -1).repeat(self.num_ingrls, 1)
+            self.intpfunc = Interp1D(xx, method=self.intp_method)
+        
         assert yy.shape[0] == self.num_ingrls
         assert len(yy.shape) == 2
 
