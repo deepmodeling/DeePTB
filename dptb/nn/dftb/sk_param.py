@@ -20,12 +20,13 @@ class SKParam:
         "p-d": slice(3,5,None),
         "d-d": slice(0,3,None)
     }
+    support_full_basis = ['1s', '1p', '1d']
+    onsite_orb_map = {'1s': 0, '1p': 1, '1d': 2}
+    
     def __init__(self,
                 basis: Dict[str, Union[str, list]]=None,
                 idp_sk: Union[OrbitalMapper, None]=None,
-                sk_path: str=None) -> None:
-
-
+                skdata: Union[str,dict] = None) -> None:
 
         if basis is not None:
             self.idp_sk = OrbitalMapper(basis, method="sktb")
@@ -34,37 +35,44 @@ class SKParam:
         else:
             assert idp_sk is not None, "Either basis or idp should be provided."
             self.idp_sk = idp_sk
+        
+        self.idp_sk.get_orbpair_maps()
+        self.idp_sk.get_skonsite_maps()
 
         assert len(self.idp_sk.full_basis)<=3, "The dftb mode only supports 1s, 1p, 1d orbitals. maxmum of orbitals is 3." 
         for iorb in self.idp_sk.full_basis:
-            assert iorb in ['1s','1p','1d'], "The dftb mode only supports 1s, 1p, 1d orbitals."
+            assert iorb in self.support_full_basis, "The dftb mode only supports 1s, 1p, 1d orbitals."
 
         bond_types = self.idp_sk.bond_types
 
-        assert sk_path is not None, "You need to provide the sk_path."
-                
-        if '.' in sk_path and sk_path.split('.')[-1] == 'pth':
-            log.info('Loading the skdict from the sk_path pth file......')
-            skdata = torch.load(sk_path)
-            for ibtype in bond_types:
-                if ibtype not in skdata:
-                    log.error("The bond type: " + ibtype + " is not in the skdict.")
-                    sys.exit()
+        assert skdata is not None, "You need to provide the skdata."
+
+        if isinstance(skdata,str):        
+            if '.' in skdata and skdata.split('.')[-1] == 'pth':
+                log.info(f'Loading the skdict from the file: {skdata} ......')
+                skdict = torch.load(skdata)
+                for ibtype in bond_types:
+                    if ibtype not in skdict:
+                        log.error("The bond type: " + ibtype + " is not in the skdict.")
+                        sys.exit()
+            else:
+                log.info(f'Reading the skfiles from the path: {skdata} ......')
+                skfiles = {}
+                for ibtype in bond_types:
+                    if not os.path.exists(skdata + '/' + ibtype + '.skf'):
+                        log.error('Didn\'t find the skfile: ' + skdata + '/' + ibtype + '.skf')
+                        sys.exit()
+                    else:
+                        skfiles[ibtype] = skdata + '/' + ibtype + '.skf'
+
+                skdict = self.read_skfiles(skfiles)
+        elif isinstance(skdata,dict):
+            skdict = skdata
         else:
-            log.info('Reading the skfiles from the sk_path......')
-            skfiles = {}
-            for ibtype in bond_types:
-                if not os.path.exists(sk_path + '/' + ibtype + '.skf'):
-                    log.error('Didn\'t find the skfile: ' + sk_path + '/' + ibtype + '.skf')
-                    sys.exit()
-                else:
-                    skfiles[ibtype] = sk_path + '/' + ibtype + '.skf'
+            log.error("The skdata should be a dict or string for a file path.")
+            sys.exit()
 
-            skdata = self.read_skfiles(skfiles)
-        
-        assert isinstance(skdata['Distance'], dict), "The initial skdata should be raw data, directly loaded from the skfiles."
-
-        self.skdict = self.format_skparams(skdata)
+        self.skdict = self.format_skparams(skdict)
 
     @classmethod
     def read_skfiles(self, skfiles):
@@ -113,7 +121,7 @@ class SKParam:
             assert gridDist >0, "The grid distance should be positive."
             ngrid = ngrid - 1
 
-            skdict["Distance"][isktype] = torch.reshape(torch.arange(1,ngrid+1)*gridDist * 0.529177249, [1,-1])
+            skdict["Distance"][isktype] = torch.arange(1,ngrid+1)*gridDist * 0.529177249
 
             HSvals = torch.zeros([ngrid, NumHvals * 2])
             atomtypes = isktype.split(sep='-')
@@ -165,6 +173,28 @@ class SKParam:
                 "Hopping": {bondtype: torch.tensor[orbpair, x]},
                 "Overlap": {bondtype: torch.tensor[orbpair, x]},
         """
+        # 检查所有的参数格式是否正确:
+        if isinstance(skdict["Distance"],torch.Tensor):
+            assert isinstance(skdict['Hopping'], torch.Tensor)
+            assert isinstance(skdict['Overlap'], torch.Tensor)
+            assert isinstance(skdict['OnsiteE'], torch.Tensor)
+
+            assert len(skdict["Distance"].shape) == 1
+
+            assert len(skdict['Hopping'].shape) == len(skdict['Overlap'].shape) == len(skdict['OnsiteE'] )== 3
+            
+            assert skdict['Hopping'].shape[0] == skdict['Overlap'].shape[0] == len(self.idp_sk.bond_types)
+            assert skdict['Hopping'].shape[1] == skdict['Overlap'].shape[1] == self.idp_sk.reduced_matrix_element
+            assert skdict['Hopping'].shape[2] == skdict['Overlap'].shape[2] == len(skdict["Distance"])
+            
+            assert skdict['OnsiteE'].shape[0] == self.idp_sk.num_types
+            assert skdict['OnsiteE'].shape[1] == self.idp_sk.n_onsite_Es
+            assert skdict['OnsiteE'].shape[2] == 1
+
+            return skdict
+        else:
+            assert isinstance(skdict["Distance"], dict), "The Distance should be a dict or a torch.tensor."
+
         # 固定 x 的长度。使得所有的参数都是具有相同的x的长度和数值。
         x_min = []
         x_max = []
@@ -172,45 +202,55 @@ class SKParam:
         for ibtype in skdict["Distance"].keys():
             x_min.append(skdict["Distance"][ibtype].min().item())
             x_max.append(skdict["Distance"][ibtype].max().item())
-            x_num.append(skdict["Distance"][ibtype].shape[1])
+            assert len(skdict["Distance"][ibtype].shape) == 1
+            x_num.append(len(skdict["Distance"][ibtype]))
 
         x_min = torch.tensor(x_min).max()
         x_max = torch.tensor(x_max).min()
         x_num = torch.tensor(x_num).min()
-        xlist_all = torch.linspace(x_min, x_max, x_num).reshape([1,-1])
+        xlist_all = torch.linspace(x_min, x_max, x_num)
 
         format_skdict = {}
-        format_skdict['OnsiteE'] = {}
-        format_skdict['Hopping'] = {}
-        format_skdict['Overlap'] = {}
         format_skdict['Distance']= xlist_all
-
-        format_skdict['OnsiteE'].update(skdict['OnsiteE'])
+        # format_skdict['OnsiteE'].update(skdict['OnsiteE'])
 
         assert skdict['Hopping'].keys() == skdict['Overlap'].keys()
 
-        for ibtype in skdict['Hopping'].keys(): # ibtype: 'C-C'
+        onsiteE_params = torch.zeros([self.idp_sk.num_types, self.idp_sk.n_onsite_Es])
+        for asym, idx in self.idp_sk.chemical_symbol_to_type.items():
+            for ot in self.idp_sk.basis[asym]:
+                fot = self.idp_sk.basis_to_full_basis[asym][ot]
+                indt = self.onsite_orb_map[fot]
+                onsiteE_params[idx][self.idp_sk.skonsite_maps[fot]] = skdict['OnsiteE'][asym][indt]   
+        onsiteE_params = onsiteE_params.reshape([self.idp_sk.num_types, self.idp_sk.n_onsite_Es, 1])
+        
+        hopping_params = torch.zeros([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, len(xlist_all)])
+        overlap_params = torch.zeros([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, len(xlist_all)])
+
+        for ibtype in self.idp_sk.bond_types:
+            idx = self.idp_sk.bond_to_type[ibtype]
             xx = skdict["Distance"][ibtype]
             hh = skdict['Hopping'][ibtype]
             ss = skdict['Overlap'][ibtype]
             assert hh.shape[0] == ss.shape[0] == 10
             
-            # 提取需要的轨道积分:
-            assert self.idp_sk.reduced_matrix_element <= 10, "The reduced_matrix_element should be no more than 10."
-            hh_pick = torch.zeros([self.idp_sk.reduced_matrix_element, hh.shape[1]])
-            ss_pick = torch.zeros([self.idp_sk.reduced_matrix_element, ss.shape[1]])
+            xx = xx.reshape(1, -1).repeat(10, 1)
+            xx_int = xlist_all.reshape([1,-1]).repeat(10, 1)
+
+            intp = Interp1D(x=xx, method='linear')
+            hh_intp = intp(xq=xx_int, y=hh)
+            ss_intp = intp(xq=xx_int, y=ss)
+            
             for ipt in self.idp_sk.orbpairtype_maps.keys():
                 slc = self.idp_sk.orbpairtype_maps[ipt]
-                hh_pick[slc] = hh[self.intgl_order[ipt]]
-                ss_pick[slc] = ss[self.intgl_order[ipt]]
+                hopping_params[idx][slc] = hh_intp[self.intgl_order[ipt]]
+                overlap_params[idx][slc] = ss_intp[self.intgl_order[ipt]]
 
-            num_intgrls = hh_pick.shape[0] 
-            xx = torch.tile(xx.reshape([1,-1]), (num_intgrls,1))
-            xx_int = torch.tile(xlist_all, (num_intgrls,1))
-            intp = Interp1D(x=xx, method='linear')
 
-            format_skdict['Hopping'][ibtype] = intp(xq=xx_int, y=hh_pick)
-            format_skdict['Overlap'][ibtype] = intp(xq=xx_int, y=ss_pick)
+
+        format_skdict['Hopping'] = hopping_params
+        format_skdict['Overlap'] = overlap_params
+        format_skdict['OnsiteE'] = onsiteE_params
 
         return format_skdict
 
