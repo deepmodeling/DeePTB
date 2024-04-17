@@ -12,16 +12,17 @@ log = logging.getLogger(__name__)
 
 
 class DFTBSK(torch.nn.Module):
-    name = "dftb"
+    name = "dftbsk"
     def __init__(
             self,
             basis: Dict[str, Union[str, list]]=None,
             idp_sk: Union[OrbitalMapper, None]=None,
-            sk_path: str=None,
+            skdata: str=None,
             overlap: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             transform: bool = True,
+            num_xgrid: int = -1,
             **kwargs,
             ) -> None:
         
@@ -45,15 +46,42 @@ class DFTBSK(torch.nn.Module):
         self.idp_sk.get_skonsite_maps()
         self.model_options = {
             "dftb":{
-                "sk_path": sk_path         
+                "skdata": skdata         
                 }
         }
-        skparams = SKParam(basis=self.basis, sk_path=sk_path)
-        self.skparams = skparams.skdict
 
-        self.onsite_fn = OnsiteFormula(idp=self.idp_sk, functype='dftb', 
-                                        dftb_onsiteE= self.skparams['OnsiteE'], dtype=dtype, device=device)
-        self.hopping_fn = HoppingIntp(xdist=self.skparams['Distance'], num_ingrls=self.idp_sk.reduced_matrix_element, method='linear')
+
+        self.onsite_fn = OnsiteFormula(idp=self.idp_sk, functype='dftb', dtype=dtype, device=device)
+        self.hopping_fn = HoppingIntp(num_ingrls=self.idp_sk.reduced_matrix_element, method='linear')
+
+        if num_xgrid == -1:
+            skparams = SKParam(basis=self.basis, skdata=skdata)
+         
+            distance_param = skparams.skdict['Distance']
+            hopping_param = skparams.skdict['Hopping']
+            onsite_param = skparams.skdict['OnsiteE']
+            if overlap:
+                overlap_param = skparams.skdict['Overlap']
+
+            assert hopping_param.shape == (len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, len(distance_param)), "The hopping param shape is not correct."
+            
+
+        elif num_xgrid > 0:
+            distance_param = torch.zeros([num_xgrid],dtype=self.dtype, device=self.device)
+            hopping_param = torch.zeros([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, num_xgrid], dtype=self.dtype, device=self.device)
+            onsite_param = torch.zeros([len(self.idp_sk.type_names), self.idp_sk.n_onsite_Es, self.onsite_fn.num_paras], dtype=self.dtype, device=self.device)
+            if overlap:
+                overlap_param = torch.zeros([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, num_xgrid], dtype=self.dtype, device=self.device)
+        else:
+            raise ValueError("The number of xgrid is not correct.")
+
+        # register buffer, so that it can be saved in the state_dict and not be updated by optimizer.
+        self.register_buffer("distance_param", distance_param)
+        self.register_buffer("hopping_param", hopping_param)
+        self.register_buffer("onsite_param", onsite_param)
+        if overlap:
+            self.register_buffer("overlap_param", overlap_param)
+
 
         self.hamiltonian = SKHamiltonian(idp_sk=self.idp_sk, onsite=True, dtype=self.dtype, device=self.device, 
                                         strain=False,soc=False)
@@ -77,20 +105,18 @@ class DFTBSK(torch.nn.Module):
 
 
         for ibtype in self.idp_sk.bond_types:
-
-            mask = edge_index == self.idp_sk.bond_to_type[ibtype]
+            ibtype_idx = self.idp_sk.bond_to_type[ibtype]
+            mask = edge_index == ibtype_idx
             
-            hoptable = self.skparams['Hopping'][ibtype]
-            data[AtomicDataDict.EDGE_FEATURES_KEY][mask] = self.hopping_fn.get_skhij(rij[mask], yy=hoptable)
+            data[AtomicDataDict.EDGE_FEATURES_KEY][mask] = self.hopping_fn.get_skhij(rij[mask], xx=self.distance_param, yy=self.hopping_param[ibtype_idx])
             
             if hasattr(self, "overlap"):
-                overlaptable = self.skparams['Overlap'][ibtype]
-                data[AtomicDataDict.EDGE_OVERLAP_KEY][mask] = self.hopping_fn.get_skhij(rij[mask], yy=overlaptable)
+                data[AtomicDataDict.EDGE_OVERLAP_KEY][mask] = self.hopping_fn.get_skhij(rij[mask], xx=self.distance_param, yy=self.overlap_param[ibtype_idx])
 
         atomic_numbers = self.idp_sk.untransform_atom(data[AtomicDataDict.ATOM_TYPE_KEY].flatten())
         
         data[AtomicDataDict.NODE_FEATURES_KEY] = self.onsite_fn.get_skEs(
-                atomic_numbers=atomic_numbers)
+                atomic_numbers=atomic_numbers, nn_onsite_paras=self.onsite_param)
         
         if AtomicDataDict.NODE_SOC_SWITCH_KEY not in data:
             data[AtomicDataDict.NODE_SOC_SWITCH_KEY] =  torch.full((data['pbc'].shape[0], 1), False)
