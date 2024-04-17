@@ -412,10 +412,10 @@ class MIX(nn.Module):
             "overlap": overlap,
         }
 
-        if ckpt["config"]["model_options"]["nnsk"] is not None:
+        if ckpt["config"]["model_options"].get("nnsk",None) is not None:
             if nnsk is None or len(nnsk) == 0:
                 nnsk = ckpt["config"]["model_options"]["nnsk"]
-        if ckpt["config"]["model_options"]["dftbsk"] is not None:
+        if ckpt["config"]["model_options"].get("dftbsk",None) is not None:
             if dftbsk is None or len(dftbsk) == 0:
                 dftbsk = ckpt["config"]["model_options"]["dftbsk"]
 
@@ -459,11 +459,12 @@ class MIX(nn.Module):
         else:
             assert ckpt["config"]["model_options"].get("dftbsk") is not None, "The referenced checkpoint should provide at least the dftbsk model info."
             
-            num_xgrid = ckpt["model_state_dict"]["distance_param"].shape[0]
             if ckpt["config"]["model_options"].get("embedding") is not None and ckpt["config"]["model_options"].get("prediction") is not None:    
+                num_xgrid = ckpt["model_state_dict"]["dptbsk.distance_param"].shape[0]
                 model = cls(**model_options, **common_options,transform=transform,num_xgrid=num_xgrid)
                 model.load_state_dict(ckpt["model_state_dict"])
             else:
+                num_xgrid = ckpt["model_state_dict"]["distance_param"].shape[0]
                 model = cls(**model_options, **common_options,transform=transform,num_xgrid=num_xgrid)
                 model.dptbsk.load_state_dict(ckpt["model_state_dict"])
 
