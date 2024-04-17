@@ -161,7 +161,7 @@ def build_model(
         elif init_mixed:
             model = MIX(**model_options, **common_options)
         elif init_dftbsk:
-            model = DFTBSK(**model_options, **common_options)
+            model = DFTBSK(**model_options["dftb"], **common_options)
         else:
             model = None   
     else:
@@ -173,6 +173,8 @@ def build_model(
         elif init_mixed:
             # mix model can be initilized with a mixed reference model or a nnsk model.
             model = MIX.from_reference(checkpoint, **model_options, **common_options)  
+        elif init_dftbsk:
+            model = DFTBSK.from_reference(checkpoint, **model_options["dftb"], **common_options)
         else:
             model = None
         

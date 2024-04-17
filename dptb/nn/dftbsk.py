@@ -81,7 +81,8 @@ class DFTBSK(torch.nn.Module):
         self.register_buffer("onsite_param", onsite_param)
         if overlap:
             self.register_buffer("overlap_param", overlap_param)
-
+        else:
+            log.warning("The overlap is set to False, by default the dftbsk model the overlap should be true. please make sure you know what you are doing.")
 
         self.hamiltonian = SKHamiltonian(idp_sk=self.idp_sk, onsite=True, dtype=self.dtype, device=self.device, 
                                         strain=False,soc=False)
