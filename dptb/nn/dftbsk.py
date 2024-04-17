@@ -140,6 +140,7 @@ class DFTBSK(torch.nn.Module):
         overlap: bool=None,
         dtype: Union[str, torch.dtype]=None, 
         device: Union[str, torch.device]=None,
+        transform: bool=True,
         **kwargs,
         ):
 
@@ -167,7 +168,7 @@ class DFTBSK(torch.nn.Module):
                 log.info(f"{k} is not provided in the input json, set to the value {dftb[k]} in model ckpt.")
 
         num_xgrid = f["model_state_dict"]["distance_param"].shape[0]
-        model = cls(**common_options, **dftb, num_xgrid=num_xgrid)
+        model = cls(**common_options, **dftb, num_xgrid=num_xgrid, transform=transform)
         
         if f["config"]["common_options"]["basis"] == common_options["basis"]:
             model.load_state_dict(f["model_state_dict"])

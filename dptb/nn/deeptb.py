@@ -8,6 +8,7 @@ from dptb.nn.base import AtomicFFN, AtomicResNet, AtomicLinear, Identity
 from dptb.data import AtomicDataDict
 from dptb.nn.hamiltonian import E3Hamiltonian, SKHamiltonian
 from dptb.nn.nnsk import NNSK
+from dptb.nn.dftbsk import DFTBSK
 from e3nn.o3 import Linear
 from dptb.nn.rescale import E3PerSpeciesScaleShift, E3PerEdgeSpeciesScaleShift
 import logging
@@ -293,12 +294,15 @@ class MIX(nn.Module):
             self,
             embedding: dict,
             prediction: dict,
-            nnsk: dict,
+            nnsk: dict = None,
+            dftbsk: dict = None,
             basis: Dict[str, Union[str, list]]=None,
             overlap: bool = False,
             idp_sk: Union[OrbitalMapper, None]=None,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
+            transform: bool = True,
+            num_xgrid: int = -1,
             **kwargs,
     ):
         super(MIX, self).__init__()
@@ -308,6 +312,8 @@ class MIX(nn.Module):
 
         self.dtype = dtype
         self.device = device
+        self.transform = transform
+
         self.nnenv = NNENV(
             embedding=embedding, 
             prediction=prediction, 
@@ -319,39 +325,66 @@ class MIX(nn.Module):
             transform=False,
             )
         
-        self.nnsk = NNSK(
-            basis=basis,
-            idp_sk=idp_sk, 
-            **nnsk,
-            overlap=overlap,
-            dtype=dtype, 
-            device=device,
-            transform=False,
-            )
-        self.idp = self.nnsk.idp
-        assert not self.nnsk.push, "The push option is not supported in the mixed model. The push option is only supported in the nnsk model."
+        if (dftbsk is None) == (nnsk is None):
+            raise ValueError("The mixed model should have exactly one of the dftbsk model or nnsk model.")
+
+        if nnsk is not None:
+            self.nnsk = NNSK(
+                basis=basis,
+                idp_sk=idp_sk, 
+                **nnsk,
+                overlap=overlap,
+                dtype=dtype, 
+                device=device,
+                transform=False,
+                )
+            self.idp = self.nnsk.idp
+            assert not self.nnsk.push, "The push option is not supported in the mixed model. The push option is only supported in the nnsk model."
         
-        self.model_options = self.nnsk.model_options
+            self.model_options = self.nnsk.model_options
+            self.hamiltonian = self.nnsk.hamiltonian
+            if overlap:
+                self.overlap = self.nnsk.overlap
+        elif dftbsk is not None:
+            self.dptbsk = DFTBSK(
+                basis=basis,
+                idp_sk=idp_sk,
+                **dftbsk,
+                overlap=overlap,
+                dtype=dtype,
+                device=device,
+                transform=False,
+                num_xgrid=num_xgrid,
+                )
+            self.idp = self.dptbsk.idp
+            self.model_options = self.dptbsk.model_options
+            self.hamiltonian = self.dptbsk.hamiltonian
+            if overlap:
+                self.overlap = self.dptbsk.overlap
+        else:
+            raise ValueError("The mixed model should have exactly one of the dftbsk model or nnsk model.")
+
         self.model_options.update(self.nnenv.model_options)
         
-        self.hamiltonian = self.nnsk.hamiltonian
-        if overlap:
-            self.overlap = self.nnsk.overlap
-
-
 
     def forward(self, data: AtomicDataDict.Type):
         data_nnenv = self.nnenv(data)
-        data_nnsk = self.nnsk(data)
+        if hasattr(self, "nnsk"):
+            data_sk = self.nnsk(data)
+        elif hasattr(self, "dptbsk"):
+            data_sk = self.dptbsk(data)
+        else:
+            raise ValueError("The mixed model should have exactly one of the dftbsk model or nnsk model.")
 
-        data_nnsk[AtomicDataDict.EDGE_FEATURES_KEY] = data_nnsk[AtomicDataDict.EDGE_FEATURES_KEY] * (1 + data_nnenv[AtomicDataDict.EDGE_FEATURES_KEY])
-        data_nnsk[AtomicDataDict.NODE_FEATURES_KEY] = data_nnsk[AtomicDataDict.NODE_FEATURES_KEY] * (1 + data_nnenv[AtomicDataDict.NODE_FEATURES_KEY])
+        data_sk[AtomicDataDict.EDGE_FEATURES_KEY] = data_sk[AtomicDataDict.EDGE_FEATURES_KEY] * (1 + data_nnenv[AtomicDataDict.EDGE_FEATURES_KEY])
+        data_sk[AtomicDataDict.NODE_FEATURES_KEY] = data_sk[AtomicDataDict.NODE_FEATURES_KEY] * (1 + data_nnenv[AtomicDataDict.NODE_FEATURES_KEY])
 
-        data_nnsk = self.hamiltonian(data_nnsk)
-        if hasattr(self, "overlap"):
-            data_nnsk = self.overlap(data_nnsk)
+        if self.transform:
+            data_sk = self.hamiltonian(data_sk)
+            if hasattr(self, "overlap"):
+                data_sk = self.overlap(data_sk)
 
-        return data_nnsk
+        return data_sk
     
     @classmethod
     def from_reference(
@@ -360,10 +393,12 @@ class MIX(nn.Module):
         embedding: dict=None,
         prediction: dict=None,
         nnsk: dict=None,
+        dftbsk: dict = None,
         basis: Dict[str, Union[str, list]]=None,
         overlap: bool = None,
         dtype: Union[str, torch.dtype] = None,
         device: Union[str, torch.device] = None,
+        transform: bool = True,
         **kwargs,
         ):
         # the mapping from the parameters of the ref_model and the current model can be found using
@@ -376,18 +411,28 @@ class MIX(nn.Module):
             "basis": basis,
             "overlap": overlap,
         }
+
+        if ckpt["config"]["model_options"]["nnsk"] is not None:
+            if nnsk is None or len(nnsk) == 0:
+                nnsk = ckpt["config"]["model_options"]["nnsk"]
+        if ckpt["config"]["model_options"]["dftbsk"] is not None:
+            if dftbsk is None or len(dftbsk) == 0:
+                dftbsk = ckpt["config"]["model_options"]["dftbsk"]
+
+        if (dftbsk is None) == (nnsk is None):
+            raise ValueError("The mixed model should have exactly one of the dftbsk model or nnsk model.")
+
         model_options = {
             "embedding": embedding,
             "prediction": prediction,
             "nnsk": nnsk,
+            "dftbsk": dftbsk
         }
-        
-        if len(nnsk) == 0:
-            model_options["nnsk"] = ckpt["config"]["model_options"]["nnsk"]
 
-        if model_options["nnsk"].get("push") is not None:
-            model_options["nnsk"]["push"] = None
-            log.warning("The push option is not supported in the mixed model. The push option is only supported in the nnsk model.")
+        if nnsk is not None:
+            if model_options["nnsk"].get("push") is not None:
+                model_options["nnsk"]["push"] = None
+                log.warning("The push option is not supported in the mixed model. The push option is only supported in the nnsk model.")
 
         if len(embedding) == 0 or len(prediction) == 0:
             assert ckpt["config"]["model_options"].get("embedding") is not None and ckpt["config"]["model_options"].get("prediction") is not None, \
@@ -400,18 +445,28 @@ class MIX(nn.Module):
             if v is None:
                 common_options[k] = ckpt["config"]["common_options"][k]
 
-        if ckpt["config"]["model_options"].get("embedding") is not None and ckpt["config"]["model_options"].get("prediction") is not None:
-            # read from mixed model
-            model = cls(**model_options, **common_options)
-            model.load_state_dict(ckpt["model_state_dict"])
-
+        if nnsk is not None:
+            if ckpt["config"]["model_options"].get("embedding") is not None and ckpt["config"]["model_options"].get("prediction") is not None:
+                # read from mixed model
+                model = cls(**model_options, **common_options,transform=transform)
+                model.load_state_dict(ckpt["model_state_dict"])
+    
+            else:
+                assert ckpt["config"]["model_options"].get("nnsk") is not None, "The referenced checkpoint should provide at least the nnsk model info."
+                # read from nnsk model
+                model = cls(**model_options, **common_options,transform=transform)
+                model.nnsk.load_state_dict(ckpt["model_state_dict"])
         else:
-            assert ckpt["config"]["model_options"].get("nnsk") is not None, "The referenced checkpoint should provide at least the nnsk model info."
-            # read from nnsk model
+            assert ckpt["config"]["model_options"].get("dftbsk") is not None, "The referenced checkpoint should provide at least the dftbsk model info."
+            
+            num_xgrid = ckpt["model_state_dict"]["distance_param"].shape[0]
+            if ckpt["config"]["model_options"].get("embedding") is not None and ckpt["config"]["model_options"].get("prediction") is not None:    
+                model = cls(**model_options, **common_options,transform=transform,num_xgrid=num_xgrid)
+                model.load_state_dict(ckpt["model_state_dict"])
+            else:
+                model = cls(**model_options, **common_options,transform=transform,num_xgrid=num_xgrid)
+                model.dptbsk.load_state_dict(ckpt["model_state_dict"])
 
-            model = cls(**model_options, **common_options)
-            model.nnsk.load_state_dict(ckpt["model_state_dict"])
-        
         del ckpt
         
         return model
