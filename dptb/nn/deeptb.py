@@ -346,7 +346,7 @@ class MIX(nn.Module):
             if overlap:
                 self.overlap = self.nnsk.overlap
         elif dftbsk is not None:
-            self.dptbsk = DFTBSK(
+            self.dftbsk = DFTBSK(
                 basis=basis,
                 idp_sk=idp_sk,
                 **dftbsk,
@@ -356,11 +356,11 @@ class MIX(nn.Module):
                 transform=False,
                 num_xgrid=num_xgrid,
                 )
-            self.idp = self.dptbsk.idp
-            self.model_options = self.dptbsk.model_options
-            self.hamiltonian = self.dptbsk.hamiltonian
+            self.idp = self.dftbsk.idp
+            self.model_options = self.dftbsk.model_options
+            self.hamiltonian = self.dftbsk.hamiltonian
             if overlap:
-                self.overlap = self.dptbsk.overlap
+                self.overlap = self.dftbsk.overlap
         else:
             raise ValueError("The mixed model should have exactly one of the dftbsk model or nnsk model.")
 
@@ -371,8 +371,8 @@ class MIX(nn.Module):
         data_nnenv = self.nnenv(data)
         if hasattr(self, "nnsk"):
             data_sk = self.nnsk(data)
-        elif hasattr(self, "dptbsk"):
-            data_sk = self.dptbsk(data)
+        elif hasattr(self, "dftbsk"):
+            data_sk = self.dftbsk(data)
         else:
             raise ValueError("The mixed model should have exactly one of the dftbsk model or nnsk model.")
 

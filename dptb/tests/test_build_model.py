@@ -124,6 +124,71 @@ def test_build_model_MIX_from_scratch():
     assert model.nnsk.transform == False
     assert model.nnenv.transform == False
 
+def test_build_dftbsk_from_scratch():
+    skdatapath = f"{rootdir}/../../../../examples/hBN_dftb/slakos"
+    common_options = {
+        "basis": {
+            "B": ["2s", "2p"],
+            "N": ["2s", "2p"]
+        },
+        "device": "cpu",
+        "dtype": "float32",
+        "overlap": True,
+        "seed": 3982377700
+    }
+    model_options = {
+    "dftbsk": {
+            "skdata": skdatapath
+        }
+    }
+    model = build_model(None, model_options, common_options)
+    assert model.name == 'dftbsk'
+
+def test_build_model_MIX_dftbsk_from_scratch():
+    skdatapath = f"{rootdir}/../../../../examples/hBN_dftb/slakos"
+    common_options = {
+        "basis": {
+            "B": ["2s", "2p"],
+            "N": ["2s", "2p"]
+        },
+        "device": "cpu",
+        "dtype": "float32",
+        "overlap": True,
+        "seed": 3982377700
+    }
+    model_options = {
+    "dftbsk": {
+            "skdata": skdatapath
+        },
+        "embedding": {
+            "method": "se2",
+            "rs": 2.5,
+            "rc": 5.0,
+            "radial_net": {
+                "neurons": [10,20,30],
+                "activation": "tanh",
+                "if_batch_normalized": False
+            },
+            "n_axis": None
+        },
+        "prediction": {
+            "method": "sktb",
+            "neurons": [16,16,16],
+            "activation": "tanh",
+            "if_batch_normalized": False
+        }
+    }
+    model = build_model(None, model_options, common_options)
+    assert model.name == 'mix'
+    assert model.nnenv.method == 'sktb'
+    assert model.nnenv.name == 'nnenv'
+    assert hasattr(model, "dftbsk")
+    assert model.dftbsk.name == 'dftbsk'
+    
+
+
+
+
 def test_build_model_failure():
     run_options = {
         "init_model": None,
@@ -191,6 +256,8 @@ def test_build_model_failure():
     with pytest.raises(ValueError) as excinfo:
         build_model(None, model_options, common_options)
     assert "The embedding method can not be se2 for e3tb prediction in deeptb mode" in str(excinfo.value)
+
+
 
 #TODO: add test for dptb-e3tb from scratch
 #TODO: add test for all the cases from checkpoint, restart and init_model
