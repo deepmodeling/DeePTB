@@ -695,9 +695,14 @@ def loss_options():
         Argument("diff_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue difference. Default: 0.01"),
     ]
 
+    skints = [
+        Argument("skdata", str, optional=False, doc="The path to the skfile or sk database."),
+    ]
+
     loss_args = Variant("method", [
         Argument("hamil", dict, sub_fields=hamil),
         Argument("eigvals", dict, sub_fields=eigvals),
+        Argument("skints", dict, sub_fields=skints),
         Argument("hamil_abs", dict, sub_fields=hamil),
         Argument("hamil_blas", dict, sub_fields=hamil),
     ], optional=False, doc=doc_method)
