@@ -460,13 +460,13 @@ class MIX(nn.Module):
             assert ckpt["config"]["model_options"].get("dftbsk") is not None, "The referenced checkpoint should provide at least the dftbsk model info."
             
             if ckpt["config"]["model_options"].get("embedding") is not None and ckpt["config"]["model_options"].get("prediction") is not None:    
-                num_xgrid = ckpt["model_state_dict"]["dptbsk.distance_param"].shape[0]
+                num_xgrid = ckpt["model_state_dict"]["dftbsk.distance_param"].shape[0]
                 model = cls(**model_options, **common_options,transform=transform,num_xgrid=num_xgrid)
                 model.load_state_dict(ckpt["model_state_dict"])
             else:
                 num_xgrid = ckpt["model_state_dict"]["distance_param"].shape[0]
                 model = cls(**model_options, **common_options,transform=transform,num_xgrid=num_xgrid)
-                model.dptbsk.load_state_dict(ckpt["model_state_dict"])
+                model.dftbsk.load_state_dict(ckpt["model_state_dict"])
 
         del ckpt
         
