@@ -58,8 +58,8 @@ def build_model(
             common_options = ckptconfig["common_options"]
         del ckptconfig
 
-    if model_options.get("dftb"):
-        assert not model_options.get("nnsk"), "There should only be one of the dftb and nnsk in model_options."
+    if model_options.get("dftbsk"):
+        assert not model_options.get("nnsk"), "There should only be one of the dftbsk and nnsk in model_options."
         if all((model_options.get("embedding"), model_options.get("prediction"))):
             init_mixed = True
             if not model_options['prediction']['method'] == 'sktb':
@@ -74,10 +74,10 @@ def build_model(
         else:
             log.error("Model_options are not set correctly! \n" + 
                       "You can only choose one of the nnsk, dftb, mixed and nnenv modes.\n" + 
-                      " -  `mixed`, set all the `nnsk` `embedding` and `prediction` options.\n" +
-                      " -  `deeptb`, set `embedding` and `prediction` options and no `nnsk`.\n" +
+                      " -  `mixed`, set all the `nnsk` or `dftbsk` and both `embedding` and `prediction` options.\n" +
+                      " -  `nnenv`, set `embedding` and `prediction` options and no `nnsk` and no `dftbsk`.\n" +
                       " -  `nnsk`, set only `nnsk` options.\n" +
-                      " -  `dftb`, set only `dftb` options.")
+                      " -  `dftbsk`, set only `dftbsk` options.")
             raise ValueError("Model_options are not set correctly!")
         
     
@@ -97,10 +97,10 @@ def build_model(
         else:
             log.error("Model_options are not set correctly! \n" + 
                       "You can only choose one of the nnsk, dftb, mixed and nnenv modes.\n" + 
-                      " -  `mixed`, set all the `nnsk` `embedding` and `prediction` options.\n" +
-                      " -  `deeptb`, set `embedding` and `prediction` options and no `nnsk`.\n" +
+                      " -  `mixed`, set all the `nnsk` or `dftbsk` and both `embedding` and `prediction` options.\n" +
+                      " -  `nnenv`, set `embedding` and `prediction` options and no `nnsk` and no `dftbsk`.\n" +
                       " -  `nnsk`, set only `nnsk` options.\n" +
-                      " -  `dftb`, set only `dftb` options.")
+                      " -  `dftbsk`, set only `dftbsk` options.")
             raise ValueError("Model_options are not set correctly!")
     else:
         if all((model_options.get("embedding"), model_options.get("prediction"))):
@@ -125,10 +125,10 @@ def build_model(
         else:
             log.error("Model_options are not set correctly! \n" + 
                       "You can only choose one of the nnsk, dftb, mixed and nnenv modes.\n" + 
-                      " -  `mixed`, set all the `nnsk` `embedding` and `prediction` options.\n" +
-                      " -  `deeptb`, set `embedding` and `prediction` options and no `nnsk`.\n" +
+                      " -  `mixed`, set all the `nnsk` or `dftbsk` and both `embedding` and `prediction` options.\n" +
+                      " -  `nnenv`, set `embedding` and `prediction` options and no `nnsk` and no `dftbsk`.\n" +
                       " -  `nnsk`, set only `nnsk` options.\n" +
-                      " -  `dftb`, set only `dftb` options.")
+                      " -  `dftbsk`, set only `dftbsk` options.")
             raise ValueError("Model_options are not set correctly!")
 
         
@@ -161,7 +161,7 @@ def build_model(
         elif init_mixed:
             model = MIX(**model_options, **common_options)
         elif init_dftbsk:
-            model = DFTBSK(**model_options["dftb"], **common_options)
+            model = DFTBSK(**model_options["dftbsk"], **common_options)
         else:
             model = None   
     else:
@@ -174,7 +174,7 @@ def build_model(
             # mix model can be initilized with a mixed reference model or a nnsk model.
             model = MIX.from_reference(checkpoint, **model_options, **common_options)  
         elif init_dftbsk:
-            model = DFTBSK.from_reference(checkpoint, **model_options["dftb"], **common_options)
+            model = DFTBSK.from_reference(checkpoint, **model_options["dftbsk"], **common_options)
         else:
             model = None
         

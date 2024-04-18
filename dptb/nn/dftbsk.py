@@ -45,7 +45,7 @@ class DFTBSK(torch.nn.Module):
         self.idp_sk.get_orbpair_maps()
         self.idp_sk.get_skonsite_maps()
         self.model_options = {
-            "dftb":{
+            "dftbsk":{
                 "skdata": skdata         
                 }
         }

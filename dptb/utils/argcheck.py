@@ -556,7 +556,15 @@ def model_options():
         Argument("embedding", dict, optional=True, sub_fields=[], sub_variants=[embedding()], doc=doc_embedding),
         Argument("prediction", dict, optional=True, sub_fields=[], sub_variants=[prediction()], doc=doc_prediction),
         nnsk(),
+        dftbsk(),
         ], sub_variants=[], optional=True, doc=doc_model_options)
+
+def dftbsk():
+    doc_dftbsk = "The parameters to define the dftb sk model."
+
+    return Argument("dftbsk", dict, sub_fields=[
+                Argument("skdata", str, optional=False, doc="The path to the skfile or sk database."),
+                ], sub_variants=[], optional=True, doc=doc_dftbsk)
 
 def nnsk():
     doc_nnsk = "The parameters to define the nnsk model."
