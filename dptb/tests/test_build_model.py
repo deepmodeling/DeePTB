@@ -186,9 +186,6 @@ def test_build_model_MIX_dftbsk_from_scratch():
     assert model.dftbsk.name == 'dftbsk'
     
 
-
-
-
 def test_build_model_failure():
     run_options = {
         "init_model": None,
@@ -205,6 +202,11 @@ def test_build_model_failure():
     assert "You need to provide model_options and common_options" in str(excinfo.value)
     
     common_options = {"basis": {"Si": ["3s", "3p"]}}
+    
+    model_options = {"embedding":False, "prediction":False, "nnsk":True, "dftbsk":True}
+    with pytest.raises(AssertionError) as excinfo:
+        build_model(None, model_options, common_options)
+    assert "There should only be one of the dftbsk and nnsk in model_options." in str(excinfo.value)
 
     # T F T
     model_options = {"embedding":True, "prediction":False, "nnsk":True}
