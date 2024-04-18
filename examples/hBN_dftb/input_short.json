@@ -1,0 +1,54 @@
+{
+    "common_options": {
+            "basis": {
+                "B": ["2s", "2p","d*"],
+                "N": ["2s", "2p","d*"]
+            },
+            "device": "cpu",
+            "dtype": "float32",
+            "overlap": true,
+            "seed": 42
+    },
+    "train_options": {
+        "num_epoch": 500,
+        "batch_size": 1,
+        "optimizer": {
+            "lr": 0.001,
+            "type": "Adam"
+        },
+        "lr_scheduler": {
+            "type": "exp",
+            "gamma": 0.999
+        },
+        "loss_options":{
+            "train": {"method": "eigvals"}
+        },
+        "save_freq": 50,
+        "validation_freq": 10,
+        "display_freq": 10
+    },
+    "model_options": {
+        "dftbsk": {
+            "skdata":"./slakos"
+        },
+        "embedding":{
+            "method": "se2",
+            "rs": 2.5,
+            "rc": 5.0,
+            "radial_net": {
+                "neurons": [40,20,10]
+            }
+        },
+        "prediction":{
+            "method": "sktb",
+            "neurons": [50,50,50]
+        }
+    },
+    "data_options": {
+        "train": {
+            "root": "./data/",
+            "prefix": "kpath",
+            "get_eigenvalues": true
+        }
+    }
+}
