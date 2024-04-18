@@ -51,17 +51,25 @@ class SKParam:
             if '.' in skdata and skdata.split('.')[-1] == 'pth':
                 log.info(f'Loading the skdict from the file: {skdata} ......')
                 skdict = torch.load(skdata)
+                for ikey in ['Distance', 'Hopping', 'Overlap', 'OnsiteE']:
+                    assert ikey in skdict, f"The key: {ikey} is not in the skdict."
+                
                 for ibtype in bond_types:
-                    if ibtype not in skdict:
-                        log.error("The bond type: " + ibtype + " is not in the skdict.")
-                        sys.exit()
+                    for ikey in ['Distance', 'Hopping', 'Overlap']:
+                        if ibtype not in skdict[ikey]:
+                            log.error("The bond type: " + ibtype + " is not in the skdict-"+ikey)
+                            raise ValueError("The bond type: " + ibtype + " is not in the skdict.")
+                    if ibtype.split('-')[0] == ibtype.split('-')[1]:
+                        if ibtype.split('-')[0] not in skdict['OnsiteE']:
+                            log.error("The atom type: " + ibtype.split('-')[0] + " is not in the skdict['OnsiteE'].")
+                            raise ValueError("The atom type: " + ibtype.split('-')[0] + " is not in the skdict['OnsiteE'].")
             else:
                 log.info(f'Reading the skfiles from the path: {skdata} ......')
                 skfiles = {}
                 for ibtype in bond_types:
                     if not os.path.exists(skdata + '/' + ibtype + '.skf'):
                         log.error('Didn\'t find the skfile: ' + skdata + '/' + ibtype + '.skf')
-                        sys.exit()
+                        raise FileNotFoundError('Didn\'t find the skfile: ' + skdata + '/' + ibtype + '.skf')
                     else:
                         skfiles[ibtype] = skdata + '/' + ibtype + '.skf'
 
@@ -70,7 +78,7 @@ class SKParam:
             skdict = skdata
         else:
             log.error("The skdata should be a dict or string for a file path.")
-            sys.exit()
+            raise ValueError("The skdata should be a dict or string for a file path.")
 
         self.skdict = self.format_skparams(skdict)
 
@@ -181,7 +189,7 @@ class SKParam:
 
             assert len(skdict["Distance"].shape) == 1
 
-            assert len(skdict['Hopping'].shape) == len(skdict['Overlap'].shape) == len(skdict['OnsiteE'] )== 3
+            assert len(skdict['Hopping'].shape) == len(skdict['Overlap'].shape) == len(skdict['OnsiteE'].shape)== 3
             
             assert skdict['Hopping'].shape[0] == skdict['Overlap'].shape[0] == len(self.idp_sk.bond_types)
             assert skdict['Hopping'].shape[1] == skdict['Overlap'].shape[1] == self.idp_sk.reduced_matrix_element
