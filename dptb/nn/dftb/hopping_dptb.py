@@ -13,7 +13,7 @@ class HoppingIntp(BaseHopping):
         super().__init__()
 
         assert method in ['linear', 'cspline'], "Only linear and cspline are supported."
-
+        self.functype = 'dftb'
         self.num_ingrls = num_ingrls
         self.intp_method = method   
 
