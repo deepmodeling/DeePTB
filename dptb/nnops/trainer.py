@@ -34,6 +34,15 @@ class Trainer(BaseTrainer):
         self.train_options = train_options
         
         self.train_datasets = train_datasets
+        # get the task from train_datasets label
+        self.task = None
+        if self.train_datasets.get_Hamiltonian:
+            self.task = "hamiltonians"
+        elif self.train_datasets.get_DM:
+            self.task = "DM"
+        else:
+            self.task = "eigenvalues"
+
         self.use_reference = False
         if reference_datasets is not None:
             self.reference_datesets = reference_datasets

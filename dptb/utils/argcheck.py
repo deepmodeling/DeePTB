@@ -1048,6 +1048,7 @@ def task_options():
                     - `negf`: for non-equilibrium green function calculation.
                     - `tbtrans_negf`: for non-equilibrium green function calculation with tbtrans.
                 '''
+    write_block = []
 
     return Variant("task", [
             Argument("band", dict, band()),
@@ -1058,7 +1059,8 @@ def task_options():
             Argument("write_sk", dict, write_sk()),
             Argument("ifermi", dict, ifermi()),
             Argument("negf", dict, negf()),
-            Argument("tbtrans_negf", dict, tbtrans_negf())
+            Argument("tbtrans_negf", dict, tbtrans_negf()),
+            Argument("write_block", dict, write_block),
         ],optional=False, doc=doc_task)
 
 def band():

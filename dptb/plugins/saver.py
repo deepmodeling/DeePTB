@@ -122,7 +122,8 @@ class Saver(Plugin):
         obj.update({"config": {"model_options": model_options, "common_options": common_options, "train_options": train_options}})
         obj.update(
             {
-                "model_state_dict": model.state_dict(), 
+                "model_state_dict": model.state_dict(),
+                "task": self.trainer.task,
                 "optimizer_state_dict": self.trainer.optimizer.state_dict(), 
                 "lr_scheduler_state_dict": self.trainer.lr_scheduler.state_dict(),
                 "epoch": self.trainer.ep,
