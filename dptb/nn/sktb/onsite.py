@@ -30,6 +30,7 @@ class OnsiteFormula(BaseOnsite):
         'none': 0,
         'strain': 0,
         "NRL": 4,
+        "dftb":1,
         "custom": None,
     }
 
@@ -40,8 +41,10 @@ class OnsiteFormula(BaseOnsite):
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu")) -> None:
         super().__init__() 
-        if functype in ['none', 'strain']:
+        if functype == 'strain':
             pass
+        elif functype == 'none':
+            assert hasattr(self, 'none')
         elif functype == 'uniform':
             assert hasattr(self, 'uniform')
 
@@ -50,6 +53,8 @@ class OnsiteFormula(BaseOnsite):
 
         elif functype == 'custom':
             assert hasattr(self, 'custom')
+        elif functype == 'dftb':
+            assert hasattr(self, 'dftb')
         else:
             raise ValueError('No such formula')
         
@@ -64,7 +69,7 @@ class OnsiteFormula(BaseOnsite):
                 for ot in self.idp.basis[asym]:
                     fot = self.idp.basis_to_full_basis[asym][ot]
                     self.E_base[idx][self.idp.skonsite_maps[fot]] = onsite_energy_database[asym][ot]
-        
+
     def get_skEs(self, **kwargs):
         if self.functype == 'uniform':
             return self.uniform(**kwargs)
@@ -72,7 +77,29 @@ class OnsiteFormula(BaseOnsite):
             return self.NRL(**kwargs)
         if self.functype in ['none', 'strain']:
             return self.none(**kwargs)
-        
+        if self.functype == 'dftb':
+            return self.dftb(**kwargs)
+    
+    def dftb(self, atomic_numbers: torch.Tensor, nn_onsite_paras: torch.Tensor, **kwargs):
+        """The dftb onsite function, the energy output is directly loaded from the onsite Database.
+        Parameters
+        ----------
+        atomic_numbers : torch.Tensor(N)
+            The atomic number list.
+
+        Returns
+        -------
+        torch.Tensor(N, n_orb)
+            the onsite energies by composing results from nn and ones from database.
+        """
+        atomic_numbers = atomic_numbers.reshape(-1)
+
+        if nn_onsite_paras.shape[-1] == 1:
+            nn_onsite_paras = nn_onsite_paras.squeeze(-1)
+        idx = self.idp.transform_atom(atomic_numbers)
+        return nn_onsite_paras[idx]
+    
+
     def none(self, atomic_numbers: torch.Tensor, **kwargs):
         """The none onsite function, the energy output is directly loaded from the onsite Database.
         Parameters

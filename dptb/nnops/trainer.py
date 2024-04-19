@@ -69,6 +69,12 @@ class Trainer(BaseTrainer):
         if self.use_reference:
             self.reference_lossfunc = Loss(**train_options["loss_options"]["reference"], **common_options, idp=self.model.hamiltonian.idp)
 
+        if  train_options["loss_options"]["train"]["method"] == "skints":
+            assert self.model.name == 'nnsk', "The model should be nnsk for the skints loss function."
+            assert self.model.onsite_fn.functype in ['none', 'uniform'], "The onsite function should be none or uniform for the skints loss function."
+            log.info("The skints loss function is used for training, the model.transform is then set to False.")
+            self.model.transform = False
+
     def iteration(self, batch, ref_batch=None):
         '''
         conduct one step forward computation, used in train, test and validation.

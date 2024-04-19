@@ -367,6 +367,7 @@ class NNSK(torch.nn.Module):
         push: Dict=None,
         freeze: Union[bool,str,list] = False,
         std: float = 0.01,
+        transform: bool = True,
         **kwargs,
         ):
         # the mapping from the parameters of the ref_model and the current model can be found using
@@ -490,6 +491,7 @@ class NNSK(torch.nn.Module):
                 v1_model=v1_model,
                 **nnsk,
                 **common_options,
+                transform=transform
             )
 
             del v1_model
@@ -505,7 +507,7 @@ class NNSK(torch.nn.Module):
                     nnsk[k] = f["config"]["model_options"]["nnsk"][k]
                     log.info(f"{k} is not provided in the input json, set to the value {nnsk[k]} in model ckpt.")
 
-            model = cls(**common_options, **nnsk)
+            model = cls(**common_options, **nnsk, transform=transform)
 
             if f["config"]["common_options"]["basis"] == common_options["basis"] and \
                 f["config"]["model_options"] == model.model_options:
@@ -623,6 +625,7 @@ class NNSK(torch.nn.Module):
         std: float = 0.01,
         freeze: Union[bool,str,list] = False,
         push: Union[bool,None,dict] = False,
+        transform: bool = True,
         **kwargs
         ):
         # could support json file and .pth file checkpoint of nnsk
