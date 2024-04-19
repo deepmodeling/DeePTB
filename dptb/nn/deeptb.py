@@ -446,13 +446,13 @@ class MIX(nn.Module):
                 common_options[k] = ckpt["config"]["common_options"][k]
 
         if nnsk is not None:
+            assert ckpt["config"]["model_options"].get("nnsk") is not None, "The referenced checkpoint should provide at least the nnsk model info."
+            
             if ckpt["config"]["model_options"].get("embedding") is not None and ckpt["config"]["model_options"].get("prediction") is not None:
                 # read from mixed model
                 model = cls(**model_options, **common_options,transform=transform)
                 model.load_state_dict(ckpt["model_state_dict"])
-    
             else:
-                assert ckpt["config"]["model_options"].get("nnsk") is not None, "The referenced checkpoint should provide at least the nnsk model info."
                 # read from nnsk model
                 model = cls(**model_options, **common_options,transform=transform)
                 model.nnsk.load_state_dict(ckpt["model_state_dict"])
