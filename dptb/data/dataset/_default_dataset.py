@@ -16,7 +16,7 @@ from .. import (
 from ..transforms import TypeMapper, OrbitalMapper
 from ._base_datasets import AtomicDataset, AtomicInMemoryDataset
 #from dptb.nn.hamiltonian import E3Hamiltonian
-from dptb.data.interfaces.ham_to_feature import ham_block_to_feature
+from dptb.data.interfaces.ham_to_feature import block_to_feature
 from dptb.utils.tools import j_loader
 from dptb.data.AtomicDataDict import with_edge_vectors
 from dptb.nn.hamiltonian import E3Hamiltonian
@@ -201,7 +201,7 @@ class _TrajData(object):
                 overlaps = False
             # e3 = E3Hamiltonian(idp=idp, decompose=True)
             if features != False or overlaps != False:
-                ham_block_to_feature(atomic_data, idp, features, overlaps)
+                block_to_feature(atomic_data, idp, features, overlaps)
             
             if not hasattr(atomic_data, AtomicDataDict.EDGE_FEATURES_KEY):
                 # TODO: initialize the edge and node feature tempretely, there should be a better way.

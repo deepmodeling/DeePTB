@@ -183,7 +183,7 @@ def build_model(
             log.warning(f"The model options {k} is not defined in input model_options, set to {v}.")
         else:
             deep_dict_difference(k, v, model_options)
-    
+    model.to(model.device)
     return model
 
 
