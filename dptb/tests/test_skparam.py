@@ -60,11 +60,16 @@ class TestSKParam:
         assert "Hopping" in skdict
         assert "Overlap" in skdict
         assert "OnsiteE" in skdict
+        assert "HubdU" in skdict
+        assert "Occu" in skdict
 
         assert isinstance(skdict["Distance"],dict)
         assert isinstance(skdict['Hopping'], dict)
         assert isinstance(skdict['Overlap'], dict)
         assert isinstance(skdict['OnsiteE'], dict)
+        assert isinstance(skdict['HubdU'], dict)
+        assert isinstance(skdict['Occu'], dict)
+
 
         assert len(skdict["Distance"]) == len(skfiles)
         assert len(skdict['Hopping']) == len(skfiles)
@@ -78,9 +83,16 @@ class TestSKParam:
             if key.split('-')[0] == key.split('-')[1]:
                 iia = key.split('-')[0]
                 assert iia in skdict['OnsiteE']
+                assert iia in skdict['HubdU']
+                assert iia in skdict['Occu']
+
                 assert isinstance(skdict['OnsiteE'][iia], torch.Tensor)
+                assert isinstance(skdict['HubdU'][iia], torch.Tensor)
+                assert isinstance(skdict['Occu'][iia], torch.Tensor)
             else:
                 assert key not in skdict['OnsiteE']
+                assert key not in skdict['HubdU']
+                assert key not in skdict['Occu']
 
             assert isinstance(skdict["Distance"][key], torch.Tensor)
             assert isinstance(skdict['Hopping'][key], torch.Tensor)
@@ -94,6 +106,8 @@ class TestSKParam:
             if key.split('-')[0] == key.split('-')[1]:
                 iia  =  key.split('-')[0]
                 assert skdict['OnsiteE'][iia].shape == torch.Size([3])
+                assert skdict['HubdU'][iia].shape == torch.Size([3])
+                assert skdict['Occu'][iia].shape == torch.Size([3])
         
         ourdir = f"{rootdir}/../dptb/tests/data/out"
         torch.save(skdict, f"{ourdir}/skdict.pth")
