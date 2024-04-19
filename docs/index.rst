@@ -34,6 +34,7 @@ These capabilities make **DeePTB** adaptable to various research scenarios, exte
    advanced/dptb_env
    advanced/soc
    advanced/nrl_tb
+   advanced/dftb
    advanced/elec_properties/index
    advanced/interface/index
    advanced/acceleration/index
