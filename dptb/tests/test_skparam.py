@@ -3,10 +3,12 @@ import torch
 from dptb.nn.dftb.sk_param import SKParam
 import os
 from pathlib import Path
+from dptb.entrypoints.collectskf import skf2pth
+import glob
 
 
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "../../examples")
-
+root_directory = os.path.join(Path(os.path.abspath(__file__)).parent, "../../")
 
 class TestSKParam:
     skdatapath = f"{rootdir}/hBN_dftb/slakos"
@@ -46,15 +48,7 @@ class TestSKParam:
         
         self.check_skdict(skparams)
 
-    def test_read_files_and_init_from_dict_pth(self):
-        skfiles ={
-            'H-H': f'{self.skdatapath}/H-H.skf',
-            'H-C': f'{self.skdatapath}/H-C.skf',
-            'C-H': f'{self.skdatapath}/C-H.skf',
-            'C-C': f'{self.skdatapath}/C-C.skf'}
-        
-        skdict = SKParam.read_skfiles(skfiles)
-
+    def check_skdict_fromfile(self, skfiles, skdict):
         assert isinstance(skdict, dict)
         assert "Distance" in skdict
         assert "Hopping" in skdict
@@ -74,7 +68,15 @@ class TestSKParam:
         assert len(skdict["Distance"]) == len(skfiles)
         assert len(skdict['Hopping']) == len(skfiles)
         assert len(skdict['Overlap']) == len(skfiles)
-        assert len(skdict['OnsiteE']) == len(skfiles)/2
+
+        ic = 0
+        for key in skfiles: 
+            if key.split('-')[0] == key.split('-')[1]:
+                ic += 1
+        assert len(skdict['OnsiteE']) == ic
+        assert len(skdict['HubdU']) == ic
+        assert len(skdict['Occu']) == ic
+
 
         for key in skfiles:
             assert key in skdict["Distance"]
@@ -100,7 +102,7 @@ class TestSKParam:
             
 
             assert len(skdict["Distance"][key].shape) == 1
-            nxx = skdict["Distance"]['C-C'].shape[0]
+            nxx = skdict["Distance"][key].shape[0]
             assert skdict['Hopping'][key].shape == skdict['Overlap'][key].shape == torch.Size([10, nxx])
 
             if key.split('-')[0] == key.split('-')[1]:
@@ -108,6 +110,17 @@ class TestSKParam:
                 assert skdict['OnsiteE'][iia].shape == torch.Size([3])
                 assert skdict['HubdU'][iia].shape == torch.Size([3])
                 assert skdict['Occu'][iia].shape == torch.Size([3])
+
+    def test_read_files_and_init_from_dict_pth(self):
+        skfiles ={
+            'H-H': f'{self.skdatapath}/H-H.skf',
+            'H-C': f'{self.skdatapath}/H-C.skf',
+            'C-H': f'{self.skdatapath}/C-H.skf',
+            'C-C': f'{self.skdatapath}/C-C.skf'}
+        
+        skdict = SKParam.read_skfiles(skfiles)
+
+        self.check_skdict_fromfile(skfiles, skdict)
         
         ourdir = f"{rootdir}/../dptb/tests/data/out"
         torch.save(skdict, f"{ourdir}/skdict.pth")
@@ -119,4 +132,24 @@ class TestSKParam:
         skparams = SKParam(basis={"C": ["2s", "2p"], "H": ["1s"]}, skdata=f"{ourdir}/skdict.pth")
         self.check_skdict(skparams)
 
+    def test_cskf_cmd(self):
+        dir_path = f"{root_directory}/examples/hBN_dftb/slakos"
+        output = f"{root_directory}/dptb/tests/data/hBN/output/skparams.pth"
 
+        skf2pth(dir_path=dir_path, output=output)
+
+        skfiles = glob.glob(f"{dir_path}/*.skf")
+        skfile_dict = {}
+        for ifile in skfiles:
+            ifile_name = ifile.split('/')[-1]
+            bond_type = ifile_name.split('.')[0]
+            skfile_dict[bond_type] = ifile
+
+        skparams = torch.load(output)
+        self.check_skdict_fromfile(skfile_dict, skparams)
+        
+        format_skparams = SKParam(basis={"C": ["2s", "2p"], "H": ["1s"]}, skdata=skparams)
+        self.check_skdict(format_skparams)
+
+        format_skparams = SKParam(basis={"C": ["2s", "2p"], "H": ["1s"]}, skdata=output)
+        self.check_skdict(format_skparams)
