@@ -9,6 +9,9 @@ from dptb.utils.loggers import set_log_handles
 from dptb.utils.argcheck import normalize_run
 from dptb.utils.tools import j_loader
 from dptb.utils.tools import j_must_have
+from dptb.postprocess.write_ham import write_ham
+import torch
+import h5py
 
 log = logging.getLogger(__name__)
 
@@ -83,3 +86,12 @@ def run(
                         emax=jdata["task_options"].get("emax", None))
         log.info(msg='band calculation successfully completed.')
 
+    elif task=='write_block':
+        task = torch.load(init_model)["task"]
+        block = write_ham(data=struct_file, AtomicData_options=jdata['AtomicData_options'], model=model, device=jdata["device"])
+        # write to h5 file, block is a dict, write to a h5 file
+        with h5py.File(os.path.join(results_path, task+".h5"), 'w') as fid:
+            default_group = fid.create_group("1")
+            for key_str, value in block.items():
+                default_group[key_str] = value.detach().cpu().numpy()
+        log.info(msg='write block successfully completed.')
