@@ -111,8 +111,8 @@ class SE2Aggregation(Aggregation):
             _description_
         """
         direct_vec = x[:, -4:]
-        x = x[:,:-4].unsqueeze(-1) * direct_vec.unsqueeze(1) # [N_env, D, 3]
-        return self.reduce(x, index, reduce="mean", dim=0) # [N_atom, D, 3] following the orders of atom index.
+        x = x[:,:-4].unsqueeze(-1) * direct_vec.unsqueeze(1) # [N_env, D, 4]
+        return self.reduce(x, index, reduce="mean", dim=0) # [N_atom, D, 4] following the orders of atom index.
 
 
 class _SE2Descriptor(MessagePassing):
@@ -127,7 +127,7 @@ class _SE2Descriptor(MessagePassing):
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"), **kwargs):
         
-        super(_SE2Descriptor, self).__init__(aggr=aggr, **kwargs)
+        super(_SE2Descriptor, self).__init__(aggr=aggr, **kwargs, flow="target_to_source")
 
         if isinstance(device, str):
             device = torch.device(device)
@@ -173,8 +173,9 @@ class _SE2Descriptor(MessagePassing):
     def message(self, env_vectors, env_attr):
         rij = env_vectors.norm(dim=-1, keepdim=True)
         snorm = self.smooth(rij, self.rs, self.rc)
-        env_vectors = torch.cat([snorm, snorm * env_vectors / rij],dim=-1) 
+        env_vectors = torch.cat([snorm, snorm * env_vectors / rij], dim=-1)
         return torch.cat([self.embedding_net(torch.cat([snorm, env_attr], dim=-1)), env_vectors], dim=-1) # [N_env, D_emb + 4]
+      
 
     def update(self, aggr_out):
         """_summary_
