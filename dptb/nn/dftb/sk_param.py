@@ -116,6 +116,8 @@ class SKParam:
         skdict['Hopping']  = {}
         skdict['Overlap']  = {}
         skdict["Distance"] = {}
+        skdict["HubdU"] = {}
+        skdict["Occu"] = {}
         for isktype in skfiletypes:
             filename = skfiles[isktype]
             log.info('Reading SlaterKoster File......')
@@ -140,11 +142,13 @@ class SKParam:
                 # Ed Ep Es, spe, Ud Up Us, Od Op Os.
                 # order from d p s -> s p d.
                 OnSiteEs = torch.tensor([float(datline[2 - ish]) for ish in range(MaxShells)])
-                # HubdU[atomtypes[0]] = np.array([float(datline[6 - ish]) for ish in range(MaxShells)])
-                # Occu[atomtypes[0]]  = np.array([float(datline[9 - ish]) for ish in range(MaxShells)])
+                HubdU = torch.tensor([float(datline[6 - ish]) for ish in range(MaxShells)])
+                Occu  = torch.tensor([float(datline[9 - ish]) for ish in range(MaxShells)])
 
                 skdict["OnsiteE"][atomtypes[0]] = OnSiteEs *  13.605662285137 * 2
-
+                skdict["HubdU"][atomtypes[0]] = HubdU *  13.605662285137 * 2
+                skdict["Occu"][atomtypes[0]] = Occu
+                
                 for il in range(3, 3 + ngrid):
                     datline = format_readline(data[il])
                     HSvals[il - 3] = torch.tensor([float(val) for val in datline[0:2 * NumHvals]])

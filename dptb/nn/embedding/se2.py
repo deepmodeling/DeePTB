@@ -111,8 +111,8 @@ class SE2Aggregation(Aggregation):
             _description_
         """
         direct_vec = x[:, -4:]
-        x = x[:,:-4].unsqueeze(-1) * direct_vec.unsqueeze(1) # [N_env, D, 3]
-        return self.reduce(x, index, reduce="mean", dim=0) # [N_atom, D, 3] following the orders of atom index.
+        x = x[:,:-4].unsqueeze(-1) * direct_vec.unsqueeze(1) # [N_env, D, 4]
+        return self.reduce(x, index, reduce="mean", dim=0) # [N_atom, D, 4] following the orders of atom index.
 
 
 class _SE2Descriptor(MessagePassing):
@@ -174,7 +174,8 @@ class _SE2Descriptor(MessagePassing):
         rij = env_vectors.norm(dim=-1, keepdim=True)
         snorm = self.smooth(rij, self.rs, self.rc)
         env_vectors = torch.cat([snorm, snorm * env_vectors / rij], dim=-1)
-        return torch.cat([self.embedding_net(torch.cat([snorm, env_attr], dim=-1)), env_vectors], dim=-1) # [N_env, D_emb + 3]
+        return torch.cat([self.embedding_net(torch.cat([snorm, env_attr], dim=-1)), env_vectors], dim=-1) # [N_env, D_emb + 4]
+      
 
     def update(self, aggr_out):
         """_summary_
@@ -190,7 +191,7 @@ class _SE2Descriptor(MessagePassing):
         """
         out = torch.bmm(aggr_out, aggr_out.transpose(1, 2))[:,:,:self.n_axis].flatten(start_dim=1, end_dim=2)
         out = out - out.mean(1, keepdim=True)
-        out = out / out.norm(dim=1, keepdim=True)
+        out = out / (out.norm(dim=1, keepdim=True))
         return out # [N, D*D]
     
     def edge_update(self, edge_index, node_descriptor, edge_length):
