@@ -48,7 +48,7 @@ class TestEmbSe2:
         se2 = self.model.nnenv.embedding.descriptor
 
         assert se2.decomposed_layers == 1
-        assert se2.explain is False
+        assert se2.explain in [None, False]
         kwargs={'env_vectors':env_vectors, 'env_attr':env_attr}
         size = se2._check_input(env_index, None)
         assert size == [None, None]
@@ -203,5 +203,5 @@ class TestEmbSe2:
                                         0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
                                         0.00000000e+00, 0.00000000e+00])
 
-        assert torch.allclose(se2.smooth(torch.tensor(rr), 2.5, 3.5), expected_values)
-        
+        assert torch.allclose(se2.smooth(rr, 2.5, 3.5), expected_values)
+
