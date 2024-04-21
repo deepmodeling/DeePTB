@@ -49,7 +49,7 @@ class NEGF(object):
         
         
         # self.apiH = apiHrk
-
+        
         self.model = model      
         self.results_path = results_path
         # self.jdata = jdata
@@ -223,8 +223,8 @@ class NEGF(object):
 
     def poisson_negf_scf(self,err=1e-6,max_iter=1000,mix_rate=0.3,tolerance=1e-7):
 
-        profiler = Profiler()
-        profiler.start() 
+        
+        # profiler.start() 
         # create real-space grid
         grid = self.get_grid(self.poisson_options["grid"],self.deviceprop.structure)
         
@@ -307,10 +307,10 @@ class NEGF(object):
 
             if iter_count > max_iter:
                 log.info(msg="Warning! Poisson-NEGF iteration exceeds the upper limit of iterations {}".format(int(max_iter)))
-                profiler.stop()
-                with open('profile_report.html', 'w') as report_file:
-                    report_file.write(profiler.output_html())
-                break
+                # profiler.stop()
+                # with open('profile_report.html', 'w') as report_file:
+                #     report_file.write(profiler.output_html())
+                # break
 
         self.poisson_out = {}
         self.poisson_out['potential'] = torch.tensor(interface_poisson.phi)
@@ -325,10 +325,10 @@ class NEGF(object):
         self.negf_compute(scf_require=False,Vbias=self.potential_at_orb)
 
         # output the profile report in html format
-        if iter_count <= max_iter: 
-            profiler.stop()
-            with open('profile_report.html', 'w') as report_file:
-                report_file.write(profiler.output_html())
+        # if iter_count <= max_iter: 
+        #     profiler.stop()
+        #     with open('profile_report.html', 'w') as report_file:
+        #         report_file.write(profiler.output_html())
 
     def negf_compute(self,scf_require=False,Vbias=None):
         

@@ -525,7 +525,7 @@ def compute_edge(mat):
     """
 
     # First get some statistics
-    if isinstance(mat, scipy.sparse.lil.lil_matrix):
+    if isinstance(mat, scipy.sparse.lil_matrix):
         row, col = mat.nonzero()
     else:
         row, col = np.where(mat != 0.0)  # Output rows and columns of all non-zero elements.
