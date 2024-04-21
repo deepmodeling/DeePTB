@@ -556,7 +556,15 @@ def model_options():
         Argument("embedding", dict, optional=True, sub_fields=[], sub_variants=[embedding()], doc=doc_embedding),
         Argument("prediction", dict, optional=True, sub_fields=[], sub_variants=[prediction()], doc=doc_prediction),
         nnsk(),
+        dftbsk(),
         ], sub_variants=[], optional=True, doc=doc_model_options)
+
+def dftbsk():
+    doc_dftbsk = "The parameters to define the dftb sk model."
+
+    return Argument("dftbsk", dict, sub_fields=[
+                Argument("skdata", str, optional=False, doc="The path to the skfile or sk database."),
+                ], sub_variants=[], optional=True, doc=doc_dftbsk)
 
 def nnsk():
     doc_nnsk = "The parameters to define the nnsk model."
@@ -687,9 +695,14 @@ def loss_options():
         Argument("diff_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue difference. Default: 0.01"),
     ]
 
+    skints = [
+        Argument("skdata", str, optional=False, doc="The path to the skfile or sk database."),
+    ]
+
     loss_args = Variant("method", [
         Argument("hamil", dict, sub_fields=hamil),
         Argument("eigvals", dict, sub_fields=eigvals),
+        Argument("skints", dict, sub_fields=skints),
         Argument("hamil_abs", dict, sub_fields=hamil),
         Argument("hamil_blas", dict, sub_fields=hamil),
     ], optional=False, doc=doc_method)
@@ -996,11 +1009,20 @@ def run_options():
     doc_task = "the task to run, includes: band, dos, pdos, FS2D, FS3D, ifermi"
     doc_structure = "the structure to run the task"
     doc_gui = "To use the GUI or not"
+    doc_device = "The device to run the calculation, choose among `cpu` and `cuda[:int]`, Default: None. default None means to use the device seeting in the model ckpt file."
+    doc_dtype = """The digital number's precison, choose among: 
+                    Default: None,
+                        - `float32`: indicating torch.float32
+                        - `float64`: indicating torch.float64
+                    default None means to use the device seeting in the model ckpt file.
+                """
  
     args = [
         Argument("task_options", dict, sub_fields=[], optional=True, sub_variants=[task_options()], doc = doc_task),
         Argument("structure", [str,None], optional=True, default=None, doc = doc_structure),
         Argument("use_gui", bool, optional=True, default=False, doc = doc_gui),
+        Argument("device", [str,None], optional = True, default=None, doc = doc_device),
+        Argument("dtype", [str,None], optional = True, default=None, doc = doc_dtype),
         AtomicData_options_sub()
     ]
 
@@ -1026,6 +1048,7 @@ def task_options():
                     - `negf`: for non-equilibrium green function calculation.
                     - `tbtrans_negf`: for non-equilibrium green function calculation with tbtrans.
                 '''
+    write_block = []
 
     return Variant("task", [
             Argument("band", dict, band()),
@@ -1036,7 +1059,8 @@ def task_options():
             Argument("write_sk", dict, write_sk()),
             Argument("ifermi", dict, ifermi()),
             Argument("negf", dict, negf()),
-            Argument("tbtrans_negf", dict, tbtrans_negf())
+            Argument("tbtrans_negf", dict, tbtrans_negf()),
+            Argument("write_block", dict, write_block),
         ],optional=False, doc=doc_task)
 
 def band():

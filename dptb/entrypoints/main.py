@@ -12,6 +12,7 @@ from dptb.entrypoints.pth2json import pth2json
 from dptb.entrypoints.data import data
 from dptb.utils.loggers import set_log_handles
 from dptb.utils.config_check import check_config_train
+from dptb.entrypoints.collectskf import skf2pth
 
 def get_ll(log_level: str) -> int:
     """Convert string to python logging level.
@@ -332,6 +333,30 @@ def main_parser() -> argparse.ArgumentParser:
         help="Initialize the training from the frozen model.",
     )
 
+        # preprocess data
+    parser_cskf = subparsers.add_parser(
+        "cskf",
+        parents=[parser_log],
+        help="collect the sktb params from sk files",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser_cskf.add_argument(
+        "-d",
+        "--dir_path",
+        type=str,
+        default="./",
+        help="The directory of the sk files."
+    )
+
+    parser_cskf.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default="skparams.pth",
+        help="The output pth files of sk params from skfiles."
+    )
+
     return parser
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
@@ -389,3 +414,6 @@ def main():
 
     elif args.command == 'data':
         data(**dict_args)
+        
+    elif args.command == 'cskf':
+        skf2pth(**dict_args)

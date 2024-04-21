@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dptb"
-version = "2.0.0.b0"
+version = "2.0.1"
 license = "LGPL-3.0"
 description = "A deep learning package for emperical tight-binding approach with first-principle accuracy."
 authors = ["Q. Gu <guqq@pku.edu.cn>", "Z. Zhanghao <zhouyinzhanghao@gmail.com>"]

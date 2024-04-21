@@ -1,4 +1,5 @@
-{
+{   
+    "version":1,
     "onsite": {},
     "hopping": {
         "C-C-2s-2s-0": [

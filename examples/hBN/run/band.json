@@ -1,4 +1,5 @@
 {   
+    "structure":"./data/struct.vasp",
     "task_options": {
         "task": "band",
         "kline_type":"abacus",
@@ -8,11 +9,13 @@
             [0.3333333, 0.3333333, 0, 50],
             [0, 0, 0, 1]
         ],
-        "nkpoints":151,
+        "nel_atom":{"N":5,"B":3},
         "klabels":["G", "M", "K", "G"],
-        "E_fermi":-9.87,
-        "emin":-30,
-        "emax":5,
+        "E_fermi":-12.798759460449219,
+        "emin":-25,
+        "emax":15,
         "ref_band": "./data/kpath.0/eigenvalues.npy"
-    }
+    },
+    "AtomicData_options" : {"r_max": 5.5,"er_max": 3.5, "oer_max":1.6, "pbc": true}
+
 }

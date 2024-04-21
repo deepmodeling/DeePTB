@@ -1,0 +1,46 @@
+{
+    "common_options": {
+            "basis": {
+                "B": ["2s", "2p"],
+                "N": ["2s", "2p"]
+            },
+            "device": "cpu",
+            "dtype": "float32",
+            "overlap": true,
+            "seed": 42
+    },
+    "train_options": {
+        "num_epoch": 2,
+        "batch_size": 1,
+        "optimizer": {
+            "lr": 0.01,
+            "type": "Adam"
+        },
+        "lr_scheduler": {
+            "type": "exp",
+            "gamma": 0.999
+        },
+        "loss_options":{
+            "train": {"method": "skints", "skdata":"./examples/hBN_dftb/slakos"}
+        },
+        "save_freq": 50,
+        "validation_freq": 10,
+        "display_freq": 10
+    },
+    "model_options": {
+        "nnsk": {
+            "onsite": {"method": "uniform"},
+            "hopping": {"method": "powerlaw", "rs":4.5, "w": 0.2},
+            "soc":{},
+            "freeze": false,
+            "push":false
+        }
+    },
+    "data_options": {
+        "train": {
+            "root": "./dptb/tests/data/hBN/dataset/",
+            "prefix": "kpath",
+            "get_eigenvalues": false
+        }
+    }
+}

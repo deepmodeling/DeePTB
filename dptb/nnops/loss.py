@@ -12,6 +12,7 @@ from torch_scatter import scatter_mean
 from dptb.utils.torch_geometric import Batch
 import matplotlib.pyplot as plt
 from dptb.utils.constants import anglrMId
+from dptb.nn.dftbsk import DFTBSK
 import re
 
 """this is the register class for descriptors
@@ -31,6 +32,47 @@ class Loss:
             return Loss._register[method](**kwargs)
         else:
             raise Exception(f"Loss method: {method} is not registered!")
+
+@Loss.register("skints")
+class DFTBskLoss(nn.Module):
+    def __init__(
+                self,
+                basis: Dict[str, Union[str, list]]=None,
+                skdata: str=None,
+                overlap: bool = False,
+                dtype: Union[str, torch.dtype] = torch.float32, 
+                device: Union[str, torch.device] = torch.device("cpu"),
+                **kwargs) -> None:
+        
+        super().__init__()
+        if isinstance(dtype, str):
+            dtype = getattr(torch, dtype)
+        self.dtype = dtype
+        self.device = device
+        
+        self.loss = nn.MSELoss()
+
+        self.dftbsk = DFTBSK(basis=basis, skdata=skdata, overlap=overlap, dtype=dtype, device=device,transform=False)
+
+        self.overlap = overlap
+    
+    def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
+        total_loss = 0.
+        ref_data = AtomicData.to_AtomicDataDict(ref_data)
+        ref_data = self.dftbsk(ref_data)
+
+        # onsite loss
+        onsite_loss = mse_loss(data[AtomicDataDict.NODE_FEATURES_KEY], ref_data[AtomicDataDict.NODE_FEATURES_KEY])
+
+        # hopping loss
+        hopping_loss = mse_loss(data[AtomicDataDict.EDGE_FEATURES_KEY], ref_data[AtomicDataDict.EDGE_FEATURES_KEY])
+
+        # overlap loss
+        total_loss = onsite_loss + hopping_loss
+        if self.overlap:
+            total_loss = total_loss + mse_loss(data[AtomicDataDict.EDGE_OVERLAP_KEY], ref_data[AtomicDataDict.EDGE_OVERLAP_KEY])
+        
+        return total_loss
 
 @Loss.register("eigvals")
 class EigLoss(nn.Module):
