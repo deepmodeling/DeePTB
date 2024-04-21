@@ -46,44 +46,10 @@ class TestEmbSe2:
                 assert torch.all(env_attr[(iind == ii) * (jind == jj)] == btyatt)
     
         se2 = self.model.nnenv.embedding.descriptor
+        out_node = se2.propagate(env_index, env_vectors=env_vectors, env_attr=env_attr) # [N_atom, D, 3]
+        out_edge = se2.edge_updater(edge_index, node_descriptor=out_node, edge_length=edge_length) # [N_edge, D*D]
 
-        assert se2.decomposed_layers == 1
-        assert se2.explain in [None, False]
-        kwargs={'env_vectors':env_vectors, 'env_attr':env_attr}
-        size = se2._check_input(env_index, None)
-        assert size == [None, None]
-        coll_dict = se2._collect(se2._user_args, env_index, size,kwargs)
-        
-        for ikey in ['env_attr', 'env_vectors', 'adj_t', 
-                     'edge_index', 'edge_index_i', 'edge_index_j', 
-                     'ptr', 'index', 'size', 'size_i', 'size_j', 'dim_size']:
-
-            assert ikey in coll_dict.keys()
-        
-        assert torch.all(coll_dict['env_attr'] == torch.tensor([
-                                                [0., 1., 0., 1.],[0., 1., 0., 1.],[0., 1., 1., 0.],[0., 1., 0., 1.],[0., 1., 1., 0.],[0., 1., 1., 0.],[0., 1., 1., 0.],[0., 1., 1., 0.],[0., 1., 1., 0.],[1., 0., 1., 0.],
-                                                [1., 0., 1., 0.],[1., 0., 1., 0.],[1., 0., 1., 0.],[1., 0., 1., 0.],[1., 0., 1., 0.],[1., 0., 1., 0.],[0., 1., 0., 1.],[0., 1., 0., 1.],[1., 0., 0., 1.],[0., 1., 0., 1.],
-                                                [1., 0., 0., 1.],[1., 0., 0., 1.],[1., 0., 0., 1.],[1., 0., 0., 1.],[1., 0., 0., 1.],[1., 0., 1., 0.],[1., 0., 1., 0.],[1., 0., 1., 0.],[1., 0., 1., 0.],[1., 0., 1., 0.],
-                                                [1., 0., 1., 0.],[1., 0., 1., 0.]]))
-
-        assert torch.all(coll_dict['env_vectors'] == env_vectors)
-        assert torch.all(coll_dict['edge_index'] == env_index)
-        assert torch.all(coll_dict['edge_index_i'] == env_index[0])
-        assert torch.all(coll_dict['edge_index_j'] == env_index[1])
-        assert torch.all(coll_dict['index'] == env_index[0])
-
-        msg_kwargs = se2.inspector.distribute('message', coll_dict)
-        assert list(msg_kwargs.keys()) == ['env_vectors', 'env_attr']
-
-        assert torch.all(msg_kwargs['env_vectors'] == env_vectors)
-        assert torch.all(msg_kwargs['env_attr'] == coll_dict['env_attr'])
-
-        assert len(se2._message_forward_pre_hooks.values()) == 0
-        assert len(se2._message_forward_hooks.values()) == 0
-        assert len(se2._aggregate_forward_pre_hooks.values()) == 0
-        assert len(se2._aggregate_forward_hooks.values()) == 0
-        assert len(se2._propagate_forward_hooks.values()) == 0
-
+        index = env_index[0]
 
         inp1 = torch.tensor([[1./2,0,1,0,1]])
         inp2 = torch.tensor([[1./2,0,1,0,1]])
@@ -115,25 +81,15 @@ class TestEmbSe2:
         env_vectors_new = torch.cat([snorm, snorm * env_vectors / rij], dim=-1)
         emv_cat = torch.cat([emb_Gmat, env_vectors_new], dim=-1) # [N_env, D_emb + 4]
 
-        out = se2.message(**msg_kwargs)
-        assert torch.allclose(out, emv_cat)
+        vect = emv_cat[:,-4:]
+        emvg = emv_cat[:,:-4]
+        indx = index
+        out2 = torch.zeros(3, emvg.shape[1],vect.shape[1],dtype=torch.float32)
 
-        aggr_kwargs = se2.inspector.distribute('aggregate', coll_dict)
-        assert torch.all(aggr_kwargs['index'] == coll_dict['index'])
-
-        out2 = se2.aggregate(out, **aggr_kwargs)
-        vect = out[:,-4:]
-        emvg = out[:,:-4]
-        indx = aggr_kwargs['index']
         for i in range(3):
             re1 = emvg[indx==i].T @ vect[indx==i]/ vect[indx==i].shape[0]
-            assert torch.all(re1==out2[i])
-
-        update_kwargs = se2.inspector.distribute('update', coll_dict)
-        assert len(update_kwargs) == 0
-
-
-        out = se2.update(out2, **update_kwargs)
+            out2[i] = re1 
+        
         for ii in range(3):
             re1 = (out2[ii] @ out2[ii].T).reshape(-1)
             re1 -= re1.mean()
@@ -141,51 +97,12 @@ class TestEmbSe2:
                 assert torch.abs(re1.norm() - 0.06084440) < 1e-6
             assert re1.norm() > 1e-6    
             re1 /= re1.norm()
-            assert torch.all(out[ii] == re1)
-
-        assert len(se2._edge_update_forward_pre_hooks.values()) == 0
-        size = se2._check_input(edge_index, size=None)
-        assert size == [None, None]
+            assert torch.all(out_node[ii] == re1)
         
-        se2._edge_user_args == {'edge_length', 'node_descriptor'}
-        kwargs={'edge_length':edge_length, 'node_descriptor':out}
-        coll_dict = se2._collect(se2._edge_user_args, edge_index, size, kwargs)
-
-        for ikey in ['edge_length',
-                      'node_descriptor',
-                      'adj_t',
-                      'edge_index',
-                      'edge_index_i',
-                      'edge_index_j',
-                      'ptr',
-                      'index',
-                      'size',
-                      'size_i',
-                      'size_j',
-                      'dim_size']:
-            assert ikey in coll_dict.keys()
+        edge_out = torch.cat([out_node[edge_index[0]] + out_node[edge_index[1]], 1/edge_length.reshape(-1,1)], dim=-1) # [N_edge, D*D]
         
-        assert torch.all(coll_dict['node_descriptor'] == out)
-        assert torch.all(coll_dict['edge_length'] == edge_length)
-        assert torch.all(coll_dict['edge_index'] == edge_index)
-        assert torch.all(coll_dict['edge_index_i'] == edge_index[0])
-        assert torch.all(coll_dict['edge_index_j'] == edge_index[1])
-        assert torch.all(coll_dict['index'] == edge_index[0])
-
-        edge_kwargs = se2.inspector.distribute('edge_update', coll_dict)
-        
-        assert list(edge_kwargs.keys()) == ['edge_index', 'node_descriptor', 'edge_length']
-
-        assert torch.all(edge_kwargs['edge_index'] == edge_index)
-        assert torch.all(edge_kwargs['node_descriptor'] == out)
-        assert torch.all(edge_kwargs['edge_length'] == edge_length)
-        
-        edge_out = torch.cat([out[edge_index[0]] + out[edge_index[1]], 1/edge_length.reshape(-1,1)], dim=-1) # [N_edge, D*D]
-        
-        out = se2.edge_update(**edge_kwargs)
-
-        assert torch.all(out==edge_out)
-        assert out.shape == torch.Size([56, 101])
+        assert torch.all(out_edge==edge_out)
+        assert out_edge.shape == torch.Size([56, 101])
     
     def test_smooth(self):
         se2 = self.model.nnenv.embedding.descriptor
