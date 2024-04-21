@@ -198,10 +198,11 @@ class _SE2Descriptor(MessagePassing):
         return torch.cat([node_descriptor[edge_index[0]] + node_descriptor[edge_index[1]], 1/edge_length.reshape(-1,1)], dim=-1) # [N_edge, D*D]
     
     def smooth(self, r: torch.Tensor, rs: torch.Tensor, rc: torch.Tensor):
+        assert rs<rc, f"rs={rs} should be smaller than rc={rc}"
         r_ = torch.zeros_like(r)
         r_[r<rs] = 1/r[r<rs]
-        x = (r - rc) / (rs - rc)
+        x = (r - rs) / (rc - rs)
         mid_mask = (rs<=r) * (r < rc)
-        r_[mid_mask] = 1/r[mid_mask] * (x[mid_mask]**3 * (10 + x[mid_mask] * (-15 + 6 * x[mid_mask])) + 1)
+        r_[mid_mask] = 1/r[mid_mask] * (x[mid_mask]**3 * (-10 + x[mid_mask] * (15 - 6 * x[mid_mask])) + 1)
 
         return r_
