@@ -92,18 +92,21 @@ def recursive_gf_cal(energy, mat_l_list, mat_d_list, mat_u_list, sd, su, sl, s_i
         g_trans = gr_left[q] @ mat_u_list[q] @ g_trans
 
     # -------------------------------------------------------------------
-    # ------ compute the electron correlation function if needed --------
+    # ------ compute the electron correlation function ( Lesser Green Function ) if needed --------
     # -------------------------------------------------------------------
 
     if isinstance(s_in, list):
-
+        
         gin_left = [None for _ in range(num_of_matrices)]
+        # Keldysh formula: G^< = G^r * Sigma^< * G^a  ====> (-i * G^<) = G^r * (-i * Sigma^<) * G^a
         gin_left[0] = gr_left[0] @ s_in[0] @ gr_left[0].conj().T
 
         for q in range(num_of_matrices - 1):
-            sla2 = mat_l_list[q] @ gin_left[q] @ mat_u_list[q].conj().T
+            # sla2: coupling with the left layer 
+            # s_in[q + 1]: coupling directly with the q+1 layer from lead
+            sla2 = mat_l_list[q] @ gin_left[q] @ mat_u_list[q]
             prom = s_in[q + 1] + sla2
-            gin_left[q + 1] = gr_left[q + 1] @ prom @ gr_left[q + 1].conj().T
+            gin_left[q + 1] = gr_left[q + 1] @ prom @ gr_left[q + 1].conj().T 
 
         # ---------------------------------------------------------------
 
@@ -113,12 +116,12 @@ def recursive_gf_cal(energy, mat_l_list, mat_d_list, mat_u_list, sd, su, sl, s_i
 
         for q in range(num_of_matrices - 2, -1, -1):  # Recursive algorithm
             gnl[q] = grd[q + 1] @ mat_l_list[q] @ gin_left[q] + \
-                     gnd[q + 1] @ mat_l_list[q].conj().T @ gr_left[q].conj().T
+                     gnd[q + 1] @ mat_l_list[q] @ gr_left[q].conj().T # (B10) 
             gnd[q] = gin_left[q] + \
-                             gr_left[q] @ mat_u_list[q] @ gnd[q + 1] @ mat_l_list[q].conj().T @ \
+                             gr_left[q] @ mat_u_list[q] @ gnd[q + 1] @ mat_l_list[q] @ \
                                  gr_left[q].conj().T + \
-                             ((gin_left[q] @ mat_u_list[q].conj().T @ grl[q].conj().T) + (gru[q] @
-                                 mat_l_list[q] @ gin_left[q]))
+                             ((gin_left[q] @ mat_u_list[q] @ gru[q].conj().T) + (gru[q] @
+                                 mat_l_list[q] @ gin_left[q])) # (B11)
 
             gnu[q] = gnl[q].conj().T
 
@@ -128,12 +131,12 @@ def recursive_gf_cal(energy, mat_l_list, mat_d_list, mat_u_list, sd, su, sl, s_i
     if isinstance(s_out, list):
 
         gip_left = [None for _ in range(num_of_matrices)]
-        gip_left[0] = gr_left[0] @ s_out[0] @ gr_left[0].conj().T
+        gip_left[0] = gr_left[0] @ s_out[0] @ gr_left[0].conj()
 
         for q in range(num_of_matrices - 1):
-            sla2 = mat_l_list[q] @ gip_left[q] @ mat_u_list[q].conj().T
+            sla2 = mat_l_list[q] @ gip_left[q] @ mat_u_list[q].conj()
             prom = s_out[q + 1] + sla2
-            gip_left[q + 1] = gr_left[q + 1] @ prom @ gr_left[q + 1].conj().T
+            gip_left[q + 1] = gr_left[q + 1] @ prom @ gr_left[q + 1].conj()
 
         # ---------------------------------------------------------------
 
@@ -143,11 +146,11 @@ def recursive_gf_cal(energy, mat_l_list, mat_d_list, mat_u_list, sd, su, sl, s_i
 
         for q in range(num_of_matrices - 2, -1, -1):  # Recursive algorithm
             gpl[q] = grd[q + 1] @ mat_l_list[q] @ gip_left[q] + \
-                     gpd[q + 1] @ mat_l_list[q].conj().T @ gr_left[q].conj().T
+                     gpd[q + 1] @ mat_l_list[q].conj() @ gr_left[q].conj()
             gpd[q] = gip_left[q] + \
-                             gr_left[q] @ mat_u_list[q] @ gpd[q + 1] @ mat_l_list[q].conj().T @ \
-                                 gr_left[q].conj().T + \
-                             ((gip_left[q]@ mat_u_list[q].conj().T @ grl[q].conj().T) + (gru[q] @
+                             gr_left[q] @ mat_u_list[q] @ gpd[q + 1] @ mat_l_list[q].conj() @ \
+                                 gr_left[q].conj()+ \
+                             ((gip_left[q]@ mat_u_list[q].conj() @ grl[q].conj()) + (gru[q] @
                                 mat_l_list[q] @ gip_left[q]))
 
             gpu[0] = gpl[0].conj().T
@@ -211,7 +214,7 @@ def recursive_gf(energy, hl, hd, hu, sd, su, sl, left_se, right_se, seP=None, ch
         List of upper-diagonal blocks
     mat_l_list : list of numpy.ndarray (dtype=numpy.float)
         List of lower-diagonal blocks
-    s_in : Sigma_in contains self-energy about electron phonon scattering
+    s_in : Coupling Matrix Gamma from leads to the device
          (Default value = 0)
     s_out :
          (Default value = 0)
@@ -251,6 +254,11 @@ def recursive_gf(energy, hl, hd, hu, sd, su, sl, left_se, right_se, seP=None, ch
     shift_energy = energy + chemiPot
     # shift_energy = torch.scalar_tensor(shift_energy, dtype=torch.complex128)
 
+    # if isinstance(hd,torch.Tensor): # hd, hl, hu are torch.nested.nested_tensor
+    #     temp_mat_d_list = [hd[i] * 1. for i in range(hd.size(0))]
+    #     temp_mat_l_list = [hl[i] * 1. for i in range(hl.size(0))]
+    #     temp_mat_u_list = [hu[i] * 1. for i in range(hu.size(0))]
+    # else:
     temp_mat_d_list = [hd[i] * 1. for i in range(len(hd))]
     temp_mat_l_list = [hl[i] * 1. for i in range(len(hl))]
     temp_mat_u_list = [hu[i] * 1. for i in range(len(hu))]

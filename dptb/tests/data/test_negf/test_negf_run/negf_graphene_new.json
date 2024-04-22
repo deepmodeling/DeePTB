@@ -3,7 +3,7 @@
         {
             "task": "negf",
             "scf": false,
-            "block_tridiagonal": false,
+            "block_tridiagonal": true,
             "ele_T": 500,
             "unit": "eV",
             "scf_options":{

@@ -90,12 +90,6 @@ class NEGFHamiltonianInit(object):
         else:
             raise ValueError('structure must be ase.Atoms or str')
         
-        # sort the atoms lexicographically
-        if block_tridiagonal:
-            self.structase.positions = self.structase.positions[sort_lexico(self.structase.positions)]
-            log.info(msg="The structure is sorted lexicographically in this version!")
-
-
         self.unit = unit
         self.stru_options = stru_options
         self.pbc_negf = pbc_negf
@@ -128,6 +122,12 @@ class NEGFHamiltonianInit(object):
         for kk in self.stru_options:
             if kk.startswith("lead"):
                 self.lead_ids[kk] = [int(x) for x in self.stru_options.get(kk)["id"].split("-")]
+
+        # sort the atoms in device region lexicographically
+        if block_tridiagonal:
+            self.structase.positions[self.device_id[0]:self.device_id[1]] =\
+            self.structase.positions[self.device_id[0]:self.device_id[1]][sort_lexico(self.structase.positions[self.device_id[0]:self.device_id[1]])]
+            log.info(msg="The structure is sorted lexicographically in this version!")
 
         if self.unit == "Hartree":
             self.h_factor = 13.605662285137 * 2
@@ -205,21 +205,11 @@ class NEGFHamiltonianInit(object):
         HD, SD = HK[:,d_start:d_end, d_start:d_end], S[:, d_start:d_end, d_start:d_end]
         Hall, Sall = HK, S
         
-        if not block_tridiagnal:
-            HS_device.update({"HD":HD.cdouble()*self.h_factor, "SD":SD.cdouble()})
-            HS_device.update({"Hall":Hall.cdouble()*self.h_factor, "Sall":Sall.cdouble()})
-        else:
-            hd, hu, hl, sd, su, sl = self.get_block_tridiagonal(HD*self.h_factor, SD)
-            HS_device.update({"hd":hd, "hu":hu, "hl":hl, "sd":sd, "su":su, "sl":sl})
-
-        torch.save(HS_device, os.path.join(self.results_path, "HS_device.pth"))
-
-        
         structure_device = self.structase[device_id[0]:device_id[1]]
         structure_device.pbc = self.pbc_negf
         # structure_device = self.apiH.structure.projected_struct[self.device_id[0]:self.device_id[1]]
         
-        structure_leads = {}
+        structure_leads = {};coupling_width = {}
         for kk in self.stru_options:
             if kk.startswith("lead"):
                 HS_leads = {}
@@ -237,7 +227,11 @@ class NEGFHamiltonianInit(object):
                 # lead hamiltonian in the first principal layer(the layer close to the device)
                 HL, SL = HK[:,l_start:l_end, l_start:l_end], S[:, l_start:l_end, l_start:l_end]
                 # device and lead's hopping
-                HDL, SDL = HK[:,d_start:d_end, l_start:l_end], S[:,d_start:d_end, l_start:l_end] 
+                HDL, SDL = HK[:,d_start:d_end, l_start:l_end], S[:,d_start:d_end, l_start:l_end]
+                nonzero_indice = torch.nonzero(HDL)
+                coupling_width[kk] = max(torch.max(nonzero_indice[:,1]).item()-torch.min(nonzero_indice[:,1]).item() +1,\
+                                         torch.max(nonzero_indice[:,2]).item()-torch.min(nonzero_indice[:,2]).item() +1)
+                log.info(msg="The coupling width of {} is {}.".format(kk,coupling_width[kk]))
 
                 
                 cell = np.array(stru_lead.cell)[:2]
@@ -282,10 +276,12 @@ class NEGFHamiltonianInit(object):
                 nL = int(HK_lead.shape[1] / 2)
                 HLL, SLL = HK_lead[:, :nL, nL:], S_lead[:, :nL, nL:] # H_{L_first2L_second}
                 hL, sL = HK_lead[:,:nL,:nL], S[:,:nL,:nL] # lead hamiltonian in one principal layer
-                err_l = (HK_lead[:, :nL, :nL] - HL).abs().max()
-                if  err_l >= 1e-4: 
+                err_l = (hL - HL).abs().max()
+
+                if  err_l >= 1e-2: 
                     # check the lead hamiltonian get from device and lead calculation matches each other
                     # a standard check to see the lead environment is bulk-like or not
+                    print('err_l',err_l)
                     log.error(msg="ERROR, the lead's hamiltonian attained from diffferent methods does not match.")
                     raise RuntimeError
                 elif 1e-7 <= err_l <= 1e-4:
@@ -301,43 +297,75 @@ class NEGFHamiltonianInit(object):
                     })                
                                 
                 torch.save(HS_leads, os.path.join(self.results_path, "HS_"+kk+".pth"))
+
+        
+        if not block_tridiagnal:
+            # change HD format to ( k_index,block_index=0, orb, orb)
+            HD = torch.unsqueeze(HD,dim=1)
+            SD = torch.unsqueeze(SD,dim=1)
+            HS_device.update({"HD":HD.cdouble()*self.h_factor, "SD":SD.cdouble()})
+            HS_device.update({"Hall":Hall.cdouble()*self.h_factor, "Sall":Sall.cdouble()})
+        else:
+            leftmost_size = coupling_width['lead_L']
+            rightmost_size = coupling_width['lead_R']
+            hd, hu, hl, sd, su, sl = self.get_block_tridiagonal(HD*self.h_factor,SD.cdouble(),self.structase,\
+                                                                leftmost_size,rightmost_size)
+            HS_device.update({"hd":hd, "hu":hu, "hl":hl, "sd":sd, "su":su, "sl":sl})
+
+        torch.save(HS_device, os.path.join(self.results_path, "HS_device.pth"))
+
         torch.set_default_dtype(torch.float32)
         return structure_device, structure_leads
     
 
-    def get_block_tridiagonal(self,HK,SK):
+    def get_block_tridiagonal(self,HK,SK,structase:ase.Atoms,leftmost_size:int,rightmost_size:int):
 
+
+        # return hd in format: (k_index,block_index, orb, orb)
         hd,hu,hl,sd,su,sl = [],[],[],[],[],[]
 
-        leftmost_orb_num = 1
-        rightmost_orb_num = 1
-        subblocks = split_into_subblocks(HK[:],leftmost_orb_num,rightmost_orb_num)
-        subblocks = [0]+subblocks
-        edge1,edge2 = compute_edge(HK[:])
-
-        for id in range(len(subblocks)-1):
-            # if id== 0:
-            #     iu = id+1; il = None
-            # elif id == len(subblocks)-1:
-            #     iu = None; il = id-1
-            # else:
-            #     iu = id+1; il = id-1
-            if id < len(subblocks)-2:
-                iu = id+1
-            hd.append(HK[:,subblocks[id]:subblocks[id+1],subblocks[id]:subblocks[id+1]])
-            sd.append(SK[:,subblocks[id]:subblocks[id+1],subblocks[id]:subblocks[id+1]])
-            hu.append(HK[:,subblocks[id]:subblocks[id+1],subblocks[id+1]:subblocks[id+2]])
-            su.append(SK[:,subblocks[id]:subblocks[id+1],subblocks[id+1]:subblocks[id+2]])
-            hl.append(HK[:,subblocks[id+1]:subblocks[id+2],subblocks[id]:subblocks[id+1]])
-            sl.append(SK[:,subblocks[id+1]:subblocks[id+2],subblocks[id]:subblocks[id+1]])
-            
-            
-
-
-
+        if leftmost_size is None:
+            leftmost_atoms_index = np.where(structase.positions[:,2]==min(structase.positions[:,2]))[0]
+            leftmost_size = sum([self.h2k.atom_norbs[leftmost_atoms_index[i]] for i in range(len(leftmost_atoms_index))])
+        if rightmost_size is None:   
+            rightmost_atoms_index = np.where(structase.positions[:,2]==max(structase.positions[:,2]))[0]
+            rightmost_size = sum([self.h2k.atom_norbs[rightmost_atoms_index[i]] for i in range(len(rightmost_atoms_index))])
         
+        subblocks = split_into_subblocks_optimized(HK[0],leftmost_size,rightmost_size)
+        if subblocks[0] < leftmost_size or subblocks[-1] < rightmost_size:
+            subblocks = split_into_subblocks(HK[0],leftmost_size,rightmost_size)
+            log.info(msg="The optimized block tridiagonalization is not successful, \
+                     the original block tridiagonalization is used.")
+        subblocks = [0]+subblocks
+        
+        
+        for ik in range(HK.shape[0]):
+            hd_k,hu_k,hl_k,sd_k,su_k,sl_k = [],[],[],[],[],[]
+            counted_block = 0
+            for id in range(len(subblocks)-1):
+                counted_block+=subblocks[id]
+                d_slice = slice(counted_block,counted_block+subblocks[id+1])
+                hd_k.append(HK[ik,d_slice,d_slice])
+                sd_k.append(SK[ik,d_slice,d_slice])
+                if id < len(subblocks)-2:
+                    u_slice = slice(counted_block+subblocks[id+1],counted_block+subblocks[id+1]+subblocks[id+2])
+                    hu_k.append(HK[ik,d_slice,u_slice])
+                    su_k.append(SK[ik,d_slice,u_slice])
+                if id > 0:
+                    l_slice = slice(counted_block-subblocks[id],counted_block)
+                    hl_k.append(HK[ik,d_slice,l_slice])
+                    sl_k.append(SK[ik,d_slice,l_slice]) 
+            hd.append(hd_k);hu.append(hu_k);hl.append(hl_k)
+            sd.append(sd_k);su.append(su_k);sl.append(sl_k)
 
-
+            
+        num_diag = sum([i**2 for i in subblocks])
+        num_updiag = sum([subblocks[i]*subblocks[i+1] for i in range(len(subblocks)-1)])
+        num_lowdiag = num_updiag
+        num_total = num_diag+num_updiag+num_lowdiag
+        log.info(msg="The Hamiltonian is block tridiagonalized into {} subblocks.".format(len(hd[0])))
+        log.info(msg="   the number of elements in subblocks: {}".format(num_total))
+        log.info(msg="               occupation of subblocks: {} %".format(num_total/(HK[0].shape[0]**2)*100))     
 
         return hd, hu, hl, sd, su, sl
 
@@ -361,28 +389,43 @@ class NEGFHamiltonianInit(object):
         f = torch.load(os.path.join(self.results_path, "HS_device.pth"))
         kpoints = f["kpoints"]
 
-        ix = None
+        ik = None
         for i, k in enumerate(kpoints):
             if np.abs(np.array(k) - np.array(kpoint)).sum() < 1e-8:
-                ix = i
+                ik = i
                 break
 
-        assert ix is not None
+        assert ik is not None
 
-        if not block_tridiagonal:
-            HD, SD = f["HD"][ix], f["SD"][ix]
-        else:
-            hd, sd, hl, su, sl, hu = f["hd"][ix], f["sd"][ix], f["hl"][ix], f["su"][ix], f["sl"][ix], f["hu"][ix]
+            
         
         if block_tridiagonal:
-            return hd, sd, hl, su, sl, hu
-        else:
-            # print('HD shape:', HD.shape)
-            # print('SD shape:', SD.shape)
-            # print('V shape:', V.shape)
-            log.info(msg='Device Hamiltonian shape: {0}x{0}'.format(HD.shape[0], HD.shape[1]))
+            # hd format: ( k_index,block_index, orb, orb)
+            hd_k, sd_k, hl_k, su_k, sl_k, hu_k = f["hd"][ik], f["sd"][ik], f["hl"][ik], f["su"][ik], f["sl"][ik], f["hu"][ik]
+            # hd, sd, hl, su, sl, hu = torch.nested.nested_tensor(f["hd"][ik]), torch.nested.nested_tensor(f["sd"][ik]),\
+            #                          torch.nested.nested_tensor(f["hl"][ik]), torch.nested.nested_tensor(f["su"][ik]), \
+            #                          torch.nested.nested_tensor(f["sl"][ik]), torch.nested.nested_tensor(f["hu"][ik])
+            if V.shape == torch.Size([]):
+                allorb = sum([hd_k[i].shape[0] for i in range(len(hd_k))])
+                V = V.repeat(allorb).unsqueeze(0)
+                V = V.cdouble()
+            counted = 0
+            for i in range(len(hd_k)): # TODO: this part may have probelms when V!=0
+                l_slice = slice(counted, counted+hd_k[i].shape[0])
+                # hd_k[i] = hd_k[i] - V[l_slice]*sd_k[i] 
+                hd_k[i] = hd_k[i] - V[:,l_slice]@sd_k[i]
+                if i<len(hd_k)-1: 
+                    # hu_k[i] = hu_k[i] - V[l_slice]*su_k[i]
+                    hu_k[i] = hu_k[i] - V[:,l_slice]@su_k[i]
+                if i > 0:
+                    # hl_k[i-1] = hl_k[i-1] - V[l_slice]*sl_k[i-1]
+                    hl_k[i-1] = hl_k[i-1] - V[:,l_slice]@sl_k[i-1]
+                counted += hd_k[i].shape[0]
             
-            return [HD - V*SD], [SD], [], [], [], []
+            return hd_k , sd_k, hl_k , su_k, sl_k, hu_k
+        else:
+            HD_k, SD_k = f["HD"][ik], f["SD"][ik]
+            return HD_k - V*SD_k, SD_k, [], [], [], []
     
     def get_hs_lead(self, kpoint, tab, v):
         """get the lead Hamiltonian and overlap matrix at a specific kpoint
@@ -404,16 +447,16 @@ class NEGFHamiltonianInit(object):
         f = torch.load(os.path.join(self.results_path, "HS_{0}.pth".format(tab)))
         kpoints = f["kpoints"]
 
-        ix = None
+        ik = None
         for i, k in enumerate(kpoints):
             if np.abs(np.array(k) - np.array(kpoint)).sum() < 1e-8:
-                ix = i
+                ik = i
                 break
 
-        assert ix is not None
+        assert ik is not None
 
-        hL, hLL, hDL, sL, sLL, sDL = f["HL"][ix], f["HLL"][ix], f["HDL"][ix], \
-                         f["SL"][ix], f["SLL"][ix], f["SDL"][ix]
+        hL, hLL, hDL, sL, sLL, sDL = f["HL"][ik], f["HLL"][ik], f["HDL"][ik], \
+                         f["SL"][ik], f["SLL"][ik], f["SDL"][ik]
 
 
         return hL-v*sL, hLL-v*sLL, hDL, sL, sLL, sDL 

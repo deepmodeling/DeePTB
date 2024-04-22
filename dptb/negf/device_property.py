@@ -175,11 +175,22 @@ class DeviceProperty(object):
         # if not hasattr(self, "hd") or not hasattr(self, "sd"): 
         #maybe the reason why different kpoint has different green function
         
-        if not hasattr(self, "hd") or not hasattr(self, "sd"): 
-            self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(self.kpoint, self.V, block_tridiagonal)
-        elif self.newK_flag or self.newV_flag: # check whether kpoints or Vbias change or not
-            self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
+        # if [not hasattr(self, "hd") or not hasattr(self, "sd")]: 
+        #     if not self.block_tridiagonal:
+        #         self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(self.kpoint, self.V, block_tridiagonal)
+        #     else:
+        #         self.hd, self.sd, self.hl, self.su, self.sl, self.hu = self.hamiltonian.get_hs_device(self.kpoint, self.V, block_tridiagonal)
+        # elif [self.newK_flag or self.newV_flag]: # check whether kpoints or Vbias change or not
+        #     if not self.block_tridiagonal:
+        #         self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
+        #     else:
+        #         self.hd, self.sd, self.hl, self.su, self.sl, self.hu = self.hamiltonian.get_hs_device(self.kpoint, self.V, block_tridiagonal)
         
+        # hd in format:(block_index,orb,orb)
+        if (hasattr(self, "hd") and hasattr(self, "sd")) or (self.newK_flag or self.newV_flag):               
+            self.hd, self.sd, self.hl, self.su, self.sl, self.hu = self.hamiltonian.get_hs_device(self.kpoint, self.V, block_tridiagonal)
+
+
         s_in = [torch.zeros(i.shape).cdouble() for i in self.hd]
         
         # for i, e in tqdm(enumerate(ee), desc="Compute green functions: "):
@@ -191,6 +202,8 @@ class DeviceProperty(object):
         
         seL = self.lead_L.se
         seR = self.lead_R.se
+        # seinL = -i \Sigma_L^< = \Gamma_L f_L
+        # Fluctuation-Dissipation theorem
         seinL = 1j*(seL-seL.conj().T) * self.lead_L.fermi_dirac(energy+self.mu).reshape(-1)
         seinR = 1j*(seR-seR.conj().T) * self.lead_R.fermi_dirac(energy+self.mu).reshape(-1)
         s01, s02 = s_in[0].shape
@@ -205,8 +218,8 @@ class DeviceProperty(object):
 
         s_in[0][:idx0,:idy0] = s_in[0][:idx0,:idy0] + seinL[:idx0,:idy0]
         s_in[-1][-idx1:,-idy1:] = s_in[-1][-idx1:,-idy1:] + seinR[-idx1:,-idy1:]
-        ans = recursive_gf(energy, hl=[], hd=self.hd, hu=[],
-                            sd=self.sd, su=[], sl=[], 
+        ans = recursive_gf(energy, hl=self.hl, hd=self.hd, hu=self.hu,
+                            sd=self.sd, su=self.su, sl=self.sl, 
                             left_se=seL, right_se=seR, seP=None, s_in=s_in,
                             s_out=None, eta=eta_device, chemiPot=self.mu)
         s_in[0][:idx0,:idy0] = s_in[0][:idx0,:idy0] - seinL[:idx0,:idy0]

@@ -55,6 +55,7 @@ class NEGF(object):
         # self.jdata = jdata
         self.cdtype = torch.complex128
         self.torch_device = torch_device
+        self.overlap = overlap
         
         # get the parameters
         self.ele_T = ele_T
@@ -480,14 +481,14 @@ class NEGF(object):
                                     getattr(self.deviceprop, ll).self_energy(
                                         energy=e, 
                                         kpoint=k, 
-                                        eta_lead=self.jdata["eta_lead"],
-                                        method=self.jdata["sgf_solver"]
+                                        eta_lead=self.eta_lead,
+                                        method=self.sgf_solver
                                         )
                                     
                             self.deviceprop.cal_green_function(
                                 energy=e,
                                 kpoint=k, 
-                                eta_device=self.jdata["eta_device"], 
+                                eta_device=self.eta_device, 
                                 block_tridiagonal=self.block_tridiagonal
                                 )
                             

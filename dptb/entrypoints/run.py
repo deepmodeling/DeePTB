@@ -11,7 +11,7 @@ from dptb.utils.tools import j_loader
 from dptb.utils.tools import j_must_have
 from dptb.postprocess.NEGF import NEGF
 from dptb.postprocess.tbtrans_init import TBTransInputSet,sisl_installed
-
+from pyinstrument import Profiler
 
 log = logging.getLogger(__name__)
 
@@ -87,6 +87,9 @@ def run(
         log.info(msg='band calculation successfully completed.')
 
     if task=='negf':
+        
+        profiler = Profiler()
+        profiler.start()
         negf = NEGF(
             model=model,
             AtomicData_options=jdata['AtomicData_options'],
@@ -97,6 +100,9 @@ def run(
    
         negf.compute()
         log.info(msg='negf calculation successfully completed.')
+        profiler.stop()
+        with open(results_path+'/profile_report.html', 'w') as report_file:
+            report_file.write(profiler.output_html())
 
     if task == 'tbtrans_negf':
         if not(sisl_installed):
