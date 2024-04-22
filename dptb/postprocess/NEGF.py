@@ -21,7 +21,7 @@ from dptb.utils.make_kpoints import kmesh_sampling_negf
 import logging
 from dptb.negf.poisson_init import Grid,Interface3D,Gate,Dielectric
 from typing import Optional, Union
-from pyinstrument import Profiler
+# from pyinstrument import Profiler
 from dptb.data import AtomicData, AtomicDataDict
 
 log = logging.getLogger(__name__)
@@ -105,6 +105,7 @@ class NEGF(object):
                                                     stru_options=self.stru_options,
                                                     unit = self.unit, 
                                                     results_path=self.results_path,
+                                                    overlap = self.overlap,
                                                     torch_device = self.torch_device)
         with torch.no_grad():
             struct_device, struct_leads = self.negf_hamiltonian.initialize(kpoints=self.kpoints,

@@ -11,7 +11,7 @@ from dptb.utils.tools import j_loader
 from dptb.utils.tools import j_must_have
 from dptb.postprocess.NEGF import NEGF
 from dptb.postprocess.tbtrans_init import TBTransInputSet,sisl_installed
-from pyinstrument import Profiler
+
 from dptb.postprocess.write_ham import write_ham
 import torch
 import h5py
@@ -91,8 +91,14 @@ def run(
 
     elif task=='negf':
         
-        profiler = Profiler()
-        profiler.start()
+        try:
+            from pyinstrument import Profiler
+            profiler = Profiler()
+            profiler.start()
+            profiler_start = True
+        except ImportWarning:
+            log.warning(msg="pyinstrument is not installed, no profiling will be done.")
+            profiler_start = False
         negf = NEGF(
             model=model,
             AtomicData_options=jdata['AtomicData_options'],
@@ -103,9 +109,10 @@ def run(
    
         negf.compute()
         log.info(msg='negf calculation successfully completed.')
-        profiler.stop()
-        with open(results_path+'/profile_report.html', 'w') as report_file:
-            report_file.write(profiler.output_html())
+        if profiler_start:
+            profiler.stop()
+            with open(results_path+'/profile_report.html', 'w') as report_file:
+                report_file.write(profiler.output_html())
 
     elif task == 'tbtrans_negf':
         if not(sisl_installed):
