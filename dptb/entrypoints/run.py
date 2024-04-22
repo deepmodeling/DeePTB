@@ -12,6 +12,9 @@ from dptb.utils.tools import j_must_have
 from dptb.postprocess.NEGF import NEGF
 from dptb.postprocess.tbtrans_init import TBTransInputSet,sisl_installed
 from pyinstrument import Profiler
+from dptb.postprocess.write_ham import write_ham
+import torch
+import h5py
 
 log = logging.getLogger(__name__)
 
@@ -86,7 +89,7 @@ def run(
                         emax=jdata["task_options"].get("emax", None))
         log.info(msg='band calculation successfully completed.')
 
-    if task=='negf':
+    elif task=='negf':
         
         profiler = Profiler()
         profiler.start()
@@ -104,7 +107,7 @@ def run(
         with open(results_path+'/profile_report.html', 'w') as report_file:
             report_file.write(profiler.output_html())
 
-    if task == 'tbtrans_negf':
+    elif task == 'tbtrans_negf':
         if not(sisl_installed):
             log.error(msg="sisl is required to perform tbtrans calculation !")
             raise RuntimeError
@@ -118,3 +121,13 @@ def run(
             **task_options)
         tbtrans_init.hamil_get_write(write_nc=True)
         log.info(msg='TBtrans input files are successfully generated.')
+    
+    elif task=='write_block':
+        task = torch.load(init_model)["task"]
+        block = write_ham(data=struct_file, AtomicData_options=jdata['AtomicData_options'], model=model, device=jdata["device"])
+        # write to h5 file, block is a dict, write to a h5 file
+        with h5py.File(os.path.join(results_path, task+".h5"), 'w') as fid:
+            default_group = fid.create_group("1")
+            for key_str, value in block.items():
+                default_group[key_str] = value.detach().cpu().numpy()
+        log.info(msg='write block successfully completed.')

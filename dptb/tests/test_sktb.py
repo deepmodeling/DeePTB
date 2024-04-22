@@ -247,3 +247,42 @@ def test_soc_from_nonsoc_v2json_fz_fail(root_directory):
             output=output+"/test_nsoc_v2jsonfz_all", log_level=5, log_path=output+"/test_nsoc_v2jsonfz_all.log")
 
 
+@pytest.mark.order(1)
+def test_dftbsk_mixed(root_directory):
+    INPUT_file =root_directory + "/dptb/tests/data/hBN/input/input_mix_dftbsk.json"
+    output = root_directory + "/dptb/tests/data/hBN/output"
+    init_model = None
+    
+    check_config_train(INPUT=INPUT_file, init_model=init_model, restart=None)
+    train(INPUT=INPUT_file, init_model=init_model, restart=None,\
+            output=output+"/test_dftbsk_mixed", log_level=5, log_path=output+"/test_dftbsk_mixed.log")
+
+@pytest.mark.order(2)
+def test_dftbsk_mixed_init(root_directory):
+    INPUT_file =root_directory + "/dptb/tests/data/hBN/input/input_mix_dftbsk.json"
+    output = root_directory + "/dptb/tests/data/hBN/output"
+    init_model = root_directory + "/dptb/tests/data/hBN/output/test_dftbsk_mixed/checkpoint/mix.best.pth"
+    
+    check_config_train(INPUT=INPUT_file, init_model=init_model, restart=None)
+    train(INPUT=INPUT_file, init_model=init_model, restart=None,\
+            output=output+"/test_dftbsk_mixed", log_level=5, log_path=output+"/test_dftbsk_mixed.log")
+
+@pytest.mark.order(1)
+def test_nnsk_from_dftbsk(root_directory):
+    INPUT_file =root_directory + "/dptb/tests/data/hBN/input/input_nnsk_from_dftbsk.json"
+    output = root_directory + "/dptb/tests/data/hBN/output"
+    init_model = None
+    
+    check_config_train(INPUT=INPUT_file, init_model=init_model, restart=None)
+    train(INPUT=INPUT_file, init_model=init_model, restart=None,\
+            output=output+"/test_nnsk_from_dftbsk", log_level=5, log_path=output+"/test_nnsk_from_dftbsk.log")
+
+@pytest.mark.order(2)
+def test_nnsk_i(root_directory):
+    INPUT_file =root_directory + "/dptb/tests/data/hBN/input/input_nnsk_i.json"
+    output = root_directory + "/dptb/tests/data/hBN/output"
+    init_model = root_directory + "/dptb/tests/data/hBN/output/test_nnsk_from_dftbsk/checkpoint/nnsk.best.pth"
+    
+    check_config_train(INPUT=INPUT_file, init_model=init_model, restart=None)
+    train(INPUT=INPUT_file, init_model=init_model, restart=None,\
+            output=output+"/test_nnsk_i", log_level=5, log_path=output+"/test_nnsk_i.log")

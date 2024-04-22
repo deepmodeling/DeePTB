@@ -367,6 +367,7 @@ class NNSK(torch.nn.Module):
         push: Dict=None,
         freeze: Union[bool,str,list] = False,
         std: float = 0.01,
+        transform: bool = True,
         **kwargs,
         ):
         # the mapping from the parameters of the ref_model and the current model can be found using
@@ -490,6 +491,7 @@ class NNSK(torch.nn.Module):
                 v1_model=v1_model,
                 **nnsk,
                 **common_options,
+                transform=transform
             )
 
             del v1_model
@@ -505,7 +507,7 @@ class NNSK(torch.nn.Module):
                     nnsk[k] = f["config"]["model_options"]["nnsk"][k]
                     log.info(f"{k} is not provided in the input json, set to the value {nnsk[k]} in model ckpt.")
 
-            model = cls(**common_options, **nnsk)
+            model = cls(**common_options, **nnsk, transform=transform)
 
             if f["config"]["common_options"]["basis"] == common_options["basis"] and \
                 f["config"]["model_options"] == model.model_options:
@@ -526,7 +528,7 @@ class NNSK(torch.nn.Module):
                         iasym, jasym = bond.split("-")
                         for ref_forbpair in ref_idp.orbpair_maps.keys():
                             rfiorb, rfjorb = ref_forbpair.split("-")
-                            riorb, rjorb = ref_idp.full_basis_to_basis[iasym][rfiorb], ref_idp.full_basis_to_basis[jasym][rfjorb]
+                            riorb, rjorb = ref_idp.full_basis_to_basis[iasym].get(rfiorb), ref_idp.full_basis_to_basis[jasym].get(rfjorb)
                             fiorb, fjorb = idp.basis_to_full_basis[iasym].get(riorb), idp.basis_to_full_basis[jasym].get(rjorb)
                             if fiorb is not None and fjorb is not None:
                                 sli = idp.orbpair_maps.get(f"{fiorb}-{fjorb}")
@@ -545,7 +547,7 @@ class NNSK(torch.nn.Module):
                             iasym, jasym = bond.split("-")
                             for ref_forbpair in ref_idp.orbpair_maps.keys():
                                 rfiorb, rfjorb = ref_forbpair.split("-")
-                                riorb, rjorb = ref_idp.full_basis_to_basis[iasym][rfiorb], ref_idp.full_basis_to_basis[jasym][rfjorb]
+                                riorb, rjorb = ref_idp.full_basis_to_basis[iasym].get(rfiorb), ref_idp.full_basis_to_basis[jasym].get(rfjorb)
                                 fiorb, fjorb = idp.basis_to_full_basis[iasym].get(riorb), idp.basis_to_full_basis[jasym].get(rjorb)
                                 if fiorb is not None and fjorb is not None:
                                     sli = idp.orbpair_maps.get(f"{fiorb}-{fjorb}")
@@ -564,7 +566,7 @@ class NNSK(torch.nn.Module):
                     for asym in ref_idp.type_names:
                         if asym in idp.type_names:
                             for ref_forb in ref_idp.skonsite_maps.keys():
-                                rorb = ref_idp.full_basis_to_basis[asym][ref_forb]
+                                rorb = ref_idp.full_basis_to_basis[asym].get(ref_forb)
                                 forb = idp.basis_to_full_basis[asym].get(rorb)
                                 if forb is not None:
                                     model.onsite_param.data[idp.chemical_symbol_to_type[asym],idp.skonsite_maps[forb]] = \
@@ -577,7 +579,7 @@ class NNSK(torch.nn.Module):
                     for asym in ref_idp.type_names:
                         if asym in idp.type_names:
                             for ref_forb in ref_idp.sksoc_maps.keys():
-                                rorb = ref_idp.full_basis_to_basis[asym][ref_forb]
+                                rorb = ref_idp.full_basis_to_basis[asym].get(ref_forb)
                                 forb = idp.basis_to_full_basis[asym].get(rorb)
                                 if forb is not None:
                                     model.soc_param.data[idp.chemical_symbol_to_type[asym],idp.sksoc_maps[forb]] = \
@@ -590,7 +592,7 @@ class NNSK(torch.nn.Module):
                             iasym, jasym = bond.split("-")
                             for ref_forbpair in ref_idp.orbpair_maps.keys():
                                 rfiorb, rfjorb = ref_forbpair.split("-")
-                                riorb, rjorb = ref_idp.full_basis_to_basis[iasym][rfiorb], ref_idp.full_basis_to_basis[jasym][rfjorb]
+                                riorb, rjorb = ref_idp.full_basis_to_basis[iasym].get(rfiorb), ref_idp.full_basis_to_basis[jasym].get(rfjorb)
                                 fiorb, fjorb = idp.basis_to_full_basis[iasym].get(riorb), idp.basis_to_full_basis[jasym].get(rjorb)
                                 if fiorb is not None and fjorb is not None:
                                     sli = idp.orbpair_maps.get(f"{fiorb}-{fjorb}")
@@ -623,6 +625,7 @@ class NNSK(torch.nn.Module):
         std: float = 0.01,
         freeze: Union[bool,str,list] = False,
         push: Union[bool,None,dict] = False,
+        transform: bool = True,
         **kwargs
         ):
         # could support json file and .pth file checkpoint of nnsk

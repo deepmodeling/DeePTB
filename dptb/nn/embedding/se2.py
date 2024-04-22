@@ -110,9 +110,9 @@ class SE2Aggregation(Aggregation):
         _type_
             _description_
         """
-        direct_vec = x[:, -3:]
-        x = x[:,:-3].unsqueeze(-1) * direct_vec.unsqueeze(1) # [N_env, D, 3]
-        return self.reduce(x, index, reduce="mean", dim=0) # [N_atom, D, 3] following the orders of atom index.
+        direct_vec = x[:, -4:]
+        x = x[:,:-4].unsqueeze(-1) * direct_vec.unsqueeze(1) # [N_env, D, 4]
+        return self.reduce(x, index, reduce="mean", dim=0) # [N_atom, D, 4] following the orders of atom index.
 
 
 class _SE2Descriptor(MessagePassing):
@@ -127,7 +127,7 @@ class _SE2Descriptor(MessagePassing):
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"), **kwargs):
         
-        super(_SE2Descriptor, self).__init__(aggr=aggr, **kwargs)
+        super(_SE2Descriptor, self).__init__(aggr=aggr, **kwargs, flow="target_to_source")
 
         if isinstance(device, str):
             device = torch.device(device)
@@ -173,8 +173,9 @@ class _SE2Descriptor(MessagePassing):
     def message(self, env_vectors, env_attr):
         rij = env_vectors.norm(dim=-1, keepdim=True)
         snorm = self.smooth(rij, self.rs, self.rc)
-        env_vectors = snorm * env_vectors / rij
-        return torch.cat([self.embedding_net(torch.cat([snorm, env_attr], dim=-1)), env_vectors], dim=-1) # [N_env, D_emb + 3]
+        env_vectors = torch.cat([snorm, snorm * env_vectors / rij], dim=-1)
+        return torch.cat([self.embedding_net(torch.cat([snorm, env_attr], dim=-1)), env_vectors], dim=-1) # [N_env, D_emb + 4]
+      
 
     def update(self, aggr_out):
         """_summary_
@@ -190,17 +191,18 @@ class _SE2Descriptor(MessagePassing):
         """
         out = torch.bmm(aggr_out, aggr_out.transpose(1, 2))[:,:,:self.n_axis].flatten(start_dim=1, end_dim=2)
         out = out - out.mean(1, keepdim=True)
-        out = out / out.norm(dim=1, keepdim=True)
+        out = out / (out.norm(dim=1, keepdim=True))
         return out # [N, D*D]
     
     def edge_update(self, edge_index, node_descriptor, edge_length):
         return torch.cat([node_descriptor[edge_index[0]] + node_descriptor[edge_index[1]], 1/edge_length.reshape(-1,1)], dim=-1) # [N_edge, D*D]
     
     def smooth(self, r: torch.Tensor, rs: torch.Tensor, rc: torch.Tensor):
+        assert rs<rc, f"rs={rs} should be smaller than rc={rc}"
         r_ = torch.zeros_like(r)
         r_[r<rs] = 1/r[r<rs]
-        x = (r - rc) / (rs - rc)
+        x = (r - rs) / (rc - rs)
         mid_mask = (rs<=r) * (r < rc)
-        r_[mid_mask] = 1/r[mid_mask] * (x[mid_mask]**3 * (10 + x[mid_mask] * (-15 + 6 * x[mid_mask])) + 1)
+        r_[mid_mask] = 1/r[mid_mask] * (x[mid_mask]**3 * (-10 + x[mid_mask] * (15 - 6 * x[mid_mask])) + 1)
 
         return r_
