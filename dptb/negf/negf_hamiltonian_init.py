@@ -67,7 +67,6 @@ class NEGFHamiltonianInit(object):
                  stru_options:dict, 
                  unit: str,
                  results_path:Optional[str]=None,
-                 overlap: bool=False,
                  torch_device: Union[str, torch.device]=torch.device('cpu')
                  ) -> None:
         
@@ -95,7 +94,6 @@ class NEGFHamiltonianInit(object):
         self.pbc_negf = pbc_negf
         assert len(self.pbc_negf) == 3
         self.results_path = results_path
-        self.overlap = overlap
 
         self.h2k = HR2HK(
             idp=model.idp, 
@@ -106,16 +104,16 @@ class NEGFHamiltonianInit(object):
             device=self.torch_device,
             )
 
-        if overlap:
-            self.s2k = HR2HK(
-                idp=model.idp, 
-                overlap=True, 
-                edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, 
-                node_field=AtomicDataDict.NODE_OVERLAP_KEY, 
-                out_field=AtomicDataDict.OVERLAP_KEY, 
-                dtype=model.dtype, 
-                device=self.torch_device,
-                )   
+        # if overlap:
+        #     self.s2k = HR2HK(
+        #         idp=model.idp, 
+        #         overlap=True, 
+        #         edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, 
+        #         node_field=AtomicDataDict.NODE_OVERLAP_KEY, 
+        #         out_field=AtomicDataDict.OVERLAP_KEY, 
+        #         dtype=model.dtype, 
+        #         device=self.torch_device,
+        #         )   
         
         self.device_id = [int(x) for x in self.stru_options['device']["id"].split("-")]
         self.lead_ids = {}
@@ -183,19 +181,28 @@ class NEGFHamiltonianInit(object):
         self.alldata = self.model.idp(alldata)
         self.alldata[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(HS_device["kpoints"], dtype=self.model.dtype, device=self.torch_device)        
         self.alldata = self.model(self.alldata)
-        # remove the edges corresponding to z-direction pbc for HR2HK
-        # for ip,p in enumerate(self.pbc_negf):
-        #     if not p:
-        #         mask = self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY][:,ip] == 0
-        #         self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY] = self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY][mask]
-        #         self.alldata[AtomicDataDict.EDGE_INDEX_KEY] = self.alldata[AtomicDataDict.EDGE_INDEX_KEY][:,mask]
-        #         self.alldata[AtomicDataDict.EDGE_FEATURES_KEY] = self.alldata[AtomicDataDict.EDGE_FEATURES_KEY][mask]
-        #         if self.overlap:
-        #             self.alldata[AtomicDataDict.EDGE_OVERLAP_KEY] = self.alldata[AtomicDataDict.EDGE_OVERLAP_KEY][mask]
-        self.remove_bonds_nonpbc(self.alldata,self.pbc_negf)
-                
+        
+        if self.alldata.get(AtomicDataDict.EDGE_OVERLAP_KEY,None) is not None:
+            self.overlap = True
+            self.s2k = HR2HK(
+                idp=self.model.idp, 
+                overlap=True, 
+                edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, 
+                node_field=AtomicDataDict.NODE_OVERLAP_KEY, 
+                out_field=AtomicDataDict.OVERLAP_KEY, 
+                dtype=self.model.dtype, 
+                device=self.torch_device,
+                )
+        else: 
+            self.overlap = False   
+
+
+
+        self.remove_bonds_nonpbc(self.alldata,self.pbc_negf)  
         self.alldata = self.h2k(self.alldata)
         HK = self.alldata[AtomicDataDict.HAMILTONIAN_KEY]
+
+
         if self.overlap: 
             self.alldata = self.s2k(self.alldata)
             SK = self.alldata[AtomicDataDict.OVERLAP_KEY]
@@ -210,8 +217,7 @@ class NEGFHamiltonianInit(object):
         
         structure_device = self.structase[device_id[0]:device_id[1]]
         structure_device.pbc = self.pbc_negf
-        # structure_device = self.apiH.structure.projected_struct[self.device_id[0]:self.device_id[1]]
-        
+                
         structure_leads = {};coupling_width = {}
         for kk in self.stru_options:
             if kk.startswith("lead"):
@@ -244,7 +250,7 @@ class NEGFHamiltonianInit(object):
                 lead_data = AtomicData.to_AtomicDataDict(lead_data.to(self.torch_device))
                 lead_data = self.model.idp(lead_data)
                 lead_data[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(HS_leads["kpoints"], dtype=self.model.dtype, device=self.torch_device)
-                lead_data = self.model(lead_data)
+                lead_data = self.model(lead_data)               
                 # remove the edges corresponding to z-direction pbc for HR2HK
                 # for ip,p in enumerate(self.pbc_negf):
                 #     if not p:
@@ -266,11 +272,11 @@ class NEGFHamiltonianInit(object):
 
                 nL = int(HK_lead.shape[1] / 2)
                 HLL, SLL = HK_lead[:, :nL, nL:], S_lead[:, :nL, nL:] # H_{L_first2L_second}
-                hL, sL = HK_lead[:,:nL,:nL], SK[:,:nL,:nL] # lead hamiltonian in one principal layer
+                hL, sL = HK_lead[:,:nL,:nL], S_lead[:,:nL,:nL] # lead hamiltonian in one principal layer
                 err_l_HK = (hL - HL).abs().max()
                 err_l_SK = (sL - SL).abs().max()
 
-                if  max(err_l_HK,err_l_SK) >= 1e-2: 
+                if  max(err_l_HK,err_l_SK) >= 1e-4: 
                     # check the lead hamiltonian get from device and lead calculation matches each other
                     # a standard check to see the lead environment is bulk-like or not
                     log.info(msg="The lead's hamiltonian or overlap attained from device and lead calculation does not match. \
@@ -424,9 +430,7 @@ class NEGFHamiltonianInit(object):
         if block_tridiagonal:
             # hd format: ( k_index,block_index, orb, orb)
             hd_k, sd_k, hl_k, su_k, sl_k, hu_k = f["hd"][ik], f["sd"][ik], f["hl"][ik], f["su"][ik], f["sl"][ik], f["hu"][ik]
-            # hd, sd, hl, su, sl, hu = torch.nested.nested_tensor(f["hd"][ik]), torch.nested.nested_tensor(f["sd"][ik]),\
-            #                          torch.nested.nested_tensor(f["hl"][ik]), torch.nested.nested_tensor(f["su"][ik]), \
-            #                          torch.nested.nested_tensor(f["sl"][ik]), torch.nested.nested_tensor(f["hu"][ik])
+
             if V.shape == torch.Size([]):
                 allorb = sum([hd_k[i].shape[0] for i in range(len(hd_k))])
                 V = V.repeat(allorb).unsqueeze(0)
@@ -434,7 +438,6 @@ class NEGFHamiltonianInit(object):
             counted = 0
             for i in range(len(hd_k)): # TODO: this part may have probelms when V!=0
                 l_slice = slice(counted, counted+hd_k[i].shape[0])
-                # hd_k[i] = hd_k[i] - V[l_slice]*sd_k[i] 
                 hd_k[i] = hd_k[i] - V[:,l_slice]@sd_k[i]
                 if i<len(hd_k)-1: 
                     # hu_k[i] = hu_k[i] - V[l_slice]*su_k[i]

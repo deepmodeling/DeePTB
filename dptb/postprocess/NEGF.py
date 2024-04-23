@@ -220,8 +220,7 @@ class NEGF(object):
             self.poisson_negf_scf(err=self.poisson_options['err'],tolerance=self.poisson_options['tolerance'],\
                                   max_iter=self.poisson_options['max_iter'],mix_rate=self.poisson_options['mix_rate'])
         else:
-            potential_add = None
-            self.negf_compute(scf_require=False,Vbias=potential_add)
+            self.negf_compute(scf_require=False,Vbias=None)
 
     def poisson_negf_scf(self,err=1e-6,max_iter=1000,mix_rate=0.3,tolerance=1e-7):
 
@@ -342,18 +341,6 @@ class NEGF(object):
     
         for ik, k in enumerate(self.kpoints):
 
-
-            #  output kpoints information
-            # if ik == 0:
-            #     log.info(msg="------ k-point for NEGF -----")
-            #     log.info(msg="Gamma Center: {0}".format(self.jdata["stru_options"]["gamma_center"]))
-            #     log.info(msg="Time Reversal: {0}".format(self.jdata["stru_options"]["time_reversal_symmetry"]))
-            #     log.info(msg="k-points Num: {0}".format(len(self.kpoints)))
-            #     if len(self.wk)<10:
-            #         log.info(msg="k-points: {0}".format(self.kpoints))
-            #         log.info(msg="k-points weights: {0}".format(self.wk))
-            #     log.info(msg="--------------------------------")
-
             self.out['k'].append(k)
             self.out['wk'].append(self.wk[ik])
             self.free_charge.update({str(k):torch.zeros_like(torch.tensor(self.device_atom_norbs),dtype=torch.complex128)})
@@ -391,8 +378,7 @@ class NEGF(object):
 
             # in non-scf case, computing properties in uni_gird
             else:
-                if hasattr(self, "uni_grid"):
-                    # dE = abs(self.uni_grid[1] - self.uni_grid[0])                       
+                if hasattr(self, "uni_grid"):                     
                     output_freq = int(len(self.uni_grid)/10)
 
                     for ie, e in enumerate(self.uni_grid):
