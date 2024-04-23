@@ -190,6 +190,8 @@ class NEGFHamiltonianInit(object):
                 self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY] = self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY][mask]
                 self.alldata[AtomicDataDict.EDGE_INDEX_KEY] = self.alldata[AtomicDataDict.EDGE_INDEX_KEY][:,mask]
                 self.alldata[AtomicDataDict.EDGE_FEATURES_KEY] = self.alldata[AtomicDataDict.EDGE_FEATURES_KEY][mask]
+                if self.overlap:
+                    self.alldata[AtomicDataDict.EDGE_OVERLAP_KEY] = self.alldata[AtomicDataDict.EDGE_OVERLAP_KEY][mask]
                 
         self.alldata = self.h2k(self.alldata)
         HK = self.alldata[AtomicDataDict.HAMILTONIAN_KEY]
@@ -263,6 +265,8 @@ class NEGFHamiltonianInit(object):
                         lead_data[AtomicDataDict.EDGE_CELL_SHIFT_KEY] = lead_data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][mask]
                         lead_data[AtomicDataDict.EDGE_INDEX_KEY] = lead_data[AtomicDataDict.EDGE_INDEX_KEY][:,mask]
                         lead_data[AtomicDataDict.EDGE_FEATURES_KEY] = lead_data[AtomicDataDict.EDGE_FEATURES_KEY][mask]
+                        if self.overlap:
+                            lead_data[AtomicDataDict.EDGE_OVERLAP_KEY] = lead_data[AtomicDataDict.EDGE_OVERLAP_KEY][mask]
 
                 lead_data = self.h2k(lead_data)
                 HK_lead = lead_data[AtomicDataDict.HAMILTONIAN_KEY]
@@ -278,7 +282,7 @@ class NEGFHamiltonianInit(object):
                 hL, sL = HK_lead[:,:nL,:nL], S[:,:nL,:nL] # lead hamiltonian in one principal layer
                 err_l = (hL - HL).abs().max()
 
-                if  err_l >= 1e-2: 
+                if  err_l >= 1e-4: 
                     # check the lead hamiltonian get from device and lead calculation matches each other
                     # a standard check to see the lead environment is bulk-like or not
                     print('err_l',err_l)

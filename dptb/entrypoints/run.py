@@ -15,6 +15,7 @@ from dptb.postprocess.tbtrans_init import TBTransInputSet,sisl_installed
 from dptb.postprocess.write_ham import write_ham
 import torch
 import h5py
+import pytest
 
 log = logging.getLogger(__name__)
 
@@ -90,15 +91,16 @@ def run(
         log.info(msg='band calculation successfully completed.')
 
     elif task=='negf':
+
+        # try:
+        #     from pyinstrument import Profiler
+        # except ImportWarning:
+        #     log.warning(msg="pyinstrument is not installed, no profiling will be done.")
+        #     Profiler = None
+        # if Profiler is not None:
+        #     profiler = Profiler()
+        #     profiler.start()
         
-        try:
-            from pyinstrument import Profiler
-            profiler = Profiler()
-            profiler.start()
-            profiler_start = True
-        except ImportWarning:
-            log.warning(msg="pyinstrument is not installed, no profiling will be done.")
-            profiler_start = False
         negf = NEGF(
             model=model,
             AtomicData_options=jdata['AtomicData_options'],
@@ -109,10 +111,11 @@ def run(
    
         negf.compute()
         log.info(msg='negf calculation successfully completed.')
-        if profiler_start:
-            profiler.stop()
-            with open(results_path+'/profile_report.html', 'w') as report_file:
-                report_file.write(profiler.output_html())
+
+        # if Profiler is not None:
+        #     profiler.stop()
+        #     with open(results_path+'/profile_report.html', 'w') as report_file:
+        #         report_file.write(profiler.output_html())
 
     elif task == 'tbtrans_negf':
         if not(sisl_installed):
