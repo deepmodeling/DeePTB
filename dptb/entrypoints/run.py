@@ -15,7 +15,7 @@ from dptb.postprocess.tbtrans_init import TBTransInputSet,sisl_installed
 from dptb.postprocess.write_ham import write_ham
 import torch
 import h5py
-import pytest
+
 
 log = logging.getLogger(__name__)
 

@@ -184,28 +184,29 @@ class NEGFHamiltonianInit(object):
         self.alldata[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(HS_device["kpoints"], dtype=self.model.dtype, device=self.torch_device)        
         self.alldata = self.model(self.alldata)
         # remove the edges corresponding to z-direction pbc for HR2HK
-        for ip,p in enumerate(self.pbc_negf):
-            if not p:
-                mask = self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY][:,ip] == 0
-                self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY] = self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY][mask]
-                self.alldata[AtomicDataDict.EDGE_INDEX_KEY] = self.alldata[AtomicDataDict.EDGE_INDEX_KEY][:,mask]
-                self.alldata[AtomicDataDict.EDGE_FEATURES_KEY] = self.alldata[AtomicDataDict.EDGE_FEATURES_KEY][mask]
-                if self.overlap:
-                    self.alldata[AtomicDataDict.EDGE_OVERLAP_KEY] = self.alldata[AtomicDataDict.EDGE_OVERLAP_KEY][mask]
+        # for ip,p in enumerate(self.pbc_negf):
+        #     if not p:
+        #         mask = self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY][:,ip] == 0
+        #         self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY] = self.alldata[AtomicDataDict.EDGE_CELL_SHIFT_KEY][mask]
+        #         self.alldata[AtomicDataDict.EDGE_INDEX_KEY] = self.alldata[AtomicDataDict.EDGE_INDEX_KEY][:,mask]
+        #         self.alldata[AtomicDataDict.EDGE_FEATURES_KEY] = self.alldata[AtomicDataDict.EDGE_FEATURES_KEY][mask]
+        #         if self.overlap:
+        #             self.alldata[AtomicDataDict.EDGE_OVERLAP_KEY] = self.alldata[AtomicDataDict.EDGE_OVERLAP_KEY][mask]
+        self.remove_bonds_nonpbc(self.alldata,self.pbc_negf)
                 
         self.alldata = self.h2k(self.alldata)
         HK = self.alldata[AtomicDataDict.HAMILTONIAN_KEY]
         if self.overlap: 
             self.alldata = self.s2k(self.alldata)
-            S = self.alldata[AtomicDataDict.OVERLAP_KEY]
+            SK = self.alldata[AtomicDataDict.OVERLAP_KEY]
         else:
-            S = torch.eye(HK.shape[1], dtype=self.model.dtype, device=self.torch_device).unsqueeze(0).repeat(HK.shape[0], 1, 1)          
+            SK = torch.eye(HK.shape[1], dtype=self.model.dtype, device=self.torch_device).unsqueeze(0).repeat(HK.shape[0], 1, 1)          
       
         # H, S = self.apiH.get_HK(kpoints=kpoints)
         d_start = int(np.sum(self.h2k.atom_norbs[:device_id[0]]))
         d_end = int(np.sum(self.h2k.atom_norbs)-np.sum(self.h2k.atom_norbs[device_id[1]:]))
-        HD, SD = HK[:,d_start:d_end, d_start:d_end], S[:, d_start:d_end, d_start:d_end]
-        Hall, Sall = HK, S
+        HD, SD = HK[:,d_start:d_end, d_start:d_end], SK[:, d_start:d_end, d_start:d_end]
+        Hall, Sall = HK, SK
         
         structure_device = self.structase[device_id[0]:device_id[1]]
         structure_device.pbc = self.pbc_negf
@@ -216,42 +217,28 @@ class NEGFHamiltonianInit(object):
             if kk.startswith("lead"):
                 HS_leads = {}
                 HS_leads["kpoints"] = kpoints
-                stru_lead = self.structase[self.lead_ids[kk][0]:self.lead_ids[kk][1]]
+                
                 # update lead id
                 n_proj_atom_pre = np.array([1]*len(self.structase))[:self.lead_ids[kk][0]].sum()
                 n_proj_atom_lead = np.array([1]*len(self.structase))[self.lead_ids[kk][0]:self.lead_ids[kk][1]].sum()
                 lead_id = [0,0]
                 lead_id[0] = n_proj_atom_pre
                 lead_id[1] = n_proj_atom_pre + n_proj_atom_lead
+                
 
                 l_start = int(np.sum(self.h2k.atom_norbs[:lead_id[0]]))
                 l_end = int(l_start + np.sum(self.h2k.atom_norbs[lead_id[0]:lead_id[1]]) / 2)
                 # lead hamiltonian in the first principal layer(the layer close to the device)
-                HL, SL = HK[:,l_start:l_end, l_start:l_end], S[:, l_start:l_end, l_start:l_end]
+                HL, SL = HK[:,l_start:l_end, l_start:l_end], SK[:, l_start:l_end, l_start:l_end]
                 # device and lead's hopping
-                HDL, SDL = HK[:,d_start:d_end, l_start:l_end], S[:,d_start:d_end, l_start:l_end]
+                HDL, SDL = HK[:,d_start:d_end, l_start:l_end], SK[:,d_start:d_end, l_start:l_end]
                 nonzero_indice = torch.nonzero(HDL)
                 coupling_width[kk] = max(torch.max(nonzero_indice[:,1]).item()-torch.min(nonzero_indice[:,1]).item() +1,\
                                          torch.max(nonzero_indice[:,2]).item()-torch.min(nonzero_indice[:,2]).item() +1)
                 log.info(msg="The coupling width of {} is {}.".format(kk,coupling_width[kk]))
 
-                
-                cell = np.array(stru_lead.cell)[:2]
-                natom = lead_id[1] - lead_id[0]
-                R_vec = stru_lead[int(natom/2):].positions - stru_lead[:int(natom/2)].positions
-                assert np.abs(R_vec[0] - R_vec[-1]).sum() < 1e-5
-                R_vec = R_vec.mean(axis=0) * 2
-                cell = np.concatenate([cell, R_vec.reshape(1,-1)])
+                structure_leads[kk] = self.get_lead_structure(kk,n_proj_atom_lead)
 
-                # get lead structure in ase format
-                pbc_lead = self.pbc_negf.copy()
-                pbc_lead[2] = True
-                stru_lead = Atoms(str(stru_lead.symbols), 
-                                  positions=stru_lead.positions, 
-                                  cell=cell, 
-                                  pbc=pbc_lead)
-                stru_lead.set_chemical_symbols(stru_lead.get_chemical_symbols())
-                structure_leads[kk] = stru_lead
                 # get lead_data
                 lead_data = AtomicData.from_ase(structure_leads[kk], **self.AtomicData_options)
                 lead_data = AtomicData.to_AtomicDataDict(lead_data.to(self.torch_device))
@@ -259,15 +246,15 @@ class NEGFHamiltonianInit(object):
                 lead_data[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(HS_leads["kpoints"], dtype=self.model.dtype, device=self.torch_device)
                 lead_data = self.model(lead_data)
                 # remove the edges corresponding to z-direction pbc for HR2HK
-                for ip,p in enumerate(self.pbc_negf):
-                    if not p:
-                        mask = abs(lead_data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][:,ip])<1e-7
-                        lead_data[AtomicDataDict.EDGE_CELL_SHIFT_KEY] = lead_data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][mask]
-                        lead_data[AtomicDataDict.EDGE_INDEX_KEY] = lead_data[AtomicDataDict.EDGE_INDEX_KEY][:,mask]
-                        lead_data[AtomicDataDict.EDGE_FEATURES_KEY] = lead_data[AtomicDataDict.EDGE_FEATURES_KEY][mask]
-                        if self.overlap:
-                            lead_data[AtomicDataDict.EDGE_OVERLAP_KEY] = lead_data[AtomicDataDict.EDGE_OVERLAP_KEY][mask]
-
+                # for ip,p in enumerate(self.pbc_negf):
+                #     if not p:
+                #         mask = abs(lead_data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][:,ip])<1e-7
+                #         lead_data[AtomicDataDict.EDGE_CELL_SHIFT_KEY] = lead_data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][mask]
+                #         lead_data[AtomicDataDict.EDGE_INDEX_KEY] = lead_data[AtomicDataDict.EDGE_INDEX_KEY][:,mask]
+                #         lead_data[AtomicDataDict.EDGE_FEATURES_KEY] = lead_data[AtomicDataDict.EDGE_FEATURES_KEY][mask]
+                #         if self.overlap:
+                #             lead_data[AtomicDataDict.EDGE_OVERLAP_KEY] = lead_data[AtomicDataDict.EDGE_OVERLAP_KEY][mask]
+                self.remove_bonds_nonpbc(lead_data,self.pbc_negf)
                 lead_data = self.h2k(lead_data)
                 HK_lead = lead_data[AtomicDataDict.HAMILTONIAN_KEY]
                 if self.overlap: 
@@ -279,17 +266,19 @@ class NEGFHamiltonianInit(object):
 
                 nL = int(HK_lead.shape[1] / 2)
                 HLL, SLL = HK_lead[:, :nL, nL:], S_lead[:, :nL, nL:] # H_{L_first2L_second}
-                hL, sL = HK_lead[:,:nL,:nL], S[:,:nL,:nL] # lead hamiltonian in one principal layer
-                err_l = (hL - HL).abs().max()
+                hL, sL = HK_lead[:,:nL,:nL], SK[:,:nL,:nL] # lead hamiltonian in one principal layer
+                err_l_HK = (hL - HL).abs().max()
+                err_l_SK = (sL - SL).abs().max()
 
-                if  err_l >= 1e-4: 
+                if  max(err_l_HK,err_l_SK) >= 1e-2: 
                     # check the lead hamiltonian get from device and lead calculation matches each other
                     # a standard check to see the lead environment is bulk-like or not
-                    print('err_l',err_l)
+                    log.info(msg="The lead's hamiltonian or overlap attained from device and lead calculation does not match. \
+                                  The error is {:.7f}.".format(max(err_l_HK,err_l_SK)))
                     log.error(msg="ERROR, the lead's hamiltonian attained from diffferent methods does not match.")
                     raise RuntimeError
-                elif 1e-7 <= err_l <= 1e-4:
-                    log.warning(msg="WARNING, the lead's hamiltonian attained from diffferent methods have slight differences {:.7f}.".format(err_l))
+                elif 1e-7 <= max(err_l_HK,err_l_SK) <= 1e-4:
+                    log.warning(msg="WARNING, the lead's hamiltonian attained from diffferent methods have slight differences {:.7f}.".format(max(err_l_HK,err_l_SK)))
 
                 HS_leads.update({
                     "HL":HL.cdouble()*self.h_factor, 
@@ -320,7 +309,36 @@ class NEGFHamiltonianInit(object):
 
         torch.set_default_dtype(torch.float32)
         return structure_device, structure_leads
-    
+
+    def remove_bonds_nonpbc(self,data,pbc):
+
+        for ip,p in enumerate(pbc):
+            if not p:
+                mask = abs(data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][:,ip])<1e-7
+                data[AtomicDataDict.EDGE_CELL_SHIFT_KEY] = data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][mask]
+                data[AtomicDataDict.EDGE_INDEX_KEY] = data[AtomicDataDict.EDGE_INDEX_KEY][:,mask]
+                data[AtomicDataDict.EDGE_FEATURES_KEY] = data[AtomicDataDict.EDGE_FEATURES_KEY][mask]
+                if self.overlap:
+                    data[AtomicDataDict.EDGE_OVERLAP_KEY] = data[AtomicDataDict.EDGE_OVERLAP_KEY][mask]
+
+    def get_lead_structure(self,kk,natom):       
+        stru_lead = self.structase[self.lead_ids[kk][0]:self.lead_ids[kk][1]]
+        cell = np.array(stru_lead.cell)[:2]
+        
+        R_vec = stru_lead[int(natom/2):].positions - stru_lead[:int(natom/2)].positions
+        assert np.abs(R_vec[0] - R_vec[-1]).sum() < 1e-5
+        R_vec = R_vec.mean(axis=0) * 2
+        cell = np.concatenate([cell, R_vec.reshape(1,-1)])
+
+        # get lead structure in ase format
+        pbc_lead = self.pbc_negf.copy()
+        pbc_lead[2] = True
+        stru_lead = Atoms(str(stru_lead.symbols), 
+                            positions=stru_lead.positions, 
+                            cell=cell, 
+                            pbc=pbc_lead)
+        stru_lead.set_chemical_symbols(stru_lead.get_chemical_symbols())
+        return stru_lead
 
     def get_block_tridiagonal(self,HK,SK,structase:ase.Atoms,leftmost_size:int,rightmost_size:int):
 
