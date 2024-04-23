@@ -337,9 +337,20 @@ class DeviceProperty(object):
         '''
         dos = 0
         for jj in range(len(self.grd)):
-            temp = self.grd[jj] @ self.sd[jj] # taking each diagonal block with all energy e together
+            if not self.block_tridiagonal:
+                temp = self.grd[jj] @ self.sd[jj] # taking each diagonal block with all energy e together
+            else:
+                # print(self.grl[jj-1].shape)
+                # print(self.su[jj-1].shape)
+                # print(self.gru[jj-1].shape)
+                # print(self.sl[jj-1].shape)
+                if jj == 0:
+                    temp = self.grd[jj] @ self.sd[jj] + self.gru[jj] @ self.sl[jj]
+                elif jj == len(self.grd)-1:
+                    temp = self.grd[jj] @ self.sd[jj] + self.grl[jj-1] @ self.su[jj-1]
+                else:
+                    temp = self.grd[jj] @ self.sd[jj] + self.grl[jj-1] @ self.su[jj-1] + self.gru[jj] @ self.sl[jj]
             dos -= temp.imag.diag().sum(-1) / pi
-
         return dos * 2
 
     def _cal_ldos_(self):
@@ -353,7 +364,15 @@ class DeviceProperty(object):
         ldos = []
         # sd = self.hamiltonian.get_hs_device(kpoint=self.kpoint, V=self.V, block_tridiagonal=self.block_tridiagonal)[1]
         for jj in range(len(self.grd)):
-            temp = self.grd[jj] @ self.sd[jj] # taking each diagonal block with all energy e together
+            if not self.block_tridiagonal:
+                temp = self.grd[jj] @ self.sd[jj] # taking each diagonal block with all energy e together
+            else:
+                if jj == 0:
+                    temp = self.grd[jj] @ self.sd[jj] + self.gru[jj] @ self.sl[jj]
+                elif jj == len(self.grd)-1:
+                    temp = self.grd[jj] @ self.sd[jj] + self.grl[jj-1] @ self.su[jj-1]
+                else:
+                    temp = self.grd[jj] @ self.sd[jj] + self.grl[jj-1] @ self.su[jj-1] + self.gru[jj] @ self.sl[jj]
             ldos.append(-temp.imag.diag() / pi) # shape(Nd(diagonal elements))
 
         ldos = torch.cat(ldos, dim=0).contiguous()
