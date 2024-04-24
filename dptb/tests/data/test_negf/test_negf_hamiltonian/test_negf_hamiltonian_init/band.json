@@ -1,0 +1,56 @@
+{
+    "structure": "/personal/DeepTB/dptb_Zjj/DeePTB/dptb/tests/data/test_negf/test_negf_run/chain.vasp",
+    "task_options": {
+        "task": "band",
+        "kline_type": "abacus",
+        "kpath": [
+            [
+                0,
+                0,
+                0,
+                50
+            ],
+            [
+                0,
+                0,
+                1,
+                1
+            ]
+        ],
+        "nkpoints": 51,
+        "klabels": [
+            "G",
+            "M"
+        ],
+        "E_fermi": -13.638589859008789,
+        "emin": -1.5,
+        "emax": 1.5,
+        "nel_atom": {"C":1},
+        "ref_band": null
+    },    
+    "AtomicData_options": {
+        "r_max":2.0
+        },
+    "common_options": {
+        "basis":{"C":["2s"]},
+        "device":"cpu",
+        "dtype": "float32",
+        "overlap":false
+        },
+    "model_options":{
+        "nnsk":{
+            "onsite":{
+                "method":"none"
+            },
+            "hopping":{
+                "method":"powerlaw",
+                "rs":1.6,
+                "w":0.3
+            },
+            "soc":{},
+            "freeze":false,
+            "push":false,
+            "std":0.01
+        }
+    }
+}
