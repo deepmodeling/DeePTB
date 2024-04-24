@@ -1379,7 +1379,7 @@ def AtomicData_options_sub():
         Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max, default=4.0),
         Argument("er_max", [float, int, dict], optional=True, doc=doc_er_max, default=None),
         Argument("oer_max", [float, int, dict], optional=True, doc=doc_oer_max,default=None),
-        Argument("pbc", bool, optional=False, doc=doc_pbc, default=True),
+        Argument("pbc", [bool,list], optional=False, doc=doc_pbc, default=True),
     ]
 
     return Argument("AtomicData_options", dict, optional=False, sub_fields=args, sub_variants=[], doc="")
