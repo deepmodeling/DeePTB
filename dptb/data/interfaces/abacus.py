@@ -344,7 +344,7 @@ def _abacus_parse(input_path,
 
         with h5py.File(os.path.join(output_path, "DM.h5"), 'w') as fid:
             default_group = fid.create_group("1")
-            for key_str, value in overlap_dict.items():
+            for key_str, value in DM_dict.items():
                 default_group[key_str] = value
 
     if get_eigenvalues:
