@@ -160,11 +160,11 @@ def recursive_gf_cal(energy, mat_l_list, mat_d_list, mat_u_list, sd, su, sl, s_i
     # -------------------------------------------------------------------
 
     for jj, item in enumerate(mat_d_list):
-        mat_d_list[jj] = mat_d_list[jj] + (energy - 1j * eta) * sd[jj]
+        mat_d_list[jj] = mat_d_list[jj] + (energy + 1j * eta) * sd[jj]
     for jj, item in enumerate(mat_l_list):
-        mat_l_list[jj] = mat_l_list[jj] + (energy - 1j * eta) * sl[jj]
+        mat_l_list[jj] = mat_l_list[jj] + (energy + 1j * eta) * sl[jj]
     for jj, item in enumerate(mat_u_list):
-        mat_u_list[jj] = mat_u_list[jj] + (energy - 1j * eta) * su[jj]
+        mat_u_list[jj] = mat_u_list[jj] + (energy + 1j * eta) * su[jj]
 
     # -------------------------------------------------------------------
     # ---- choose a proper output depending on the list of arguments ----

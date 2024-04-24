@@ -43,7 +43,6 @@ class NEGF(object):
                 out_tc: bool=False,out_dos: bool=False,out_density: bool=False,out_potential: bool=False,
                 out_current: bool=False,out_current_nscf: bool=False,out_ldos: bool=False,out_lcurrent: bool=False,
                 results_path: Optional[str]=None,
-                overlap=False,
                 torch_device: Union[str, torch.device]=torch.device('cpu'),
                 **kwargs):
         
@@ -55,7 +54,7 @@ class NEGF(object):
         # self.jdata = jdata
         self.cdtype = torch.complex128
         self.torch_device = torch_device
-        self.overlap = overlap
+        
         
         # get the parameters
         self.ele_T = ele_T
@@ -105,7 +104,6 @@ class NEGF(object):
                                                     stru_options=self.stru_options,
                                                     unit = self.unit, 
                                                     results_path=self.results_path,
-                                                    overlap = self.overlap,
                                                     torch_device = self.torch_device)
         with torch.no_grad():
             struct_device, struct_leads = self.negf_hamiltonian.initialize(kpoints=self.kpoints,

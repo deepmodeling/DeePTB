@@ -201,7 +201,8 @@ def selfEnergy(hL, hLL, sL, sLL, ee, hDL=None, sDL=None, etaLead=1e-8, Bulk=Fals
     else:
         a, b = hDL.shape
         SGF = SurfaceGreen.apply(hL, hLL, sL, sLL, eeshifted + 1j * etaLead, method)
-        Sig = (ee*sDL-hDL) @ SGF[:b,:b] @ (ee*sDL.conj().T-hDL.conj().T)
+        #SGF = iterative_simple(eeshifted + 1j * etaLead, hL, hLL, sL, sLL, iter_max=1000)
+        Sig = (eeshifted*sDL-hDL) @ SGF[:b,:b] @ (eeshifted*sDL.conj().T-hDL.conj().T)
     return Sig, SGF  # R(nuo, nuo)
 
 
@@ -287,5 +288,22 @@ def iterative_gf(ee, gs, h00, h01, s00, s01, iter=1):
     for i in range(iter):
         gs = ee*s00 - h00 - (ee * s01 - h01) @ gs @ (ee * s01.conj().T - h01.conj().T)
         gs = tLA.pinv(gs)
+
+    return gs
+
+def iterative_simple(ee, h00, h01, s00, s01, iter_max=1000):
+    gs =  torch.linalg.inv(ee*s00 - h00)
+    diff_gs = 1
+    iter = 0
+    while diff_gs > 1e-8:
+        iter +=1
+        gs = ee*s00 - h00 - (ee * s01 - h01) @ gs @ (ee * s01.conj().T - h01.conj().T)
+        # gs = tLA.pinv(gs)
+        gs = torch.linalg.inv(gs)
+        diff_gs = \
+        torch.max(torch.abs(gs - torch.inverse(ee * s00 - h00 - torch.mm(h01 - ee * s01, gs).mm(h01.conj().T - ee * s01.conj().T))))
+        if iter > iter_max:
+            log.warning("iterative_simple not converged after 1000 iteration.")
+            break
 
     return gs
