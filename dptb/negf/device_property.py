@@ -337,13 +337,9 @@ class DeviceProperty(object):
         '''
         dos = 0
         for jj in range(len(self.grd)):
-            if not self.block_tridiagonal:
+            if not self.block_tridiagonal or len(self.gru) == 0:
                 temp = self.grd[jj] @ self.sd[jj] # taking each diagonal block with all energy e together
             else:
-                # print(self.grl[jj-1].shape)
-                # print(self.su[jj-1].shape)
-                # print(self.gru[jj-1].shape)
-                # print(self.sl[jj-1].shape)
                 if jj == 0:
                     temp = self.grd[jj] @ self.sd[jj] + self.gru[jj] @ self.sl[jj]
                 elif jj == len(self.grd)-1:
@@ -364,7 +360,7 @@ class DeviceProperty(object):
         ldos = []
         # sd = self.hamiltonian.get_hs_device(kpoint=self.kpoint, V=self.V, block_tridiagonal=self.block_tridiagonal)[1]
         for jj in range(len(self.grd)):
-            if not self.block_tridiagonal:
+            if not self.block_tridiagonal or len(self.gru) == 0:
                 temp = self.grd[jj] @ self.sd[jj] # taking each diagonal block with all energy e together
             else:
                 if jj == 0:
