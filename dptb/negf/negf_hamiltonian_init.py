@@ -160,18 +160,13 @@ class NEGFHamiltonianInit(object):
         HS_device = {}
         HS_device["kpoints"] = kpoints
 
-        # self.apiH.update_struct(self.structase, mode="device", stru_options=j_must_have(self.stru_options, "device"), pbc=self.stru_options["pbc"])
-
         # change parameters to match the structure projection
-        n_proj_atom_pre = np.array([1]*len(self.structase))[:self.device_id[0]].sum()
-        n_proj_atom_device = np.array([1]*len(self.structase))[self.device_id[0]:self.device_id[1]].sum()
-        device_id = [0,0]
-        device_id[0] = n_proj_atom_pre
-        device_id[1] = n_proj_atom_pre + n_proj_atom_device
-        self.device_id = device_id
-        # projatoms = self.apiH.structure.projatoms
-        # self.atom_norbs = [self.apiH.structure.proj_atomtype_norbs[i] for i in self.apiH.structure.proj_atom_symbols]
-        # self.apiH.get_HR()
+        # n_proj_atom_pre = np.array([1]*len(self.structase))[:self.device_id[0]].sum()
+        # n_proj_atom_device = np.array([1]*len(self.structase))[self.device_id[0]:self.device_id[1]].sum()
+        # device_id = [0,0]
+        # device_id[0] = n_proj_atom_pre
+        # device_id[1] = n_proj_atom_pre + n_proj_atom_device
+        # self.device_id = device_id
     
         self.structase.set_pbc(self.pbc_negf)
         alldata = AtomicData.from_ase(self.structase, **self.AtomicData_options)
@@ -210,12 +205,12 @@ class NEGFHamiltonianInit(object):
             SK = torch.eye(HK.shape[1], dtype=self.model.dtype, device=self.torch_device).unsqueeze(0).repeat(HK.shape[0], 1, 1)          
       
         # H, S = self.apiH.get_HK(kpoints=kpoints)
-        d_start = int(np.sum(self.h2k.atom_norbs[:device_id[0]]))
-        d_end = int(np.sum(self.h2k.atom_norbs)-np.sum(self.h2k.atom_norbs[device_id[1]:]))
+        d_start = int(np.sum(self.h2k.atom_norbs[:self.device_id[0]]))
+        d_end = int(np.sum(self.h2k.atom_norbs)-np.sum(self.h2k.atom_norbs[self.device_id[1]:]))
         HD, SD = HK[:,d_start:d_end, d_start:d_end], SK[:, d_start:d_end, d_start:d_end]
         Hall, Sall = HK, SK
         
-        structure_device = self.structase[device_id[0]:device_id[1]]
+        structure_device = self.structase[self.device_id[0]:self.device_id[1]]
         structure_device.pbc = self.pbc_negf
                 
         structure_leads = {};coupling_width = {}
@@ -260,6 +255,7 @@ class NEGFHamiltonianInit(object):
                 #         lead_data[AtomicDataDict.EDGE_FEATURES_KEY] = lead_data[AtomicDataDict.EDGE_FEATURES_KEY][mask]
                 #         if self.overlap:
                 #             lead_data[AtomicDataDict.EDGE_OVERLAP_KEY] = lead_data[AtomicDataDict.EDGE_OVERLAP_KEY][mask]
+                
                 self.remove_bonds_nonpbc(lead_data,self.pbc_negf)
                 lead_data = self.h2k(lead_data)
                 HK_lead = lead_data[AtomicDataDict.HAMILTONIAN_KEY]
