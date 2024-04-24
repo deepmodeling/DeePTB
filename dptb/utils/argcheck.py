@@ -597,12 +597,14 @@ def push():
     doc_rs_thr = "The step size for cutoff value for smooth function in the nnsk anlytical formula."
     doc_rc_thr = "The step size for cutoff value for smooth function in the nnsk anlytical formula."
     doc_w_thr = "The step size for decay factor w."
+    doc_ovp_thr = "The step size for overlap reduction"
     doc_period = "the interval of iterations to modify the rs w values."
 
     return Argument("push", [bool,dict], sub_fields=[
         Argument("rs_thr", [int,float], optional=True, default=0., doc=doc_rs_thr),
         Argument("rc_thr", [int,float], optional=True, default=0., doc=doc_rc_thr),
         Argument("w_thr",  [int,float], optional=True,  default=0., doc=doc_w_thr),
+        Argument("ovp_thr", [int,float], optional=True, default=0., doc=doc_ovp_thr),
         Argument("period", int, optional=True, default=100, doc=doc_period),
     ], sub_variants=[], optional=True, default=False, doc="The parameters to define the push the soft cutoff of nnsk model.")
 

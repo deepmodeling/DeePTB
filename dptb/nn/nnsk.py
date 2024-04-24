@@ -134,6 +134,7 @@ class NNSK(torch.nn.Module):
                                         strain=hasattr(self, "strain_param"),soc=hasattr(self, "soc_param"))
         if overlap:
             self.overlap = SKHamiltonian(idp_sk=self.idp_sk, onsite=False, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
+            self.register_buffer("ovp_factor", torch.tensor(1.0, dtype=self.dtype, device=self.device))
         self.idp = self.hamiltonian.idp
         
         if freeze:  
@@ -188,7 +189,7 @@ class NNSK(torch.nn.Module):
                 raise ValueError("freeze is True, all parameters should frozen. But the frozen_params != all model.named_parameters. Please check the freeze tag.")
         log.info(f'The {frozen_params} are frozen!')
 
-    def push_decay(self, rs_thr: float=0., rc_thr: float=0., w_thr: float=0., period:int=100):
+    def push_decay(self, rs_thr: float=0., rc_thr: float=0., w_thr: float=0., ovp_thr: float=0., period:int=100):
         """Push the soft cutoff function
 
         Parameters
@@ -207,6 +208,8 @@ class NNSK(torch.nn.Module):
                 self.hopping_options["w"] += w_thr
             if abs(rc_thr) > 0:
                 self.hopping_options["rc"] += rc_thr
+            if abs(ovp_thr) > 0 and self.ovp_factor >=ovp_thr:
+                self.ovp_factor -= ovp_thr
 
             self.model_options["nnsk"]["hopping"] = self.hopping_options
 
@@ -278,7 +281,7 @@ class NNSK(torch.nn.Module):
             # the overlap tag now is only designed to be used in the NRL-TB case. In the future, we may need to change this.
             paraconst = edge_number[0].eq(edge_number[1]).float().view(-1, 1) * equal_orbpair.unsqueeze(0)
 
-            data[AtomicDataDict.EDGE_OVERLAP_KEY] = self.overlap_fn.get_sksij(
+            data[AtomicDataDict.EDGE_OVERLAP_KEY] = self.ovp_factor * self.overlap_fn.get_sksij(
                 rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
                 paraArray=self.overlap_param[edge_index],
                 paraconst=paraconst,
@@ -795,7 +798,7 @@ class NNSK(torch.nn.Module):
             "overlap": is_overlap,
         }
 
-        if version ==2:
+        if version == 2:
             ckpt.update({"model_options": self.model_options, 
                         "common_options": common_options})
 
