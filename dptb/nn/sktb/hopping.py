@@ -22,6 +22,10 @@ class HoppingFormula(BaseHopping):
     num_paras_dict = {
         'varTang96': 4,
         'powerlaw': 2,
+        'poly1pow': 3,
+        'poly2pow': 4,
+        'poly3pow': 5,
+        'poly2exp': 4,
         'NRL0': 4,
         "NRL1": 4,
         'custom': None,
@@ -34,6 +38,15 @@ class HoppingFormula(BaseHopping):
         if functype == 'varTang96':
             assert hasattr(self, 'varTang96')
        
+        elif functype == 'poly1pow':
+            assert hasattr(self, 'poly1pow')
+
+        elif functype == 'poly2pow':
+            assert hasattr(self, 'poly3pow')
+
+        elif functype == 'poly3pow':
+            assert hasattr(self, 'poly3pow')
+
         elif functype == 'powerlaw':
             assert hasattr(self, 'powerlaw')
 
@@ -67,6 +80,14 @@ class HoppingFormula(BaseHopping):
             return self.varTang96(rij=rij, **kwargs)
         elif self.functype == 'powerlaw':
             return self.powerlaw(rij=rij, **kwargs)
+        elif self.functype == 'poly1pow':
+            return self.poly1pow(rij=rij, **kwargs)
+        elif self.functype == 'poly2pow':
+            return self.poly2pow(rij=rij, **kwargs)
+        elif self.functype == 'poly3pow':
+            return self.poly3pow(rij=rij, **kwargs)
+        elif self.functype == 'poly2exp':
+            return self.poly2exp(rij=rij, **kwargs)
         elif self.functype.startswith('NRL'):
             return self.NRL_HOP(rij=rij, **kwargs)
         else:
@@ -88,6 +109,14 @@ class HoppingFormula(BaseHopping):
             return self.NRL_OVERLAP1(rij=rij, **kwargs)
         elif self.functype == "powerlaw":
             return self.powerlaw(rij=rij, **kwargs)
+        elif self.functype == 'poly1pow':
+            return self.poly1pow(rij=rij, **kwargs)
+        elif self.functype == 'poly2pow':
+            return self.poly2pow(rij=rij, **kwargs)
+        elif self.functype == 'poly3pow':
+            return self.poly3pow(rij=rij, **kwargs)
+        elif self.functype == 'poly2exp':
+            return self.poly2exp(rij=rij, **kwargs)
         elif self.functype == "varTang96":
             return self.varTang96(rij=rij, **kwargs)
         else:
@@ -143,6 +172,78 @@ class HoppingFormula(BaseHopping):
         r0 = r0 / 1.8897259886
 
         return alpha1 * (r0/rij)**(1 + alpha2) / (1+torch.exp((rij-rs)/w))
+    
+    def poly1pow(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
+        """> This function calculates SK integrals without the environment dependence of the form of powerlaw
+
+                $$ h(rij) = alpha_1 * (rij / r_ij0)^(lambda + alpha_2) $$
+        """
+
+        #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
+        alpha1, alpha2, alpha3 = paraArray[..., 0], paraArray[..., 1], paraArray[..., 2].abs()
+        #[N, n_op]
+        shape = [-1]+[1] * (len(alpha1.shape)-1)
+        # [-1, 1]
+        rij = rij.reshape(shape)
+        r0 = r0.reshape(shape)
+
+        r0 = r0 / 1.8897259886
+
+        return (alpha1 + alpha2 * (rij-r0)) * (r0/rij)**(1 + alpha3) / (1+torch.exp((rij-rs)/w))
+
+    def poly2pow(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
+        """> This function calculates SK integrals without the environment dependence of the form of powerlaw
+
+                $$ h(rij) = alpha_1 * (rij / r_ij0)^(lambda + alpha_2) $$
+        """
+
+        #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
+        alpha1, alpha2, alpha3, alpha4 = paraArray[..., 0], paraArray[..., 1], paraArray[..., 2], paraArray[..., 3].abs()
+        #[N, n_op]
+        shape = [-1]+[1] * (len(alpha1.shape)-1)
+        # [-1, 1]
+        rij = rij.reshape(shape)
+        r0 = r0.reshape(shape)
+
+        r0 = r0 / 1.8897259886
+
+        return (alpha1 + alpha2 * (rij-r0) + alpha3 * (rij - r0)**2) * (r0/rij)**(1 + alpha4) / (1+torch.exp((rij-rs)/w))
+    
+    def poly3pow(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
+        """> This function calculates SK integrals without the environment dependence of the form of powerlaw
+
+                $$ h(rij) = alpha_1 * (rij / r_ij0)^(lambda + alpha_2) $$
+        """
+
+        #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
+        alpha1, alpha2, alpha3, alpha4, alpha5 = paraArray[..., 0], paraArray[..., 1], paraArray[..., 2], paraArray[..., 3], paraArray[..., 4].abs()
+        #[N, n_op]
+        shape = [-1]+[1] * (len(alpha1.shape)-1)
+        # [-1, 1]
+        rij = rij.reshape(shape)
+        r0 = r0.reshape(shape)
+
+        r0 = r0 / 1.8897259886
+
+        return (alpha1 + alpha2 * (rij-r0) + 0.5 * alpha3 * (rij - r0)**2 + 1/6 * alpha4 * (rij-r0)**3) * (r0/rij)**(1 + alpha5) / (1+torch.exp((rij-rs)/w))
+    
+    def poly2exp(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
+        """> This function calculates SK integrals without the environment dependence of the form of powerlaw
+
+                $$ h(rij) = alpha_1 * (rij / r_ij0)^(lambda + alpha_2) $$
+        """
+
+        #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
+        alpha1, alpha2, alpha3, alpha4 = paraArray[..., 0], paraArray[..., 1], paraArray[..., 2], paraArray[..., 3].abs()
+        #[N, n_op]
+        shape = [-1]+[1] * (len(alpha1.shape)-1)
+        # [-1, 1]
+        rij = rij.reshape(shape)
+        r0 = r0.reshape(shape)
+
+        r0 = r0 / 1.8897259886
+
+        return (alpha1 + alpha2 * (rij-r0) + alpha3 * (rij-r0)**2) * torch.exp(-rij * alpha4) / (1+torch.exp((rij-rs)/w))
 
     def NRL_HOP(self, rij, paraArray, rc:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """

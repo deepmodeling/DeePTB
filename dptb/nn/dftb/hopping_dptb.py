@@ -30,7 +30,7 @@ class HoppingIntp(BaseHopping):
         assert yy.shape[0] == self.num_ingrls
         assert len(yy.shape) == 2
 
-        if len(rij.shape) == 1:
+        if len(rij.shape) <= 1:
             rij =  torch.tile(rij.reshape([1,-1]), (self.num_ingrls,1))
         elif len(rij.shape) == 2:
             assert rij.shape[0] == self.num_ingrls, "the bond distance shape rij is not correct."
@@ -38,6 +38,5 @@ class HoppingIntp(BaseHopping):
             raise ValueError("The shape of rij is not correct.")
 
         yyintp = self.intpfunc(xq=rij,y=yy)
-        
         return yyintp.T
         
