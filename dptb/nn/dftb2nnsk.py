@@ -25,7 +25,7 @@ class dftb:
             out.append(self.hopping.get_skhij(rij=r, xx=self.param["Distance"], yy=self.param[mode[0].upper()+mode[1:]][i]))
         return torch.stack(out)
     
-class dftb2nnsk:
+class DFTB2NNSK:
     def __init__(self, basis, skdata, functype, rs, rc, w):
         self.dftb = dftb(basis=basis, skdata=skdata)
         self.functype = functype
@@ -128,7 +128,7 @@ class dftb2nnsk:
             # plt.legend()
             plt.show()
     
-    def optimize(self, r_min=1.5, r_max=5.0, nsample=256, nstep=40000, lr=1e-1, dis_freq=1000, method="RMSprop"):
+    def optimize(self, r_min=1.5, r_max=5.0, nsample=256, nstep=40000, lr=1e-1, dis_freq=1000, method="RMSprop", viz=False):
         if method=="RMSprop":
             optimizer = RMSprop([self.hopping_params, self.overlap_params], lr=lr, momentum=0.2)
         elif method=="LBFGS":
@@ -162,8 +162,8 @@ class dftb2nnsk:
             optimizer.step(closure)
             lrscheduler.step()
             self.symmetrize()
-
-        self.viz(r_min=r_min, r_max=r_max)
+        if viz:
+            self.viz(r_min=r_min, r_max=r_max)
         return True
     
     def to_nnsk(self):
