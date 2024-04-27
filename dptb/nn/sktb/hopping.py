@@ -2,6 +2,7 @@
 import torch
 from abc import ABC, abstractmethod
 from dptb.nn.sktb.bondlengthDB import bond_length_list
+from dptb.nn.cutoff import cosine_cutoff
 
 class BaseHopping(ABC):
     def __init__(self) -> None:
@@ -37,6 +38,9 @@ class HoppingFormula(BaseHopping):
         self.overlap = overlap
         if functype == 'varTang96':
             assert hasattr(self, 'varTang96')
+
+        elif functype == 'poly2exp':
+            assert hasattr(self, 'poly2exp')
        
         elif functype == 'poly1pow':
             assert hasattr(self, 'poly1pow')
@@ -173,7 +177,7 @@ class HoppingFormula(BaseHopping):
 
         return alpha1 * (r0/rij)**(1 + alpha2) / (1+torch.exp((rij-rs)/w))
     
-    def poly1pow(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
+    def poly1pow(self, rij, paraArray, r0:torch.Tensor, rc:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """> This function calculates SK integrals without the environment dependence of the form of powerlaw
 
                 $$ h(rij) = alpha_1 * (rij / r_ij0)^(lambda + alpha_2) $$
@@ -189,9 +193,12 @@ class HoppingFormula(BaseHopping):
 
         r0 = r0 / 1.8897259886
 
-        return (alpha1 + alpha2 * (rij-r0)) * (r0/rij)**(1 + alpha3) / (1+torch.exp((rij-rs)/w))
+        r_decay = w * rc
+        evlp = 0.5 * (torch.cos((torch.pi / (rc - r_decay)) * (rij.clamp(r_decay, rc) - r_decay)) + 1.0)
 
-    def poly2pow(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
+        return (alpha1 + alpha2 * (rij-r0)) * (r0/rij)**(1 + alpha3) * evlp
+
+    def poly2pow(self, rij, paraArray, r0:torch.Tensor, rc:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """> This function calculates SK integrals without the environment dependence of the form of powerlaw
 
                 $$ h(rij) = alpha_1 * (rij / r_ij0)^(lambda + alpha_2) $$
@@ -207,9 +214,12 @@ class HoppingFormula(BaseHopping):
 
         r0 = r0 / 1.8897259886
 
-        return (alpha1 + alpha2 * (rij-r0) + alpha3 * (rij - r0)**2) * (r0/rij)**(1 + alpha4) / (1+torch.exp((rij-rs)/w))
+        r_decay = w * rc
+        evlp = 0.5 * (torch.cos((torch.pi / (rc - r_decay)) * (rij.clamp(r_decay, rc) - r_decay)) + 1.0)
+
+        return (alpha1 + alpha2 * (rij-r0) + alpha3 * (rij - r0)**2) * (r0/rij)**(1 + alpha4) * evlp
     
-    def poly3pow(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
+    def poly3pow(self, rij, paraArray, r0:torch.Tensor, rc:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """> This function calculates SK integrals without the environment dependence of the form of powerlaw
 
                 $$ h(rij) = alpha_1 * (rij / r_ij0)^(lambda + alpha_2) $$
@@ -225,7 +235,10 @@ class HoppingFormula(BaseHopping):
 
         r0 = r0 / 1.8897259886
 
-        return (alpha1 + alpha2 * (rij-r0) + 0.5 * alpha3 * (rij - r0)**2 + 1/6 * alpha4 * (rij-r0)**3) * (r0/rij)**(1 + alpha5) / (1+torch.exp((rij-rs)/w))
+        r_decay = w * rc
+        evlp = 0.5 * (torch.cos((torch.pi / (rc - r_decay)) * (rij.clamp(r_decay, rc) - r_decay)) + 1.0)
+
+        return (alpha1 + alpha2 * (rij-r0) + 0.5 * alpha3 * (rij - r0)**2 + 1/6 * alpha4 * (rij-r0)**3) * (r0/rij)**(1 + alpha5) * evlp
     
     def poly2exp(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """> This function calculates SK integrals without the environment dependence of the form of powerlaw
