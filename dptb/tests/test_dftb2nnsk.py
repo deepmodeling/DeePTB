@@ -29,9 +29,6 @@ class TestDFTB2NNSK:
             )
         dftb2nnsk.optimize(nstep=10)
 
-
-
-
     def test_tonnsk(self):
         dftb2nnsk = DFTB2NNSK(
             basis={"B":["2s"], "N": ["2s"]}, 
