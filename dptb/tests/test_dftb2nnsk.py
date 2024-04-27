@@ -15,6 +15,7 @@ class TestDFTB2NNSK:
             rs=6.0,
             rc=6.0,
             w=1.0,
+            functype="powerlaw"
             )
 
     def test_optimize(self):
@@ -24,6 +25,7 @@ class TestDFTB2NNSK:
             rs=6.0,
             rc=6.0,
             w=1.0,
+            functype="powerlaw"
             )
         dftb2nnsk.optimize(nstep=10)
 
@@ -37,6 +39,7 @@ class TestDFTB2NNSK:
             rs=6.0,
             rc=6.0,
             w=1.0,
+            functype="powerlaw"
             )
         nnsk = dftb2nnsk.to_nnsk()
 
@@ -50,6 +53,7 @@ class TestDFTB2NNSK:
             rs=6.0,
             rc=6.0,
             w=1.0,
+            functype="powerlaw"
             )
         jdata = dftb2nnsk.to_json()
         assert isinstance(jdata, dict)
