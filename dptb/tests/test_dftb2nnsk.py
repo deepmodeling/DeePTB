@@ -6,7 +6,7 @@ from dptb.nn.nnsk import NNSK
 
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data/")
 
-class TestDefaultDatasetSKTB:
+class TestDFTB2NNSK:
     rootdir = f"{rootdir}"
     def test_init(self):
         dftb2nnsk = DFTB2NNSK(
