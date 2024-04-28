@@ -240,7 +240,7 @@ class Fiori(Density):
         self.wlg = None
         self.e_grid_Fiori = None
 
-    def density_integrate_Fiori(self,e_grid,kpoint,Vbias,integrate_way,deviceprop,
+    def density_integrate_Fiori(self,e_grid,kpoint,Vbias,block_tridiagonal,integrate_way,deviceprop,
                                 device_atom_norbs,potential_at_atom,free_charge, 
                                 eta_lead=1e-5, eta_device=1e-5):
         if integrate_way == "gauss":
@@ -266,7 +266,7 @@ class Fiori(Density):
         for eidx, e in enumerate(integrate_range):
             deviceprop.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
             deviceprop.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
-            deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device,Vbias = Vbias)
+            deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=block_tridiagonal, eta_device=eta_device,Vbias = Vbias)
 
             tx, ty = deviceprop.g_trans.shape
             lx, ly = deviceprop.lead_L.se.shape

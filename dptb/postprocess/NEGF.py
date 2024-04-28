@@ -260,12 +260,8 @@ class NEGF(object):
         while max_diff_phi > err:
             # update Hamiltonian by modifying onsite energy with potential
             atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values())
-            # print("atom_gridpoint_index",atom_gridpoint_index)
-            # np.save(self.results_path+"/atom_gridpoint_index.npy",atom_gridpoint_index)
             self.potential_at_atom = interface_poisson.phi[atom_gridpoint_index]
-            # print([torch.full((norb,), p) for p, norb in zip(self.potential_at_atom, self.device_atom_norbs)])
             self.potential_at_orb = torch.cat([torch.full((norb,), p) for p, norb in zip(self.potential_at_atom, self.device_atom_norbs)])
-            # torch.save(self.potential_at_orb, self.results_path+"/potential_at_orb.pth")
 
                       
             self.negf_compute(scf_require=True,Vbias=self.potential_at_orb)
@@ -361,6 +357,7 @@ class NEGF(object):
                         e_grid = self.uni_grid, 
                         kpoint=k,
                         Vbias=Vbias,
+                        block_tridiagonal=self.block_tridiagonal,
                         integrate_way = self.density_options["integrate_way"],  
                         deviceprop=self.deviceprop,
                         device_atom_norbs=self.device_atom_norbs,
