@@ -200,22 +200,18 @@ class NNSK(torch.nn.Module):
             the threshold step to push the w
         """
 
-
-        if self.count_push // period > 0:
+        self.count_push += 1
+        if self.count_push % period == 0:
             if abs(rs_thr) > 0:
                 self.hopping_options["rs"] += rs_thr
             if abs(w_thr) > 0:
                 self.hopping_options["w"] += w_thr
             if abs(rc_thr) > 0:
                 self.hopping_options["rc"] += rc_thr
-            if abs(ovp_thr) > 0 and self.ovp_factor >=ovp_thr:
-                self.ovp_factor -= ovp_thr
-
+            if abs(ovp_thr) > 0 and self.ovp_factor >= abs(ovp_thr):
+                self.ovp_factor += ovp_thr
+                log.info(f"ovp_factor is decreased to {self.ovp_factor}")
             self.model_options["nnsk"]["hopping"] = self.hopping_options
-
-            self.count_push = 0
-        else:
-            self.count_push += 1
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         # get the env and bond from the data
@@ -227,7 +223,7 @@ class NNSK(torch.nn.Module):
         # map the parameters to the edge/node/env features
         # compute integrals from parameters using hopping and onsite clas
         if self.push is not None and self.push is not False:
-            if abs(self.push.get("rs_thr")) + abs(self.push.get("rc_thr")) + abs(self.push.get("w_thr")) > 0:
+            if abs(self.push.get("rs_thr")) + abs(self.push.get("rc_thr")) + abs(self.push.get("w_thr")) + abs(self.push.get("ovp_thr")) > 0:
                 self.push_decay(**self.push)
 
         reflective_bonds = np.array([self.idp_sk.bond_to_type["-".join(self.idp_sk.type_to_bond[i].split("-")[::-1])] for i  in range(len(self.idp_sk.bond_types))])
@@ -515,8 +511,12 @@ class NNSK(torch.nn.Module):
             model = cls(**common_options, **nnsk, transform=transform)
 
             if f["config"]["common_options"]["basis"] == common_options["basis"] and \
-                f["config"]["model_options"] == model.model_options:
+                f["config"]["model_options"]["nnsk"]["onsite"] == model.model_options["nnsk"]["onsite"] and \
+                f["config"]["model_options"]["nnsk"]["hopping"] == model.model_options["nnsk"]["hopping"] and \
+                    f["config"]["model_options"]["nnsk"]["soc"] == model.model_options["nnsk"]["soc"]:
+                
                 model.load_state_dict(f["model_state_dict"])
+            
             else:
                 #TODO: handle the situation when ref_model config is not the same as the current model
                 # load hopping

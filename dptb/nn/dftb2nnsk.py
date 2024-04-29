@@ -96,17 +96,19 @@ class DFTB2NNSK:
             r = torch.linspace(r_min,r_max, steps=100)
             hops = vmap(self.step)(r.reshape(-1,1))
 
+            
             dftb_hopping = self.dftb(r, mode="hopping").permute(1,0,2)
             dftb_overlap = self.dftb(r, mode="overlap").permute(1,0,2)
 
+            r = r.numpy()
             fig = plt.figure(figsize=(6,4))
             # hops[0] shape - [n_r, n_edge, n_skintegrals]
 
             for i in range(hops[0].shape[1]):
-                plt.plot(r, hops[0][:,i, :-1], c="C"+str(i))
-                plt.plot(r, hops[0][:,i, -1], c="C"+str(i))
-                plt.plot(r, dftb_hopping[:,i, :-1], c="C"+str(i), linestyle="--")
-                plt.plot(r, dftb_hopping[:,i, -1], c="C"+str(i), linestyle="--")
+                plt.plot(r, hops[0][:,i, :-1].detach().numpy(), c="C"+str(i))
+                plt.plot(r, hops[0][:,i, -1].detach().numpy(), c="C"+str(i))
+                plt.plot(r, dftb_hopping[:,i, :-1].numpy(), c="C"+str(i), linestyle="--")
+                plt.plot(r, dftb_hopping[:,i, -1].numpy(), c="C"+str(i), linestyle="--")
             plt.title("hoppings")
             plt.xlabel("r(angstrom)")
             plt.tight_layout()
@@ -115,10 +117,10 @@ class DFTB2NNSK:
 
             fig = plt.figure(figsize=(6,4))
             for i in range(hops[1].shape[1]):
-                plt.plot(r, hops[1][:,i, :-1], c="C"+str(i))
-                plt.plot(r, hops[1][:,i, -1], c="C"+str(i))
-                plt.plot(r, dftb_overlap[:,i, :-1], c="C"+str(i), linestyle="--")
-                plt.plot(r, dftb_overlap[:,i, -1], c="C"+str(i), linestyle="--")
+                plt.plot(r, hops[1][:,i, :-1].detach().numpy(), c="C"+str(i))
+                plt.plot(r, hops[1][:,i, -1].detach().numpy(), c="C"+str(i))
+                plt.plot(r, dftb_overlap[:,i, :-1].numpy(), c="C"+str(i), linestyle="--")
+                plt.plot(r, dftb_overlap[:,i, -1].numpy(), c="C"+str(i), linestyle="--")
             plt.title("overlaps")
             plt.xlabel("r(angstrom)")
             plt.tight_layout()
