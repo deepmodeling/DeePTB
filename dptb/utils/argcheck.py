@@ -662,7 +662,7 @@ def hopping():
     ]
 
     NRL = [
-        Argument("rc", float, optional=True, default=6.0, doc=doc_rc),
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rc),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
 
