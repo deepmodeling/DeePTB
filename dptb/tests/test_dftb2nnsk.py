@@ -13,7 +13,6 @@ class TestDFTB2NNSK:
             basis={"B":["2s"], "N": ["2s"]}, 
             skdata=os.path.join(rootdir, "slakos"),
             rs=6.0,
-            rc=6.0,
             w=1.0,
             functype="powerlaw"
             )
@@ -23,7 +22,6 @@ class TestDFTB2NNSK:
             basis={"B":["2s"], "N": ["2s"]}, 
             skdata=os.path.join(rootdir, "slakos"),
             rs=6.0,
-            rc=6.0,
             w=1.0,
             functype="powerlaw"
             )
@@ -34,7 +32,6 @@ class TestDFTB2NNSK:
             basis={"B":["2s"], "N": ["2s"]}, 
             skdata=os.path.join(rootdir, "slakos"),
             rs=6.0,
-            rc=6.0,
             w=1.0,
             functype="powerlaw"
             )
@@ -48,7 +45,6 @@ class TestDFTB2NNSK:
             basis={"B":["2s"], "N": ["2s"]}, 
             skdata=os.path.join(rootdir, "slakos"),
             rs=6.0,
-            rc=6.0,
             w=1.0,
             functype="powerlaw"
             )
