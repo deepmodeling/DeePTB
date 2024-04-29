@@ -48,7 +48,7 @@ def test_negf_density_Ozaki(root_directory):
     # hamiltonian = NEGFHamiltonianInit(apiH=apiHrk, structase=structase, stru_options=task_options["stru_options"], results_path=results_path)
     kpoints= kmesh_sampling(negf_json['task_options']["stru_options"]["kmesh"])
     with torch.no_grad():
-        struct_device, struct_leads = hamiltonian.initialize(kpoints=kpoints)
+        struct_device, struct_leads, _ = hamiltonian.initialize(kpoints=kpoints)
 
     
     deviceprop = DeviceProperty(hamiltonian, struct_device, results_path=results_path, efermi=negf_json['task_options']['e_fermi'])
