@@ -14,14 +14,13 @@ from .dataset import (
     AtomicInMemoryDataset,
     NpzDataset,
     ASEDataset,
-    HDF5Dataset,
     ABACUSDataset,
     ABACUSInMemoryDataset,
     DefaultDataset
 )
 from .dataloader import DataLoader, Collater, PartialSampler
-from .build import dataset_from_config
-from .test_data import EMTTestDataset
+from .build import build_dataset
+from .transforms import OrbitalMapper
 
 __all__ = [
     AtomicData,
@@ -33,17 +32,16 @@ __all__ = [
     AtomicInMemoryDataset,
     NpzDataset,
     ASEDataset,
-    HDF5Dataset,
     ABACUSDataset,
     ABACUSInMemoryDataset,
     DefaultDataset,
     DataLoader,
     Collater,
     PartialSampler,
-    dataset_from_config,
+    OrbitalMapper,
+    build_dataset,
     _NODE_FIELDS,
     _EDGE_FIELDS,
     _GRAPH_FIELDS,
     _LONG_FIELDS,
-    EMTTestDataset,
 ]

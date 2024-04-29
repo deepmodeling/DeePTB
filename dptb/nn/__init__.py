@@ -1,11 +1,21 @@
 from .build import build_model
-from .deeptb import NNENV
+from .deeptb import NNENV, MIX
 from .nnsk import NNSK
+from .dftbsk import DFTBSK
+from .hamiltonian import E3Hamiltonian, SKHamiltonian
+from .hr2hk import HR2HK
+from .energy import Eigenvalues
 
 __all__ = [
     build_model,
+    E3Hamiltonian,
+    SKHamiltonian,
+    HR2HK,
+    Eigenvalues,
     NNENV,
     NNSK,
+    MIX,
+    DFTBSK,
 ]
 """
 
