@@ -59,7 +59,7 @@ class TestDefaultDatasetSKTB:
         assert self.dataset.raw_data[0].AtomicData_options == {'r_max': 5.0, 'er_max': 5.0, 'oer_max': 2.5, 'pbc': True}
         assert self.dataset.raw_data[0].info == self.info_files['kpath_spk.0']
         assert "bandinfo" in self.dataset.raw_data[0].info
-        assert  list(self.dataset.raw_data[0].data.keys()) == (['cell', 'atomic_numbers', 'pos', 'kpoints', 'eigenvalues'])
+        assert  list(self.dataset.raw_data[0].data.keys()) == (['cell', 'pos', 'atomic_numbers', 'kpoints', 'eigenvalues'])
         assert (np.abs(self.dataset.raw_data[0].data['cell'] - self.strase[0].cell) < 1e-6).all()
         assert (np.abs(self.dataset.raw_data[0].data['atomic_numbers'] - np.array([[14., 14.]])) < 1e-6).all()
         assert (np.abs(self.dataset.raw_data[0].data['pos'] - self.strase[0].positions) < 1e-6).all()

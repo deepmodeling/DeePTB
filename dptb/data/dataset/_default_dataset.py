@@ -65,22 +65,11 @@ class _TrajData(object):
         else:
             raise ValueError("Wrong cell dimensions.")
         
-        # load atomic numbers
-        atomic_numbers = np.loadtxt(os.path.join(root, "atomic_numbers.dat"))
-        natoms = self.info["natoms"]
-        if natoms < 0:
-            natoms = atomic_numbers.shape[-1]
-        if atomic_numbers.shape[0] == self.info["natoms"]:
-            # same atomic_numbers, copy it to all frames.
-            atomic_numbers = np.expand_dims(atomic_numbers, axis=0)
-            self.data["atomic_numbers"] = np.broadcast_to(atomic_numbers, (self.info["nframes"], natoms))
-        elif atomic_numbers.shape[0] == natoms * self.info["nframes"]:
-            self.data["atomic_numbers"] = atomic_numbers.reshape(self.info["nframes"],natoms)
-        else:
-            raise ValueError("Wrong atomic_number dimensions.")
-        
         # load positions, stored as cartesion no matter what provided.
         pos = np.loadtxt(os.path.join(root, "positions.dat"))
+        natoms = self.info["natoms"]
+        if natoms < 0:
+            natoms = int(pos.shape[0] / self.info["nframes"])
         assert pos.shape[0] == self.info["nframes"] * natoms
         pos = pos.reshape(self.info["nframes"], natoms, 3)
         # ase use cartesian by default.
@@ -90,6 +79,17 @@ class _TrajData(object):
             self.data["pos"] = pos @ self.data["cell"]
         else:
             raise NameError("Position type must be cart / frac.")
+        
+        # load atomic numbers
+        atomic_numbers = np.loadtxt(os.path.join(root, "atomic_numbers.dat"))
+        if atomic_numbers.shape[0] == natoms:
+            # same atomic_numbers, copy it to all frames.
+            atomic_numbers = np.expand_dims(atomic_numbers, axis=0)
+            self.data["atomic_numbers"] = np.broadcast_to(atomic_numbers, (self.info["nframes"], natoms))
+        elif atomic_numbers.shape[0] == natoms * self.info["nframes"]:
+            self.data["atomic_numbers"] = atomic_numbers.reshape(self.info["nframes"],natoms)
+        else:
+            raise ValueError("Wrong atomic_number dimensions.")
         
         # load optional data files
         if get_eigenvalues == True:
