@@ -26,12 +26,11 @@ class dftb:
         return torch.stack(out)
     
 class DFTB2NNSK:
-    def __init__(self, basis, skdata, functype, rs, rc, w):
+    def __init__(self, basis, skdata, functype, rs, w):
         self.dftb = dftb(basis=basis, skdata=skdata)
         self.functype = functype
         self.idp_sk = self.dftb.idp_sk
         self.rs = rs
-        self.rc = rc
         self.w = w
 
         self.nnsk_hopping = HoppingFormula(functype=self.functype)
@@ -78,7 +77,6 @@ class DFTB2NNSK:
             rij=r,
             paraArray=self.hopping_params, # [N_edge, n_pairs, n_paras],
             rs=self.rs,
-            rc=self.rc,
             w=self.w,
             r0=r0
             ) # [N_edge, n_pairs]
@@ -87,7 +85,6 @@ class DFTB2NNSK:
             rij=r,
             paraArray=self.overlap_params, # [N_edge, n_pairs, n_paras],
             rs=self.rs,
-            rc=self.rc,
             w=self.w,
             r0=r0
             )
@@ -170,7 +167,7 @@ class DFTB2NNSK:
         nnsk = NNSK(
             idp_sk=self.dftb.idp_sk, 
             onsite={"method": "uniform"},
-            hopping={"method": self.functype, "rs":self.rs, "w": self.w, "rc": self.rc},
+            hopping={"method": self.functype, "rs":self.rs, "w": self.w},
             overlap=True,
             )
     
