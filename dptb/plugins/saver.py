@@ -28,6 +28,9 @@ class Saver(Plugin):
                 # 计算所有阈值之和
                 thrs = sum(abs(val) for key, val in push_option.items() if "thr" in key)
                 # 如果阈值之和不为 0, 则 push 为 True
+                if abs(push_option['rs_thr'])  + abs(push_option['w_thr']) != 0.0 and abs(push_option['ovp_thr']) != 0.0:
+                    log.error("rs_thr, w_thr and ovp_thr cannot be pushed at the same time.")
+                    raise ValueError("rs_thr, w_thr and ovp_thr cannot be pushed at the same time.")
                 
                 if abs(push_option['rs_thr'])  + abs(push_option['w_thr']) != 0.0:
                     push = 'rs_w'
