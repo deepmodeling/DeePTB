@@ -240,7 +240,7 @@ class Fiori(Density):
         self.wlg = None
         self.e_grid_Fiori = None
 
-    def density_integrate_Fiori(self,e_grid,kpoint,Vbias,block_tridiagonal,integrate_way,deviceprop,
+    def density_integrate_Fiori(self,e_grid,kpoint,Vbias,block_tridiagonal,subblocks,integrate_way,deviceprop,
                                 device_atom_norbs,potential_at_atom,free_charge, 
                                 eta_lead=1e-5, eta_device=1e-5):
         if integrate_way == "gauss":
@@ -278,28 +278,103 @@ class Fiori(Density):
             gammaL[:x0, :x0] += deviceprop.lead_L.gamma[:x0, :x0]
             gammaR = torch.zeros(size=(ty, ty), dtype=torch.complex128)
             gammaR[-x1:, -x1:] += deviceprop.lead_R.gamma[-x1:, -x1:]
-
-            A_L = torch.mm(torch.mm(deviceprop.g_trans,gammaL),deviceprop.g_trans.conj().T)
-            A_R = torch.mm(torch.mm(deviceprop.g_trans,gammaR),deviceprop.g_trans.conj().T)
+            
+            if not block_tridiagonal:
+                # A_L = torch.mm(torch.mm(deviceprop.grd[0],gammaL),deviceprop.grd[0].conj().T)
+                # A_R = torch.mm(torch.mm(deviceprop.grd[0],gammaR),deviceprop.grd[0].conj().T)
+                gpd = [1j*(deviceprop.grd[i]-deviceprop.grd[i].conj().T)-deviceprop.gnd[i] for i in range(len(deviceprop.gnd))]
+            else:
+                gpd = [1j*(deviceprop.grd[i]-deviceprop.grd[i].conj().T)-deviceprop.gnd[i] for i in range(len(deviceprop.gnd))]
+                # gpl = 1j*(deviceprop.grl-deviceprop.gru.conj().T)-deviceprop.gnl
+                # gpu = 1j*(deviceprop.gru-deviceprop.grl.conj().T)-deviceprop.gnu
 
             # Vbias = -1 * potential_at_orb
-            for Ei_index, Ei_at_atom in enumerate(-1*potential_at_atom):
-                pre_orbs = sum(device_atom_norbs[:Ei_index])
+            for atom_index, Ei_at_atom in enumerate(-1*potential_at_atom):
+                
             
                 # electron density
                 if e >= Ei_at_atom: 
-                    for j in range(device_atom_norbs[Ei_index]):
-                        free_charge[str(kpoint)][Ei_index] +=\
-                        pre_factor[eidx]*2*(-1)/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi) \
-                                    +A_R[pre_orbs+j,pre_orbs+j]*deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi))
-
+                    if not block_tridiagonal:
+                        pre_orbs = sum(device_atom_norbs[:atom_index])
+                        last_orbs = pre_orbs + device_atom_norbs[atom_index]
+                        # for j in range(device_atom_norbs[atom_index]):
+                        #     free_charge[str(kpoint)][atom_index] +=\
+                        #     pre_factor[eidx]*2*(-1)/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi) \
+                        #                 +A_R[pre_orbs+j,pre_orbs+j]*deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi))
+                        free_charge[str(kpoint)][atom_index] +=\
+                            pre_factor[eidx]*2*(-1)/2/torch.pi*torch.trace(deviceprop.gnd[0][pre_orbs:last_orbs,pre_orbs:last_orbs])                            
+                    else:
+                        block_indexs,orb_start,orb_end = self.get_subblock_index(subblocks,atom_index,device_atom_norbs)
+                        if len(block_indexs) == 1:
+                            free_charge[str(kpoint)][atom_index] += \
+                            pre_factor[eidx]*2*(-1)/2/torch.pi*torch.trace(deviceprop.gnd[block_indexs[0]][orb_start:orb_end,orb_start:orb_end])
+                        else:
+                            for bindex in block_indexs:
+                                if bindex == block_indexs[0]:
+                                    free_charge[str(kpoint)][atom_index] += \
+                                    pre_factor[eidx]*2*(-1)/2/torch.pi*torch.trace(deviceprop.gnd[bindex][orb_start:,orb_start:])
+                                elif bindex == block_indexs[-1]:
+                                    free_charge[str(kpoint)][atom_index] += \
+                                    pre_factor[eidx]*2*(-1)/2/torch.pi*torch.trace(deviceprop.gnd[bindex][:orb_end,:orb_end])
+                                else:
+                                    free_charge[str(kpoint)][atom_index] += \
+                                    pre_factor[eidx]*2*(-1)/2/torch.pi*torch.trace(deviceprop.gnd[bindex])
                 # hole density
                 else:
-                    for j in range(device_atom_norbs[Ei_index]):
-                        free_charge[str(kpoint)][Ei_index] +=\
-                        pre_factor[eidx]*2*1/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi)) \
-                                    +A_R[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi)))
-                        
+                    if not block_tridiagonal:
+                        pre_orbs = sum(device_atom_norbs[:atom_index])
+                        last_orbs = pre_orbs + device_atom_norbs[atom_index]
+                        free_charge[str(kpoint)][atom_index] += pre_factor[eidx]*2*1/2/torch.pi*torch.trace(gpd[0][pre_orbs:last_orbs,pre_orbs:last_orbs])
+        
+                    else:
+                        block_indexs,orb_start,orb_end = self.get_subblock_index(subblocks,atom_index,device_atom_norbs)
+                        if len(block_indexs) == 1:
+                            free_charge[str(kpoint)][atom_index] += \
+                            pre_factor[eidx]*2*1/2/torch.pi*torch.trace(gpd[block_indexs[0]][orb_start:orb_end,orb_start:orb_end])
+                        else:
+                            for bindex in block_indexs:
+                                if bindex == block_indexs[0]:
+                                    free_charge[str(kpoint)][atom_index] += \
+                                    pre_factor[eidx]*2*1/2/torch.pi*torch.trace(gpd[bindex][orb_start:,orb_start:])
+                                elif bindex == block_indexs[-1]:
+                                    free_charge[str(kpoint)][atom_index] += \
+                                    pre_factor[eidx]*2*1/2/torch.pi*torch.trace(gpd[bindex][:orb_end,:orb_end])
+                                else:
+                                    free_charge[str(kpoint)][atom_index] += \
+                                    pre_factor[eidx]*2*1/2/torch.pi*torch.trace(gpd[bindex])
+                            
+    def get_subblock_index(self,subblocks,atom_index,device_atom_norbs):
+        # print('atom_index:',atom_index)
+        # print('subblocks:',subblocks)
+        subblocks_cumsum = [0]+list(np.cumsum(subblocks))
+        # print('subblocks_cumsum:',subblocks_cumsum)
+        pre_orbs = sum(device_atom_norbs[:atom_index])
+        last_orbs = pre_orbs + device_atom_norbs[atom_index]
+
+        # print('pre_orbs:',pre_orbs)
+        # print('last_orbs:',last_orbs)
+
+        block_index = []
+        for i in range(len(subblocks_cumsum)-1):
+            if pre_orbs >= subblocks_cumsum[i] and last_orbs <= subblocks_cumsum[i+1]:
+                block_index.append(i)
+                orb_start = pre_orbs - subblocks_cumsum[i]
+                orb_end = last_orbs - subblocks_cumsum[i]
+                # print('1')
+                break
+            elif pre_orbs >= subblocks_cumsum[i] and pre_orbs < subblocks_cumsum[i+1] and last_orbs > subblocks_cumsum[i+1]:
+                block_index.append(i)
+                orb_start = pre_orbs - subblocks_cumsum[i]
+                for j in range(i+1,len(subblocks_cumsum)-1):
+                    block_index.append(j)
+                    if last_orbs <= subblocks_cumsum[j+1]:
+                        orb_end = last_orbs - subblocks_cumsum[j]
+                        # print('2')
+                        break
+        # print('block_index',block_index)
+        # print('orb_start',orb_start)
+        # print('orb_end',orb_end)
+        return block_index,orb_start,orb_end                 
 
 
 
@@ -335,19 +410,19 @@ class Fiori(Density):
     #         A_R = torch.mm(torch.mm(deviceprop.g_trans,gammaR),deviceprop.g_trans.conj().T)
 
     #         # Vbias = -1 * potential_at_orb
-    #         for Ei_index, Ei_at_atom in enumerate(-1*potential_at_atom):
-    #             pre_orbs = sum(device_atom_norbs[:Ei_index])
+    #         for atom_index, Ei_at_atom in enumerate(-1*potential_at_atom):
+    #             pre_orbs = sum(device_atom_norbs[:atom_index])
             
     #             # electron density
     #             if e >= Ei_at_atom: 
-    #                 for j in range(device_atom_norbs[Ei_index]):
-    #                     free_charge[str(kpoint)][Ei_index] +=\
+    #                 for j in range(device_atom_norbs[atom_index]):
+    #                     free_charge[str(kpoint)][atom_index] +=\
     #                     self.wlg[eidx]*2*(-1)/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi) \
     #                                 +A_R[pre_orbs+j,pre_orbs+j]*deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi))
 
     #             # hole density
     #             else:
-    #                 for j in range(device_atom_norbs[Ei_index]):
-    #                     free_charge[str(kpoint)][Ei_index] +=\
+    #                 for j in range(device_atom_norbs[atom_index]):
+    #                     free_charge[str(kpoint)][atom_index] +=\
     #                     self.wlg[eidx]*2*1/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi)) \
     #                                 +A_R[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi)))

@@ -296,6 +296,7 @@ class NEGFHamiltonianInit(object):
         
         if not block_tridiagnal:
             # change HD format to ( k_index,block_index=0, orb, orb)
+            subblocks = [HD.shape[1]]
             HD = torch.unsqueeze(HD,dim=1)
             SD = torch.unsqueeze(SD,dim=1)
             HS_device.update({"HD":HD.cdouble()*self.h_factor, "SD":SD.cdouble()})
@@ -303,14 +304,14 @@ class NEGFHamiltonianInit(object):
         else:
             leftmost_size = coupling_width['lead_L']
             rightmost_size = coupling_width['lead_R']
-            hd, hu, hl, sd, su, sl = self.get_block_tridiagonal(HD*self.h_factor,SD.cdouble(),self.structase,\
+            hd, hu, hl, sd, su, sl, subblocks = self.get_block_tridiagonal(HD*self.h_factor,SD.cdouble(),self.structase,\
                                                                 leftmost_size,rightmost_size)
             HS_device.update({"hd":hd, "hu":hu, "hl":hl, "sd":sd, "su":su, "sl":sl})
 
         torch.save(HS_device, os.path.join(self.results_path, "HS_device.pth"))
 
         torch.set_default_dtype(torch.float32)
-        return structure_device, structure_leads
+        return structure_device, structure_leads, subblocks
 
     def remove_bonds_nonpbc(self,data,pbc):
 
@@ -391,7 +392,9 @@ class NEGFHamiltonianInit(object):
         log.info(msg="   the number of elements in subblocks: {}".format(num_total))
         log.info(msg="               occupation of subblocks: {} %".format(num_total/(HK[0].shape[0]**2)*100))     
 
-        return hd, hu, hl, sd, su, sl
+        subblocks = subblocks[1:]
+
+        return hd, hu, hl, sd, su, sl, subblocks
 
     def get_hs_device(self, kpoint, V, block_tridiagonal=False):
         """ get the device Hamiltonian and overlap matrix at a specific kpoint
@@ -429,23 +432,22 @@ class NEGFHamiltonianInit(object):
 
             if V.shape == torch.Size([]):
                 allorb = sum([hd_k[i].shape[0] for i in range(len(hd_k))])
-                V = V.repeat(allorb).unsqueeze(0)
-                V = V.cdouble()
+                V = V.repeat(allorb)
+            V = torch.diag(V).cdouble()
             counted = 0
             for i in range(len(hd_k)): # TODO: this part may have probelms when V!=0
                 l_slice = slice(counted, counted+hd_k[i].shape[0])
-                hd_k[i] = hd_k[i] - V[:,l_slice]@sd_k[i]
+                hd_k[i] = hd_k[i] - V[l_slice,l_slice]@sd_k[i]
                 if i<len(hd_k)-1: 
-                    # hu_k[i] = hu_k[i] - V[l_slice]*su_k[i]
-                    hu_k[i] = hu_k[i] - V[:,l_slice]@su_k[i]
+                    hu_k[i] = hu_k[i] - V[l_slice,l_slice]@su_k[i]
                 if i > 0:
-                    # hl_k[i-1] = hl_k[i-1] - V[l_slice]*sl_k[i-1]
-                    hl_k[i-1] = hl_k[i-1] - V[:,l_slice]@sl_k[i-1]
+                    hl_k[i-1] = hl_k[i-1] - V[l_slice,l_slice]@sl_k[i-1]
                 counted += hd_k[i].shape[0]
             
             return hd_k , sd_k, hl_k , su_k, sl_k, hu_k
         else:
             HD_k, SD_k = f["HD"][ik], f["SD"][ik]
+            V = V.cdouble()
             return HD_k - V*SD_k, SD_k, [], [], [], []
     
     def get_hs_lead(self, kpoint, tab, v):
