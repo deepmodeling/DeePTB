@@ -222,9 +222,9 @@ def _abacus_parse(input_path,
         lattice = np.zeros((3, 3))
         for index_lat in range(3):
             lattice[index_lat, :] = np.array(f.readline().split())
-        lattice = lattice * lattice_constant
         if coords_type == "cartesian":
             frac_coords = frac_coords @ np.matrix(lattice).I  # get frac_coords anyway
+        lattice = lattice * lattice_constant
         
 
         if get_Ham is False and get_overlap is True:
@@ -439,8 +439,9 @@ def _abacus_parse_md(input_path,
         assert find_target_line(f, "READING UNITCELL INFORMATION") is not None, 'Cannot find "READING UNITCELL INFORMATION" in log file'
         num_atom_type = int(f.readline().split()[-1])
 
-        assert find_target_line(f, "lattice constant (Bohr)") is not None
-        lattice_constant = float(f.readline().split()[-1]) # unit is Angstrom, didn't read (Bohr) here.
+        line = find_target_line(f, "lattice constant (Angstrom)")
+        assert line is not None
+        lattice_constant = float(line.split()[-1]) # unit is Angstrom, didn't read (Bohr) here.
 
         site_norbits_dict = {}
         orbital_types_dict = {}
