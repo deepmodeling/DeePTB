@@ -250,6 +250,8 @@ class NNSK(torch.nn.Module):
 
         
         data = AtomicDataDict.with_edge_vectors(data, with_lengths=True)
+        if data.get(AtomicDataDict.EDGE_TYPE_KEY, None) is None:
+            self.idp_sk(data)
 
         # edge_number = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.EDGE_INDEX_KEY]].reshape(2, -1)
         # edge_index = self.idp_sk.transform_reduced_bond(*edge_number)
