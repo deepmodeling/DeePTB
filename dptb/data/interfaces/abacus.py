@@ -482,7 +482,7 @@ def _abacus_parse_md(input_path,
         nframes = 0
         with open(os.path.join(input_path, data_name, "MD_dump"), 'r') as f_dump:
             line = 0
-            frac_coords_list = []
+            coords_list = []
             lattice_constant_list = []
             lattice_list = []
             line = find_target_line(f_dump, "MDSTEP:")
@@ -513,13 +513,13 @@ def _abacus_parse_md(input_path,
                     site_norbits[index_site] = site_norbits_dict[element[index_site]]
                     frac_coords[index_site, :] = np.array(tmp[2:5])
                 norbits = int(np.sum(site_norbits))
-                frac_coords_list.append(frac_coords @ np.matrix(lattice).I)
+                coords_list.append(frac_coords)
                 site_norbits_cumsum = np.cumsum(site_norbits)
                 
 
                 line = find_target_line(f_dump, "MDSTEP:")
 
-        frac_coords_list = np.concatenate(frac_coords_list, axis=0)
+        coords_list = np.concatenate(coords_list, axis=0)
         lattice_list = np.concatenate(lattice_list, axis=0)
     
         if get_Ham is False and get_overlap is True:
@@ -539,8 +539,7 @@ def _abacus_parse_md(input_path,
         
     np.savetxt(os.path.join(output_path, "cell.dat"), lattice_list)
     np.savetxt(os.path.join(output_path, "rcell.dat"), np.linalg.inv(lattice.reshape(-1, 3, 3)).reshape(-1, 3) * 2 * np.pi)
-    cart_coords_list = frac_coords_list @ lattice
-    np.savetxt(os.path.join(output_path, "positions.dat").format(output_path), cart_coords_list)
+    np.savetxt(os.path.join(output_path, "positions.dat").format(output_path), coords_list)
     np.savetxt(os.path.join(output_path, "atomic_numbers.dat"), element, fmt='%d')
     #info = {'nsites' : nsites, 'isorthogonal': False, 'isspinful': spinful, 'norbits': norbits}
     #with open('{}/info.json'.format(output_path), 'w') as info_f:
