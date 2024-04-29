@@ -1,5 +1,5 @@
 from dptb.nn.dftb.sk_param import SKParam
-from dptb.nn.dftb.hopping_dptb import HoppingIntp
+from dptb.nn.dftb.hopping_dftb import HoppingIntp
 import torch
 from dptb.nn.sktb.hopping import HoppingFormula
 from dptb.nn.sktb import OnsiteFormula, bond_length_list

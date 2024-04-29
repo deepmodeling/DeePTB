@@ -3,7 +3,7 @@ from typing import Tuple, Union, Dict
 from dptb.data.transforms import OrbitalMapper
 from dptb.data import AtomicDataDict
 from .sktb import OnsiteFormula
-from dptb.nn.dftb.hopping_dptb import HoppingIntp
+from dptb.nn.dftb.hopping_dftb import HoppingIntp
 from dptb.nn.hamiltonian import SKHamiltonian
 from dptb.nn.dftb.sk_param import SKParam
 import logging
