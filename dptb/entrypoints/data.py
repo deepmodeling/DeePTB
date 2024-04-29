@@ -76,7 +76,7 @@ def data(
 
         n_train = int(nfile * train_ratio)
         n_test = int(nfile * test_ratio)
-        n_val = int(nfile * val_ratio)
+        n_val = nfile - n_train - n_test
 
         indices = rds.choice(nfile, nfile, replace=False)
         train_indices = indices[:n_train]

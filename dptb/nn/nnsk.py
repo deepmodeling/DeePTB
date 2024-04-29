@@ -791,10 +791,11 @@ class NNSK(torch.nn.Module):
         else:
             dtype = self.dtype.__str__().split('.')[-1]
         is_overlap = hasattr(self, "overlap_param")
+        dd = "cpu" if self.device == torch.device("cpu") else "cuda"
         common_options = {
             "basis": basis,
             "dtype": dtype,
-            "device": self.device,
+            "device": dd,
             "overlap": is_overlap,
         }
 
