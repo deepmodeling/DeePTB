@@ -28,7 +28,14 @@ class Saver(Plugin):
                 # 计算所有阈值之和
                 thrs = sum(abs(val) for key, val in push_option.items() if "thr" in key)
                 # 如果阈值之和不为 0, 则 push 为 True
-                push = abs(thrs) != 0.0
+                
+                if abs(push_option['rs_thr'])  + abs(push_option['w_thr']) != 0.0:
+                    push = 'rs_w'
+                # push = abs(thrs) != 0.0
+                elif abs(push_option['ovp_thr']) != 0.0:
+                    push = 'overlap'
+                else:
+                    push = False            
             else:
                 push = False
         else:
@@ -39,10 +46,13 @@ class Saver(Plugin):
     def iteration(self, **kwargs):
         # suffix = "_b"+"%.3f"%self.trainer.common_options["bond_cutoff"]+"_c"+"%.3f"%self.trainer.onsite_options["skfunction"]["sk_cutoff"]+"_w"+\
         #         "%.3f"%self.trainer.model_options["skfunction"]["sk_decay_w"]
-        if self.push:
+        if self.push == 'rs_w':
             suffix = ".iter_rs" + "%.3f"%self.trainer.model.hopping_options["rs"]+"_w"+"%.3f"%self.trainer.model.hopping_options["w"]
             # By default, the maximum number of saved checkpoints is 100 for pushing rs and w.
-            max_ckpt = 100
+            max_ckpt = self.trainer.train_options["max_ckpt"]
+        elif self.push == 'overlap':
+            suffix= ".iter_ovp" + "%.3f"%self.trainer.model.ovp_factor
+            max_ckpt = self.trainer.train_options["max_ckpt"]
         else:
             suffix = ".iter{}".format(self.trainer.iter)
             max_ckpt = self.trainer.train_options["max_ckpt"]
