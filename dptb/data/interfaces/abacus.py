@@ -92,8 +92,10 @@ def recursive_parse(input_path,
                 if os.path.exists(os.path.join(folder, data_name, "hscsr.tgz")):
                     os.system("cd "+os.path.join(folder, data_name) + " && tar -zxvf hscsr.tgz && mv OUT.ABACUS/* ./")
                 try:
+                    tasktype = "" 
                     if os.path.exists(os.path.join(folder, data_name, "running_get_S.log")) or \
                         os.path.exists(os.path.join(folder, data_name, "running_scf.log")):
+                        tasktype = tasktype + "single_point"
                         _abacus_parse(folder, 
                                     os.path.join(preprocess_dir, f"{prefix}.{index}"), 
                                     data_name,
@@ -102,7 +104,8 @@ def recursive_parse(input_path,
                                     get_overlap=parse_overlap, 
                                     get_eigenvalues=parse_eigenvalues)
                     #h5file_names.append(os.path.join(file, "AtomicData.h5"))
-                    elif os.path.exists(os.path.join(folder, data_name, "running_md.log")):
+                    if os.path.exists(os.path.join(folder, data_name, "running_md.log")):
+                        tasktype = tasktype + "molecular_dynamics"
                         _abacus_parse_md(folder, 
                                     os.path.join(preprocess_dir, f"{prefix}.{index}"), 
                                     data_name,
@@ -110,6 +113,11 @@ def recursive_parse(input_path,
                                     get_DM=parse_DM,
                                     get_overlap=parse_overlap, 
                                     get_eigenvalues=parse_eigenvalues)
+                    if tasktype == "":
+                        raise ValueError(f"Cannot find any log file in {folder}")
+                    elif not tasktype in ["single_point", "molecular_dynamics"]:
+                        raise ValueError(f"Unknown task type in {folder}")
+                    
                     pbar.update(1)
                 except Exception as e:
                     print(f"Error in {folder}/{data_name}: {e}")
