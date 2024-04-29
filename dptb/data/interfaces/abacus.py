@@ -232,6 +232,8 @@ def _abacus_parse(input_path,
             lattice[index_lat, :] = np.array(f.readline().split())
         if coords_type == "cartesian":
             frac_coords = frac_coords @ np.matrix(lattice).I  # get frac_coords anyway
+        # this is because the cartesian coordinates in abacus log files are in unit of a_0. Thus the lattice constant is not needed.
+        # now we need to convert the lattice constant to Angstrom.
         lattice = lattice * lattice_constant
         
 
