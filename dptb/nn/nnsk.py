@@ -208,7 +208,7 @@ class NNSK(torch.nn.Module):
                 self.hopping_options["w"] += w_thr
             if abs(rc_thr) > 0:
                 self.hopping_options["rc"] += rc_thr
-            if abs(ovp_thr) > 0 and self.ovp_factor >=ovp_thr:
+            if abs(ovp_thr) > 0 and self.ovp_factor >= abs(ovp_thr):
                 self.ovp_factor += ovp_thr
                 log.info(f"ovp_factor is decreased to {self.ovp_factor}")
             self.model_options["nnsk"]["hopping"] = self.hopping_options
@@ -511,8 +511,12 @@ class NNSK(torch.nn.Module):
             model = cls(**common_options, **nnsk, transform=transform)
 
             if f["config"]["common_options"]["basis"] == common_options["basis"] and \
-                f["config"]["model_options"] == model.model_options:
+                f["config"]["model_options"]["nnsk"]["onsite"] == model.model_options["nnsk"]["onsite"] and \
+                f["config"]["model_options"]["nnsk"]["hopping"] == model.model_options["nnsk"]["hopping"] and \
+                    f["config"]["model_options"]["nnsk"]["soc"] == model.model_options["nnsk"]["soc"]:
+                
                 model.load_state_dict(f["model_state_dict"])
+            
             else:
                 #TODO: handle the situation when ref_model config is not the same as the current model
                 # load hopping
