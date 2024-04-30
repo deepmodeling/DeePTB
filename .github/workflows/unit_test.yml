@@ -23,8 +23,8 @@ jobs:
           ref: "refs/pull/${{ github.event.number }}/merge"
       - name: Set repository ownership and permissions
         run: |
-          sudo chown -R $GITHUB_ACTOR:$GITHUB_ACTOR .git
-          sudo chmod -R 755 .git
+          chown -R $GITHUB_ACTOR:$GITHUB_ACTOR .git
+          chmod -R 755 .git
       - name: Install DeePTB & Run Test
         id: s2
         run: |
