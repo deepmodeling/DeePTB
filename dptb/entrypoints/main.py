@@ -16,6 +16,7 @@ from dptb.entrypoints.collectskf import skf2pth
 from dptb import __version__
 
 
+
 def get_ll(log_level: str) -> int:
     """Convert string to python logging level.
 
@@ -45,6 +46,7 @@ def main_parser() -> argparse.ArgumentParser:
 
     parser.add_argument('-v', '--version', 
                         action='version', version=f'%(prog)s {__version__}', help="show the DeepTB's version number and exit")
+
 
     subparsers = parser.add_subparsers(title="Valid subcommands", dest="command")
 
