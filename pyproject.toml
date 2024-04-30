@@ -1,11 +1,11 @@
 [tool.poetry]
 name = "dptb"
-version = "2.0.1"
+version = "0.0.0"
 license = "LGPL-3.0"
 description = "A deep learning package for emperical tight-binding approach with first-principle accuracy."
 authors = ["Q. Gu <guqq@pku.edu.cn>", "Z. Zhanghao <zhouyinzhanghao@gmail.com>"]
 readme = "README.md"
-repository = "https://github.com/deepmodeling/DeePTB"
+repository = "https://github.com/deepmodeling/DeePTB.git"
 
 [tool.poetry.dependencies]
 python = ">=3.8"
@@ -78,13 +78,23 @@ build-backend = "poetry_dynamic_versioning.backend"
 
 
 [tool.poetry-dynamic-versioning]
-enable = false
+enable = true
 vcs = "git"
 strict = true
 format-jinja = """
-{%- if distance == 0 -%}
-        {{ serialize_pep440(base) }}
-{%- else -%}
-        {{serialize_pep440(bump_version(base, index=1), dev=timestamp)}}
-{%- endif -%}
+    {%- if distance == 0 -%}
+        {{ serialize_pep440(base, stage, revision) }}
+    {%- elif revision is not none -%}
+        {{ serialize_pep440(base, stage, revision + 1, dev=distance, metadata=[commit]) }}
+    {%- else -%}
+        {{ serialize_pep440(bump_version(base), stage, revision, dev=distance, metadata=[commit]) }}
+    {%- endif -%}
+"""
+
+[tool.poetry-dynamic-versioning.files."dptb/_version.py"]
+persistent-substitution = true
+initial-content = """
+  # These version placeholders will be replaced later during substitution.
+  __version__ = "0.0.0"
+  __version_tuple__ = (0, 0, 0)
 """
