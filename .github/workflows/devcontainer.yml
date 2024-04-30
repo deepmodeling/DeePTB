@@ -35,12 +35,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Login to Aliyun Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: registry.dp.tech
           username: ${{ secrets.DP_HARBOR_USERNAME }}
           password: ${{ secrets.DP_HARBOR_PASSWORD }}
-
+          
       - name: Build and Push Container
         uses: docker/build-push-action@v5
         with:
