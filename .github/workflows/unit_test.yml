@@ -23,8 +23,7 @@ jobs:
           ref: "refs/pull/${{ github.event.number }}/merge"
       - name: Set repository ownership and permissions
         run: |
-          chown -R root:root .git
-          chmod -R 755 .git
+          git config --global --add safe.directory /__w/DeePTB/DeePTB
       - name: Install DeePTB & Run Test
         id: s2
         run: |
