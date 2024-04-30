@@ -59,8 +59,10 @@ class HR2HK(torch.nn.Module):
         bondwise_hopping.type(self.dtype)
         onsite_block = torch.zeros((len(data[AtomicDataDict.ATOM_TYPE_KEY]), self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
 
-        
-        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
+        soc = data.get(AtomicDataDict.NODE_SOC_SWITCH_KEY, False)
+        if isinstance(soc, torch.Tensor):
+            soc = soc.all()
+        if soc:
             if self.overlap:
                 raise NotImplementedError("Overlap is not implemented for SOC.")
             
@@ -94,7 +96,7 @@ class HR2HK(torch.nn.Module):
                     if i <= j:
                         onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
                     
-                    if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all() and i==j:
+                    if soc and i==j:
                         soc_updn_tmp = orbpair_soc[:,self.idp.orbpair_soc_maps[orbpair]].reshape(-1, 2*li+1, 2*(2*lj+1))
                         soc_upup_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = soc_updn_tmp[:, :2*li+1,:2*lj+1]
                         soc_updn_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = soc_updn_tmp[:, :2*li+1,2*lj+1:]
@@ -153,7 +155,7 @@ class HR2HK(torch.nn.Module):
         block = block + block.transpose(1,2).conj()
         block = block.contiguous()
         
-        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
+        if soc:
             HK_SOC = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], 2*all_norb, 2*all_norb, dtype=self.ctype, device=self.device)
             #HK_SOC[:,:all_norb,:all_norb] = block + block_uu
             #HK_SOC[:,:all_norb,all_norb:] = block_ud

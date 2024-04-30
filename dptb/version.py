@@ -1,11 +1,20 @@
 import os
 import subprocess as sp
+import toml, os
 
 MAJOR = 0
 MINOR = 1
 MICRO = 0
 ISRELEASED = False
-VERSION = '%d.%d.%d' % (MAJOR, MINOR, MICRO)
+# VERSION = '%d.%d.%d' % (MAJOR, MINOR, MICRO)
+
+entrypoint_path = os.path.dirname(os.path.abspath(__file__))
+pyproject_path = os.path.join(entrypoint_path, "..", "pyproject.toml") 
+
+with open(pyproject_path, "r") as f:
+    pyproject = toml.load(f)
+    VERSION = pyproject["tool"]["poetry"]["version"]
+
 
 # Return the git revision as a string
 # taken from numpy/numpy
@@ -60,3 +69,8 @@ def get_version(build_version=False):
         return VERSION + ".dev" + date
     else:
         return VERSION + ".dev0+" + GIT_REVISION[:7]
+    
+if __name__ == "__main__":
+    GIT_REVISION = _get_git_version()
+    print(GIT_REVISION)
+    print(get_version())

@@ -628,7 +628,7 @@ def onsite():
     ]
 
     NRL = [
-        Argument("rc", float, optional=True, default=6.0, doc=doc_rc),
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rc),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
         Argument("lda", float, optional=True, default=1.0, doc=doc_lda)
     ]
@@ -655,20 +655,39 @@ def hopping():
         Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
-
+    poly1pow = [
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
+        Argument("w", float, optional=True, default=0.1, doc=doc_w),
+    ]
+    poly2pow = [
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
+        Argument("w", float, optional=True, default=0.1, doc=doc_w),
+    ]
+    poly3pow = [
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
+        Argument("w", float, optional=True, default=0.1, doc=doc_w),
+    ]    
+    poly2exp = [
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
+        Argument("w", float, optional=True, default=0.1, doc=doc_w),
+    ]
     varTang96 = [
         Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
 
     NRL = [
-        Argument("rc", float, optional=True, default=6.0, doc=doc_rc),
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rc),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
 
 
     return Variant("method", [
                     Argument("powerlaw", dict, powerlaw),
+                    Argument("poly1pow", dict, poly1pow),
+                    Argument("poly2pow", dict, poly2pow),
+                    Argument("poly3pow", dict, poly3pow),
+                    Argument("poly2exp", dict, poly2exp),
                     Argument("varTang96", dict, varTang96),
                     Argument("NRL0", dict, NRL),
                     Argument("NRL1", dict, NRL),

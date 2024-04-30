@@ -234,6 +234,11 @@ class Band(object):
             number_in_line = kpath_kwargs['number_in_line']
             klist, xlist, high_sym_kpoints, labels = vasp_kpath(structase=structase,
                                                  pathstr=kpath, high_sym_kpoints_dict=high_sym_kpoints_dict, number_in_line=number_in_line)
+        elif kline_type == 'array':
+            klist = kpath_kwargs['kpath']
+            high_sym_kpoints = kpath_kwargs.get('high_sym_kpoints', None)
+            xlist = kpath_kwargs.get('xlist', None)
+            labels = kpath_kwargs.get('labels', None)
         else:
             log.error('Error, now, kline_type only support ase_kpath, abacus, or vasp.')
             raise ValueError

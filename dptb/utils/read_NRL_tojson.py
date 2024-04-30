@@ -221,13 +221,13 @@ def nrl2dptb(input, NRL_data):
     input_nrl['model_options']['nnsk'].update(
         {"onsite": {
             "method": "NRL",
-            "rc": Rcut * bohr2ang,
+            "rs": Rcut * bohr2ang,
             "w": Lscreen * bohr2ang,
             "lda": lambda_value/np.sqrt(bohr2ang)
         },
         "hopping": {
             "method": f'NRL{overlap_type}',
-            "rc": Rcut * bohr2ang,
+            "rs": Rcut * bohr2ang,
             "w": Lscreen * bohr2ang
         },
         "soc":{},
@@ -252,13 +252,13 @@ def nrl2dptb(input, NRL_data):
         "nnsk": {
             "onsite": {
                 "method": "NRL",
-                "rc": Rcut * bohr2ang,
+                "rs": Rcut * bohr2ang,
                 "w": Lscreen * bohr2ang,
                 "lda": lambda_value/np.sqrt(bohr2ang)
             },
             "hopping": {
                 "method": f'NRL{overlap_type}',
-                "rc": Rcut * bohr2ang,
+                "rs": Rcut * bohr2ang,
                 "w": Lscreen * bohr2ang
             },
             "soc":{},
