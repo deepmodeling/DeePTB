@@ -195,7 +195,7 @@ class DeviceProperty(object):
         
         # for i, e in tqdm(enumerate(ee), desc="Compute green functions: "):
         
-        tags = ["g_trans", \
+        tags = ["g_trans","gr_lc", \
                "grd", "grl", "gru", "gr_left", \
                "gnd", "gnl", "gnu", "gin_left", \
                "gpd", "gpl", "gpu", "gip_left"]
@@ -460,7 +460,9 @@ class DeviceProperty(object):
     @property
     def g_trans(self):
         return self.greenfuncs["g_trans"] # [n,n]
-    
+    @property
+    def gr_lc(self): # last column of Gr
+        return self.greenfuncs["gr_lc"]  
     @property
     def grd(self):
         return self.greenfuncs["grd"] # [[n,n]]

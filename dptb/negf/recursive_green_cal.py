@@ -85,12 +85,14 @@ def recursive_gf_cal(energy, mat_l_list, mat_d_list, mat_u_list, sd, su, sl, s_i
     gru = [None for _ in range(num_of_matrices-1)]
     grd = [i.clone() for i in gr_left]  # Our glorious benefactor.
     g_trans = gr_left[len(gr_left) - 1].clone()
+    gr_lc = [gr_left[len(gr_left) - 1].clone()]
     for q in range(num_of_matrices - 2, -1, -1):  # Recursive algorithm
         grl[q] = grd[q + 1] @ mat_l_list[q] @ gr_left[q]  # (B5) We get the off-diagonal blocks for free.
         gru[q] = gr_left[q] @ mat_u_list[q] @ grd[q + 1]  # (B6) because we need .Tthem.T for the next calc:
         grd[q] = gr_left[q] + gr_left[q] @ mat_u_list[q] @ grl[q]  # (B4) I suppose I could also use the lower.
         g_trans = gr_left[q] @ mat_u_list[q] @ g_trans
-
+        gr_lc.append(g_trans)
+    gr_lc.reverse()
     # -------------------------------------------------------------------
     # ------ compute the electron correlation function ( Lesser Green Function ) if needed --------
     # -------------------------------------------------------------------
@@ -171,25 +173,25 @@ def recursive_gf_cal(energy, mat_l_list, mat_d_list, mat_u_list, sd, su, sl, s_i
     # -------------------------------------------------------------------
 
     if not isinstance(s_in, list) and not isinstance(s_out, list):
-        return g_trans, \
+        return g_trans,gr_lc, \
                grd, grl, gru, gr_left, \
                None, None, None, None, \
                None, None, None, None
 
     elif isinstance(s_in, list) and not isinstance(s_out, list):
-        return g_trans, \
+        return g_trans,gr_lc, \
                grd, grl, gru, gr_left, \
                gnd, gnl, gnu, gin_left, \
                None, None, None, None
 
     elif not isinstance(s_in, list) and isinstance(s_out, list):
-        return g_trans, \
+        return g_trans,gr_lc, \
                grd, grl, gru, gr_left, \
                None, None, None, None, \
                gpd, gpl, gpu, gip_left
 
     else:
-        return g_trans, \
+        return g_trans,gr_lc, \
                grd, grl, gru, gr_left, \
                gnd, gnl, gnu, gin_left, \
                gpd, gpl, gpu, gip_left

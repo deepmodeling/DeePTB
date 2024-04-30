@@ -289,12 +289,12 @@ class NEGF(object):
             for ik,k in enumerate(self.kpoints):
                 free_charge_allk += np.real(self.free_charge[str(k)].numpy()) * self.wk[ik]
             interface_poisson.free_charge[atom_gridpoint_index] = free_charge_allk
-            torch.save(free_charge_allk, self.results_path+"/free_charge_iter.pth")
+            
 
             interface_poisson.phi_old = interface_poisson.phi.copy()
             max_diff_phi = interface_poisson.solve_poisson_NRcycle(method=self.poisson_options['solver'],tolerance=tolerance)
             interface_poisson.phi = interface_poisson.phi + mix_rate*(interface_poisson.phi_old-interface_poisson.phi)
-            torch.save(interface_poisson.phi, self.results_path+"/phi_iter.pth")
+            
 
             iter_count += 1 # Gummel type iteration
             log.info(msg="Poisson-NEGF iteration: {}    Potential Diff Maximum: {}\n".format(iter_count,max_diff_phi))
@@ -355,8 +355,10 @@ class NEGF(object):
                                 # set voltage as -1*potential_at_orb[0] and -1*potential_at_orb[-1] for self-energy same as in NanoTCAD
                                 if ll == 'lead_L' :
                                     getattr(self.deviceprop, ll).voltage = Vbias[self.left_connected].mean()
+                                    # getattr(self.deviceprop, ll).voltage = Vbias[0]
                                 else:
                                     getattr(self.deviceprop, ll).voltage = Vbias[self.right_connected].mean()
+                                    # getattr(self.deviceprop, ll).voltage = Vbias[-1]
 
                     self.density.density_integrate_Fiori(
                         e_grid = self.uni_grid, 
@@ -391,9 +393,11 @@ class NEGF(object):
                                 if Vbias is not None  and self.density_options["method"] == "Fiori":
                                     # set voltage as -1*potential_at_orb[0] and -1*potential_at_orb[-1] for self-energy same as in NanoTCAD
                                     if ll == 'lead_L':
-                                        getattr(self.deviceprop, ll).voltage = Vbias[self.left_connected].mean()
+                                        # getattr(self.deviceprop, ll).voltage = Vbias[self.left_connected].mean()
+                                        getattr(self.deviceprop, ll).voltage = Vbias[0]
                                     else:
-                                        getattr(self.deviceprop, ll).voltage = Vbias[self.right_connected].mean()
+                                        # getattr(self.deviceprop, ll).voltage = Vbias[self.right_connected].mean()
+                                        getattr(self.deviceprop, ll).voltage = Vbias[-1]
                                 
                                 getattr(self.deviceprop, ll).self_energy(
                                     energy=e, 
