@@ -447,7 +447,6 @@ class NEGFHamiltonianInit(object):
             return hd_k , sd_k, hl_k , su_k, sl_k, hu_k
         else:
             HD_k, SD_k = f["HD"][ik], f["SD"][ik]
-            V = V.cdouble()
             return HD_k - V*SD_k, SD_k, [], [], [], []
     
     def get_hs_lead(self, kpoint, tab, v):

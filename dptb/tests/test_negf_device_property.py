@@ -122,7 +122,7 @@ def test_negf_Device(root_directory):
                             )
 
     #check  green functions' results
-    assert list(device.greenfuncs.keys())==['g_trans', 'grd', 'grl', 'gru', 'gr_left', 'gnd', 'gnl',\
+    assert list(device.greenfuncs.keys())==['g_trans','gr_lc', 'grd', 'grl', 'gru', 'gr_left', 'gnd', 'gnl',\
                                         'gnu', 'gin_left', 'gpd', 'gpl', 'gpu', 'gip_left']
     g_trans= torch.tensor([[ 1.0983e-11-8.2022e-01j, -8.2022e-01+4.4634e-07j,8.9264e-07+8.2022e-01j,  8.2022e-01-1.3390e-06j],
             [-8.2022e-01+4.4634e-07j, -3.6607e-12-8.2022e-01j,-8.2021e-01+4.4631e-07j,  8.9264e-07+8.2022e-01j],
