@@ -15,7 +15,7 @@ on:
       
 jobs:
   build_container_and_push:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.repository_owner == 'deepmodeling'
     strategy:
       matrix:
@@ -40,7 +40,7 @@ jobs:
           registry: registry.dp.tech
           username: ${{ secrets.DP_HARBOR_USERNAME }}
           password: ${{ secrets.DP_HARBOR_PASSWORD }}
-          
+
       - name: Build and Push Container
         uses: docker/build-push-action@v5
         with:
