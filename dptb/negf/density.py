@@ -298,9 +298,7 @@ class Fiori(Density):
                 if e >= Ei_at_atom: 
                     if not block_tridiagonal:
                         free_charge[str(kpoint)][atom_index] +=\
-                            pre_factor[eidx]*2*(-1)/2/torch.pi*torch.trace(A_Ld[0][pre_orbs:last_orbs,pre_orbs:last_orbs]*\
-                            deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi) \
-                            +A_Rd[0][pre_orbs:last_orbs,pre_orbs:last_orbs]*deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi))
+                            pre_factor[eidx]*2*(-1)/2/torch.pi*torch.trace(gnd[0][pre_orbs:last_orbs,pre_orbs:last_orbs])
                         # free_charge[str(kpoint)][atom_index] +=\
                         #     pre_factor[eidx]*2*(-1)/2/torch.pi*torch.trace(deviceprop.gnd[0][pre_orbs:last_orbs,pre_orbs:last_orbs])                            
                     else:
@@ -323,10 +321,7 @@ class Fiori(Density):
                 else:
                     if not block_tridiagonal:                      
                         free_charge[str(kpoint)][atom_index] +=\
-                        pre_factor[eidx]*2/2/torch.pi*torch.trace(A_Ld[0][pre_orbs:last_orbs,pre_orbs:last_orbs]\
-                                                       *(1-deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi)) \
-                                                                +A_Rd[0][pre_orbs:last_orbs,pre_orbs:last_orbs]\
-                                                        *(1-deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi)))
+                        pre_factor[eidx]*2/2/torch.pi*torch.trace(gpd[0][pre_orbs:last_orbs,pre_orbs:last_orbs])
                         # free_charge[str(kpoint)][atom_index] += pre_factor[eidx]*2*1/2/torch.pi*torch.trace(gpd[0][pre_orbs:last_orbs,pre_orbs:last_orbs])
         
                     else:
