@@ -1,2 +1,3 @@
-from dptb.version import get_version as _get_version
-__version__ = _get_version()
+import importlib.metadata
+
+__version__ = importlib.metadata.version("dptb")
