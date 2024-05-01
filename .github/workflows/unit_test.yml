@@ -4,7 +4,6 @@ on:
   pull_request:
     paths-ignore:
       - 'docs/**'
-      - '.github/workflows/devcontainer.yml'
       
 jobs: 
   build:
@@ -21,6 +20,9 @@ jobs:
         with:
           fetch-depth: 0
           ref: "refs/pull/${{ github.event.number }}/merge"
+      - name: Add safe directory
+        run: |
+          git config --global --add safe.directory ${GITHUB_WORKSPACE}
       - name: Install DeePTB & Run Test
         id: s2
         run: |
