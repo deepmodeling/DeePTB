@@ -25,7 +25,7 @@ from dptb.nn.hr2hk import HR2HK
 from ase import Atoms
 
 from dptb.negf.sort_btd import sort_lexico, sort_projection, sort_capacitance
-from dptb.negf.split_btd import compute_edge,compute_blocks,show_blocks,compute_blocks_optimized,split_into_subblocks,split_into_subblocks_optimized
+from dptb.negf.split_btd import show_blocks,split_into_subblocks,split_into_subblocks_optimized
 '''
 a Hamiltonian object  that initializes and manipulates device and  lead Hamiltonians for NEGF
 '''
@@ -393,7 +393,8 @@ class NEGFHamiltonianInit(object):
         log.info(msg="               occupation of subblocks: {} %".format(num_total/(HK[0].shape[0]**2)*100))     
 
         subblocks = subblocks[1:]
-
+        show_blocks(subblocks,HK[0],self.results_path)
+        
         return hd, hu, hl, sd, su, sl, subblocks
 
     def get_hs_device(self, kpoint, V, block_tridiagonal=False):
