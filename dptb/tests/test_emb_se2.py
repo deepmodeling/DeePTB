@@ -98,7 +98,7 @@ class TestEmbSe2:
             assert re1.norm() > 1e-6    
             re1 /= re1.norm()
             assert (out_node[ii] - re1).abs().max() < 1e-6
-        
+
         edge_out = torch.cat([out_node[edge_index[0]] + out_node[edge_index[1]], 1/edge_length.reshape(-1,1)], dim=-1) # [N_edge, D*D]
         
         assert torch.all(out_edge==edge_out)

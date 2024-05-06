@@ -16,7 +16,6 @@ from dptb.entrypoints.collectskf import skf2pth
 from dptb import __version__
 
 
-
 def get_ll(log_level: str) -> int:
     """Convert string to python logging level.
 
