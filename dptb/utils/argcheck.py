@@ -597,12 +597,14 @@ def push():
     doc_rs_thr = "The step size for cutoff value for smooth function in the nnsk anlytical formula."
     doc_rc_thr = "The step size for cutoff value for smooth function in the nnsk anlytical formula."
     doc_w_thr = "The step size for decay factor w."
+    doc_ovp_thr = "The step size for overlap reduction"
     doc_period = "the interval of iterations to modify the rs w values."
 
     return Argument("push", [bool,dict], sub_fields=[
         Argument("rs_thr", [int,float], optional=True, default=0., doc=doc_rs_thr),
         Argument("rc_thr", [int,float], optional=True, default=0., doc=doc_rc_thr),
         Argument("w_thr",  [int,float], optional=True,  default=0., doc=doc_w_thr),
+        Argument("ovp_thr", [int,float], optional=True, default=0., doc=doc_ovp_thr),
         Argument("period", int, optional=True, default=100, doc=doc_period),
     ], sub_variants=[], optional=True, default=False, doc="The parameters to define the push the soft cutoff of nnsk model.")
 
@@ -626,7 +628,7 @@ def onsite():
     ]
 
     NRL = [
-        Argument("rc", float, optional=True, default=6.0, doc=doc_rc),
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rc),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
         Argument("lda", float, optional=True, default=1.0, doc=doc_lda)
     ]
@@ -653,20 +655,39 @@ def hopping():
         Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
-
+    poly1pow = [
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
+        Argument("w", float, optional=True, default=0.1, doc=doc_w),
+    ]
+    poly2pow = [
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
+        Argument("w", float, optional=True, default=0.1, doc=doc_w),
+    ]
+    poly3pow = [
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
+        Argument("w", float, optional=True, default=0.1, doc=doc_w),
+    ]    
+    poly2exp = [
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
+        Argument("w", float, optional=True, default=0.1, doc=doc_w),
+    ]
     varTang96 = [
         Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
 
     NRL = [
-        Argument("rc", float, optional=True, default=6.0, doc=doc_rc),
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rc),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
 
 
     return Variant("method", [
                     Argument("powerlaw", dict, powerlaw),
+                    Argument("poly1pow", dict, poly1pow),
+                    Argument("poly2pow", dict, poly2pow),
+                    Argument("poly3pow", dict, poly3pow),
+                    Argument("poly2exp", dict, poly2exp),
                     Argument("varTang96", dict, varTang96),
                     Argument("NRL0", dict, NRL),
                     Argument("NRL1", dict, NRL),

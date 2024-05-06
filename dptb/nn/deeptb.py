@@ -230,6 +230,8 @@ class NNENV(nn.Module):
 
 
     def forward(self, data: AtomicDataDict.Type):
+        if data.get(AtomicDataDict.EDGE_TYPE_KEY, None) is None:
+            self.idp(data)
 
         data = self.embedding(data)
         if hasattr(self, "overlap"):
@@ -368,6 +370,10 @@ class MIX(nn.Module):
         
 
     def forward(self, data: AtomicDataDict.Type):
+
+        if data.get(AtomicDataDict.EDGE_TYPE_KEY, None) is None:
+            self.idp(data)
+            
         data_nnenv = self.nnenv(data)
         if hasattr(self, "nnsk"):
             data_sk = self.nnsk(data)

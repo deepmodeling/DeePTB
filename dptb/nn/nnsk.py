@@ -134,6 +134,7 @@ class NNSK(torch.nn.Module):
                                         strain=hasattr(self, "strain_param"),soc=hasattr(self, "soc_param"))
         if overlap:
             self.overlap = SKHamiltonian(idp_sk=self.idp_sk, onsite=False, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
+            self.register_buffer("ovp_factor", torch.tensor(1.0, dtype=self.dtype, device=self.device))
         self.idp = self.hamiltonian.idp
         
         if freeze:  
@@ -188,7 +189,7 @@ class NNSK(torch.nn.Module):
                 raise ValueError("freeze is True, all parameters should frozen. But the frozen_params != all model.named_parameters. Please check the freeze tag.")
         log.info(f'The {frozen_params} are frozen!')
 
-    def push_decay(self, rs_thr: float=0., rc_thr: float=0., w_thr: float=0., period:int=100):
+    def push_decay(self, rs_thr: float=0., rc_thr: float=0., w_thr: float=0., ovp_thr: float=0., period:int=100):
         """Push the soft cutoff function
 
         Parameters
@@ -199,20 +200,18 @@ class NNSK(torch.nn.Module):
             the threshold step to push the w
         """
 
-
-        if self.count_push // period > 0:
+        self.count_push += 1
+        if self.count_push % period == 0:
             if abs(rs_thr) > 0:
                 self.hopping_options["rs"] += rs_thr
             if abs(w_thr) > 0:
                 self.hopping_options["w"] += w_thr
             if abs(rc_thr) > 0:
                 self.hopping_options["rc"] += rc_thr
-
+            if abs(ovp_thr) > 0 and self.ovp_factor >= abs(ovp_thr):
+                self.ovp_factor += ovp_thr
+                log.info(f"ovp_factor is decreased to {self.ovp_factor}")
             self.model_options["nnsk"]["hopping"] = self.hopping_options
-
-            self.count_push = 0
-        else:
-            self.count_push += 1
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         # get the env and bond from the data
@@ -224,7 +223,7 @@ class NNSK(torch.nn.Module):
         # map the parameters to the edge/node/env features
         # compute integrals from parameters using hopping and onsite clas
         if self.push is not None and self.push is not False:
-            if abs(self.push.get("rs_thr")) + abs(self.push.get("rc_thr")) + abs(self.push.get("w_thr")) > 0:
+            if abs(self.push.get("rs_thr")) + abs(self.push.get("rc_thr")) + abs(self.push.get("w_thr")) + abs(self.push.get("ovp_thr")) > 0:
                 self.push_decay(**self.push)
 
         reflective_bonds = np.array([self.idp_sk.bond_to_type["-".join(self.idp_sk.type_to_bond[i].split("-")[::-1])] for i  in range(len(self.idp_sk.bond_types))])
@@ -247,6 +246,8 @@ class NNSK(torch.nn.Module):
 
         
         data = AtomicDataDict.with_edge_vectors(data, with_lengths=True)
+        if data.get(AtomicDataDict.EDGE_TYPE_KEY, None) is None:
+            self.idp_sk(data)
 
         # edge_number = data[AtomicDataDict.ATOMIC_NUMBERS_KEY][data[AtomicDataDict.EDGE_INDEX_KEY]].reshape(2, -1)
         # edge_index = self.idp_sk.transform_reduced_bond(*edge_number)
@@ -278,7 +279,7 @@ class NNSK(torch.nn.Module):
             # the overlap tag now is only designed to be used in the NRL-TB case. In the future, we may need to change this.
             paraconst = edge_number[0].eq(edge_number[1]).float().view(-1, 1) * equal_orbpair.unsqueeze(0)
 
-            data[AtomicDataDict.EDGE_OVERLAP_KEY] = self.overlap_fn.get_sksij(
+            data[AtomicDataDict.EDGE_OVERLAP_KEY] = self.ovp_factor * self.overlap_fn.get_sksij(
                 rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
                 paraArray=self.overlap_param[edge_index],
                 paraconst=paraconst,
@@ -510,8 +511,12 @@ class NNSK(torch.nn.Module):
             model = cls(**common_options, **nnsk, transform=transform)
 
             if f["config"]["common_options"]["basis"] == common_options["basis"] and \
-                f["config"]["model_options"] == model.model_options:
+                f["config"]["model_options"]["nnsk"]["onsite"] == model.model_options["nnsk"]["onsite"] and \
+                f["config"]["model_options"]["nnsk"]["hopping"] == model.model_options["nnsk"]["hopping"] and \
+                    f["config"]["model_options"]["nnsk"]["soc"] == model.model_options["nnsk"]["soc"]:
+                
                 model.load_state_dict(f["model_state_dict"])
+            
             else:
                 #TODO: handle the situation when ref_model config is not the same as the current model
                 # load hopping
@@ -528,7 +533,7 @@ class NNSK(torch.nn.Module):
                         iasym, jasym = bond.split("-")
                         for ref_forbpair in ref_idp.orbpair_maps.keys():
                             rfiorb, rfjorb = ref_forbpair.split("-")
-                            riorb, rjorb = ref_idp.full_basis_to_basis[iasym][rfiorb], ref_idp.full_basis_to_basis[jasym][rfjorb]
+                            riorb, rjorb = ref_idp.full_basis_to_basis[iasym].get(rfiorb), ref_idp.full_basis_to_basis[jasym].get(rfjorb)
                             fiorb, fjorb = idp.basis_to_full_basis[iasym].get(riorb), idp.basis_to_full_basis[jasym].get(rjorb)
                             if fiorb is not None and fjorb is not None:
                                 sli = idp.orbpair_maps.get(f"{fiorb}-{fjorb}")
@@ -547,7 +552,7 @@ class NNSK(torch.nn.Module):
                             iasym, jasym = bond.split("-")
                             for ref_forbpair in ref_idp.orbpair_maps.keys():
                                 rfiorb, rfjorb = ref_forbpair.split("-")
-                                riorb, rjorb = ref_idp.full_basis_to_basis[iasym][rfiorb], ref_idp.full_basis_to_basis[jasym][rfjorb]
+                                riorb, rjorb = ref_idp.full_basis_to_basis[iasym].get(rfiorb), ref_idp.full_basis_to_basis[jasym].get(rfjorb)
                                 fiorb, fjorb = idp.basis_to_full_basis[iasym].get(riorb), idp.basis_to_full_basis[jasym].get(rjorb)
                                 if fiorb is not None and fjorb is not None:
                                     sli = idp.orbpair_maps.get(f"{fiorb}-{fjorb}")
@@ -566,7 +571,7 @@ class NNSK(torch.nn.Module):
                     for asym in ref_idp.type_names:
                         if asym in idp.type_names:
                             for ref_forb in ref_idp.skonsite_maps.keys():
-                                rorb = ref_idp.full_basis_to_basis[asym][ref_forb]
+                                rorb = ref_idp.full_basis_to_basis[asym].get(ref_forb)
                                 forb = idp.basis_to_full_basis[asym].get(rorb)
                                 if forb is not None:
                                     model.onsite_param.data[idp.chemical_symbol_to_type[asym],idp.skonsite_maps[forb]] = \
@@ -579,7 +584,7 @@ class NNSK(torch.nn.Module):
                     for asym in ref_idp.type_names:
                         if asym in idp.type_names:
                             for ref_forb in ref_idp.sksoc_maps.keys():
-                                rorb = ref_idp.full_basis_to_basis[asym][ref_forb]
+                                rorb = ref_idp.full_basis_to_basis[asym].get(ref_forb)
                                 forb = idp.basis_to_full_basis[asym].get(rorb)
                                 if forb is not None:
                                     model.soc_param.data[idp.chemical_symbol_to_type[asym],idp.sksoc_maps[forb]] = \
@@ -592,7 +597,7 @@ class NNSK(torch.nn.Module):
                             iasym, jasym = bond.split("-")
                             for ref_forbpair in ref_idp.orbpair_maps.keys():
                                 rfiorb, rfjorb = ref_forbpair.split("-")
-                                riorb, rjorb = ref_idp.full_basis_to_basis[iasym][rfiorb], ref_idp.full_basis_to_basis[jasym][rfjorb]
+                                riorb, rjorb = ref_idp.full_basis_to_basis[iasym].get(rfiorb), ref_idp.full_basis_to_basis[jasym].get(rfjorb)
                                 fiorb, fjorb = idp.basis_to_full_basis[iasym].get(riorb), idp.basis_to_full_basis[jasym].get(rjorb)
                                 if fiorb is not None and fjorb is not None:
                                     sli = idp.orbpair_maps.get(f"{fiorb}-{fjorb}")
@@ -788,14 +793,15 @@ class NNSK(torch.nn.Module):
         else:
             dtype = self.dtype.__str__().split('.')[-1]
         is_overlap = hasattr(self, "overlap_param")
+        dd = "cpu" if self.device == torch.device("cpu") else "cuda"
         common_options = {
             "basis": basis,
             "dtype": dtype,
-            "device": self.device,
+            "device": dd,
             "overlap": is_overlap,
         }
 
-        if version ==2:
+        if version == 2:
             ckpt.update({"model_options": self.model_options, 
                         "common_options": common_options})
 
