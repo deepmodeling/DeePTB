@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dptb"
-version = "2.0.1"
+version = "2.0.2"
 license = "LGPL-3.0"
 description = "A deep learning package for emperical tight-binding approach with first-principle accuracy."
 authors = ["Q. Gu <guqq@pku.edu.cn>", "Z. Zhanghao <zhouyinzhanghao@gmail.com>"]
@@ -76,7 +76,7 @@ build-backend = "poetry_dynamic_versioning.backend"
 
 
 [tool.poetry-dynamic-versioning]
-enable = true
+enable = false
 vcs = "git"
 strict = true
 format-jinja = """
