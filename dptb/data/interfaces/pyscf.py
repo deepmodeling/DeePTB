@@ -9,6 +9,7 @@ from dptb.utils.constants import atomic_num_dict, atomic_num_dict_r, anglrMId
 from dptb.utils.symbol2ID import symbol2ID
 import argparse
 import logging
+import pickle
 
 log=logging.getLogger(__name__)
 
@@ -143,11 +144,13 @@ def _pyscf_parse_qm9(input_path,
             out = os.path.join(output_path, f"frame.{isymbol}")
             os.makedirs(out, exist_ok=True)
 
-            atom_numbers_list = []
-            coords_list = [] 
+            # atom_numbers_list = []
+            # coords_list = [] 
 
-
-            with h5py.File(os.path.join(out, "DM.h5"), 'w') as fid:
+            struct = {}
+            with h5py.File(os.path.join(out, "DM.h5"), 'w') as fid, \
+                    open(os.path.join(out, "structure.pkl"), 'wb') as pid:
+                
                 icount = 0
                 for iID in iID_lists:
                     file  = f"{input_path}/{iID}.chk"
@@ -155,38 +158,55 @@ def _pyscf_parse_qm9(input_path,
                                                                        site_norbits_dict, 
                                                                        orbital_types_dict,
                                                                        get_DM)    
-                    atom_numbers_list.append(atom_numbers)
-                    coords_list.append(coords) 
+                    # atom_numbers_list.append(atom_numbers)
+                    # coords_list.append(coords) 
                     icount+=1
                     default_group = fid.create_group(str(icount)) 
+                    struct[str(icount)] = {}
+
                     for key_str, value in matrix_dict.items():
                         default_group[key_str] = value
 
-                coords_list = np.concatenate(coords_list, axis=0)
-                atom_numbers_list = np.concatenate(atom_numbers_list, axis=0)
-                np.savetxt(os.path.join(out, "positions.dat"), coords_list)
-                np.savetxt(os.path.join(out, "atomic_numbers.dat"), atom_numbers_list, fmt='%d')
+                    struct[str(icount)]["positions"] = coords
+                    struct[str(icount)]["atomic_numbers"] = atom_numbers
+                
+                pickle.dump(struct, pid)
+            
+            # coords_list = np.concatenate(coords_list, axis=0)
+            # atom_numbers_list = np.concatenate(atom_numbers_list, axis=0)
+            # np.savetxt(os.path.join(out, "positions.dat"), coords_list)
+            # np.savetxt(os.path.join(out, "atomic_numbers.dat"), atom_numbers_list, fmt='%d')
     else:
         for idat in data_name:
             file_name = idat.split('/')[-1]
             file_id = file_name.split('.')[0]
             out = os.path.join(output_path, f"frame.{file_id}")
             os.makedirs(out, exist_ok=True)
-
-            with h5py.File(os.path.join(out, "DM.h5"), 'w') as fid:
+            
+            struct = {}
+            with h5py.File(os.path.join(out, "DM.h5"), 'w') as fid, \
+                open(os.path.join(out, "structure.pkl"), 'wb') as pid:
+                
                 coords, atom_numbers, matrix_dict = _chkfile_parse(idat, 
                                                                    site_norbits_dict, 
                                                                    orbital_types_dict,
                                                                    get_DM)    
 
-                np.savetxt(os.path.join(out, "positions.dat"), coords)
-                np.savetxt(os.path.join(out, "atomic_numbers.dat"), atom_numbers, fmt='%d')
+                # np.savetxt(os.path.join(out, "positions.dat"), coords)
+                # np.savetxt(os.path.join(out, "atomic_numbers.dat"), atom_numbers, fmt='%d')
                 default_group = fid.create_group("1") 
+                struct['1'] = {}
+
                 for key_str, value in matrix_dict.items():
                     default_group[key_str] = value
-                
+
+                struct['1']["positions"] = coords
+                struct['1']["atomic_numbers"] = atom_numbers
+
+                pickle.dump(struct, pid)
 
 def main():
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input_path", type=str, default="./")
     parser.add_argument("-o", "--output_path", type=str, default="./")
