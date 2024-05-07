@@ -8,7 +8,9 @@ import numpy as np
 from dptb.utils.constants import atomic_num_dict, atomic_num_dict_r, anglrMId
 from dptb.utils.symbol2ID import symbol2ID
 import argparse
+import logging
 
+log=logging.getLogger(__name__)
 
 # 使用 scipy.constants 获取玻尔半径的值，单位是米
 bohr_radius_m = const.physical_constants["Bohr radius"][0]
@@ -43,7 +45,6 @@ pyscf_basis = {
 }
 
 
-chem_symbols = list(symbol2ID.keys())
 
 def _chkfile_parse(chkfile, 
                    site_norbits_dict,
@@ -97,10 +98,23 @@ def _pyscf_parse_qm9(input_path,
     output_path = os.path.abspath(output_path)
     os.makedirs(output_path, exist_ok=True)
 
+    chem_symbols = list(symbol2ID.keys())
+    
+    is_collect = True
     if data_name is None:
-        data_name =  chem_symbols
+        is_collect = False
+        # no symbol is provided, will process each file and will not collect them.
+        log.info("No symbol is provided, will process each file and will not collect them.")
+        data_name =  glob.glob(f"{input_path}/*.chk")
+
     elif isinstance(data_name, str):
-        data_name = [data_name]
+        
+        if data_name.lower() == 'all':
+            data_name = chem_symbols
+        else:
+            assert data_name in chem_symbols
+            data_name = [data_name]
+
     elif isinstance(data_name, list):
         for name in data_name:
             if name not in chem_symbols:
@@ -123,70 +137,54 @@ def _pyscf_parse_qm9(input_path,
         site_norbits_dict[ia] = current_site_norbits
         orbital_types_dict[ia] = current_orbital_types
 
+    if is_collect:
+        for isymbol  in data_name:
+            iID_lists  = symbol2ID[isymbol]
+            out = os.path.join(output_path, f"frame.{isymbol}")
+            os.makedirs(out, exist_ok=True)
 
-    U_orbital = OrbDFT2DeepTB(DFT2DeePTB = PYSCF2DeePTB)
-    for isymbol  in data_name:
-        iID_lists  = symbol2ID[isymbol]
-        out = os.path.join(output_path, f"frame.{isymbol}")
-        os.makedirs(out, exist_ok=True)
-        
-        atom_numbers_list = []
-        coords_list = [] 
-
-        
-        with h5py.File(os.path.join(out, "DM.h5"), 'w') as fid:
-            icount = 0
-            for iID in iID_lists:
-                file  = f"{input_path}/{iID}.chk"
-
-                h5dat = h5py.File(file, 'r')
-                atom_numbers = h5dat['atomic_numbers'][:]
-                coords = h5dat['coords'][:] *  bohr_to_angstrom
+            atom_numbers_list = []
+            coords_list = [] 
 
 
-                atom_numbers_list.append(atom_numbers)
-                coords_list.append(coords)
-
-                nsites = len(atom_numbers)
-                assert nsites == len(coords)
-
-                if get_DM:
-                    dm = h5dat['dm'][:]
-                    R_cur = [0,0,0]
-                    matrix_dict = dict()
-
-                    for index_site_i in range(nsites):
-                        for index_site_j in range(nsites):
-                            key_str = f"{index_site_i + 1}_{index_site_j + 1}_{R_cur[0]}_{R_cur[1]}_{R_cur[2]}"
-
-                            norb_i = site_norbits_dict[atomic_num_dict_r[atom_numbers[index_site_i]]]
-                            norb_j = site_norbits_dict[atomic_num_dict_r[atom_numbers[index_site_j]]]
-
-                            ist = int(np.sum(np.array([site_norbits_dict[atomic_num_dict_r[atom_numbers[_ii]]] for _ii in range(index_site_i)])))
-                            jst = int(np.sum(np.array([site_norbits_dict[atomic_num_dict_r[atom_numbers[_jj]]] for _jj in range(index_site_j)])))
-
-                            mat = dm[ist:ist+norb_i, jst:jst+norb_j]
-                            if abs(mat).max() < 1e-10:
-                                continue
-                            
-                            mat = U_orbital.transform(mat, orbital_types_dict[atomic_num_dict_r[atom_numbers[index_site_i]]], 
-                                                        orbital_types_dict[atomic_num_dict_r[atom_numbers[index_site_j]]])
-
-                            matrix_dict[key_str] = mat   
-                    
+            with h5py.File(os.path.join(out, "DM.h5"), 'w') as fid:
+                icount = 0
+                for iID in iID_lists:
+                    file  = f"{input_path}/{iID}.chk"
+                    coords, atom_numbers, matrix_dict = _chkfile_parse(file, 
+                                                                       site_norbits_dict, 
+                                                                       orbital_types_dict,
+                                                                       get_DM)    
+                    atom_numbers_list.append(atom_numbers)
+                    coords_list.append(coords) 
                     icount+=1
                     default_group = fid.create_group(str(icount)) 
                     for key_str, value in matrix_dict.items():
                         default_group[key_str] = value
-                
-                else:
-                    raise NotImplementedError("Only support get_DM=True.")
-                
-            coords_list = np.concatenate(coords_list, axis=0)
-            atom_numbers_list = np.concatenate(atom_numbers_list, axis=0)
 
-            np.savetxt(os.path.join(out, "positions.dat"), coords_list)
-            np.savetxt(os.path.join(out, "atomic_numbers.dat"), atom_numbers_list, fmt='%d')
+                coords_list = np.concatenate(coords_list, axis=0)
+                atom_numbers_list = np.concatenate(atom_numbers_list, axis=0)
+                np.savetxt(os.path.join(out, "positions.dat"), coords_list)
+                np.savetxt(os.path.join(out, "atomic_numbers.dat"), atom_numbers_list, fmt='%d')
+    else:
+        for idat in data_name:
+            file_name = idat.split('/')[-1]
+            file_id = file_name.split('.')[0]
+            out = os.path.join(output_path, f"frame.{file_id}")
+            os.makedirs(out, exist_ok=True)
+
+            with h5py.File(os.path.join(out, "DM.h5"), 'w') as fid:
+                coords, atom_numbers, matrix_dict = _chkfile_parse(idat, 
+                                                                   site_norbits_dict, 
+                                                                   orbital_types_dict,
+                                                                   get_DM)    
+
+                np.savetxt(os.path.join(out, "positions.dat"), coords)
+                np.savetxt(os.path.join(out, "atomic_numbers.dat"), atom_numbers, fmt='%d')
+                default_group = fid.create_group("1") 
+                for key_str, value in matrix_dict.items():
+                    default_group[key_str] = value
+                
 
 def main():
     parser = argparse.ArgumentParser()
@@ -196,10 +194,10 @@ def main():
     parser.add_argument("--get_DM", type=bool, default=True)
     args = parser.parse_args()
     
-    _pyscf_parse(input_path = args.input_path,
-                  output_path = args.output_path,
-                  data_name = args.data_name,
-                  get_DM = args.get_DM)
+    _pyscf_parse_qm9(input_path = args.input_path,
+                     output_path = args.output_path,
+                     data_name = args.data_name,
+                     get_DM = args.get_DM)
 
 if __name__ == "__main__":
     main()
