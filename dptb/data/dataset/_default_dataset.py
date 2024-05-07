@@ -55,15 +55,25 @@ class _TrajData(object):
 
         self.data = {}
         # load cell
-        cell = np.loadtxt(os.path.join(root, "cell.dat"))
-        if cell.shape[0] == 3:
-            # same cell size, then copy it to all frames.
-            cell = np.expand_dims(cell, axis=0)
-            self.data["cell"] = np.broadcast_to(cell, (self.info["nframes"], 3, 3))
-        elif cell.shape[0] == self.info["nframes"] * 3:
-            self.data["cell"] = cell.reshape(self.info["nframes"], 3, 3)
+        
+        pbc = AtomicData_options["pbc"]
+        if isinstance(pbc, bool):
+            has_cell = pbc
+        elif isinstance(pbc, list):
+            has_cell = any(pbc)
         else:
-            raise ValueError("Wrong cell dimensions.")
+            raise ValueError("pbc must be bool or list.")
+        
+        if has_cell:
+            cell = np.loadtxt(os.path.join(root, "cell.dat"))
+            if cell.shape[0] == 3:
+                # same cell size, then copy it to all frames.
+                cell = np.expand_dims(cell, axis=0)
+                self.data["cell"] = np.broadcast_to(cell, (self.info["nframes"], 3, 3))
+            elif cell.shape[0] == self.info["nframes"] * 3:
+                self.data["cell"] = cell.reshape(self.info["nframes"], 3, 3)
+            else:
+                raise ValueError("Wrong cell dimensions.")
         
         # load positions, stored as cartesion no matter what provided.
         pos = np.loadtxt(os.path.join(root, "positions.dat"))
@@ -179,9 +189,13 @@ class _TrajData(object):
     def toAtomicDataList(self, idp: TypeMapper = None):
         data_list = []
         for frame in range(self.info["nframes"]):
+            if self.data.get("cell",None) is not None:
+                frame_cell = self.data["cell"][frame][:]
+            else:
+                frame_cell = None
             atomic_data = AtomicData.from_points(
                 pos = self.data["pos"][frame][:],
-                cell = self.data["cell"][frame][:],
+                cell = frame_cell,
                 atomic_numbers = self.data["atomic_numbers"][frame],
                 # pbc is stored in AtomicData_options now.
                 #pbc = self.info["pbc"], 

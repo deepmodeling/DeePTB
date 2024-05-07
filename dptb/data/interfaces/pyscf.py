@@ -190,7 +190,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input_path", type=str, default="./")
     parser.add_argument("-o", "--output_path", type=str, default="./")
-    parser.add_argument("-s", "--data_name", type=str, default="C7H10O2")
+    parser.add_argument("-s", "--data_name", type=str, default=None)
     parser.add_argument("--get_DM", type=bool, default=True)
     args = parser.parse_args()
     
