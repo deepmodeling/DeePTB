@@ -6,6 +6,7 @@ from importlib import import_module
 
 from dptb.data.dataset import DefaultDataset
 from dptb.data.dataset._deeph_dataset import DeePHE3Dataset
+from dptb.data.dataset._hdf5_dataset import HDF5Dataset
 from dptb import data
 from dptb.data.transforms import TypeMapper, OrbitalMapper
 from dptb.data import AtomicDataset, register_fields
@@ -145,7 +146,7 @@ def build_dataset(
     """
     dataset_type = type
 
-    if dataset_type in ["DefaultDataset", "DeePHDataset"]:
+    if dataset_type in ["DefaultDataset", "DeePHDataset", "HDF5Dataset"]:
         # See if we can get a OrbitalMapper.
         if basis is not None:
             idp = OrbitalMapper(basis=basis)
@@ -173,7 +174,7 @@ def build_dataset(
         include_folders=[]
         for idir in prefix_folders:
             if os.path.isdir(idir):
-                if not glob.glob(os.path.join(idir, '*.dat')) and not glob.glob(os.path.join(idir, '*.traj')):
+                if not glob.glob(os.path.join(idir, '*.dat')) and not glob.glob(os.path.join(idir, '*.traj')) and not glob.glob(os.path.join(idir, '*.h5')):
                     raise Exception(f"{idir} does not have the proper traj data files. Please check the data files.")
                 include_folders.append(idir.split('/')[-1])
         
@@ -221,8 +222,18 @@ def build_dataset(
                 get_eigenvalues=get_eigenvalues,
                 info_files = info_files
             )
-        else:
+        elif dataset_type == "DefaultDataset":
             dataset = DefaultDataset(
+                root=root,
+                type_mapper=idp,
+                get_Hamiltonian=get_Hamiltonian,
+                get_overlap=get_overlap,
+                get_DM=get_DM,
+                get_eigenvalues=get_eigenvalues,
+                info_files = info_files
+            )
+        else:
+            dataset = HDF5Dataset(
                 root=root,
                 type_mapper=idp,
                 get_Hamiltonian=get_Hamiltonian,
