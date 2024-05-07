@@ -37,7 +37,6 @@ These capabilities make **DeePTB** adaptable to various research scenarios, exte
    advanced/dftb
    advanced/elec_properties/index
    advanced/interface/index
-   advanced/acceleration/index
 
 .. toctree::
    :maxdepth: 2
