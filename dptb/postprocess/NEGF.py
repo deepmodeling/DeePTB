@@ -285,7 +285,7 @@ class NEGF(object):
             # TODO: check the sign of free_charge
             # TODO: check the spin degenracy
             # TODO: add k summation operation
-            free_charge_allk = torch.zeros_like(torch.tensor(self.device_atom_norbs),dtype=torch.complex128)
+            free_charge_allk = torch.zeros_like(torch.tensor(self.device_atom_norbs))
             for ik,k in enumerate(self.kpoints):
                 free_charge_allk += np.real(self.free_charge[str(k)].numpy()) * self.wk[ik]
             interface_poisson.free_charge[atom_gridpoint_index] = free_charge_allk
@@ -393,11 +393,11 @@ class NEGF(object):
                                 if Vbias is not None  and self.density_options["method"] == "Fiori":
                                     # set voltage as -1*potential_at_orb[0] and -1*potential_at_orb[-1] for self-energy same as in NanoTCAD
                                     if ll == 'lead_L':
-                                        # getattr(self.deviceprop, ll).voltage = Vbias[self.left_connected].mean()
-                                        getattr(self.deviceprop, ll).voltage = Vbias[0]
+                                        getattr(self.deviceprop, ll).voltage = self.potential_at_atom[self.left_connected].mean()
+                                        
                                     else:
-                                        # getattr(self.deviceprop, ll).voltage = Vbias[self.right_connected].mean()
-                                        getattr(self.deviceprop, ll).voltage = Vbias[-1]
+                                        getattr(self.deviceprop, ll).voltage = self.potential_at_atom[self.right_connected].mean()
+                                        
                                 
                                 getattr(self.deviceprop, ll).self_energy(
                                     energy=e, 
