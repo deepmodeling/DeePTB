@@ -18,6 +18,7 @@ These capabilities make **DeePTB** adaptable to various research scenarios, exte
    quick_start/easy_install
    quick_start/input
    quick_start/hands_on
+   quick_start/basic_api
 
 
 .. toctree::
