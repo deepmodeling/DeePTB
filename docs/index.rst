@@ -57,8 +57,3 @@ These capabilities make **DeePTB** adaptable to various research scenarios, exte
    community/contribution_guide
    CONTRIBUTING
 
-.. toctree::
-   :glob:
-   :titlesonly:
-
-   community/faq
