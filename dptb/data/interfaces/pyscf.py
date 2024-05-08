@@ -232,6 +232,8 @@ def split(input_path, output_path, ratio_str:str="8:1:1"):
     nval = int(nframes * ratios[1])
     ntest = nframes - ntrain - nval
 
+    log.info(f"Splitting data with ntrain: {ntrain}, nval: {nval}, ntest: {ntest}")
+    
     # setup seed
     rds = np.random.RandomState(1)
     rand_keys = rds.choice(list(struct.keys()), nframes, replace=False)
