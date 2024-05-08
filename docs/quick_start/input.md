@@ -1,6 +1,6 @@
 # Brief Introduction to Inputs and Commands
 
-The following files are the central input files for DeePTB. Before executing the program, please make sure these files are prepared and stored in the working directory. Here we give some simple descriptions XXX. For more details, users should consult the Advanced session.
+The following files are the central input files for DeePTB. Before executing the program, please make sure these files are prepared and stored in the working directory. Here we give some simple descriptions, for more details, users should consult the Advanced session.
 
 ## Inputs
 ### Data
@@ -13,10 +13,12 @@ data/
 -- -- xdat.traj        # ase trajectory file with nframes
 -- -- info.json        # defining the parameters used in building AtomicData graph data
 ```
-One should prepare the **atomic structures** and **electronic band structures**. The **atomic structures** data is in ASE trajectory binary format, where each structure is stored using an **Atom** class defined in ASE package. The provided trajectory file must have suffix `.traj` and the length of the trajectory is nframes.
-> Instead of loading structures from a single binary `.traj` file, three seperate textfiles for **atomic structures** can also be provided: `atomic_numbers.dat`, `cell.dat` and `positions.dat`. The length unit used in `cell.dat` and `positions.dat` (if cartesian coordinates) is Angstrom.
+One should prepare the **atomic structures** and **electronic band structures**. The **atomic structures** data is in ASE trajectory binary format, where each structure is stored using an **Atom** class defined in ASE package. The provided trajectory file must have suffix `.traj` and the length of the trajectory is `nframes`.
+> We also support another format to provide structure information, instead of loading structures from a single binary `.traj` file. In this way, three seperate textfiles for **atomic structures** need to be provided: `atomic_numbers.dat`, `cell.dat` and `positions.dat`. The length unit used in `cell.dat` and `positions.dat` (if cartesian coordinates) is Angstrom.
 
-The **band structures** data contains the kpoints list and eigenvalues in the binary format of npy. The shape of kpoints data is fixed as **[nkpoints,3]** and eigenvalues is fixed as **[nframes,nkpoints,nbands]**. The `nframes` here must be the same as in **atomic structures** files.
+The **band structures** data includes the kpoints list and eigenvalues in the binary format of `.npy`. The shape of kpoints data is fixed as **[nkpoints,3]** and eigenvalues is fixed as **[nframes,nkpoints,nbands]**. The `nframes` here must be the same as in **atomic structures** files.
+
+> **Important:** The eigenvalues.npy should not contain bands that contributed by the core electrons, which is not setted as the TB orbitals in model setting.
 
 ### Info
 
@@ -24,44 +26,44 @@ In **DeePTB**, the **atomic structures** and **band structures** data are stored
 ```bash
 {
     "nframes": 1,
-    "natoms": 2,
+    "natoms": 2, # optional
     "pos_type": "ase",
     "AtomicData_options": {
         "r_max": 5.0,
-        "er_max": 5.0,
-        "oer_max": 2.5,
-        "pbc": true
+        "er_max": 5.0, # optional
+        "oer_max": 2.5, # optional
+        "pbc": true # optional, default to be true
     },
     "bandinfo": {
         "band_min": 0,
         "band_max": 6,
-        "emin": null,
-        "emax": null
+        "emin": null, # optional
+        "emax": null # optional
     }
 }
 ```
 `nframes` is the length of the trajectory, as we defined in the previous section. `natoms` is the number of atoms in each of the structures in the trajectory. `pos_type` defines the input format of the **atomic structures**, which is set to `ase` if  ASE `.traj` file is provided, and `cart` or `frac` if cartesian / fractional coordinate in `positions.dat` file provided.
 
-In the `AtomicData_options` section, the key arguments in defining graph structure is provided. `r_max` is the maximum cutoff in building neighbour list for each atom, and `pbc` assigns the PBC condition in cell. `er_max` and `oer_max` is the environment cutoff used in `dptb` model. All inputs are in Angstrom.
+In the `AtomicData_options` section, the key arguments in defining graph structure is provided. `r_max` is the maximum cutoff in building neighbour list for each atom, and `pbc` assigns the PBC condition in cell. `er_max` and `oer_max` are optional value for additional environmental dependence TB parameterization, such as strain correction and `nnenv`. All cutoff variables have the unit of Angstrom.
 
-We can get the bond cutoff by `DeePTB`'s bond analysis function, using:
+We can get the recommended `r_max` value by `DeePTB`'s bond analysis function, using:
 ```bash
 dptb bond <structure path> [[-c] <cutoff>] [[-acc] <accuracy>]
 ```
 
-`Bandinfo` defines the settings of the training objective of each structure, which enables flexible training objectives for various structures with different atom numbers and atom types.
+`bandinfo` defines the fitting target. The `emin` and `emax` defines the fitting energy window of the band, while the `band_min` and `band_max` select which band are targeted.
 > **note:** The `0` energy point is located at the lowest energy eigenvalues of the data files, to generalize bandstructure data computed by different DFT packages.
 
 
 ### Input.json
 **DeePTB** provides input config templates for quick setup. User can run:
 ```bash
-dptb config <generated input config path> [-full]
+dptb config -tr PATH
 ```
-The template config file will be generated at the path `./input.json`.
-For the full document about the input parameters, we refer to the detail [document](https://deeptb.readthedocs.io/en/latest). For now, we only need to consider a few vital parameters that can set the training:
+The template config file will be generated at the `PATH`.
+We provide several template for different mode of deeptb, please run `dptb config -h` to checkout.
 
-`common_options` provides vital information for building **DeePTB** models and their training. 
+`common_options` provides vital information to build a **DeePTB** models. 
 
 ```json
 "common_options": {
@@ -98,17 +100,19 @@ For the full document about the input parameters, we refer to the detail [docume
 }
 ```
 
-`model_options` section is the key section that provides information to build **DeePTB** models. For a Slater-Kohster TB parameteriation model, only the `nnsk` section is provided. The example of a `nnsk` model:
+`model_options` section contains the key setting to build **DeePTB** models. For a Slater-Kohster TB parameteriation model, only the `nnsk` section is needed. The example of a `nnsk` model is:
 
 ```json
 "model_options": {
     "nnsk": {
-        "onsite": {"method": "strain", "rs":2.6, "w": 0.3},
+        "onsite": {"method": "uniform"},
         "hopping": {"method": "powerlaw", "rs":2.6, "w": 0.3},
         "freeze": false
     }
 }
 ```
+
+Different method of `onsite` and `hopping` have their specific parameters requirements, please checkout our full parameter lists.
 
 For a environment-dependent **DeePTB** model, the `embedding`, `prediction` and `nnsk` sections are required as in this example:
 
@@ -125,7 +129,7 @@ For a environment-dependent **DeePTB** model, the `embedding`, `prediction` and 
             "neurons": [16,16,16]
         },
         "nnsk": {
-            "onsite": {"method": "strain", "rs":2.5 ,"w":0.3},
+            "onsite": {"method": "uniform"},
             "hopping": {"method": "powerlaw", "rs":5.0, "w": 0.1},
             "freeze": true
         }
