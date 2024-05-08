@@ -10,6 +10,9 @@ from dptb.utils.symbol2ID import symbol2ID
 import argparse
 import logging
 import pickle
+from dptb.utils.loggers import set_log_handles
+from pathlib import Path
+
 
 log=logging.getLogger(__name__)
 
@@ -205,19 +208,116 @@ def _pyscf_parse_qm9(input_path,
 
                 pickle.dump(struct, pid)
 
-def main():
+def split(input_path, output_path, ratio_str:str="8:1:1"):
+    # ratio str a:b:c
+    ratios = [float(part) if part else 0 for part in ratio_str.split(":")]
+    total = sum(ratios)
+    assert total > 0
+    ratios = [float(ratio) / total for ratio in ratios]
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input_path", type=str, default="./")
-    parser.add_argument("-o", "--output_path", type=str, default="./")
-    parser.add_argument("-s", "--data_name", type=str, default=None)
-    parser.add_argument("--get_DM", type=bool, default=True)
-    args = parser.parse_args()
+    assert os.path.exists(os.path.join(input_path, "structure.pkl")) and os.path.exists(os.path.join(input_path, "DM.h5"))
     
-    _pyscf_parse_qm9(input_path = args.input_path,
+    os.makedirs(output_path, exist_ok=True)
+    log_path = os.path.join(str(output_path), "log.txt")
+
+    set_log_handles(logging.INFO, Path(log_path) if log_path else None) 
+
+    log.info(f"Splitting data with ratios: {ratios}")
+
+    with open(os.path.join(input_path, "structure.pkl"), 'rb') as pid:
+        struct = pickle.load(pid)
+
+    nframes = len(struct)
+    ntrain = int(nframes * ratios[0])
+    nval = int(nframes * ratios[1])
+    ntest = nframes - ntrain - nval
+
+    # setup seed
+    rds = np.random.RandomState(1)
+    rand_keys = rds.choice(list(struct.keys()), nframes, replace=False)
+    
+    assert ntrain > 0
+    train_set = {key: struct[key] for key in rand_keys[:ntrain]}
+    os.makedirs(os.path.join(output_path, "train.0"), exist_ok=True)
+    with open(os.path.join(output_path, "train.0", "structure.pkl"), 'wb') as pid:
+        pickle.dump(train_set, pid)
+    
+    if nval > 0:
+        val_set = {key: struct[key] for key in rand_keys[ntrain:ntrain + nval]}
+        os.makedirs(os.path.join(output_path, "val.0"), exist_ok=True)
+        with open(os.path.join(output_path, "val.0", "structure.pkl"), 'wb') as pid:
+            pickle.dump(val_set, pid)
+
+    if ntest > 0:
+        test_set = {key: struct[key] for key in rand_keys[ntrain + nval:]}
+        os.makedirs(os.path.join(output_path, "test.0"), exist_ok=True)
+        with open(os.path.join(output_path, "test.0", "structure.pkl"), 'wb') as pid:
+            pickle.dump(test_set, pid)
+
+    DM = h5py.File(os.path.join(input_path, "DM.h5"), 'r')
+
+    with h5py.File(os.path.join(output_path, "train.0", "DM.h5"), 'w') as fid:
+        for key in train_set.keys():
+            fid.create_group(key)
+            for key_str, value in DM[key].items():
+                    fid[key][key_str] = value[:]
+
+    if nval >0:
+        with h5py.File(os.path.join(output_path, "val.0", "DM.h5"), 'w') as fid:
+            for key in val_set.keys():
+                fid.create_group(key)
+                for key_str, value in DM[key].items():
+                    fid[key][key_str] = value[:]
+    
+    if ntest >0:
+        with h5py.File(os.path.join(output_path, "test.0", "DM.h5"), 'w') as fid:
+            for key in test_set.keys():
+                fid.create_group(key)
+                for key_str, value in DM[key].items():
+                    fid[key][key_str] = value[:]
+
+
+def main():
+    parser = argparse.ArgumentParser(
+                description="DeepTB parse QM9 data sets",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    subparsers = parser.add_subparsers(title="Valid subcommands", dest="command")
+    parser_collect = subparsers.add_parser(
+        "collect",
+        help="collect data",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_collect.add_argument("-i", "--input_path", type=str, default="./")
+    parser_collect.add_argument("-o", "--output_path", type=str, default="./")
+    parser_collect.add_argument("-s", "--data_name", type=str, default=None)
+    parser_collect.add_argument("--get_DM", type=bool, default=True)
+
+    parser_split = subparsers.add_parser(
+        "split",
+        help="split data",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_split.add_argument("-i", "--input_path", type=str, default="./")
+    parser_split.add_argument("-o", "--output_path", type=str, default="./")
+    parser_split.add_argument("-r", "--ratio_str", type=str, default="8:1:1")
+
+    args = parser.parse_args()
+    if args.command == "collect":
+        _pyscf_parse_qm9(input_path = args.input_path,
                      output_path = args.output_path,
                      data_name = args.data_name,
                      get_DM = args.get_DM)
 
+
+    elif args.command == "split":
+        split(input_path = args.input_path,
+                     output_path = args.output_path,
+                     ratio_str = args.ratio_str)
+    else:
+
+        raise ValueError("Invalid command.")
+    
+    
 if __name__ == "__main__":
     main()
