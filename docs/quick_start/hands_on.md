@@ -15,11 +15,12 @@ deeptb/examples/hBN/
 │   │   └── xdat.traj
 │   └── struct.vasp
 ├── input
-│   ├── 1_start.json
-│   ├── 2_condband.json
-│   ├── 3_strain.json
-│   ├── 4_varycutoff.json
-│   └── 5_longtrain.json
+│   ├── input_first.json
+│   ├── input_condband.json
+│   ├── input_strain.json
+│   ├── input_push_rs.json
+|   ├── input_push_w.json
+│   └── input_final.json
 ├── run
 │   └── band.json
 ├── input_short.json

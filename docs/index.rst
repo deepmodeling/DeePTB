@@ -18,6 +18,7 @@ These capabilities make **DeePTB** adaptable to various research scenarios, exte
    quick_start/easy_install
    quick_start/input
    quick_start/hands_on
+   quick_start/basic_api
 
 
 .. toctree::
@@ -34,10 +35,8 @@ These capabilities make **DeePTB** adaptable to various research scenarios, exte
    advanced/dptb_env
    advanced/soc
    advanced/nrl_tb
-   advanced/dftb
    advanced/elec_properties/index
    advanced/interface/index
-   advanced/acceleration/index
 
 .. toctree::
    :maxdepth: 2
@@ -58,8 +57,3 @@ These capabilities make **DeePTB** adaptable to various research scenarios, exte
    community/contribution_guide
    CONTRIBUTING
 
-.. toctree::
-   :glob:
-   :titlesonly:
-
-   community/faq
