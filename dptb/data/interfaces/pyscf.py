@@ -93,6 +93,126 @@ def _chkfile_parse(chkfile,
     
     return coords, atom_numbers, matrix_dict
 
+def split_ids(symbol2ID, ratio_str:str="8:1:1"):
+    ratios = [float(part) if part else 0 for part in ratio_str.split(":")]
+    total = sum(ratios)
+    assert total > 0
+    ratios = [float(ratio) / total for ratio in ratios]
+    assert len(ratios) == 3
+
+
+    chem_symbols = list(symbol2ID.keys())
+    idlist = []
+
+    for isym in chem_symbols:
+        idlist.extend(symbol2ID[isym])
+    rds = np.random.RandomState(1)
+    rand_keys = rds.choice(idlist, len(idlist), replace=False)
+    nframes = len(rand_keys)
+    ntrain = int(nframes * ratios[0])
+    nval = int(nframes * ratios[1])
+    ntest = nframes - ntrain - nval
+
+    train_set = rand_keys[:ntrain]
+    val_set = rand_keys[ntrain:ntrain + nval]
+    test_set = rand_keys[ntrain + nval:]
+
+    train_sym_ids = {}
+    val_sym_ids = {}
+    test_sym_ids = {}
+
+    for isym in chem_symbols:
+        for iID in symbol2ID[isym]:
+            if iID in train_set:
+                if isym not in train_sym_ids:
+                    train_sym_ids[isym] = []
+                train_sym_ids[isym].append(iID)
+            
+            elif iID in val_set:
+                if isym not in val_sym_ids:
+                    val_sym_ids[isym] = []
+                val_sym_ids[isym].append(iID)
+            
+            elif iID in test_set:
+                if isym not in test_sym_ids:
+                    test_sym_ids[isym] = []
+                test_sym_ids[isym].append(iID)
+            
+            else:
+                raise ValueError("Invalid ID.")
+            
+    return train_sym_ids, val_sym_ids, test_sym_ids
+
+def _pyscf_parse_qm9_split(input_path,
+                     output_path, 
+                     split_ratio=None,
+                     get_DM=True):
+    
+    assert split_ratio is not None
+    train_sym_ids, val_sym_ids, test_sym_ids = split_ids(symbol2ID=symbol2ID, ratio_str=split_ratio)
+    
+    site_norbits_dict = {}
+    orbital_types_dict = {}
+    for ia in pyscf_basis.keys():
+        basis = pyscf_basis[ia]
+        current_site_norbits = 0
+        current_orbital_types = []
+        for iorb in basis:
+            assert len(iorb) == 2
+            l = anglrMId[iorb[1]]
+            num_l = int(iorb[0])
+            current_site_norbits += num_l * (2*l + 1)
+            current_orbital_types.extend([l] * num_l)
+        site_norbits_dict[ia] = current_site_norbits
+        orbital_types_dict[ia] = current_orbital_types
+
+    
+    for setname in ["train", "val", "test"]:
+        
+        if setname == "train":
+            data_name = train_sym_ids 
+        elif setname == "val":
+            data_name = val_sym_ids
+        else:
+            data_name = test_sym_ids
+
+        out2 = os.path.join(output_path, setname)
+
+        for isymbol  in data_name:
+            iID_lists  = symbol2ID[isymbol]
+            out = os.path.join(out2, f"frame.{isymbol}")
+            os.makedirs(out, exist_ok=True)
+
+            # atom_numbers_list = []
+            # coords_list = [] 
+
+            struct = {}
+            with h5py.File(os.path.join(out, "DM.h5"), 'w') as fid, \
+                    open(os.path.join(out, "structure.pkl"), 'wb') as pid:
+                
+                icount = 0
+                for iID in iID_lists:
+                    file  = f"{input_path}/{iID}.chk"
+                    coords, atom_numbers, matrix_dict = _chkfile_parse(file, 
+                                                                       site_norbits_dict, 
+                                                                       orbital_types_dict,
+                                                                       get_DM)    
+                    # atom_numbers_list.append(atom_numbers)
+                    # coords_list.append(coords) 
+                    icount+=1
+                    default_group = fid.create_group(str(icount)) 
+                    struct[str(icount)] = {}
+
+                    for key_str, value in matrix_dict.items():
+                        default_group[key_str] = value
+
+                    struct[str(icount)]["positions"] = coords
+                    struct[str(icount)]["atomic_numbers"] = atom_numbers
+                
+                pickle.dump(struct, pid)
+
+
+
 def _pyscf_parse_qm9(input_path, 
                      output_path, 
                      data_name=None, 
@@ -112,7 +232,6 @@ def _pyscf_parse_qm9(input_path,
         data_name =  glob.glob(f"{input_path}/*.chk")
 
     elif isinstance(data_name, str):
-        
         if data_name.lower() == 'all':
             data_name = chem_symbols
         else:
@@ -304,6 +423,16 @@ def main():
     parser_split.add_argument("-o", "--output_path", type=str, default="./")
     parser_split.add_argument("-r", "--ratio_str", type=str, default="8:1:1")
 
+    parser_ctsp = subparsers.add_parser(
+        "ctsp",
+        help="collect and split data",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_ctsp.add_argument("-i", "--input_path", type=str, default="./")
+    parser_ctsp.add_argument("-o", "--output_path", type=str, default="./")
+    parser_ctsp.add_argument("-r", "--ratio_str", type=str, default="8:1:1")
+    parser_ctsp.add_argument("--get_DM", type=bool, default=True)
+
     args = parser.parse_args()
     if args.command == "collect":
         _pyscf_parse_qm9(input_path = args.input_path,
@@ -316,8 +445,14 @@ def main():
         split(input_path = args.input_path,
                      output_path = args.output_path,
                      ratio_str = args.ratio_str)
+    
+    elif args.command == "ctsp":
+        _pyscf_parse_qm9_split(input_path = args.input_path,
+                        output_path = args.output_path,
+                        split_ratio = args.ratio_str,
+                        get_DM = args.get_DM)
+    
     else:
-
         raise ValueError("Invalid command.")
     
     
