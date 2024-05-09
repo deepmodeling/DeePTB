@@ -193,22 +193,25 @@ def _pyscf_parse_qm9_split(input_path,
                 icount = 0
                 for iID in iID_lists:
                     file  = f"{input_path}/{iID}.chk"
-                    coords, atom_numbers, matrix_dict = _chkfile_parse(file, 
-                                                                       site_norbits_dict, 
-                                                                       orbital_types_dict,
-                                                                       get_DM)    
-                    # atom_numbers_list.append(atom_numbers)
-                    # coords_list.append(coords) 
-                    icount+=1
-                    default_group = fid.create_group(str(icount)) 
-                    struct[str(icount)] = {}
+                    try:
+                        coords, atom_numbers, matrix_dict = _chkfile_parse(file, 
+                                                                           site_norbits_dict, 
+                                                                           orbital_types_dict,
+                                                                           get_DM)    
+                        # atom_numbers_list.append(atom_numbers)
+                        # coords_list.append(coords) 
+                        icount+=1
+                        default_group = fid.create_group(str(icount)) 
+                        struct[str(icount)] = {}
 
-                    for key_str, value in matrix_dict.items():
-                        default_group[key_str] = value
+                        for key_str, value in matrix_dict.items():
+                            default_group[key_str] = value
 
-                    struct[str(icount)]["positions"] = coords
-                    struct[str(icount)]["atomic_numbers"] = atom_numbers
-                
+                        struct[str(icount)]["positions"] = coords
+                        struct[str(icount)]["atomic_numbers"] = atom_numbers
+                    except:
+                        log.info(f"Error in {file}, skip.")
+                        continue
                 pickle.dump(struct, pid)
 
 
