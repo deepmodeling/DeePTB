@@ -99,6 +99,8 @@ def split_ids(symbol2ID, ratio_str:str="8:1:1"):
     assert total > 0
     ratios = [float(ratio) / total for ratio in ratios]
     assert len(ratios) == 3
+    
+    log.info(f"Splitting data with ratios: {ratios}")
 
 
     chem_symbols = list(symbol2ID.keys())
@@ -112,6 +114,8 @@ def split_ids(symbol2ID, ratio_str:str="8:1:1"):
     ntrain = int(nframes * ratios[0])
     nval = int(nframes * ratios[1])
     ntest = nframes - ntrain - nval
+
+    log.info(f"Splitting data with ntrain: {ntrain}, nval: {nval}, ntest: {ntest}")
 
     train_set = rand_keys[:ntrain]
     val_set = rand_keys[ntrain:ntrain + nval]
@@ -178,8 +182,7 @@ def _pyscf_parse_qm9_split(input_path,
 
         out2 = os.path.join(output_path, setname)
 
-        for isymbol  in data_name:
-            iID_lists  = symbol2ID[isymbol]
+        for isymbol, iID_lists in data_name.items():
             out = os.path.join(out2, f"frame.{isymbol}")
             os.makedirs(out, exist_ok=True)
 
@@ -198,20 +201,22 @@ def _pyscf_parse_qm9_split(input_path,
                                                                            site_norbits_dict, 
                                                                            orbital_types_dict,
                                                                            get_DM)    
-                        # atom_numbers_list.append(atom_numbers)
-                        # coords_list.append(coords) 
-                        icount+=1
-                        default_group = fid.create_group(str(icount)) 
-                        struct[str(icount)] = {}
-
-                        for key_str, value in matrix_dict.items():
-                            default_group[key_str] = value
-
-                        struct[str(icount)]["positions"] = coords
-                        struct[str(icount)]["atomic_numbers"] = atom_numbers
-                    except:
+                    except:    
                         log.info(f"Error in {file}, skip.")
                         continue
+                        # atom_numbers_list.append(atom_numbers)
+                        # coords_list.append(coords) 
+                    icount+=1
+                    default_group = fid.create_group(str(icount)) 
+                    struct[str(icount)] = {}
+
+                    for key_str, value in matrix_dict.items():
+                        default_group[key_str] = value
+
+                    struct[str(icount)]["positions"] = coords
+                    struct[str(icount)]["atomic_numbers"] = atom_numbers
+                    
+  
                 pickle.dump(struct, pid)
 
 
