@@ -100,6 +100,9 @@ def split_ids(symbol2ID, ratio_str:str="8:1:1"):
     ratios = [float(ratio) / total for ratio in ratios]
     assert len(ratios) == 3
     
+    log_path=None
+    set_log_handles(logging.INFO, Path(log_path) if log_path else None) 
+
     log.info(f"Splitting data with ratios: {ratios}")
 
 
