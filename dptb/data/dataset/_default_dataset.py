@@ -55,15 +55,25 @@ class _TrajData(object):
 
         self.data = {}
         # load cell
-        cell = np.loadtxt(os.path.join(root, "cell.dat"))
-        if cell.shape[0] == 3:
-            # same cell size, then copy it to all frames.
-            cell = np.expand_dims(cell, axis=0)
-            self.data["cell"] = np.broadcast_to(cell, (self.info["nframes"], 3, 3))
-        elif cell.shape[0] == self.info["nframes"] * 3:
-            self.data["cell"] = cell.reshape(self.info["nframes"], 3, 3)
+        
+        pbc = AtomicData_options["pbc"]
+        if isinstance(pbc, bool):
+            has_cell = pbc
+        elif isinstance(pbc, list):
+            has_cell = any(pbc)
         else:
-            raise ValueError("Wrong cell dimensions.")
+            raise ValueError("pbc must be bool or list.")
+        
+        if has_cell:
+            cell = np.loadtxt(os.path.join(root, "cell.dat"))
+            if cell.shape[0] == 3:
+                # same cell size, then copy it to all frames.
+                cell = np.expand_dims(cell, axis=0)
+                self.data["cell"] = np.broadcast_to(cell, (self.info["nframes"], 3, 3))
+            elif cell.shape[0] == self.info["nframes"] * 3:
+                self.data["cell"] = cell.reshape(self.info["nframes"], 3, 3)
+            else:
+                raise ValueError("Wrong cell dimensions.")
         
         # load positions, stored as cartesion no matter what provided.
         pos = np.loadtxt(os.path.join(root, "positions.dat"))
@@ -179,9 +189,13 @@ class _TrajData(object):
     def toAtomicDataList(self, idp: TypeMapper = None):
         data_list = []
         for frame in range(self.info["nframes"]):
+            if self.data.get("cell",None) is not None:
+                frame_cell = self.data["cell"][frame][:]
+            else:
+                frame_cell = None
             kwargs = {
                 AtomicDataDict.POSITIONS_KEY: self.data["pos"][frame][:],
-                AtomicDataDict.CELL_KEY: self.data["cell"][frame][:],
+                AtomicDataDict.CELL_KEY: frame_cell,
                 AtomicDataDict.ATOMIC_NUMBERS_KEY: self.data["atomic_numbers"][frame],
                 } 
             if AtomicDataDict.ENERGY_EIGENVALUE_KEY in self.data and AtomicDataDict.KPOINT_KEY in self.data:
@@ -195,11 +209,13 @@ class _TrajData(object):
                 if bandinfo["band_min"] is not None and bandinfo["band_max"] is not None:
                     kwargs[AtomicDataDict.BAND_WINDOW_KEY] = torch.as_tensor([bandinfo["band_min"], bandinfo["band_max"]], 
                                                                                   dtype=torch.long)
-            
+
             atomic_data = AtomicData.from_points(
-                **kwargs,
-                #pbc = self.info["pbc"], 
-                **self.AtomicData_options)
+                  **kwargs,
+                  # pbc is stored in AtomicData_options now.
+                  #pbc = self.info["pbc"], 
+                  **self.AtomicData_options
+            )
             if "hamiltonian_blocks" in self.data:
                 assert idp is not None, "LCAO Basis must be provided  in `common_option` for loading Hamiltonian."
                 features = self.data["hamiltonian_blocks"][str(frame+1)]
