@@ -101,11 +101,11 @@ class _TrajData(object):
                     # only one frame or same kpoints, then copy it to all frames.
                     # shape: (nkpoints, 3)
                     kpoints = np.expand_dims(kpoints, axis=0)
-                    self.data["kpoints"] = np.broadcast_to(kpoints, (self.info["nframes"], 
+                    self.data["kpoint"] = np.broadcast_to(kpoints, (self.info["nframes"], 
                                                                      kpoints.shape[1], 3))
                 elif kpoints.ndim == 3 and kpoints.shape[0] == self.info["nframes"]:
                     # array of kpoints, (nframes, nkpoints, 3)
-                    self.data["kpoints"] = kpoints
+                    self.data["kpoint"] = kpoints
                 else:
                     raise ValueError("Wrong kpoint dimensions.")
                 eigenvalues = np.load(os.path.join(self.root, "eigenvalues.npy"))
@@ -113,8 +113,8 @@ class _TrajData(object):
                 if eigenvalues.ndim == 2:
                     eigenvalues = np.expand_dims(eigenvalues, axis=0)
                 assert eigenvalues.shape[0] == self.info["nframes"]
-                assert eigenvalues.shape[1] == self.data["kpoints"].shape[1]
-                self.data["eigenvalues"] = eigenvalues
+                assert eigenvalues.shape[1] == self.data["kpoint"].shape[1]
+                self.data["eigenvalue"] = eigenvalues
             # if get_eigenvalues is True, then the eigenvalues and kpoints must be provided. if not, raise error.
             else:  
                 raise ValueError("Eigenvalues must be provided when `get_eigenvalues` is True.")
@@ -179,11 +179,25 @@ class _TrajData(object):
     def toAtomicDataList(self, idp: TypeMapper = None):
         data_list = []
         for frame in range(self.info["nframes"]):
+            kwargs = {
+                AtomicDataDict.POSITIONS_KEY: self.data["pos"][frame][:],
+                AtomicDataDict.CELL_KEY: self.data["cell"][frame][:],
+                AtomicDataDict.ATOMIC_NUMBERS_KEY: self.data["atomic_numbers"][frame],
+                } 
+            if AtomicDataDict.ENERGY_EIGENVALUE_KEY in self.data and AtomicDataDict.KPOINT_KEY in self.data:
+                assert "bandinfo" in self.info, "`bandinfo` must be provided in `info.json` for loading eigenvalues."
+                bandinfo = self.info["bandinfo"]
+                kwargs[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(self.data[AtomicDataDict.KPOINT_KEY][frame], dtype=torch.get_default_dtype())
+                kwargs[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.as_tensor(self.data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][frame], dtype=torch.get_default_dtype())
+                if bandinfo["emin"] is not None and bandinfo["emax"] is not None:
+                    kwargs[AtomicDataDict.ENERGY_WINDOWS_KEY] = torch.as_tensor([bandinfo["emin"], bandinfo["emax"]], 
+                                                                                     dtype=torch.get_default_dtype())
+                if bandinfo["band_min"] is not None and bandinfo["band_max"] is not None:
+                    kwargs[AtomicDataDict.BAND_WINDOW_KEY] = torch.as_tensor([bandinfo["band_min"], bandinfo["band_max"]], 
+                                                                                  dtype=torch.long)
+            
             atomic_data = AtomicData.from_points(
-                pos = self.data["pos"][frame][:],
-                cell = self.data["cell"][frame][:],
-                atomic_numbers = self.data["atomic_numbers"][frame],
-                # pbc is stored in AtomicData_options now.
+                **kwargs,
                 #pbc = self.info["pbc"], 
                 **self.AtomicData_options)
             if "hamiltonian_blocks" in self.data:
@@ -217,21 +231,8 @@ class _TrajData(object):
                 atomic_data[AtomicDataDict.NODE_SOC_KEY] = torch.zeros(atomic_data[AtomicDataDict.POSITIONS_KEY].shape[0], 1)
                 atomic_data[AtomicDataDict.NODE_SOC_SWITCH_KEY] = torch.as_tensor([False],dtype=torch.bool)
                 # torch.as_tensor([False],dtype=torch.bool) # by default, no SOC
-            if "eigenvalues" in self.data and "kpoints" in self.data:
-                assert "bandinfo" in self.info, "`bandinfo` must be provided in `info.json` for loading eigenvalues."
-                bandinfo = self.info["bandinfo"]
-                atomic_data[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(self.data["kpoints"][frame][:], 
-                                                                         dtype=torch.get_default_dtype())
-                if bandinfo["emin"] is not None and bandinfo["emax"] is not None:
-                    atomic_data[AtomicDataDict.ENERGY_WINDOWS_KEY] = torch.as_tensor([bandinfo["emin"], bandinfo["emax"]], 
-                                                                                     dtype=torch.get_default_dtype())
-                if bandinfo["band_min"] is not None and bandinfo["band_max"] is not None:
-                    atomic_data[AtomicDataDict.BAND_WINDOW_KEY] = torch.as_tensor([bandinfo["band_min"], bandinfo["band_max"]], 
-                                                                                  dtype=torch.long)
                     # atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.as_tensor(self.data["eigenvalues"][frame][:, bandinfo["band_min"]:bandinfo["band_max"]], 
                     #                                                             dtype=torch.get_default_dtype())
-                atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.as_tensor(self.data["eigenvalues"][frame], 
-                                                                            dtype=torch.get_default_dtype())
             data_list.append(atomic_data)
         return data_list
         

@@ -28,6 +28,14 @@ from dptb.utils.constants import atomic_num_dict
 PBC = Union[bool, Tuple[bool, bool, bool]]
 
 
+_DEFAULT_NESTED_FIELDS : Set[str] = {
+    # AtomicDataDict.HAMILTONIAN_KEY,
+    # AtomicDataDict.OVERLAP_KEY, not support nested type in this two since nested format does not support complex dtype
+    AtomicDataDict.ENERGY_EIGENVALUE_KEY,
+    AtomicDataDict.KPOINT_KEY,
+}
+
+
 _DEFAULT_LONG_FIELDS: Set[str] = {
     AtomicDataDict.EDGE_INDEX_KEY,
     AtomicDataDict.ENV_INDEX_KEY, # new
@@ -107,6 +115,7 @@ _ENV_FIELDS: Set[str] = set(_DEFAULT_ENV_FIELDS)
 _ONSITENV_FIELDS: Set[str] = set(_DEFAULT_ONSITENV_FIELDS)
 _GRAPH_FIELDS: Set[str] = set(_DEFAULT_GRAPH_FIELDS)
 _LONG_FIELDS: Set[str] = set(_DEFAULT_LONG_FIELDS)
+_NESTED_FIELDS: Set[str] = set(_DEFAULT_NESTED_FIELDS)
 
 
 def register_fields(
@@ -184,6 +193,16 @@ def _register_field_prefix(prefix: str) -> None:
 def _process_dict(kwargs, ignore_fields=[]):
     """Convert a dict of data into correct dtypes/shapes according to key"""
     # Deal with _some_ dtype issues
+
+    # assert all nested_field is also graph_field
+    for field in _NESTED_FIELDS:
+        assert field in _GRAPH_FIELDS
+
+    if AtomicDataDict.BATCH_KEY in kwargs:
+        num_frames = kwargs[AtomicDataDict.BATCH_KEY].max() + 1
+    else:
+        num_frames = 1
+
     for k, v in kwargs.items():
         if k in ignore_fields:
             continue
@@ -192,6 +211,21 @@ def _process_dict(kwargs, ignore_fields=[]):
             # Any property used as an index must be long (or byte or bool, but those are not relevant for atomic scale systems)
             # int32 would pass later checks, but is actually disallowed by torch
             kwargs[k] = torch.as_tensor(v, dtype=torch.long)
+        elif k in _NESTED_FIELDS: # we need to transform the input array or tensors into nested tensors
+            if num_frames > 1:
+                if isinstance(v, np.ndarray): # this suggest that the dimension for each features are the same
+                    v = torch.nested.as_nested_tensor(list(torch.as_tensor(v)), dtype=torch.get_default_dtype())
+                elif isinstance(v, torch.Tensor) and not getattr(v, "is_nested"): # this also suggest the dimenion are the same
+                    v = torch.nested.as_nested_tensor(list(v), dtype=torch.get_default_dtype())
+                elif isinstance(v, list):
+                    v = torch.nested.as_nested_tensor(v, dtype=torch.get_default_dtype())
+            else:
+                if isinstance(v, np.ndarray):
+                    v = torch.as_tensor(v, dtype=torch.get_default_dtype())
+                elif isinstance(v, torch.Tensor) and not getattr(v, "is_nested"):
+                    v = torch.nested.as_nested_tensor([v], dtype=torch.get_default_dtype())
+
+            kwargs[k] = v
         elif isinstance(v, bool):
             kwargs[k] = torch.as_tensor(v)
         elif isinstance(v, np.ndarray):
@@ -214,58 +248,61 @@ def _process_dict(kwargs, ignore_fields=[]):
             # a data dimension to play nice with irreps
             kwargs[k] = v
 
-    if AtomicDataDict.BATCH_KEY in kwargs:
-        num_frames = kwargs[AtomicDataDict.BATCH_KEY].max() + 1
-    else:
-        num_frames = 1
-
     for k, v in kwargs.items():
         if k in ignore_fields:
             continue
 
-        if len(v.shape) == 0:
-            kwargs[k] = v.unsqueeze(-1)
-            v = kwargs[k]
+        if k not in _NESTED_FIELDS:
+            if len(v.shape) == 0:
+                kwargs[k] = v.unsqueeze(-1)
+                v = kwargs[k]
 
-        if k in set.union(_NODE_FIELDS, _EDGE_FIELDS) and len(v.shape) == 1:
-            kwargs[k] = v.unsqueeze(-1)
-            v = kwargs[k]
+            if k in set.union(_NODE_FIELDS, _EDGE_FIELDS) and len(v.shape) == 1:
+                kwargs[k] = v.unsqueeze(-1)
+                v = kwargs[k]
 
-        if (
-            k in _NODE_FIELDS
-            and AtomicDataDict.POSITIONS_KEY in kwargs
-            and v.shape[0] != kwargs[AtomicDataDict.POSITIONS_KEY].shape[0]
-        ):
-            raise ValueError(
-                f"{k} is a node field but has the wrong dimension {v.shape}"
-            )
-        elif (
-            k in _EDGE_FIELDS
-            and AtomicDataDict.EDGE_INDEX_KEY in kwargs
-            and v.shape[0] != kwargs[AtomicDataDict.EDGE_INDEX_KEY].shape[1]
-        ):
-            raise ValueError(
-                f"{k} is a edge field but has the wrong dimension {v.shape}"
-            )
-        elif (
-            k in _ENV_FIELDS
-            and AtomicDataDict.ENV_INDEX_KEY in kwargs
-            and v.shape[0] != kwargs[AtomicDataDict.ENV_INDEX_KEY].shape[1]
-        ):
-            raise ValueError(
-                f"{k} is a env field but has the wrong dimension {v.shape}"
-            )
-        elif (
-            k in _ONSITENV_FIELDS
-            and AtomicDataDict.ONSITENV_INDEX_KEY in kwargs
-            and v.shape[0] != kwargs[AtomicDataDict.ONSITENV_INDEX_KEY].shape[1]
-        ):
-            raise ValueError(
-                f"{k} is a env field but has the wrong dimension {v.shape}"
-            )
-        elif k in _GRAPH_FIELDS:
-            if num_frames > 1 and v.shape[0] != num_frames:
-                raise ValueError(f"Wrong shape for graph property {k}")
+            if (
+                k in _NODE_FIELDS
+                and AtomicDataDict.POSITIONS_KEY in kwargs
+                and v.shape[0] != kwargs[AtomicDataDict.POSITIONS_KEY].shape[0]
+            ):
+                raise ValueError(
+                    f"{k} is a node field but has the wrong dimension {v.shape}"
+                )
+            elif (
+                k in _EDGE_FIELDS
+                and AtomicDataDict.EDGE_INDEX_KEY in kwargs
+                and v.shape[0] != kwargs[AtomicDataDict.EDGE_INDEX_KEY].shape[1]
+            ):
+                raise ValueError(
+                    f"{k} is a edge field but has the wrong dimension {v.shape}"
+                )
+            elif (
+                k in _ENV_FIELDS
+                and AtomicDataDict.ENV_INDEX_KEY in kwargs
+                and v.shape[0] != kwargs[AtomicDataDict.ENV_INDEX_KEY].shape[1]
+            ):
+                raise ValueError(
+                    f"{k} is a env field but has the wrong dimension {v.shape}"
+                )
+            elif (
+                k in _ONSITENV_FIELDS
+                and AtomicDataDict.ONSITENV_INDEX_KEY in kwargs
+                and v.shape[0] != kwargs[AtomicDataDict.ONSITENV_INDEX_KEY].shape[1]
+            ):
+                raise ValueError(
+                    f"{k} is a env field but has the wrong dimension {v.shape}"
+                )
+            elif k in _GRAPH_FIELDS:
+                if num_frames > 1 and v.shape[0] != num_frames:
+                    raise ValueError(f"Wrong shape for graph property {k}")
+        else: # when k in NESTED_FIELD, and also k must be in GRAPH_FIELDS
+            if num_frames > 1 and v.size(0) != num_frames:
+                raise ValueError(f"Wrong shape for NESTED property {k}")
+
+                
+    
+
 
 
 class AtomicData(Data):
@@ -763,7 +800,10 @@ class AtomicData(Data):
             return 1  # always cat in the edge dimension
         elif key in _GRAPH_FIELDS:
             # graph-level properties and so need a new batch dimension
-            return None
+            if key in _NESTED_FIELDS:
+                return 0
+            else:
+                return None
         else:
             return 0  # cat along node/edge dimension
 

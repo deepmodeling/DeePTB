@@ -154,7 +154,7 @@ class Batch(Data):
             cat_dim = 0 if cat_dim is None else cat_dim
             if isinstance(item, Tensor):
                 if getattr(data_list[0][key], "is_nested", False):
-                    batch[key] = torch.nest.nested_tensor(items) ## concat into a nested tensor
+                    batch[key] = torch.nested.as_nested_tensor(items) ## concat into a nested tensor
                 else:
                     batch[key] = torch.cat(items, cat_dim) ## cat data according to the cat dim
                 
@@ -191,11 +191,14 @@ class Batch(Data):
                 item = item[idx]
             else:
                 # Narrow the item based on the values in `__slices__`.
-                if isinstance(item, Tensor):
+                if isinstance(item, Tensor) and not item.is_nested:
                     dim = self.__cat_dims__[key]
                     start = self.__slices__[key][idx]
                     end = self.__slices__[key][idx + 1]
                     item = item.narrow(dim, start, end - start)
+                elif isinstance(item, Tensor) and item.is_nested:
+                    start = self.__slices__[key][idx]
+                    item = torch.nested.as_nested_tensor([item[start]])
                 else:
                     start = self.__slices__[key][idx]
                     end = self.__slices__[key][idx + 1]
