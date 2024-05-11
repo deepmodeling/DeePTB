@@ -69,7 +69,7 @@ sisl = "*"
 
 [tool.poetry.scripts]
 dptb = 'dptb.__main__:main'
-# dptb-qm9 = 'dptb.data.interfaces.pyscf:main'
+dptb-qm9 = 'dptb.data.interfaces.pyscf:main'
 
 [build-system]
 requires = ["poetry-core", "poetry-dynamic-versioning"]
