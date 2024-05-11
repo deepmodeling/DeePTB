@@ -80,6 +80,24 @@ OPENMX2DeePTB = {
             "f": torch.eye(7)[[6, 4, 2, 0, 1, 3, 5]].double()
         }
 
+PYSCF_orbital_number_m = {
+    "s": [0],
+    "p": [1, -1, 0],
+    "d": [-2, -1, 0, 1, 2],
+    "f": [-3, -2, -1, 0, 1, 2, 3],
+    "g": [-4, -3, -2, -1, 0, 1, 2, 3, 4],
+    "h": [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]
+}
+
+PYSCF2DeePTB = {
+            0: np.eye(1),
+            1: np.eye(3)[[1, 2, 0]],   #1, -1, 0 -> -1, 0, 1
+            2: np.eye(5),
+            3: np.eye(7),
+            4: np.eye(9),
+            5: np.eye(11)
+        }
+
 
 dtype_dict = {"float32": torch.float32, "float64": torch.float64}
 # k = Boltzmann # k is the Boltzmann constant in old NEGF module
