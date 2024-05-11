@@ -61,7 +61,9 @@ class AtomicDataset(Dataset):
         return self.transform
 
     def _get_parameters(self) -> Dict[str, Any]:
-        """Get a dict of the parameters used to build this dataset."""
+        """Get a dict of the parameters used to build this dataset. 
+        This dict will also be used as the parameters that identifies 
+        this dataset. """
         pnames = list(inspect.signature(self.__init__).parameters)
         IGNORE_KEYS = {
             # the type mapper is applied after saving, not before, so doesn't matter to cache validity
