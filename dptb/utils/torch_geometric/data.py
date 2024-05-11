@@ -19,6 +19,8 @@ def size_repr(key, item, indent=0):
     indent_str = " " * indent
     if torch.is_tensor(item) and item.dim() == 0:
         out = item.item()
+    elif torch.is_tensor(item) and item.is_nested:
+        out = "nested"
     elif torch.is_tensor(item):
         out = str(list(item.size()))
     elif isinstance(item, list) or isinstance(item, tuple):

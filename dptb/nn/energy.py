@@ -56,13 +56,13 @@ class Eigenvalues(nn.Module):
 
 
     def forward(self, data: AtomicDataDict.Type, nk: Optional[int]=None) -> AtomicDataDict.Type:
-        num_k = data[AtomicDataDict.KPOINT_KEY].shape[0]
-        kpoints = data[AtomicDataDict.KPOINT_KEY]
+        num_k = data[AtomicDataDict.KPOINT_KEY][0].shape[0]
+        kpoints = data[AtomicDataDict.KPOINT_KEY][0] # slice the first dimension, since it is nested tensor by default
         eigvals = []
         if nk is None:
             nk = num_k
         for i in range(int(np.ceil(num_k / nk))):
-            data[AtomicDataDict.KPOINT_KEY] = kpoints[i*nk:(i+1)*nk]
+            data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([kpoints[i*nk:(i+1)*nk]])
             data = self.h2k(data)
             if self.overlap:
                 data = self.s2k(data)
@@ -73,6 +73,6 @@ class Eigenvalues(nn.Module):
                 data[self.h_out_field] = data[self.h_out_field]
             
             eigvals.append(torch.linalg.eigvalsh(data[self.h_out_field]))
-        data[self.out_field] = torch.cat(eigvals, dim=0)
+        data[self.out_field] = torch.nested.as_nested_tensor([torch.cat(eigvals, dim=0)])
 
         return data

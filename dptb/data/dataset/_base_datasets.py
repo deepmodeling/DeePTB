@@ -25,6 +25,7 @@ from dptb.data import (
 from dptb.utils.batch_ops import bincount
 from dptb.utils.regressor import solver
 from dptb.utils.savenload import atomic_write
+from dptb.data.AtomicData import _NESTED_FIELDS
 from ..transforms import TypeMapper
 
 
@@ -155,6 +156,9 @@ class AtomicInMemoryDataset(AtomicDataset):
         super().__init__(root=root, type_mapper=type_mapper)
         if self.data is None:
             self.data, include_frames = torch.load(self.processed_paths[0])
+            for k,v in self.data:
+                if k in _NESTED_FIELDS:
+                    self.data[k] = torch.nested.as_nested_tensor(v)
             if not np.all(include_frames == self.include_frames):
                 raise ValueError(
                     f"the include_frames is changed. "
@@ -280,11 +284,20 @@ class AtomicInMemoryDataset(AtomicDataset):
         # datasets. It only matters that they don't simultaneously try
         # to write the _same_ file, corrupting it.
         with atomic_write(self.processed_paths[0], binary=True) as f:
+            for k,v in data:
+                if k in _NESTED_FIELDS:
+                    # need to unbind the nested tensor before saving
+                    data[k] = list(v.unbind())
             torch.save((data, self.include_frames), f)
         with atomic_write(self.processed_paths[1], binary=False) as f:
             yaml.dump(self._get_parameters(), f)
 
         logging.info("Cached processed data to disk")
+
+        for k,v in data:
+            if k in _NESTED_FIELDS:
+                # need to nest the tensor after saving
+                data[k] = torch.nested.as_nested_tensor(v)
 
         self.data = data
 
