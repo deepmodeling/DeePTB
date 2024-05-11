@@ -219,11 +219,16 @@ def _process_dict(kwargs, ignore_fields=[]):
                     v = torch.nested.as_nested_tensor(list(v), dtype=torch.get_default_dtype())
                 elif isinstance(v, list):
                     v = torch.nested.as_nested_tensor(v, dtype=torch.get_default_dtype())
+                else:
+                    assert v.is_nested # this assert that v is a tensor and is nested
             else:
                 if isinstance(v, np.ndarray):
                     v = torch.as_tensor(v, dtype=torch.get_default_dtype())
+                    v = torch.nested.as_nested_tensor([v], dtype=torch.get_default_dtype())
                 elif isinstance(v, torch.Tensor) and not getattr(v, "is_nested"):
                     v = torch.nested.as_nested_tensor([v], dtype=torch.get_default_dtype())
+                else:
+                    assert v.is_nested
 
             kwargs[k] = v
         elif isinstance(v, bool):

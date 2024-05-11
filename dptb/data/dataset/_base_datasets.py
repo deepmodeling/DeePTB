@@ -296,7 +296,7 @@ class AtomicInMemoryDataset(AtomicDataset):
 
         for k,v in data:
             if k in _NESTED_FIELDS:
-                # need to unbind the nested tensor before saving
+                # need to nest the tensor after saving
                 data[k] = torch.nested.as_nested_tensor(v)
 
         self.data = data
