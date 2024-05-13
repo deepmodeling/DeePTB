@@ -6,26 +6,63 @@
 
 ## About DeePTB
 
-**DeePTB** is a Python package that adopts the deep learning method to construct electronic tight-binding (TB) Hamiltonians using a minimal basis.
-Trained on smaller structures, **DeePTB** can efficiently predict TB Hamiltonians for large-size unseen structures. This feature enables efficient simulations of large-size systems under structural perturbations. Furthermore, DeePTB offers the ability to perform efficient and accurate finite temperature simulations, incorporating both atomic and electronic behavior through the integration of molecular dynamics (MD). Another significant advantage is that  **DeePTB** is independent of the choice of various bases (PW or LCAO) and the exchange-correlation (XC) functionals (LDA, GGA, and even HSE) used in preparing the training labels. In addition, **DeePTB** can handle systems with strong spin-orbit coupling (SOC) effects.
-These capabilities make **DeePTB** adaptable to various research scenarios, extending its applicability to a wide range of materials and phenomena and offering a powerful and versatile tool for accurate and efficient simulations.
+**DeePTB** is an innovative Python package that employs deep learning to construct electronic tight-binding (TB) Hamiltonians with a minimal basis. It is designed to:
+
+- Efficiently predict TB Hamiltonians for large, unseen structures based on training with smaller ones.
+- Enable simulations of large systems under structural perturbations, finite temperature simulations integrating molecular dynamics (MD) for comprehensive atomic and electronic behavior.
+- Support customizable Slater-Koster parameterization with neural network incorporation for local environmental corrections. 
+- Operate independently of the choice of bases and exchange-correlation functionals, offering flexibility and adaptability.
+- Handle systems with strong spin-orbit coupling (SOC) effects.
+
+**DeePTB** is a versatile tool adaptable for a wide range of materials and phenomena, providing accurate and efficient simulations. See more details in our DeePTB paper: [arXiv:2307.04638](http://arxiv.org/abs/2307.04638)
+
+## Installation
+
+Installing **DeePTB** is straightforward. We recommend using a virtual environment for dependency management.
+
+### Requirements
+- Python 3.8 or later.
+- Torch 1.13.0 or later ([PyTorch Installation](https://pytorch.org/get-started/locally)).
+- ifermi (optional, for 3D fermi-surface plotting).
+
+### Installation Steps
+
+#### Using PyPi
+1. Ensure you have Python 3.8 or later and Torch installed.
+2. Install DeePTB with pip:
+   ```bash
+   pip install dptb
+   ```
+
+#### From Source
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/deepmodeling/DeePTB.git
+   ```
+2. Navigate to the root directory and install DeePTB:
+   ```bash
+   cd DeePTB
+   pip install .
+   ```
+
+## Usage
+For a comprehensive guide and usage tutorials, visit [our documentation website](https://deeptb.readthedocs.io/en/latest/).
 
 
-See more details in our DeePTB paper: [arXiv:2307.04638](http://arxiv.org/abs/2307.04638)
 
-<!--
-## Key Features:
-- Slater-Koster parameterization with customizable radial dependence.
-- Orthogonal basis with the customizable number of basis and bond neighbors.
-- Incorporation of local environmental corrections by neural networks.
-- Gradient-based fitting algorithm based on autograd implementation.
-- Flexibility on bases and XC functionals used in preparing the training labels.
-- Ability to handle systems with  SOC effects.
-- Finite temperature simulations through integration with MD.
--->
+## Community
 
 **DeePTB** joins the DeepModeling community, a community devoted of AI for science, as an incubating level project. To learn more about the DeepModeling community, see the [introduction of community](https://github.com/deepmodeling/community).
 
-## Online Documentation
-For detailed documentation, please refer to [our documentation website](https://deeptb.readthedocs.io/en/latest/).
+## Contributing
+We welcome contributions to **DeePTB**. Please refer to our [contributing guidelines](https://deeptb.readthedocs.io/en/latest/community/contribution_guide.html) for details.
+
+
+## How to Cite
+
+When utilizing the DeePTB package in your research, we request that you cite the following reference:
+
+```text
+Gu, Qiangqiang, et al. "DeePTB: A deep learning-based tight-binding approach with ab initio accuracy." arXiv preprint arXiv:2307.04638 (2023).
+```
 
