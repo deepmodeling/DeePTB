@@ -140,7 +140,11 @@ class NEGF(object):
         if self.density_options["method"] == "Ozaki":
             self.density = Ozaki(R=self.density_options["R"], M_cut=self.density_options["M_cut"], n_gauss=self.density_options["n_gauss"])
         elif self.density_options["method"] == "Fiori":
-            self.density = Fiori(n_gauss=self.density_options["n_gauss"])
+            if self.density_options["integrate_way"] == "gauss":
+                assert self.density_options["n_gauss"] is not None, "n_gauss should be set for Fiori method using gauss integration"
+                self.density = Fiori(n_gauss=self.density_options["n_gauss"])
+            else:
+                self.density = Fiori() #calculate the density by integrating the energy window in direct way
         else:
             raise ValueError
 
