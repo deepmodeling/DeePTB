@@ -142,6 +142,14 @@ class Data(object):
         keys = [key for key in self.__dict__.keys() if self[key] is not None]
         keys = [key for key in keys if key[:2] != "__" and key[-2:] != "__"]
         return keys
+    
+    @property
+    def nested_keys(self):
+        keys = self.keys
+        keys = [key for key in keys if torch.is_tensor(self[key])]
+        keys = [key for key in keys if self[key].is_nested]
+
+        return keys
 
     def __len__(self):
         r"""Returns the number of all present attributes."""
@@ -286,8 +294,17 @@ class Data(object):
         :obj:`*keys`. If :obj:`*keys` is not given, :obj:`func` is applied to
         all present attributes.
         """
+        nested_keys = self.nested_keys
+        if len(nested_keys) > 0:
+            for key, item in self(*nested_keys):
+                self[key] = self.__apply__(item, lambda x: list(x.unbind()))
         for key, item in self(*keys):
             self[key] = self.__apply__(item, func)
+
+        if len(nested_keys) > 0:
+            for key, item in self(*nested_keys):
+                self[key] = torch.nested.as_nested_tensor(item)
+        
         return self
 
     def contiguous(self, *keys):
@@ -301,7 +318,10 @@ class Data(object):
         :obj:`*keys`.
         If :obj:`*keys` is not given, the conversion is applied to all present
         attributes."""
-        return self.apply(lambda x: x.to(device, **kwargs), *keys)
+        
+        self.apply(lambda x: x.to(device, **kwargs), *keys)
+    
+        return self
 
     def cpu(self, *keys):
         r"""Copies all attributes :obj:`*keys` to CPU memory.
