@@ -15,6 +15,8 @@ from scipy.linalg import block_diag
 import h5py
 from dptb.utils.constants import orbitalId, Bohr2Ang, ABACUS2DeePTB
 import ase
+import pickle
+import lmdb
 
 
 class OrbAbacus2DeepTB:
@@ -52,6 +54,7 @@ class OrbAbacus2DeepTB:
     
 def recursive_parse(input_path, 
                     preprocess_dir, 
+                    output_mode="conv",
                     data_name="OUT.ABACUS",
                     parse_Hamiltonian=False, 
                     parse_overlap=False,
@@ -85,6 +88,10 @@ def recursive_parse(input_path,
     folders = [item for item in input_path if os.path.isdir(item)]
 
     with tqdm(total=len(folders)) as pbar:
+        if output_mode == "lmdb":
+            lmdb_env = lmdb.open(os.path.join(preprocess_dir, prefix+'.lmdb'), map_size=1048576000000)
+        else:
+            lmdb_env = None
         for index, folder in enumerate(folders):
             datafiles = os.listdir(folder)
             if data_name in datafiles:
@@ -99,16 +106,22 @@ def recursive_parse(input_path,
                         _abacus_parse(folder, 
                                     os.path.join(preprocess_dir, f"{prefix}.{index}"), 
                                     data_name,
+                                    output_mode=output_mode,
+                                    lmdb_env=lmdb_env,
+                                    idx=index,
                                     get_Ham=parse_Hamiltonian,
                                     get_DM=parse_DM,
                                     get_overlap=parse_overlap, 
                                     get_eigenvalues=parse_eigenvalues)
                     #h5file_names.append(os.path.join(file, "AtomicData.h5"))
                     if os.path.exists(os.path.join(folder, data_name, "running_md.log")):
+                        if output_mode == "lmdb":
+                            raise NotImplementedError("LMDB mode is not supported for molecular dynamics.")
                         tasktype = tasktype + "molecular_dynamics"
                         _abacus_parse_md(folder, 
                                     os.path.join(preprocess_dir, f"{prefix}.{index}"), 
                                     data_name,
+                                    output_mode=output_mode,
                                     get_Ham=parse_Hamiltonian,
                                     get_DM=parse_DM,
                                     get_overlap=parse_overlap, 
@@ -122,11 +135,16 @@ def recursive_parse(input_path,
                 except Exception as e:
                     print(f"Error in {folder}/{data_name}: {e}")
                     continue
+        lmdb_env.close()
+        print('Saving lmdb database...')
     #return h5file_names
 
 def _abacus_parse(input_path, 
                   output_path, 
                   data_name, 
+                  output_mode="conv",
+                  idx=None, # the index of this frame in the lmdb environment
+                  lmdb_env=None,
                   only_S=False, 
                   get_Ham=False,
                   get_DM=False,
@@ -134,8 +152,15 @@ def _abacus_parse(input_path,
                   get_eigenvalues=False):
     
     input_path = os.path.abspath(input_path)
-    output_path = os.path.abspath(output_path)
-    os.makedirs(output_path, exist_ok=True)
+    assert output_mode in ["conv", "lmdb"]
+    if output_mode == "lmdb":
+        assert lmdb_env is not None, "The lmdb environment should be provided when output_mode is 'lmdb'"
+        assert idx is not None, "The id should be provided when output_mode is 'lmdb'"
+    elif output_mode == "conv":
+        output_path = os.path.abspath(output_path)
+        os.makedirs(output_path, exist_ok=True)
+    else:
+        raise NotImplementedError(f"output_mode {output_mode} is not supported.")
 
     def find_target_line(f, target):
         line = f.readline()
@@ -249,27 +274,39 @@ def _abacus_parse(input_path,
                 spinful = True
             else:
                 raise ValueError(f'{line} is not supported')
-
-    np.savetxt(os.path.join(output_path, "cell.dat"), lattice)
-    np.savetxt(os.path.join(output_path, "rcell.dat"), np.linalg.inv(lattice) * 2 * np.pi)
     cart_coords = frac_coords @ lattice
-    np.savetxt(os.path.join(output_path, "positions.dat").format(output_path), cart_coords)
-    np.savetxt(os.path.join(output_path, "atomic_numbers.dat"), element, fmt='%d')
-    #info = {'nsites' : nsites, 'isorthogonal': False, 'isspinful': spinful, 'norbits': norbits}
-    #with open('{}/info.json'.format(output_path), 'w') as info_f:
-    #    json.dump(info, info_f)
-    with open(os.path.join(output_path, "basis.dat"), 'w') as f:
-        for atomic_number in element:
-            counter = Counter(orbital_types_dict[atomic_number])
-            num_orbs = [counter[i] for i in range(6)] # s, p, d, f, g, h
-            for index_l, l in enumerate(num_orbs):
-                if l == 0:  # no this orbit
-                    continue
-                if index_l == 0:
-                    f.write(f"{l}{orbitalId[index_l]}")
-                else:
-                    f.write(f"{l}{orbitalId[index_l]}")
-            f.write('\n')
+
+    message = ""
+    for atomic_number in element:
+        counter = Counter(orbital_types_dict[atomic_number])
+        num_orbs = [counter[i] for i in range(6)] # s, p, d, f, g, h
+        for index_l, l in enumerate(num_orbs):
+            if l == 0:  # no this orbit
+                continue
+            message += f"{l}{orbitalId[index_l]}"
+        message += "\n"
+    if output_mode == "conv":
+        np.savetxt(os.path.join(output_path, "cell.dat"), lattice)
+        np.savetxt(os.path.join(output_path, "rcell.dat"), np.linalg.inv(lattice) * 2 * np.pi)
+        np.savetxt(os.path.join(output_path, "positions.dat").format(output_path), cart_coords)
+        np.savetxt(os.path.join(output_path, "atomic_numbers.dat"), element, fmt='%d')
+        #info = {'nsites' : nsites, 'isorthogonal': False, 'isspinful': spinful, 'norbits': norbits}
+        #with open('{}/info.json'.format(output_path), 'w') as info_f:
+        #    json.dump(info, info_f)
+        with open(os.path.join(output_path, "basis.dat"), 'w') as f:
+            f.write(message)
+
+    elif output_mode == "lmdb":
+        data_dict = {
+            "cell": lattice.tobytes(),
+            "rcell": (np.linalg.inv(lattice) * 2 * np.pi).tobytes(),
+            "positions": cart_coords.tobytes(),
+            "atomic_numbers": element.tobytes(),
+            "basis": message.encode("utf-8")
+        }
+    else:
+        raise NotImplementedError(f"output_mode {output_mode} is not supported.")
+
     atomic_basis = {}
     for atomic_number, orbitals in orbital_types_dict.items():
         atomic_basis[ase.data.chemical_symbols[atomic_number]] = orbitals
@@ -332,12 +369,20 @@ def _abacus_parse(input_path,
             spinful=spinful)
         assert tmp == norbits * (1 + spinful)
 
-        with h5py.File(os.path.join(output_path, "hamiltonians.h5"), 'w') as fid:
-            # creating a default group here adapting to the format used in DefaultDataset.
-            # by the way DefaultDataset loading h5 file, the index should be "1" here.
-            default_group = fid.create_group("1")
-            for key_str, value in hamiltonian_dict.items():
-                default_group[key_str] = value
+        if output_mode == "conv":
+            with h5py.File(os.path.join(output_path, "hamiltonians.h5"), 'w') as fid:
+                # creating a default group here adapting to the format used in DefaultDataset.
+                # by the way DefaultDataset loading h5 file, the index should be "1" here.
+                default_group = fid.create_group("1")
+                for key_str, value in hamiltonian_dict.items():
+                    default_group[key_str] = value
+        elif output_mode == "lmdb":
+            kk, vv = list(hamiltonian_dict.keys()), list(hamiltonian_dict.values())
+            vv = map(lambda x: x.tobytes(), vv)
+            hamiltonian_dict = pickle.dumps(dict(zip(kk, vv)))
+            data_dict["hamiltonians"] = hamiltonian_dict
+        else:
+            raise NotImplementedError(f"output_mode {output_mode} is not supported.")
 
     if get_overlap:
         overlap_dict, tmp = parse_matrix(os.path.join(input_path, data_name, "data-SR-sparse_SPIN0.csr"), 1,
@@ -349,11 +394,19 @@ def _abacus_parse(input_path,
                 overlap_dict_spinless[k] = v[:v.shape[0] // 2, :v.shape[1] // 2].real
             overlap_dict_spinless, overlap_dict = overlap_dict, overlap_dict_spinless
 
-        with h5py.File(os.path.join(output_path, "overlaps.h5"), 'w') as fid:
-            default_group = fid.create_group("1")
-            for key_str, value in overlap_dict.items():
-                default_group[key_str] = value
-            
+        if output_mode == "conv":
+            with h5py.File(os.path.join(output_path, "overlaps.h5"), 'w') as fid:
+                default_group = fid.create_group("1")
+                for key_str, value in overlap_dict.items():
+                    default_group[key_str] = value
+        elif output_mode == "lmdb":
+            kk, vv = list(overlap_dict.keys()), list(overlap_dict.values())
+            vv = map(lambda x: x.tobytes(), vv)
+            overlap_dict = pickle.dumps(dict(zip(kk, vv)))
+            data_dict["overlaps"] = overlap_dict
+        else:
+            raise NotImplementedError(f"output_mode {output_mode} is not supported.")
+                
     if get_DM:
         DM_dict, tmp = parse_matrix(os.path.join(input_path, data_name, "data-DMR-sparse_SPIN0.csr"), 1,
                                             spinful=spinful)
@@ -363,11 +416,18 @@ def _abacus_parse(input_path,
         #     for k, v in overlap_dict.items():
         #         overlap_dict_spinless[k] = v[:v.shape[0] // 2, :v.shape[1] // 2].real
         #     overlap_dict_spinless, overlap_dict = overlap_dict, overlap_dict_spinless
-
-        with h5py.File(os.path.join(output_path, "DM.h5"), 'w') as fid:
-            default_group = fid.create_group("1")
-            for key_str, value in DM_dict.items():
-                default_group[key_str] = value
+        if output_mode == "conv":
+            with h5py.File(os.path.join(output_path, "DM.h5"), 'w') as fid:
+                default_group = fid.create_group("1")
+                for key_str, value in DM_dict.items():
+                    default_group[key_str] = value
+        elif output_mode == "lmdb":
+            kk, vv = list(DM_dict.keys()), list(DM_dict.values())
+            vv = map(lambda x: x.tobytes(), vv)
+            DM_dict = pickle.dumps(dict(zip(kk, vv)))
+            data_dict["DM"] = DM_dict
+        else:
+            raise NotImplementedError(f"output_mode {output_mode} is not supported.")
 
     if get_eigenvalues:
         kpts = []
@@ -392,30 +452,23 @@ def _abacus_parse(input_path,
         band = np.array(band)
 
         assert len(band) == len(kpts)
-        np.save(os.path.join(output_path, "kpoints.npy"), kpts)
-        np.save(os.path.join(output_path, "eigenvalues.npy"), band)
 
-    #with h5py.File(os.path.join(output_path, "AtomicData.h5"), "w") as f:
-    #    f["cell"] = lattice
-    #    f["pos"] = cart_coords
-    #    f["atomic_numbers"] = element
-    #    basis = f.create_group("basis")
-    #    for key, value in atomic_basis.items():
-    #        basis[key] = value
-    #    if get_Ham:
-    #        f["hamiltonian_blocks"] = h5py.ExternalLink("hamiltonians.h5", "/")
-    #        if add_overlap:
-    #            f["overlap_blocks"] = h5py.ExternalLink("overlaps.h5", "/")
-    #        # else:
-    #        #     f["overlap_blocks"] = False
-    #    # else:
-    #    #     f["hamiltonian_blocks"] = False
-    #    if get_eigenvalues:
-    #        f["kpoints"] = kpts
-    #        f["eigenvalues"] = band
-    #    # else:
-    #    #     f["kpoint"] = False
-    #    #     f["eigenvalue"] = False
+        if output_mode == "conv":
+            np.save(os.path.join(output_path, "kpoints.npy"), kpts)
+            np.save(os.path.join(output_path, "eigenvalues.npy"), band)
+        elif output_mode == "lmdb":
+            data_dict["kpoints"] = kpts.tobytes()
+            data_dict["eigenvalues"] = band.tobytes()
+        else: 
+            raise NotImplementedError(f"output_mode {output_mode} is not supported.")
+        
+    if output_mode == "lmdb":
+        data_dict["idx"] = idx
+        with lmdb_env.begin(write=True) as txn:
+            data_dict = pickle.dumps(data_dict)
+            txn.put(idx.to_bytes(length=4, byteorder='big'), data_dict)
+
+
 
 def _abacus_parse_md(input_path, 
                   output_path, 
