@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 from dptb.data import AtomicData, AtomicDataDict
 from dptb.nn.energy import Eigenvalues
-from dptb.utils.make_kpoints import kmesh_sampling_negf
+
 # class bandcalc(object):
 #     def __init__ (self, apiHrk, run_opt, jdata):
 #         self.apiH = apiHrk
@@ -241,10 +241,12 @@ class Band(object):
             labels = kpath_kwargs.get('labels', None)
 
         elif kline_type == "kmesh":
+            from dptb.utils.make_kpoints import kmesh_sampling_negf
             kmesh = kpath_kwargs['kpath'] # TODO: add another field in input.json to specify the kmesh
             klist,wk = kmesh_sampling_negf(meshgrid=kmesh, is_gamma_center=True, is_time_reversal=True)
+            log.info(f'kmesh sampling: {klist.shape[0]} kpoints')
         else:
-            log.error('Error, now, kline_type only support ase_kpath, abacus, vasp or kmesh.')
+            log.error('Error, now, kline_type only support ase_kpath, abacus, or vasp.')
             raise ValueError
         
         # set the kpoint of the AtomicData
@@ -268,16 +270,16 @@ class Band(object):
                 spindeg = 1
             else:
                 spindeg = 2
-            if kline_type is not "kmesh":
+
+            if kline_type != "kmesh":
                 estimated_E_fermi = self.estimate_E_fermi(data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy(), total_nel, spindeg)
             else:
                 estimated_E_fermi = self.cal_E_fermi(data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy(), total_nel, spindeg, wk)
             log.info(f'Estimated E_fermi: {estimated_E_fermi} based on the valence electrons setting nel_atom : {nel_atom} .')
         else:
-            assert kline_type is not "kmesh", "nel_atom should be provided in kmesh mode."
             estimated_E_fermi = None
 
-        if kline_type is not "kmesh":
+        if kline_type != "kmesh":
             self.eigenstatus = {'klist': klist,
                                 'xlist': xlist,
                                 'high_sym_kpoints': high_sym_kpoints,
@@ -301,18 +303,22 @@ class Band(object):
         EF=(sorteigs[numek] + sorteigs[numek-1])/2
 
         return EF
-    
+
     @classmethod
     def cal_E_fermi(cls, eigenvalues: np.array, total_electrons: int, spindeg: int=2,wk: np.array=None,q_tol=1e-10):
         nextafter = np.nextafter
-        total_electrons = total_electrons // spindeg
-        # This version is for the case of spin-degeneracy
+        total_electrons = total_electrons / spindeg # This version is for the case of spin-degeneracy
+        log.info('Calculating Fermi energy in the case of spin-degeneracy.')
+        def fermi_dirac(E, kT=0.4, mu=0.0):
+            return 1.0 / (np.expm1((E - mu) / kT) + 2.0)
+        
         # calculate boundaries
         min_Ef, max_Ef = eigenvalues.min(), eigenvalues.max()
         Ef = (min_Ef + max_Ef) * 0.5
         while nextafter(min_Ef, max_Ef) < max_Ef:
             # Calculate guessed charge
-            q_cal = (cls.fermi_dirac(eigenvalues, mu=Ef) * wk).sum()
+            wk = wk.reshape(-1,1)
+            q_cal = (wk * fermi_dirac(eigenvalues, mu=Ef)).sum()
 
             if abs(q_cal - total_electrons) < q_tol:
                 return Ef
@@ -324,12 +330,6 @@ class Band(object):
             Ef = (min_Ef + max_Ef) * 0.5
 
         return Ef
-    
-    def fermi_dirac(self, E, kT=0.1, mu=0.0):
-
-        return 1.0 / (np.exp((E - mu) / kT) + 1.0)
-        
-
     def band_plot(
             self, 
             ref_band: Union[str, np.array, torch.Tensor, bool]=None,
