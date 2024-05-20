@@ -298,10 +298,10 @@ def _abacus_parse(input_path,
 
     elif output_mode == "lmdb":
         data_dict = {
-            "cell": lattice.tobytes(),
-            "rcell": (np.linalg.inv(lattice) * 2 * np.pi).tobytes(),
-            "positions": cart_coords.tobytes(),
-            "atomic_numbers": element.tobytes(),
+            "cell": lattice.astype(np.float32).tobytes(),
+            "rcell": (np.linalg.inv(lattice) * 2 * np.pi).astype(np.float32).tobytes(),
+            "positions": cart_coords.astype(np.float32).tobytes(),
+            "atomic_numbers": element.astype(np.int32).tobytes(),
             "basis": message.encode("utf-8")
         }
     else:
@@ -332,15 +332,15 @@ def _abacus_parse(input_path,
                     line3 = f.readline().split()
                     line4 = f.readline().split()
                     if not spinful:
-                        hamiltonian_cur = csr_matrix((np.array(line2).astype(float), np.array(line3).astype(int),
-                                                        np.array(line4).astype(int)), shape=(norbits, norbits)).toarray()
+                        hamiltonian_cur = csr_matrix((np.array(line2).astype(np.float32), np.array(line3).astype(int),
+                                                        np.array(line4).astype(np.int32)), shape=(norbits, norbits), dtype=np.float32).toarray()
                     else:
                         line2 = np.char.replace(line2, '(', '')
                         line2 = np.char.replace(line2, ')', 'j')
                         line2 = np.char.replace(line2, ',', '+')
                         line2 = np.char.replace(line2, '+-', '-')
-                        hamiltonian_cur = csr_matrix((np.array(line2).astype(np.complex128), np.array(line3).astype(int),
-                                                    np.array(line4).astype(int)), shape=(norbits, norbits)).toarray()
+                        hamiltonian_cur = csr_matrix((np.array(line2).astype(np.complex64), np.array(line3).astype(int),
+                                                    np.array(line4).astype(np.int32)), shape=(norbits, norbits), dtype=np.complex64).toarray()
                     for index_site_i in range(nsites):
                         for index_site_j in range(nsites):
                             key_str = f"{index_site_i + 1}_{index_site_j + 1}_{R_cur[0]}_{R_cur[1]}_{R_cur[2]}"
@@ -377,9 +377,10 @@ def _abacus_parse(input_path,
                 for key_str, value in hamiltonian_dict.items():
                     default_group[key_str] = value
         elif output_mode == "lmdb":
-            kk, vv = list(hamiltonian_dict.keys()), list(hamiltonian_dict.values())
-            vv = map(lambda x: x.tobytes(), vv)
-            hamiltonian_dict = pickle.dumps(dict(zip(kk, vv)))
+            # kk, vv = list(hamiltonian_dict.keys()), list(hamiltonian_dict.values())
+            # vv = map(lambda x: x.astype(np.float32).tobytes(), vv)
+            # hamiltonian_dict = pickle.dumps(dict(zip(kk, vv)))
+            hamiltonian_dict = pickle.dumps(hamiltonian_dict)
             data_dict["hamiltonians"] = hamiltonian_dict
         else:
             raise NotImplementedError(f"output_mode {output_mode} is not supported.")
@@ -400,9 +401,10 @@ def _abacus_parse(input_path,
                 for key_str, value in overlap_dict.items():
                     default_group[key_str] = value
         elif output_mode == "lmdb":
-            kk, vv = list(overlap_dict.keys()), list(overlap_dict.values())
-            vv = map(lambda x: x.tobytes(), vv)
-            overlap_dict = pickle.dumps(dict(zip(kk, vv)))
+            # kk, vv = list(overlap_dict.keys()), list(overlap_dict.values())
+            # vv = map(lambda x: x.astype(np.float32).tobytes(), vv)
+            # overlap_dict = pickle.dumps(dict(zip(kk, vv)))
+            overlap_dict = pickle.dumps(overlap_dict)
             data_dict["overlaps"] = overlap_dict
         else:
             raise NotImplementedError(f"output_mode {output_mode} is not supported.")
@@ -422,9 +424,10 @@ def _abacus_parse(input_path,
                 for key_str, value in DM_dict.items():
                     default_group[key_str] = value
         elif output_mode == "lmdb":
-            kk, vv = list(DM_dict.keys()), list(DM_dict.values())
-            vv = map(lambda x: x.tobytes(), vv)
-            DM_dict = pickle.dumps(dict(zip(kk, vv)))
+            # kk, vv = list(DM_dict.keys()), list(DM_dict.values())
+            # vv = map(lambda x: x.astype(np.float32).tobytes(), vv)
+            # DM_dict = pickle.dumps(dict(zip(kk, vv)))
+            DM_dict = pickle.dumps(DM_dict)
             data_dict["DM"] = DM_dict
         else:
             raise NotImplementedError(f"output_mode {output_mode} is not supported.")
@@ -457,8 +460,8 @@ def _abacus_parse(input_path,
             np.save(os.path.join(output_path, "kpoints.npy"), kpts)
             np.save(os.path.join(output_path, "eigenvalues.npy"), band)
         elif output_mode == "lmdb":
-            data_dict["kpoints"] = kpts.tobytes()
-            data_dict["eigenvalues"] = band.tobytes()
+            data_dict["kpoints"] = kpts.astype(np.float32).tobytes()
+            data_dict["eigenvalues"] = band.astype(np.float32).tobytes()
         else: 
             raise NotImplementedError(f"output_mode {output_mode} is not supported.")
         

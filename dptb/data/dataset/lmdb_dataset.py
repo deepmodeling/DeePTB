@@ -28,7 +28,7 @@ class LMDBDataset(AtomicDataset):
     def __init__(
         self,
         root: str,
-        info_files: Dict[str, Dict],
+        info: dict,
         url: Optional[str] = None,
         include_frames: Optional[List[int]] = None,
         type_mapper: TypeMapper = None,
@@ -41,14 +41,11 @@ class LMDBDataset(AtomicDataset):
         # See if a subclass defines some inputs
         self.url = getattr(type(self), "URL", url)
         self.include_frames = include_frames
-        self.info_files = info_files
+        self.info = info # there should be one info file for one LMDB Dataset
 
-        for file in self.info_files.keys():
-            info = info_files[file]
-            assert "AtomicData_options" in info
-            AtomicData_options = info["AtomicData_options"]
-            assert "r_max" in AtomicData_options
-            assert "pbc" in AtomicData_options
+        assert "r_max" in info
+        assert "pbc" in info
+            
 
         self.data = None
 
@@ -64,24 +61,25 @@ class LMDBDataset(AtomicDataset):
         # See https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html#creating-in-memory-datasets
         # Then pre-process the data if disk files are not found
         super().__init__(root=root, type_mapper=type_mapper)
-        if self.data is None:
-            self.data, include_frames = torch.load(self.processed_paths[0])
-            if not np.all(include_frames == self.include_frames):
-                raise ValueError(
-                    f"the include_frames is changed. "
-                    f"please delete the processed folder and rerun {self.processed_paths[0]}"
-                )
-            
         self.get_Hamiltonian = get_Hamiltonian
         self.get_overlap = get_overlap
         self.get_DM = get_DM
         self.get_eigenvalues = get_eigenvalues
         assert not get_Hamiltonian * get_DM, "Hamiltonian and Density Matrix can only loaded one at a time, for which will occupy the same attribute in the AtomicData."
 
+
+        db_env = lmdb.open(os.path.join(self.root), readonly=True, lock=False)
+        with db_env.begin() as txn:
+            self.num_graphs = txn.stat()['entries']
+        db_env.close()
+
     def len(self):
-        if self.data is None:
-            return 0
-        return self.data.num_graphs
+        return self.num_graphs
+    
+    @property
+    def raw_file_names(self):
+        # TODO: this is not implemented.
+        return "Null"
 
     def download(self):
         if (not hasattr(self, "url")) or (self.url is None):
@@ -100,44 +98,50 @@ class LMDBDataset(AtomicDataset):
             cell, rcell, pos, atomic_numbers, basis = \
                 np.frombuffer(data_dict['cell'], np.float32), \
                 np.frombuffer(data_dict['rcell'], np.float32), \
-                np.frombuffer(data_dict['pos'], np.float32), \
+                np.frombuffer(data_dict['positions'], np.float32), \
                 np.frombuffer(data_dict['atomic_numbers'], np.int32), \
-                np.formatter(data_dict['basis'], np.float32)
-            pos = pos.reshape(-1, 3)
+                data_dict['basis'].decode("utf-8").split("\n")
             
             if self.get_Hamiltonian:
-                hamiltonians = pickle.loads(data_dict["hamiltonians"])
-                kk, vv = hamiltonians.keys(), hamiltonians.values()
-                vv = map(lambda x: np.frombuffer(x, np.float32), vv)
-                hamiltonians = dict(zip(kk, vv))
-                del kk
-                del vv
-            if self.get_overlap:
-                overlap = pickle.loads(data_dict["overlap"])
-                kk, vv = overlap.keys(), overlap.values()
-                vv = map(lambda x: np.frombuffer(x, np.float32), vv)
-                overlap = dict(zip(kk, vv))
-                del kk
-                del vv
-            if self.get_DM:
-                DM = pickle.loads(data_dict["DM"])
-                kk, vv = DM.keys(), DM.values()
-                vv = map(lambda x: np.frombuffer(x, np.float32), vv)
-                DM = dict(zip(kk, vv))
-                del kk
-                del vv
+                blocks = pickle.loads(data_dict["hamiltonians"])
+                # kk, vv = blocks.keys(), blocks.values()
+                # vv = map(lambda x: np.frombuffer(x, np.float32).reshape, vv)
+                # blocks = dict(zip(kk, vv))
+                # del kk
+                # del vv
 
-            if self.get_eigenvalues:
-                eigenvalues = np.frombuffer(data_dict["eigenvalues"], np.float32)
-                kpoints = np.fromnuffer(data_dict["kpoints"], np.float32)
+            if self.get_overlap:
+                overlap = pickle.loads(data_dict["overlaps"])
+                # kk, vv = overlap.keys(), overlap.values()
+                # vv = map(lambda x: np.frombuffer(x, np.float32), vv)
+                # overlap = dict(zip(kk, vv))
+                # del kk
+                # del vv
+            else:
+                overlap = False
+
+            if self.get_DM:
+                blocks = pickle.loads(data_dict["DM"])
+                # kk, vv = blocks.keys(), blocks.values()
+                # vv = map(lambda x: np.frombuffer(x, np.float32), vv)
+                # blocks = dict(zip(kk, vv))
+                # del kk
+                # del vv
+
+            if not (self.get_Hamiltonian or self.get_DM):
+                blocks = False
         
         db_env.close()
         atomicdata = AtomicData.from_points(
-            pos=pos,
-            cell=cell,
-            atomic_number=atomic_numbers
+            pos=pos.reshape(-1,3),
+            cell=cell.reshape(3,3),
+            atomic_numbers=atomic_numbers,
+            **self.info
         )
 
         # transform blocks to atomicdata features
+        if self.get_Hamiltonian or self.get_DM or self.get_overlap:
+            block_to_feature(atomicdata, self.type_mapper, blocks, overlap)
         
+
         return atomicdata
