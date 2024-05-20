@@ -154,8 +154,8 @@ class EigLoss(nn.Module):
             
             emin, emax = ref_data.get(AtomicDataDict.ENERGY_WINDOWS_KEY, (None, None))
             band_min, band_max = ref_data.get(AtomicDataDict.BAND_WINDOW_KEY, (0, None))
-            eig_pred = data[AtomicDataDict.ENERGY_EIGENVALUE_KEY] # (n_kpt, n_band)
-            eig_label = ref_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY] # (n_kpt, n_band_dft/n_band)
+            eig_pred = data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0] # (n_kpt, n_band)
+            eig_label = ref_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0] # (n_kpt, n_band_dft/n_band)
 
             norbs = eig_pred.shape[-1]
             nbanddft = eig_label.shape[-1]

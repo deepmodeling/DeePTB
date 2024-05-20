@@ -59,14 +59,14 @@ class TestDefaultDatasetSKTB:
         assert self.dataset.raw_data[0].AtomicData_options == {'r_max': 5.0, 'er_max': 5.0, 'oer_max': 2.5, 'pbc': True}
         assert self.dataset.raw_data[0].info == self.info_files['kpath_spk.0']
         assert "bandinfo" in self.dataset.raw_data[0].info
-        assert  list(self.dataset.raw_data[0].data.keys()) == (['cell', 'pos', 'atomic_numbers', 'kpoints', 'eigenvalues'])
+        assert  list(self.dataset.raw_data[0].data.keys()) == (['cell', 'pos', 'atomic_numbers', 'kpoint', 'eigenvalue'])
         assert (np.abs(self.dataset.raw_data[0].data['cell'] - self.strase[0].cell) < 1e-6).all()
         assert (np.abs(self.dataset.raw_data[0].data['atomic_numbers'] - np.array([[14., 14.]])) < 1e-6).all()
         assert (np.abs(self.dataset.raw_data[0].data['pos'] - self.strase[0].positions) < 1e-6).all()
-        assert self.dataset.raw_data[0].data['kpoints'].shape == (1, 61, 3)
-        assert (np.abs(self.dataset.raw_data[0].data['kpoints'] - self.kpoints) < 1e-6).all()
-        assert self.dataset.raw_data[0].data['eigenvalues'].shape == (1, 61, 14)
-        assert (np.abs(self.dataset.raw_data[0].data['eigenvalues'] - self.eigenvalues) < 1e-6).all()
+        assert self.dataset.raw_data[0].data['kpoint'].shape == (1, 61, 3)
+        assert (np.abs(self.dataset.raw_data[0].data['kpoint'] - self.kpoints) < 1e-6).all()
+        assert self.dataset.raw_data[0].data['eigenvalue'].shape == (1, 61, 14)
+        assert (np.abs(self.dataset.raw_data[0].data['eigenvalue'] - self.eigenvalues) < 1e-6).all()
 
         assert "hamiltonian_blocks" not in self.dataset.raw_data[0].data
         assert "overlap_blocks" not in self.dataset.raw_data[0].data
@@ -96,14 +96,14 @@ class TestDefaultDatasetSKTB:
         assert atomic_data[AtomicDataDict.EDGE_FEATURES_KEY].shape == th.Size([56, 1])
         assert atomic_data[AtomicDataDict.NODE_FEATURES_KEY].shape == th.Size([2, 1])
         assert atomic_data[AtomicDataDict.EDGE_OVERLAP_KEY].shape == th.Size([56, 1])
-        assert (np.abs(atomic_data[AtomicDataDict.KPOINT_KEY].numpy() 
-                       - self.dataset.raw_data[0].data['kpoints'][0])<1e-6).all()
+        assert (np.abs(atomic_data[AtomicDataDict.KPOINT_KEY][0].numpy() 
+                       - self.dataset.raw_data[0].data['kpoint'][0])<1e-6).all()
 
         assert (atomic_data[AtomicDataDict.BAND_WINDOW_KEY] == th.tensor([0, 6])).all()
         assert (atomic_data[AtomicDataDict.ENERGY_WINDOWS_KEY] == th.tensor([[-1.0, 10.0]])).all()
 
-        assert (np.abs(atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY].numpy() 
-                       - self.dataset.raw_data[0].data['eigenvalues'][0])<1e-6).all()
+        assert (np.abs(atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].numpy() 
+                       - self.dataset.raw_data[0].data['eigenvalue'][0])<1e-6).all()
 
     def test_raw_file_names(self):
         assert self.dataset.raw_file_names == "Null"

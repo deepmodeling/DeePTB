@@ -69,7 +69,7 @@ def with_edge_vectors(data: Type, with_lengths: bool = True) -> Type:
         pos = data[_keys.POSITIONS_KEY]
         edge_index = data[_keys.EDGE_INDEX_KEY]
         edge_vec = pos[edge_index[1]] - pos[edge_index[0]]
-        if _keys.CELL_KEY in data:
+        if _keys.CELL_KEY in data and torch.sum(torch.abs(data[_keys.CELL_KEY])) > 1e-10:
             # ^ note that to save time we don't check that the edge_cell_shifts are trivial if no cell is provided; we just assume they are either not present or all zero.
             # -1 gives a batch dim no matter what
             cell = data[_keys.CELL_KEY].view(-1, 3, 3)
@@ -124,7 +124,7 @@ def with_env_vectors(data: Type, with_lengths: bool = True) -> Type:
         pos = data[_keys.POSITIONS_KEY]
         env_index = data[_keys.ENV_INDEX_KEY]
         env_vec = pos[env_index[1]] - pos[env_index[0]]
-        if _keys.CELL_KEY in data:
+        if _keys.CELL_KEY in data and torch.sum(torch.abs(data[_keys.CELL_KEY])) > 1e-10:
             # ^ note that to save time we don't check that the edge_cell_shifts are trivial if no cell is provided; we just assume they are either not present or all zero.
             # -1 gives a batch dim no matter what
             cell = data[_keys.CELL_KEY].view(-1, 3, 3)
@@ -178,7 +178,7 @@ def with_onsitenv_vectors(data: Type, with_lengths: bool = True) -> Type:
         pos = data[_keys.POSITIONS_KEY]
         env_index = data[_keys.ONSITENV_INDEX_KEY]
         env_vec = pos[env_index[1]] - pos[env_index[0]]
-        if _keys.CELL_KEY in data:
+        if _keys.CELL_KEY in data and torch.sum(torch.abs(data[_keys.CELL_KEY])) > 1e-10:
             # ^ note that to save time we don't check that the edge_cell_shifts are trivial if no cell is provided; we just assume they are either not present or all zero.
             # -1 gives a batch dim no matter what
             cell = data[_keys.CELL_KEY].view(-1, 3, 3)
