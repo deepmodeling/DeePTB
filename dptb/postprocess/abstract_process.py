@@ -62,8 +62,10 @@ class AbstractProcess(object):
             structase = data
             self.data = AtomicData.from_ase(structase, **AtomicData_options)
         elif isinstance(data, AtomicData):
-            structase = data.to("cpu").to_ase()
+            # structase = data.to("cpu").to_ase()
             self.data = data
+        else:
+            raise ValueError('data should be either a string, ase.Atoms, or AtomicData')
         
         
         self.data = AtomicData.to_AtomicDataDict(self.data.to(self.device))
@@ -80,7 +82,13 @@ class AbstractProcess(object):
         self.data = self.eigv(self.data)
 
     def get_fermi_level(self, data: Union[AtomicData, ase.Atoms, str], nel_atom: dict, kmesh: list,AtomicData_options: dict={}):
-                
+
+        # if isinstance(data, str):
+        #     structase = read(data)
+        # elif isinstance(data, ase.Atoms):
+        #     structase = data
+        # elif isinstance(data, AtomicData):
+        #     structase = data.to("cpu").to_ase()
         
         assert isinstance(nel_atom, dict)
         from dptb.utils.make_kpoints import kmesh_sampling_negf

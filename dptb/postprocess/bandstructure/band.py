@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 from dptb.data import AtomicData, AtomicDataDict
 from dptb.nn.energy import Eigenvalues
-
+from dptb.postprocess.abstract_process import AbstractProcess
 # class bandcalc(object):
 #     def __init__ (self, apiHrk, run_opt, jdata):
 #         self.apiH = apiHrk
@@ -163,41 +163,7 @@ from dptb.nn.energy import Eigenvalues
 #             plt.show()
 
 
-class Band(object):
-    def __init__ (
-            self, 
-            model: torch.nn.Module,
-            results_path: Optional[str]=None,
-            use_gui=False,
-            device: Union[str, torch.device]=None
-            ):
-        
-        if  device is None:
-            device = model.device
-        if isinstance(device, str):
-            device = torch.device(device)
-        self.device = device
-        self.model = model
-        self.model.eval()
-        self.use_gui = use_gui
-        self.results_path = results_path
-        self.overlap = hasattr(model, 'overlap')
-
-        if self.overlap:
-            self.eigv = Eigenvalues(
-                idp=model.idp,
-                device=self.device,
-                s_edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
-                s_node_field=AtomicDataDict.NODE_OVERLAP_KEY,
-                s_out_field=AtomicDataDict.OVERLAP_KEY,
-                dtype=model.dtype,
-            )
-        else:
-            self.eigv = Eigenvalues(
-                idp=model.idp,
-                device=self.device,
-                dtype=model.dtype,
-            )
+class Band(AbstractProcess):
             
     def get_bands(self, data: Union[AtomicData, ase.Atoms, str], kpath_kwargs: dict, AtomicData_options: dict={}):
         kline_type = kpath_kwargs['kline_type']
@@ -205,17 +171,14 @@ class Band(object):
         # get the AtomicData structure and the ase structure
         if isinstance(data, str):
             structase = read(data)
-            data = AtomicData.from_ase(structase, **AtomicData_options)
         elif isinstance(data, ase.Atoms):
             structase = data
-            data = AtomicData.from_ase(structase, **AtomicData_options)
         elif isinstance(data, AtomicData):
             structase = data.to("cpu").to_ase()
-            data = data
         
         
-        data = AtomicData.to_AtomicDataDict(data.to(self.device))
-        data = self.model.idp(data)
+        # data = AtomicData.to_AtomicDataDict(data.to(self.device))
+        # data = self.model.idp(data)
             
         
         if kline_type == 'ase':
@@ -249,21 +212,23 @@ class Band(object):
             log.error('Error, now, kline_type only support ase_kpath, abacus, or vasp.')
             raise ValueError
         
-        # set the kpoint of the AtomicData
-        data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([torch.as_tensor(klist, dtype=self.model.dtype, device=self.device)])
+        self.get_eigs(data, klist, AtomicData_options)
+        
+        # # set the kpoint of the AtomicData
+        # data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([torch.as_tensor(klist, dtype=self.model.dtype, device=self.device)])
 
-        # get the eigenvalues
-        data = self.model(data)
-        if self.overlap == True:
-            assert data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is not None
-        data = self.eigv(data)
+        # # get the eigenvalues
+        # data = self.model(data)
+        # if self.overlap == True:
+        #     assert data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is not None
+        # data = self.eigv(data)
 
         # get the E_fermi from data
         nel_atom = kpath_kwargs.get('nel_atom', None)
         assert isinstance(nel_atom, dict) or nel_atom is None
         
         if nel_atom is not None:
-            atomtype_list = data[AtomicDataDict.ATOM_TYPE_KEY].flatten().tolist()
+            atomtype_list = self.data[AtomicDataDict.ATOM_TYPE_KEY].flatten().tolist()
             atomtype_symbols = np.asarray(self.model.idp.type_names)[atomtype_list].tolist()
             total_nel = np.array([nel_atom[s] for s in atomtype_symbols]).sum()
             if hasattr(self.model,'soc_param'):
@@ -272,9 +237,9 @@ class Band(object):
                 spindeg = 2
 
             if kline_type != "kmesh":
-                estimated_E_fermi = self.estimate_E_fermi(data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy(), total_nel, spindeg)
+                estimated_E_fermi = self.estimate_E_fermi(self.data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy(), total_nel, spindeg)
             else:
-                estimated_E_fermi = self.cal_E_fermi(data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy(), total_nel, spindeg, wk)
+                estimated_E_fermi = self.cal_E_fermi(self.data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy(), total_nel, spindeg, wk)
             log.info(f'Estimated E_fermi: {estimated_E_fermi} based on the valence electrons setting nel_atom : {nel_atom} .')
         else:
             estimated_E_fermi = None
@@ -284,7 +249,7 @@ class Band(object):
                                 'xlist': xlist,
                                 'high_sym_kpoints': high_sym_kpoints,
                                 'labels': labels,
-                                'eigenvalues': data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy(),
+                                'eigenvalues': self.data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy(),
                                 'E_fermi': estimated_E_fermi}
 
             if self.results_path is not None:
