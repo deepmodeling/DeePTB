@@ -22,6 +22,13 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False):
     idp.get_orbpair_maps()
 
     dtype = blocks[list(blocks.keys())[0]].dtype
+    
+    if isinstance(blocks[list(blocks.keys())[0]], torch.Tensor):
+        meta_dtype = torch
+    elif isinstance(blocks[list(blocks.keys())[0]], np.ndarray):
+        meta_dtype = np
+    else:
+        raise TypeError("Hamiltonian blocks should be either torch.Tensor or np.ndarray.")
 
     if isinstance(data, AtomicData):
         if not hasattr(data, _keys.ATOMIC_NUMBERS_KEY):
@@ -40,11 +47,11 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False):
             except:
                 raise IndexError("Hamiltonian block for onsite not found, check Hamiltonian file.")
 
-            if isinstance(block, torch.Tensor):
-                block = block.cpu().detach().numpy()
+            # if isinstance(block, torch.Tensor):
+            #     block = block.cpu().detach().numpy()
             symbol = ase.data.chemical_symbols[atomic_numbers[atom]]
             basis_list = idp.basis[symbol]
-            onsite_out = np.zeros(idp.reduced_matrix_element)
+            onsite_out = meta_dtype.zeros(idp.reduced_matrix_element)
 
             for index, basis_i in enumerate(basis_list):
                 slice_i = idp.orbital_maps[symbol][basis_i]  
@@ -95,9 +102,13 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False):
                     elif j in blocks:
                         b_blocks.append(blocks[j].T)
                     else:
-                        b_blocks.append(np.zeros((idp.norbs[symbol_i], idp.norbs[symbol_j]), dtype=dtype))
+                        b_blocks.append(meta_dtype.zeros((idp.norbs[symbol_i], idp.norbs[symbol_j]), dtype=dtype))
                 # b_blocks = [blocks[i] if i in blocks else blocks[j].T for i,j in zip(ijR, rev_ijR)]
-                b_blocks = np.stack(b_blocks, axis=0)
+                if isinstance(b_blocks[0], torch.Tensor):
+                    b_blocks = torch.stack(b_blocks, dim=0)
+                else:
+                    b_blocks = np.stack(b_blocks, axis=0)
+
             if overlap_blocks:
                 s_blocks = []
                 for i,j in zip(ijR, rev_ijR):
@@ -106,9 +117,12 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False):
                     elif j in overlap_blocks:
                         s_blocks.append(overlap_blocks[j].T)
                     else:
-                        s_blocks.append(np.zeros((idp.norbs[symbol_i], idp.norbs[symbol_j]), dtype=dtype))
+                        s_blocks.append(meta_dtype.zeros((idp.norbs[symbol_i], idp.norbs[symbol_j]), dtype=dtype))
                 # s_blocks = [overlap_blocks[i] if i in overlap_blocks else overlap_blocks[j].T for i,j in zip(ijR, rev_ijR)]
-                s_blocks = np.stack(s_blocks, axis=0)
+                if isinstance(s_blocks[0], torch.Tensor):
+                    s_blocks = torch.stack(s_blocks, dim=0)
+                else:
+                    s_blocks = np.stack(s_blocks, axis=0)
 
             for orb_i in basis_i:
                 slice_i = idp.orbital_maps[symbol_i][orb_i]
@@ -125,7 +139,11 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False):
                             ovp_features[mask, feature_slice] = torch.as_tensor(s_blocks[:,slice_i, slice_j].reshape(b_edge_index.shape[1], -1), dtype=torch.get_default_dtype())
 
     if blocks:
-        data[_keys.NODE_FEATURES_KEY] = torch.as_tensor(np.array(onsite_ham), dtype=torch.get_default_dtype())
+        if isinstance(onsite_ham[0], torch.Tensor):
+            onsite_ham = torch.stack(onsite_ham, dim=0)
+        else:
+            onsite_ham = np.stack(onsite_ham, axis=0)
+        data[_keys.NODE_FEATURES_KEY] = torch.as_tensor(onsite_ham, dtype=torch.get_default_dtype())
         data[_keys.EDGE_FEATURES_KEY] = edge_features
     if overlap_blocks:
         data[_keys.EDGE_OVERLAP_KEY] = ovp_features
