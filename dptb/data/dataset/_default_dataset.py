@@ -77,6 +77,8 @@ class _TrajData(object):
         
         # load positions, stored as cartesion no matter what provided.
         pos = np.loadtxt(os.path.join(root, "positions.dat"))
+        if len(pos.shape) == 1:
+            pos = pos.reshape(1,3)
         natoms = self.info["natoms"]
         if natoms < 0:
             natoms = int(pos.shape[0] / self.info["nframes"])
@@ -92,6 +94,8 @@ class _TrajData(object):
         
         # load atomic numbers
         atomic_numbers = np.loadtxt(os.path.join(root, "atomic_numbers.dat"))
+        if atomic_numbers.shape == ():
+            atomic_numbers = atomic_numbers.reshape(1)
         if atomic_numbers.shape[0] == natoms:
             # same atomic_numbers, copy it to all frames.
             atomic_numbers = np.expand_dims(atomic_numbers, axis=0)
