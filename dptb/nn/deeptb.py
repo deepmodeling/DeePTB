@@ -263,7 +263,7 @@ class NNENV(nn.Module):
         **kwargs
         ):
 
-        ckpt = torch.load(checkpoint)
+        ckpt = torch.load(checkpoint, map_location=device)
         common_options = {
             "dtype": dtype,
             "device": device,
@@ -410,7 +410,7 @@ class MIX(nn.Module):
         # the mapping from the parameters of the ref_model and the current model can be found using
         # reference model's idp and current idp
         
-        ckpt = torch.load(checkpoint)
+        ckpt = torch.load(checkpoint, map_location=device)
         common_options = {
             "dtype": dtype,
             "device": device,
