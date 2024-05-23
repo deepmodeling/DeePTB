@@ -135,8 +135,9 @@ def recursive_parse(input_path,
                 except Exception as e:
                     print(f"Error in {folder}/{data_name}: {e}")
                     continue
-        lmdb_env.close()
-        print('Saving lmdb database...')
+        if lmdb_env is not None:
+            lmdb_env.close()
+            print('Saving lmdb database...')
     #return h5file_names
 
 def _abacus_parse(input_path, 
