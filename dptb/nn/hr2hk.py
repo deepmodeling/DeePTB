@@ -111,7 +111,7 @@ class HR2HK(torch.nn.Module):
 
         # R2K procedure can be done for all kpoint at once.
         all_norb = self.idp.atom_norb[data[AtomicDataDict.ATOM_TYPE_KEY]].sum()
-        block = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
+        block = torch.zeros(data[AtomicDataDict.KPOINT_KEY][0].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
         # block = torch.complex(block, torch.zeros_like(block))
         # if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
         #     block_uu = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
@@ -150,13 +150,13 @@ class HR2HK(torch.nn.Module):
             masked_hblock = hblock[imask][:,jmask]
 
             block[:,iatom_indices,jatom_indices] += masked_hblock.squeeze(0).type_as(block) * \
-                torch.exp(-1j * 2 * torch.pi * (data[AtomicDataDict.KPOINT_KEY] @ data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i])).reshape(-1,1,1)
+                torch.exp(-1j * 2 * torch.pi * (data[AtomicDataDict.KPOINT_KEY][0] @ data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i])).reshape(-1,1,1)
 
         block = block + block.transpose(1,2).conj()
         block = block.contiguous()
         
         if soc:
-            HK_SOC = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], 2*all_norb, 2*all_norb, dtype=self.ctype, device=self.device)
+            HK_SOC = torch.zeros(data[AtomicDataDict.KPOINT_KEY][0].shape[0], 2*all_norb, 2*all_norb, dtype=self.ctype, device=self.device)
             #HK_SOC[:,:all_norb,:all_norb] = block + block_uu
             #HK_SOC[:,:all_norb,all_norb:] = block_ud
             #HK_SOC[:,all_norb:,:all_norb] = block_ud.conj()

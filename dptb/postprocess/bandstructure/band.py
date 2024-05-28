@@ -244,7 +244,7 @@ class Band(object):
             raise ValueError
         
         # set the kpoint of the AtomicData
-        data[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(klist, dtype=self.model.dtype, device=self.device)
+        data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([torch.as_tensor(klist, dtype=self.model.dtype, device=self.device)])
 
         # get the eigenvalues
         data = self.model(data)
@@ -264,7 +264,7 @@ class Band(object):
                 spindeg = 1
             else:
                 spindeg = 2
-            estimated_E_fermi = self.estimate_E_fermi(data[AtomicDataDict.ENERGY_EIGENVALUE_KEY].detach().cpu().numpy(), total_nel, spindeg)
+            estimated_E_fermi = self.estimate_E_fermi(data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy(), total_nel, spindeg)
             log.info(f'Estimated E_fermi: {estimated_E_fermi} based on the valence electrons setting nel_atom : {nel_atom} .')
         else:
             estimated_E_fermi = None
@@ -273,7 +273,7 @@ class Band(object):
                             'xlist': xlist,
                             'high_sym_kpoints': high_sym_kpoints,
                             'labels': labels,
-                            'eigenvalues': data[AtomicDataDict.ENERGY_EIGENVALUE_KEY].detach().cpu().numpy(),
+                            'eigenvalues': data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy(),
                             'E_fermi': estimated_E_fermi}
 
         if self.results_path is not None:
