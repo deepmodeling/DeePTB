@@ -233,7 +233,7 @@ class Ozaki(Density):
 
 class Fiori(Density):
 
-    def __init__(self, n_gauss):
+    def __init__(self, n_gauss=None):
         super(Fiori, self).__init__()
         self.n_gauss = n_gauss
         self.xs = None
@@ -244,6 +244,7 @@ class Fiori(Density):
                                 device_atom_norbs,potential_at_atom,free_charge, 
                                 eta_lead=1e-5, eta_device=1e-5):
         if integrate_way == "gauss":
+            assert self.n_gauss is not None, "n_gauss must be set in the Fiori class"
             if self.xs is None:
                 self.xs, self.wlg = gauss_xw(xl=torch.scalar_tensor(e_grid[0]), xu=torch.scalar_tensor(e_grid[-1]), n=self.n_gauss)
                 # self.xs = self.xs.numpy();self.wlg = self.wlg.numpy()
