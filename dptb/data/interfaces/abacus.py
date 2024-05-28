@@ -436,8 +436,9 @@ def _abacus_parse(input_path,
     if get_eigenvalues:
         kpts = []
         with open(os.path.join(input_path, data_name, "kpoints"), "r") as f:
-            nkstot = f.readline().strip().split()[-1]
-            f.readline()
+            line = find_target_line(f, "nkstot now")
+            nkstot = line.strip().split()[-1]
+            line = find_target_line(f, " KPOINTS     DIRECT_X")
             for _ in range(int(nkstot)):
                 line = f.readline()
                 kpt = []
@@ -446,14 +447,8 @@ def _abacus_parse(input_path,
                 kpts.append(kpt)
         kpts = np.array(kpts)
 
-        with open(os.path.join(input_path, data_name, "BANDS_1.dat"), "r") as file:
-            band_lines = file.readlines()
-        band = []
-        for line in band_lines:
-            values = line.strip().split()
-            eigs = [float(value) for value in values[1:]]
-            band.append(eigs)
-        band = np.array(band)
+        # read eigenvalues
+        band = np.loadtxt(os.path.join(input_path, data_name, "BANDS_1.dat"))[:,2:]
 
         assert len(band) == len(kpts)
 
@@ -728,8 +723,9 @@ def _abacus_parse_md(input_path,
         raise ValueError("Currently not support MD eigenvalues parsing.")
         kpts = []
         with open(os.path.join(input_path, data_name, "kpoints"), "r") as f:
-            nkstot = f.readline().strip().split()[-1]
-            f.readline()
+            line = find_target_line(f, "nkstot now")
+            nkstot = line.strip().split()[-1]
+            line = find_target_line(f, " KPOINTS     DIRECT_X")
             for _ in range(int(nkstot)):
                 line = f.readline()
                 kpt = []

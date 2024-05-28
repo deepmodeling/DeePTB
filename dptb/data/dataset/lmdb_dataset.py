@@ -44,7 +44,6 @@ class LMDBDataset(AtomicDataset):
         self.info = info # there should be one info file for one LMDB Dataset
 
         assert "r_max" in info
-        assert "pbc" in info
             
 
         self.data = None
@@ -95,15 +94,16 @@ class LMDBDataset(AtomicDataset):
         with db_env.begin() as txn:
             data_dict = txn.get(int(idx).to_bytes(length=4, byteorder='big'))
             data_dict = pickle.loads(data_dict)
-            cell, rcell, pos, atomic_numbers, basis = \
-                np.frombuffer(data_dict['cell'], np.float32), \
-                np.frombuffer(data_dict['rcell'], np.float32), \
-                np.frombuffer(data_dict['positions'], np.float32), \
-                np.frombuffer(data_dict['atomic_numbers'], np.int32), \
-                data_dict['basis'].decode("utf-8").split("\n")
+            cell, pos, atomic_numbers = \
+                data_dict[AtomicDataDict.CELL_KEY], \
+                data_dict[AtomicDataDict.POSITIONS_KEY], \
+                data_dict[AtomicDataDict.ATOMIC_NUMBERS_KEY]
+            
+            pbc = data_dict[AtomicDataDict.PBC_KEY]
+
             
             if self.get_Hamiltonian:
-                blocks = pickle.loads(data_dict["hamiltonians"])
+                blocks = data_dict["hamiltonian"]
                 # kk, vv = blocks.keys(), blocks.values()
                 # vv = map(lambda x: np.frombuffer(x, np.float32).reshape, vv)
                 # blocks = dict(zip(kk, vv))
@@ -111,7 +111,7 @@ class LMDBDataset(AtomicDataset):
                 # del vv
 
             if self.get_overlap:
-                overlap = pickle.loads(data_dict["overlaps"])
+                overlap = data_dict["overlaps"]
                 # kk, vv = overlap.keys(), overlap.values()
                 # vv = map(lambda x: np.frombuffer(x, np.float32), vv)
                 # overlap = dict(zip(kk, vv))
@@ -121,7 +121,7 @@ class LMDBDataset(AtomicDataset):
                 overlap = False
 
             if self.get_DM:
-                blocks = pickle.loads(data_dict["DM"])
+                blocks = data_dict["DM"]
                 # kk, vv = blocks.keys(), blocks.values()
                 # vv = map(lambda x: np.frombuffer(x, np.float32), vv)
                 # blocks = dict(zip(kk, vv))
@@ -136,6 +136,7 @@ class LMDBDataset(AtomicDataset):
             pos=pos.reshape(-1,3),
             cell=cell.reshape(3,3),
             atomic_numbers=atomic_numbers,
+            pbc=pbc,
             **self.info
         )
 
