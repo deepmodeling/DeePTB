@@ -47,3 +47,5 @@ def test_abacus_parse(root_directory):
 
     for k in ham_lmdb.keys():
         assert (ham_h5[k][:] - ham_lmdb[k]).sum() < 1e-7
+    
+    file.close()
