@@ -302,7 +302,7 @@ def _abacus_parse(input_path,
             "cell": lattice.astype(np.float32),
             "pos": cart_coords.astype(np.float32),
             "atomic_numbers": element.astype(np.int32),
-            "pbc":  np.array([True, True, True]).astype(np.bool),
+            "pbc":  np.array([True, True, True]).astype(np.bool_),
             "basis": message.encode("utf-8")
         }
     else:
