@@ -174,7 +174,8 @@ class NEGFHamiltonianInit(object):
 
         alldata = AtomicData.to_AtomicDataDict(alldata.to(self.torch_device))
         self.alldata = self.model.idp(alldata)
-        self.alldata[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(HS_device["kpoints"], dtype=self.model.dtype, device=self.torch_device)        
+        self.alldata[AtomicDataDict.KPOINT_KEY] = \
+            torch.nested.as_nested_tensor([torch.as_tensor(HS_device["kpoints"], dtype=self.model.dtype, device=self.torch_device)])        
         self.alldata = self.model(self.alldata)
         
         if self.alldata.get(AtomicDataDict.EDGE_OVERLAP_KEY,None) is not None:
@@ -244,7 +245,8 @@ class NEGFHamiltonianInit(object):
                 lead_data = AtomicData.from_ase(structure_leads[kk], **self.AtomicData_options)
                 lead_data = AtomicData.to_AtomicDataDict(lead_data.to(self.torch_device))
                 lead_data = self.model.idp(lead_data)
-                lead_data[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(HS_leads["kpoints"], dtype=self.model.dtype, device=self.torch_device)
+                lead_data[AtomicDataDict.KPOINT_KEY] = \
+                    torch.nested.as_nested_tensor([torch.as_tensor(HS_leads["kpoints"], dtype=self.model.dtype, device=self.torch_device)])
                 lead_data = self.model(lead_data)               
                 # remove the edges corresponding to z-direction pbc for HR2HK
                 # for ip,p in enumerate(self.pbc_negf):
