@@ -12,6 +12,7 @@ def root_directory(request):
 
 
 def test_abacus_parse(root_directory):
+    print(root_directory)
     _abacus_parse(
         input_path=root_directory+"/dptb/tests/data/mos2/abacus",
         data_name="OUT.ABACUS",
