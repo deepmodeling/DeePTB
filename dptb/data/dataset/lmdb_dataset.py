@@ -111,7 +111,7 @@ class LMDBDataset(AtomicDataset):
                 # del vv
 
             if self.get_overlap:
-                overlap = data_dict["overlaps"]
+                overlap = data_dict["overlap"]
                 # kk, vv = overlap.keys(), overlap.values()
                 # vv = map(lambda x: np.frombuffer(x, np.float32), vv)
                 # overlap = dict(zip(kk, vv))
@@ -121,7 +121,7 @@ class LMDBDataset(AtomicDataset):
                 overlap = False
 
             if self.get_DM:
-                blocks = data_dict["DM"]
+                blocks = data_dict["density_matrix"]
                 # kk, vv = blocks.keys(), blocks.values()
                 # vv = map(lambda x: np.frombuffer(x, np.float32), vv)
                 # blocks = dict(zip(kk, vv))

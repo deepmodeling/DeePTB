@@ -299,10 +299,10 @@ def _abacus_parse(input_path,
 
     elif output_mode == "lmdb":
         data_dict = {
-            "cell": lattice.astype(np.float32).tobytes(),
-            "rcell": (np.linalg.inv(lattice) * 2 * np.pi).astype(np.float32).tobytes(),
-            "positions": cart_coords.astype(np.float32).tobytes(),
-            "atomic_numbers": element.astype(np.int32).tobytes(),
+            "cell": lattice.astype(np.float32),
+            "pos": cart_coords.astype(np.float32),
+            "atomic_numbers": element.astype(np.int32),
+            "pbc":  np.array([True, True, True]).astype(np.bool),
             "basis": message.encode("utf-8")
         }
     else:
@@ -381,8 +381,8 @@ def _abacus_parse(input_path,
             # kk, vv = list(hamiltonian_dict.keys()), list(hamiltonian_dict.values())
             # vv = map(lambda x: x.astype(np.float32).tobytes(), vv)
             # hamiltonian_dict = pickle.dumps(dict(zip(kk, vv)))
-            hamiltonian_dict = pickle.dumps(hamiltonian_dict)
-            data_dict["hamiltonians"] = hamiltonian_dict
+            # hamiltonian_dict = pickle.dumps(hamiltonian_dict)
+            data_dict["hamiltonian"] = hamiltonian_dict
         else:
             raise NotImplementedError(f"output_mode {output_mode} is not supported.")
 
@@ -405,8 +405,8 @@ def _abacus_parse(input_path,
             # kk, vv = list(overlap_dict.keys()), list(overlap_dict.values())
             # vv = map(lambda x: x.astype(np.float32).tobytes(), vv)
             # overlap_dict = pickle.dumps(dict(zip(kk, vv)))
-            overlap_dict = pickle.dumps(overlap_dict)
-            data_dict["overlaps"] = overlap_dict
+            # overlap_dict = pickle.dumps(overlap_dict)
+            data_dict["overlap"] = overlap_dict
         else:
             raise NotImplementedError(f"output_mode {output_mode} is not supported.")
                 
@@ -428,8 +428,8 @@ def _abacus_parse(input_path,
             # kk, vv = list(DM_dict.keys()), list(DM_dict.values())
             # vv = map(lambda x: x.astype(np.float32).tobytes(), vv)
             # DM_dict = pickle.dumps(dict(zip(kk, vv)))
-            DM_dict = pickle.dumps(DM_dict)
-            data_dict["DM"] = DM_dict
+            # DM_dict = pickle.dumps(DM_dict)
+            data_dict["density_matrix"] = DM_dict
         else:
             raise NotImplementedError(f"output_mode {output_mode} is not supported.")
 
@@ -456,8 +456,8 @@ def _abacus_parse(input_path,
             np.save(os.path.join(output_path, "kpoints.npy"), kpts)
             np.save(os.path.join(output_path, "eigenvalues.npy"), band)
         elif output_mode == "lmdb":
-            data_dict["kpoints"] = kpts.astype(np.float32).tobytes()
-            data_dict["eigenvalues"] = band.astype(np.float32).tobytes()
+            data_dict["kpoint"] = kpts.astype(np.float32).tobytes()
+            data_dict["eigenvalue"] = band.astype(np.float32).tobytes()
         else: 
             raise NotImplementedError(f"output_mode {output_mode} is not supported.")
         
