@@ -1,0 +1,32 @@
+INPUT_PARAMETERS
+#Parameters (1.General)
+suffix                  ABACUS  
+calculation             scf
+ntype                   2
+symmetry                1
+dft_functional pbe
+# vdw_method     d3(0)
+
+#Parameters (2.Iteration)
+ecutwfc                 100
+scf_thr                 1e-9
+scf_nmax                100       
+
+cal_force               1         
+cal_stress              1   
+force_thr		        1e-6      
+
+#Parameters (3.Basis)
+basis_type              lcao      
+#Parameters (4.Smearing)
+smearing_method         gauss    
+smearing_sigma          0.001     
+
+#Parameters (5.Mixing)
+mixing_type             pulay
+mixing_beta             0.7
+kspacing                0.08
+
+out_chg                   1
+out_mat_hs2             True
+out_dm1                 True

@@ -717,7 +717,10 @@ class NNSK(torch.nn.Module):
                 skparam = torch.tensor(skparam, dtype=dtype, device=device)
                 if ene_unit == "Hartree":
                     skparam[0] *= 13.605662285137 * 2
-                iasym, jasym, iorb, jorb, num = list(orbpair.split("-"))
+                if len(list(orbpair.split("-"))) == 5:
+                    iasym, jasym, iorb, jorb, num = list(orbpair.split("-"))
+                else:
+                    continue
                 num = int(num)
                 ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
 
