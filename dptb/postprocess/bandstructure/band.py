@@ -207,7 +207,7 @@ class Band(AbstractProcess):
             log.error('Error, now, kline_type only support ase_kpath, abacus, or vasp.')
             raise ValueError
         
-        self.get_eigs(data, klist, AtomicData_options)
+        self.data,_ = self.get_eigs(data, klist, AtomicData_options)
         
         # # set the kpoint of the AtomicData
         # data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([torch.as_tensor(klist, dtype=self.model.dtype, device=self.device)])
