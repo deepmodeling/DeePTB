@@ -125,6 +125,8 @@ class AbstractProcess(object):
         else:
             E_fermi = None
             raise RuntimeError('nel_atom should be provided.')
+        
+        return data, E_fermi
 
 
 

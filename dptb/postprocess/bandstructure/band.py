@@ -168,7 +168,7 @@ class Band(AbstractProcess):
     def get_bands(self, data: Union[AtomicData, ase.Atoms, str], kpath_kwargs: dict, AtomicData_options: dict={}):
         kline_type = kpath_kwargs['kline_type']
 
-        # get the AtomicData structure and the ase structure
+        # get  the ase structure
         if isinstance(data, str):
             structase = read(data)
         elif isinstance(data, ase.Atoms):
@@ -176,11 +176,7 @@ class Band(AbstractProcess):
         elif isinstance(data, AtomicData):
             structase = data.to("cpu").to_ase()
         
-        
-        # data = AtomicData.to_AtomicDataDict(data.to(self.device))
-        # data = self.model.idp(data)
-            
-        
+
         if kline_type == 'ase':
             kpath = kpath_kwargs['kpath']
             nkpoints = kpath_kwargs['nkpoints']
@@ -207,40 +203,36 @@ class Band(AbstractProcess):
             log.error('Error, now, kline_type only support ase_kpath, abacus, or vasp.')
             raise ValueError
         
-        self.data,_ = self.get_eigs(data, klist, AtomicData_options)
+        _, eigenvalues = self.get_eigs(data, klist, AtomicData_options)
         
-        # # set the kpoint of the AtomicData
-        # data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([torch.as_tensor(klist, dtype=self.model.dtype, device=self.device)])
-
-        # # get the eigenvalues
-        # data = self.model(data)
-        # if self.overlap == True:
-        #     assert data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is not None
-        # data = self.eigv(data)
 
         # get the E_fermi from data
         nel_atom = kpath_kwargs.get('nel_atom', None)
-        assert isinstance(nel_atom, dict) or nel_atom is None
+        # assert isinstance(nel_atom, dict) or nel_atom is None
         
+        # if nel_atom is not None:
+        #     atomtype_list = self.data[AtomicDataDict.ATOM_TYPE_KEY].flatten().tolist()
+        #     atomtype_symbols = np.asarray(self.model.idp.type_names)[atomtype_list].tolist()
+        #     total_nel = np.array([nel_atom[s] for s in atomtype_symbols]).sum()
+        #     if hasattr(self.model,'soc_param'):
+        #         spindeg = 1
+        #     else:
+        #         spindeg = 2
+        #     estimated_E_fermi = self.estimate_E_fermi(self.data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy(), total_nel, spindeg)
+        #     log.info(f'Estimated E_fermi: {estimated_E_fermi} based on the valence electrons setting nel_atom : {nel_atom} .')
+        # else:
+        #     estimated_E_fermi = None
         if nel_atom is not None:
-            atomtype_list = self.data[AtomicDataDict.ATOM_TYPE_KEY].flatten().tolist()
-            atomtype_symbols = np.asarray(self.model.idp.type_names)[atomtype_list].tolist()
-            total_nel = np.array([nel_atom[s] for s in atomtype_symbols]).sum()
-            if hasattr(self.model,'soc_param'):
-                spindeg = 1
-            else:
-                spindeg = 2
-            estimated_E_fermi = self.estimate_E_fermi(self.data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy(), total_nel, spindeg)
-            log.info(f'Estimated E_fermi: {estimated_E_fermi} based on the valence electrons setting nel_atom : {nel_atom} .')
+            _,estimated_E_fermi = self.get_fermi_level(data=structase, nel_atom=nel_atom, \
+                        kmesh=[30,30,30], AtomicData_options=AtomicData_options)
         else:
             estimated_E_fermi = None
-
 
         self.eigenstatus = {'klist': klist,
                             'xlist': xlist,
                             'high_sym_kpoints': high_sym_kpoints,
                             'labels': labels,
-                            'eigenvalues': self.data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy(),
+                            'eigenvalues': eigenvalues,
                             'E_fermi': estimated_E_fermi}
 
         if self.results_path is not None:
@@ -297,6 +289,8 @@ class Band(AbstractProcess):
                 raise ValueError
 
             if ref_band.shape[0] != self.eigenstatus["eigenvalues"].shape[0]:
+                print('ref_band.shape[0]',ref_band.shape[0])
+                print('self.eigenstatus["eigenvalues"].shape[0]',self.eigenstatus["eigenvalues"].shape[0])
                 log.error("Reference Eigenvalues' should have sampled from the sample kpath as model's prediction.")
                 raise ValueError
             ref_band = ref_band - (np.min(ref_band) - np.min(self.eigenstatus["eigenvalues"]))
