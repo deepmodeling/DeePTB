@@ -46,7 +46,7 @@ def build_model(
         if checkpoint.split(".")[-1] == "json":
             ckptconfig = j_loader(checkpoint)
         else:
-            f = torch.load(checkpoint)
+            f = torch.load(checkpoint, map_location="cpu")
             ckptconfig = f['config']
             del f
 
