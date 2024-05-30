@@ -18,8 +18,6 @@ class ElecStruCal(object):
     def __init__ (
             self, 
             model: torch.nn.Module,
-            results_path: Optional[str]=None,
-            use_gui=False,
             device: Union[str, torch.device]=None
             ):
         '''It initializes ElecStruCal object with a neural network model, optional results path, GUI
@@ -29,17 +27,10 @@ class ElecStruCal(object):
         ----------
         model : torch.nn.Module
             The `model` parameter is expected to be an instance of `torch.nn.Module` that you want to load.
-        results_path : Optional[str]
-            The `results_path` parameter is an optional string that specifies the path where the results will
-        be saved. If no path is provided, the results will not be saved to a specific location.
-        use_gui, optional
-            The `use_gui` parameter is a boolean flag that specifies whether to use a graphical user interface
-        (GUI) in the program. If `use_gui` is set to `True`, the program will utilize a GUI for interaction
-        and display purposes. If set to `False`, the program will not use
         device : Union[str, torch.device]
             The `device` parameter in the `__init__` function is used to specify the device on which the model
         will be loaded and run. It can be either a string representing the device (e.g., 'cpu' or 'cuda') or
-        a torch.device object. If the `device`
+        a torch.device object.
         
         '''
         if  device is None:
@@ -49,8 +40,6 @@ class ElecStruCal(object):
         self.device = device
         self.model = model
         self.model.eval()
-        self.use_gui = use_gui
-        self.results_path = results_path
         self.overlap = hasattr(model, 'overlap')
 
         if self.overlap:

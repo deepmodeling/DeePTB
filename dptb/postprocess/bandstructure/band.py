@@ -164,6 +164,11 @@ from dptb.postprocess.elec_struc_cal import ElecStruCal
 
 
 class Band(ElecStruCal):
+
+    def __init__(self, model: Eigenvalues, results_path: str=None, use_gui: bool=False, device: str='cpu'):
+        super().__init__(model=model, device=device)
+        self.results_path = results_path
+        self.use_gui = use_gui
             
     def get_bands(self, data: Union[AtomicData, ase.Atoms, str], kpath_kwargs: dict, AtomicData_options: dict={}):
         kline_type = kpath_kwargs['kline_type']
