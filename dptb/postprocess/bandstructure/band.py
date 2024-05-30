@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 from dptb.data import AtomicData, AtomicDataDict
 from dptb.nn.energy import Eigenvalues
-from dptb.postprocess.abstract_process import ElecStrucCal
+from dptb.postprocess.elec_struc_cal import ElecStruCal
 # class bandcalc(object):
 #     def __init__ (self, apiHrk, run_opt, jdata):
 #         self.apiH = apiHrk
@@ -163,7 +163,7 @@ from dptb.postprocess.abstract_process import ElecStrucCal
 #             plt.show()
 
 
-class Band(ElecStrucCal):
+class Band(ElecStruCal):
             
     def get_bands(self, data: Union[AtomicData, ase.Atoms, str], kpath_kwargs: dict, AtomicData_options: dict={}):
         kline_type = kpath_kwargs['kline_type']

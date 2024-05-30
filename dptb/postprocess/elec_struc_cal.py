@@ -10,7 +10,11 @@ log = logging.getLogger(__name__)
 from dptb.data import AtomicData, AtomicDataDict
 from dptb.nn.energy import Eigenvalues
 
-class ElecStrucCal(object):
+# This class `ElecStruCal`  is designed to calculate electronic structure properties such as
+# eigenvalues and Fermi energy based on provided input data and model. 
+# It serve as a basic post-processing class to load data and provide Fermi energy.
+
+class ElecStruCal(object):
     def __init__ (
             self, 
             model: torch.nn.Module,
@@ -18,7 +22,26 @@ class ElecStrucCal(object):
             use_gui=False,
             device: Union[str, torch.device]=None
             ):
+        '''It initializes ElecStruCal object with a neural network model, optional results path, GUI
+        usage flag, and device information, and sets up eigenvalues  based on model properties.
         
+        Parameters
+        ----------
+        model : torch.nn.Module
+            The `model` parameter is expected to be an instance of `torch.nn.Module` that you want to load.
+        results_path : Optional[str]
+            The `results_path` parameter is an optional string that specifies the path where the results will
+        be saved. If no path is provided, the results will not be saved to a specific location.
+        use_gui, optional
+            The `use_gui` parameter is a boolean flag that specifies whether to use a graphical user interface
+        (GUI) in the program. If `use_gui` is set to `True`, the program will utilize a GUI for interaction
+        and display purposes. If set to `False`, the program will not use
+        device : Union[str, torch.device]
+            The `device` parameter in the `__init__` function is used to specify the device on which the model
+        will be loaded and run. It can be either a string representing the device (e.g., 'cpu' or 'cuda') or
+        a torch.device object. If the `device`
+        
+        '''
         if  device is None:
             device = model.device
         if isinstance(device, str):
@@ -47,6 +70,26 @@ class ElecStrucCal(object):
             )
 
     def get_data(self,data: Union[AtomicData, ase.Atoms, str],AtomicData_options: dict={},device: Union[str, torch.device]=None):
+        '''The function `get_data` takes input data in the form of a string, ase.Atoms object, or AtomicData
+        object, processes it accordingly, and returns the AtomicData class.
+        
+        Parameters
+        ----------
+        data : Union[AtomicData, ase.Atoms, str]
+            The `data` parameter in the `get_data` function can be one of the following types: 
+        string, ase.Atoms object, or AtomicData object.
+        AtomicData_options : dict
+            The `AtomicData_options` parameter is a dictionary that contains options or configurations for
+        creating an `AtomicData` object from an `ase.Atoms` object.
+        device : Union[str, torch.device]
+            The `device` parameter in the `get_data` function is used to specify the device on which the data
+        should be processed. If no device is provided, it defaults to `self.device`.
+        
+        Returns
+        -------
+            the loaded AtomicData object.
+        
+        '''
 
         if isinstance(data, str):
             structase = read(data)
@@ -69,6 +112,24 @@ class ElecStrucCal(object):
 
 
     def get_eigs(self, data: Union[AtomicData, ase.Atoms, str], klist: np.ndarray, AtomicData_options: dict={}):
+        '''This function calculates eigenvalues for Hk at specified k-points.
+        
+        Parameters
+        ----------
+        data : Union[AtomicData, ase.Atoms, str]
+            The `data` parameter in the `get_eigs` function can be of type `AtomicData`, `ase.Atoms`, or `str`.
+        klist : np.ndarray
+            The `klist` parameter in the `get_eigs` function is expected to be a numpy array containing a list
+        of k-points. These k-points are used to calculate the eigenvalues of the system.
+        AtomicData_options : dict
+            The `AtomicData_options` parameter is a dictionary that contains options for configuring the
+        `AtomicData` object.
+        
+        Returns
+        -------
+            The function `get_eigs` returns the loaded data and the energy eigenvalues as a numpy array.
+        
+        '''
             
         data  = self.get_data(data=data, AtomicData_options=AtomicData_options, device=self.device)
         # set the kpoint of the AtomicData
@@ -85,6 +146,41 @@ class ElecStrucCal(object):
     def get_fermi_level(self, data: Union[AtomicData, ase.Atoms, str], nel_atom: dict, \
                         kmesh: list = None,klist: np.ndarray=None, AtomicData_options: dict={},\
                         eigenvalues: np.ndarray=None):
+        '''This function calculates the Fermi level based on provided data, electron counts per atom, and
+        optional parameters like specific k-points and eigenvalues.
+        
+        Parameters
+        ----------
+        data : Union[AtomicData, ase.Atoms, str]
+            The `data` parameter in the `get_fermi_level` method can accept an instance of `AtomicData`,
+        `ase.Atoms`, or a string.
+        nel_atom : dict
+            The `nel_atom` parameter is a dictionary that contains the number of valence electrons for each
+        atom type in your system. It is used to calculate the Fermi level based on the total number of
+        valence electrons specified for each atom type.
+        kmesh : list
+            The `kmesh` parameter is used to specify the k-point mesh for sampling in the Brillouin zone. It is
+        a list that defines the mesh grid for k-point sampling. If `klist` is not provided, the k-points
+        will be generated based on this mesh.
+        klist : np.ndarray
+            The `klist` parameter is a numpy array that contains a list of k-points in the Brillouin zone. It
+        is used in the calculation of the Fermi level in the provided function `get_fermi_level`. 
+        Note that if `klist` and kmesh are both provided, the `klist` parameter will be used to calculate the Fermi level.
+        AtomicData_options : dict
+            The `AtomicData_options` parameter in the `get_fermi_level` method is a dictionary that allows you
+        to pass additional options or settings related to Atomicdata processing.
+        eigenvalues : np.ndarray
+            The `eigenvalues` parameter in the `get_fermi_level` method is an optional parameter that allows
+        you to provide pre-calculated eigenvalues for the system. If `eigenvalues` is provided, the method
+        will use these provided eigenvalues directly. Otherwise, the eigenvalues will be calculated from the model 
+        on the specified k-points (from kmesh or klist).
+        
+        Returns
+        -------
+            The function `get_fermi_level` returns two values: `data` and `E_fermi`.
+        
+        '''
+
 
         assert kmesh is not None or klist is not None, 'kmesh or klist should be provided.'
         assert isinstance(nel_atom, dict)
@@ -98,7 +194,7 @@ class ElecStrucCal(object):
             wk = np.ones(klist.shape[0])/klist.shape[0]
             log.info(f'KPOINTS  klist: {klist.shape[0]} kpoints')
 
-        # eigenvalues would be used if provided, otherwise the eigenvalues would be calculated from the model
+        # eigenvalues would be used if provided, otherwise the eigenvalues would be calculated from the model on the specified k-points
         if eigenvalues is None:
             data, eigs = self.get_eigs(data=data, klist=klist, AtomicData_options=AtomicData_options) 
             log.info('Getting eigenvalues from the model.')
@@ -119,7 +215,7 @@ class ElecStrucCal(object):
             log.info(f'Estimated E_fermi: {E_fermi} based on the valence electrons setting nel_atom : {nel_atom} .')
         else:
             E_fermi = None
-            raise RuntimeError('nel_atom should be provided.')
+            raise RuntimeError('nel_atom should be provided to calculate Fermi energy.')
         
         return data, E_fermi
 
@@ -127,6 +223,33 @@ class ElecStrucCal(object):
 
     @classmethod
     def cal_E_fermi(cls, eigenvalues: np.ndarray, total_electrons: int, spindeg: int=2,wk: np.ndarray=None,q_tol=1e-10):
+        '''This  function calculates the Fermi energy using the Fermi-Dirac distribution.
+
+            In this version, the function calculates the Fermi energy in the case of spin-degeneracy. 
+        
+        Parameters
+        ----------
+        eigenvalues : np.ndarray
+            The `eigenvalues` parameter is expected to be a NumPy array containing the eigenvalues of the system. 
+        total_electrons : int
+            The `total_electrons` parameter represents the total number of electrons in the system. It is used
+        in the calculation of the Fermi energy.
+        spindeg : int, optional
+            The `spindeg` parameter in the `cal_E_fermi` method represents the spin degeneracy factor, which is
+        typically equal to 2 for systems with spin-degeneracy.
+        wk : np.ndarray
+            The `wk` parameter in the `cal_E_fermi` function represents the weights assigned to each kpoints
+        in the calculation. If `wk` is not provided by the user, the function assigns equal weight to each
+        kpoint for the calculation of the Fermi energy.
+        q_tol
+            The `q_tol` parameter in the `cal_E_fermi` function represents the tolerance level for the
+        calculated charge compared to the total number of electrons.
+
+        Returns
+        -------
+            The Fermi energy `Ef`
+        
+        '''
         nextafter = np.nextafter
         total_electrons = total_electrons / spindeg # This version is for the case of spin-degeneracy
         log.info('Calculating Fermi energy in the case of spin-degeneracy.')
