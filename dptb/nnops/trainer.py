@@ -150,7 +150,7 @@ class Trainer(BaseTrainer):
         ):
         """restart the training from a checkpoint, it does not support model options change."""
 
-        ckpt = torch.load(checkpoint)
+        ckpt = torch.load(checkpoint, map_location=common_options["device"])
         model = build_model(checkpoint, ckpt["config"]["model_options"], ckpt["config"]["common_options"])
         if len(train_options) == 0:
             train_options = ckpt["config"]["train_options"]

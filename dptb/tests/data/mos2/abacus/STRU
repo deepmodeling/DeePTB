@@ -1,0 +1,29 @@
+ATOMIC_SPECIES
+Mo 95.94 Mo_ONCV_PBE-1.0.upf upf201
+S 32.065 S_ONCV_PBE-1.0.upf upf201
+
+NUMERICAL_ORBITAL
+Mo_gga_9au_100Ry_6s3p3d2f.orb
+S_gga_9au_100Ry_3s3p2d.orb
+
+LATTICE_CONSTANT
+1.889716
+
+LATTICE_VECTORS
+   -0.0000000012     3.1877383886    -0.0000028872 #latvec1
+   -0.0000000032    -1.5938666889     2.7606638711 #latvec2
+   18.1271100000     0.0000000000     0.0000000000 #latvec3
+
+ATOMIC_POSITIONS
+Direct
+
+Mo #label
+0 #magnetism
+1 #number of atoms
+    0.0000000228     0.9999999772     0.4999999985 m  1  1  1
+
+S #label
+0 #magnetism
+2 #number of atoms
+    0.6666667006     0.3333333155     0.5864421280 m  1  1  1
+    0.6666666766     0.3333333074     0.4135578735 m  1  1  1

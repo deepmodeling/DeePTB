@@ -7,6 +7,7 @@ from importlib import import_module
 from dptb.data.dataset import DefaultDataset
 from dptb.data.dataset._deeph_dataset import DeePHE3Dataset
 from dptb.data.dataset._hdf5_dataset import HDF5Dataset
+from dptb.data.dataset.lmdb_dataset import LMDBDataset
 from dptb import data
 from dptb.data.transforms import TypeMapper, OrbitalMapper
 from dptb.data import AtomicDataset, register_fields
@@ -145,13 +146,13 @@ def build_dataset(
         Exception: If the info.json file is not properly provided for a trajectory folder.
     """
     dataset_type = type
+    # See if we can get a OrbitalMapper.
+    if basis is not None:
+        idp = OrbitalMapper(basis=basis)
+    else:
+        idp = None
 
     if dataset_type in ["DefaultDataset", "DeePHDataset", "HDF5Dataset"]:
-        # See if we can get a OrbitalMapper.
-        if basis is not None:
-            idp = OrbitalMapper(basis=basis)
-        else:
-            idp = None
 
         # Explore the dataset's folder structure.
         #include_folders = []
@@ -242,6 +243,40 @@ def build_dataset(
                 get_eigenvalues=get_eigenvalues,
                 info_files = info_files
             )
+
+    elif dataset_type == "LMDBDataset":
+        assert prefix is not None, "The prefix is not provided. Please provide the prefix to select the trajectory folders."
+        prefix_folders = glob.glob(f"{root}/{prefix}*.lmdb")
+        include_folders=[]
+        for idir in prefix_folders:
+            if os.path.isdir(idir):
+                if not glob.glob(os.path.join(idir, '*.mdb')):
+                    raise Exception(f"{idir} does not have the proper traj data files. Please check the data files.")
+                include_folders.append(idir.split('/')[-1])
+        
+        assert isinstance(include_folders, list) and len(include_folders) == 1, "No trajectory folders are found. Please check the prefix."                
+
+        # See if a public info is provided.
+        #if "info.json" in os.listdir(root):
+        
+        if os.path.exists(f"{root}/info.json"):
+            info = j_loader(f"{root}/info.json")
+        else:
+            print("Please provide a info.json file.")
+            raise Exception("info.json is not properly provided for this dataset.")
+        
+        # We will sort the info_files here.
+        # The order itself is not important, but must be consistant for the same list.
+        
+        dataset = LMDBDataset(
+            root=os.path.join(root, include_folders[0]),
+            type_mapper=idp,
+            info=info,
+            get_Hamiltonian=get_Hamiltonian,
+            get_overlap=get_overlap,
+            get_DM=get_DM,
+            get_eigenvalues=get_eigenvalues,
+        )
 
     else:
         raise ValueError(f"Not support dataset type: {type}.")

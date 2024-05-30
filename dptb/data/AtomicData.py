@@ -100,10 +100,10 @@ _DEFAULT_GRAPH_FIELDS: Set[str] = {
     AtomicDataDict.PBC_KEY,
     AtomicDataDict.CELL_KEY,
     AtomicDataDict.BATCH_PTR_KEY,
-    AtomicDataDict.KPOINT_KEY, # new
-    AtomicDataDict.HAMILTONIAN_KEY, # new
-    AtomicDataDict.OVERLAP_KEY, # new
-    AtomicDataDict.ENERGY_EIGENVALUE_KEY, # new
+    AtomicDataDict.KPOINT_KEY, # new # should be nested
+    AtomicDataDict.HAMILTONIAN_KEY, # new # should be nested
+    AtomicDataDict.OVERLAP_KEY, # new # should be nested
+    AtomicDataDict.ENERGY_EIGENVALUE_KEY, # new # should be nested
     AtomicDataDict.ENERGY_WINDOWS_KEY, # new,
     AtomicDataDict.BAND_WINDOW_KEY, # new,
     AtomicDataDict.NODE_SOC_SWITCH_KEY # new

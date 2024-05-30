@@ -84,8 +84,9 @@ class TestBlock2Feature:
         data = nnsk(self.batch)
         data = hamiltonian(data)
 
-        block = feature_to_block(data, nnsk.idp)
-        block_to_feature(data, nnsk.idp, blocks=block)
+        with torch.no_grad():
+            block = feature_to_block(data, nnsk.idp)
+            block_to_feature(data, nnsk.idp, blocks=block)
         assert data[AtomicDataDict.NODE_FEATURES_KEY].shape == torch.Size([2, 13])
 
         expected_onsite = torch.tensor([[-18.4200038910,   0.0000000000,   0.0000000000,   0.0000000000,
@@ -123,8 +124,9 @@ class TestBlock2Feature:
         data = nnsk(self.batch)
         data = hamiltonian(data)
 
-        block = feature_to_block(data, nnsk.idp)
-        block_to_feature(data, nnsk.idp, blocks=block)
+        with torch.no_grad():
+            block = feature_to_block(data, nnsk.idp)
+            block_to_feature(data, nnsk.idp, blocks=block)
         
         assert data[AtomicDataDict.EDGE_FEATURES_KEY].shape == torch.Size([18, 13])
         
