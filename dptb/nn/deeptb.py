@@ -185,7 +185,17 @@ class NNENV(nn.Module):
                 **prediction_copy,
             )
             if overlap:
-                raise NotImplementedError("The overlap prediction is not implemented for e3tb method.")
+                idp_sk = OrbitalMapper(self.idp.basis, method="sktb", device=self.device)
+                prediction_copy["neurons"] = [self.embedding.latent_dim] + prediction_copy["neurons"] + [idp_sk.reduced_matrix_element]
+                prediction_copy["config"] = get_neuron_config(prediction_copy["neurons"])
+                self.edge_prediction_s = AtomicResNet(
+                    **prediction_copy,
+                    in_field=AtomicDataDict.EDGE_OVERLAP_KEY,
+                    out_field=AtomicDataDict.EDGE_OVERLAP_KEY,
+                    device=device,
+                    dtype=dtype
+                )
+                # raise NotImplementedError("The overlap prediction is not implemented for e3tb method.")
 
         else:
             raise NotImplementedError("The prediction model {} is not implemented.".format(prediction_copy["method"]))
@@ -219,13 +229,14 @@ class NNENV(nn.Module):
                 device=self.device
                 )
             if overlap:
-                self.overlap = E3Hamiltonian(
-                    idp=self.idp, 
-                    edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, 
-                    node_field=AtomicDataDict.NODE_OVERLAP_KEY, 
+                self.overlap = SKHamiltonian(
+                    idp_sk=idp_sk, 
+                    edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
+                    onsite=False,
+                    strain=False,
+                    soc=False,
                     dtype=self.dtype, 
                     device=self.device,
-                    overlap=True,
                     )
 
 
@@ -234,7 +245,7 @@ class NNENV(nn.Module):
             self.idp(data)
 
         data = self.embedding(data)
-        if hasattr(self, "overlap"):
+        if hasattr(self, "overlap") and self.method == "sktb":
             data[AtomicDataDict.EDGE_OVERLAP_KEY] = data[AtomicDataDict.EDGE_FEATURES_KEY]
         
         data = self.node_prediction_h(data)

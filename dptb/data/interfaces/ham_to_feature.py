@@ -14,18 +14,22 @@ log = logging.getLogger(__name__)
 def block_to_feature(data, idp, blocks=False, overlap_blocks=False):
     # Hamiltonian_blocks should be a h5 group in the current version
     assert blocks != False or overlap_blocks!=False, "Both feature block and overlap blocks are not provided."
-    
+    if blocks != False:
+        proto_block = blocks[list(blocks.keys())[0]][:]
+    else:
+        proto_block = overlap_blocks[list(overlap_blocks.keys())[0]][:]
+
     if blocks:
         onsite_ham = []
 
     idp.get_orbital_maps()
     idp.get_orbpair_maps()
 
-    dtype = blocks[list(blocks.keys())[0]].dtype
+    dtype = proto_block.dtype
     
-    if isinstance(blocks[list(blocks.keys())[0]], torch.Tensor):
+    if isinstance(proto_block, torch.Tensor):
         meta_dtype = torch
-    elif isinstance(blocks[list(blocks.keys())[0]], np.ndarray):
+    elif isinstance(proto_block, np.ndarray):
         meta_dtype = np
     else:
         raise TypeError("Hamiltonian blocks should be either torch.Tensor or np.ndarray.")

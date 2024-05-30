@@ -372,6 +372,7 @@ def embedding():
             Argument("e3baseline_4", dict, e3baseline()),
             Argument("e3baseline_5", dict, e3baselinev5()),
             Argument("e3baseline_6", dict, e3baselinev5()),
+            Argument("leven", dict, e3baselinev5()),
             Argument("e3baseline_nonlocal", dict, e3baselinev5()),
         ],optional=True, default_tag="se2", doc=doc_method)
 
@@ -536,10 +537,16 @@ def sktb_prediction():
 def e3tb_prediction():
     doc_scales_trainable = "whether to scale the trianing target."
     doc_shifts_trainable = "whether to shift the training target."
+    doc_neurons = "neurons in the neural network."
+    doc_activation = "activation function."
+    doc_if_batch_normalized = "if to turn on batch normalization"
 
     nn = [
         Argument("scales_trainable", bool, optional=True, default=False, doc=doc_scales_trainable),
         Argument("shifts_trainable", bool, optional=True, default=False, doc=doc_shifts_trainable),
+        Argument("neurons", list, optional=True, default=None, doc=doc_neurons),
+        Argument("activation", str, optional=True, default="tanh", doc=doc_activation),
+        Argument("if_batch_normalized", bool, optional=True, default=False, doc=doc_if_batch_normalized),
     ]
 
     return nn

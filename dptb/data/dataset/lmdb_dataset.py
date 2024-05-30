@@ -8,6 +8,7 @@ from dptb.utils.tools import download_url, extract_zip
 
 import dptb
 import os
+import os.path as osp
 from dptb.data import (
     AtomicData,
     AtomicDataDict,
@@ -78,7 +79,12 @@ class LMDBDataset(AtomicDataset):
     @property
     def raw_file_names(self):
         # TODO: this is not implemented.
-        return "Null"
+        # need to give a valid path so the download would not be triggered
+        return ["data.mdb", "lock.mdb"]
+    
+    @property
+    def raw_dir(self):
+        return self.root
 
     def download(self):
         if (not hasattr(self, "url")) or (self.url is None):
