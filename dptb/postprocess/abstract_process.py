@@ -1,17 +1,12 @@
 import numpy as np
-from dptb.utils.tools import j_must_have
-from dptb.utils.make_kpoints  import ase_kpath, abacus_kpath, vasp_kpath
 from ase.io import read
 import ase
 import numpy as np
 from typing import Union
-import matplotlib.pyplot as plt
 import torch
 from typing import Optional
-import matplotlib
 import logging
 log = logging.getLogger(__name__)
-from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 from dptb.data import AtomicData, AtomicDataDict
 from dptb.nn.energy import Eigenvalues
 
