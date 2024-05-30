@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 from dptb.data import AtomicData, AtomicDataDict
 from dptb.nn.energy import Eigenvalues
 
-class AbstractProcess(object):
+class ElecStrucCal(object):
     def __init__ (
             self, 
             model: torch.nn.Module,
