@@ -229,7 +229,7 @@ class Band(ElecStruCal):
         #     estimated_E_fermi = None
         if nel_atom is not None:
             _,estimated_E_fermi = self.get_fermi_level(data=structase, nel_atom=nel_atom, \
-                        kmesh=[30,30,30], AtomicData_options=AtomicData_options)
+                        klist = klist, AtomicData_options=AtomicData_options)
         else:
             estimated_E_fermi = None
 

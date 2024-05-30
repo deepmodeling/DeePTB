@@ -135,7 +135,7 @@ class ElecStruCal(object):
     def get_fermi_level(self, data: Union[AtomicData, ase.Atoms, str], nel_atom: dict, \
                         kmesh: list = None,klist: np.ndarray=None, AtomicData_options: dict={},\
                         eigenvalues: np.ndarray=None):
-        '''This function calculates the Fermi level based on provided data, electron counts per atom, and
+        '''This function calculates the Fermi level based on provided data with iteration method, electron counts per atom, and
         optional parameters like specific k-points and eigenvalues.
         
         Parameters
@@ -212,7 +212,7 @@ class ElecStruCal(object):
 
     @classmethod
     def cal_E_fermi(cls, eigenvalues: np.ndarray, total_electrons: int, spindeg: int=2,wk: np.ndarray=None,q_tol=1e-10):
-        '''This  function calculates the Fermi energy using the Fermi-Dirac distribution.
+        '''This  function calculates the Fermi energy using iteration algorithm.
 
             In this version, the function calculates the Fermi energy in the case of spin-degeneracy. 
         
