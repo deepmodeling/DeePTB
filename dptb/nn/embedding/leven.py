@@ -35,11 +35,9 @@ class Leven(torch.nn.Module):
             basis: Dict[str, Union[str, list]]=None,
             idp: Union[OrbitalMapper, None]=None,
             # required params
-            n_atom: int=1,
             n_layers: int=3,
             n_radial_basis: int=10,
             r_max: float=5.0,
-            lmax: int=4,
             irreps_hidden: o3.Irreps=None,
             avg_num_neighbors: Optional[float] = None,
             # cutoffs
@@ -66,6 +64,7 @@ class Leven(torch.nn.Module):
         super(Leven, self).__init__()
 
         irreps_hidden = o3.Irreps(irreps_hidden)
+        lmax = irreps_hidden.lmax
 
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype)
@@ -91,7 +90,7 @@ class Leven(torch.nn.Module):
             
         self.basis = self.idp.basis
         self.idp.get_irreps(no_parity=False)
-        self.n_atom = n_atom
+        self.n_atom = len(self.basis.keys())
 
         irreps_sh=o3.Irreps([(1, (i, (-1) ** i)) for i in range(lmax + 1)])
         orbpair_irreps = self.idp.orbpair_irreps.sort()[0].simplify()
@@ -110,11 +109,11 @@ class Leven(torch.nn.Module):
         self.sh = SphericalHarmonics(
             irreps_sh, sh_normalized, sh_normalization
         )
-        self.onehot = OneHotAtomEncoding(num_types=n_atom, set_features=False)
+        self.onehot = OneHotAtomEncoding(num_types=self.n_atom, set_features=False)
 
         self.init_layer = InitLayer(
             idp=self.idp,
-            num_types=n_atom,
+            num_types=self.n_atom,
             n_radial_basis=n_radial_basis,
             r_max=r_max,
             irreps_sh=irreps_sh,
@@ -148,7 +147,7 @@ class Leven(torch.nn.Module):
                 irreps_out = irreps_hidden
 
             self.layers.append(Layer(
-                num_types=n_atom,
+                num_types=self.n_atom,
                 # required params
                 avg_num_neighbors=avg_num_neighbors,
                 irreps_in=irreps_in,

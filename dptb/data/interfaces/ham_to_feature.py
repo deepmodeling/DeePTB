@@ -340,7 +340,7 @@ def feature_to_block(data, idp):
                     if slice_i != slice_j:
                         block[slice_j, slice_i] = block_ij.T
 
-            block_index = '_'.join(map(str, map(int, [atom+1, atom+1] + list([0, 0, 0]))))
+            block_index = '_'.join(map(str, map(int, [atom, atom] + list([0, 0, 0]))))
             blocks[block_index] = block
         
         # get edge blocks from edge_features
@@ -372,7 +372,7 @@ def feature_to_block(data, idp):
                     else:
                         block[slice_i, slice_j] = block_ij
 
-            block_index = '_'.join(map(str, map(int, [atom_i+1, atom_j+1] + list(R_shift))))
+            block_index = '_'.join(map(str, map(int, [atom_i, atom_j] + list(R_shift))))
             if atom_i < atom_j:
                 if blocks.get(block_index, None) is None:
                     blocks[block_index] = block
