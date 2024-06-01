@@ -379,13 +379,13 @@ def feature_to_block(data, idp):
                 else:
                     blocks[block_index] += block
             elif atom_i == atom_j:
-                r_index = '_'.join(map(str, map(int, [atom_i+1, atom_j+1] + list(-R_shift))))
+                r_index = '_'.join(map(str, map(int, [atom_i, atom_j] + list(-R_shift))))
                 if blocks.get(r_index, None) is None:
                     blocks[block_index] = block
                 else:
                     blocks[r_index] += block.T
             else:
-                block_index = '_'.join(map(str, map(int, [atom_j+1, atom_i+1] + list(-R_shift))))
+                block_index = '_'.join(map(str, map(int, [atom_j, atom_i] + list(-R_shift))))
                 if blocks.get(block_index, None) is None:
                     blocks[block_index] = block.T
                 else:
