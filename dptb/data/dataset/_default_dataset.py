@@ -359,7 +359,6 @@ class DefaultDataset(AtomicInMemoryDataset):
     def _E3edgespecies_stat(self, typed_dataset, decay):
         # we get the bond type marked dataset first
         idp = self.transform
-        typed_dataset = typed_dataset
 
         idp.get_irreps(no_parity=False)
         irrep_slices = idp.orbpair_irreps.slices()

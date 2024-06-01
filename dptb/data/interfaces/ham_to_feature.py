@@ -11,7 +11,7 @@ from dptb.data import AtomicData, AtomicDataDict
 
 log = logging.getLogger(__name__)
 
-def block_to_feature(data, idp, blocks=False, overlap_blocks=False):
+def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=True):
     # Hamiltonian_blocks should be a h5 group in the current version
     assert blocks != False or overlap_blocks!=False, "Both feature block and overlap blocks are not provided."
     if blocks != False:
@@ -21,6 +21,8 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False):
 
     if blocks:
         onsite_ham = []
+        if overlap_blocks and not orthogonal:
+            onsite_ovp = []
 
     idp.get_orbital_maps()
     idp.get_orbpair_maps()
@@ -45,11 +47,19 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False):
     # onsite features
     if blocks:
         for atom in range(len(atomic_numbers)):
-            block_index = '_'.join(map(str, map(int, [atom+1, atom+1] + list([0, 0, 0]))))
+            block_index = '_'.join(map(str, map(int, [atom, atom] + list([0, 0, 0]))))
             try:
                 block = blocks[block_index]
             except:
                 raise IndexError("Hamiltonian block for onsite not found, check Hamiltonian file.")
+            
+            if overlap_blocks and not orthogonal:
+                try:
+                    overlap_block = overlap_blocks[block_index]
+                except:
+                    raise IndexError("Overlap block for onsite not found, check Hamiltonian file.")
+                
+                onsite_ovp_out = meta_dtype.zeros(idp.reduced_matrix_element)
 
             # if isinstance(block, torch.Tensor):
             #     block = block.cpu().detach().numpy()
@@ -70,7 +80,13 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False):
                     feature_slice = idp.orbpair_maps[pair_ij]
                     onsite_out[feature_slice] = block_ij.flatten()
 
+                    if overlap_blocks and not orthogonal:
+                        overlap_block_ij = overlap_block[slice_i, slice_j]
+                        onsite_ovp_out[feature_slice] = overlap_block_ij.flatten()
+
             onsite_ham.append(onsite_out)
+            if overlap_blocks and not orthogonal:
+                onsite_ovp.append(onsite_ovp_out)
         #onsite_ham = np.array(onsite_ham)
 
     # edge features
@@ -93,8 +109,8 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False):
                 continue
             b_edge_index = edge_index[:, mask]
             b_edge_cell_shift = edge_cell_shift[mask]
-            ijR = torch.cat([b_edge_index.T+1, b_edge_cell_shift], dim=1).int().tolist()
-            rev_ijR = torch.cat([b_edge_index[[1, 0]].T+1, -b_edge_cell_shift], dim=1).int().tolist()
+            ijR = torch.cat([b_edge_index.T, b_edge_cell_shift], dim=1).int().tolist()
+            rev_ijR = torch.cat([b_edge_index[[1, 0]].T, -b_edge_cell_shift], dim=1).int().tolist()
             ijR = list(map(lambda x: '_'.join(map(str, x)), ijR))
             rev_ijR = list(map(lambda x: '_'.join(map(str, x)), rev_ijR))
 
@@ -150,6 +166,12 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False):
         data[_keys.NODE_FEATURES_KEY] = torch.as_tensor(onsite_ham, dtype=torch.get_default_dtype())
         data[_keys.EDGE_FEATURES_KEY] = edge_features
     if overlap_blocks:
+        if not orthogonal:
+            if isinstance(onsite_ovp[0], torch.Tensor):
+                onsite_ovp = torch.stack(onsite_ovp, dim=0)
+            else:
+                onsite_ovp = np.stack(onsite_ovp, axis=0)
+            data[_keys.NODE_OVERLAP_KEY] = torch.as_tensor(onsite_ovp, dtype=torch.get_default_dtype())
         data[_keys.EDGE_OVERLAP_KEY] = ovp_features
 
 # def block_to_feature(data, idp, blocks=False, overlap_blocks=False):

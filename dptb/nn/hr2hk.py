@@ -103,7 +103,7 @@ class HR2HK(torch.nn.Module):
             ist += 2*li+1
         self.onsite_block = onsite_block
         self.bondwise_hopping = bondwise_hopping
-        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
+        if soc:
             self.soc_upup_block = soc_upup_block
             self.soc_updn_block = soc_updn_block
 
