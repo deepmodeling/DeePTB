@@ -5,6 +5,7 @@ from .mpnn import MPNN
 from .deephe3 import E3DeePH
 from .e3baseline_local6 import E3BaseLineModel6
 from .leven import Leven
+from .levenon import Levenon
 from .e3baseline_nonlocal import E3BaseLineModelNonLocal
 
 __all__ = [
@@ -13,6 +14,7 @@ __all__ = [
     "Identity",
     "E3DeePH",
     "Leven",
+    "Levenon",
     "E3BaseLineModel6",
     "E3BaseLineModelNonLocal",
 ]
