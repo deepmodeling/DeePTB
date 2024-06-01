@@ -44,7 +44,7 @@ def test_abacus_parse(root_directory):
 
 
     file = h5py.File(root_directory+"/dptb/tests/data/mos2/abacus/conv.0/hamiltonians.h5", "r")
-    ham_h5 = file['1']
+    ham_h5 = file['0']
 
     for k in ham_lmdb.keys():
         assert (ham_h5[k][:] - ham_lmdb[k]).sum() < 1e-7
