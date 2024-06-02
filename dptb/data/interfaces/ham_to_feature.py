@@ -11,7 +11,7 @@ from dptb.data import AtomicData, AtomicDataDict
 
 log = logging.getLogger(__name__)
 
-def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=True):
+def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=True, start_id: int = 0):
     # Hamiltonian_blocks should be a h5 group in the current version
     assert blocks != False or overlap_blocks!=False, "Both feature block and overlap blocks are not provided."
     if blocks != False:
@@ -47,7 +47,7 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=T
     # onsite features
     if blocks:
         for atom in range(len(atomic_numbers)):
-            block_index = '_'.join(map(str, map(int, [atom, atom] + list([0, 0, 0]))))
+            block_index = '_'.join(map(str, map(int, [atom+start_id, atom+start_id] + list([0, 0, 0]))))
             try:
                 block = blocks[block_index]
             except:
@@ -109,8 +109,8 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=T
                 continue
             b_edge_index = edge_index[:, mask]
             b_edge_cell_shift = edge_cell_shift[mask]
-            ijR = torch.cat([b_edge_index.T, b_edge_cell_shift], dim=1).int().tolist()
-            rev_ijR = torch.cat([b_edge_index[[1, 0]].T, -b_edge_cell_shift], dim=1).int().tolist()
+            ijR = torch.cat([b_edge_index.T+start_id, b_edge_cell_shift], dim=1).int().tolist()
+            rev_ijR = torch.cat([b_edge_index[[1, 0]].T+start_id, -b_edge_cell_shift], dim=1).int().tolist()
             ijR = list(map(lambda x: '_'.join(map(str, x)), ijR))
             rev_ijR = list(map(lambda x: '_'.join(map(str, x)), rev_ijR))
 

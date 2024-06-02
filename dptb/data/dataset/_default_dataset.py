@@ -235,7 +235,7 @@ class _TrajData(object):
                 overlaps = False
             # e3 = E3Hamiltonian(idp=idp, decompose=True)
             if features != False or overlaps != False:
-                block_to_feature(atomic_data, idp, features, overlaps)
+                block_to_feature(atomic_data, idp, features, overlaps, 1)
             
             if not hasattr(atomic_data, AtomicDataDict.EDGE_FEATURES_KEY):
                 # TODO: initialize the edge and node feature tempretely, there should be a better way.

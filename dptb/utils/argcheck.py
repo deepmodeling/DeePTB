@@ -365,14 +365,10 @@ def embedding():
             Argument("se2", dict, se2()),
             Argument("baseline", dict, baseline()),
             Argument("deeph-e3", dict, deephe3()),
-            Argument("e3baseline_0", dict, e3baseline()),
-            Argument("e3baseline_1", dict, e3baseline()),
-            Argument("e3baseline_2", dict, e3baseline()),
-            Argument("e3baseline_3", dict, e3baseline()),
-            Argument("e3baseline_4", dict, e3baseline()),
             Argument("e3baseline_5", dict, e3baselinev5()),
             Argument("e3baseline_6", dict, e3baselinev5()),
             Argument("leven", dict, e3baselinev5()),
+            Argument("levenon", dict, e3baselinev5()),
             Argument("e3baseline_nonlocal", dict, e3baselinev5()),
         ],optional=True, default_tag="se2", doc=doc_method)
 
