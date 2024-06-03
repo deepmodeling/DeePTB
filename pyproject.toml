@@ -29,6 +29,7 @@ torch_geometric = ">=2.4.0"
 opt-einsum = "3.3.0"
 h5py = "3.7.0"
 lmdb = "1.4.1"
+pybinding = "*"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -52,7 +53,7 @@ torch_geometric = ">=2.4.0"
 opt-einsum = "3.3.0"
 h5py = "3.7.0"
 lmdb = "1.4.1"
-
+pybinding = "*"
 
 [tool.poetry.group.3Dfermi]
 optional = true
