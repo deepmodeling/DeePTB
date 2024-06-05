@@ -153,6 +153,7 @@ class NNENV(nn.Module):
 
             if overlap:
                 self.idp.get_skonsite_maps()
+                self.idp_sk = self.idp
                 self.edge_prediction_s = AtomicResNet(
                     **prediction_copy,
                     in_field=AtomicDataDict.EDGE_OVERLAP_KEY,
