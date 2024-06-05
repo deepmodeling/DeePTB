@@ -27,8 +27,8 @@ from dptb.data.AtomicDataDict import with_edge_vectors, with_batch
 
 from math import ceil
 
-@Embedding.register("levenon")
-class Levenon(torch.nn.Module):
+@Embedding.register("lem")
+class Lem(torch.nn.Module):
     def __init__(
             self,
             basis: Dict[str, Union[str, list]]=None,
@@ -62,7 +62,7 @@ class Levenon(torch.nn.Module):
             device: Union[str, torch.device] = torch.device("cpu"),
             ):
         
-        super(Levenon, self).__init__()
+        super(Lem, self).__init__()
 
         irreps_hidden = o3.Irreps(irreps_hidden)
 

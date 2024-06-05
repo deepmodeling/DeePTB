@@ -28,8 +28,8 @@ from dptb.data.AtomicDataDict import with_edge_vectors, with_batch
 
 from math import ceil
 
-@Embedding.register("leven")
-class Leven(torch.nn.Module):
+@Embedding.register("slem")
+class Slem(torch.nn.Module):
     def __init__(
             self,
             basis: Dict[str, Union[str, list]]=None,
@@ -61,7 +61,7 @@ class Leven(torch.nn.Module):
             device: Union[str, torch.device] = torch.device("cpu"),
             ):
         
-        super(Leven, self).__init__()
+        super(Slem, self).__init__()
 
         irreps_hidden = o3.Irreps(irreps_hidden)
         lmax = irreps_hidden.lmax
