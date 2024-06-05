@@ -87,8 +87,12 @@ class DFTBSK(torch.nn.Module):
         self.hamiltonian = SKHamiltonian(idp_sk=self.idp_sk, onsite=True, dtype=self.dtype, device=self.device, 
                                         strain=False,soc=False)
         if overlap:
-            self.overlap = SKHamiltonian(idp_sk=self.idp_sk, onsite=False, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
-
+            self.overlap = SKHamiltonian(idp_sk=self.idp_sk, onsite=True, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
+            overlaponsite_param = torch.ones([len(self.idp_sk.type_names), self.idp_sk.n_onsite_Es, 1], dtype=self.dtype, device=self.device)
+            if not all(self.idp_sk.mask_diag):
+                self.overlaponsite_param = torch.nn.Parameter(overlaponsite_param)
+            else:
+                self.overlaponsite_param = overlaponsite_param
         self.idp = self.hamiltonian.idp
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
@@ -103,7 +107,8 @@ class DFTBSK(torch.nn.Module):
         
         if hasattr(self, "overlap"):
             data[AtomicDataDict.EDGE_OVERLAP_KEY] = torch.zeros((len(edge_index), self.idp_sk.reduced_matrix_element), dtype=self.dtype, device=self.device)
-
+            data[AtomicDataDict.NODE_OVERLAP_KEY] = self.overlaponsite_param[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+            data[AtomicDataDict.NODE_OVERLAP_KEY][:,self.idp_sk.mask_diag] = 1.
 
         for ibtype in self.idp_sk.bond_types:
             ibtype_idx = self.idp_sk.bond_to_type[ibtype]

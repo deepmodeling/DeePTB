@@ -42,7 +42,7 @@ class DFTB2NNSK:
             self.E_base[idx] = torch.zeros(self.idp_sk.n_onsite_Es)
             for ot in self.idp_sk.basis[asym]:
                 fot = self.idp_sk.basis_to_full_basis[asym][ot]
-                self.E_base[idx][self.idp_sk.skonsite_maps[fot]] = onsite_energy_database[asym][ot]
+                self.E_base[idx][self.idp_sk.skonsite_maps[fot+"-"+fot]] = onsite_energy_database[asym][ot]
 
     def symmetrize(self):
         reflective_bonds = np.array([self.idp_sk.bond_to_type["-".join(self.idp_sk.type_to_bond[i].split("-")[::-1])] for i  in range(len(self.idp_sk.bond_types))])

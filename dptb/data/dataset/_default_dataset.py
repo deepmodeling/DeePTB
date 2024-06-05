@@ -235,7 +235,7 @@ class _TrajData(object):
                 overlaps = False
             # e3 = E3Hamiltonian(idp=idp, decompose=True)
             if features != False or overlaps != False:
-                block_to_feature(atomic_data, idp, features, overlaps, 1)
+                block_to_feature(atomic_data, idp, features, overlaps, start_id=1)
             
             if not hasattr(atomic_data, AtomicDataDict.EDGE_FEATURES_KEY):
                 # TODO: initialize the edge and node feature tempretely, there should be a better way.
@@ -244,6 +244,9 @@ class _TrajData(object):
                 # just temporarily initialize the edge and node feature to zeros, to let the batch collate work.
             if not hasattr(atomic_data, AtomicDataDict.EDGE_OVERLAP_KEY):
                 atomic_data[AtomicDataDict.EDGE_OVERLAP_KEY] = torch.zeros(atomic_data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], 1)
+            
+            if not hasattr(atomic_data, AtomicDataDict.NODE_OVERLAP_KEY):
+                atomic_data[AtomicDataDict.NODE_OVERLAP_KEY] = torch.zeros(atomic_data[AtomicDataDict.POSITIONS_KEY].shape[0], 1)
                 # with torch.no_grad():
                 #     atomic_data = e3(atomic_data.to_dict())
                 # atomic_data = AtomicData.from_dict(atomic_data)

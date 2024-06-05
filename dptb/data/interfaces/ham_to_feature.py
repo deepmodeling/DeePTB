@@ -11,7 +11,7 @@ from dptb.data import AtomicData, AtomicDataDict
 
 log = logging.getLogger(__name__)
 
-def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=True, start_id: int = 0):
+def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=False, start_id: int = 0):
     # Hamiltonian_blocks should be a h5 group in the current version
     assert blocks != False or overlap_blocks!=False, "Both feature block and overlap blocks are not provided."
     if blocks != False:

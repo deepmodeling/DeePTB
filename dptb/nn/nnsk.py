@@ -99,6 +99,12 @@ class NNSK(torch.nn.Module):
             nn.init.normal_(overlap_param, mean=0.0, std=std)
             self.overlap_param = torch.nn.Parameter(overlap_param)
 
+            overlaponsite_param = torch.ones([len(self.idp_sk.type_names), self.idp_sk.n_onsite_Es, 1], dtype=self.dtype, device=self.device)
+            if not all(self.idp_sk.mask_diag):
+                self.overlaponsite_param = torch.nn.Parameter(overlaponsite_param)
+            else:
+                self.overlaponsite_param = overlaponsite_param # just use normal tensor incase the checkpoint of old version does not contrains overlaponsite param
+
         if self.soc_options.get("method", None) is not None:
             if self.soc_options.get("method", None) == 'none':
                 self.soc_param = None
@@ -133,7 +139,7 @@ class NNSK(torch.nn.Module):
         self.hamiltonian = SKHamiltonian(idp_sk=self.idp_sk, onsite=True, dtype=self.dtype, device=self.device, 
                                         strain=hasattr(self, "strain_param"),soc=hasattr(self, "soc_param"))
         if overlap:
-            self.overlap = SKHamiltonian(idp_sk=self.idp_sk, onsite=False, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
+            self.overlap = SKHamiltonian(idp_sk=self.idp_sk, onsite=True, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
             self.register_buffer("ovp_factor", torch.tensor(1.0, dtype=self.dtype, device=self.device))
         self.idp = self.hamiltonian.idp
         
@@ -286,6 +292,9 @@ class NNSK(torch.nn.Module):
                 **self.hopping_options,
                 r0=r0,
                 )
+            
+            data[AtomicDataDict.NODE_OVERLAP_KEY] = self.overlaponsite_param[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+            data[AtomicDataDict.NODE_OVERLAP_KEY][:,self.idp_sk.mask_diag] = 1.
 
         atomic_numbers = self.idp_sk.untransform_atom(data[AtomicDataDict.ATOM_TYPE_KEY].flatten())
         if self.onsite_fn.functype == "NRL":
@@ -445,8 +454,13 @@ class NNSK(torch.nn.Module):
                 else:
                     if ckpt_version == 1:
                         overlap_param = json_model["overlap"]
+                        overlaponsite_param = None
                     elif ckpt_version == 2:
                         overlap_param = json_model["model_params"]["overlap"]
+                        if "overlaponsite" in json_model["model_params"]:
+                            overlaponsite_param = json_model["model_params"]["overlaponsite"]
+                        else:
+                            overlaponsite_param = None
                     else:
                         raise ValueError("The version of the model is not supported.")
             else:
@@ -458,6 +472,7 @@ class NNSK(torch.nn.Module):
                     raise ValueError("The overlap parameters are provided in the json model file, but the input is set to False.")
                 else:
                     overlap_param = None
+                    overlaponsite_param = None
 
             if nnsk['soc'].get("method", None) is not None:
                 if ckpt_version == 2:
@@ -486,6 +501,7 @@ class NNSK(torch.nn.Module):
                     "onsite": json_model["model_params"]["onsite"],
                     "hopping": json_model["model_params"]["hopping"],
                     "overlap": overlap_param,
+                    "overlaponsite": overlaponsite_param,
                     "soc": soc_param}
             
             model = cls._from_model_v1(
@@ -563,6 +579,21 @@ class NNSK(torch.nn.Module):
                                     model.overlap_param.data[idp.bond_to_type[b],sli] = \
                                         params[ref_idp.bond_to_type[b],ref_idp.orbpair_maps[ref_forbpair]]
                 
+                # load overlaponsite
+                if hasattr(model, "overlaponsite_param") and f["model_state_dict"].get("overlaponsite_param") != None:
+                    params = f["model_state_dict"]["overlaponsite_param"]
+                    ref_idp.get_skonsite_maps()
+                    idp.get_skonsite_maps()
+                    for asym in ref_idp.type_names:
+                        if asym in idp.type_names:
+                            for ref_forbpair in ref_idp.skonsite_maps.keys():
+                                rfiorb, rfjorb = ref_forbpair.split("-")
+                                riorb, rjorb = ref_idp.full_basis_to_basis[asym].get(rfiorb), ref_idp.full_basis_to_basis[asym].get(rfjorb)
+                                fiorb, fjorb = idp.basis_to_full_basis[asym].get(riorb), idp.basis_to_full_basis[asym].get(rjorb)
+                                if fiorb != None and fjorb != None and fiorb != fjorb:
+                                    model.overlaponsite_param.data[idp.chemical_symbol_to_type[asym], idp.skonsite_maps[fiorb+"-"+fjorb]] = \
+                                        params[ref_idp.chemical_symbol_to_type[asym], ref_idp.skonsite_maps[rfiorb+"-"+rfjorb]]
+                
                 # load onsite
                 if model.onsite_param != None and f["model_state_dict"].get("onsite_param") != None:
                     params = f["model_state_dict"]["onsite_param"]
@@ -570,12 +601,13 @@ class NNSK(torch.nn.Module):
                     idp.get_skonsite_maps()
                     for asym in ref_idp.type_names:
                         if asym in idp.type_names:
-                            for ref_forb in ref_idp.skonsite_maps.keys():
-                                rorb = ref_idp.full_basis_to_basis[asym].get(ref_forb)
-                                forb = idp.basis_to_full_basis[asym].get(rorb)
-                                if forb is not None:
-                                    model.onsite_param.data[idp.chemical_symbol_to_type[asym],idp.skonsite_maps[forb]] = \
-                                        params[ref_idp.chemical_symbol_to_type[asym],ref_idp.skonsite_maps[ref_forb]]
+                            for ref_forbpair in ref_idp.skonsite_maps.keys():
+                                rfiorb, rfjorb = ref_forbpair.split("-")
+                                riorb, rjorb = ref_idp.full_basis_to_basis[asym].get(rfiorb), ref_idp.full_basis_to_basis[asym].get(rfjorb)
+                                fiorb, fjorb = idp.basis_to_full_basis[asym].get(riorb), idp.basis_to_full_basis[asym].get(rjorb)
+                                if fiorb and fjorb is not None:
+                                    model.onsite_param.data[idp.chemical_symbol_to_type[asym], idp.skonsite_maps[fiorb+"-"+fjorb]] = \
+                                        params[ref_idp.chemical_symbol_to_type[asym], ref_idp.skonsite_maps[rfiorb+"-"+rfjorb]]
 
                 if hasattr(model, "soc_param") and model.soc_param is not None and f["model_state_dict"].get("soc_param", None) != None:
                     ref_idp.get_sksoc_maps()
@@ -661,6 +693,7 @@ class NNSK(torch.nn.Module):
         soc_param = v1_model["soc"]
         if overlap:
             overlap_param = v1_model["overlap"]
+            overlaponsite_param = v1_model["overlaponsite"]
 
         ene_unit = v1_model["unit"]
 
@@ -710,6 +743,19 @@ class NNSK(torch.nn.Module):
                 if ian != jan and fiorb == fjorb:
                     nline = idp_sk.transform_bond(iatomic_numbers=jan, jatomic_numbers=ian)
                     nnsk_model.overlap_param.data[nline, nidx] = skparam
+            
+            # load overlaponsite
+            if overlaponsite_param is not None:
+                for orbpair, skparam in overlaponsite_param.items():
+                    skparam = torch.tensor(skparam, dtype=dtype, device=device)
+                    iasym, iorb, jorb, num = list(orbpair.split("-"))
+                    num = int(num)
+                    ian = torch.tensor(atomic_num_dict[iasym])
+                    fiorb, fjorb = idp_sk.basis_to_full_basis[iasym][iorb], idp_sk.basis_to_full_basis[iasym][jorb]
+                    nline = idp_sk.transform_atom(atomic_numbers=ian)
+                    nidx = idp_sk.skonsite_maps[fiorb+"-"+fjorb].start + num
+                    nnsk_model.overlaponsite_param.data[nline, nidx] = skparam
+
 
         # load onsite params, differently with onsite mode
         if onsite["method"] == "strain":
@@ -745,13 +791,20 @@ class NNSK(torch.nn.Module):
                 skparam = torch.tensor(skparam, dtype=dtype, device=device)
                 if ene_unit == "Hartree" and onsite["method"] not in ['NRL', 'NRL1', 'NRL2']:
                     skparam *= 13.605662285137 * 2
-                iasym, iorb, num = list(orbon.split("-"))
+                orbon_s = list(orbon.split("-"))
+                if len(orbon_s) == 3:
+                    iasym, iorb, num = orbon_s
+                    jorb = iorb
+                else:
+                    iasym, iorb, jorb, num = orbon_s
+
                 num = int(num)
                 ian = torch.tensor(atomic_num_dict[iasym])
                 fiorb = idp_sk.basis_to_full_basis[iasym][iorb]
+                fjorb = idp_sk.basis_to_full_basis[iasym][jorb]
 
                 nline = idp_sk.transform_atom(atomic_numbers=ian)
-                nidx = idp_sk.skonsite_maps[fiorb].start + num
+                nidx = idp_sk.skonsite_maps[fiorb+"-"+fjorb].start + num
 
                 nnsk_model.onsite_param.data[nline, nidx] = skparam
         if soc.get("method", None) is not None:
@@ -870,7 +923,21 @@ class NNSK(torch.nn.Module):
                                 if self.idp_sk.full_basis.index(fiorb) <= self.idp_sk.full_basis.index(fjorb):
                                     overlap_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = overlap[pos_line, slices][i].tolist()
                             else:
-                                raise ValueError("The atomic number should be the same or different.")            
+                                raise ValueError("The atomic number should be the same or different.")    
+            if not all(self.idp_sk.mask_diag):
+                # write out onsite overlap param for non diag term
+                overlaponsite = self.overlaponsite_param.data.cpu().clone().numpy()
+                overlaponsite_param = {}
+                for asym in self.idp_sk.type_names:
+                    for orbpair, slices in self.idp_sk.skonsite_maps.items():
+                        fiorb, fjorb = orbpair.split("-")
+                        if fiorb != fjorb:
+                            iorb = self.idp_sk.full_basis_to_basis[asym][fiorb]
+                            jorb = self.idp_sk.full_basis_to_basis[asym][fjorb]
+                            for i in range(slices.start, slices.stop): 
+                                ind = i-slices.start
+                                overlaponsite_param[f"{asym}-{iorb}-{jorb}-{ind}"] = (overlaponsite[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
+
 
         if hasattr(self, "strain_param"):
             strain = self.strain_param.data.cpu().clone().numpy()
@@ -891,11 +958,18 @@ class NNSK(torch.nn.Module):
             onsite =self.onsite_param.data.cpu().clone().numpy()
             onsite_param = {}
             for asym in self.idp_sk.type_names:
-                for iorb, slices in self.idp_sk.skonsite_maps.items():
-                    orb = self.idp_sk.full_basis_to_basis[asym][iorb]
-                    for i in range(slices.start, slices.stop): 
-                        ind = i-slices.start      
-                        onsite_param[f"{asym}-{orb}-{ind}"] = (onsite[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
+                for orbpair, slices in self.idp_sk.skonsite_maps.items():
+                    fiorb, fjorb = orbpair.split("-")
+                    iorb = self.idp_sk.full_basis_to_basis[asym][fiorb]
+                    jorb = self.idp_sk.full_basis_to_basis[asym][fjorb]
+                    if iorb == jorb:
+                        for i in range(slices.start, slices.stop): 
+                            ind = i-slices.start      
+                            onsite_param[f"{asym}-{iorb}-{ind}"] = (onsite[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
+                    else:
+                        for i in range(slices.start, slices.stop): 
+                            ind = i-slices.start
+                            onsite_param[f"{asym}-{iorb}-{jorb}-{ind}"] = (onsite[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
         else:
             onsite_param = {}
 
@@ -918,6 +992,8 @@ class NNSK(torch.nn.Module):
         }
         if is_overlap:
             model_params.update({"overlap": overlap_param})
+            if not all(self.idp_sk.mask_diag):
+                model_params.update({"overlaponsite": overlaponsite_param})
 
         if has_soc:
             model_params.update({"soc": soc_param})
@@ -930,9 +1006,3 @@ class NNSK(torch.nn.Module):
             raise ValueError("The version of the model is not supported.")
         
         return ckpt
-        
-
-
-
-
-        

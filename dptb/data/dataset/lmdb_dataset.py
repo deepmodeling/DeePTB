@@ -150,7 +150,7 @@ class LMDBDataset(AtomicDataset):
         
         return atomicdata
     
-    def E3statistics(self):
+    def E3statistics(self, model: torch.nn.Module=None):
 
         if not self.get_Hamiltonian and not self.get_DM:
             return None
@@ -193,72 +193,72 @@ class LMDBDataset(AtomicDataset):
                     continue
                 atomicdata = e3h(atomicdata)
 
-            subcount_at = {}
-            for at, tp in idp.chemical_symbol_to_type.items():
-                subcount_at[tp] = 0
+                subcount_at = {}
+                for at, tp in idp.chemical_symbol_to_type.items():
+                    subcount_at[tp] = 0
 
-            subcount_bt = {}
-            for bt, tp in idp.bond_to_type.items():
-                subcount_bt[tp] = 0
+                subcount_bt = {}
+                for bt, tp in idp.bond_to_type.items():
+                    subcount_bt[tp] = 0
 
-            onsite_mask = idp.mask_to_nrme[atomicdata[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+                onsite_mask = idp.mask_to_nrme[atomicdata[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
 
-            for at, tp in idp.chemical_symbol_to_type.items():
-                count_scalar = 0
-                at_mask = onsite_mask[atomicdata[AtomicDataDict.ATOM_TYPE_KEY].flatten().eq(tp)]
-                n_at = at_mask.shape[0]
-                
-                if n_at > 0:
-                    at_onsite = atomicdata[AtomicDataDict.NODE_FEATURES_KEY][atomicdata[AtomicDataDict.ATOM_TYPE_KEY].flatten().eq(tp)]
-                    for ir, s in enumerate(idp.orbpair_irreps.slices()):
-                        sub_tensor = at_onsite[:, s]
-                        if sub_tensor.shape[-1] == 1:
-                            count_scalar += 1
-                        norms = torch.norm(sub_tensor, p=2, dim=1)
-                        # we do a running avg and var here
-                        node_norm_ave[tp][ir] = (node_norm_ave[tp][ir] * count_at[tp] + norms.sum(dim=0)) / (count_at[tp] + n_at)
-                        node_square_ave[tp][ir] = (node_square_ave[tp][ir] * count_at[tp] + (norms**2).sum(dim=0)) / (count_at[tp] + n_at)
-                        node_norm_std[tp][ir] = torch.nan_to_num(torch.sqrt((count_at[tp] + n_at) / (count_at[tp] + n_at - 1) * (node_square_ave[tp][ir] - node_norm_ave[tp][ir]**2)), nan=0.0)
-
-                        if sub_tensor.shape[-1] == 1:
-                            # is scalar
-                            node_scalar_ave[tp][count_scalar-1] = (node_scalar_ave[tp][count_scalar-1] * count_at[tp] + sub_tensor.sum()) / (count_at[tp] + n_at)
-                            node_scalar_square_ave[tp][count_scalar-1] = (node_scalar_square_ave[tp][count_scalar-1] * count_at[tp] + (sub_tensor**2).sum()) / (count_at[tp] + n_at)
-                            node_scalar_std[tp][count_scalar-1] = torch.nan_to_num(torch.sqrt((count_at[tp] + n_at) / (count_at[tp] + n_at - 1) * (node_scalar_square_ave[tp][count_scalar-1] - node_scalar_ave[tp][count_scalar-1]**2)), nan=0.0)
-
-                    subcount_at[tp] = n_at
-                    count_at[tp] += n_at
-            assert sum(subcount_at.values()) == atomicdata[AtomicDataDict.POSITIONS_KEY].shape[0]
-            
-            # edge statistics
-            hopping_mask = idp.mask_to_erme[atomicdata[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
-            for bt, tp in idp.bond_to_type.items():
-                count_scalar = 0
-                bt_mask = hopping_mask[atomicdata[AtomicDataDict.EDGE_TYPE_KEY].flatten().eq(tp)]
-                n_bt = bt_mask.shape[0]
-
-                if n_bt > 0:
-                    bt_hopping = atomicdata[AtomicDataDict.EDGE_FEATURES_KEY][atomicdata[AtomicDataDict.EDGE_TYPE_KEY].flatten().eq(tp)]
-                    for ir, s in enumerate(idp.orbpair_irreps.slices()):
-                        sub_tensor = bt_hopping[:, s]
-                        if sub_tensor.shape[-1] == 1:
-                            count_scalar += 1
-
-                        norms = torch.norm(sub_tensor, p=2, dim=1)
-                        # we do a running avg and var here
-                        edge_norm_ave[tp][ir] = (edge_norm_ave[tp][ir] * count_bt[tp] + norms.sum(dim=0)) / (count_bt[tp] + n_bt)
-                        edge_square_ave[tp][ir] = (edge_square_ave[tp][ir] * count_bt[tp] + (norms**2).sum(dim=0)) / (count_bt[tp] + n_bt)
-                        edge_norm_std[tp][ir] = torch.nan_to_num(torch.sqrt((count_bt[tp] + n_bt) / (count_bt[tp] + n_bt - 1) * (edge_square_ave[tp][ir] - edge_norm_ave[tp][ir]**2)), nan=0.0)
-
-                        if sub_tensor.shape[-1] == 1:
-                            # is scalar
-                            edge_scalar_ave[tp][count_scalar-1] = (edge_scalar_ave[tp][count_scalar-1] * count_bt[tp] + sub_tensor.sum()) / (count_bt[tp] + n_bt)
-                            edge_scalar_square_ave[tp][count_scalar-1] = (edge_scalar_square_ave[tp][count_scalar-1] * count_bt[tp] + (sub_tensor**2).sum()) / (count_bt[tp] + n_bt)
-                            edge_scalar_std[tp][count_scalar-1] = torch.nan_to_num(torch.sqrt((count_bt[tp] + n_bt) / (count_bt[tp] + n_bt - 1) * (edge_scalar_square_ave[tp][count_scalar-1] - edge_scalar_ave[tp][count_scalar-1]**2)), nan=0.0)
+                for at, tp in idp.chemical_symbol_to_type.items():
+                    count_scalar = 0
+                    at_mask = onsite_mask[atomicdata[AtomicDataDict.ATOM_TYPE_KEY].flatten().eq(tp)]
+                    n_at = at_mask.shape[0]
                     
-                    subcount_bt[tp] = n_bt
-                    count_bt[tp] += n_bt
-            assert sum(subcount_bt.values()) == atomicdata[AtomicDataDict.EDGE_INDEX_KEY].shape[1]
+                    if n_at > 0:
+                        at_onsite = atomicdata[AtomicDataDict.NODE_FEATURES_KEY][atomicdata[AtomicDataDict.ATOM_TYPE_KEY].flatten().eq(tp)]
+                        for ir, s in enumerate(idp.orbpair_irreps.slices()):
+                            sub_tensor = at_onsite[:, s]
+                            if sub_tensor.shape[-1] == 1:
+                                count_scalar += 1
+                            norms = torch.norm(sub_tensor, p=2, dim=1)
+                            # we do a running avg and var here
+                            node_norm_ave[tp][ir] = (node_norm_ave[tp][ir] * count_at[tp] + norms.sum(dim=0)) / (count_at[tp] + n_at)
+                            node_square_ave[tp][ir] = (node_square_ave[tp][ir] * count_at[tp] + (norms**2).sum(dim=0)) / (count_at[tp] + n_at)
+                            node_norm_std[tp][ir] = torch.nan_to_num(torch.sqrt((count_at[tp] + n_at) / (count_at[tp] + n_at - 1) * (node_square_ave[tp][ir] - node_norm_ave[tp][ir]**2)), nan=0.0)
+
+                            if sub_tensor.shape[-1] == 1:
+                                # is scalar
+                                node_scalar_ave[tp][count_scalar-1] = (node_scalar_ave[tp][count_scalar-1] * count_at[tp] + sub_tensor.sum()) / (count_at[tp] + n_at)
+                                node_scalar_square_ave[tp][count_scalar-1] = (node_scalar_square_ave[tp][count_scalar-1] * count_at[tp] + (sub_tensor**2).sum()) / (count_at[tp] + n_at)
+                                node_scalar_std[tp][count_scalar-1] = torch.nan_to_num(torch.sqrt((count_at[tp] + n_at) / (count_at[tp] + n_at - 1) * (node_scalar_square_ave[tp][count_scalar-1] - node_scalar_ave[tp][count_scalar-1]**2)), nan=0.0)
+
+                        subcount_at[tp] = n_at
+                        count_at[tp] += n_at
+                assert sum(subcount_at.values()) == atomicdata[AtomicDataDict.POSITIONS_KEY].shape[0]
+                
+                # edge statistics
+                hopping_mask = idp.mask_to_erme[atomicdata[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
+                for bt, tp in idp.bond_to_type.items():
+                    count_scalar = 0
+                    bt_mask = hopping_mask[atomicdata[AtomicDataDict.EDGE_TYPE_KEY].flatten().eq(tp)]
+                    n_bt = bt_mask.shape[0]
+
+                    if n_bt > 0:
+                        bt_hopping = atomicdata[AtomicDataDict.EDGE_FEATURES_KEY][atomicdata[AtomicDataDict.EDGE_TYPE_KEY].flatten().eq(tp)]
+                        for ir, s in enumerate(idp.orbpair_irreps.slices()):
+                            sub_tensor = bt_hopping[:, s]
+                            if sub_tensor.shape[-1] == 1:
+                                count_scalar += 1
+
+                            norms = torch.norm(sub_tensor, p=2, dim=1)
+                            # we do a running avg and var here
+                            edge_norm_ave[tp][ir] = (edge_norm_ave[tp][ir] * count_bt[tp] + norms.sum(dim=0)) / (count_bt[tp] + n_bt)
+                            edge_square_ave[tp][ir] = (edge_square_ave[tp][ir] * count_bt[tp] + (norms**2).sum(dim=0)) / (count_bt[tp] + n_bt)
+                            edge_norm_std[tp][ir] = torch.nan_to_num(torch.sqrt((count_bt[tp] + n_bt) / (count_bt[tp] + n_bt - 1) * (edge_square_ave[tp][ir] - edge_norm_ave[tp][ir]**2)), nan=0.0)
+
+                            if sub_tensor.shape[-1] == 1:
+                                # is scalar
+                                edge_scalar_ave[tp][count_scalar-1] = (edge_scalar_ave[tp][count_scalar-1] * count_bt[tp] + sub_tensor.sum()) / (count_bt[tp] + n_bt)
+                                edge_scalar_square_ave[tp][count_scalar-1] = (edge_scalar_square_ave[tp][count_scalar-1] * count_bt[tp] + (sub_tensor**2).sum()) / (count_bt[tp] + n_bt)
+                                edge_scalar_std[tp][count_scalar-1] = torch.nan_to_num(torch.sqrt((count_bt[tp] + n_bt) / (count_bt[tp] + n_bt - 1) * (edge_scalar_square_ave[tp][count_scalar-1] - edge_scalar_ave[tp][count_scalar-1]**2)), nan=0.0)
+                        
+                        subcount_bt[tp] = n_bt
+                        count_bt[tp] += n_bt
+                assert sum(subcount_bt.values()) == atomicdata[AtomicDataDict.EDGE_INDEX_KEY].shape[1]
                     
         stats = {}
         stats["node"] = {
@@ -273,5 +273,18 @@ class LMDBDataset(AtomicDataset):
             "scalar_ave": edge_scalar_ave,
             "scalar_std": edge_scalar_std,
         }
+
+        if model is not None:
+            # initilize the model param with statistics
+            scalar_mask = torch.BoolTensor([ir.dim==1 for ir in model.idp.orbpair_irreps])
+            node_shifts = stats["node"]["scalar_ave"]
+            node_scales = stats["node"]["norm_ave"]
+            node_scales[:,scalar_mask] = stats["node"]["scalar_std"]
+
+            edge_shifts = stats["edge"]["scalar_ave"]
+            edge_scales = stats["edge"]["norm_ave"]
+            edge_scales[:,scalar_mask] = stats["edge"]["scalar_std"]
+            model.node_prediction_h.set_scale_shift(scales=node_scales, shifts=node_shifts)
+            model.edge_prediction_h.set_scale_shift(scales=edge_scales, shifts=edge_shifts)
 
         return stats
