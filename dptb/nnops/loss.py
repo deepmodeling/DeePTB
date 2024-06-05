@@ -84,6 +84,8 @@ class EigLoss(nn.Module):
             diff_on: bool=False,
             eout_weight: float=0.01,
             diff_weight: float=0.01,
+            diff_valence: dict=None,
+            spin_deg: int = 2,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             **kwargs,
@@ -94,6 +96,8 @@ class EigLoss(nn.Module):
         self.diff_on = diff_on
         self.eout_weight = eout_weight
         self.diff_weight = diff_weight
+        self.diff_valence = diff_valence  
+        self.spin_deg = spin_deg  
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
@@ -156,6 +160,15 @@ class EigLoss(nn.Module):
             band_min, band_max = ref_data.get(AtomicDataDict.BAND_WINDOW_KEY, (0, None))
             eig_pred = data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0] # (n_kpt, n_band)
             eig_label = ref_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0] # (n_kpt, n_band_dft/n_band)
+
+            if self.diff_valence is not None and isinstance(self.diff_valence, dict):
+                nbands_exclude = sum([self.diff_valence[self.idp.type_to_chemical_symbol[int(ii)]] for ii in ref_data['atom_types']])
+                assert nbands_exclude % self.spin_deg == 0
+                nbands_exclude = nbands_exclude // self.spin_deg
+            else:
+                nbands_exclude = 0
+            
+            eig_label = eig_label[:,nbands_exclude:]
 
             norbs = eig_pred.shape[-1]
             nbanddft = eig_label.shape[-1]

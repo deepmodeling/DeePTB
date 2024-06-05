@@ -30,6 +30,8 @@ TrainFullConfigSK={
         "loss_options": {
             "train": {
                 "method": "eigvals",
+                "diff_valence":None,
+                "spin_deg":2,
                 "diff_on": False,
                 "eout_weight": 0.01,
                 "diff_weight": 0.01
