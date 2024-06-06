@@ -34,11 +34,9 @@ class Lem(torch.nn.Module):
             basis: Dict[str, Union[str, list]]=None,
             idp: Union[OrbitalMapper, None]=None,
             # required params
-            n_atom: int=1,
             n_layers: int=3,
             n_radial_basis: int=10,
             r_max: float=5.0,
-            lmax: int=4,
             irreps_hidden: o3.Irreps=None,
             avg_num_neighbors: Optional[float] = None,
             # cutoffs
@@ -60,11 +58,14 @@ class Lem(torch.nn.Module):
             res_update_ratios_learnable: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
+            **kwargs,
             ):
         
         super(Lem, self).__init__()
 
         irreps_hidden = o3.Irreps(irreps_hidden)
+        lmax = irreps_hidden.lmax
+        
 
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype)
@@ -90,7 +91,7 @@ class Lem(torch.nn.Module):
             
         self.basis = self.idp.basis
         self.idp.get_irreps(no_parity=False)
-        self.n_atom = n_atom
+        self.n_atom = len(self.basis.keys())
 
         irreps_sh=o3.Irreps([(1, (i, (-1) ** i)) for i in range(lmax + 1)])
         orbpair_irreps = self.idp.orbpair_irreps.sort()[0].simplify()

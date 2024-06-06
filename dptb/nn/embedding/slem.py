@@ -59,6 +59,7 @@ class Slem(torch.nn.Module):
             res_update_ratios_learnable: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
+            **kwargs,
             ):
         
         super(Slem, self).__init__()
