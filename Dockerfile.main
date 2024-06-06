@@ -34,6 +34,7 @@ RUN source ~/.bashrc &&  \
     conda create -n deeptb python=3.9 -c conda-forge -y  && \
     source activate deeptb && \
     pip install torch==2.1.1 && \
+    pip install torch-scatter -f https://data.pyg.org/whl/torch-2.1.1+cpu.html && \
     cd ./DeePTB && \
     pip install . && \
     cd ..  && \ 
