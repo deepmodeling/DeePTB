@@ -78,7 +78,7 @@ class ToPybinding(object):
 
         onsite_blocks= tuple(map(lambda x:
                         (x.split("_")[0], 
-                        data['pos'].cpu().numpy()[int(x.split("_")[0])-1] * Ang2nm,
+                        data['pos'].cpu().numpy()[int(x.split("_")[0])] * Ang2nm,
                         blocks[x].detach().cpu().numpy()),
                         onsite_bonds))
 

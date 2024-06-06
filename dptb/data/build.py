@@ -118,6 +118,7 @@ def build_dataset(
         get_eigenvalues: bool = False,
 
         # common_options
+        orthogonal: bool = False,
         basis: str = None, 
         **kwargs,
         ):
@@ -272,6 +273,7 @@ def build_dataset(
             root=os.path.join(root, include_folders[0]),
             type_mapper=idp,
             info=info,
+            orthogonal=orthogonal,
             get_Hamiltonian=get_Hamiltonian,
             get_overlap=get_overlap,
             get_DM=get_DM,

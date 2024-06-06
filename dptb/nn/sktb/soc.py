@@ -57,7 +57,7 @@ class SOCFormula(BaseSOC):
                 self.socL_base[idx] = torch.zeros(self.idp.n_onsite_socLs)
                 for ot in self.idp.basis[asym]:
                     fot = self.idp.basis_to_full_basis[asym][ot]
-                    self.socL_base[idx][self.idp.skonsite_maps[fot]] = soc_strength_database[asym][ot]
+                    self.socL_base[idx][self.idp.skonsite_maps[fot+"-"+fot]] = soc_strength_database[asym][ot]
         
     def get_socLs(self, **kwargs):
         if self.functype == 'none':

@@ -148,7 +148,7 @@ def test_orbital_mapper_init_list_spdf_sktb():
                                         + 5 * orbtype_count["d"] + 7 * orbtype_count["f"] == 12
     assert orbmap.reduced_matrix_element == 15
     assert orbmap.full_basis == ['1s', '2s', '1p', '1f']
-    assert orbmap.n_onsite_Es == len(orbmap.full_basis)
+    assert orbmap.n_onsite_Es == len(orbmap.full_basis)+1
     assert orbmap.basis_to_full_basis == {'C': {'s*': '1s', '2s': '2s', '2p': '1p'},
                                           'O': {'2s': '1s', '2p': '1p', 'f*': '1f'}}
     assert orbmap.full_basis_to_basis == {'C': {'1s': 's*', '2s': '2s', '1p': '2p'},
@@ -288,10 +288,11 @@ def test_get_skonsite_maps():
     basis = {"C": ['2s','2p','s*'], "O": ['2s','2p','f*']}
     orbmap = OrbitalMapper(basis=basis, method="sktb", device=torch.device("cpu"))
 
-    assert orbmap.get_skonsite_maps() == {'1s': slice(0, 1, None),
-                                          '2s': slice(1, 2, None),
-                                          '1p': slice(2, 3, None),
-                                          '1f': slice(3, 4, None)}
+    assert orbmap.get_skonsite_maps() == {'1s-1s': slice(0, 1, None),
+                                          '1s-2s': slice(1, 2, None),
+                                          '2s-2s': slice(2, 3, None),
+                                          '1p-1p': slice(3, 4, None),
+                                          '1f-1f': slice(4, 5, None)}
 
 def test_get_skonsitetype_maps():
     basis = {"C": "2s2p3d1f1g1h", "O": "1s2p3d1f2g]"}
@@ -303,7 +304,7 @@ def test_get_skonsitetype_maps():
     basis = {"C": ['2s','2p','s*'], "O": ['2s','2p','f*']}
     orbmap = OrbitalMapper(basis=basis, method="sktb", device=torch.device("cpu"))
 
-    assert orbmap.get_skonsitetype_maps() == {'s': slice(0, 2, None), 'p': slice(2, 3, None), 'f': slice(3, 4, None)}
+    assert orbmap.get_skonsitetype_maps() == {'s': slice(0, 3, None), 'p': slice(3, 4, None), 'f': slice(4, 5, None)}
 
 def test_get_sksoctype_maps():
     basis = {"C": "2s2p3d1f1g1h", "O": "1s2p3d1f2g]"}

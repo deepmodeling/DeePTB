@@ -49,7 +49,7 @@ class HR2HK(torch.nn.Module):
 
         # construct bond wise hamiltonian block from obital pair wise node/edge features
         # we assume the edge feature have the similar format as the node feature, which is reduced from orbitals index oj-oi with j>i
-
+        
         orbpair_hopping = data[self.edge_field]
         orbpair_onsite = data.get(self.node_field)
         bondwise_hopping = torch.zeros((len(orbpair_hopping), self.idp.full_basis_norb, self.idp.full_basis_norb), dtype=self.dtype, device=self.device)
@@ -88,8 +88,10 @@ class HR2HK(torch.nn.Module):
 
                 # constructing onsite blocks
                 if self.overlap:
-                    if iorb == jorb:
-                        onsite_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = factor * torch.eye(2*li+1, dtype=self.dtype, device=self.device).reshape(1, 2*li+1, 2*lj+1).repeat(onsite_block.shape[0], 1, 1)
+                    # if iorb == jorb:
+                    #     onsite_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = factor * torch.eye(2*li+1, dtype=self.dtype, device=self.device).reshape(1, 2*li+1, 2*lj+1).repeat(onsite_block.shape[0], 1, 1)
+                    if i <= j:
+                        onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
                 else:
                     if i <= j:
                         onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
@@ -103,7 +105,7 @@ class HR2HK(torch.nn.Module):
             ist += 2*li+1
         self.onsite_block = onsite_block
         self.bondwise_hopping = bondwise_hopping
-        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
+        if soc:
             self.soc_upup_block = soc_upup_block
             self.soc_updn_block = soc_updn_block
 

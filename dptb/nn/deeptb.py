@@ -152,6 +152,8 @@ class NNENV(nn.Module):
             )
 
             if overlap:
+                self.idp.get_skonsite_maps()
+                self.idp_sk = self.idp
                 self.edge_prediction_s = AtomicResNet(
                     **prediction_copy,
                     in_field=AtomicDataDict.EDGE_OVERLAP_KEY,
@@ -159,6 +161,12 @@ class NNENV(nn.Module):
                     device=device, 
                     dtype=dtype
                 )
+
+                overlaponsite_param = torch.ones([len(self.idp.type_names), self.idp.n_onsite_Es, 1], dtype=self.dtype, device=self.device)
+                if not all(self.idp.mask_diag):
+                    self.overlaponsite_param = torch.nn.Parameter(overlaponsite_param)
+                else:
+                    self.overlaponsite_param = overlaponsite_param
 
         elif prediction_copy.get("method") == "e3tb":
             self.node_prediction_h = E3PerSpeciesScaleShift(
@@ -184,8 +192,28 @@ class NNENV(nn.Module):
                 device=self.device,
                 **prediction_copy,
             )
+
             if overlap:
-                raise NotImplementedError("The overlap prediction is not implemented for e3tb method.")
+                self.idp_sk = OrbitalMapper(self.idp.basis, method="sktb", device=self.device)
+                self.idp_sk.get_skonsite_maps()
+                prediction_copy["neurons"] = [self.embedding.latent_dim] + prediction_copy["neurons"] + [self.idp_sk.reduced_matrix_element]
+                prediction_copy["config"] = get_neuron_config(prediction_copy["neurons"])
+                self.edge_prediction_s = AtomicResNet(
+                    **prediction_copy,
+                    in_field=AtomicDataDict.EDGE_OVERLAP_KEY,
+                    out_field=AtomicDataDict.EDGE_OVERLAP_KEY,
+                    device=device,
+                    dtype=dtype
+                )
+
+                overlaponsite_param = torch.ones([len(self.idp_sk.type_names), self.idp_sk.n_onsite_Es, 1], dtype=self.dtype, device=self.device)
+                if not all(self.idp_sk.mask_diag):
+                    self.overlaponsite_param = torch.nn.Parameter(overlaponsite_param)
+                else:
+                    self.overlaponsite_param = overlaponsite_param
+
+                
+                # raise NotImplementedError("The overlap prediction is not implemented for e3tb method.")
 
         else:
             raise NotImplementedError("The prediction model {} is not implemented.".format(prediction_copy["method"]))
@@ -207,7 +235,7 @@ class NNENV(nn.Module):
                     node_field=AtomicDataDict.NODE_OVERLAP_KEY, 
                     dtype=self.dtype, 
                     device=self.device,
-                    onsite=False,
+                    onsite=True,
                     )
 
         elif self.method == "e3tb":
@@ -219,13 +247,15 @@ class NNENV(nn.Module):
                 device=self.device
                 )
             if overlap:
-                self.overlap = E3Hamiltonian(
-                    idp=self.idp, 
-                    edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, 
-                    node_field=AtomicDataDict.NODE_OVERLAP_KEY, 
+                self.overlap = SKHamiltonian(
+                    idp_sk=self.idp_sk, 
+                    edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
+                    node_field=AtomicDataDict.NODE_OVERLAP_KEY,
+                    onsite=True,
+                    strain=False,
+                    soc=False,
                     dtype=self.dtype, 
                     device=self.device,
-                    overlap=True,
                     )
 
 
@@ -234,13 +264,15 @@ class NNENV(nn.Module):
             self.idp(data)
 
         data = self.embedding(data)
-        if hasattr(self, "overlap"):
+        if hasattr(self, "overlap") and self.method == "sktb":
             data[AtomicDataDict.EDGE_OVERLAP_KEY] = data[AtomicDataDict.EDGE_FEATURES_KEY]
         
         data = self.node_prediction_h(data)
         data = self.edge_prediction_h(data)
         if hasattr(self, "overlap"):
             data = self.edge_prediction_s(data)
+            data[AtomicDataDict.NODE_OVERLAP_KEY] = self.overlaponsite_param[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+            data[AtomicDataDict.NODE_OVERLAP_KEY][:,self.idp_sk.mask_diag] = 1.
         
         if self.transform:
             data = self.hamiltonian(data)

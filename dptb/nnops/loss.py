@@ -99,6 +99,7 @@ class EigLoss(nn.Module):
         self.diff_valence = diff_valence  
         self.spin_deg = spin_deg  
 
+
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
             if idp is not None:
@@ -149,7 +150,6 @@ class EigLoss(nn.Module):
 
         datalist = data.to_data_list()
         ref_datalist = ref_data.to_data_list()
-
         for data, ref_data in zip(datalist, ref_datalist):
             data = self.eigenvalue(AtomicData.to_AtomicDataDict(data))
             ref_data = AtomicData.to_AtomicDataDict(ref_data)
@@ -354,6 +354,10 @@ class HamilLossAbs(nn.Module):
             pre = data[AtomicDataDict.EDGE_OVERLAP_KEY][self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
             tgt = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY][self.idp.mask_to_erme[ref_data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
             overlap_loss = 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
+
+            pre = data[AtomicDataDict.NODE_OVERLAP_KEY][self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            tgt = ref_data[AtomicDataDict.NODE_OVERLAP_KEY][self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            overlap_loss += 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
 
             return (1/3) * (hopping_loss + onsite_loss + overlap_loss)
         else:

@@ -244,6 +244,9 @@ class _TrajData(object):
                 # just temporarily initialize the edge and node feature to zeros, to let the batch collate work.
             if not hasattr(atomic_data, AtomicDataDict.EDGE_OVERLAP_KEY):
                 atomic_data[AtomicDataDict.EDGE_OVERLAP_KEY] = torch.zeros(atomic_data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], 1)
+            
+            if not hasattr(atomic_data, AtomicDataDict.NODE_OVERLAP_KEY):
+                atomic_data[AtomicDataDict.NODE_OVERLAP_KEY] = torch.zeros(atomic_data[AtomicDataDict.POSITIONS_KEY].shape[0], 1)
                 # with torch.no_grad():
                 #     atomic_data = e3(atomic_data.to_dict())
                 # atomic_data = AtomicData.from_dict(atomic_data)
@@ -359,7 +362,6 @@ class DefaultDataset(AtomicInMemoryDataset):
     def _E3edgespecies_stat(self, typed_dataset, decay):
         # we get the bond type marked dataset first
         idp = self.transform
-        typed_dataset = typed_dataset
 
         idp.get_irreps(no_parity=False)
         irrep_slices = idp.orbpair_irreps.slices()

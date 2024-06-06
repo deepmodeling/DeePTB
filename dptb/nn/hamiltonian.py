@@ -336,17 +336,17 @@ class SKHamiltonian(torch.nn.Module):
             node_feature = data[self.node_field].clone()
             data[self.node_field] = torch.zeros(n_node, self.idp.reduced_matrix_element, dtype=self.dtype, device=self.device)
 
-            for otype in self.idp_sk.skonsite_maps.keys():
+            for orbtype in self.idp_sk.skonsitetype_maps.keys():
                 # currently, "a-b" and "b-a" orbital pair are computed seperately, it is able to combined further
                 # for better performance
+                l = anglrMId[re.findall(r"[a-z]", orbtype)[0]]
 
-                l = anglrMId[re.findall(r"[a-z]", otype)[0]]
-
-                skparam = node_feature[:, self.idp_sk.skonsite_maps[otype]].reshape(n_node, -1, 1)
+                skparam = node_feature[:, self.idp_sk.skonsitetype_maps[orbtype]].reshape(n_node, -1, 1)
                 HR = torch.eye(2*l+1, dtype=self.dtype, device=self.device)[None, None, :, :] * skparam[:,:, None, :] # shape (N, n_pair, 2l1+1, 2l2+1)
                 # the onsite block doesnot have rotation
 
-                data[self.node_field][:, self.idp.orbpair_maps[otype+"-"+otype]] = HR.reshape(n_node, -1)
+                data[self.node_field][:, self.idp.orbpairtype_maps[orbtype+"-"+orbtype]] = HR.reshape(n_node, -1)
+
         if self.soc:
             assert data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all(), "The SOC switch is not turned on in data by soc is set to True."
             soc_feature = data[AtomicDataDict.NODE_SOC_KEY]

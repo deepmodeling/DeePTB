@@ -68,7 +68,7 @@ class OnsiteFormula(BaseOnsite):
                 self.E_base[idx] = torch.zeros(self.idp.n_onsite_Es)
                 for ot in self.idp.basis[asym]:
                     fot = self.idp.basis_to_full_basis[asym][ot]
-                    self.E_base[idx][self.idp.skonsite_maps[fot]] = onsite_energy_database[asym][ot]
+                    self.E_base[idx][self.idp.skonsite_maps[fot+"-"+fot]] = onsite_energy_database[asym][ot]
 
     def get_skEs(self, **kwargs):
         if self.functype == 'uniform':

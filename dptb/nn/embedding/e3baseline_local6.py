@@ -3,7 +3,6 @@ import math
 import functools
 import torch
 from torch_runstats.scatter import scatter
-
 from torch import fx
 from e3nn.util.codegen import CodeGenMixin
 from e3nn import o3
