@@ -11,7 +11,7 @@ from dptb.data import AtomicData, AtomicDataDict
 
 log = logging.getLogger(__name__)
 
-def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=False, start_id: int = 0):
+def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=False):
     # Hamiltonian_blocks should be a h5 group in the current version
     assert blocks != False or overlap_blocks!=False, "Both feature block and overlap blocks are not provided."
     if blocks != False:
@@ -45,13 +45,27 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
     atomic_numbers = data[_keys.ATOMIC_NUMBERS_KEY]
 
     # onsite features
-    if blocks:
+    if blocks or overlap_blocks:
+        if blocks is not None:
+            if blocks.get("0_0_0_0_0") is None:
+                start_id = 1
+            else:
+                start_id = 0
+        else:
+            if overlap_blocks.get("0_0_0_0_0") is None:
+                start_id = 1
+            else:
+                start_id = 0
+
+
         for atom in range(len(atomic_numbers)):
             block_index = '_'.join(map(str, map(int, [atom+start_id, atom+start_id] + list([0, 0, 0]))))
-            try:
-                block = blocks[block_index]
-            except:
-                raise IndexError("Hamiltonian block for onsite not found, check Hamiltonian file.")
+
+            if blocks:
+                try:
+                    block = blocks[block_index]
+                except:
+                    raise IndexError("Hamiltonian block for onsite not found, check Hamiltonian file.")
             
             if overlap_blocks and not orthogonal:
                 try:
@@ -71,20 +85,21 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
                 slice_i = idp.orbital_maps[symbol][basis_i]  
                 for basis_j in basis_list[index:]:
                     slice_j = idp.orbital_maps[symbol][basis_j]
-                    block_ij = block[slice_i, slice_j]
                     full_basis_i = idp.basis_to_full_basis[symbol][basis_i]
                     full_basis_j = idp.basis_to_full_basis[symbol][basis_j]
-
-                    # fill onsite vector
                     pair_ij = full_basis_i + "-" + full_basis_j
                     feature_slice = idp.orbpair_maps[pair_ij]
-                    onsite_out[feature_slice] = block_ij.flatten()
+
+                    if blocks:
+                        block_ij = block[slice_i, slice_j]
+                        onsite_out[feature_slice] = block_ij.flatten()
 
                     if overlap_blocks and not orthogonal:
                         overlap_block_ij = overlap_block[slice_i, slice_j]
                         onsite_ovp_out[feature_slice] = overlap_block_ij.flatten()
 
-            onsite_ham.append(onsite_out)
+            if blocks:
+                onsite_ham.append(onsite_out)
             if overlap_blocks and not orthogonal:
                 onsite_ovp.append(onsite_ovp_out)
         #onsite_ham = np.array(onsite_ham)

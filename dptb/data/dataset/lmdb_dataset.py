@@ -146,7 +146,7 @@ class LMDBDataset(AtomicDataset):
 
         # transform blocks to atomicdata features
         if self.get_Hamiltonian or self.get_DM or self.get_overlap:
-            block_to_feature(atomicdata, self.type_mapper, blocks, overlap, self.orthogonal, 0)
+            block_to_feature(atomicdata, self.type_mapper, blocks, overlap, self.orthogonal)
         
         return atomicdata
     
