@@ -110,11 +110,11 @@ class Lem(torch.nn.Module):
         self.sh = SphericalHarmonics(
             irreps_sh, sh_normalized, sh_normalization
         )
-        self.onehot = OneHotAtomEncoding(num_types=n_atom, set_features=False)
+        self.onehot = OneHotAtomEncoding(num_types=self.n_atom, set_features=False)
 
         self.init_layer = InitLayer(
             idp=self.idp,
-            num_types=n_atom,
+            num_types=self.n_atom,
             n_radial_basis=n_radial_basis,
             r_max=r_max,
             irreps_sh=irreps_sh,
@@ -146,7 +146,7 @@ class Lem(torch.nn.Module):
                 irreps_out = irreps_hidden
 
             self.layers.append(Layer(
-                num_types=n_atom,
+                num_types=self.n_atom,
                 # required params
                 avg_num_neighbors=avg_num_neighbors,
                 irreps_in=irreps_in,
