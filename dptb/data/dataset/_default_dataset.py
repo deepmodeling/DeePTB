@@ -76,7 +76,11 @@ class _TrajData(object):
                 raise ValueError("Wrong cell dimensions.")
         
         # load positions, stored as cartesion no matter what provided.
-        pos = np.loadtxt(os.path.join(root, "positions.dat"))
+        if os.path.exists(os.path.join(root, "positions.dat")):
+            pos = np.loadtxt(os.path.join(root, "positions.dat"))
+        else:
+            pos = np.loadtxt(os.path.join(root, "position.dat"))
+
         if len(pos.shape) == 1:
             pos = pos.reshape(1,3)
         natoms = self.info["natoms"]
@@ -93,7 +97,11 @@ class _TrajData(object):
             raise NameError("Position type must be cart / frac.")
         
         # load atomic numbers
-        atomic_numbers = np.loadtxt(os.path.join(root, "atomic_numbers.dat"))
+        if os.path.exists(os.path.join(root, "atomic_numbers.dat")):
+            atomic_numbers = np.loadtxt(os.path.join(root, "atomic_numbers.dat"))
+        else:
+            atomic_numbers = np.loadtxt(os.path.join(root, "atomic_number.dat"))
+
         if atomic_numbers.shape == ():
             atomic_numbers = atomic_numbers.reshape(1)
         if atomic_numbers.shape[0] == natoms:
@@ -107,10 +115,13 @@ class _TrajData(object):
         
         # load optional data files
         if get_eigenvalues == True:
-            if os.path.exists(os.path.join(self.root, "eigenvalues.npy")):
+            if os.path.exists(os.path.join(self.root, "eigenvalues.npy")) or os.path.exists(os.path.join(self.root, "eigenvalue.npy")):
                 assert "bandinfo" in self.info, "`bandinfo` must be provided in `info.json` for loading eigenvalues."
-                assert os.path.exists(os.path.join(self.root, "kpoints.npy"))
-                kpoints = np.load(os.path.join(self.root, "kpoints.npy"))
+                assert os.path.exists(os.path.join(self.root, "kpoints.npy")) or os.path.exists(os.path.join(self.root, "kpoint.npy"))
+                if os.path.exists(os.path.join(self.root, "kpoints.npy")):
+                    kpoints = np.load(os.path.join(self.root, "kpoints.npy"))
+                else:
+                    kpoints = np.load(os.path.join(self.root, "kpoint.npy"))
                 if kpoints.ndim == 2:
                     # only one frame or same kpoints, then copy it to all frames.
                     # shape: (nkpoints, 3)
@@ -122,7 +133,10 @@ class _TrajData(object):
                     self.data["kpoint"] = kpoints
                 else:
                     raise ValueError("Wrong kpoint dimensions.")
-                eigenvalues = np.load(os.path.join(self.root, "eigenvalues.npy"))
+                if os.path.exists(os.path.join(self.root, "eigenvalues.npy")):
+                    eigenvalues = np.load(os.path.join(self.root, "eigenvalues.npy"))
+                else:
+                    eigenvalues = np.load(os.path.join(self.root, "eigenvalue.npy"))
                 # special case: trajectory contains only one frame
                 if eigenvalues.ndim == 2:
                     eigenvalues = np.expand_dims(eigenvalues, axis=0)
@@ -134,14 +148,23 @@ class _TrajData(object):
                 raise ValueError("Eigenvalues must be provided when `get_eigenvalues` is True.")
 
         if get_Hamiltonian==True:
-            assert os.path.exists(os.path.join(self.root, "hamiltonians.h5")), "Hamiltonian file not found."
-            self.data["hamiltonian_blocks"] = h5py.File(os.path.join(self.root, "hamiltonians.h5"), "r")
+            assert os.path.exists(os.path.join(self.root, "hamiltonians.h5")) or os.path.exists(os.path.join(self.root, "hamiltonian.h5")), "Hamiltonian file not found."
+            if os.path.exists(os.path.join(self.root, "hamiltonians.h5")):
+                self.data["hamiltonian_blocks"] = h5py.File(os.path.join(self.root, "hamiltonians.h5"), "r")
+            else:
+                self.data["hamiltonian_blocks"] = h5py.File(os.path.join(self.root, "hamiltonian.h5"), "r")
         if get_overlap==True:
-            assert os.path.exists(os.path.join(self.root, "overlaps.h5")), "Overlap file not found."
-            self.data["overlap_blocks"] = h5py.File(os.path.join(self.root, "overlaps.h5"), "r")
+            assert os.path.exists(os.path.join(self.root, "overlaps.h5")) or os.path.exists(os.path.join(self.root, "overlap.h5")), "Overlap file not found."
+            if os.path.exists(os.path.join(self.root, "overlaps.h5")):
+                self.data["overlap_blocks"] = h5py.File(os.path.join(self.root, "overlaps.h5"), "r")
+            else:
+                self.data["overlap_blocks"] = h5py.File(os.path.join(self.root, "overlap.h5"), "r")
         if get_DM==True:
-            assert os.path.exists(os.path.join(self.root, "DM.h5")), "Density Matrix file not found."
-            self.data["DM_blocks"] = h5py.File(os.path.join(self.root, "DM.h5"), "r")
+            assert os.path.exists(os.path.join(self.root, "DM.h5")) or os.path.exists(os.path.join(self.root, "density_matrix.h5")), "Density Matrix file not found."
+            if os.path.exists(os.path.join(self.root, "DM.h5")):
+                self.data["DM_blocks"] = h5py.File(os.path.join(self.root, "DM.h5"), "r")
+            else:
+                self.data["DM_blocks"] = h5py.File(os.path.join(self.root, "density_matrix.h5"), "r")
         
         # this is used to clear the tmp files to load ase trajectory only.
         if _clear:
