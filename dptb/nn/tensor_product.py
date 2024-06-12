@@ -123,15 +123,20 @@ class SO2_Linear(torch.nn.Module):
         for m in range(self.irreps_out.lmax+1):
             radial_weight = weights[:, self.m_in_index[m]:self.m_in_index[m+1]].unsqueeze(1) if self.radial_emb else 1.
             if m == 0:
-                if self.front:
+                if self.front and self.radial_emb:
                     out[:, self.m_out_mask[m]] += self.fc_m0(x_[:, self.m_in_mask[m]] * radial_weight.squeeze(1))
-                else:
+                elif self.radial_emb:
                     out[:, self.m_out_mask[m]] += self.fc_m0(x_[:, self.m_in_mask[m]]) * radial_weight.squeeze(1)
-            else:
-                if self.front:
-                    out[:, self.m_out_mask[m]] += self.m_linear[m-1](x_[:, self.m_in_mask[m]].reshape(n, 2, -1)*radial_weight).reshape(n, -1)
                 else:
+                    out[:, self.m_out_mask[m]] += self.fc_m0(x_[:, self.m_in_mask[m]])
+            else:
+                if self.front and self.radial_emb:
+                    out[:, self.m_out_mask[m]] += self.m_linear[m-1](x_[:, self.m_in_mask[m]].reshape(n, 2, -1)*radial_weight).reshape(n, -1)
+                elif self.radial_emb:
                     out[:, self.m_out_mask[m]] += (self.m_linear[m-1](x_[:, self.m_in_mask[m]].reshape(n, 2, -1))*radial_weight).reshape(n, -1)
+                else:
+                    out[:, self.m_out_mask[m]] += self.m_linear[m-1](x_[:, self.m_in_mask[m]].reshape(n, 2, -1)).reshape(n, -1)
+                    
         out.contiguous()
 
         for (mul, (l,p)), slice in zip(self.irreps_out, self.irreps_out.slices()):
