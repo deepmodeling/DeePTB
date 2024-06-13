@@ -140,8 +140,11 @@ class _TrajData(object):
             assert os.path.exists(os.path.join(self.root, "overlaps.h5")), "Overlap file not found."
             self.data["overlap_blocks"] = h5py.File(os.path.join(self.root, "overlaps.h5"), "r")
         if get_DM==True:
-            assert os.path.exists(os.path.join(self.root, "DM.h5")), "Density Matrix file not found."
-            self.data["DM_blocks"] = h5py.File(os.path.join(self.root, "DM.h5"), "r")
+            assert os.path.exists(os.path.join(self.root, "density_matrices.h5")) or os.path.exists(os.path.join(self.root, "DM.h5")), "Density Matrix file not found."
+            if os.path.exists(os.path.join(self.root, "density_matrices.h5")):
+                self.data["DM_blocks"] = h5py.File(os.path.join(self.root, "density_matrices.h5"), "r")
+            else:
+                self.data["DM_blocks"] = h5py.File(os.path.join(self.root, "DM.h5"), "r")
         
         # this is used to clear the tmp files to load ase trajectory only.
         if _clear:
@@ -222,15 +225,24 @@ class _TrajData(object):
             )
             if "hamiltonian_blocks" in self.data:
                 assert idp is not None, "LCAO Basis must be provided  in `common_option` for loading Hamiltonian."
-                features = self.data["hamiltonian_blocks"][str(frame+1)]
+                if "0" in self.data["hamiltonian_blocks"]:
+                    features = self.data["hamiltonian_blocks"][str(frame)]
+                else:
+                    features = self.data["hamiltonian_blocks"][str(frame+1)]
             elif "DM_blocks" in self.data:
                 assert idp is not None, "LCAO Basis must be provided  in `common_option` for loading Density Matrix."
-                features = self.data["DM_blocks"][str(frame+1)]
+                if "0" in self.data["DM_blocks"]:
+                    features = self.data["DM_blocks"][str(frame)]
+                else:
+                    features = self.data["DM_blocks"][str(frame+1)]
             else:
                 features = False
             
             if "overlap_blocks" in self.data:
-                overlaps = self.data["overlap_blocks"][str(frame+1)]
+                if "0" in self.data["overlap_blocks"]:
+                    overlaps = self.data["overlap_blocks"][str(frame)]
+                else:
+                    overlaps = self.data["overlap_blocks"][str(frame+1)]
             else:
                 overlaps = False
             # e3 = E3Hamiltonian(idp=idp, decompose=True)
