@@ -140,8 +140,11 @@ class _TrajData(object):
             assert os.path.exists(os.path.join(self.root, "overlaps.h5")), "Overlap file not found."
             self.data["overlap_blocks"] = h5py.File(os.path.join(self.root, "overlaps.h5"), "r")
         if get_DM==True:
-            assert os.path.exists(os.path.join(self.root, "density_matrices.h5")), "Density Matrix file not found."
-            self.data["DM_blocks"] = h5py.File(os.path.join(self.root, "density_matrices.h5"), "r")
+            assert os.path.exists(os.path.join(self.root, "density_matrices.h5")) or os.path.exists(os.path.join(self.root, "DM.h5")), "Density Matrix file not found."
+            if os.path.exists(os.path.join(self.root, "density_matrices.h5")):
+                self.data["DM_blocks"] = h5py.File(os.path.join(self.root, "density_matrices.h5"), "r")
+            else:
+                self.data["DM_blocks"] = h5py.File(os.path.join(self.root, "DM.h5"), "r")
         
         # this is used to clear the tmp files to load ase trajectory only.
         if _clear:
