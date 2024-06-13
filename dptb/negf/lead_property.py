@@ -74,6 +74,7 @@ class LeadProperty(object):
         self.efermi = efermi
         self.mu = self.efermi - self.voltage
         self.kpoint = None
+        self.voltage_old = None
 
     def self_energy(self, kpoint, energy, eta_lead: float=1e-5, method: str="Lopez-Sancho"):
         '''calculate and loads the self energy and surface green function at the given kpoint and energy.
@@ -94,15 +95,13 @@ class LeadProperty(object):
         
         # according to given kpoint and e_mesh, calculating or loading the self energy and surface green function to self.
         if not isinstance(energy, torch.Tensor):
-            energy = torch.tensor(energy)
+            energy = torch.tensor(energy) # Energy relative to Ef
 
-                
-
-        if not hasattr(self, "HL") or self.kpoint is None:
+        # if not hasattr(self, "HL"):
+        #TODO: check here whether it is necessary to calculate the self energy every time
+        if not hasattr(self, "HL") or abs(self.voltage_old-self.voltage)>1e-6 or max(abs(self.kpoint-torch.tensor(kpoint)))>1e-6:
             self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
-            self.kpoint = torch.tensor(kpoint)
-        elif not torch.allclose(self.kpoint, torch.tensor(kpoint), atol=1e-5):
-            self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
+            self.voltage_old = self.voltage
             self.kpoint = torch.tensor(kpoint)
             
 
@@ -113,8 +112,8 @@ class LeadProperty(object):
             sL=self.SL,
             sLL=self.SLL,
             hDL=self.HDL,
-            sDL=self.SDL,
-            chemiPot=self.mu,
+            sDL=self.SDL,             #TODO: check chemiPot settiing is correct or not
+            chemiPot=self.efermi, # temmporarily change to self.efermi for the case in which applying lead bias to corresponding to Nanotcad
             etaLead=eta_lead, 
             method=method
         )
@@ -132,10 +131,10 @@ class LeadProperty(object):
         Returns
         -------
         Gamma
-            The Gamma function, $\Gamma = -1j(se-se^\dagger)$
+            The Gamma function, $\Gamma = 1j(se-se^\dagger)$.
         
         '''
-        return -1j * (se - se.conj().T)
+        return 1j * (se - se.conj().T)
     
     def fermi_dirac(self, x) -> torch.Tensor:
         return 1 / (1 + torch.exp((x - self.mu)/ self.kBT))
