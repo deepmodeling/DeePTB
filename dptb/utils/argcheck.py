@@ -1029,16 +1029,22 @@ def PDIIS():
 def poisson_options():
     doc_solver = ""
     doc_fmm = ""
+    doc_pyamg= ""
+    doc_scipy= ""
     return Variant("solver", [
-        Argument("fmm", dict, fmm(), doc=doc_fmm)
+        Argument("fmm", dict, fmm(), doc=doc_fmm),
+        Argument("pyamg", dict, pyamg(), doc=doc_pyamg),
+        Argument("scipy", dict, scipy(), doc=doc_scipy)
     ], optional=True, default_tag="fmm", doc=doc_solver)
 
 def density_options():
     doc_method = ""
     doc_Ozaki = ""
+    doc_Fiori = ""
     return Variant("method", [
-        Argument("Ozaki", dict, Ozaki(), doc=doc_method)
-    ], optional=True, default_tag="Ozaki", doc=doc_Ozaki)
+        Argument("Ozaki", dict, Ozaki(), doc=doc_Ozaki),
+        Argument("Fiori", dict, Fiori(), doc=doc_Fiori)
+    ], optional=True, default_tag="Ozaki", doc=doc_method)
 
 def Ozaki():
     doc_M_cut = ""
@@ -1050,11 +1056,91 @@ def Ozaki():
         Argument("n_gauss", int, optional=True, default=10, doc=doc_n_gauss),
     ]
 
+def Fiori():
+    doc_n_gauss = ""
+    doc_integrate_way=""
+    return [
+        Argument("integrate_way", int, optional=True, default='direct', doc=doc_integrate_way),
+        Argument("n_gauss", int, optional=True, default=100, doc=doc_n_gauss)
+    ]
+
 def fmm():
     doc_err = ""
 
     return [
         Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err)
+    ]
+
+def pyamg():
+    doc_err = ""
+    doc_tolerance=""
+    doc_grid=""
+    doc_gate=""
+    doc_dielectric=""
+    doc_max_iter=""
+    doc_mix_rate=""
+    return [
+        Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err),
+        Argument("tolerance", [int, float], optional=True, default=1e-7, doc=doc_tolerance),
+        Argument("max_iter", int, optional=True, default=100, doc=doc_max_iter),
+        Argument("mix_rate", int, optional=True, default=0.25, doc=doc_mix_rate),
+        Argument("grid", dict, optional=False, sub_fields=grid(), doc=doc_grid),
+        Argument("gate_top", dict, optional=False, sub_fields=gate(), doc=doc_gate),
+        Argument("gate_bottom", dict, optional=False, sub_fields=gate(), doc=doc_gate),
+        Argument("dielectric_region", dict, optional=False, sub_fields=dielectric(), doc=doc_dielectric)
+    ]
+
+def scipy():
+    doc_err = ""
+    doc_tolerance=""
+    doc_grid=""
+    doc_gate=""
+    doc_dielectric=""
+    doc_max_iter=""
+    doc_mix_rate=""
+    return [
+        Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err),
+        Argument("tolerance", [int, float], optional=True, default=1e-7, doc=doc_tolerance),
+        Argument("max_iter", int, optional=True, default=100, doc=doc_max_iter),
+        Argument("mix_rate", int, optional=True, default=0.25, doc=doc_mix_rate),
+        Argument("grid", dict, optional=False, sub_fields=grid(), doc=doc_grid),
+        Argument("gate_top", dict, optional=False, sub_fields=gate(), doc=doc_gate),
+        Argument("gate_bottom", dict, optional=False, sub_fields=gate(), doc=doc_gate),
+        Argument("dielectric_region", dict, optional=False, sub_fields=dielectric(), doc=doc_dielectric)
+    ]
+
+def grid():
+    doc_xrange=""
+    doc_yrange=""
+    doc_zrange=""
+    return [
+        Argument("x_range", str, optional=False, doc=doc_xrange),
+        Argument("y_range", str, optional=False, doc=doc_yrange),
+        Argument("z_range", str, optional=False, doc=doc_zrange),
+    ]
+
+def gate():
+    doc_xrange=""
+    doc_yrange=""
+    doc_zrange=""
+    doc_voltage=""
+    return [
+        Argument("x_range", str, optional=False, doc=doc_xrange),
+        Argument("y_range", str, optional=False, doc=doc_yrange),
+        Argument("z_range", str, optional=False, doc=doc_zrange),
+        Argument("voltage", [int, float], optional=False, doc=doc_voltage)
+    ]
+
+def dielectric():
+    doc_xrange=""
+    doc_yrange=""
+    doc_zrange=""
+    doc_permittivity=""
+    return [
+        Argument("x_range", str, optional=False, doc=doc_xrange),
+        Argument("y_range", str, optional=False, doc=doc_yrange),
+        Argument("z_range", str, optional=False, doc=doc_zrange),
+        Argument("relative permittivity", [int, float], optional=False, doc=doc_permittivity)
     ]
 
 def run_options():
@@ -1403,7 +1489,7 @@ def AtomicData_options_sub():
         Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max, default=4.0),
         Argument("er_max", [float, int, dict], optional=True, doc=doc_er_max, default=None),
         Argument("oer_max", [float, int, dict], optional=True, doc=doc_oer_max,default=None),
-        Argument("pbc", bool, optional=False, doc=doc_pbc, default=True),
+        Argument("pbc", [bool,list], optional=False, doc=doc_pbc, default=True),
     ]
 
     return Argument("AtomicData_options", dict, optional=False, sub_fields=args, sub_variants=[], doc="")
