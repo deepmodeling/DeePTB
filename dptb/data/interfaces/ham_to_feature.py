@@ -21,8 +21,8 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
 
     if blocks:
         onsite_ham = []
-        if overlap_blocks and not orthogonal:
-            onsite_ovp = []
+    if overlap_blocks and not orthogonal:
+        onsite_ovp = []
 
     idp.get_orbital_maps()
     idp.get_orbpair_maps()
@@ -46,7 +46,7 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
 
     # onsite features
     if blocks or overlap_blocks:
-        if blocks is not None:
+        if blocks:
             if blocks.get("0_0_0_0_0") is None:
                 start_id = 1
             else:
