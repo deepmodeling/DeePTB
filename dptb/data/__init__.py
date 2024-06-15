@@ -20,7 +20,7 @@ from .dataset import (
 )
 from .dataloader import DataLoader, Collater, PartialSampler
 from .build import build_dataset
-from .interfaces.ham_to_feature import feature_to_block
+from .interfaces import block_to_feature, feature_to_block
 from .transforms import OrbitalMapper
 
 __all__ = [
@@ -28,6 +28,8 @@ __all__ = [
     PBC,
     register_fields,
     deregister_fields,
+    block_to_feature,
+    feature_to_block,
     _register_field_prefix,
     feature_to_block,
     AtomicDataset,

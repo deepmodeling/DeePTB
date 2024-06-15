@@ -8,7 +8,7 @@ from pathlib import Path
 from dptb.data import AtomicDataset, DataLoader, AtomicDataDict, AtomicData
 import numpy as np
 from dptb.nn.hamiltonian import  SKHamiltonian
-from dptb.utils.constants import anglrMId
+from dptb.utils.constants import anglrMId, orbitalId
 from e3nn.o3 import wigner_3j, Irrep, xyz_to_angles, Irrep
 
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data")
@@ -53,30 +53,6 @@ class TestSKHamiltonian:
     batch = AtomicData.to_AtomicDataDict(batch)
     idp_sk = OrbitalMapper(basis=common_options['basis'], method="sktb")
     idp = OrbitalMapper(basis=common_options['basis'], method="e3tb")
-
-
-    sk2irs = {
-            's-s': torch.tensor([[1.]]),
-            's-p': torch.tensor([[1.]]),
-            's-d': torch.tensor([[1.]]),
-            'p-s': torch.tensor([[1.]]),
-            'p-p': torch.tensor([
-                [3**0.5/3,2/3*3**0.5],[6**0.5/3,-6**0.5/3]
-            ]),
-            'p-d':torch.tensor([
-                [(2/5)**0.5,(6/5)**0.5],[(3/5)**0.5,-2/5**0.5]
-            ]),
-            'd-s':torch.tensor([[1.]]),
-            'd-p':torch.tensor([
-                [(2/5)**0.5,(6/5)**0.5],
-                [(3/5)**0.5,-2/5**0.5]
-            ]),
-            'd-d':torch.tensor([
-                [5**0.5/5, 2*5**0.5/5, 2*5**0.5/5],
-                [2*(1/14)**0.5,2*(1/14)**0.5,-4*(1/14)**0.5],
-                [3*(2/35)**0.5,-4*(2/35)**0.5,(2/35)**0.5]
-                ])
-        }
     
     def test_init(self):
         hamiltonian = SKHamiltonian(basis=self.common_options['basis'], idp_sk=self.idp_sk, onsite=True)
@@ -93,44 +69,37 @@ class TestSKHamiltonian:
         assert hamiltonian.edge_field == AtomicDataDict.EDGE_FEATURES_KEY
         assert hamiltonian.node_field == AtomicDataDict.NODE_FEATURES_KEY
 
-        for ikey in self.sk2irs.keys():
-            assert torch.allclose(hamiltonian.sk2irs[ikey], self.sk2irs[ikey])
 
-    def test_initialize_CG_basis(self):
+    def test_initialize_basis(self):
         hamiltonian = SKHamiltonian(idp_sk=self.idp_sk, onsite=True)
-        
-        for pairtype in ['s-f','f-d','f-f']:
-            with pytest.raises(AssertionError) as excinfo:
-                hamiltonian._initialize_CG_basis(pairtype)
-            assert "Only support l<=2, ie. s, p, d orbitals at present." in str(excinfo.value)
 
         # 这部分的检查看起来非常没有意义，因为这部分测试代码是直接从_initialize_CG_basis中复制过来的。
         # 但是这部分测试是为了保证_initialize_CG_basis 不被修改，或者在修改的时候能够保证正确性。
-        irs_index = {
-            's-s': [0],
-            's-p': [1],
-            's-d': [2],
-            'p-s': [1],
-            'p-p': [0,6],
-            'p-d': [1,11],
-            'd-s': [2],
-            'd-p': [1,11],
-            'd-d': [0,6,20]
-        }
-        for pairtype in irs_index.keys(): 
-            l1, l2 = anglrMId[pairtype[0]], anglrMId[pairtype[2]]
-            cg_ref = []
-            for l_ird in range(abs(l2-l1), l2+l1+1):
-                cg_ref.append(wigner_3j(int(l1), int(l2), int(l_ird)) * (2*l_ird+1)**0.5)
-        
-            cg_ref = torch.cat(cg_ref, dim=-1)[:,:,irs_index[pairtype]]
-            cg = hamiltonian._initialize_CG_basis(pairtype)
+        for l1 in orbitalId.keys():
+            for l2 in orbitalId.keys():
+                pairtype = orbitalId[l1]+"-"+orbitalId[l2]
+                basis_ref = []
+                for im in range(0, min(l1,l2)+1):
+                    mat = torch.zeros((2*l1+1, 2*l2+1))
+                    if im == 0:
+                        mat[l1,l2] = 1.
+                    else:
+                        mat[l1+im,l2+im] = 1.
+                        mat[l1-im, l2-im] = 1.
+                    basis_ref.append(mat)
+            
+                basis_ref = torch.stack(basis_ref, dim=-1)
 
-            assert torch.allclose(cg, cg_ref)
+                
+                basis = hamiltonian._initialize_basis(pairtype)
 
-        assert hamiltonian.cgbasis.keys() == self.idp_sk.orbpairtype_maps.keys()
-        for pairtype in self.idp_sk.orbpairtype_maps.keys():
-            assert torch.allclose(hamiltonian.cgbasis[pairtype], hamiltonian._initialize_CG_basis(pairtype))
+                # print(basis, basis_ref)
+
+                assert torch.allclose(basis, basis_ref)
+
+        assert hamiltonian.skbasis.keys() == self.idp_sk.orbpairtype_maps.keys()
+        # for pairtype in self.idp_sk.orbpairtype_maps.keys():
+        #     assert torch.allclose(hamiltonian.cgbasis[pairtype], hamiltonian._initialize_CG_basis(pairtype))
 
     def test_onsiteblocks_none(self):
         hamiltonian = SKHamiltonian(idp_sk=self.idp_sk, onsite=True)
