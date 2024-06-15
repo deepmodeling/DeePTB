@@ -32,7 +32,7 @@ class E3Hamiltonian(torch.nn.Module):
             overlap: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
-            rotation: bool = False,
+            rotation: bool = False, # for test only
             **kwargs,
             ) -> None:
         
@@ -597,20 +597,21 @@ class SKHamiltonian(torch.nn.Module):
 
     def _initialize_basis(self, pairtype: str):
         """
-        The function initializes a Clebsch-Gordan basis for a given pair type.
+        The function initializes a slater-koster used basis for a given pair type, to map the sk parameter 
+        to the hamiltonian block rotated onto z-axis
         
         :param pairtype: The parameter "pairtype" is a string that represents a pair of angular momentum
         quantum numbers. It is expected to have a length of 3, where the first and third characters
         represent the angular momentum quantum numbers of two particles, and the second character
         represents the type of interaction between the particles
         :type pairtype: str
-        :return: the CG basis, which is a tensor containing the Clebsch-Gordan coefficients for the given
+        :return: the basis, which contains a selection matrix with 0/1 as its value.
         pairtype.
         """
 
         basis = []
         l1, l2 = anglrMId[pairtype[0]], anglrMId[pairtype[2]]
-        assert l1 <=5 and l2 <=5, "Only support l<=2, ie. s, p, d, f, g, h orbitals at present."
+        assert l1 <=5 and l2 <=5, "Only support l<=5, ie. s, p, d, f, g, h orbitals at present."
         for im in range(0, min(l1,l2)+1):
             mat = torch.zeros((2*l1+1, 2*l2+1), dtype=self.dtype, device=self.device)
             if im == 0:
