@@ -21,8 +21,8 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
 
     if blocks:
         onsite_ham = []
-        if overlap_blocks and not orthogonal:
-            onsite_ovp = []
+    if overlap_blocks and not orthogonal:
+        onsite_ovp = []
 
     idp.get_orbital_maps()
     idp.get_orbpair_maps()
@@ -46,7 +46,7 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
 
     # onsite features
     if blocks or overlap_blocks:
-        if blocks is not None:
+        if blocks:
             if blocks.get("0_0_0_0_0") is None:
                 start_id = 1
             else:
@@ -63,13 +63,13 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
 
             if blocks:
                 try:
-                    block = blocks[block_index]
+                    block = blocks[block_index][:]
                 except:
                     raise IndexError("Hamiltonian block for onsite not found, check Hamiltonian file.")
             
             if overlap_blocks and not orthogonal:
                 try:
-                    overlap_block = overlap_blocks[block_index]
+                    overlap_block = overlap_blocks[block_index][:]
                 except:
                     raise IndexError("Overlap block for onsite not found, check Overlap file.")
                 
@@ -133,9 +133,9 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
                 b_blocks = []
                 for i,j in zip(ijR, rev_ijR):
                     if i in blocks:
-                        b_blocks.append(blocks[i])
+                        b_blocks.append(blocks[i][:])
                     elif j in blocks:
-                        b_blocks.append(blocks[j].T)
+                        b_blocks.append(blocks[j][:].T)
                     else:
                         b_blocks.append(meta_dtype.zeros((idp.norbs[symbol_i], idp.norbs[symbol_j]), dtype=dtype))
                 # b_blocks = [blocks[i] if i in blocks else blocks[j].T for i,j in zip(ijR, rev_ijR)]
@@ -148,9 +148,9 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
                 s_blocks = []
                 for i,j in zip(ijR, rev_ijR):
                     if i in overlap_blocks:
-                        s_blocks.append(overlap_blocks[i])
+                        s_blocks.append(overlap_blocks[i][:])
                     elif j in overlap_blocks:
-                        s_blocks.append(overlap_blocks[j].T)
+                        s_blocks.append(overlap_blocks[j][:].T)
                     else:
                         s_blocks.append(meta_dtype.zeros((idp.norbs[symbol_i], idp.norbs[symbol_j]), dtype=dtype))
                 # s_blocks = [overlap_blocks[i] if i in overlap_blocks else overlap_blocks[j].T for i,j in zip(ijR, rev_ijR)]

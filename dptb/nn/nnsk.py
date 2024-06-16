@@ -514,6 +514,12 @@ class NNSK(torch.nn.Module):
             del v1_model
 
         else:
+            if device == 'cuda':
+                if not torch.cuda.is_available():
+                    device = 'cpu'
+                    log.warning("CUDA is not available. The model will be loaded on CPU.")
+                    common_options.update({"device": device})
+
             f = torch.load(checkpoint, map_location=device)
             for k,v in common_options.items():
                 if v is None:
@@ -685,6 +691,11 @@ class NNSK(torch.nn.Module):
         # idp_sk.get_orbpair_soc_maps()
         idp_sk.get_sksoc_maps()
 
+        if device == 'cuda':
+            if not torch.cuda.is_available():
+                device = 'cpu'
+                log.warning("CUDA is not available. The model will be loaded on CPU.")
+                
         nnsk_model = cls(basis=basis, idp_sk=idp_sk,  onsite=onsite,
                           hopping=hopping, overlap=overlap, soc=soc, std=std,freeze=freeze, push=push, dtype=dtype, device=device)
 

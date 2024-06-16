@@ -294,6 +294,10 @@ class NNENV(nn.Module):
         transform: bool = True,
         **kwargs
         ):
+        if device == 'cuda':
+            if not torch.cuda.is_available():
+                device = 'cpu'
+                log.warning("CUDA is not available. The model will be loaded on CPU.")
 
         ckpt = torch.load(checkpoint, map_location=device)
         common_options = {
@@ -441,7 +445,11 @@ class MIX(nn.Module):
         ):
         # the mapping from the parameters of the ref_model and the current model can be found using
         # reference model's idp and current idp
-        
+        if device == 'cuda':
+            if not torch.cuda.is_available():
+                device = 'cpu'
+                log.warning("CUDA is not available. The model will be loaded on CPU.")
+
         ckpt = torch.load(checkpoint, map_location=device)
         common_options = {
             "dtype": dtype,

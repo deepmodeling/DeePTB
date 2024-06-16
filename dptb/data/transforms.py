@@ -515,29 +515,46 @@ class OrbitalMapper(BondMapper):
                 1 * orbtype_count["s"] * orbtype_count["s"] + \
                 2 * orbtype_count["s"] * orbtype_count["p"] + \
                 2 * orbtype_count["s"] * orbtype_count["d"] + \
-                2 * orbtype_count["s"] * orbtype_count["f"]
+                2 * orbtype_count["s"] * orbtype_count["f"] + \
+                2 * orbtype_count["s"] * orbtype_count["g"] + \
+                2 * orbtype_count["s"] * orbtype_count["h"]
                 ) + \
             2 * (
                 1 * orbtype_count["p"] * orbtype_count["p"] + \
                 2 * orbtype_count["p"] * orbtype_count["d"] + \
-                2 * orbtype_count["p"] * orbtype_count["f"]
+                2 * orbtype_count["p"] * orbtype_count["f"] + \
+                2 * orbtype_count["p"] * orbtype_count["g"] + \
+                2 * orbtype_count["p"] * orbtype_count["h"]
                 ) + \
             3 * (
                 1 * orbtype_count["d"] * orbtype_count["d"] + \
-                2 * orbtype_count["d"] * orbtype_count["f"]
+                2 * orbtype_count["d"] * orbtype_count["f"] + \
+                2 * orbtype_count["d"] * orbtype_count["g"] + \
+                2 * orbtype_count["d"] * orbtype_count["h"]
                 ) + \
-            4 * (orbtype_count["f"] * orbtype_count["f"])
+            4 * (
+                1 * orbtype_count["f"] * orbtype_count["f"] + \
+                2 * orbtype_count["f"] * orbtype_count["g"] + \
+                2 * orbtype_count["f"] * orbtype_count["h"]
+                ) + \
+            5 * (
+                1 * orbtype_count["g"] * orbtype_count["g"] + \
+                2 * orbtype_count["g"] * orbtype_count["h"]
+                ) + \
+            6 * (
+                1 * orbtype_count["h"] * orbtype_count["h"]
+                )
 
-            assert orbtype_count['g'] + orbtype_count['h'] == 0, "g and h orbitals are not supported in sktb method."
-
-            self.reduced_matrix_element = self.reduced_matrix_element + orbtype_count["s"] + 2*orbtype_count["p"] + 3*orbtype_count["d"] + 4*orbtype_count["f"]
+            self.reduced_matrix_element = self.reduced_matrix_element + orbtype_count["s"] + 2*orbtype_count["p"] + 3*orbtype_count["d"] + 4*orbtype_count["f"] + 5*orbtype_count["g"] + 6*orbtype_count["h"]
             self.reduced_matrix_element = int(self.reduced_matrix_element / 2)
             self.n_onsite_Es = 0.5*(orbtype_count["s"]**2+orbtype_count["s"]) \
                 + 0.5 * (orbtype_count["p"]**2 + orbtype_count["p"]) \
                 + 0.5 * (orbtype_count["d"]**2 + orbtype_count["d"]) \
-                + 0.5 * (orbtype_count["f"]**2 + orbtype_count["f"])
+                + 0.5 * (orbtype_count["f"]**2 + orbtype_count["f"]) \
+                + 0.5 * (orbtype_count["g"]**2 + orbtype_count["g"]) \
+                + 0.5 * (orbtype_count["h"]**2 + orbtype_count["h"])
             self.n_onsite_Es = int(self.n_onsite_Es)
-            self.n_onsite_socLs = orbtype_count["s"] + orbtype_count["p"] + orbtype_count["d"] + orbtype_count["f"]
+            self.n_onsite_socLs = orbtype_count["s"] + orbtype_count["p"] + orbtype_count["d"] + orbtype_count["f"] + orbtype_count["g"] + orbtype_count["h"]
                   
         # sort the basis
         for ib in self.basis.keys():
@@ -849,6 +866,9 @@ class OrbitalMapper(BondMapper):
         
         self.orbpair_irreps = o3.Irreps(irs)
         return self.orbpair_irreps
+
+    def get_irreps_sim(self, no_parity=False):
+        return self.get_irreps(no_parity=no_parity).sort[0].simplify()
     
     def __eq__(self, other):
         return self.basis == other.basis and self.method == other.method
