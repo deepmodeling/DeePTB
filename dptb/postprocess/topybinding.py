@@ -79,7 +79,7 @@ class ToPybinding(object):
         onsite_blocks= tuple(map(lambda x:
                         (x.split("_")[0], 
                         data['pos'].cpu().numpy()[int(x.split("_")[0])] * Ang2nm,
-                        blocks[x].detach().cpu().numpy()),
+                        blocks[x].detach().cpu().numpy() - e_fermi * np.eye(blocks[x].shape[0])),
                         onsite_bonds))
 
         hop_blocks = tuple(map(lambda x: 
