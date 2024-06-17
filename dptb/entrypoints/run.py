@@ -91,7 +91,7 @@ def run(
         block = write_ham(data=struct_file, AtomicData_options=jdata['AtomicData_options'], model=model, device=jdata["device"])
         # write to h5 file, block is a dict, write to a h5 file
         with h5py.File(os.path.join(results_path, task+".h5"), 'w') as fid:
-            default_group = fid.create_group("1")
+            default_group = fid.create_group("0")
             for key_str, value in block.items():
                 default_group[key_str] = value.detach().cpu().numpy()
         log.info(msg='write block successfully completed.')
