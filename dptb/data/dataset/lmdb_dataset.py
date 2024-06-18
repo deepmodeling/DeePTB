@@ -25,7 +25,7 @@ class LMDBDataset(AtomicDataset):
     def __init__(
         self,
         root: str,
-        info: dict,
+        info_files: dict,
         url: Optional[str] = None,
         include_frames: Optional[List[int]] = None,
         type_mapper: TypeMapper = None,
@@ -39,9 +39,7 @@ class LMDBDataset(AtomicDataset):
         # See if a subclass defines some inputs
         self.url = getattr(type(self), "URL", url)
         self.include_frames = include_frames
-        self.info = info # there should be one info file for one LMDB Dataset
-
-        assert "r_max" in info
+        self.info_files = info_files # there should be one info file for one LMDB Dataset
             
 
         self.data = None
@@ -66,10 +64,16 @@ class LMDBDataset(AtomicDataset):
         assert not get_Hamiltonian * get_DM, "Hamiltonian and Density Matrix can only loaded one at a time, for which will occupy the same attribute in the AtomicData."
 
 
-        db_env = lmdb.open(os.path.join(self.root), readonly=True, lock=False)
-        with db_env.begin() as txn:
-            self.num_graphs = txn.stat()['entries']
-        db_env.close()
+        self.num_graphs = 0
+        self.file_map = []
+        self.index_map = []
+        for file in self.info_files.keys():
+            db_env = lmdb.open(os.path.join(self.root, file), readonly=True, lock=False)
+            with db_env.begin() as txn:
+                self.num_graphs += txn.stat()['entries']
+                self.file_map += [file] * txn.stat()['entries']
+                self.index_map += list(range(txn.stat()['entries']))
+            db_env.close()
 
     def len(self):
         return self.num_graphs
@@ -94,9 +98,9 @@ class LMDBDataset(AtomicDataset):
                 extract_zip(download_path, self.raw_dir)
 
     def get(self, idx):
-        db_env = lmdb.open(os.path.join(self.root), readonly=True, lock=False)
+        db_env = lmdb.open(os.path.join(self.root, self.file_map[idx]), readonly=True, lock=False)
         with db_env.begin() as txn:
-            data_dict = txn.get(int(idx).to_bytes(length=4, byteorder='big'))
+            data_dict = txn.get(self.index_map[int(idx)].to_bytes(length=4, byteorder='big'))
             data_dict = pickle.loads(data_dict)
             cell, pos, atomic_numbers = \
                 data_dict[AtomicDataDict.CELL_KEY], \
@@ -141,7 +145,7 @@ class LMDBDataset(AtomicDataset):
             cell=cell.reshape(3,3),
             atomic_numbers=atomic_numbers,
             pbc=pbc,
-            **self.info
+            **self.info_files[self.file_map[idx]]
         )
 
         # transform blocks to atomicdata features
