@@ -133,8 +133,7 @@ class ElecStruCal(object):
         return data, data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy()
 
     def get_fermi_level(self, data: Union[AtomicData, ase.Atoms, str], nel_atom: dict, \
-                        kmesh: list = None,klist: np.ndarray=None, AtomicData_options: dict={},\
-                        eigenvalues: np.ndarray=None):
+                        meshgrid: list = None, klist: np.ndarray=None, AtomicData_options: dict={}):
         '''This function calculates the Fermi level based on provided data with iteration method, electron counts per atom, and
         optional parameters like specific k-points and eigenvalues.
         
@@ -171,26 +170,25 @@ class ElecStruCal(object):
         '''
 
 
-        assert kmesh is not None or klist is not None, 'kmesh or klist should be provided.'
+        assert meshgrid is not None or klist is not None, 'kmesh or klist should be provided.'
         assert isinstance(nel_atom, dict)
         
         # klist would be used if provided, otherwise kmesh would be used to generate klist
         if klist is None:
             from dptb.utils.make_kpoints import kmesh_sampling_negf
-            klist,wk = kmesh_sampling_negf(meshgrid=kmesh, is_gamma_center=True, is_time_reversal=True)
+            klist,wk = kmesh_sampling_negf(meshgrid=meshgrid, is_gamma_center=True, is_time_reversal=True)
             log.info(f'KPOINTS  kmesh sampling: {klist.shape[0]} kpoints')
         else:
             wk = np.ones(klist.shape[0])/klist.shape[0]
             log.info(f'KPOINTS  klist: {klist.shape[0]} kpoints')
 
         # eigenvalues would be used if provided, otherwise the eigenvalues would be calculated from the model on the specified k-points
-        if eigenvalues is None:
+        if not AtomicDataDict.ENERGY_EIGENVALUE_KEY in data:
             data, eigs = self.get_eigs(data=data, klist=klist, AtomicData_options=AtomicData_options) 
             log.info('Getting eigenvalues from the model.')
         else:
-            data = self.get_data(data=data, AtomicData_options=AtomicData_options, device=self.device)
-            eigs = eigenvalues
-            log.info('Using the provided eigenvalues.')
+            log.info('The eigenvalues are already in data. will use them.')
+            eigs = data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy()
         
         if nel_atom is not None:
             atomtype_list = data[AtomicDataDict.ATOM_TYPE_KEY].flatten().tolist()

@@ -165,7 +165,7 @@ from dptb.postprocess.elec_struc_cal import ElecStruCal
 
 class Band(ElecStruCal):
 
-    def __init__(self, model: Eigenvalues, results_path: str=None, use_gui: bool=False, device: str='cpu'):
+    def __init__(self, model:torch.nn.Module, results_path: str=None, use_gui: bool=False, device: str='cpu'):
         super().__init__(model=model, device=device)
         self.results_path = results_path
         self.use_gui = use_gui
@@ -208,7 +208,7 @@ class Band(ElecStruCal):
             log.error('Error, now, kline_type only support ase_kpath, abacus, or vasp.')
             raise ValueError
         
-        _, eigenvalues = self.get_eigs(data, klist, AtomicData_options)
+        data, eigenvalues = self.get_eigs(data, klist, AtomicData_options)
         
 
         # get the E_fermi from data
@@ -228,7 +228,7 @@ class Band(ElecStruCal):
         # else:
         #     estimated_E_fermi = None
         if nel_atom is not None:
-            _,estimated_E_fermi = self.get_fermi_level(data=structase, nel_atom=nel_atom, \
+            data,estimated_E_fermi = self.get_fermi_level(data=data, nel_atom=nel_atom, \
                         klist = klist, AtomicData_options=AtomicData_options)
         else:
             estimated_E_fermi = None
