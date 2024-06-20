@@ -1509,9 +1509,40 @@ def set_info_options():
 
     return Argument("setinfo", dict, sub_fields=args)
 
+def set_info_options():
+    doc_nframes = "Number of frames in this trajectory."
+    doc_natoms = "Number of atoms in each frame."
+    doc_pos_type = "Type of atomic position input. Can be frac / cart / ase."
+
+    args = [
+        Argument("nframes", int, optional=False, doc=doc_nframes),
+        Argument("natoms", int, optional=True, default=-1, doc=doc_natoms),
+        Argument("pos_type", str, optional=False, doc=doc_pos_type),
+        bandinfo_sub(),
+        AtomicData_options_sub()
+    ]
+
+    return Argument("setinfo", dict, sub_fields=args)
+
+def lmdbset_info_options():
+    doc_r_max = "the cutoff value for bond considering in TB model."
+
+    args = [
+        Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max, default=4.0)
+    ]
+    return Argument("setinfo", dict, sub_fields=args)
+
 def normalize_setinfo(data):
 
     setinfo = set_info_options()
+    data = setinfo.normalize_value(data)
+    setinfo.check_value(data, strict=True)
+
+    return data
+
+def normalize_lmdbsetinfo(data):
+
+    setinfo = lmdbset_info_options()
     data = setinfo.normalize_value(data)
     setinfo.check_value(data, strict=True)
 
