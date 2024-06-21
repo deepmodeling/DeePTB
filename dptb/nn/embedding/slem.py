@@ -519,7 +519,7 @@ class InitLayer(torch.nn.Module):
             )
         
         weights_h = self.env_embed_mlp(new_latents)
-        weights_e = self.env_embed_mlp(latents)
+        weights_e = self.env_embed_mlp(latents[prev_mask])
 
         # embed initial edge
         hidden_features = self._env_weighter(
@@ -700,7 +700,7 @@ class UpdateNode(torch.nn.Module):
         message = self.tp(
             torch.cat(
                 [new_node_features[edge_center[active_edges]], hidden_features]
-                , dim=-1), edge_vector[active_edges], latents) # full_out_irreps
+                , dim=-1), edge_vector[active_edges], latents[active_edges]) # full_out_irreps
         
         message = self.activation(message)
         message = self.lin_post(message)
@@ -866,7 +866,7 @@ class UpdateEdge(torch.nn.Module):
                     hidden_features,
                     node_features[edge_neighbor[active_edges]]
                     ]
-                , dim=-1), edge_vector[active_edges], latents) # full_out_irreps
+                , dim=-1), edge_vector[active_edges], latents[active_edges]) # full_out_irreps
         
         scalars = new_edge_features[:, :self.tp.irreps_out[0].dim]
         assert len(scalars.shape) == 2
@@ -1027,7 +1027,7 @@ class UpdateHidden(torch.nn.Module):
                     node_features[edge_center[active_edges]],
                     new_hidden_features
                     ]
-                , dim=-1), edge_vector[active_edges], latents)
+                , dim=-1), edge_vector[active_edges], latents[active_edges])
         
         
         new_hidden_features = self.activation(new_hidden_features)
@@ -1055,10 +1055,18 @@ class UpdateHidden(torch.nn.Module):
             coefficient_old = torch.rsqrt(update_coefficients.square() + 1)
             coefficient_new = update_coefficients * coefficient_old
             hidden_features = coefficient_new * new_hidden_features + coefficient_old * self.linear_res(hidden_features)
-            latents = coefficient_new * new_latents + coefficient_old * latents
+
+            latents = torch.index_copy(
+                latents, 0, active_edges, 
+                coefficient_new * new_latents + coefficient_old * latents[active_edges]
+            )
+
         else:
             hidden_features = new_hidden_features
-            latents = new_latents
+            latents = torch.index_copy(
+                latents, 0, active_edges, 
+                new_latents
+            )
         
         return hidden_features, latents
 
