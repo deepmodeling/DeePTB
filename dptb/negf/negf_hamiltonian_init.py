@@ -23,7 +23,8 @@ from dptb.nn.energy import Eigenvalues
 from dptb.nn.hamiltonian import E3Hamiltonian
 from dptb.nn.hr2hk import HR2HK
 from ase import Atoms
-
+from ase.build import sort
+from dptb.negf.bloch import Bloch
 from dptb.negf.sort_btd import sort_lexico, sort_projection, sort_capacitance
 from dptb.negf.split_btd import show_blocks,split_into_subblocks,split_into_subblocks_optimized
 '''
@@ -71,7 +72,7 @@ class NEGFHamiltonianInit(object):
                  ) -> None:
         
         # TODO: add dtype and device setting to the model
-        torch.set_default_dtype(torch.float64)
+        # torch.set_default_dtype(torch.float64)
 
         if isinstance(torch_device, str):
             torch_device = torch.device(torch_device)
@@ -137,7 +138,7 @@ class NEGFHamiltonianInit(object):
             log.error("The unit name is not correct !")
             raise ValueError
 
-    def initialize(self, kpoints, block_tridiagnal=False):
+    def initialize(self, kpoints, block_tridiagnal=False,useBloch=False,bloch_factor=None):
         """initializes the device and lead Hamiltonians 
         
         construct device and lead Hamiltonians and return the structures respectively.The lead Hamiltonian 
@@ -147,6 +148,8 @@ class NEGFHamiltonianInit(object):
                 kpoints: k-points in the Brillouin zone with three coordinates (kx, ky, kz)
                 block_tridiagnal: A boolean parameter that determines whether to block-tridiagonalize the
                     device Hamiltonian or not. 
+                useBloch: A boolean parameter that determines whether to unfold the lead Hamiltonian with Bloch theorem or not.
+                bloch_factor: A list of three integers that determines the Bloch factor for unfolding the lead Hamiltonian.
 
         Returns: 
                 structure_device and structure_leads corresponding to the structure of device and leads.
@@ -214,11 +217,25 @@ class NEGFHamiltonianInit(object):
         structure_device = self.structase[self.device_id[0]:self.device_id[1]]
         structure_device.pbc = self.pbc_negf
                 
-        structure_leads = {};coupling_width = {}
+        structure_leads = {};structure_leads_fold = {}
+        bloch_sorted_indices={};coupling_width = {};bloch_R_lists = {}
         for kk in self.stru_options:
             if kk.startswith("lead"):
                 HS_leads = {}
-                HS_leads["kpoints"] = kpoints
+                if useBloch:
+                    bloch_unfolder = Bloch(bloch_factor)
+                    k_unfolds_list = []
+                    for kp in kpoints:
+                        k_unfolds_list.append(bloch_unfolder.unfold_points(kp))
+                    k_unfolds = np.concatenate(k_unfolds_list,axis=0)
+                    kpoints_bloch = np.unique(k_unfolds,axis=0)
+                    HS_leads["kpoints"] = kpoints
+                    HS_leads["kpoints_bloch"] = kpoints_bloch
+                    HS_leads["bloch_factor"] = bloch_factor
+                else:
+                    HS_leads["kpoints"] = kpoints
+                    HS_leads["kpoints_bloch"] = None
+                    HS_leads["bloch_factor"] = None
                 
                 # update lead id
                 n_proj_atom_pre = np.array([1]*len(self.structase))[:self.lead_ids[kk][0]].sum()
@@ -239,13 +256,17 @@ class NEGFHamiltonianInit(object):
                                          torch.max(nonzero_indice[:,2]).item()-torch.min(nonzero_indice[:,2]).item() +1)
                 log.info(msg="The coupling width of {} is {}.".format(kk,coupling_width[kk]))
 
-                structure_leads[kk] = self.get_lead_structure(kk,n_proj_atom_lead)
-
+                structure_leads[kk],structure_leads_fold[kk],bloch_sorted_indices[kk],bloch_R_lists[kk] \
+                = self.get_lead_structure(kk,n_proj_atom_lead,useBloch=useBloch,bloch_factor=bloch_factor,lead_id=lead_id)
                 # get lead_data
-                lead_data = AtomicData.from_ase(structure_leads[kk], **self.AtomicData_options)
+                lead_data = AtomicData.from_ase(structure_leads_fold[kk], **self.AtomicData_options)
                 lead_data = AtomicData.to_AtomicDataDict(lead_data.to(self.torch_device))
                 lead_data = self.model.idp(lead_data)
-                lead_data[AtomicDataDict.KPOINT_KEY] = \
+                if useBloch:
+                    lead_data[AtomicDataDict.KPOINT_KEY] = \
+                    torch.nested.as_nested_tensor([torch.as_tensor(HS_leads["kpoints_bloch"], dtype=self.model.dtype, device=self.torch_device)])
+                else:
+                    lead_data[AtomicDataDict.KPOINT_KEY] = \
                     torch.nested.as_nested_tensor([torch.as_tensor(HS_leads["kpoints"], dtype=self.model.dtype, device=self.torch_device)])
                 lead_data = self.model(lead_data)               
                 # remove the edges corresponding to z-direction pbc for HR2HK
@@ -271,8 +292,12 @@ class NEGFHamiltonianInit(object):
                 nL = int(HK_lead.shape[1] / 2)
                 HLL, SLL = HK_lead[:, :nL, nL:], S_lead[:, :nL, nL:] # H_{L_first2L_second}
                 hL, sL = HK_lead[:,:nL,:nL], S_lead[:,:nL,:nL] # lead hamiltonian in one principal layer
-                err_l_HK = (hL - HL).abs().max()
-                err_l_SK = (sL - SL).abs().max()
+                if not useBloch:
+                    err_l_HK = (hL - HL).abs().max()
+                    err_l_SK = (sL - SL).abs().max()
+                else: #TODO: add err_l_Hk and err_l_SK check in bloch case
+                    err_l_HK = 0
+                    err_l_SK = 0
 
                 if  max(err_l_HK,err_l_SK) >= 1e-4: 
                     # check the lead hamiltonian get from device and lead calculation matches each other
@@ -285,8 +310,8 @@ class NEGFHamiltonianInit(object):
                     log.warning(msg="WARNING, the lead's hamiltonian attained from diffferent methods have slight differences {:.7f}.".format(max(err_l_HK,err_l_SK)))
 
                 HS_leads.update({
-                    "HL":HL.cdouble()*self.h_factor, 
-                    "SL":SL.cdouble(), 
+                    "HL":hL.cdouble()*self.h_factor, 
+                    "SL":sL.cdouble(), 
                     "HDL":HDL.cdouble()*self.h_factor, 
                     "SDL":SDL.cdouble(),
                     "HLL":HLL.cdouble()*self.h_factor, 
@@ -313,7 +338,7 @@ class NEGFHamiltonianInit(object):
         torch.save(HS_device, os.path.join(self.results_path, "HS_device.pth"))
 
         torch.set_default_dtype(torch.float32)
-        return structure_device, structure_leads, subblocks
+        return structure_device, structure_leads, structure_leads_fold, bloch_sorted_indices, bloch_R_lists,subblocks
 
     def remove_bonds_nonpbc(self,data,pbc):
 
@@ -326,7 +351,7 @@ class NEGFHamiltonianInit(object):
                 if self.overlap:
                     data[AtomicDataDict.EDGE_OVERLAP_KEY] = data[AtomicDataDict.EDGE_OVERLAP_KEY][mask]
 
-    def get_lead_structure(self,kk,natom):       
+    def get_lead_structure(self,kk,natom,useBloch=False,bloch_factor=None,lead_id=None):       
         stru_lead = self.structase[self.lead_ids[kk][0]:self.lead_ids[kk][1]]
         cell = np.array(stru_lead.cell)[:2]
         
@@ -334,16 +359,70 @@ class NEGFHamiltonianInit(object):
         assert np.abs(R_vec[0] - R_vec[-1]).sum() < 1e-5
         R_vec = R_vec.mean(axis=0) * 2
         cell = np.concatenate([cell, R_vec.reshape(1,-1)])
-
-        # get lead structure in ase format
         pbc_lead = self.pbc_negf.copy()
         pbc_lead[2] = True
+
+        # get lead structure in ase format
         stru_lead = Atoms(str(stru_lead.symbols), 
                             positions=stru_lead.positions, 
                             cell=cell, 
                             pbc=pbc_lead)
         stru_lead.set_chemical_symbols(stru_lead.get_chemical_symbols())
-        return stru_lead
+
+        if useBloch:
+            assert lead_id is not None
+            assert bloch_factor is not None
+            bloch_reduce_cell = np.array([
+                [cell[0][0]/bloch_factor[0], 0, 0],
+                [0, cell[1][1]/bloch_factor[1], 0],
+                [0, 0, cell[2][2]]
+            ])
+            bloch_reduce_cell = torch.from_numpy(bloch_reduce_cell)
+            new_positions = []
+            new_atomic_numbers = []
+            delta = 1e-4
+            for ip,pos in enumerate(stru_lead.get_positions()):
+                if pos[0]<bloch_reduce_cell[0][0]-delta and pos[1]<bloch_reduce_cell[1][1]-delta:
+                    new_positions.append(pos)
+                    new_atomic_numbers.append(stru_lead.get_atomic_numbers()[ip])           
+            stru_lead_fold = Atoms(numbers=new_atomic_numbers,
+                              positions=new_positions,
+                              cell=bloch_reduce_cell,
+                              pbc=pbc_lead)
+            stru_lead_fold.set_chemical_symbols(stru_lead_fold.get_chemical_symbols())
+            stru_lead_fold = sort(stru_lead_fold,tags=stru_lead_fold.positions[:,0])
+            stru_lead_fold = sort(stru_lead_fold,tags=stru_lead_fold.positions[:,1])
+            stru_lead_fold = sort(stru_lead_fold,tags=stru_lead_fold.positions[:,2])
+
+            bloch_R_list = []; expand_pos = []
+            for rz in range(bloch_factor[2]):
+                for ry in range(bloch_factor[1]):
+                    for rx in range(bloch_factor[0]):     
+                        R = torch.tensor([rx,ry,rz],dtype=torch.float64)
+                        bloch_R_list.append(R)
+                        for id in range(len(stru_lead_fold)):
+                            pos = torch.tensor(stru_lead_fold.positions[id]) + \
+                                R[0]*bloch_reduce_cell[0][0] + R[1]*bloch_reduce_cell[1][1] + R[2]*bloch_reduce_cell[2][2]
+                            expand_pos.append(pos)            
+            expand_pos = torch.stack(expand_pos)
+            assert len(expand_pos) == len(stru_lead)
+            sorted_indices = np.lexsort((expand_pos.numpy()[:, 0], expand_pos.numpy()[:, 1], expand_pos.numpy()[:, 2]))
+
+            expand_basis_index = np.cumsum(self.h2k.atom_norbs)
+            bloch_sorted_indice = []
+            for ia in sorted_indices:
+                for k in range(self.h2k.atom_norbs[lead_id[0]+ia]): 
+                    bloch_sorted_indice.append(expand_basis_index[ia]-self.h2k.atom_norbs[lead_id[0]+ia]+k)
+            bloch_sorted_indice = np.stack(bloch_sorted_indice)
+            bloch_sorted_indice = torch.from_numpy(bloch_sorted_indice)
+
+        else:
+            stru_lead_fold = None
+            bloch_sorted_indice = None
+            bloch_R_list = None
+
+        
+        return stru_lead, stru_lead_fold, bloch_sorted_indice, bloch_R_list
 
     def get_block_tridiagonal(self,HK,SK,structase:ase.Atoms,leftmost_size:int,rightmost_size:int):
 
@@ -471,18 +550,34 @@ class NEGFHamiltonianInit(object):
         """
         f = torch.load(os.path.join(self.results_path, "HS_{0}.pth".format(tab)))
         kpoints = f["kpoints"]
+        kpoints_bloch = f["kpoints_bloch"]
+        bloch_factor = f["bloch_factor"]
 
-        ik = None
-        for i, k in enumerate(kpoints):
-            if np.abs(np.array(k) - np.array(kpoint)).sum() < 1e-8:
-                ik = i
-                break
+        if kpoints_bloch is None:
+            ik = None
+            for i, k in enumerate(kpoints):
+                if np.abs(np.array(k) - np.array(kpoint)).sum() < 1e-8:
+                    ik = i
+                    break
 
-        assert ik is not None
+            assert ik is not None
+            assert len(kpoints) == f['HL'].shape[0], "The number of kpoints in the lead Hamiltonian file does not match the number of kpoints."
+            hL, hLL, sL, sLL = f["HL"][ik], f["HLL"][ik],f["SL"][ik], f["SLL"][ik]
+            hDL,sDL = f["HDL"][ik], f["SDL"][ik]
 
-        hL, hLL, hDL, sL, sLL, sDL = f["HL"][ik], f["HLL"][ik], f["HDL"][ik], \
-                         f["SL"][ik], f["SLL"][ik], f["SDL"][ik]
-
+        else:
+            multi_k_num = int(bloch_factor[0]*bloch_factor[1])
+            ik = None; ik_bloch = None
+            for i, k in enumerate(kpoints_bloch):
+                if np.abs(np.array(k) - np.array(kpoint)).sum() < 1e-8:
+                    ik_bloch = i
+                    ik = int(i/multi_k_num)
+                    break
+            assert ik is not None
+            assert len(kpoints_bloch) == f['HL'].shape[0], "The number of kpoints in the lead Hamiltonian file does not match the number of kpoints."
+            assert len(kpoints) == f['HDL'].shape[0], "The number of kpoints in the lead Hamiltonian file does not match the number of kpoints."
+            hL, hLL, sL, sLL = f["HL"][ik_bloch], f["HLL"][ik_bloch],f["SL"][ik_bloch], f["SLL"][ik_bloch]
+            hDL,sDL = f["HDL"][ik], f["SDL"][ik]
 
         return hL-v*sL, hLL-v*sLL, hDL, sL, sLL, sDL 
 

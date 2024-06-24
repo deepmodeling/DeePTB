@@ -55,6 +55,8 @@ class NEGF(object):
         self.cdtype = torch.complex128
         self.torch_device = torch_device
         
+        self.useBloch = True
+        self.bloch_factor = [3,3,1]
         
         # get the parameters
         self.ele_T = ele_T
@@ -106,8 +108,9 @@ class NEGF(object):
                                                     results_path=self.results_path,
                                                     torch_device = self.torch_device)
         with torch.no_grad():
-            struct_device, struct_leads, subblocks = self.negf_hamiltonian.initialize(kpoints=self.kpoints,
-                                                                           block_tridiagnal=self.block_tridiagonal)
+            struct_device, struct_leads,structure_leads_fold,bloch_sorted_indices,bloch_R_lists,subblocks = \
+                self.negf_hamiltonian.initialize(kpoints=self.kpoints,block_tridiagnal=self.block_tridiagonal,\
+                                                 useBloch=self.useBloch,bloch_factor=self.bloch_factor)
         self.subblocks = subblocks # for not block_tridiagonal case, subblocks is [HD.shape[1]]
         self.left_connected = abs(struct_device.positions[:,2]-min(struct_device.positions[:,2]))<1e-6
         self.right_connected = abs(struct_device.positions[:,2]-max(struct_device.positions[:,2]))<1e-6
@@ -121,16 +124,26 @@ class NEGF(object):
                 results_path=self.results_path,
                 e_T=self.ele_T,
                 efermi=self.e_fermi, 
-                voltage=self.stru_options["lead_L"]["voltage"]
+                voltage=self.stru_options["lead_L"]["voltage"],
+                useBloch=self.useBloch,
+                bloch_factor=self.bloch_factor,
+                structure_leads_fold=structure_leads_fold["lead_L"],
+                bloch_sorted_indice=bloch_sorted_indices["lead_L"],
+                bloch_R_list=bloch_R_lists["lead_L"]
             ),
                 lead_R=LeadProperty(
-                    hamiltonian=self.negf_hamiltonian, 
-                    tab="lead_R", 
-                    structure=struct_leads["lead_R"], 
-                    results_path=self.results_path, 
-                    e_T=self.ele_T,
-                    efermi=self.e_fermi, 
-                    voltage=self.stru_options["lead_R"]["voltage"]
+                hamiltonian=self.negf_hamiltonian, 
+                tab="lead_R", 
+                structure=struct_leads["lead_R"], 
+                results_path=self.results_path, 
+                e_T=self.ele_T,
+                efermi=self.e_fermi, 
+                voltage=self.stru_options["lead_R"]["voltage"],
+                useBloch=self.useBloch,
+                bloch_factor=self.bloch_factor,
+                structure_leads_fold=structure_leads_fold["lead_R"],
+                bloch_sorted_indice=bloch_sorted_indices["lead_R"],
+                bloch_R_list=bloch_R_lists["lead_R"]
             )
         )
 
