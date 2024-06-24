@@ -6,9 +6,9 @@
 
 ## About DeePTB
 
-**DeePTB** is an innovative Python package that employs deep learning to construct electronic tight-binding (TB) Hamiltonians with a minimal basis. It is designed to:
+**DeePTB** is an innovative Python package that employs deep learning to construct electronic tight-binding (TB) Hamiltonians with a minimal basis, or full LCAO basis from DFT packages. It is designed to:
 
-- Efficiently predict TB Hamiltonians for large, unseen structures based on training with smaller ones.
+- Efficiently predict TB/LCAO Hamiltonians for large, unseen structures based on training with smaller ones.
 - Enable simulations of large systems under structural perturbations, finite temperature simulations integrating molecular dynamics (MD) for comprehensive atomic and electronic behavior.
 - Support customizable Slater-Koster parameterization with neural network incorporation for local environmental corrections. 
 - Operate independently of the choice of bases and exchange-correlation functionals, offering flexibility and adaptability.
