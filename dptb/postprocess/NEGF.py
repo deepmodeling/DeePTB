@@ -400,7 +400,7 @@ class NEGF(object):
             else:
                 if hasattr(self, "uni_grid"):                     
                     output_freq = int(len(self.uni_grid)/10)
-
+                    if output_freq == 0: output_freq = 1
                     for ie, e in enumerate(self.uni_grid):
                         if ie % output_freq == 0:
                             log.info(msg="computing green's function at e = {:.3f}".format(float(e)))

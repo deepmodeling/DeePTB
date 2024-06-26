@@ -132,6 +132,8 @@ class LeadProperty(object):
                 etaLead=eta_lead, 
                 method=method
             )
+
+            # torch.save(self.se, os.path.join(self.results_path, f"se_nobloch_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_{energy}.pth"))
         
         else:
             if not hasattr(self, "HL") or abs(self.voltage_old-self.voltage)>1e-6 or max(abs(self.kpoint-torch.tensor(kpoint)))>1e-6:
@@ -139,22 +141,20 @@ class LeadProperty(object):
                 self.voltage_old = self.voltage
 
             bloch_unfolder = Bloch(self.bloch_factor)
-            kpoints_lead = bloch_unfolder.unfold_points(self.kpoint.tolist())
-            se_k = []
-            m_size = self.bloch_factor[2]*self.bloch_factor[1]*self.bloch_factor[0]
-            for k in kpoints_lead:
-                k = torch.tensor(k)
+            kpoints_bloch = bloch_unfolder.unfold_points(self.kpoint.tolist())
+            sgf_k = []
+            m_size = self.bloch_factor[1]*self.bloch_factor[0]
+            for ik_lead,k_bloch in enumerate(kpoints_bloch):
+                k_bloch = torch.tensor(k_bloch)
                 self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL \
-                    = self.hamiltonian.get_hs_lead(k, tab=self.tab, v=self.voltage)
+                    = self.hamiltonian.get_hs_lead(k_bloch, tab=self.tab, v=self.voltage)
                 
-                se, _ = selfEnergy(
+                _, sgf = selfEnergy(
                     ee=energy,
                     hL=self.HL,
                     hLL=self.HLL,
                     sL=self.SL,
-                    sLL=self.SLL,
-                    hDL=self.HDL,
-                    sDL=self.SDL,             #TODO: check chemiPot settiing is correct or not
+                    sLL=self.SLL,            #TODO: check chemiPot settiing is correct or not
                     chemiPot=self.efermi, # temmporarily change to self.efermi for the case in which applying lead bias to corresponding to Nanotcad
                     etaLead=eta_lead, 
                     method=method
@@ -165,13 +165,21 @@ class LeadProperty(object):
                         if i == j:
                             phase_factor_m[i,j] = 1
                         else:
-                            phase_factor_m[i,j] = torch.exp(torch.tensor(1j)*2*torch.pi*torch.dot(self.bloch_R_list[j]-self.bloch_R_list[i],k))  
+                            phase_factor_m[i,j] = torch.exp(torch.tensor(1j)*2*torch.pi*torch.dot(self.bloch_R_list[j]-self.bloch_R_list[i],k_bloch))  
+                phase_factor_m = phase_factor_m.contiguous()
+                sgf = sgf.contiguous()
+                sgf_k.append(torch.kron(phase_factor_m,sgf)) 
+             
 
-                se_k.append(torch.kron(phase_factor_m,se))                
-
-            se_k = torch.sum(torch.stack(se_k),dim=0)/len(se_k)
-            self.se = se_k[self.bloch_sorted_indice,:][:,self.bloch_sorted_indice]
-
+            sgf_k = torch.sum(torch.stack(sgf_k),dim=0)/len(sgf_k)
+            sgf_k = sgf_k[self.bloch_sorted_indice,:][:,self.bloch_sorted_indice]
+            b = self.HDL.shape[1]
+            if not isinstance(energy, torch.Tensor):
+                eeshifted = torch.scalar_tensor(energy, dtype=torch.complex128) + self.efermi
+            else:
+                eeshifted = energy + self.efermi
+            self.se = (eeshifted*self.SDL-self.HDL) @ sgf_k[:b,:b] @ (eeshifted*self.SDL.conj().T-self.HDL.conj().T)
+            # torch.save(self.se, os.path.join(self.results_path, f"se_bloch_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_{energy}.pth"))
             
 
     def sigmaLR2Gamma(self, se):
