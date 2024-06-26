@@ -995,10 +995,13 @@ def device():
 def lead():
     doc_id=""
     doc_voltage=""
-
+    doc_useBloch=""
+    doc_bloch_factor=""
     return [
         Argument("id", str, optional=False, doc=doc_id),
-        Argument("voltage", [int, float], optional=False, doc=doc_voltage)
+        Argument("voltage", [int, float], optional=False, doc=doc_voltage),
+        Argument("useBloch", bool, optional=True, default=False, doc=doc_useBloch),
+        Argument("bloch_factor", list, optional=True, default=[1,1,1], doc=doc_bloch_factor)
     ]
 
 def scf_options():

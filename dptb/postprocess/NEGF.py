@@ -54,10 +54,7 @@ class NEGF(object):
         # self.jdata = jdata
         self.cdtype = torch.complex128
         self.torch_device = torch_device
-        
-        self.useBloch = True
-        self.bloch_factor = [3,3,1]
-        
+               
         # get the parameters
         self.ele_T = ele_T
         self.kBT = Boltzmann * self.ele_T / eV2J # change to eV
@@ -67,6 +64,11 @@ class NEGF(object):
         self.stru_options = stru_options
         self.sgf_solver = sgf_solver
         self.pbc = self.stru_options["pbc"]
+
+        if  self.stru_options["lead_L"]["useBloch"] or self.stru_options["lead_R"]["useBloch"]:
+            assert self.stru_options["lead_L"]["bloch_factor"] == self.stru_options["lead_R"]["bloch_factor"], "bloch_factor should be the same for both leads in this version"
+            self.useBloch = True
+            self.bloch_factor = self.stru_options["lead_L"]["bloch_factor"]
 
         # check the consistency of the kmesh and pbc
         assert len(self.pbc) == 3, "pbc should be a list of length 3"
