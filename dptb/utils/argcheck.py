@@ -753,7 +753,7 @@ def loss_options():
     ]
 
     loss_args = Variant("method", [
-        Argument("hamil", dict, sub_fields=hamil),
+        # Argument("hamil", dict, sub_fields=hamil),
         Argument("eigvals", dict, sub_fields=eigvals),
         Argument("skints", dict, sub_fields=skints),
         Argument("hamil_abs", dict, sub_fields=hamil),

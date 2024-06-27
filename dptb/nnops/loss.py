@@ -243,59 +243,59 @@ class EigLoss(nn.Module):
 
         return total_loss / len(datalist)
 
-@Loss.register("hamil")
-class HamilLoss(nn.Module):
-    def __init__(
-            self, 
-            basis: Dict[str, Union[str, list]]=None,
-            idp: Union[OrbitalMapper, None]=None,
-            overlap: bool=False,
-            dtype: Union[str, torch.dtype] = torch.float32, 
-            device: Union[str, torch.device] = torch.device("cpu"),
-            **kwargs,
-        ):
+# @Loss.register("hamil")
+# class HamilLoss(nn.Module):
+#     def __init__(
+#             self, 
+#             basis: Dict[str, Union[str, list]]=None,
+#             idp: Union[OrbitalMapper, None]=None,
+#             overlap: bool=False,
+#             dtype: Union[str, torch.dtype] = torch.float32, 
+#             device: Union[str, torch.device] = torch.device("cpu"),
+#             **kwargs,
+#         ):
 
-        super(HamilLoss, self).__init__()
-        self.loss1 = nn.L1Loss()
-        self.loss2 = nn.MSELoss()
-        self.overlap = overlap
-        self.device = device
+#         super(HamilLoss, self).__init__()
+#         self.loss1 = nn.L1Loss()
+#         self.loss2 = nn.MSELoss()
+#         self.overlap = overlap
+#         self.device = device
 
-        if basis is not None:
-            self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
-            if idp is not None:
-                assert idp == self.idp, "The basis of idp and basis should be the same."
-        else:
-            assert idp is not None, "Either basis or idp should be provided."
-            self.idp = idp
+#         if basis is not None:
+#             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
+#             if idp is not None:
+#                 assert idp == self.idp, "The basis of idp and basis should be the same."
+#         else:
+#             assert idp is not None, "Either basis or idp should be provided."
+#             self.idp = idp
 
-    def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
-        # mask the data
+#     def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
+#         # mask the data
 
-        # data[AtomicDataDict.NODE_FEATURES_KEY].masked_fill(~self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY]], 0.)
-        # data[AtomicDataDict.EDGE_FEATURES_KEY].masked_fill(~self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY]], 0.)
+#         # data[AtomicDataDict.NODE_FEATURES_KEY].masked_fill(~self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY]], 0.)
+#         # data[AtomicDataDict.EDGE_FEATURES_KEY].masked_fill(~self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY]], 0.)
 
-        node_mean = ref_data[AtomicDataDict.NODE_FEATURES_KEY].mean(dim=-1, keepdim=True)
-        edge_mean = ref_data[AtomicDataDict.EDGE_FEATURES_KEY].mean(dim=-1, keepdim=True)
-        node_weight = 1/((ref_data[AtomicDataDict.NODE_FEATURES_KEY]-node_mean).norm(dim=-1, keepdim=True)+1e-5)
-        edge_weight = 1/((ref_data[AtomicDataDict.EDGE_FEATURES_KEY]-edge_mean).norm(dim=-1, keepdim=True)+1e-5)
+#         node_mean = ref_data[AtomicDataDict.NODE_FEATURES_KEY].mean(dim=-1, keepdim=True)
+#         edge_mean = ref_data[AtomicDataDict.EDGE_FEATURES_KEY].mean(dim=-1, keepdim=True)
+#         node_weight = 1/((ref_data[AtomicDataDict.NODE_FEATURES_KEY]-node_mean).norm(dim=-1, keepdim=True)+1e-5)
+#         edge_weight = 1/((ref_data[AtomicDataDict.EDGE_FEATURES_KEY]-edge_mean).norm(dim=-1, keepdim=True)+1e-5)
         
-        pre = (node_weight*(data[AtomicDataDict.NODE_FEATURES_KEY]-node_mean))[self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
-        tgt = (node_weight*(ref_data[AtomicDataDict.NODE_FEATURES_KEY]-node_mean))[self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
-        onsite_loss = self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt))
+#         pre = (node_weight*(data[AtomicDataDict.NODE_FEATURES_KEY]-node_mean))[self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+#         tgt = (node_weight*(ref_data[AtomicDataDict.NODE_FEATURES_KEY]-node_mean))[self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+#         onsite_loss = self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt))
 
-        pre = (edge_weight*(data[AtomicDataDict.EDGE_FEATURES_KEY]-edge_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-        tgt = (edge_weight*(ref_data[AtomicDataDict.EDGE_FEATURES_KEY]-edge_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-        hopping_loss = self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt))
+#         pre = (edge_weight*(data[AtomicDataDict.EDGE_FEATURES_KEY]-edge_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
+#         tgt = (edge_weight*(ref_data[AtomicDataDict.EDGE_FEATURES_KEY]-edge_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
+#         hopping_loss = self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt))
         
-        if self.overlap:
-            over_mean = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY].mean(dim=-1, keepdim=True)
-            over_weight = 1/((ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]-over_mean).norm(dim=-1, keepdim=True)+1e-5)
-            pre = (over_weight*(data[AtomicDataDict.EDGE_OVERLAP_KEY]-over_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-            tgt = (over_weight*(ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]-over_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-            hopping_loss += self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt))
+#         if self.overlap:
+#             over_mean = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY].mean(dim=-1, keepdim=True)
+#             over_weight = 1/((ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]-over_mean).norm(dim=-1, keepdim=True)+1e-5)
+#             pre = (over_weight*(data[AtomicDataDict.EDGE_OVERLAP_KEY]-over_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
+#             tgt = (over_weight*(ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]-over_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
+#             hopping_loss += self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt))
         
-        return hopping_loss + onsite_loss
+#         return hopping_loss + onsite_loss
     
 
 @Loss.register("hamil_abs")
@@ -333,7 +333,7 @@ class HamilLossAbs(nn.Module):
         # data[AtomicDataDict.EDGE_FEATURES_KEY].masked_fill(~self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY]], 0.)
 
         if self.onsite_shift:
-            assert data["batch"].max() == 0, "The onsite shift is only supported for batchsize=1."
+            assert data.get("batch", torch.zeros(1)).max() == 0, "The onsite shift is only supported for batchsize=1."
             mu = (data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
                   ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]).mean()
             mu = mu.detach()
@@ -393,13 +393,12 @@ class HamilLossBlas(nn.Module):
         # data[AtomicDataDict.EDGE_FEATURES_KEY].masked_fill(~self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY]], 0.)
 
         if self.onsite_shift:
-            data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] = \
-                data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
-                data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]].min()
-            
-            ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] = \
-                ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
-                ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]].min()
+            assert data.get("batch", torch.zeros(1)).max() == 0, "The onsite shift is only supported for batchsize=1."
+            mu = (data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+                  ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]).mean()
+            mu = mu.detach()
+            ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+            ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
         
         onsite_loss = data[AtomicDataDict.NODE_FEATURES_KEY]-ref_data[AtomicDataDict.NODE_FEATURES_KEY]
         onsite_index = data[AtomicDataDict.ATOM_TYPE_KEY].flatten().unique()
@@ -459,6 +458,7 @@ class HamilLossAnalysis(object):
             overlap: bool=False,
             dtype: Union[str, torch.dtype] = torch.float32,
             decompose: bool = False,
+            onsite_shift: bool=False,
             device: Union[str, torch.device] = torch.device("cpu"),
             **kwargs,
         ):
@@ -469,6 +469,7 @@ class HamilLossAnalysis(object):
         self.decompose = decompose
         self.dtype = dtype
         self.device = device
+        self.onsite_shift = onsite_shift
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
@@ -485,6 +486,14 @@ class HamilLossAnalysis(object):
             self.e3s = E3Hamiltonian(idp=self.idp, decompose=decompose, overlap=True, device=device, dtype=dtype)
     
     def __call__(self, data: AtomicDataDict, ref_data: AtomicDataDict, running_avg: bool=False):
+
+        if self.onsite_shift:
+            assert data.get("batch", torch.zeros(1)).max() == 0, "The onsite shift is only supported for batchsize=1."
+            mu = (data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+                  ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]).mean()
+            mu = mu.detach()
+            ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+            ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
         if self.decompose:
             data = self.e3h(data)
             ref_data = self.e3h(ref_data)
