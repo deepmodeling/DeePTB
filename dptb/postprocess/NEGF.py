@@ -69,6 +69,9 @@ class NEGF(object):
             assert self.stru_options["lead_L"]["bloch_factor"] == self.stru_options["lead_R"]["bloch_factor"], "bloch_factor should be the same for both leads in this version"
             self.useBloch = True
             self.bloch_factor = self.stru_options["lead_L"]["bloch_factor"]
+        else:
+            self.useBloch = False
+            self.bloch_factor = [1,1,1]
 
         # check the consistency of the kmesh and pbc
         assert len(self.pbc) == 3, "pbc should be a list of length 3"
