@@ -305,10 +305,6 @@ def _process_dict(kwargs, ignore_fields=[]):
             if num_frames > 1 and v.size(0) != num_frames:
                 raise ValueError(f"Wrong shape for NESTED property {k}")
 
-                
-    
-
-
 
 class AtomicData(Data):
     """A neighbor graph for points in (periodic triclinic) real space.
