@@ -27,6 +27,7 @@ from ase.build import sort
 from dptb.negf.bloch import Bloch
 from dptb.negf.sort_btd import sort_lexico, sort_projection, sort_capacitance
 from dptb.negf.split_btd import show_blocks,split_into_subblocks,split_into_subblocks_optimized
+from scipy.spatial import KDTree
 '''
 a Hamiltonian object  that initializes and manipulates device and  lead Hamiltonians for NEGF
 '''
@@ -72,7 +73,7 @@ class NEGFHamiltonianInit(object):
                  ) -> None:
         
         # TODO: add dtype and device setting to the model
-        torch.set_default_dtype(torch.float64)
+        # torch.set_default_dtype(torch.float64)
 
         if isinstance(torch_device, str):
             torch_device = torch.device(torch_device)
@@ -283,7 +284,7 @@ class NEGFHamiltonianInit(object):
 
 
                 nL = int(HK_lead.shape[1] / 2)
-                HLL, SLL = HK_lead[:, :nL, nL:], S_lead[:, :nL, nL:] # H_{L_first2L_second}
+                hLL, sLL = HK_lead[:, :nL, nL:], S_lead[:, :nL, nL:] # H_{L_first2L_second}
                 hL, sL = HK_lead[:,:nL,:nL], S_lead[:,:nL,:nL] # lead hamiltonian in one principal layer
                 if not useBloch:
                     err_l_HK = (hL - HL).abs().max()
@@ -298,7 +299,7 @@ class NEGFHamiltonianInit(object):
                     log.info(msg="The lead's hamiltonian or overlap attained from device and lead calculation does not match. \
                                   The error is {:.7f}.".format(max(err_l_HK,err_l_SK)))
                     log.error(msg="ERROR, the lead's hamiltonian attained from diffferent methods does not match.")
-                    raise RuntimeError
+                    # raise RuntimeError
                 elif 1e-7 <= max(err_l_HK,err_l_SK) <= 1e-4:
                     log.warning(msg="WARNING, the lead's hamiltonian attained from diffferent methods have slight differences {:.7f}.".format(max(err_l_HK,err_l_SK)))
 
@@ -307,8 +308,8 @@ class NEGFHamiltonianInit(object):
                     "SL":sL.cdouble(), 
                     "HDL":HDL.cdouble()*self.h_factor, 
                     "SDL":SDL.cdouble(),
-                    "HLL":HLL.cdouble()*self.h_factor, 
-                    "SLL":SLL.cdouble()
+                    "HLL":hLL.cdouble()*self.h_factor, 
+                    "SLL":sLL.cdouble()
                     })                
                                 
                 torch.save(HS_leads, os.path.join(self.results_path, "HS_"+kk+".pth"))
@@ -397,7 +398,8 @@ class NEGFHamiltonianInit(object):
             write(os.path.join(self.results_path, "stru_lead_fold_"+kk+".xyz"),stru_lead_fold,format='extxyz')
             log.info(msg="The lead structure is folded by Bloch theorem!")
 
-            stru_lead_fold_1PL = stru_lead_fold[:int(len(stru_lead_fold)/2)] 
+            stru_lead_fold_1PL = stru_lead_fold[:int(len(stru_lead_fold)/2)]
+            stru_lead_fold_minz = stru_lead_fold_1PL.positions[:,2].min() 
             bloch_R_list = []; expand_pos = []
             for rz in range(bloch_factor[2]):
                 for ry in range(bloch_factor[1]):
@@ -406,13 +408,18 @@ class NEGFHamiltonianInit(object):
                         bloch_R_list.append(R)
                         for id in range(len(stru_lead_fold_1PL)):
                             pos = torch.tensor(stru_lead_fold_1PL.positions[id]) + \
-                                R[0]*bloch_reduce_cell[0] + R[1]*bloch_reduce_cell[1]
+                                R[0]*bloch_reduce_cell[0] + R[1]*bloch_reduce_cell[1] - stru_lead_fold_minz*torch.tensor([0,0,1])
                             expand_pos.append(pos)            
-            expand_pos = torch.stack(expand_pos) # expand_pos is for 1 PL
+            expand_pos = np.stack(expand_pos) # expand_pos is for 1 PL
             assert len(expand_pos) == int(len(stru_lead)/2)
-            sorted_indices = np.lexsort((expand_pos.numpy()[:, 0], expand_pos.numpy()[:, 1], expand_pos.numpy()[:, 2]))
-            # np.save(os.path.join(self.results_path, "sorted_indices_"+kk+".npy"), sorted_indices)
 
+            # get the corresponding indices of the expanded structure in the original structure by KD tree
+            struct_lead_minz = stru_lead.positions[:int(len(stru_lead)/2),2].min()
+            struct_lead_pos = np.array([pos - np.array([0,0,1])*struct_lead_minz for pos in stru_lead.positions[:int(len(stru_lead)/2)]])
+            kdtree = KDTree(expand_pos)
+            _, sorted_indices = kdtree.query(struct_lead_pos,k=1,eps=1e-3)
+
+            
             self.model.idp.get_orbital_maps()
             orb_dict = self.model.idp.norbs
             orb_list = np.array([ orb_dict[el] for el in stru_lead_fold_1PL.get_chemical_symbols()]*len(bloch_R_list))

@@ -119,7 +119,6 @@ class LeadProperty(object):
                 self.voltage_old = self.voltage
                 self.kpoint = torch.tensor(kpoint)
                 
-
             self.se, _ = selfEnergy(
                 ee=energy,
                 hL=self.HL,
