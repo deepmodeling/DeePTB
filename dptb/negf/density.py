@@ -140,7 +140,7 @@ class Ozaki(Density):
         self.R = R
         self.n_gauss = n_gauss
 
-    def integrate(self, deviceprop, kpoint, eta_lead=1e-5, eta_device=0.):
+    def integrate(self, deviceprop, kpoint, eta_lead=1e-5, eta_device=0.,Vbias=None):
         '''calculates the equilibrium and non-equilibrium density matrices for a given k-point.
         
         Parameters
@@ -166,13 +166,15 @@ class Ozaki(Density):
         poles = 1j* self.poles * kBT + deviceprop.lead_L.mu - deviceprop.mu # left lead expression for rho_eq
         deviceprop.lead_L.self_energy(kpoint=kpoint, energy=1j*self.R-deviceprop.mu)
         deviceprop.lead_R.self_energy(kpoint=kpoint, energy=1j*self.R-deviceprop.mu)
-        deviceprop.cal_green_function(energy=1j*self.R-deviceprop.mu, kpoint=kpoint, block_tridiagonal=False)
+        deviceprop.cal_green_function(energy=1j*self.R-deviceprop.mu, kpoint=kpoint, block_tridiagonal=False,
+                                      Vbias = Vbias)
         g0 = deviceprop.grd[0]
         DM_eq = 1.0j * self.R * g0
         for i, e in enumerate(poles):
             deviceprop.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
             deviceprop.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
-            deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
+            deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device,\
+                                          Vbias = Vbias)
             term = ((-4 * 1j * kBT) * deviceprop.grd[0] * self.residues[i]).imag
             DM_eq -= term
         
@@ -187,7 +189,7 @@ class Ozaki(Density):
             for i, e in enumerate(xs):
                 deviceprop.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
                 deviceprop.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
-                deviceprop.cal_green_function(e=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
+                deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
                 gr_gamma_ga = torch.mm(torch.mm(deviceprop.grd[0], deviceprop.lead_R.gamma), deviceprop.grd[0].conj().T).real
                 gr_gamma_ga = gr_gamma_ga * (deviceprop.lead_R.fermi_dirac(e+deviceprop.mu) - deviceprop.lead_L.fermi_dirac(e+deviceprop.mu))
                 DM_neq = DM_neq + wlg[i] * gr_gamma_ga
@@ -226,3 +228,200 @@ class Ozaki(Density):
         onsite_density = torch.cat([torch.from_numpy(deviceprop.structure.positions), onsite_density.unsqueeze(-1)], dim=-1)
 
         return onsite_density
+    
+
+
+class Fiori(Density):
+
+    def __init__(self, n_gauss=None):
+        super(Fiori, self).__init__()
+        self.n_gauss = n_gauss
+        self.xs = None
+        self.wlg = None
+        self.e_grid_Fiori = None
+
+    def density_integrate_Fiori(self,e_grid,kpoint,Vbias,block_tridiagonal,subblocks,integrate_way,deviceprop,
+                                device_atom_norbs,potential_at_atom,free_charge, 
+                                eta_lead=1e-5, eta_device=1e-5):
+        if integrate_way == "gauss":
+            assert self.n_gauss is not None, "n_gauss must be set in the Fiori class"
+            if self.xs is None:
+                self.xs, self.wlg = gauss_xw(xl=torch.scalar_tensor(e_grid[0]), xu=torch.scalar_tensor(e_grid[-1]), n=self.n_gauss)
+                # self.xs = self.xs.numpy();self.wlg = self.wlg.numpy()
+                self.e_grid_Fiori = e_grid
+            elif self.e_grid_Fiori[0] != e_grid[0] or self.e_grid_Fiori[-1] != e_grid[-1]:
+                self.xs, self.wlg = gauss_xw(xl=torch.scalar_tensor(e_grid[0]), xu=torch.scalar_tensor(e_grid[-1]), n=self.n_gauss)
+                # self.xs = self.xs.numpy();self.wlg = self.wlg.numpy()
+                self.e_grid_Fiori = e_grid
+            integrate_range = self.xs
+            pre_factor = self.wlg
+        elif integrate_way == "direct":
+            dE = e_grid[1] - e_grid[0]
+            integrate_range = e_grid
+            pre_factor = dE * torch.ones(len(e_grid))
+        else:
+            raise ValueError("integrate_way only supports gauss and direct in this version")
+
+
+
+        for eidx, e in enumerate(integrate_range):
+            deviceprop.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
+            deviceprop.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
+            deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=block_tridiagonal, eta_device=eta_device,Vbias = Vbias)
+
+            tx, ty = deviceprop.g_trans.shape
+            lx, ly = deviceprop.lead_L.se.shape
+            rx, ry = deviceprop.lead_R.se.shape
+            x0 = min(lx, tx)
+            x1 = min(rx, ty)
+
+            gammaL = torch.zeros(size=(tx, tx), dtype=torch.complex128)
+            gammaL[:x0, :x0] += deviceprop.lead_L.gamma[:x0, :x0]
+            gammaR = torch.zeros(size=(ty, ty), dtype=torch.complex128)
+            gammaR[-x1:, -x1:] += deviceprop.lead_R.gamma[-x1:, -x1:]
+            
+            if not block_tridiagonal:
+                A_Rd = [torch.mm(torch.mm(deviceprop.grd[i],gammaR),deviceprop.grd[i].conj().T) for i in range(len(deviceprop.grd))]
+            else:
+                A_Rd = [torch.mm(torch.mm(deviceprop.gr_lc[i],gammaR[-x1:, -x1:]),deviceprop.gr_lc[i].conj().T) for i in range(len(deviceprop.gr_lc))]
+            
+            A_Ld = [1j*(deviceprop.grd[i]-deviceprop.grd[i].conj().T)-A_Rd[i] for i in range(len(A_Rd))]
+            gnd = [A_Ld[i]*deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi) \
+                    +A_Rd[i]*deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi) for i in range(len(A_Ld))]
+            gpd = [A_Ld[i] + A_Rd[i] - gnd[i] for i in range(len(A_Ld))]
+                
+
+            # Vbias = -1 * potential_at_orb
+            for atom_index, Ei_at_atom in enumerate(-1*potential_at_atom):
+                pre_orbs = sum(device_atom_norbs[:atom_index])
+                last_orbs = pre_orbs + device_atom_norbs[atom_index]
+                # electron density
+                if e >= Ei_at_atom: 
+                    if not block_tridiagonal:
+                        free_charge[str(kpoint)][atom_index] +=\
+                            pre_factor[eidx]*2*(-1)/2/torch.pi*torch.trace(gnd[0][pre_orbs:last_orbs,pre_orbs:last_orbs])
+                        # free_charge[str(kpoint)][atom_index] +=\
+                        #     pre_factor[eidx]*2*(-1)/2/torch.pi*torch.trace(deviceprop.gnd[0][pre_orbs:last_orbs,pre_orbs:last_orbs])                            
+                    else:
+                        block_indexs,orb_start,orb_end = self.get_subblock_index(subblocks,atom_index,device_atom_norbs)
+                        if len(block_indexs) == 1:
+                            free_charge[str(kpoint)][atom_index] += \
+                            pre_factor[eidx]*2*(-1)/2/torch.pi*torch.trace(gnd[block_indexs[0]][orb_start:orb_end,orb_start:orb_end])
+                        else:
+                            for bindex in block_indexs:
+                                if bindex == block_indexs[0]:
+                                    free_charge[str(kpoint)][atom_index] += \
+                                    pre_factor[eidx]*2*(-1)/2/torch.pi*torch.trace(gnd[bindex][orb_start:,orb_start:])
+                                elif bindex == block_indexs[-1]:
+                                    free_charge[str(kpoint)][atom_index] += \
+                                    pre_factor[eidx]*2*(-1)/2/torch.pi*torch.trace(gnd[bindex][:orb_end,:orb_end])
+                                else:
+                                    free_charge[str(kpoint)][atom_index] += \
+                                    pre_factor[eidx]*2*(-1)/2/torch.pi*torch.trace(gnd[bindex])
+                # hole density
+                else:
+                    if not block_tridiagonal:                      
+                        free_charge[str(kpoint)][atom_index] +=\
+                        pre_factor[eidx]*2/2/torch.pi*torch.trace(gpd[0][pre_orbs:last_orbs,pre_orbs:last_orbs])
+                        # free_charge[str(kpoint)][atom_index] += pre_factor[eidx]*2*1/2/torch.pi*torch.trace(gpd[0][pre_orbs:last_orbs,pre_orbs:last_orbs])
+        
+                    else:
+                        block_indexs,orb_start,orb_end = self.get_subblock_index(subblocks,atom_index,device_atom_norbs)
+                        if len(block_indexs) == 1:
+                            free_charge[str(kpoint)][atom_index] += \
+                            pre_factor[eidx]*2*1/2/torch.pi*torch.trace(gpd[block_indexs[0]][orb_start:orb_end,orb_start:orb_end])
+                        else:
+                            for bindex in block_indexs:
+                                if bindex == block_indexs[0]:
+                                    free_charge[str(kpoint)][atom_index] += \
+                                    pre_factor[eidx]*2*1/2/torch.pi*torch.trace(gpd[bindex][orb_start:,orb_start:])
+                                elif bindex == block_indexs[-1]:
+                                    free_charge[str(kpoint)][atom_index] += \
+                                    pre_factor[eidx]*2*1/2/torch.pi*torch.trace(gpd[bindex][:orb_end,:orb_end])
+                                else:
+                                    free_charge[str(kpoint)][atom_index] += \
+                                    pre_factor[eidx]*2*1/2/torch.pi*torch.trace(gpd[bindex])
+                            
+    def get_subblock_index(self,subblocks,atom_index,device_atom_norbs):
+        # print('atom_index:',atom_index)
+        # print('subblocks:',subblocks)
+        subblocks_cumsum = [0]+list(np.cumsum(subblocks))
+        # print('subblocks_cumsum:',subblocks_cumsum)
+        pre_orbs = sum(device_atom_norbs[:atom_index])
+        last_orbs = pre_orbs + device_atom_norbs[atom_index]
+
+        # print('pre_orbs:',pre_orbs)
+        # print('last_orbs:',last_orbs)
+
+        block_index = []
+        for i in range(len(subblocks_cumsum)-1):
+            if pre_orbs >= subblocks_cumsum[i] and last_orbs <= subblocks_cumsum[i+1]:
+                block_index.append(i)
+                orb_start = pre_orbs - subblocks_cumsum[i]
+                orb_end = last_orbs - subblocks_cumsum[i]
+                # print('1')
+                break
+            elif pre_orbs >= subblocks_cumsum[i] and pre_orbs < subblocks_cumsum[i+1] and last_orbs > subblocks_cumsum[i+1]:
+                block_index.append(i)
+                orb_start = pre_orbs - subblocks_cumsum[i]
+                for j in range(i+1,len(subblocks_cumsum)-1):
+                    block_index.append(j)
+                    if last_orbs <= subblocks_cumsum[j+1]:
+                        orb_end = last_orbs - subblocks_cumsum[j]
+                        # print('2')
+                        break
+        # print('block_index',block_index)
+        # print('orb_start',orb_start)
+        # print('orb_end',orb_end)
+        return block_index,orb_start,orb_end                 
+
+
+
+    # def density_integrate_Fiori_gauss(self,e_grid,kpoint,Vbias,deviceprop,device_atom_norbs,potential_at_atom,free_charge, eta_lead=1e-5, eta_device=1e-5):
+
+    #     if self.xs is None:
+    #         self.xs, self.wlg = gauss_xw(xl=torch.scalar_tensor(e_grid[0]), xu=torch.scalar_tensor(e_grid[-1]), n=self.n_gauss)
+    #         # self.xs = self.xs.numpy();self.wlg = self.wlg.numpy()
+    #         self.e_grid_Fiori = e_grid
+    #     elif self.e_grid_Fiori[0] != e_grid[0] or self.e_grid_Fiori[-1] != e_grid[-1]:
+    #         self.xs, self.wlg = gauss_xw(xl=torch.scalar_tensor(e_grid[0]), xu=torch.scalar_tensor(e_grid[-1]), n=self.n_gauss)
+    #         # self.xs = self.xs.numpy();self.wlg = self.wlg.numpy()
+    #         self.e_grid_Fiori = e_grid
+
+    #     for eidx, e in enumerate(self.xs):
+
+    #         deviceprop.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
+    #         deviceprop.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
+    #         deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device,Vbias = Vbias)
+
+    #         tx, ty = deviceprop.g_trans.shape
+    #         lx, ly = deviceprop.lead_L.se.shape
+    #         rx, ry = deviceprop.lead_R.se.shape
+    #         x0 = min(lx, tx)
+    #         x1 = min(rx, ty)
+
+    #         gammaL = torch.zeros(size=(tx, tx), dtype=torch.complex128)
+    #         gammaL[:x0, :x0] += deviceprop.lead_L.gamma[:x0, :x0]
+    #         gammaR = torch.zeros(size=(ty, ty), dtype=torch.complex128)
+    #         gammaR[-x1:, -x1:] += deviceprop.lead_R.gamma[-x1:, -x1:]
+
+    #         A_L = torch.mm(torch.mm(deviceprop.g_trans,gammaL),deviceprop.g_trans.conj().T)
+    #         A_R = torch.mm(torch.mm(deviceprop.g_trans,gammaR),deviceprop.g_trans.conj().T)
+
+    #         # Vbias = -1 * potential_at_orb
+    #         for atom_index, Ei_at_atom in enumerate(-1*potential_at_atom):
+    #             pre_orbs = sum(device_atom_norbs[:atom_index])
+            
+    #             # electron density
+    #             if e >= Ei_at_atom: 
+    #                 for j in range(device_atom_norbs[atom_index]):
+    #                     free_charge[str(kpoint)][atom_index] +=\
+    #                     self.wlg[eidx]*2*(-1)/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi) \
+    #                                 +A_R[pre_orbs+j,pre_orbs+j]*deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi))
+
+    #             # hole density
+    #             else:
+    #                 for j in range(device_atom_norbs[atom_index]):
+    #                     free_charge[str(kpoint)][atom_index] +=\
+    #                     self.wlg[eidx]*2*1/2/torch.pi*(A_L[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi)) \
+    #                                 +A_R[pre_orbs+j,pre_orbs+j]*(1-deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi)))

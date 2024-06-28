@@ -4,7 +4,7 @@
         "scf": false,
         "block_tridiagonal": false,
         "ele_T": 300,
-        "unit": "Hartree",
+        "unit": "eV",
         "scf_options":{
             "mode": "PDIIS",
             "mixing_period": 3,
@@ -35,7 +35,7 @@
             "err": 1e-5
         },
         "sgf_solver": "Sancho-Rubio",
-        "espacing": 0.1,
+        "espacing": 0.01,
         "emin": -2,
         "emax": 2,
         "e_fermi": -13.638587951660156,
@@ -50,29 +50,10 @@
         "out_tc": true,
         "out_ldos": true,
         "out_current_nscf": true
+},    
+"AtomicData_options" :{
+    "r_max": 2.0,
+    "pbc": true
 },
-
-"common_options": {
-    "onsitemode": "none",
-    "onsite_cutoff": 2.0,
-    "bond_cutoff": 2.0,
-    "env_cutoff": 2.0,
-    "atomtype": ["C"],
-    "proj_atom_neles": {"C": 1},
-    "proj_atom_anglr_m": {
-        "C": ["2s"]
-    }    
-},
-"model_options": {
-    "sknetwork": {
-        "sk_hop_nhidden": 1,
-        "sk_onsite_nhidden": 1
-    },
-    "skfunction": {
-        "sk_cutoff": 1.6,
-        "sk_decay_w": 0.3,
-        "skformula": "powerlaw"
-    }
-
-}
+"structure":"./chain.vasp"
 }

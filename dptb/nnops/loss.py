@@ -459,6 +459,7 @@ class HamilLossAnalysis(object):
             overlap: bool=False,
             dtype: Union[str, torch.dtype] = torch.float32,
             decompose: bool = False,
+            onsite_shift: bool=False,
             device: Union[str, torch.device] = torch.device("cpu"),
             **kwargs,
         ):
@@ -469,6 +470,7 @@ class HamilLossAnalysis(object):
         self.decompose = decompose
         self.dtype = dtype
         self.device = device
+        self.onsite_shift = onsite_shift
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
@@ -485,6 +487,16 @@ class HamilLossAnalysis(object):
             self.e3s = E3Hamiltonian(idp=self.idp, decompose=decompose, overlap=True, device=device, dtype=dtype)
     
     def __call__(self, data: AtomicDataDict, ref_data: AtomicDataDict, running_avg: bool=False):
+        
+        if self.onsite_shift:
+            data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] = \
+                data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+                data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]].min()
+            
+            ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] = \
+                ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+                ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]].min()
+            
         if self.decompose:
             data = self.e3h(data)
             ref_data = self.e3h(ref_data)
