@@ -343,15 +343,17 @@ class HamilLossAbs(nn.Module):
                 ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
             elif batch.max() >= 1:
                 slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
-                ndiag_batch = [i.sum() for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)]
-                mu = torch.as_tensor([mu[i:i+1].mean() for i in range(len(ndiag_batch))])
+                slices = [0] + slices
+                ndiag_batch = torch.stack([i.sum() for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
+                mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
                 mu = mu.detach()
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu[batch, None] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
                 edge_mu_index = torch.zeros(data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], dtype=torch.long, device=self.device)
                 for i in range(1, batch.max().item()+1):
                     edge_mu_index[data["__slices__"]["edge_index"][i]:data["__slices__"]["edge_index"][i+1]] += i
                 ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu[edge_mu_index, None] * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
-        
+                
         pre = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
         tgt = ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
         onsite_loss = 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
@@ -415,15 +417,17 @@ class HamilLossBlas(nn.Module):
                 ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
             elif batch.max() >= 1:
                 slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
-                ndiag_batch = [i.sum() for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)]
-                mu = torch.as_tensor([mu[i:i+1].mean() for i in range(len(ndiag_batch))])
+                slices = [0] + slices
+                ndiag_batch = torch.stack([i.sum() for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
+                mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
                 mu = mu.detach()
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu[batch, None] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
                 edge_mu_index = torch.zeros(data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], dtype=torch.long, device=self.device)
                 for i in range(1, batch.max().item()+1):
                     edge_mu_index[data["__slices__"]["edge_index"][i]:data["__slices__"]["edge_index"][i+1]] += i
                 ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu[edge_mu_index, None] * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
-        
+                
         onsite_loss = data[AtomicDataDict.NODE_FEATURES_KEY]-ref_data[AtomicDataDict.NODE_FEATURES_KEY]
         onsite_index = data[AtomicDataDict.ATOM_TYPE_KEY].flatten().unique()
         onsite_loss = scatter_mean(
@@ -522,8 +526,10 @@ class HamilLossAnalysis(object):
                 ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
             elif batch.max() >= 1:
                 slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
-                ndiag_batch = [i.sum() for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)]
-                mu = torch.as_tensor([mu[i:i+1].mean() for i in range(len(ndiag_batch))])
+                slices = [0] + slices
+                ndiag_batch = torch.stack([i.sum() for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
+                mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
                 mu = mu.detach()
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu[batch, None] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
                 edge_mu_index = torch.zeros(data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], dtype=torch.long, device=self.device)
@@ -710,11 +716,16 @@ class HamilLossAnalysis(object):
             
         return self.stats
     
-    def visualize(self):
+    def report(self):
         assert hasattr(self, "stats"), "The stats is not computed yet."
 
+        print(f"TOTAL:")
+        print(f"MAE: {self.stats['mae']}")
+        print(f"RMSE: {self.stats['rmse']}")
+        print(f"\n")
+        
         with torch.no_grad():
-            print("Onsite:")
+            print(f"Onsite: ")
             for at, tp in self.idp.chemical_symbol_to_type.items():
                 print(f"{at}:")
                 print(f"MAE: {self.stats['onsite'][at]['mae']}")
@@ -723,6 +734,11 @@ class HamilLossAnalysis(object):
                 # compute the onsite per block err
                 onsite_mae = torch.zeros((self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
                 onsite_rmse = torch.zeros((self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
+                mae_per_block_element = torch.zeros((self.idp.reduced_matrix_element,), dtype=self.dtype, device=self.device)
+                mae_per_block_element[self.idp.mask_to_nrme[tp]] = self.stats["onsite"][at]["mae_per_block_element"]
+                rmse_per_block_element = torch.zeros((self.idp.reduced_matrix_element,), dtype=self.dtype, device=self.device)              
+                rmse_per_block_element[self.idp.mask_to_nrme[tp]] = self.stats["onsite"][at]["rmse_per_block_element"]
+                
                 ist = 0
                 for i,iorb in enumerate(self.idp.full_basis):
                     jst = 0
@@ -739,8 +755,8 @@ class HamilLossAnalysis(object):
 
                         # constructing onsite blocks
                         if i <= j:
-                            onsite_mae[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * self.stats["onsite"][at]["mae_per_block_element"][self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
-                            onsite_rmse[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * self.stats["onsite"][at]["rmse_per_block_element"][self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
+                            onsite_mae[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * mae_per_block_element[self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
+                            onsite_rmse[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * rmse_per_block_element[self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
 
                         jst += 2*lj+1
                     ist += 2*li+1
@@ -752,24 +768,30 @@ class HamilLossAnalysis(object):
                 onsite_mae = onsite_mae[imask][:,imask]
                 onsite_rmse = onsite_rmse[imask][:,imask]
 
-                plt.matshow(onsite_mae.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=1e-3)
+                vmax = onsite_mae.max().item()
+                plt.matshow(onsite_mae.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=vmax)
                 plt.title("MAE")
                 plt.colorbar()
                 plt.show()
 
-                plt.matshow(onsite_rmse.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=1e-3)
+                vmax = onsite_rmse.max().item()
+                plt.matshow(onsite_rmse.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=vmax)
                 plt.title("RMSE")
                 plt.colorbar()
                 plt.show()
 
             # compute the hopping per block err
-            print("Hopping:")
+            print(f"Hopping: ")
             for bt, tp in self.idp.bond_to_type.items():
                 print(f"{bt}:")
                 print(f"MAE: {self.stats['hopping'][bt]['mae']}")
                 print(f"RMSE: {self.stats['hopping'][bt]['rmse']}")
                 hopping_mae = torch.zeros((self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
                 hopping_rmse = torch.zeros((self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
+                mae_per_block_element = torch.zeros((self.idp.reduced_matrix_element,), dtype=self.dtype, device=self.device)
+                mae_per_block_element[self.idp.mask_to_erme[tp]] = self.stats["hopping"][bt]["mae_per_block_element"]
+                rmse_per_block_element = torch.zeros((self.idp.reduced_matrix_element,), dtype=self.dtype, device=self.device)              
+                rmse_per_block_element[self.idp.mask_to_erme[tp]] = self.stats["hopping"][bt]["rmse_per_block_element"]
                 ist = 0
                 for i,iorb in enumerate(self.idp.full_basis):
                     jst = 0
@@ -786,26 +808,29 @@ class HamilLossAnalysis(object):
 
                         # constructing onsite blocks
                         if i <= j:
-                            hopping_mae[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * self.stats["hopping"][bt]["mae_per_block_element"][self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
-                            hopping_rmse[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * self.stats["hopping"][bt]["rmse_per_block_element"][self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
+                            hopping_mae[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * mae_per_block_element[self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
+                            hopping_rmse[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * rmse_per_block_element[self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
 
                         jst += 2*lj+1
                     ist += 2*li+1
 
                 hopping_mae += hopping_mae.clone().T
                 hopping_rmse += hopping_rmse.clone().T
-
-                imask = self.idp.mask_to_basis[tp]
-                jmask = self.idp.mask_to_basis[tp]
+                
+                iat, jat = bt.split("-")
+                imask = self.idp.mask_to_basis[self.idp.chemical_symbol_to_type[iat]]
+                jmask = self.idp.mask_to_basis[self.idp.chemical_symbol_to_type[jat]]
                 hopping_mae = hopping_mae[imask][:,jmask]
                 hopping_rmse = hopping_rmse[imask][:,jmask]
 
-                plt.matshow(hopping_mae.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=1e-3)
+                vmax = hopping_mae.max().item()
+                plt.matshow(hopping_mae.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=vmax)
                 plt.title("MAE")
                 plt.colorbar()
                 plt.show()
 
-                plt.matshow(hopping_mae.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=1e-3)
+                vmax = hopping_mae.max().item()
+                plt.matshow(hopping_rmse.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=vmax)
                 plt.title("RMSE")
                 plt.colorbar()
                 plt.show()
