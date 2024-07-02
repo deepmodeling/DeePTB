@@ -513,7 +513,7 @@ class InitLayer(torch.nn.Module):
             cutoff_coeffs[active_edges].unsqueeze(-1) * new_latents
             )
         
-        weights_e = self.env_embed_mlp(latents)
+        weights_e = self.env_embed_mlp(latents[prev_mask])
         # features = self.bn(features)
 
         edge_features = self._env_weighter(
@@ -677,7 +677,7 @@ class UpdateNode(torch.nn.Module):
         message = self.tp(
             torch.cat(
                 [new_node_features[edge_center[active_edges]], self.sln_e(edge_features)]
-                , dim=-1), edge_vector[active_edges], latents) # full_out_irreps
+                , dim=-1), edge_vector[active_edges], latents[active_edges]) # full_out_irreps
         
         message = self.activation(message)
         message = self.lin_post(message)
@@ -856,7 +856,7 @@ class UpdateEdge(torch.nn.Module):
                     self.sln_e(edge_features),
                     new_node_features[edge_neighbor[active_edges]]
                     ]
-                , dim=-1), edge_vector[active_edges], latents) # full_out_irreps
+                , dim=-1), edge_vector[active_edges], latents[active_edges]) # full_out_irreps
         
         scalars = new_edge_features[:, :self.tp.irreps_out[0].dim]
         assert len(scalars.shape) == 2
@@ -885,10 +885,17 @@ class UpdateEdge(torch.nn.Module):
             coefficient_old = torch.rsqrt(update_coefficients.square() + 1)
             coefficient_new = update_coefficients * coefficient_old
             edge_features = coefficient_new * new_edge_features + coefficient_old * self.linear_res(edge_features)
-            latents = coefficient_new * new_latents + coefficient_old * latents
+
+            latents = torch.index_copy(
+                latents, 0, active_edges, 
+                coefficient_new * new_latents + coefficient_old * latents[active_edges]
+            )
         else:
             edge_features = new_edge_features
-            latents = new_latents
+            latents = torch.index_copy(
+                latents, 0, active_edges, 
+                new_latents
+            )
 
         return edge_features, latents
     

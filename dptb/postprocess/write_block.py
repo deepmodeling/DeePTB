@@ -13,7 +13,7 @@ from dptb.data.interfaces.ham_to_feature import feature_to_block
 
 log = logging.getLogger(__name__)
 
-def write_ham(
+def write_block(
         data: Union[AtomicData, ase.Atoms, str], 
         model: torch.nn.Module,
         AtomicData_options: dict={},
@@ -35,11 +35,12 @@ def write_ham(
         data = data
     
     data = AtomicData.to_AtomicDataDict(data.to(device))
-    data = model.idp(data)
+    with torch.no_grad():
+        data = model.idp(data)
 
-    # set the kpoint of the AtomicData
-    data = model(data)
-    block = feature_to_block(data=data, idp=model.idp)
+        # set the kpoint of the AtomicData
+        data = model(data)
+        block = feature_to_block(data=data, idp=model.idp)
 
     return block
 

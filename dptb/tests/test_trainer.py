@@ -47,7 +47,7 @@ class TestTrainer:
         jdata = self.jdata
         train_datasets = self.train_datasets
         model = build_model(None, model_options=jdata["model_options"], 
-                        common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
+                        common_options=jdata["common_options"])
         trainer = Trainer(
             train_options=jdata["train_options"],
             common_options=jdata["common_options"],
@@ -73,7 +73,7 @@ class TestTrainer:
         reference_datasets = build_dataset(**jdata["data_options"]["reference"], **jdata["common_options"])
 
         model = build_model(None, model_options=jdata["model_options"], 
-                        common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
+                        common_options=jdata["common_options"])
         
         trainer = Trainer(
             train_options=jdata["train_options"],
@@ -100,7 +100,7 @@ class TestTrainer:
         validation_datasets = build_dataset(**jdata["data_options"]["validation"], **jdata["common_options"])
 
         model = build_model(None, model_options=jdata["model_options"], 
-                        common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
+                        common_options=jdata["common_options"])
         
         trainer = Trainer(
             train_options=jdata["train_options"],
@@ -126,7 +126,7 @@ class TestTrainer:
         checkpoint = f"{rootdir}/test_sktb/output/test_valence/checkpoint/nnsk.best.pth"
         run_options.update({"init_model": checkpoint, "restart": None})
         model = build_model(checkpoint, model_options=jdata["model_options"], 
-                            common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
+                            common_options=jdata["common_options"])
         trainer = Trainer(
             train_options=jdata["train_options"],
             common_options=jdata["common_options"],

@@ -405,6 +405,7 @@ def feature_to_block(data, idp):
                     blocks[block_index] = block.T
                 else:
                     blocks[block_index] += block.T
+                    
     return blocks
 
 

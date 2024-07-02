@@ -868,7 +868,15 @@ class OrbitalMapper(BondMapper):
         return self.orbpair_irreps
 
     def get_irreps_sim(self, no_parity=False):
-        return self.get_irreps(no_parity=no_parity).sort[0].simplify()
+        return self.get_irreps(no_parity=no_parity).sort()[0].simplify()
+    
+    def get_irreps_ess(self, no_parity=False):
+        irp_e = []
+        for mul, (l, p) in self.get_irreps_sim(no_parity=no_parity):
+            if (-1)**l == p:
+                irp_e.append((mul, (l, p)))
+
+        return o3.Irreps(irp_e)
     
     def __eq__(self, other):
         return self.basis == other.basis and self.method == other.method
