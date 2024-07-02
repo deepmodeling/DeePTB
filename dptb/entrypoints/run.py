@@ -9,7 +9,7 @@ from dptb.utils.loggers import set_log_handles
 from dptb.utils.argcheck import normalize_run
 from dptb.utils.tools import j_loader
 from dptb.utils.tools import j_must_have
-from dptb.postprocess.write_ham import write_ham
+from dptb.postprocess.write_block import write_block
 import torch
 import h5py
 
@@ -88,7 +88,7 @@ def run(
 
     elif task=='write_block':
         task = torch.load(init_model, map_location="cpu")["task"]
-        block = write_ham(data=struct_file, AtomicData_options=jdata['AtomicData_options'], model=model, device=jdata["device"])
+        block = write_block(data=struct_file, AtomicData_options=jdata['AtomicData_options'], model=model, device=jdata["device"])
         # write to h5 file, block is a dict, write to a h5 file
         with h5py.File(os.path.join(results_path, task+".h5"), 'w') as fid:
             default_group = fid.create_group("0")
