@@ -66,3 +66,26 @@ When utilizing the DeePTB package in your research, we request that you cite the
 Gu, Qiangqiang, et al. "DeePTB: A deep learning-based tight-binding approach with ab initio accuracy." arXiv preprint arXiv:2307.04638 (2023).
 ```
 
+## Full Dependencies
+- python = ">=3.8"
+- pytest = ">=7.2.0"
+- pytest-order = "1.2.0"
+- numpy = "*"
+- scipy = "1.9.1"
+- spglib = "*"
+- matplotlib = "*"
+- torch = ">=1.13.0"
+- ase = "*"
+- pyyaml = "*"
+- future = "*"
+- dargs = "0.4.4"
+- xitorch = "0.3.0"
+- fmm3dpy = "1.0.0"
+- e3nn = ">=0.5.1"
+- torch-runstats = "0.2.0"
+- torch_scatter = "2.1.2"
+- torch_geometric = ">=2.4.0"
+- opt-einsum = "3.3.0"
+- h5py = "3.7.0"
+- lmdb = "1.4.1"
+
