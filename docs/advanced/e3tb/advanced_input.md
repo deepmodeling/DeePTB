@@ -1,35 +1,4 @@
-#  Fitting DFT Hamiltonian Directly
-DeePTB support directly parameterize the DFT Hamiltonian/Overlap/Density Matrix under full LCAO basis set. The user can generated the Hamiltonian/Overlap/Density Matrix as training data, and trained the equivariant DeePTB model that can reproduce the target quantities on new unseen structures.
-
-## Data Preparation
-We sugget the user to use a data parsing tool [dftio](https://github.com/floatingCatty/dftio) to directly converting the output data from DFT calculation into readable datasets. Our implementation support the all the parsing format of `dftio`.
-
-After parsing, the user need to write a info.json file into the dataset. For default dataset type, the `info.json` looks like:
-
-```JSON
-{
-    "nframes": 1,
-    "pos_type": "cart",
-    "AtomicData_options": {
-        "r_max": 7.0,
-        "pbc": true
-    }
-}
-
-```
-Here `pos_type` can be `cart`, `dirc` or `ase`. For `dftio` output dataset, we use `cart` by default. The `r_max`, in principle, should align with the orbital cutoff in DFT calculation. For single element, the `r_max` should be a float number, indicating the largest bond distance included. When the system have multiple atoms, the `r_max` can also be a dict of atomic species specific number like `{A: 7.0, B: 8.0}`. Then the largest bond `A-A` would be 7 and `A-B` be (7+8)/2=7.5, and `B-B` would be 8. `pbc` can be a bool variable, indicating the open or close of the periodic boundary conditions of the model. It can also be a list of three bool elements like `[true, true, false]`, by what means we can set the periodicity of each direction independently.
-
-For LMDB type Dataset, the info.json is much simplier, which looks like:
-```JSON
-{
-    "r_max": 7.0
-}
-```
-Where other information have been stored in the dataset. LMDB dataset is design for handeling very large data that cannot be fit into the memory directly. 
-
-Then you can set the `data_options` in the input parameters to point directly to the prepared dataset.
-
-## Input Parameters
+# More on Input Parameters
 In `common_options`, the user should define the some global param like:
 ```JSON
 "common_options": {
@@ -43,9 +12,12 @@ In `common_options`, the user should define the some global param like:
             "seed": 42
     }
 ```
-Here the basis sould align with the basis used to perform LCAO DFT calculations. The `"2s2p1d"` here indicates 2x`s` orbital, 2x`p`orbital and one `d` orbital.
+- `basis` sould align with the basis used to perform LCAO DFT calculations. The `"2s2p1d"` here indicates 2x`s` orbital, 2x`p`orbital and one `d` orbital. The 
+- `seed` controls the global random seed of all related package. `dtype` can be chosen between `float32` and `float64`, but the former are accurate enough in most cases. If you have multiple card, the 
+- `device` can be setted as `cuda:0`, `cuda:1` and so on, where the number is the device id. 
+- `overlap` controls the fitting of overlap matrix. The user should provide overlap in the dataset when configuring the data_options if `overlap` is setted as True.
 
-In `train_options`, we need to modify some part to match the training task of E3 hamiltonian:
+In `train_options`, a common parameter looks like this:
 ```JSON
 "train_options": {
     "num_epoch": 500,
@@ -61,8 +33,8 @@ In `train_options`, we need to modify some part to match the training task of E3
         "min_lr": 1e-6
     },
     "loss_options":{
-        "train": {"method": "hamil_abs"},
-        "validation": {"method": "hamil_abs"}
+        "train": {"method": "hamil_abs", "onsite_shift": false},
+        "validation": {"method": "hamil_abs", "onsite_shift": false}
     },
     "save_freq": 10,
     "validation_freq": 10,
@@ -71,14 +43,14 @@ In `train_options`, we need to modify some part to match the training task of E3
 ```
 For `lr_scheduler`, please ensure the `patience` x `num_samples` / `batch_size` ranged between 2000 to 6000.
 
-When the dataset contraining multiple elements, it is suggested to open a tag in loss_options for better performance, as:
+When the dataset contraining multiple elements, and you are fitting the Hamiltonian, it is suggested to open a tag in loss_options for better performance. Since most DFT software would allow for a uniform shift when computing the electrostatic potentials, therefore, bringing extra degree of freedom. The `onsite_shift` tag allow such freedom and make the model generalizable to all sort of elements combinations:
 ```JSON
 "loss_options":{
         "train": {"method": "hamil_abs", "onsite_shift": true},
         "validation": {"method": "hamil_abs", "onsite_shift" : true}
     }
 ```
-Currently, the onsite_shift only support when batchsize is 1.
+
 In `model_options`, we support two type of e3 group equivariant embedding methods: Strictly Localized Equivariant Message-passing or `slem`, and Localized Equivariant Message-passing or `lem`. Former one ensure strict localization by truncate the propagation of distant eighbours' information, therefore are suitable for bulk systems where the electron localization is enhanced by scattering effect. `lem` method, on the other hand, contrained such localization design inherently by incooperating a learnable decaying functions describing the dependency across distance.
 
 The model options for slem and lem are the same, here is an short example:
@@ -123,7 +95,3 @@ Out[7]: 7x0e+6x1o+6x2e+2x3o+1x4e
 `latent_dim`: The scalar channel's dimension of the system. 32/64/128 is good enough.
 
 For params in prediction, there is not much to be changed. The setting is pretty good.
-
-## Start training
-
-use ```dptb train xxx.json -o xxx``` to start the training.

@@ -1,6 +1,4 @@
-# A quick Example
-
-## h-BN model
+# h-BN model
 
 DeePTB is a package that utilizes machine-learning method to train TB models for target systems with the DFT training data. Here, h-BN monolayer has been chosen as a quick start example. 
 
