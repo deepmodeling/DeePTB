@@ -1,11 +1,9 @@
 # Loss Analysis
 ## function
-The **DeePTB** contrains a module to help the user better understand the details of the error of **E3TB** module.
+The **DeePTB** contains a module to help the user better understand the details of the error of the **E3TB** module.
 We decompose the error of **E3TB** model into several parts:
-- onsite blocks: for diagonal blocks of the predicted quantum tensors
-    the onsite blocks are further arranged according to the atom species.
-- hopping blocks: for off-diagonal blocks
-    the hopping blocks error are then further arranged according to the atom-pair types.
+- onsite blocks: for diagonal blocks of the predicted quantum tensors the onsite blocks are further arranged according to the atom species.
+- hopping blocks: for off-diagonal blocks, the hopping block errors are then further arranged according to the atom-pair types.
 
 ## usage
 For using this function, we need a dataset and the model. Just build them up in advance.
@@ -44,7 +42,7 @@ for data in tqdm(loader, desc="doing error analysis"):
         data = model(ref_data)
         ana(data, ref_data, running_avg=True)
 ```
-The analysis results are stored in `ana.stats`, which is a dictionary of statistics. The user can checkout the value directly, or displaying the results by:
+The analysis results are stored in `ana.stats`, which is a dictionary of statistics. The user can check the value directly, or display the results by:
 
 ```Python
 ana.report()
@@ -73,7 +71,7 @@ RMSE: 0.0003886453341692686
 ![MAE hopping](../../img/MAE_hopping.png)
 ![RMSE hopping](../../img/RMSE_hopping.png)
 
-If the user want to see the loss in a decomposed irreps format, one can set the `decompose` of `HamilLossAnalysis` class to `True`, and rerun the analysis.  We can display the decomposed irreps results using the following code:
+If the user wants to see the loss in a decomposed irreps format, one can set the `decompose` of the `HamilLossAnalysis` class to `True`, and rerun the analysis.  We can display the decomposed irreps results using the following code:
 ```Python
 import matplotlib.pyplot as plt
 import torch

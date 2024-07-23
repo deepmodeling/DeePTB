@@ -12,10 +12,10 @@ In `common_options`, the user should define the some global param like:
             "seed": 42
     }
 ```
-- `basis` sould align with the basis used to perform LCAO DFT calculations. The `"2s2p1d"` here indicates 2x`s` orbital, 2x`p`orbital and one `d` orbital. The 
-- `seed` controls the global random seed of all related package. `dtype` can be chosen between `float32` and `float64`, but the former are accurate enough in most cases. If you have multiple card, the 
+- `basis` should align with the basis used to perform LCAO DFT calculations. The `"2s2p1d"` here indicates 2x`s` orbital, 2x`p`orbital and one `d` orbital. The 
+- `seed` controls the global random seed of all related packages. `dtype` can be chosen between `float32` and `float64`, but the former is accurate enough in most cases. If you have multiple cards, the 
 - `device` can be setted as `cuda:0`, `cuda:1` and so on, where the number is the device id. 
-- `overlap` controls the fitting of overlap matrix. The user should provide overlap in the dataset when configuring the data_options if `overlap` is setted as True.
+- `overlap` controls the fitting of the overlap matrix. The user should provide overlap in the dataset when configuring the data_options if `overlap` is setted as True.
 
 In `train_options`, a common parameter looks like this:
 ```JSON
@@ -43,7 +43,7 @@ In `train_options`, a common parameter looks like this:
 ```
 For `lr_scheduler`, please ensure the `patience` x `num_samples` / `batch_size` ranged between 2000 to 6000.
 
-When the dataset contraining multiple elements, and you are fitting the Hamiltonian, it is suggested to open a tag in loss_options for better performance. Since most DFT software would allow for a uniform shift when computing the electrostatic potentials, therefore, bringing extra degree of freedom. The `onsite_shift` tag allow such freedom and make the model generalizable to all sort of elements combinations:
+When the dataset contains multiple elements, and you are fitting the Hamiltonian, it is suggested to open a tag in loss_options for better performance. Most DFT software would allow for a uniform shift when computing the electrostatic potentials, therefore, bringing an extra degree of freedom. The `onsite_shift` tag allows such freedom and makes the model generalizable to all sorts of element combinations:
 ```JSON
 "loss_options":{
         "train": {"method": "hamil_abs", "onsite_shift": true},
@@ -51,7 +51,7 @@ When the dataset contraining multiple elements, and you are fitting the Hamilton
     }
 ```
 
-In `model_options`, we support two type of e3 group equivariant embedding methods: Strictly Localized Equivariant Message-passing or `slem`, and Localized Equivariant Message-passing or `lem`. Former one ensure strict localization by truncate the propagation of distant eighbours' information, therefore are suitable for bulk systems where the electron localization is enhanced by scattering effect. `lem` method, on the other hand, contrained such localization design inherently by incooperating a learnable decaying functions describing the dependency across distance.
+In `model_options`, we support two types of e3 group equivariant embedding methods: Strictly Localized Equivariant Message-passing or `slem`, and Localized Equivariant Message-passing or `lem`. The former ensures strict localization by truncating the propagation of distant neighbours' information and, therefore is suitable for bulk systems where the electron localization is enhanced by the scattering effect. `Lem` method, on the other hand, contained such localization design inherently by incorporating learnable decaying functions describing the dependency across distance.
 
 The model options for slem and lem are the same, here is an short example:
 ```JSON
@@ -73,9 +73,9 @@ The model options for slem and lem are the same, here is an short example:
 ```
 Here, `method` indicates the e3 descripor employed. 
 
-`r_max` can be a float or int number, or a dict with atom species specific float/int number, which indicates their cutoff envolope function, used to decaying the distant atom's effect smoothly. We highly suggest the user go to the DFT calculation files, and check the orbital's radial cutoff information to figure out how large this value should be.
+`r_max` can be a float or int number, or a dict with atom species-specific float/int number, which indicates their cutoff envelope function, used to decay the distant atom's effect smoothly. We highly suggest the user go to the DFT calculation files and check the orbital's radial cutoff information to figure out how large this value should be.
 
-`irreps_hidden`: Very important! This parameter decide mostly the representation capacity of the model, along with the model size and consumption of GPU memory. This parameter indicates the irreps of hidden equiraviant space, the definition here follows the  for example, `64x0e` states `64` ireducible representation with `l=0` and `even` parity. For each basis setting, we provide a tool to generate least essential `irreps_hidden`, we also highly suggest the user to add at least 3 times of the number of essential irreps to enhance to representation capacity.
+`irreps_hidden`: Very important! This parameter decides mostly the representation capacity of the model, along with the model size and consumption of GPU memory. This parameter indicates the irreps of hidden equivariant space, the definition here follows that for example, `64x0e` states `64` irreducible representation with `l=0` and `even` parity. For each basis set, we provide a tool to generate the least essential `irreps_hidden`, we also highly suggest the user add at least 3 times the number of essential irreps to enhance representation capacity.
 
 ```IPYTHON
 In [5]: from dptb.data import OrbitalMapper
@@ -88,9 +88,9 @@ Out[7]: 7x0e+6x1o+6x2e+2x3o+1x4e
 
 `n_layers`: indicates the number of layers of the networks.
 
-`env_embed_multiplicity`: dicide the irreps number when initilizating the edge and node features.
+`env_embed_multiplicity`: decide the irreps number when initializing the edge and node features.
 
-`avg_num_neighbors`: the averaged number of neighbors in the system given the cutoff radius setted as `r_max`. It is recommended to do a statistics of the system you are modeling, but just pick up a number ranged from 50 to 100 is also okay.
+`avg_num_neighbors`: the averaged number of neighbours in the system given the cutoff radius set as `r_max`. It is recommended to do statistics of the system you are modelling, but just picking up a number ranging from 50 to 100 is also okay.
 
 `latent_dim`: The scalar channel's dimension of the system. 32/64/128 is good enough.
 
