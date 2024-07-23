@@ -21,6 +21,7 @@
 Installing **DeePTB** is straightforward. We recommend using a virtual environment for dependency management.
 
 ### Requirements
+- Cmake 3.17 or later.
 - Python 3.8 or later.
 - Torch 1.13.0 or later ([PyTorch Installation](https://pytorch.org/get-started/locally)).
 - ifermi (optional, for 3D fermi-surface plotting).
@@ -44,6 +45,20 @@ Installing **DeePTB** is straightforward. We recommend using a virtual environme
    cd DeePTB
    pip install .
    ```
+
+### Install optical response module
+1. Ensure you have the intel MKL library installed.
+
+2. Clone the repository:
+   ```bash
+   git clone https://github.com/deepmodeling/DeePTB.git
+   ```
+3. Navigate to the root directory and install DeePTB:
+   ```bash
+   cd DeePTB
+   BUILD_FORTRAN=ON USE_INTEL=ON USE_OPENMP=ON pip install .
+   ```
+   Note: by default, the optical response module is not installed. To install it, you need to set the `BUILD_FORTRAN=ON` flag. The `USE_INTEL=ON` flag is used to enable the Intel MKL library, and the `USE_OPENMP=ON` flag is used to enable OpenMP parallelization. Both `USE_INTEL` and `USE_OPENMP` are `ON` by default.
 
 ## Usage
 For a comprehensive guide and usage tutorials, visit [our documentation website](https://deeptb.readthedocs.io/en/latest/).
