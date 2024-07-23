@@ -1,97 +1,77 @@
-[tool.poetry]
+[build-system]
+requires = ["scikit-build-core", "numpy",  "setuptools>=45", "setuptools-scm[toml]>=6.2"]
+build-backend = "scikit_build_core.build"
+
+[tool.setuptools_scm]
+write_to = "dptb/_version.py"
+version_scheme = "no-guess-dev"
+local_scheme = "dirty-tag"
+fallback_version = "0.0.0"
+
+[project]
 name = "dptb"
-version = "2.0.1"
-license = "LGPL-3.0"
+dynamic = ["version"]
 description = "A deep learning package for emperical tight-binding approach with first-principle accuracy."
-authors = ["Q. Gu <guqq@pku.edu.cn>", "Z. Zhanghao <zhouyinzhanghao@gmail.com>"]
+authors = [
+    {name = "Q. Gu", email = "guqq@pku.edu.cn"},
+    {name = "Z. Zhanghao", email = "zhouyinzhanghao@gmail.com"}
+]
 readme = "README.md"
+license = {text = "LGPL-3.0"}
+requires-python = ">=3.8"
+dependencies = [
+    "pytest>=7.2.0",
+    "pytest-order==1.2.0",
+    "numpy",
+    "scipy==1.9.1",
+    "spglib",
+    "matplotlib",
+    "torch>=1.13.0",
+    "ase",
+    "pyyaml",
+    "future",
+    "dargs==0.4.4",
+    "xitorch==0.3.0",
+    "fmm3dpy==1.0.0",
+    "e3nn>=0.5.1",
+    "torch-runstats==0.2.0",
+    "torch_scatter==2.1.2",
+    "torch_geometric>=2.4.0",
+    "opt-einsum==3.3.0",
+    "h5py==3.7.0",
+    "lmdb==1.4.1"
+]
+
+[project.urls]
 repository = "https://github.com/deepmodeling/DeePTB"
 
-[tool.poetry.dependencies]
-python = ">=3.8"
-pytest = ">=7.2.0"
-pytest-order = "1.2.0"
-numpy = "*"
-scipy = "1.9.1"
-spglib = "*"
-matplotlib = "*"
-torch = ">=1.13.0"
-ase = "*"
-pyyaml = "*"
-future = "*"
-dargs = "0.4.4"
-xitorch = "0.3.0"
-fmm3dpy = "1.0.0"
-e3nn = ">=0.5.1"
-torch-runstats = "0.2.0"
-torch_scatter = "2.1.2"
-torch_geometric = ">=2.4.0"
-opt-einsum = "3.3.0"
-h5py = "3.7.0"
-lmdb = "1.4.1"
+[project.optional-dependencies]
+fortran = []
+"3Dfermi" = ["ifermi", "pymatgen"]
+tbtrans_init = ["sisl"]
+pybinding = ["pybinding"]
 
+[project.scripts]
+dptb = "dptb.__main__:main"
+dptb-qm9 = "dptb.data.interfaces.pyscf:main"
 
-[tool.poetry.group.dev.dependencies]
-pytest = ">=7.2.0"
-pytest-order = "1.2.0"
-numpy = "*"
-scipy = "1.9.1"
-spglib = "*"
-matplotlib = "*"
-torch = ">=1.13.0"
-ase = "*"
-pyyaml = "*"
-future = "*"
-dargs = "0.4.4"
-xitorch = "0.3.0"
-fmm3dpy = "1.0.0"
-e3nn = ">=0.5.1"
-torch-runstats = "0.2.0"
-torch_scatter = "2.1.2"
-torch_geometric = ">=2.4.0"
-opt-einsum = "3.3.0"
-h5py = "3.7.0"
-lmdb = "1.4.1"
+[tool.scikit-build]
+cmake.minimum-version = "3.17"
+cmake.build-type = "Release"
+cmake.verbose = true
+logging.level = "DEBUG"
+experimental = true
 
-[tool.poetry.group.3Dfermi]
-optional = true
+[tool.scikit-build.metadata.version]
+provider = "scikit_build_core.metadata.setuptools_scm"
 
-[tool.poetry.group.3Dfermi.dependencies]
-ifermi = "*"
-pymatgen = "*"
-
-[tool.poetry.group.tbtrans_init]
-optional = true
-
-[tool.poetry.group.tbtrans_init.dependencies]
-sisl = "*"
-
-[tool.poetry.group.pybinding]
-optional = true
-
-[tool.poetry.group.pybinding.dependencies]
-pybinding = "*"
-
-
-[tool.poetry.scripts]
-dptb = 'dptb.__main__:main'
-dptb-qm9 = 'dptb.data.interfaces.pyscf:main'
-
-[build-system]
-requires = ["poetry-core", "poetry-dynamic-versioning"]
-build-backend = "poetry_dynamic_versioning.backend"
-
-
-[tool.poetry-dynamic-versioning]
-enable = true
-vcs = "git"
-strict = true
-format-jinja = """
-    {%- if distance == 0 -%}
-        {{ serialize_pep440(base, stage, revision) }}
-    {%- elif revision is not none -%}
-        {{ serialize_pep440(base, stage, revision + 1, dev=distance, metadata=[commit]) }}
-    {%- else -%}
-        {{ serialize_pep440(bump_version(base), stage, revision, dev=distance, metadata=[commit]) }}
-    {%- endif -%}
-"""
+[tool.scikit-build.cmake.define]
+CMAKE_POSITION_INDEPENDENT_CODE = "ON"
+BUILD_FORTRAN = {env="BUILD_FORTRAN", default="OFF"}
+USE_OPENMP = {env="USE_OPENMP", default="OFF"}
+USE_INTEL = {env="USE_INTEL", default="OFF"}
+# FORTRAN_COMPILER = {env="FORTRAN_COMPILER", default=""}
+CMAKE_C_COMPILER = "icx"
+CMAKE_Fortran_COMPILER = "ifx"
+CMAKE_C_FLAGS = "-xHost"
+CMAKE_Fortran_FLAGS = "-fpp -xHost -qopenmp -ipo -heap-arrays 32"
