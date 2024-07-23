@@ -16,6 +16,7 @@ RUN apt-get update > /dev/null && \
         git \
         tini \
         g++ \
+        cmake \
         > /dev/null && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
