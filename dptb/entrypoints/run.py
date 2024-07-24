@@ -91,7 +91,6 @@ def run(
         
         accondcal.get_accond(struct=struct_file, 
                                 AtomicData_options=jdata['AtomicData_options'], 
-                                task_options=jdata['task_options'],
                                 emax=jdata['task_options'].get('emax'),
                                 num_omega=jdata['task_options'].get('num_omega',1000),
                                 mesh_grid=jdata['task_options'].get('mesh_grid',[1,1,1]),
@@ -104,7 +103,7 @@ def run(
                                 direction=jdata['task_options'].get('direction','xx'),
                                 g_s=jdata['task_options'].get('g_s',2)
                             )
-        accondcal.optical_plot()
+        accondcal.accond_plot()
         log.info(msg='ac optical conductivity calculation successfully completed.')
 
     elif task=='write_block':

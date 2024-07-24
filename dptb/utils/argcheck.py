@@ -1113,7 +1113,37 @@ def task_options():
             Argument("negf", dict, negf()),
             Argument("tbtrans_negf", dict, tbtrans_negf()),
             Argument("write_block", dict, write_block),
+            Argument("ac_cond", dict, ac_cond()),
         ],optional=False, doc=doc_task)
+
+def ac_cond():
+    doc_emax = ""
+    doc_num_omega = ""
+    doc_mesh_grid = ""
+    doc_nk_per_loop = ""
+    doc_delta = ""
+    doc_e_fermi = ""
+    doc_valence_e = ""
+    doc_gap_corr = ""
+    doc_T = ""
+    doc_direction = ""
+    doc_g_s = ""
+
+    argu = [
+        Argument("emax", float, optional=False, default=10, doc=doc_emax),
+        Argument("num_omega", int, optional=False, default=1000, doc=doc_num_omega),
+        Argument("mesh_grid", list, optional=False, default=[1,1,1], doc=doc_mesh_grid),
+        Argument("nk_per_loop", [int, None], optional=True, default=None, doc=doc_nk_per_loop),
+        Argument("delta", float, optional=False, default=0.03, doc=doc_delta),
+        Argument("e_fermi", [float, int, None], optional=False, doc=doc_e_fermi),
+        Argument("valence_e", [float, int, None], optional=True, default=None, doc=doc_valence_e),
+        Argument("gap_corr", float, optional=False, default=0, doc=doc_gap_corr),
+        Argument("T", [float, int], optional=False, default=300, doc=doc_T),
+        Argument("direction", str, optional=False, default="xx", doc=doc_direction),
+        Argument("g_s", int, optional=False, default=2, doc=doc_g_s)
+        ]
+
+    return argu
 
 def band():
     doc_kline_type ="""The different type to build kpath line mode.

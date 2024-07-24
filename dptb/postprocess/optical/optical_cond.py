@@ -71,11 +71,12 @@ class AcCond:
         np.save(f"{self.results_path}/AC_cond_sig_{delta}.npy", {'energy':self.omegas, 'ac_cond_g': self.ac_cond_gauss, 'ac_cond_l': self.ac_cond_linhard})
         log.info('<><><><>'*5)
 
-    def plot_optcond(self):
+    def accond_plot(self):
         fig = plt.figure(figsize=(6,6),dpi=200)
         plt.plot(self.omegas, self.ac_cond_gauss.real, label='Gaussian')
         plt.plot(self.omegas, self.ac_cond_linhard.real, label='Linhard:real')
         plt.plot(self.omegas, self.ac_cond_linhard.imag, label='Linhard:real')
+        plt.legend()
         plt.xlabel("Energy (eV)")
         plt.ylabel("sigma_xx")
         plt.savefig("ACxx.png")
@@ -114,7 +115,7 @@ class AcCond:
         num_loop = math.ceil(tot_numk / nk_per_loop)
         omegas = torch.linspace(0,emax,num_omega, dtype=torch.float64)
 
-        log.info('tot_numk:',tot_numk, 'nk_per_loop:',nk_per_loop, 'num_loop:',num_loop)
+        log.info(f'tot_numk: {tot_numk}, nk_per_loop: {nk_per_loop}, num_loop: {num_loop}')
 
         ac_cond = np.zeros((len(omegas)),dtype=np.complex128)
         ac_cond_ik = np.zeros((len(omegas)),dtype=np.complex128)
