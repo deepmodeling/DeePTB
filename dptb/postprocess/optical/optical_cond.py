@@ -8,7 +8,9 @@ from dptb.postprocess.fortran import ac_cond as acdf2py
 import math
 from dptb.utils.make_kpoints import  kmesh_sampling_negf
 import time
+import logging
 
+log = logging.getLogger(__name__)
 
 def fermi_dirac(e, mu, beta):
     return 1/(1+torch.exp(beta*(e-mu)))
@@ -32,7 +34,7 @@ def cal_cond(model, data, e_fermi, mesh_grid, emax, num_val=None, gap_corr=0, nu
     data = model.idp(data)
     data = model(data)
     
-    print('application of the model is done')
+    log.info('application of the model is done')
 
     KB = 8.617333262e-5
     beta = 1/(KB*T)
@@ -48,7 +50,7 @@ def cal_cond(model, data, e_fermi, mesh_grid, emax, num_val=None, gap_corr=0, nu
     num_loop = math.ceil(tot_numk / nk_per_loop)
     omegas = torch.linspace(0,emax,num_omega, dtype=torch.float64)
 
-    print('tot_numk:',tot_numk, 'nk_per_loop:',nk_per_loop, 'num_loop:',num_loop)
+    log.info('tot_numk:',tot_numk, 'nk_per_loop:',nk_per_loop, 'num_loop:',num_loop)
 
     ac_cond = np.zeros((len(omegas)),dtype=np.complex128)
     ac_cond_ik = np.zeros((len(omegas)),dtype=np.complex128)
@@ -58,8 +60,8 @@ def cal_cond(model, data, e_fermi, mesh_grid, emax, num_val=None, gap_corr=0, nu
     
     for ik in range(num_loop):
         t_start = time.time()
-        print('<><><><><'*5)
-        print(f'loop {ik+1} in {num_loop} circles')
+        log.info('<><><><><'*5)
+        log.info(f'loop {ik+1} in {num_loop} circles')
         istart = ik * nk_per_loop
         iend = min((ik + 1) * nk_per_loop, tot_numk)
         kpoints_ = kpoints[istart:iend]
@@ -72,18 +74,19 @@ def cal_cond(model, data, e_fermi, mesh_grid, emax, num_val=None, gap_corr=0, nu
         # Hamiltonian = data['hamiltonian'].detach().to(torch.complex128)
         # dhdk = {k: v.detach().to(torch.complex128) for k, v in dhdk.items()}
 
-        print(f'    - get H and dHdk ...')
+        log.info(f'    - get H and dHdk ...')
 
         eigs, eigv = torch.linalg.eigh(data['hamiltonian'])
         
-        if num_val is not None:
+        if num_val is not None and abs(gap_corr) > 1e-3:
+            log.info(f'    - gap correction is applied with {gap_corr}')
             assert num_val > 0
             assert eigs[:,num_val].min() - eigs[:,num_val-1].max() > 1e-3 , f'the gap between the VBM {num_val-1} and the CBM {num_val} is too small'
-            if abs(gap_corr)> 1e-3:
-                print(f'    - gap correction is applied {gap_corr}')
-                eigs[:,:num_val] = eigs[:,:num_val] - gap_corr/2
-                eigs[:,num_val:] = eigs[:,num_val:] + gap_corr/2
-        print(f'    - diagonalization of H ...')
+                
+            eigs[:,:num_val] = eigs[:,:num_val] - gap_corr/2
+            eigs[:,num_val:] = eigs[:,num_val:] + gap_corr/2
+        
+        log.info(f'    - diagonalization of H ...')
 
         dh1 = eigv.conj().transpose(1,2) @ dhdk[direction[0]] @ eigv
         if direction[0] == direction[1]:
@@ -94,7 +97,7 @@ def cal_cond(model, data, e_fermi, mesh_grid, emax, num_val=None, gap_corr=0, nu
         p1p2 = dh1 * dh2.transpose(1,2)
 
 
-        print(f'    - get p matrix from dHdk ...')
+        log.info(f'    - get p matrix from dHdk ...')
 
         p1p2.to(torch.complex128)
         eigs.to(torch.float64)
@@ -119,14 +122,14 @@ def cal_cond(model, data, e_fermi, mesh_grid, emax, num_val=None, gap_corr=0, nu
         ac_cond = ac_cond + ac_cond_ik
         ac_cond_linhard = ac_cond_linhard + ac_cond_linhard_ik
 
-        print(f'    - get ac_cond ...')
+        log.info(f'    - get ac_cond ...')
         t_end = time.time()
-        print(f'time cost: {t_end-t_start:.4f} s in loop {ik+1}')
+        log.info(f'time cost: {t_end-t_start:.4f} s in loop {ik+1}')
 
-    volume = data['cell'][0] @(data['cell'][1].cross(data['cell'][2]))
-    prefactor = g_s * 1j / (volume.numpy())
+    ac_cond = 1.0j * ac_cond * np.pi    
+    volume = data['cell'][0] @ (data['cell'][1].cross(data['cell'][2],dim=0))
+    prefactor = 2 * g_s * 1j / (volume.numpy())
     ac_cond = ac_cond * prefactor
-    ac_cond.imag = -ac_cond.imag*np.pi
     ac_cond_linhard = ac_cond_linhard * prefactor
     
     return omegas, ac_cond, ac_cond_linhard
