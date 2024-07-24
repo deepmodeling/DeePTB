@@ -74,5 +74,7 @@ USE_INTEL = {env="USE_INTEL", default="ON"}
 # FORTRAN_COMPILER = {env="FORTRAN_COMPILER", default=""}
 CMAKE_C_COMPILER = "icx"
 CMAKE_Fortran_COMPILER = "ifx"
-CMAKE_C_FLAGS = "-xHost"
-CMAKE_Fortran_FLAGS = "-fpp -xHost -qopenmp -ipo -heap-arrays 32"
+#CMAKE_C_FLAGS = "-xHost"
+#CMAKE_Fortran_FLAGS = "-fpp -xHost -qopenmp -ipo -heap-arrays 32"
+CMAKE_C_FLAGS = "-O3 -xHost -ipo -fma -align"
+CMAKE_Fortran_FLAGS = "-fpp -O3 -xHost -qopenmp -ipo -heap-arrays 32 -unroll -fma -align"
