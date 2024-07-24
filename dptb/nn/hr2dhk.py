@@ -7,19 +7,19 @@ from dptb.data import AtomicDataDict
 import re
 from dptb.utils.tools import float2comlex
 
-class HR2dHk(torch.nn.Module):
+class Hr2dHk(torch.nn.Module):
     def __init__(
             self, 
             basis: Dict[str, Union[str, list]]=None,
             idp: Union[OrbitalMapper, None]=None,
             edge_field: str = AtomicDataDict.EDGE_FEATURES_KEY,
             node_field: str = AtomicDataDict.NODE_FEATURES_KEY,
-            out_field: str = 'None',
+            out_field: str = 'dHdk',
             overlap: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             ):
-        super(HR2dHk, self).__init__()
+        super(Hr2dHk, self).__init__()
 
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype)
