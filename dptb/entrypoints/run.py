@@ -10,6 +10,7 @@ from dptb.utils.argcheck import normalize_run
 from dptb.utils.tools import j_loader
 from dptb.utils.tools import j_must_have
 from dptb.postprocess.write_ham import write_ham
+from dptb.postprocess.optical.optical_cond import AcCond
 import torch
 import h5py
 
@@ -85,6 +86,26 @@ def run(
                         emin=jdata["task_options"].get("emin", None),
                         emax=jdata["task_options"].get("emax", None))
         log.info(msg='band calculation successfully completed.')
+    elif task == 'ac_cond':
+        accondcal = AcCond(model=model, results_path=results_path, use_gui=use_gui)
+        
+        accondcal.get_accond(struct=struct_file, 
+                                AtomicData_options=jdata['AtomicData_options'], 
+                                task_options=jdata['task_options'],
+                                emax=jdata['task_options'].get('emax'),
+                                num_omega=jdata['task_options'].get('num_omega',1000),
+                                mesh_grid=jdata['task_options'].get('mesh_grid',[1,1,1]),
+                                nk_per_loop=jdata['task_options'].get('nk_per_loop',None),
+                                delta=jdata['task_options'].get('delta',0.03),
+                                e_fermi=jdata['task_options'].get('e_fermi',0),
+                                valence_e=jdata['task_options'].get('valence_e',None),
+                                gap_corr=jdata['task_options'].get('gap_corr',0),
+                                T=jdata['task_options'].get('T',300),
+                                direction=jdata['task_options'].get('direction','xx'),
+                                g_s=jdata['task_options'].get('g_s',2)
+                            )
+        accondcal.optical_plot()
+        log.info(msg='ac optical conductivity calculation successfully completed.')
 
     elif task=='write_block':
         task = torch.load(init_model, map_location="cpu")["task"]
