@@ -50,6 +50,7 @@ For **E3TB**:
    :caption: Advanced
    
    advanced/sktb/index
+   advanced/e3tb/index
    advanced/elec_properties/index
    advanced/interface/index
 
