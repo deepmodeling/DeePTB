@@ -1,8 +1,27 @@
 cmake_minimum_required(VERSION 3.17...3.26)
-project(${SKBUILD_PROJECT_NAME} LANGUAGES C Fortran)
 
 option(BUILD_FORTRAN "Build Fortran extensions" OFF)
+option(USE_INTEL "Use Intel compilers" ON)
+option(USE_OPENMP "Use OpenMP" ON)
+
 if(BUILD_FORTRAN)
+    if(USE_INTEL)
+        set(CMAKE_C_COMPILER "icx")
+        set(CMAKE_Fortran_COMPILER "ifx")
+    else()
+        # 使用默认的编译器
+    endif()
+
+    project(${SKBUILD_PROJECT_NAME} LANGUAGES C Fortran)
+    
+    # 设置编译器标志
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -fPIC")
+    
+    if(USE_OPENMP)
+        find_package(OpenMP REQUIRED)
+        set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
+    endif()
+
     # Search for packages and commands
     find_package(Python COMPONENTS Interpreter Development.Module NumPy REQUIRED)
 
@@ -14,12 +33,6 @@ if(BUILD_FORTRAN)
       set(VENDOR "intel")
     else()
       message(FATAL_ERROR "Unsupported Fortran compiler ${CMAKE_Fortran_COMPILER}")
-    endif()
-
-    # Add compiler options for OpenMP
-    if(USE_OPENMP)
-      find_package(OpenMP REQUIRED)
-      set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
     endif()
 
     #----------------------------- Fortran extension ------------------------------#
@@ -58,4 +71,7 @@ if(BUILD_FORTRAN)
     endif()
 
     install(TARGETS ac_cond DESTINATION ./dptb/postprocess/fortran)
+else()
+    project(${SKBUILD_PROJECT_NAME})
+    message(STATUS "Fortran extensions are disabled")
 endif()

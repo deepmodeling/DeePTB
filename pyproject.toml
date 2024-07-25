@@ -69,17 +69,4 @@ provider = "scikit_build_core.metadata.setuptools_scm"
 
 
 [tool.scikit-build.cmake.define]
-CMAKE_POSITION_INDEPENDENT_CODE = "ON"
 BUILD_FORTRAN = {env="BUILD_FORTRAN", default="OFF"}
-USE_OPENMP = {env="USE_OPENMP", default="ON"}
-USE_INTEL = {env="USE_INTEL", default="ON"}
-# FORTRAN_COMPILER = {env="FORTRAN_COMPILER", default=""}
-CMAKE_C_COMPILER = "icx"
-CMAKE_Fortran_COMPILER = "ifx"
-#CMAKE_C_FLAGS = "-xHost"
-#CMAKE_Fortran_FLAGS = "-fpp -xHost -qopenmp -ipo -heap-arrays 32"
-CMAKE_C_FLAGS = "-O3 -xHost -ipo -fma -align"
-CMAKE_Fortran_FLAGS = "-fpp -O3 -xHost -qopenmp -ipo -heap-arrays 32 -unroll -fma -align"
-
-# command to build the fortran code
-# BUILD_FORTRAN=ON USE_INTEL=ON USE_OPENMP=ON pip install .
