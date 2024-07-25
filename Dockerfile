@@ -1,6 +1,5 @@
 FROM ubuntu:20.04
-
-SHELL ["/bin/bash", "-c"]  # Set default shell for subsequent RUN commands
+SHELL ["/bin/bash", "-c"]
 
 ARG MINIFORGE_NAME=Miniforge3
 ARG MINIFORGE_VERSION=23.11.0-0
