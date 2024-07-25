@@ -56,10 +56,10 @@ Installing **DeePTB** is straightforward. We recommend using a virtual environme
 3. Navigate to the root directory and install DeePTB:
    ```bash
    cd DeePTB
-   BUILD_FORTRAN=ON USE_INTEL=ON USE_OPENMP=ON pip install .
+   BUILD_FORTRAN=ON pip install .
    ```
-   Note: by default, the optical response module is not installed. To install it, you need to set the `BUILD_FORTRAN=ON` flag. The `USE_INTEL=ON` flag is used to enable the Intel MKL library, and the `USE_OPENMP=ON` flag is used to enable OpenMP parallelization. Both `USE_INTEL` and `USE_OPENMP` are `ON` by default.
-
+   Note: by default, the optical response module is not installed. To install it, you need to set the `BUILD_FORTRAN=ON` flag. By default we set the CMakeList.txt to use the intel compiler with openmp enabled. If you want to use other compilers, you need to modify the CMakeList.txt file.
+   
 ## Usage
 For a comprehensive guide and usage tutorials, visit [our documentation website](https://deeptb.readthedocs.io/en/latest/).
 

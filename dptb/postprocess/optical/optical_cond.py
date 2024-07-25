@@ -2,11 +2,10 @@
 import numpy as np
 from dptb.data import AtomicDataDict
 from dptb.data import AtomicData
-
+import sys
 import torch
 from dptb.nn.hr2hk import HR2HK
 from dptb.nn.hr2dhk import Hr2dHk
-from dptb.postprocess.fortran import ac_cond as acdf2py
 import math
 from dptb.utils.make_kpoints import  kmesh_sampling_negf
 import time
@@ -15,6 +14,10 @@ import os
 from ase.io import read
 import matplotlib.pyplot as plt
 
+try:
+    from dptb.postprocess.fortran import ac_cond as acdf2py
+except ImportError:
+    acdf2py = None
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +35,9 @@ class AcCond:
         self.use_gui = use_gui
         self.device = device
         os.makedirs(results_path, exist_ok=True)
+        if acdf2py is None:
+            log.warning('ac_cond_f is not available, please install the fortran code to calculate the AC conductivity')
+            sys.exit(1)
 
     def get_accond(self,
                         struct,
