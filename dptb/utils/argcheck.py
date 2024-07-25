@@ -519,14 +519,15 @@ def slem():
             Argument("avg_num_neighbors", [int, float], optional=False, doc=doc_avg_num_neighbors),
             Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
             Argument("n_layers", int, optional=False, doc=doc_n_layers),
+            
             Argument("n_radial_basis", int, optional=True, default=10, doc=doc_n_radial_basis),
             Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
             Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
-            Argument("env_embed_multiplicity", int, optional=True, default=1, doc=doc_env_embed_multiplicity),
+            Argument("env_embed_multiplicity", int, optional=True, default=10, doc=doc_env_embed_multiplicity),
             Argument("tp_radial_emb", bool, optional=True, default=False, doc="Whether to use tensor product radial embedding."),
-            Argument("tp_radial_channels", list, optional=True, default=[128, 128], doc="The number of channels in tensor product radial embedding."),
-            Argument("latent_channels", list, optional=True, default=[128, 128], doc="The number of channels in latent embedding."),
-            Argument("latent_dim", int, optional=True, default=256, doc="The dimension of latent embedding."),
+            Argument("tp_radial_channels", list, optional=True, default=[32], doc="The number of channels in tensor product radial embedding."),
+            Argument("latent_channels", list, optional=True, default=[32], doc="The number of channels in latent embedding."),
+            Argument("latent_dim", int, optional=True, default=64, doc="The dimension of latent embedding."),
             Argument("res_update", bool, optional=True, default=True, doc="Whether to use residual update."),
             Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
             Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
@@ -752,7 +753,7 @@ def loss_options():
     ]
 
     loss_args = Variant("method", [
-        Argument("hamil", dict, sub_fields=hamil),
+        # Argument("hamil", dict, sub_fields=hamil),
         Argument("eigvals", dict, sub_fields=eigvals),
         Argument("skints", dict, sub_fields=skints),
         Argument("hamil_abs", dict, sub_fields=hamil),

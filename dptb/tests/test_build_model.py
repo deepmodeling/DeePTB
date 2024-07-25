@@ -46,8 +46,7 @@ def test_build_nnsk_from_scratch():
         "overlap": False,
         "seed": 3982377700
     }
-    statistics = None
-    model = build_model(None, model_options, common_options, statistics)
+    model = build_model(None, model_options, common_options)
 
     assert isinstance(model, NNSK)
     assert model.device == "cpu"
@@ -111,9 +110,8 @@ def test_build_model_MIX_from_scratch():
         "overlap": False,
         "seed": 3982377700
     }
-    statistics = None
 
-    model = build_model(None, model_options, common_options, statistics)
+    model = build_model(None, model_options, common_options)
 
     assert isinstance(model, MIX)
     assert model.name == "mix"

@@ -6,15 +6,23 @@
 
 ## About DeePTB
 
-**DeePTB** is an innovative Python package that employs deep learning to construct electronic tight-binding (TB) Hamiltonians with a minimal basis. It is designed to:
+**DeePTB** is an innovative Python package that employs deep learning to construct electronic Hamiltonians using a minimal basis Slater-Koster TB(**SKTB**), and full LCAO basis using E3-equivariant neural networks (**E3TB**). It is designed to:
 
-- Efficiently predict TB Hamiltonians for large, unseen structures based on training with smaller ones.
+- Efficiently predict TB/LCAO Hamiltonians for large, unseen structures based on training with smaller ones.
 - Enable simulations of large systems under structural perturbations, finite temperature simulations integrating molecular dynamics (MD) for comprehensive atomic and electronic behavior.
+
+For **SKTB**:
 - Support customizable Slater-Koster parameterization with neural network incorporation for local environmental corrections. 
 - Operate independently of the choice of bases and exchange-correlation functionals, offering flexibility and adaptability.
 - Handle systems with strong spin-orbit coupling (SOC) effects.
 
-**DeePTB** is a versatile tool adaptable for a wide range of materials and phenomena, providing accurate and efficient simulations. See more details in our DeePTB paper: [arXiv:2307.04638](http://arxiv.org/abs/2307.04638)
+For **E3TB**:
+- Support constructing DFT Hamiltonians/density and overlap matrices under full LCAO basis.
+- Utilize strictly local and semi-local E3-equivariant neural networks to achieve high data-efficiency and accuracy.
+- Speed up via SO(2)convolution to support LCAO basis containing f and g orbitals.
+
+**DeePTB** is a versatile tool adaptable for a wide range of materials and phenomena, providing accurate and efficient simulations. See more details in our DeePTB paper: [sktb: arXiv:2307.04638](http://arxiv.org/abs/2307.04638), [e3tb: arXiv:2407.06053](https://arxiv.org/pdf/2407.06053)
+
 
 ## Installation
 

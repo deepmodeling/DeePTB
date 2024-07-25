@@ -353,7 +353,7 @@ class DefaultDataset(AtomicInMemoryDataset):
         # TODO: this is not implemented.
         return self.root
     
-    def E3statistics(self, decay=False):
+    def E3statistics(self, model: torch.nn.Module=None, decay=False):
         assert self.transform is not None
         idp = self.transform
 
@@ -368,6 +368,19 @@ class DefaultDataset(AtomicInMemoryDataset):
         stats = {}
         stats["node"] =  self._E3nodespecies_stat(typed_dataset=typed_dataset)
         stats["edge"] = self._E3edgespecies_stat(typed_dataset=typed_dataset, decay=decay)
+
+        if model is not None:
+            # initilize the model param with statistics
+            scalar_mask = torch.BoolTensor([ir.dim==1 for ir in model.idp.orbpair_irreps])
+            node_shifts = stats["node"]["scalar_ave"]
+            node_scales = stats["node"]["norm_ave"]
+            node_scales[:,scalar_mask] = stats["node"]["scalar_std"]
+
+            edge_shifts = stats["edge"]["scalar_ave"]
+            edge_scales = stats["edge"]["norm_ave"]
+            edge_scales[:,scalar_mask] = stats["edge"]["scalar_std"]
+            model.node_prediction_h.set_scale_shift(scales=node_scales, shifts=node_shifts)
+            model.edge_prediction_h.set_scale_shift(scales=edge_scales, shifts=edge_shifts)
 
         return stats
     

@@ -183,7 +183,8 @@ def train(
         # include the init model and from scratch
         # build model will handle the init model cases where the model options provided is not equals to the ones in checkpoint.
         checkpoint = init_model if init_model else None
-        model = build_model(checkpoint=checkpoint, model_options=jdata["model_options"], common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
+        model = build_model(checkpoint=checkpoint, model_options=jdata["model_options"], common_options=jdata["common_options"])
+        train_datasets.E3statistics(model=model)
         trainer = Trainer(
             train_options=jdata["train_options"],
             common_options=jdata["common_options"],
