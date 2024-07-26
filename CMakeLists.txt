@@ -4,6 +4,10 @@ option(BUILD_FORTRAN "Build Fortran extensions" OFF)
 option(USE_INTEL "Use Intel compilers" ON)
 option(USE_OPENMP "Use OpenMP" ON)
 
+set(CMAKE_Fortran_FLAGS "-fpp -O3 -xHost -qopenmp -ipo -heap-arrays 32 -unroll -fma -align")
+set(CMAKE_C_FLAGS  "-O3 -xHost -ipo -fma -align")
+
+
 if(BUILD_FORTRAN)
     if(USE_INTEL)
         set(CMAKE_C_COMPILER "icx")
@@ -15,7 +19,7 @@ if(BUILD_FORTRAN)
     project(${SKBUILD_PROJECT_NAME} LANGUAGES C Fortran)
     
     # 设置编译器标志
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -fPIC")
+    #set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -fPIC")
     
     if(USE_OPENMP)
         find_package(OpenMP REQUIRED)

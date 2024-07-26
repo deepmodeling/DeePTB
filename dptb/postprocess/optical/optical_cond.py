@@ -54,6 +54,8 @@ class AcCond:
                         direction='xx',
                         g_s=2):
         
+        self.direction = direction
+
         log.info('<><><><>'*5)
         # 调用from_ase方法，生成一个硅的AtomicData类型数据
         dataset = AtomicData.from_ase(atoms=read(struct),**AtomicData_options)
@@ -74,7 +76,7 @@ class AcCond:
                                                                     emax=emax, num_val=num_val, gap_corr=gap_corr, num_omega=num_omega, nk_per_loop=nk_per_loop, 
                                                                     delta=delta, T=T, direction=direction, g_s=g_s)
 
-        np.save(f"{self.results_path}/AC_cond_sig_{delta}.npy", {'energy':self.omegas, 'ac_cond_g': self.ac_cond_gauss, 'ac_cond_l': self.ac_cond_linhard})
+        np.save(f"{self.results_path}/AC_{self.direction}_cond_sig_{delta}.npy", {'energy':self.omegas, 'ac_cond_g': self.ac_cond_gauss, 'ac_cond_l': self.ac_cond_linhard})
         log.info('<><><><>'*5)
 
     def accond_plot(self):
@@ -84,8 +86,8 @@ class AcCond:
         plt.plot(self.omegas, self.ac_cond_linhard.imag, label='Linhard:real')
         plt.legend()
         plt.xlabel("Energy (eV)")
-        plt.ylabel("sigma_xx")
-        plt.savefig("ACxx.png")
+        plt.ylabel(f"sigma_{self.direction}")
+        plt.savefig(f"{self.results_path}/AC_{self.direction}.png")
         if self.use_gui:
             plt.show()
         plt.close()
