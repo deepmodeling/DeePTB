@@ -151,6 +151,7 @@ class AcCond:
 
             log.info(f'    - get H and dHdk ...')
             if data['hamiltonian'].shape[0] == 1:
+                log.info(f'    - use scipy for diagonalization of H ...')
                 eigs, eigv  = scipy.linalg.eigh(data['hamiltonian'].detach().numpy()[0])
                 eigs = eigs[None,:]
                 eigv = eigv[None,:,:]
