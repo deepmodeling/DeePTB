@@ -13,7 +13,7 @@ import logging
 import os
 from ase.io import read
 import matplotlib.pyplot as plt
-
+from dptb.utils.constants import  atomic_num_dict_r
 try:
     from dptb.postprocess.fortran import ac_cond as acdf2py
 except ImportError:
@@ -60,11 +60,11 @@ class AcCond:
         # 调用from_ase方法，生成一个硅的AtomicData类型数据
         dataset = AtomicData.from_ase(atoms=read(struct),**AtomicData_options)
         data = AtomicData.to_AtomicDataDict(dataset)
-        if valence_e is None and abs(gap_corr) > 1e-3:
-            uniq_type, counts = np.unique(data['atom_types'].numpy(), return_counts=True)
+        if valence_e is not None and abs(gap_corr) > 1e-3:
+            uniq_type, counts = np.unique(data['atomic_numbers'].numpy(), return_counts=True)
             tot_num_e = 0
             for i in range(len(uniq_type)):
-                symbol = self.model.idp.type_to_chemical_symbol[uniq_type[i]]
+                symbol = atomic_num_dict_r[uniq_type[i]]
                 assert symbol in valence_e
                 tot_num_e += counts[i] * valence_e[symbol]
             

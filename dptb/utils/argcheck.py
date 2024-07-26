@@ -1136,7 +1136,7 @@ def ac_cond():
         Argument("nk_per_loop", [int, None], optional=True, default=None, doc=doc_nk_per_loop),
         Argument("delta", float, optional=False, default=0.03, doc=doc_delta),
         Argument("e_fermi", [float, int, None], optional=False, doc=doc_e_fermi),
-        Argument("valence_e", [float, int, None], optional=True, default=None, doc=doc_valence_e),
+        Argument("valence_e", [dict, None], optional=True, default=None, doc=doc_valence_e),
         Argument("gap_corr", float, optional=False, default=0, doc=doc_gap_corr),
         Argument("T", [float, int], optional=False, default=300, doc=doc_T),
         Argument("direction", str, optional=False, default="xx", doc=doc_direction),
