@@ -14,6 +14,8 @@ import os
 from ase.io import read
 import matplotlib.pyplot as plt
 from dptb.utils.constants import  atomic_num_dict_r
+import scipy
+
 try:
     from dptb.postprocess.fortran import ac_cond as acdf2py
 except ImportError:
@@ -148,8 +150,14 @@ class AcCond:
             # dhdk = {k: v.detach().to(torch.complex128) for k, v in dhdk.items()}
 
             log.info(f'    - get H and dHdk ...')
-
-            eigs, eigv = torch.linalg.eigh(data['hamiltonian'])
+            if data['hamiltonian'].shape[0] == 1:
+                eigs, eigv  = scipy.linalg.eigh(data['hamiltonian'].detach().numpy()[0])
+                eigs = eigs[None,:]
+                eigv = eigv[None,:,:]
+                eigs = torch.as_tensor(eigs, dtype=torch.float32)
+                eigv = torch.as_tensor(eigv, dtype=torch.complex64)
+            else:
+                eigs, eigv = torch.linalg.eigh(data['hamiltonian'])
 
             if num_val is not None and abs(gap_corr) > 1e-3:
                 log.info(f'    - gap correction is applied with {gap_corr}')
