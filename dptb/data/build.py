@@ -14,7 +14,9 @@ from dptb.data import AtomicDataset, register_fields
 from dptb.utils import instantiate, get_w_prefix
 from dptb.utils.tools import j_loader
 from dptb.utils.argcheck import normalize_setinfo, normalize_lmdbsetinfo
+import logging
 
+log = logging.getLogger(__name__)
 
 def dataset_from_config(config, prefix: str = "dataset") -> AtomicDataset:
     """initialize database based on a config instance
@@ -198,31 +200,32 @@ def build_dataset(
         if os.path.exists(f"{root}/info.json"):
             public_info = j_loader(os.path.join(root, "info.json"))
             if dataset_type == "LMDBDataset":
-                public_info = normalize_lmdbsetinfo(public_info)
+                public_info = {}
+                log.info("A public `info.json` file is provided, but will not be used  anymore for LMDBDataset.")
             else:
                 public_info = normalize_setinfo(public_info)
-            print("A public `info.json` file is provided, and will be used by the subfolders who do not have their own `info.json` file.")
+                log.info("A public `info.json` file is provided, and will be used by the subfolders who do not have their own `info.json` file.")
         else:
             public_info = None
 
         # Load info in each trajectory folders seperately.
         for file in include_folders:
             #if "info.json" in os.listdir(os.path.join(root, file)):
-            if os.path.exists(f"{root}/{file}/info.json"):
+            
+            if dataset_type == "LMDBDataset":
+                info_files[file] = {}
+            elif os.path.exists(f"{root}/{file}/info.json"):
                 # use info provided in this trajectory.
                 info = j_loader(f"{root}/{file}/info.json")
-                if dataset_type == "LMDBDataset":
-                    info = normalize_lmdbsetinfo(info)
-                else:
-                    info = normalize_setinfo(info)
+                info = normalize_setinfo(info)
                 info_files[file] = info
-            elif public_info is not None:
+            elif public_info is not None:  # not lmbd and no info in subfolder, then must use public info.
                 # use public info instead
                 # yaml will not dump correctly if this is not a deepcopy.
                 info_files[file] = deepcopy(public_info)
-            else:
-                # no info for this file
-                raise Exception(f"info.json is not properly provided for `{file}`.")
+            else:  # not lmdb no info in subfolder and no public info. then raise error.
+                log.error(f"for {dataset_type} type, the info.json is not properly provided for `{file}`")
+                raise ValueError(f"for {dataset_type} type, the info.json is not properly provided for `{file}`")
             
         # We will sort the info_files here.
         # The order itself is not important, but must be consistant for the same list.
