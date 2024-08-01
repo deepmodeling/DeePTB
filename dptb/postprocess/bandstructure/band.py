@@ -170,7 +170,7 @@ class Band(ElecStruCal):
         self.results_path = results_path
         self.use_gui = use_gui
             
-    def get_bands(self, data: Union[AtomicData, ase.Atoms, str], kpath_kwargs: dict, AtomicData_options: dict={}):
+    def get_bands(self, data: Union[AtomicData, ase.Atoms, str], kpath_kwargs: dict, pbc:Union[bool,list]=None, Atomic_options:dict=None):
         kline_type = kpath_kwargs['kline_type']
 
         # get  the ase structure
@@ -208,7 +208,7 @@ class Band(ElecStruCal):
             log.error('Error, now, kline_type only support ase_kpath, abacus, or vasp.')
             raise ValueError
         
-        data, eigenvalues = self.get_eigs(data, klist, AtomicData_options)
+        data, eigenvalues = self.get_eigs(data=data, klist=klist, pbc=pbc, Atomic_options=Atomic_options)
         
 
         # get the E_fermi from data
@@ -229,7 +229,7 @@ class Band(ElecStruCal):
         #     estimated_E_fermi = None
         if nel_atom is not None:
             data,estimated_E_fermi = self.get_fermi_level(data=data, nel_atom=nel_atom, \
-                        klist = klist, AtomicData_options=AtomicData_options)
+                        klist = klist, pbc=pbc, Atomic_options=Atomic_options)
         else:
             estimated_E_fermi = None
 

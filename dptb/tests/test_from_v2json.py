@@ -42,11 +42,10 @@ class TestV2Jsonuniform:
             device=model.device)
 
         stru_data = f"{rootdir}/json_model/AlAs.vasp"
-        AtomicData_options = {"r_max": 5.2, "pbc": True}
+        AtomicData_options = {"r_max": 5.2}
 
         eigenstatus = bcal.get_bands(data=stru_data, 
-               kpath_kwargs=kpath_kwargs, 
-               AtomicData_options=AtomicData_options)
+               kpath_kwargs=kpath_kwargs)
         
         expected_bands =np.array([[-2.48727150e+01, -1.29382324e+01, -1.29382257e+01, -1.29382229e+01, -1.10868120e+01, -8.07862854e+00, -8.07862568e+00, -8.07861805e+00,  9.56408596e+00,  9.56408691e+00,  1.25271873e+01,  1.25271950e+01,  1.25271978e+01,  4.23655891e+01,  4.23656044e+01,  4.32170753e+01,  4.32170792e+01,  4.32170868e+01],
              [-2.41187267e+01, -1.61148472e+01, -1.42793083e+01, -1.42793045e+01, -1.03604565e+01, -8.68612957e+00, -5.90628624e+00, -5.90628576e+00,  2.25617599e+00,  5.51729870e+00,  5.51730347e+00,  5.61441135e+00,  5.90860081e+00,  2.50449829e+01,  2.82622643e+01,  2.82622776e+01,  2.84239502e+01,  3.07470131e+01],
@@ -99,11 +98,11 @@ class TestV2Jsonstrain:
             device=model.device)
 
         stru_data = f"{rootdir}/json_model/silicon.vasp"
-        AtomicData_options = {"r_max": 2.6, "oer_max":2.5, "pbc": True}
+        AtomicData_options = {"r_max": 2.6, "oer_max":2.5}
 
         eigenstatus = bcal.get_bands(data=stru_data, 
                kpath_kwargs=kpath_kwargs, 
-               AtomicData_options=AtomicData_options)
+               Atomic_options=AtomicData_options)
         
         expected_bands =np.array([[-20.259584  ,  -8.328452  ,  -8.328452  ,  -8.328451  ,  -5.782879  ,  -5.782879  ,  -5.7828774 ,  -4.800206  ,  -0.8470682 ,  -0.8470663 ,   4.9619126 ,   4.961913  ,   4.9619136 ,   6.4527135 ,   6.452714  ,   6.452715  ,  10.1427765 ,  10.142781  ],
                                   [-19.173727  , -11.876228  , -10.340221  , -10.34022   ,  -6.861969  ,  -4.9920564 ,  -2.1901789 ,  -2.1901765 ,  -0.9258757 ,   0.76235735,   4.2745295 ,   4.2745323 ,   4.990632  ,   5.55916   ,   5.559161  ,   8.533346  ,   8.716906  ,  11.661528  ],

@@ -44,7 +44,7 @@ def test_nrl_json_band():
     }
 
     stru_data = f"{rootdir}/json_model/silicon.vasp"
-    AtomicData_options = {"r_max": 5.0, "oer_max":6.6147151362875, "pbc": True}
+    AtomicData_options = {"r_max": 5.0, "oer_max":6.6147151362875}
     kpath_kwargs = jdata["task_options"]
     bcal = Band(model=model, 
                 use_gui=True, 
@@ -52,8 +52,7 @@ def test_nrl_json_band():
                 device=model.device)
 
     eigenstatus = bcal.get_bands(data=stru_data, 
-                   kpath_kwargs=kpath_kwargs, 
-                   AtomicData_options=AtomicData_options)
+                   kpath_kwargs=kpath_kwargs, Atomic_options = AtomicData_options)
     
     expected_eigenvalues = np.array([[-6.1745434 ,  5.282297  ,  5.282303  ,  5.2823052 ,  8.658317  ,  8.6583185 ,  8.658324  ,  9.862869  , 14.152446  , 14.152451  , 15.180438  , 15.180452  , 16.983887  , 16.983889  , 16.983896  , 23.09491   , 23.094921  , 23.094925  ],
                                      [-5.5601606 ,  2.1920488 ,  3.4229636 ,  3.4229672 ,  7.347074  ,  9.382092  , 11.1772175 , 11.177221  , 14.349099  , 14.924912  , 15.062427  , 15.064081  , 16.540335  , 16.54034   , 20.871534  , 20.871536  , 21.472364  , 28.740482  ],

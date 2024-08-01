@@ -44,11 +44,11 @@ def test_soc_json_band():
                 device=model.device)
     
     stru_data = f"{rootdir}/Sn/soc/dataset/Sn.vasp"
-    AtomicData_options = {"r_max": 6.0, "oer_max":3.0, "pbc": True}
+    AtomicData_options = {"r_max": 6.0, "oer_max":3.0}
     
     eigenstatus = bcal.get_bands(data=stru_data, 
                    kpath_kwargs=kpath_kwargs, 
-                   AtomicData_options=AtomicData_options)
+                   Atomic_options=AtomicData_options)
 
     expected_eigenvalues = np.array([[-18.796585  , -18.796577  ,  -8.796718  ,  -8.796717  ,
          -8.467822  ,  -8.46782   ,  -8.202273  ,  -8.202273  ,
