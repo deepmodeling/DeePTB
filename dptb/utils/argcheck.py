@@ -1486,12 +1486,17 @@ def get_cutoffs_from_model_options(model_options):
         
     if model_options.get("nnsk", None) is not None:
         assert r_max is None, "r_max should not be provided in outside the nnsk for training nnsk model."
-        
         if model_options["nnsk"]["hopping"].get("rs",None) is not None:
-            r_max = model_options["nnsk"]["hopping"]["rs"]
+            if model_options["nnsk"]["hopping"]['method'] in ["powerlaw","varTang96"]:
+                r_max = model_options["nnsk"]["hopping"]["rs"] + 5 * model_options["nnsk"]["hopping"]["w"]
+            else:
+                r_max = model_options["nnsk"]["hopping"]["rs"]
 
         if model_options["nnsk"]["onsite"].get("rs",None) is not None:
-            oer_max = model_options["nnsk"]["onsite"]["rs"]
+            if  model_options["nnsk"]["onsite"]['method'] == "strain" and model_options["nnsk"]["hopping"]['method'] in ["powerlaw","varTang96"]:
+                oer_max = model_options["nnsk"]["onsite"]["rs"] + 5 * model_options["nnsk"]["onsite"]["w"]
+            else:
+                oer_max = model_options["nnsk"]["onsite"]["rs"]
     
     elif model_options.get("dftbsk", None) is not None:
         assert r_max is None, "r_max should not be provided in outside the dftbsk for training dftbsk model."
