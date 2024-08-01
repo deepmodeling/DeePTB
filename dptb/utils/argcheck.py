@@ -1488,8 +1488,7 @@ def collect_cutoffs(jdata):
                 log.info("IN PUSH mode, the env correction should not be used. the er_max will not take effect.")     
         else:
             if  jdata['data_options'].get("r_max") is not None:
-                log.info("For usually where the nnsk/push is not used. the cutoffs will take from the model options. like the r_max  rs and rc values.")
-                log.info("This option will not take effect.")
+                log.info("When not nnsk/push. the cutoffs will take from the model options: r_max  rs and rc values. this seting in data_options will be ignored.")
     
     elif jdata["model_options"].get("dftbsk", None) is not None:
         assert r_max is None, "r_max should not be provided in outside the dftbsk for training dftbsk model."
@@ -1503,11 +1502,12 @@ def collect_cutoffs(jdata):
     assert r_max is not None
     cutoff_options = ({"r_max": r_max, "er_max": er_max, "oer_max": oer_max})
     
-    log.info("<><><><><><>"*10)
-    log.info(f"Cutoff options: ")
-    log.info(f"r_max : {r_max}")
-    log.info(f"er_max : {er_max}")
-    log.info(f"oer_max : {oer_max}")
-    log.info("<><><><><><>"*10)
+    log.info("-"*66)
+    log.info('     {:<55}    '.format("Cutoff options:"))
+    log.info('     {:<55}    '.format(" "*30))
+    log.info('     {:<16} : {:<36}    '.format("r_max", f"{r_max}"))
+    log.info('     {:<16} : {:<36}    '.format("er_max", f"{er_max}"))
+    log.info('     {:<16} : {:<36}    '.format("oer_max", f"{oer_max}"))
+    log.info("-"*66)
 
     return cutoff_options
