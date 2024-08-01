@@ -1452,34 +1452,91 @@ def normalize_lmdbsetinfo(data):
 
     return data
 
-def collect_cutoffs(jdata):
-    # collect r_max infos from model options.
+def get_cutoffs_from_model_options(model_options):
+    """
+    Extract cutoff values from the provided model options.
+
+    This function retrieves the cutoff values `r_max`, `er_max`, and `oer_max` from the `model_options` 
+    dictionary. It handles different model types such as `embedding`, `nnsk`, and `dftbsk`, ensuring 
+    that the appropriate cutoff values are provided and valid.
+
+    Parameters:
+    model_options (dict): A dictionary containing model configuration options. It may include keys 
+                          like `embedding`, `nnsk`, and `dftbsk` with their respective cutoff values.
+
+    Returns:
+    tuple: A tuple containing the cutoff values (`r_max`, `er_max`, `oer_max`).
+
+    Raises:
+    ValueError: If neither `r_max` nor `rc` is provided in `model_options` for embedding.
+    AssertionError: If `r_max` is provided outside the `nnsk` or `dftbsk` context when those models are used.
+
+    Logs:
+    Error messages if required cutoff values are missing or incorrectly provided.
+    """
     r_max, er_max, oer_max = None, None, None
-    if jdata["model_options"].get("embedding",None) is not None:
-        if jdata["model_options"]["embedding"].get("r_max",None) is not None:
-            r_max = jdata["model_options"]["embedding"]["r_max"]
-        elif jdata["model_options"]["embedding"].get("rc",None) is not None:
-            er_max = jdata["model_options"]["embedding"]["rc"]
+    if model_options.get("embedding",None) is not None:
+        if model_options["embedding"].get("r_max",None) is not None:
+            r_max = model_options["embedding"]["r_max"]
+        elif model_options["embedding"].get("rc",None) is not None:
+            er_max = model_options["embedding"]["rc"]
         else:
             log.error("r_max or rc should be provided in model_options for embedding!")
             raise ValueError("r_max or rc should be provided in model_options for embedding!")
-    
-    if jdata["model_options"].get("nnsk", None) is not None:
+        
+    if model_options.get("nnsk", None) is not None:
         assert r_max is None, "r_max should not be provided in outside the nnsk for training nnsk model."
         
-        if jdata["model_options"]["nnsk"]["hopping"].get("rs",None) is not None:
-            r_max = jdata["model_options"]["nnsk"]["hopping"]["rs"]
+        if model_options["nnsk"]["hopping"].get("rs",None) is not None:
+            r_max = model_options["nnsk"]["hopping"]["rs"]
 
-        if jdata["model_options"]["nnsk"]["onsite"].get("rs",None) is not None:
-            oer_max = jdata["model_options"]["nnsk"]["onsite"]["rs"]
-        
-        ## for specific case: PUSH. r_max will be used from data_options.
-        if jdata["model_options"]["nnsk"]["push"]:
+        if model_options["nnsk"]["onsite"].get("rs",None) is not None:
+            oer_max = model_options["nnsk"]["onsite"]["rs"]
+    
+    elif model_options.get("dftbsk", None) is not None:
+        assert r_max is None, "r_max should not be provided in outside the dftbsk for training dftbsk model."
+        r_max = model_options["dftbsk"]["r_max"]
+    
+    else:
+        # not nnsk not dftbsk, must be only env or E3. the embedding should be provided.
+        assert model_options.get("embedding",None) is not None   
+
+    return r_max, er_max, oer_max
+def collect_cutoffs(jdata):
+    """
+    Collect cutoff values from the provided JSON data.
+
+    This function extracts the cutoff values `r_max`, `er_max`, and `oer_max` from the `model_options` 
+    in the provided JSON data. If the `nnsk` push model is used, it ensures that the necessary 
+    cutoff values are provided in `data_options` and overrides the values from `model_options` 
+    accordingly.
+
+    Parameters:
+    jdata (dict): A dictionary containing model and data options. It must include `model_options` 
+                  and optionally `data_options` if `nnsk` push model is used.
+
+    Returns:
+    dict: A dictionary containing the cutoff options with keys `r_max`, `er_max`, and `oer_max`.
+
+    Raises:
+    AssertionError: If required keys are missing in `jdata` or if `r_max` is not provided when 
+                    using the `nnsk` push model.
+
+    Logs:
+    Various informational messages about the cutoff values and their sources.
+    """ 
+
+    model_options = jdata["model_options"]
+    r_max, er_max, oer_max = get_cutoffs_from_model_options(model_options)
+
+    if model_options.get("nnsk", None) is not None:
+        if model_options["nnsk"]["push"]:
+            assert jdata.get("data_options",None) is not None, "data_options should be provided in jdata for nnsk push"
             assert jdata['data_options'].get("r_max") is not None, "r_max should be provided in data_options for nnsk push"
             log.info('YOU ARE USING NNSK PUSH MODEL, r_max will be used from data_options. Be careful! check the value in data options and model options. r_max or rs/rc !')
             r_max = jdata['data_options']['r_max']
-        
-            if jdata["model_options"]["nnsk"]["onsite"]["method"] in ["strain", "NRL"]:
+
+            if model_options["nnsk"]["onsite"]["method"] in ["strain", "NRL"]:
                 assert jdata['data_options'].get("oer_max") is not None, "oer_max should be provided in data_options for nnsk push with strain onsite mode"
                 log.info('YOU ARE USING NNSK PUSH MODEL with `strain` onsite mode, oer_max will be used from data_options. Be careful! check the value in data options and model options. rs/rc !')
                 oer_max = jdata['data_options']['oer_max']
@@ -1489,16 +1546,7 @@ def collect_cutoffs(jdata):
         else:
             if  jdata['data_options'].get("r_max") is not None:
                 log.info("When not nnsk/push. the cutoffs will take from the model options: r_max  rs and rc values. this seting in data_options will be ignored.")
-    
-    elif jdata["model_options"].get("dftbsk", None) is not None:
-        assert r_max is None, "r_max should not be provided in outside the dftbsk for training dftbsk model."
-        r_max = jdata["model_options"]["dftbsk"]["r_max"]
-    
-    else:
-        # not nnsk not dftbsk, must be only env or E3. the embedding should be provided.
-        assert jdata["model_options"].get("embedding",None) is not None
 
-    
     assert r_max is not None
     cutoff_options = ({"r_max": r_max, "er_max": er_max, "oer_max": oer_max})
     
