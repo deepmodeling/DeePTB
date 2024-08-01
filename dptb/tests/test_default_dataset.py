@@ -17,10 +17,10 @@ class TestDefaultDatasetSKTB:
     info_files = {'kpath_spk.0': {'nframes': 1,
       'natoms': 2,
       'pos_type': 'ase',
-      'AtomicData_options': {'r_max': 5.0,
+      'pbc': True,
+      'r_max': 5.0,
        'er_max': 5.0,
        'oer_max': 2.5,
-       'pbc': True},
       'bandinfo': {'nkpoints': 61,
        'nbands': 14,
        'band_min': 0,
@@ -56,7 +56,7 @@ class TestDefaultDatasetSKTB:
     def test_raw_data(self):
         assert len(self.dataset.raw_data) == 1
         assert isinstance(self.dataset.raw_data[0], _TrajData)
-        assert self.dataset.raw_data[0].AtomicData_options == {'r_max': 5.0, 'er_max': 5.0, 'oer_max': 2.5, 'pbc': True}
+        # assert self.dataset.raw_data[0].AtomicData_options == {'r_max': 5.0, 'er_max': 5.0, 'oer_max': 2.5, 'pbc': True}
         assert self.dataset.raw_data[0].info == self.info_files['kpath_spk.0']
         assert "bandinfo" in self.dataset.raw_data[0].info
         assert  list(self.dataset.raw_data[0].data.keys()) == (['cell', 'pos', 'atomic_numbers', 'kpoint', 'eigenvalue'])

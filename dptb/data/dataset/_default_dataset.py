@@ -40,7 +40,6 @@ class _TrajData(object):
     
     def __init__(self, 
                  root: str, 
-                 AtomicData_options: Dict[str, Any] = {},
                  get_Hamiltonian = False,
                  get_overlap = False,
                  get_DM = False,
@@ -50,13 +49,10 @@ class _TrajData(object):
         
         assert not get_Hamiltonian * get_DM, "Hamiltonian and Density Matrix can only loaded one at a time, for which will occupy the same attribute in the AtomicData."
         self.root = root
-        self.AtomicData_options = AtomicData_options
         self.info = info
-
         self.data = {}
-        # load cell
-        
-        pbc = AtomicData_options["pbc"]
+        pbc = info["pbc"]
+        # load cell        
         if isinstance(pbc, bool):
             has_cell = pbc
         elif isinstance(pbc, list):
@@ -155,7 +151,6 @@ class _TrajData(object):
     @classmethod
     def from_ase_traj(cls,
                       root: str, 
-                      AtomicData_options: Dict[str, Any] = {},
                       get_Hamiltonian = False,
                       get_overlap = False,
                       get_DM = False,
@@ -185,7 +180,6 @@ class _TrajData(object):
         np.savetxt(os.path.join(root, "atomic_numbers.dat"), atomic_numbers, fmt='%d')
 
         return cls(root=root,
-                   AtomicData_options=AtomicData_options,
                    get_Hamiltonian=get_Hamiltonian,
                    get_overlap=get_overlap,
                    get_DM=get_DM,
@@ -218,10 +212,11 @@ class _TrajData(object):
                                                                                   dtype=torch.long)
 
             atomic_data = AtomicData.from_points(
+                  r_max = self.info["r_max"],
+                  pbc = self.info["pbc"],
+                  er_max = self.info.get("er_max", None),
+                  oer_max= self.info.get("oer_max", None),
                   **kwargs,
-                  # pbc is stored in AtomicData_options now.
-                  #pbc = self.info["pbc"], 
-                  **self.AtomicData_options
             )
             if "hamiltonian_blocks" in self.data:
                 assert idp is not None, "LCAO Basis must be provided  in `common_option` for loading Hamiltonian."
@@ -300,13 +295,12 @@ class DefaultDataset(AtomicInMemoryDataset):
         for file in self.info_files.keys():
             # get the info here
             info = info_files[file]
-            assert "AtomicData_options" in info
-            AtomicData_options = info["AtomicData_options"]
-            assert "r_max" in AtomicData_options
-            assert "pbc" in AtomicData_options
+            # assert "AtomicData_options" in info
+            assert "r_max" in info
+            assert "pbc" in info
+            pbc = info["pbc"]
             if info["pos_type"] == "ase":
                 subdata = _TrajData.from_ase_traj(os.path.join(self.root, file), 
-                                AtomicData_options,
                                 get_Hamiltonian, 
                                 get_overlap,
                                 get_DM,
@@ -314,7 +308,6 @@ class DefaultDataset(AtomicInMemoryDataset):
                                 info=info)
             else:
                 subdata = _TrajData(os.path.join(self.root, file), 
-                                AtomicData_options,
                                 get_Hamiltonian,
                                 get_overlap,
                                 get_DM,

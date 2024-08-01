@@ -10,6 +10,9 @@ def root_directory(request):
 
 def test_build_dataset_success(root_directory):
     set_options = {
+        "r_max": 5.0,
+        "er_max": 5.0,
+        "oer_max": 2.5,
         "root": f"{root_directory}/dptb/tests/data/test_sktb/dataset",
         "prefix": "kpath_spk",
         "get_eigenvalues": True,
@@ -53,6 +56,9 @@ def test_build_dataset_success(root_directory):
 
 def test_build_dataset_fail(root_directory):
     set_options = {
+        "r_max": 5.0,
+        "er_max": 5.0,
+        "oer_max": 2.5,
         "root": f"{root_directory}/dptb/tests/data/test_sktb/dataset",
         "prefix": "kpath_spk",
         "get_eigenvalues": False,

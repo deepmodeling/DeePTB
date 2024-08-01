@@ -109,6 +109,10 @@ def dataset_from_config(config, prefix: str = "dataset") -> AtomicDataset:
 def build_dataset(
         # set_options
         root: str,
+        # dataset_options
+        r_max: float,
+        er_max: float = None,
+        oer_max: float = None,
         type: str = "DefaultDataset",
         prefix: str = None,
         separator:str='.',
@@ -116,7 +120,6 @@ def build_dataset(
         get_overlap: bool = False,
         get_DM: bool = False,
         get_eigenvalues: bool = False,
-
         # common_options
         orthogonal: bool = False,
         basis: str = None, 
@@ -224,7 +227,10 @@ def build_dataset(
         # We will sort the info_files here.
         # The order itself is not important, but must be consistant for the same list.
         info_files = {key: info_files[key] for key in sorted(info_files)}
-        
+    
+        for ikey in info_files:
+            info_files[ikey].update({'r_max': r_max, 'er_max': er_max, 'oer_max': oer_max})
+            
         if dataset_type == "DeePHDataset":
             dataset = DeePHE3Dataset(
                 root=root,

@@ -338,6 +338,9 @@ def test_data_sub():
 
 def data_options():
     args = [
+            Argument("r_max", [float,int], optional=True, default="5.0", doc="r_max"),
+            Argument("oer_max", [float,int], optional=True, default="5.0", doc="oer_max"),
+            Argument("er_max", [float,int], optional=True, default="5.0", doc="er_max"),
             train_data_sub(),
             validation_data_sub(),
             reference_data_sub()
@@ -593,6 +596,7 @@ def dftbsk():
 
     return Argument("dftbsk", dict, sub_fields=[
                 Argument("skdata", str, optional=False, doc="The path to the skfile or sk database."),
+                Argument("r_max", float, optional=False, doc="the cutoff values to use sk files."),
                 ], sub_variants=[], optional=True, doc=doc_dftbsk)
 
 def nnsk():
@@ -1412,28 +1416,14 @@ def set_info_options():
     doc_nframes = "Number of frames in this trajectory."
     doc_natoms = "Number of atoms in each frame."
     doc_pos_type = "Type of atomic position input. Can be frac / cart / ase."
+    doc_pbc = "The periodic condition for the structure, can bool or list of bool to specific x,y,z direction."
 
     args = [
         Argument("nframes", int, optional=False, doc=doc_nframes),
         Argument("natoms", int, optional=True, default=-1, doc=doc_natoms),
         Argument("pos_type", str, optional=False, doc=doc_pos_type),
-        bandinfo_sub(),
-        AtomicData_options_sub()
-    ]
-
-    return Argument("setinfo", dict, sub_fields=args)
-
-def set_info_options():
-    doc_nframes = "Number of frames in this trajectory."
-    doc_natoms = "Number of atoms in each frame."
-    doc_pos_type = "Type of atomic position input. Can be frac / cart / ase."
-
-    args = [
-        Argument("nframes", int, optional=False, doc=doc_nframes),
-        Argument("natoms", int, optional=True, default=-1, doc=doc_natoms),
-        Argument("pos_type", str, optional=False, doc=doc_pos_type),
-        bandinfo_sub(),
-        AtomicData_options_sub()
+        Argument("pbc", [bool, list], optional=False, doc=doc_pbc),
+        bandinfo_sub()
     ]
 
     return Argument("setinfo", dict, sub_fields=args)
@@ -1461,3 +1451,63 @@ def normalize_lmdbsetinfo(data):
     setinfo.check_value(data, strict=True)
 
     return data
+
+def collect_cutoffs(jdata):
+    # collect r_max infos from model options.
+    r_max, er_max, oer_max = None, None, None
+    if jdata["model_options"].get("embedding",None) is not None:
+        if jdata["model_options"]["embedding"].get("r_max",None) is not None:
+            r_max = jdata["model_options"]["embedding"]["r_max"]
+        elif jdata["model_options"]["embedding"].get("rc",None) is not None:
+            er_max = jdata["model_options"]["embedding"]["rc"]
+        else:
+            log.error("r_max or rc should be provided in model_options for embedding!")
+            raise ValueError("r_max or rc should be provided in model_options for embedding!")
+    
+    if jdata["model_options"].get("nnsk", None) is not None:
+        assert r_max is None, "r_max should not be provided in outside the nnsk for training nnsk model."
+        
+        if jdata["model_options"]["nnsk"]["hopping"].get("rs",None) is not None:
+            r_max = jdata["model_options"]["nnsk"]["hopping"]["rs"]
+
+        if jdata["model_options"]["nnsk"]["onsite"].get("rs",None) is not None:
+            oer_max = jdata["model_options"]["nnsk"]["onsite"]["rs"]
+        
+        ## for specific case: PUSH. r_max will be used from data_options.
+        if jdata["model_options"]["nnsk"]["push"]:
+            assert jdata['data_options'].get("r_max") is not None, "r_max should be provided in data_options for nnsk push"
+            log.info('YOU ARE USING NNSK PUSH MODEL, r_max will be used from data_options. Be careful! check the value in data options and model options. r_max or rs/rc !')
+            r_max = jdata['data_options']['r_max']
+        
+            if jdata["model_options"]["nnsk"]["onsite"]["method"] in ["strain", "NRL"]:
+                assert jdata['data_options'].get("oer_max") is not None, "oer_max should be provided in data_options for nnsk push with strain onsite mode"
+                log.info('YOU ARE USING NNSK PUSH MODEL with `strain` onsite mode, oer_max will be used from data_options. Be careful! check the value in data options and model options. rs/rc !')
+                oer_max = jdata['data_options']['oer_max']
+
+            if jdata['data_options'].get("er_max") is not None:
+                log.info("IN PUSH mode, the env correction should not be used. the er_max will not take effect.")     
+        else:
+            if  jdata['data_options'].get("r_max") is not None:
+                log.info("For usually where the nnsk/push is not used. the cutoffs will take from the model options. like the r_max  rs and rc values.")
+                log.info("This option will not take effect.")
+    
+    elif jdata["model_options"].get("dftbsk", None) is not None:
+        assert r_max is None, "r_max should not be provided in outside the dftbsk for training dftbsk model."
+        r_max = jdata["model_options"]["dftbsk"]["r_max"]
+    
+    else:
+        # not nnsk not dftbsk, must be only env or E3. the embedding should be provided.
+        assert jdata["model_options"].get("embedding",None) is not None
+
+    
+    assert r_max is not None
+    cutoff_options = ({"r_max": r_max, "er_max": er_max, "oer_max": oer_max})
+    
+    log.info("<><><><><><>"*10)
+    log.info(f"Cutoff options: ")
+    log.info(f"r_max : {r_max}")
+    log.info(f"er_max : {er_max}")
+    log.info(f"oer_max : {oer_max}")
+    log.info("<><><><><><>"*10)
+
+    return cutoff_options

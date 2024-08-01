@@ -42,6 +42,10 @@ class ElecStruCal(object):
         self.model.eval()
         self.overlap = hasattr(model, 'overlap')
 
+        if not self.model.transform:
+            log.error('The model.transform is not True, please check the model.')
+            raise RuntimeError('The model.transform is not True, please check the model.')
+        
         if self.overlap:
             self.eigv = Eigenvalues(
                 idp=model.idp,

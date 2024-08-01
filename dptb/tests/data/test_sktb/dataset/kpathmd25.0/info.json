@@ -2,12 +2,7 @@
     "nframes": 10,
     "natoms": 8,
     "pos_type": "ase",
-    "AtomicData_options": {
-        "r_max": 5.0,
-        "er_max": 5.0,
-        "oer_max": 2.5,
-        "pbc": true
-    },
+    "pbc": true,
     "bandinfo": {
         "band_min": 0,
         "band_max": 8,
