@@ -16,6 +16,8 @@ from dptb.utils.tools import j_loader
 from dptb.utils.argcheck import normalize_setinfo, normalize_lmdbsetinfo
 from dptb.utils.argcheck import collect_cutoffs 
 import logging
+import torch
+import copy
 
 
 log = logging.getLogger(__name__)
@@ -156,6 +158,12 @@ class DatasetBuilder:
             ValueError: If the dataset type is not supported.
             Exception: If the info.json file is not properly provided for a trajectory folder.
         """
+        self.r_max = r_max
+        self.er_max = er_max
+        self.oer_max = oer_max
+
+        self.if_check_cutoffs = False
+
         dataset_type = type
         # See if we can get a OrbitalMapper.
         if basis is not None:
@@ -265,6 +273,9 @@ class DatasetBuilder:
         else:
             raise ValueError(f"Not support dataset type: {type}.")
         
+        if not self.if_check_cutoffs:
+            log.warning("The cutoffs in data and model are not checked. be careful!")
+
         return dataset
     
     def from_model(self, 
@@ -310,6 +321,55 @@ class DatasetBuilder:
 
         return dataset
 
+    def check_cutoffs(self,model:torch.nn.Module=None, **kwargs):
+        if model is None:
+            self.if_check_cutoffs = False
+            log.warning("No model is provided. We can not check the cutoffs used in data and model are consistent.")
+        else:
+            self.if_check_cutoffs = True
+            cutoff_options = collect_cutoffs(model.model_options)
+            if isinstance(cutoff_options['r_max'],dict):
+                assert isinstance(self.r_max,dict), "The r_max in model is a dict, but in dataset it is not."
+                for key in cutoff_options['r_max']:
+                    if key not in self.r_max:
+                        log.error(f"The key {key} in r_max is not defined in dataset")
+                        raise ValueError(f"The key {key} in r_max is not defined in dataset")
+                    assert self.r_max >=  cutoff_options['r_max'][key], f"The r_max in model shoule be  smaller than in dataset for {key}."
+
+            elif isinstance(cutoff_options['r_max'],float):
+                assert isinstance(self.r_max,float), "The r_max in model is a float, but in dataset it is not."
+                assert self.r_max >=  cutoff_options['r_max'], "The r_max in model shoule be  smaller than in dataset."        
+
+            if isinstance(cutoff_options['er_max'],dict):
+                assert isinstance(self.er_max,dict), "The er_max in model is a dict, but in dataset it is not."
+                for key in cutoff_options['er_max']:
+                    if key not in self.er_max:
+                        log.error(f"The key {key} in er_max is not defined in dataset")
+                        raise ValueError(f"The key {key} in er_max is not defined in dataset")
+                    
+                    assert self.er_max >=  cutoff_options['er_max'][key], f"The er_max in model shoule be  smaller than in dataset for {key}."
+
+            elif isinstance(cutoff_options['er_max'],float):
+                assert isinstance(self.er_max,float), "The er_max in model is a float, but in dataset it is not."
+                assert self.er_max >=  cutoff_options['er_max'], "The er_max in model shoule be  smaller than in dataset."
+            elif cutoff_options['er_max'] is None:
+                assert self.er_max is None, "The er_max in model is None, but in dataset it is not."
+
+            
+            if isinstance(cutoff_options['oer_max'],dict):
+                assert isinstance(self.oer_max,dict), "The oer_max in model is a dict, but in dataset it is not."
+                for key in cutoff_options['oer_max']:
+                    if key not in self.oer_max:
+                        log.error(f"The key {key} in oer_max is not defined in dataset")
+                        raise ValueError(f"The key {key} in oer_max is not defined in dataset")
+                    
+                    assert self.oer_max >=  cutoff_options['oer_max'][key], f"The oer_max in model shoule be  smaller than in dataset for {key}."
+            elif isinstance(cutoff_options['oer_max'],float):
+                assert isinstance(self.oer_max,float), "The oer_max in model is a float, but in dataset it is not."
+                assert self.oer_max >=  cutoff_options['oer_max'], "The oer_max in model shoule be  smaller than in dataset."
+            elif cutoff_options['oer_max'] is None:
+                assert self.oer_max is None, "The oer_max in model is None, but in dataset it is not."
+                
 # note, compared to the previous build_dataset, this one is more flexible.    
 # previous build_dataset is a function. now i define a class DataBuilder and re-defined __call__ function.
 # then build_dataset is an instance of DataBuilder class. so i can use build_dataset.from_model() to build dataset from model.
