@@ -3,7 +3,7 @@ import os
 from copy import deepcopy
 import glob
 from importlib import import_module
-
+from typing import Union
 from dptb.data.dataset import DefaultDataset
 from dptb.data.dataset._deeph_dataset import DeePHE3Dataset
 from dptb.data.dataset._hdf5_dataset import HDF5Dataset
@@ -112,9 +112,9 @@ def build_dataset(
         # set_options
         root: str,
         # dataset_options
-        r_max: float,
-        er_max: float = None,
-        oer_max: float = None,
+        r_max: Union[float, int, dict],
+        er_max: Union[float, int, dict] = None,
+        oer_max: Union[float, int, dict] = None,
         type: str = "DefaultDataset",
         prefix: str = None,
         separator:str='.',

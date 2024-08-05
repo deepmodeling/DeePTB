@@ -1,6 +1,8 @@
-from typing import List, Callable
+from typing import List, Callable, Dict, Any, Union
 from dargs import dargs, Argument, Variant, ArgumentEncoder
 import logging
+from numbers import Number
+
 
 log = logging.getLogger(__name__)
 
@@ -1452,6 +1454,20 @@ def normalize_lmdbsetinfo(data):
 
     return data
 
+
+def format_cuts(rcut: Union[Dict[str, Number], Number], decay_w: Number, nbuffer: int) -> Union[Dict[str, Number], Number]:
+    if not isinstance(decay_w, Number) or decay_w <= 0:
+        raise ValueError("decay_w should be a positive number")
+
+    buffer_addition = decay_w * nbuffer
+
+    if isinstance(rcut, dict):
+        return {key: value + buffer_addition for key, value in rcut.items()}
+    elif isinstance(rcut, Number):
+        return rcut + buffer_addition
+    else:
+        raise TypeError("rcut should be a dict or a number")
+
 def get_cutoffs_from_model_options(model_options):
     """
     Extract cutoff values from the provided model options.
@@ -1490,15 +1506,19 @@ def get_cutoffs_from_model_options(model_options):
             # 其他方法在模型公式中，已经包含了 +5w 的范围，所以这里为了保险额外加上3w 的范围; 
             # 对于两个特例，powerlaw 和 varTang96 的情况，为了和旧版存档的兼容, 模型公式的本身并没有 +5w 的范围，所以这里额外加上8w 的范围。
             if model_options["nnsk"]["hopping"]['method'] in ["powerlaw","varTang96"]:
-                r_max = model_options["nnsk"]["hopping"]["rs"] + 8 * model_options["nnsk"]["hopping"]["w"]
+                # r_max = model_options["nnsk"]["hopping"]["rs"] + 8 * model_options["nnsk"]["hopping"]["w"]
+                r_max = format_cuts(model_options["nnsk"]["hopping"]["rs"], model_options["nnsk"]["hopping"]["w"], 8)
             else:
-                r_max = model_options["nnsk"]["hopping"]["rs"] + 3 * model_options["nnsk"]["hopping"]["w"]
+                # r_max = model_options["nnsk"]["hopping"]["rs"] + 3 * model_options["nnsk"]["hopping"]["w"]
+                r_max = format_cuts(model_options["nnsk"]["hopping"]["rs"], model_options["nnsk"]["hopping"]["w"], 3)
 
         if model_options["nnsk"]["onsite"].get("rs",None) is not None:
             if  model_options["nnsk"]["onsite"]['method'] == "strain" and model_options["nnsk"]["hopping"]['method'] in ["powerlaw","varTang96"]:
-                oer_max = model_options["nnsk"]["onsite"]["rs"] + 8 * model_options["nnsk"]["onsite"]["w"]
+                # oer_max = model_options["nnsk"]["onsite"]["rs"] + 8 * model_options["nnsk"]["onsite"]["w"]
+                oer_max = format_cuts(model_options["nnsk"]["onsite"]["rs"], model_options["nnsk"]["onsite"]["w"], 8)
             else:
-                oer_max = model_options["nnsk"]["onsite"]["rs"] + 3 * model_options["nnsk"]["onsite"]["w"]
+                # oer_max = model_options["nnsk"]["onsite"]["rs"] + 3 * model_options["nnsk"]["onsite"]["w"]
+                oer_max = format_cuts(model_options["nnsk"]["onsite"]["rs"], model_options["nnsk"]["onsite"]["w"], 3)
     
     elif model_options.get("dftbsk", None) is not None:
         assert r_max is None, "r_max should not be provided in outside the dftbsk for training dftbsk model."
