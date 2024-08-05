@@ -1479,7 +1479,7 @@ def get_cutoffs_from_model_options(model_options):
         if model_options["embedding"].get("r_max",None) is not None:
             r_max = model_options["embedding"]["r_max"]
         elif model_options["embedding"].get("rc",None) is not None:
-            er_max = model_options["embedding"]["rc"]
+            er_max = model_options["embedding"]["rc"] 
         else:
             log.error("r_max or rc should be provided in model_options for embedding!")
             raise ValueError("r_max or rc should be provided in model_options for embedding!")
@@ -1487,16 +1487,18 @@ def get_cutoffs_from_model_options(model_options):
     if model_options.get("nnsk", None) is not None:
         assert r_max is None, "r_max should not be provided in outside the nnsk for training nnsk model."
         if model_options["nnsk"]["hopping"].get("rs",None) is not None:
+            # 其他方法在模型公式中，已经包含了 +5w 的范围，所以这里为了保险额外加上3w 的范围; 
+            # 对于两个特例，powerlaw 和 varTang96 的情况，为了和旧版存档的兼容, 模型公式的本身并没有 +5w 的范围，所以这里额外加上8w 的范围。
             if model_options["nnsk"]["hopping"]['method'] in ["powerlaw","varTang96"]:
-                r_max = model_options["nnsk"]["hopping"]["rs"] + 5 * model_options["nnsk"]["hopping"]["w"]
+                r_max = model_options["nnsk"]["hopping"]["rs"] + 8 * model_options["nnsk"]["hopping"]["w"]
             else:
-                r_max = model_options["nnsk"]["hopping"]["rs"]
+                r_max = model_options["nnsk"]["hopping"]["rs"] + 3 * model_options["nnsk"]["hopping"]["w"]
 
         if model_options["nnsk"]["onsite"].get("rs",None) is not None:
             if  model_options["nnsk"]["onsite"]['method'] == "strain" and model_options["nnsk"]["hopping"]['method'] in ["powerlaw","varTang96"]:
-                oer_max = model_options["nnsk"]["onsite"]["rs"] + 5 * model_options["nnsk"]["onsite"]["w"]
+                oer_max = model_options["nnsk"]["onsite"]["rs"] + 8 * model_options["nnsk"]["onsite"]["w"]
             else:
-                oer_max = model_options["nnsk"]["onsite"]["rs"]
+                oer_max = model_options["nnsk"]["onsite"]["rs"] + 3 * model_options["nnsk"]["onsite"]["w"]
     
     elif model_options.get("dftbsk", None) is not None:
         assert r_max is None, "r_max should not be provided in outside the dftbsk for training dftbsk model."
