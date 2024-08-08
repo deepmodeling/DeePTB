@@ -15,6 +15,9 @@ rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data")
 
 class TestMultiBatch:
     set_options = {
+    "r_max": 5.0,
+    "er_max": 5.0,
+    "oer_max": 2.5,
     "root": f"{rootdir}/test_sktb/dataset",
     "prefix": "kpathmd25",
     "get_eigenvalues": True,

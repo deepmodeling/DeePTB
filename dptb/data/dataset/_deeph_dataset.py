@@ -43,13 +43,11 @@ class DeePHE3Dataset(AtomicInMemoryDataset):
         for file in self.info_files.keys():
             # get the info here
             info = info_files[file]
-            assert "AtomicData_options" in info
-            AtomicData_options = info["AtomicData_options"]
-            assert "r_max" in AtomicData_options
-            assert "pbc" in AtomicData_options
+            assert "r_max" in info
+            assert "pbc" in info
             subdata = os.path.join(self.root, file)
             self.raw_data.append(subdata)
-            self.data_options[subdata] = AtomicData_options
+            self.data_options[subdata] = info
 
         # The AtomicData_options is never used here.
         # Because we always return a list of AtomicData object in `get_data()`.
@@ -68,12 +66,15 @@ class DeePHE3Dataset(AtomicInMemoryDataset):
         for subpath in tqdm(self.raw_data, desc="Loading data"):
             # the type_mapper here is loaded in PyG `dataset` type as `transform` attritube
             # so the OrbitalMapper can be accessed by self.transform here
-            AtomicData_options = self.data_options[subpath]
+            info = self.data_options[subpath]
             atomic_data = AtomicData.from_points(
                 pos = np.loadtxt(os.path.join(subpath, "site_positions.dat")).T,
                 cell = np.loadtxt(os.path.join(subpath, "lat.dat")).T,
                 atomic_numbers = np.loadtxt(os.path.join(subpath, "element.dat")),
-                **AtomicData_options,
+                pbc = info["pbc"],
+                r_max=info["r_max"],
+                er_max=info.get("er_max", None),
+                oer_max=info.get("oer_max", None)
             )
             idp = self.type_mapper
             openmx_to_deeptb(atomic_data, idp, os.path.join(subpath, "./hamiltonians.h5"))

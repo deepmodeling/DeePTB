@@ -43,7 +43,7 @@
     },
     "model_options": {
         "nnsk": {
-            "onsite": {"method": "strain","rs":6.0, "w": 0.1},
+            "onsite": {"method": "strain","rs":3.0, "w": 0.1},
             "hopping": {"method": "powerlaw", "rs":6.0, "w": 0.1},
             "soc":{"method":"uniform"},
             "push": false,

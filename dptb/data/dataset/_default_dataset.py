@@ -21,6 +21,9 @@ from dptb.utils.tools import j_loader
 from dptb.data.AtomicDataDict import with_edge_vectors
 from dptb.nn.hamiltonian import E3Hamiltonian
 from tqdm import tqdm
+import logging
+
+log = logging.getLogger(__name__)
 
 class _TrajData(object):
     '''
@@ -40,71 +43,18 @@ class _TrajData(object):
     
     def __init__(self, 
                  root: str, 
-                 AtomicData_options: Dict[str, Any] = {},
+                 data ={},
                  get_Hamiltonian = False,
                  get_overlap = False,
                  get_DM = False,
                  get_eigenvalues = False,
-                 info = None,
-                 _clear = False):
+                 info = None):
         
         assert not get_Hamiltonian * get_DM, "Hamiltonian and Density Matrix can only loaded one at a time, for which will occupy the same attribute in the AtomicData."
         self.root = root
-        self.AtomicData_options = AtomicData_options
         self.info = info
+        self.data = data
 
-        self.data = {}
-        # load cell
-        
-        pbc = AtomicData_options["pbc"]
-        if isinstance(pbc, bool):
-            has_cell = pbc
-        elif isinstance(pbc, list):
-            has_cell = any(pbc)
-        else:
-            raise ValueError("pbc must be bool or list.")
-        
-        if has_cell:
-            cell = np.loadtxt(os.path.join(root, "cell.dat"))
-            if cell.shape[0] == 3:
-                # same cell size, then copy it to all frames.
-                cell = np.expand_dims(cell, axis=0)
-                self.data["cell"] = np.broadcast_to(cell, (self.info["nframes"], 3, 3))
-            elif cell.shape[0] == self.info["nframes"] * 3:
-                self.data["cell"] = cell.reshape(self.info["nframes"], 3, 3)
-            else:
-                raise ValueError("Wrong cell dimensions.")
-        
-        # load positions, stored as cartesion no matter what provided.
-        pos = np.loadtxt(os.path.join(root, "positions.dat"))
-        if len(pos.shape) == 1:
-            pos = pos.reshape(1,3)
-        natoms = self.info["natoms"]
-        if natoms < 0:
-            natoms = int(pos.shape[0] / self.info["nframes"])
-        assert pos.shape[0] == self.info["nframes"] * natoms
-        pos = pos.reshape(self.info["nframes"], natoms, 3)
-        # ase use cartesian by default.
-        if self.info["pos_type"] == "cart" or self.info["pos_type"] == "ase":
-            self.data["pos"] = pos
-        elif self.info["pos_type"] == "frac":
-            self.data["pos"] = pos @ self.data["cell"]
-        else:
-            raise NameError("Position type must be cart / frac.")
-        
-        # load atomic numbers
-        atomic_numbers = np.loadtxt(os.path.join(root, "atomic_numbers.dat"))
-        if atomic_numbers.shape == ():
-            atomic_numbers = atomic_numbers.reshape(1)
-        if atomic_numbers.shape[0] == natoms:
-            # same atomic_numbers, copy it to all frames.
-            atomic_numbers = np.expand_dims(atomic_numbers, axis=0)
-            self.data["atomic_numbers"] = np.broadcast_to(atomic_numbers, (self.info["nframes"], natoms))
-        elif atomic_numbers.shape[0] == natoms * self.info["nframes"]:
-            self.data["atomic_numbers"] = atomic_numbers.reshape(self.info["nframes"],natoms)
-        else:
-            raise ValueError("Wrong atomic_number dimensions.")
-        
         # load optional data files
         if get_eigenvalues == True:
             if os.path.exists(os.path.join(self.root, "eigenvalues.npy")):
@@ -146,16 +96,77 @@ class _TrajData(object):
             else:
                 self.data["DM_blocks"] = h5py.File(os.path.join(self.root, "DM.h5"), "r")
         
-        # this is used to clear the tmp files to load ase trajectory only.
-        if _clear:
-            os.remove(os.path.join(root, "positions.dat"))
-            os.remove(os.path.join(root, "cell.dat"))
-            os.remove(os.path.join(root, "atomic_numbers.dat"))
+    @classmethod
+    def from_text_data(cls,
+                       root: str, 
+                       get_Hamiltonian = False,
+                       get_overlap = False,
+                       get_DM = False,
+                       get_eigenvalues = False,
+                       info = None):
 
+        data = {}
+        pbc = info["pbc"]
+        # load cell        
+        if isinstance(pbc, bool):
+            has_cell = pbc
+        elif isinstance(pbc, list):
+            has_cell = any(pbc)
+        else:
+            raise ValueError("pbc must be bool or list.")
+        
+        if has_cell:
+            cell = np.loadtxt(os.path.join(root, "cell.dat"))
+            if cell.shape[0] == 3:
+                # same cell size, then copy it to all frames.
+                cell = np.expand_dims(cell, axis=0)
+                data["cell"] = np.broadcast_to(cell, (info["nframes"], 3, 3))
+            elif cell.shape[0] == info["nframes"] * 3:
+                data["cell"] = cell.reshape(info["nframes"], 3, 3)
+            else:
+                raise ValueError("Wrong cell dimensions.")
+        
+        # load positions, stored as cartesion no matter what provided.
+        pos = np.loadtxt(os.path.join(root, "positions.dat"))
+        if len(pos.shape) == 1:
+            pos = pos.reshape(1,3)
+        natoms = info["natoms"]
+        if natoms < 0:
+            natoms = int(pos.shape[0] / info["nframes"])
+        assert pos.shape[0] == info["nframes"] * natoms
+        pos = pos.reshape(info["nframes"], natoms, 3)
+        # ase use cartesian by default.
+        if info["pos_type"] == "cart" or info["pos_type"] == "ase":
+            data["pos"] = pos
+        elif info["pos_type"] == "frac":
+            data["pos"] = pos @ data["cell"]
+        else:
+            raise NameError("Position type must be cart / frac.")
+        
+        # load atomic numbers
+        atomic_numbers = np.loadtxt(os.path.join(root, "atomic_numbers.dat"))
+        if atomic_numbers.shape == ():
+            atomic_numbers = atomic_numbers.reshape(1)
+        if atomic_numbers.shape[0] == natoms:
+            # same atomic_numbers, copy it to all frames.
+            atomic_numbers = np.expand_dims(atomic_numbers, axis=0)
+            data["atomic_numbers"] = np.broadcast_to(atomic_numbers, (info["nframes"], natoms))
+        elif atomic_numbers.shape[0] == natoms * info["nframes"]:
+            data["atomic_numbers"] = atomic_numbers.reshape(info["nframes"],natoms)
+        else:
+            raise ValueError("Wrong atomic_number dimensions.")
+        
+        return cls(root=root,
+                   data=data,
+                   get_Hamiltonian=get_Hamiltonian,
+                   get_overlap=get_overlap,
+                   get_DM=get_DM,
+                   get_eigenvalues=get_eigenvalues,
+                   info=info)
+    
     @classmethod
     def from_ase_traj(cls,
                       root: str, 
-                      AtomicData_options: Dict[str, Any] = {},
                       get_Hamiltonian = False,
                       get_overlap = False,
                       get_DM = False,
@@ -167,31 +178,63 @@ class _TrajData(object):
         traj_file = glob.glob(f"{root}/*.traj")
         assert len(traj_file) == 1, print("only one ase trajectory file can be provided.")
         traj = Trajectory(traj_file[0], 'r')
+        nframes = len(traj)
+        assert nframes > 0, print("trajectory file is empty.")
+        if nframes != info.get("nframes", None):
+            info['nframes'] = nframes   
+            log.info(f"Number of frames ({nframes}) in trajectory file does not match the number of frames in info file.")
+        
+        natoms = traj[0].positions.shape[0]
+        if natoms != info["natoms"]:
+            info["natoms"] = natoms
+
+        pbc = info.get("pbc",None)
+        if pbc is None:
+            pbc = traj[0].pbc.tolist()
+            info["pbc"] = pbc
+        
+        if isinstance(pbc, bool):
+            pbc = [pbc] * 3
+
+        if pbc != traj[0].pbc.tolist():
+            log.warning("!! PBC setting in info file does not match the PBC setting in trajectory file, we use the one in info json. BE CAREFUL!")
+        
         positions = []
         cell = []
         atomic_numbers = []
+
         for atoms in traj:
             positions.append(atoms.get_positions())
-            cell.append(atoms.get_cell())
+            
             atomic_numbers.append(atoms.get_atomic_numbers())
+            if (np.abs(atoms.get_cell()-np.zeros([3,3]))< 1e-6).all():
+                cell = None
+            else:
+                cell.append(atoms.get_cell())
+
         positions = np.array(positions)
-        positions = positions.reshape(-1, 3)
-        cell = np.array(cell)
-        cell = cell.reshape(-1, 3)
+        positions = positions.reshape(nframes,natoms, 3)
+        
+        if cell is not None:
+            cell = np.array(cell)
+            cell = cell.reshape(nframes,3, 3)
+        
         atomic_numbers = np.array(atomic_numbers)
-        atomic_numbers = atomic_numbers.reshape(-1, 1)
-        np.savetxt(os.path.join(root, "positions.dat"), positions)
-        np.savetxt(os.path.join(root, "cell.dat"), cell)
-        np.savetxt(os.path.join(root, "atomic_numbers.dat"), atomic_numbers, fmt='%d')
+        atomic_numbers = atomic_numbers.reshape(nframes, natoms)
+
+        data = {}
+        if cell is not None:
+            data["cell"] = cell
+        data["pos"] = positions 
+        data["atomic_numbers"] = atomic_numbers
 
         return cls(root=root,
-                   AtomicData_options=AtomicData_options,
+                   data=data,
                    get_Hamiltonian=get_Hamiltonian,
                    get_overlap=get_overlap,
                    get_DM=get_DM,
                    get_eigenvalues=get_eigenvalues,
-                   info=info,
-                   _clear=True)
+                   info=info)
         
     def toAtomicDataList(self, idp: TypeMapper = None):
         data_list = []
@@ -218,10 +261,11 @@ class _TrajData(object):
                                                                                   dtype=torch.long)
 
             atomic_data = AtomicData.from_points(
+                  r_max = self.info["r_max"],
+                  pbc = self.info["pbc"],
+                  er_max = self.info.get("er_max", None),
+                  oer_max= self.info.get("oer_max", None),
                   **kwargs,
-                  # pbc is stored in AtomicData_options now.
-                  #pbc = self.info["pbc"], 
-                  **self.AtomicData_options
             )
             if "hamiltonian_blocks" in self.data:
                 assert idp is not None, "LCAO Basis must be provided  in `common_option` for loading Hamiltonian."
@@ -300,21 +344,19 @@ class DefaultDataset(AtomicInMemoryDataset):
         for file in self.info_files.keys():
             # get the info here
             info = info_files[file]
-            assert "AtomicData_options" in info
-            AtomicData_options = info["AtomicData_options"]
-            assert "r_max" in AtomicData_options
-            assert "pbc" in AtomicData_options
+            # assert "AtomicData_options" in info
+            assert "r_max" in info
+            assert "pbc" in info
+            pbc = info["pbc"]
             if info["pos_type"] == "ase":
                 subdata = _TrajData.from_ase_traj(os.path.join(self.root, file), 
-                                AtomicData_options,
                                 get_Hamiltonian, 
                                 get_overlap,
                                 get_DM,
                                 get_eigenvalues,
                                 info=info)
             else:
-                subdata = _TrajData(os.path.join(self.root, file), 
-                                AtomicData_options,
+                subdata = _TrajData.from_text_data(os.path.join(self.root, file), 
                                 get_Hamiltonian,
                                 get_overlap,
                                 get_DM,

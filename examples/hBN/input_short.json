@@ -37,6 +37,9 @@
         }
     },
     "data_options": {
+        "r_max": 5.5,
+        "er_max": 3.5,
+        "oer_max":1.6,
         "train": {
             "root": "./data/",
             "prefix": "kpath",

@@ -33,6 +33,8 @@
         }
     },
     "data_options": {
+        "r_max": 5.0,
+        "oer_max":2.5,
         "train": {
             "root": "./dptb/tests/data/test_sktb/dataset/",
             "prefix": "kpath_spk",

@@ -39,6 +39,9 @@ class TestNNSK:
         "push": None}
     }
     data_options = {
+        "r_max": 2.6,
+        "er_max": 2.6,
+        "oer_max":1.6,
         "train": {
             "root": f"{rootdir}/hBN/dataset",
             "prefix": "kpath",
@@ -46,7 +49,7 @@ class TestNNSK:
         }
     }
 
-    train_datasets = build_dataset(**data_options["train"], **common_options)
+    train_datasets = build_dataset(**data_options, **data_options["train"], **common_options)
     train_loader = DataLoader(dataset=train_datasets, batch_size=1, shuffle=True)
 
     batch = next(iter(train_loader))

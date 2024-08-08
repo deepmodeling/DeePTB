@@ -38,7 +38,6 @@ class _HDF5_TrajData(object):
 
     def __init__(self, 
                  root: str, 
-                 AtomicData_options: Dict[str, Any] = {},
                  get_Hamiltonian = False,
                  get_overlap = False,
                  get_DM = False,
@@ -46,9 +45,7 @@ class _HDF5_TrajData(object):
                  info = None):
         assert not get_Hamiltonian * get_DM, "Cannot get both Hamiltonian and DM"
         self.root = root
-        self.AtomicData_options = AtomicData_options
         self.info = info
-
         self.data = {}
 
         assert os.path.exists(os.path.join(root, "structure.pkl")), "structure file not found."
@@ -87,9 +84,11 @@ class _HDF5_TrajData(object):
                 pos = self.data['structure'][frame]["positions"][:],
                 cell = frame_cell,
                 atomic_numbers = self.data['structure'][frame]["atomic_numbers"][:],
-                # pbc is stored in AtomicData_options now.
-                #pbc = self.info["pbc"], 
-                **self.AtomicData_options)
+                r_max = self.info["r_max"], 
+                er_max = self.info.get("er_max", None),
+                oer_max = self.info.get("oer_max", None),
+                pbc = self.info["pbc"], 
+            )
             
             if "hamiltonian_blocks" in self.data:
                 assert idp is not None, "LCAO Basis must be provided  in `common_option` for loading Hamiltonian."
@@ -171,13 +170,10 @@ class HDF5Dataset(AtomicInMemoryDataset):
         for file in self.info_files.keys():
             # get the info here
             info = info_files[file]
-            assert "AtomicData_options" in info
-            AtomicData_options = info["AtomicData_options"]
-            assert "r_max" in AtomicData_options
-            assert "pbc" in AtomicData_options
+            assert "r_max" in info
+            assert "pbc" in info
             if info["pos_type"] in ["hdf5", 'pickle']:
                 subdata = _HDF5_TrajData(os.path.join(self.root, file), 
-                                AtomicData_options,
                                 get_Hamiltonian, 
                                 get_overlap,
                                 get_DM,

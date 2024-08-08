@@ -29,7 +29,8 @@
     },
     "model_options": {
         "dftbsk": {
-            "skdata":"./examples/hBN_dftb/slakos"
+            "skdata":"./examples/hBN_dftb/slakos",
+            "r_max": 5.0
         },
         "embedding":{
             "method": "se2",
