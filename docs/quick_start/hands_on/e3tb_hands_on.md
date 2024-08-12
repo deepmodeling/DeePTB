@@ -1,4 +1,4 @@
-# Bulk Silicon model
+# DeePTB-E3: Bulk Silicon
 
 DeePTB supports training an E3-equalvariant model to predict DFT Hamiltonian, density and overlap matrix under LCAO basis. Here, cubic-phase bulk silicon has been chosen as a quick start example.
 
