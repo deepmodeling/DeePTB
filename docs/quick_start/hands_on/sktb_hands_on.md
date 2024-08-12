@@ -102,7 +102,7 @@ dptb run ./run/band.json -i ./first/checkpoint/nnsk.best.pth -o ./band_plot
 ```
 > Note: the ```basis``` setting in the plotting script must be the same as in the input.
 
-![band_first](../img/hBN_band_first.png)
+![band_first](https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hBN_band_first.png)
 
 It shows that the fitting has learned the rough shape of the valence bandstructure. To fit the conduction bandstructure, we need to add extra polarized orbitals to the atoms. The polarized orbitals can be added in the `input.json` by modifying the ```basis``` setting:
 
@@ -136,7 +136,7 @@ After the training is finished, you can get the result in `condband` folder.
 
 After training, we can plot the bandstructure again using the script:
 
-![band_first](../img/hBN_band_condband.png)
+![condband](https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hBN_band_condband.png)
 
 We can further improve the accuracy by incorporating more features of our code, for example, the onsite correction. There are two kinds of onsite correction supported: `uniform` or `strain`. We use `strain` for now to see the effect. Now change the `input_short.json` by the parameters:
 ```json
@@ -157,7 +157,7 @@ dptb train input/input_strain.json  -i ./condband/checkpoint/nnsk.ep500.pth -o .
 
 We can also plot the band structure of the strain model:
 
-![band_strain](../img/hBN_band_strain.png)
+![band_strain](https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hBN_band_strain.png)
 
 It looks ok, we can further improve the accuracy by adding more neighbours, and training for a longer time. We can gradually increase the decay function cutoff `rs` from 1st to 3rd neighbour. This can be done by changing the `model_options` in the `input_short.json` as follow:
 
@@ -180,7 +180,7 @@ dptb train input/input_push_rs.json  -i ./strain/checkpoint/nnsk.ep500.pth -o ./
 
 We finally get the model with more neighbors. We can plot the result again:
 
-![band_varycutoff](../img/hBN_band_pushrs.png)
+![band_varycutoff](https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hBN_band_pushrs.png)
 
 
 we can further push the decay w to 0.2 and train the model again. modify the model options:
@@ -205,7 +205,8 @@ dptb train input/input_push_w.json  -i ./push_rs/checkpoint/nnsk.iter_rs3.400_w0
 
 We can the plot the band structure again:
 
-![band_varycutoff](../img/hBN_band_pushw.png)
+![band_varycutoff](https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hBN_band_pushw.png)
+
 
 
 We can again increase more training epochs, using the pushed parameters and turn off push tag. see the input file `hBN/input/input_final.json` and run the training:
@@ -229,7 +230,7 @@ dptb train input/input_final.json  -i ./push_w/checkpoint/nnsk.iter_rs3.400_w0.2
 
 And we can get a fairly good fitting result:
 
-![band_longtrain](../img/hBN_band_longtrain.png)
+![band_longtrain](https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hBN_band_longtrain.png)
 
 Now you have learned the basis use of **DeePTB**, however, the advanced functions still need to be explored for accurate and flexible electron structure representation, such as:
 - environmental correction
