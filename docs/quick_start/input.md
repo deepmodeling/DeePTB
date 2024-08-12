@@ -1,4 +1,4 @@
-# Brief Introduction to Inputs and Commands
+# Brief Intro. to data, Inputs and Commands
 
 The following files are the central input files for DeePTB. Before executing the program, please make sure these files are prepared and stored in the working directory. Here we give some simple descriptions, for more details, users should consult the Advanced session.
 
@@ -6,7 +6,10 @@ The following files are the central input files for DeePTB. Before executing the
 ### Data
 The dataset files contrains both the **atomic structure** and the **training label** information. 
 
-The **atomic structure** should be prepared as a ASE trajectory binary file, where each structure is stored using an **Atom** class defined in ASE package. The provided trajectory file must have suffix `.traj` and the length of the trajectory is `nframes`. For labels, we currently support `eigenvalues`, `Hamiltonian`, `density matrix` and `overlap matrix`. For training a **SKTB** model, we need to prepare the `eigenvalues` label, which contrains the `eigenvalues.npy` and `kpoints.npy`. A typical dataset of **SKTB** task looks like:
+The atomic structure should be prepared as a ASE trajectory binary file, where each structure is stored using an **Atom** class defined in ASE package. The provided trajectory file must have suffix `.traj` and the length of the trajectory is `nframes`. For labels, we currently support `eigenvalues`, `Hamiltonian`, `density matrix` and `overlap matrix`. 
+
+
+For training a **DeePTB-SK** model, we need to prepare the `eigenvalues` label, which contrains the `eigenvalues.npy` and `kpoints.npy`. A typical dataset of **DeePTB-SK** task looks like:
 
 ```
 data/
@@ -23,7 +26,7 @@ The **band structures** data includes the kpoints list and eigenvalues in the bi
 
 > **Important:** The eigenvalues.npy should not contain bands that contributed by the core electrons, which is not setted as the TB orbitals in model setting.
 
-For typical **E3TB** task, we need to prepare the Hamiltonian/density matrix along with overlap matrix as labels. They are arranged as hdf5 binary format, and named as `hamiltonians.h5`/`density_matrices.h5` and `overlaps.h5` respectively. A typical dataset of **E3TB** looks like:
+For typical **DeePTB-E3** task, we need to prepare the Hamiltonian/density matrix along with overlap matrix as labels. They are arranged as hdf5 binary format, and named as `hamiltonians.h5`/`density_matrices.h5` and `overlaps.h5` respectively. A typical dataset of **DeePTB-E3** looks like:
 
 ```
 data/
@@ -37,34 +40,30 @@ data/
 -- -- info.json
 ```
 
-### Info
+### Data settings: info.json
 
 In **DeePTB**, the **atomic structures** and **band structures** data are stored in AtomicData graph structure. `info.json` defines the key parameters used in building AtomicData graph dataset, which looks like:
 ```bash
 {
     "nframes": 1,
-    "pos_type": "ase/cart/frac",
-    "AtomicData_options": {
-        "r_max": 5.0,
-        "er_max": 5.0, # optional
-        "oer_max": 2.5, # optional
-    }
+    "pos_type": "ase/cart/frac"
 }
 ```
 `nframes` is the length of the trajectory, as we defined in the previous section. `pos_type` defines the input format of the **atomic structures**, which is set to `ase` if  ASE `.traj` file is provided, and `cart` or `frac` if cartesian / fractional coordinate in `positions.dat` file provided.
 
-In the `AtomicData_options` section, the key arguments in defining graph structure is provided. `r_max` is the maximum cutoff in building neighbour list for each atom. `er_max` and `oer_max` are optional value for additional environmental dependence TB parameterization in **SKTB** mode, such as strain correction and `nnenv`. All cutoff variables have the unit of Angstrom.
-
-For **SKTB**, We can get the recommended `r_max` value by `DeePTB`'s bond analysis function, using:
+<!--In the `AtomicData_options` section, the key arguments in defining graph structure is provided. `r_max` is the maximum cutoff in building neighbour list for each atom. `er_max` and `oer_max` are optional value for additional environmental dependence TB parameterization in **DeePTB-SK** mode, such as strain correction and `nnenv`. All cutoff variables have the unit of Angstrom.
+For **DeePTB-SK**, We can get the recommended `r_max` value by `DeePTB`'s bond analysis function, using:
 ```bash
 dptb bond <structure path> [[-c] <cutoff>] [[-acc] <accuracy>]
 ```
 
-For **E3TB**, we suggest the user align the `r_max` value to the LCAO basis's cutoff radius used in DFT calculation.
-
-For **SKTB** model, we should also specify the parameters in `info.json` that controls the fitting eigenvalues:
+For **DeePTB-E3**, we suggest the user align the `r_max` value to the LCAO basis's cutoff radius used in DFT calculation.
+-->
+For **DeePTB-SK** model, we should also specify the parameters in `info.json` that controls the fitting eigenvalues:
 ```JSON
 {
+    "nframes": 1,
+    "pos_type": "ase/cart/frac",
     "bandinfo": {
         "band_min": 0,
         "band_max": 6,
@@ -75,10 +74,10 @@ For **SKTB** model, we should also specify the parameters in `info.json` that co
 ```
 
 `bandinfo` defines the fitting target. The `emin` and `emax` defines the fitting energy window of the band, while the `band_min` and `band_max` select which band are targeted.
-> **note:** The `0` energy point is located at the lowest energy eigenvalues of the data files, to generalize bandstructure data computed by different DFT packages.
+> **note:** The `0` energy point is located at the lowest energy eigenvalues from the band of band_min. The band_min should be aligned to the same index for  eigenvalues from DFT ans DeePTB. 
 
 
-### Input.json
+### Train config: input.json
 **DeePTB** provides input config templates for quick setup. User can run:
 ```bash
 dptb config -tr [[-e3] <e3tb>] [[-sk] <sktb>] [[-skenv] <sktbenv>] PATH
@@ -88,9 +87,12 @@ We provide several template for different mode of deeptb, please run `dptb confi
 
 In general, the `input.json` file contains following parts:
 
-- `common_options` provides vital information to build a **DeePTB** models. 
+#### common_options: 
 
-    ```json
+provides vital information to build a **DeePTB** models. 
+    
+- For **DeePTB-SK** mode. The example of `common_options` is:
+```json
     "common_options": {
                 "basis": {
                     "C": ["2s", "2p"],
@@ -101,17 +103,18 @@ In general, the `input.json` file contains following parts:
                 "dtype": "float32",
                 "seed": 42
         }
-    ```
-    Here the example basis defines the minimal basis set in **SKTB** mode. The user can define the **E3TB** mode basis with similar format, but a string instead a list. For example, for `C` and `N` with DZP basis, the `basis` should be defined as：
-    ```json
+``` 
+- For **DeePTB-E3** mode, the basis with similar format is different using string instead a list. For `C` and `N` with DZP basis, the `basis` should be defined as：
+```json
     "basis": {
-        "C": "2s2p1d",
-        "N": "2s2p1d"
-        }
-    ```
-- `train_options` section is used to spicify the training procedure.
+    "C": "2s2p1d",
+    "N": "2s2p1d"
+    }
+```
+#### train_options
+spicify the training procedure.
 
-    ```json
+```json
     "train_options": {
         "num_epoch": 500,
         "batch_size": 1,
@@ -130,37 +133,42 @@ In general, the `input.json` file contains following parts:
         "validation_freq": 10,
         "display_freq": 10
     }
-    ```
-    Here `Adam` optimizer is always preferred for better convergence speed. While the `lr_scheduler` are recommended to use "rop", as:
-    ```json
+```
+The `loss_options` section is used to specify the loss function used in training. The `method` key is used to specify the loss function, which can be `eigvals`, `hamil_abs`, and `hamil_blas`. The `eigvals` loss is used for **DeePTB-SK** model, while `hamil_abs` and `hamil_blas` are used for **DeePTB-E3** model. Here `Adam` optimizer is always preferred for better convergence speed. While the `lr_scheduler` are recommended to use "rop", as:
+```json
     "lr_scheduler": {
             "type": "rop",
             "factor": 0.8,
             "patience": 50,
             "min_lr": 1e-6
-        }
-    ```
-    More details about rop is available at: https://pytorch.org/docs/stable/generated/torch.optim.lr_scheduler.ReduceLROnPlateau.html
+    }
+```
 
-- `model_options` section contains the key setting to build **DeePTB** models. 
+More details about rop is available at: https://pytorch.org/docs/stable/generated/torch.optim.lr_scheduler.ReduceLROnPlateau.html
+    
 
-    For **SKTB** model without env correction, only the `nnsk` section is needed. The example of a `nnsk` model is:
 
-    ```json
+#### model_options
+key setting to build **DeePTB** models. 
+
+For **DeePTB-SK** model without env correction, only the `nnsk` section is needed. The example of a `nnsk` model is:
+
+```json
     "model_options": {
         "nnsk": {
             "onsite": {"method": "uniform"},
             "hopping": {"method": "powerlaw", "rs":2.6, "w": 0.3},
-            "freeze": false
+            "freeze": false,
+            "push": false
         }
     }
-    ```
+```
 
-    Different method of `onsite` and `hopping` have their specific parameters requirements, please checkout our full parameter lists.
+Different method of `onsite` and `hopping` have their specific parameters requirements, please checkout our full parameter lists.
 
-    For **SKTB** model with environment dependency, the `embedding`, `prediction` and `nnsk` sections are required as in this example:
+For **DeePTB-SK** model with environment dependency, the `embedding`, `prediction` and `nnsk` sections are required as in this example:
 
-    ```json
+```json
     "model_options": {
         "embedding":{
             "method": "se2", "rs": 2.5, "rc": 5.0,
@@ -178,10 +186,10 @@ In general, the `input.json` file contains following parts:
             "freeze": true
         }
     }
-    ```
+```
 
-    For **E3TB** model, only `embedding` and `prediction` is required, as:
-    ```json
+For **DeePTB-E3** model, only `embedding` and `prediction` is required, as:
+```json
     "model_options": {
         "embedding": {
             "method": "slem/lem", # s in slem stands for strict localization
@@ -215,11 +223,12 @@ In general, the `input.json` file contains following parts:
             "neurons": [64,64] # optional, required when overlap in common_options is True
         }
     }
-    ```
+```
 
-- `data_options` assigns the datasets used in training.
+#### data_options
+assigns the datasets used in training.
 
-    ```json
+```json
     "data_options": {
         "train": {
             "type": "DefaultDataset", # optional, default "DefaultDataset"
@@ -240,7 +249,7 @@ In general, the `input.json` file contains following parts:
             "get_DM": false
         }
     }
-    ```
+```
 
 ## Commands
 ### Training
