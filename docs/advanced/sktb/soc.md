@@ -60,7 +60,7 @@ dptb run ./reference/non_soc/band.json  -i ./reference/non_soc/v2ckpt/checkpoint
 ```
 This will generate the non-soc band structure in the `band`.
 <div align=center>
-<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/examples/Sn_soc/reference/non_soc/band_results/results/band.png" width = "50%" height = "50%" alt="non soc band" align=center />
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/examples/Sn_soc/reference/non_soc/band_results/results/band.png" width = "80%" height = "80%" alt="non soc band" align=center />
 </div>
 
 
@@ -116,5 +116,5 @@ dptb run ./reference/soc/band.json -i ./reference/soc/v2ckpt/checkpoint/nnsk.ep1
 
 This will generate the soc band structure in the `band`.
 <div align=center>
-<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/examples/Sn_soc/reference/soc/band_results/results/band.png" width = "50%" height = "50%" alt="soc band" align=center />
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/examples/Sn_soc/reference/soc/band_results/results/band.png" width = "80%" height = "80%" alt="soc band" align=center />
 </div>
