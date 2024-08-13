@@ -74,7 +74,9 @@ We welcome contributions to **DeePTB**. Please refer to our [contributing guidel
 The following references are required to be cited when using DeePTB. Specifically:
 
 - **For DeePTB-SK:**
-    [1] Q. Gu, Z. Zhouyin, S. K. Pandey, P. Zhang, L. Zhang, and W. E, Deep Learning Tight-Binding Approach for Large-Scale Electronic Simulations at Finite Temperatures with Ab Initio Accuracy, Nat Commun 15, 6772 (2024).
+
+    Q. Gu, Z. Zhouyin, S. K. Pandey, P. Zhang, L. Zhang, and W. E, Deep Learning Tight-Binding Approach for Large-Scale Electronic Simulations at Finite Temperatures with Ab Initio Accuracy, Nat Commun 15, 6772 (2024).
+  
     ```latex
     @article{guDeep2024,
       title = {Deep Learning Tight-Binding Approach for Large-Scale Electronic Simulations at Finite Temperatures with  Ab Initio Accuracy},
@@ -93,7 +95,8 @@ The following references are required to be cited when using DeePTB. Specificall
     }
     ```
 - **For DeePTB-E3:**
-    [2] Z. Zhouyin, Z. Gan, S. K. Pandey, L. Zhang, and Q. Gu, Learning Local Equivariant Representations for Quantum Operators, arXiv:2407.06053.
+  
+    Z. Zhouyin, Z. Gan, S. K. Pandey, L. Zhang, and Q. Gu, Learning Local Equivariant Representations for Quantum Operators, arXiv:2407.06053.
     
 
     ```latex
