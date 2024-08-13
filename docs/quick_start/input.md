@@ -1,4 +1,4 @@
-# Brief Intro. to data, Inputs and Commands
+# Brief Intro. to Inputs and Commands
 
 The following files are the central input files for DeePTB. Before executing the program, please make sure these files are prepared and stored in the working directory. Here we give some simple descriptions, for more details, users should consult the Advanced session.
 
