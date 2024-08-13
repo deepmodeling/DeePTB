@@ -5,24 +5,26 @@
 [![Test](https://github.com/deepmodeling/DeePTB/actions/workflows/unit_test.yml/badge.svg)](https://github.com/deepmodeling/DeePTB/actions/workflows/unit_test.yml)
 
 ## About DeePTB
+DeePTB is an innovative Python package that uses deep learning to accelerate *ab initio* electronic structure simulations. It offers versatile, accurate, and efficient simulations for a wide range of materials and phenomena. Trained on small systems, DeePTB can predict electronic structures of large systems, handle structural perturbations, and integrate with molecular dynamics for finite temperature simulations, providing comprehensive insights into atomic and electronic behavior.
 
-**DeePTB** is an innovative Python package that employs deep learning to construct electronic Hamiltonians using a minimal basis Slater-Koster TB(**DeePTB-SK**), and full LCAO basis using E3-equivariant neural networks for quantum operators including Hamiltonian, overlap, and density matrix (**DeePTB-E3**). It is designed to:
 
-- Efficiently predict TB/LCAO Hamiltonians for large, unseen structures based on training with smaller ones.
-- Efficiently predict LCAO-Density matrix and hence charge density as well as the orbital overlap matrix.
-- Enable simulations of large systems under structural perturbations, finite temperature simulations integrating molecular dynamics (MD) for comprehensive atomic and electronic behavior.
+#### Key Features:
+DeePTB contains two main components: 
+1. **DeePTB-SK**: deep learning based local environment dependent Slater-Koster TB.
+   - Customizable Slater-Koster parameterization with neural network corrections for . 
+   - Flexible basis and exchange-correlation functional choices.
+   - Handle systems with strong spin-orbit coupling (SOC) effects.
 
-For **DeePTB-SK**:
-- Support customizable Slater-Koster parameterization with neural network incorporation for local environmental corrections. 
-- Operate independently of the choice of bases and exchange-correlation functionals, offering flexibility and adaptability.
-- Handle systems with strong spin-orbit coupling (SOC) effects.
+1. **DeePTB-E3**: E3-equivariant neural networks for representing quantum operators.
+   - Construct DFT Hamiltonians/density and overlap matrices under full LCAO basis.
+   - Utilize (**S**trictly) **L**ocalized **E**quivariant **M**essage-passing (**(S)LEM**) model for high data-efficiency and accuracy.
+   - Employs SO(2) convolution for efficient handling of higher-order orbitals in LCAO basis.
 
-For **DeePTB-E3**:
-- Support constructing DFT Hamiltonians/density and overlap matrices under full LCAO basis.
-- Utilize strictly local and semi-local E3-equivariant neural networks to achieve high data-efficiency and accuracy.
-- Speed up via SO(2)convolution to support LCAO basis containing f and g orbitals.
 
-**DeePTB** is a versatile tool adaptable for a wide range of materials and phenomena, providing accurate and efficient simulations. See more details in our DeePTB paper: [deeptb-sk: arXiv:2307.04638](http://arxiv.org/abs/2307.04638), [deeptb-e3: arXiv:2407.06053](https://arxiv.org/pdf/2407.06053)
+For more details, see our papers:
+- [DeePTB-SK: Nat Commun 15, 6772 (2024)](https://doi.org/10.1038/s41467-024-51006-4)
+- [DeePTB-E3: arXiv:2407.06053](https://arxiv.org/pdf/2407.06053)
+
 
 
 ## Installation
@@ -69,32 +71,43 @@ We welcome contributions to **DeePTB**. Please refer to our [contributing guidel
 
 ## How to Cite
 
-When utilizing the DeePTB package in your research, we request that you cite the following reference:
+The following references are required to be cited when using DeePTB. Specifically:
 
-```text
-Gu, Qiangqiang, et al. "DeePTB: A deep learning-based tight-binding approach with ab initio accuracy." arXiv preprint arXiv:2307.04638 (2023).
-```
+- **For DeePTB-SK:**
+    [1] Q. Gu, Z. Zhouyin, S. K. Pandey, P. Zhang, L. Zhang, and W. E, Deep Learning Tight-Binding Approach for Large-Scale Electronic Simulations at Finite Temperatures with Ab Initio Accuracy, Nat Commun 15, 6772 (2024).
+    ```latex
+    @article{guDeep2024,
+      title = {Deep Learning Tight-Binding Approach for Large-Scale Electronic Simulations at Finite Temperatures with  Ab Initio Accuracy},
+      author = {Gu, Qiangqiang and Zhouyin, Zhanghao and Pandey, Shishir Kumar and Zhang, Peng and Zhang, Linfeng and E,    Weinan},
+      year = {2024},
+      month = aug,
+      journal = {Nature Communications},
+      volume = {15},
+      number = {1},
+      pages = {6772},
+      publisher = {Nature Publishing Group},
+      issn = {2041-1723},
+      doi = {10.1038/s41467-024-51006-4},
+      copyright = {2024 The Author(s)},
+      keywords = {Computational methods,Electronic properties and materials,Electronic structure}
+    }
+    ```
+- **For DeePTB-E3:**
+    [2] Z. Zhouyin, Z. Gan, S. K. Pandey, L. Zhang, and Q. Gu, Learning Local Equivariant Representations for Quantum Operators, arXiv:2407.06053.
+    
 
-## Full Dependencies
-- python = ">=3.8"
-- pytest = ">=7.2.0"
-- pytest-order = "1.2.0"
-- numpy = "*"
-- scipy = "1.9.1"
-- spglib = "*"
-- matplotlib = "*"
-- torch = ">=1.13.0"
-- ase = "*"
-- pyyaml = "*"
-- future = "*"
-- dargs = "0.4.4"
-- xitorch = "0.3.0"
-- fmm3dpy = "1.0.0"
-- e3nn = ">=0.5.1"
-- torch-runstats = "0.2.0"
-- torch_scatter = "2.1.2"
-- torch_geometric = ">=2.4.0"
-- opt-einsum = "3.3.0"
-- h5py = "3.7.0"
-- lmdb = "1.4.1"
-
+    ```latex
+    @misc{zhouyinLearning2024,
+      title = {Learning Local Equivariant Representations for Quantum Operators},
+      author = {Zhouyin, Zhanghao and Gan, Zixi and Pandey, Shishir Kumar and Zhang, Linfeng and Gu, Qiangqiang},
+      year = {2024},
+      month = jul,
+      number = {arXiv:2407.06053},
+      eprint = {2407.06053},
+      primaryclass = {cond-mat, physics:quant-ph},
+      publisher = {arXiv},
+      doi = {10.48550/arXiv.2407.06053},
+      archiveprefix = {arXiv},
+      keywords = {Computer Science - Machine Learning,Condensed Matter - Materials Science,Quantum Physics},
+    }
+    ```

@@ -49,7 +49,8 @@ Bulk silicon has diamond structure at room temperature and pressure. Due to its 
 
 This example can be seen in the `example/silicon` folder. The whole training procedure can be summarized as below:
 
-![procedure](../img/model_arch.png)
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/model_arch.png" alt="procedure" width="500"/>
+
 
 This procedure contains the full steps to training an environmentally corrected **DeePTB** model. The converged model can predict the electronic structure of both perfect crystals and the configurations with atomic distortion, while can generalize to structures with more atoms. 
 
@@ -100,7 +101,8 @@ dptb train ./input/2-1_input.json -o ./nnsk
 ####  2.2 Add More Orbitals and Neighbours 
 We can plot the converged `nnsk` model in last step just as in `hBN` example using `band_plot.py` script.
 
-![nnsk_first](../img/silicon_band_nnsk.png)
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/silicon_band_nnsk.png" alt="nnsk_first" width="500"/>
+
 
 After plotting, we can find that the first fitted model has already captured the shape of the valance bands. However, the conductance band is less accurate since the orbitals `3s` and `3p` is not complete for the space spanned by the considered valance and conductance band. Therefore we need to include more orbitals in the model. 
 
@@ -132,7 +134,7 @@ dptb train ./input/2-2-1_input.json -i ./nnsk/checkpoint/nnsk.ep495.pth -o ./nns
 In this way, the parameters in `nnsk` model corresponding to `3s` and `3p` orbitals can be reloaded. 
 When convergence is achieved, we can plot the band structure again, which shows that both the valance and conductance bands are fitted well:
 
-![nnsk_strain](../img/silicon_band_strain.png)
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/silicon_band_strain.png" alt="nnsk_strain" width="500"/>
 
 *Note: In practice, we find that training with the minimal basis set in begin, and then increasing the orbitals gradually is a better choice than directly training with full orbitals from scratch. This procedure can help to reduce the basis size and to improve the training stability.*
 
@@ -177,7 +179,8 @@ dptb train ./input/2-2-2_2_input.json -i ./nnsk_3/checkpoint/nnsk.ep1104.pth -o 
 
 After adding neighbors, the `nnsk` model can now fit the bands even better.
 
-![nnsk_push](../img/silicon_band_push.png)
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/silicon_band_push.png" alt="nnsk_push" width="500"/>
+
 
 ####  2.3 Training the Bond-length Dependent Parameters 
 The empirical SK integrals in **DeePTB** are parameterized by various bond-length dependent functions. This provides the representative power of `nnsk` model to model the change of electronic structure by atomic distortions. If the user wants to learn the bond-length dependent parameters or would like to add environmental correction to improve the accuracy, or to fit various structures, this step is highly recommended.
@@ -188,7 +191,7 @@ dptb train ./input/2-3_1_input.json -i ./nnsk_4/checkpoint/nnsk.ep1501.pth -o ./
 ```
 and so on. The bond length dependent model can have a good agreement with the reference bands:
 
-![band_md](../img/silicon_band_md.png)
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/silicon_band_md.png" alt="band_md" width="500"/>
 
 We highly suggest training the model from a low temperature, and the transfer to a higher temperature to improve the fitting stability.
 
@@ -213,7 +216,7 @@ dptb train ./input/2-4_input.json -i ./nnsk_md25/checkpoint/nnsk.ep43.pth -o ./d
 
 We can use the converged model to predict the bandstructure, calculating properties supported by **DeePTB**, or get the predicted Hamiltonian directly. 
 
-![band_dptb](../img/silicon_band_dptb.png)
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/silicon_band_dptb.png" alt="band_dptb" width="500"/>
 
 Now you know how to train a **DeePTB** model, congratulations!
 
