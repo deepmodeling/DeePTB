@@ -1492,13 +1492,15 @@ def get_cutoffs_from_model_options(model_options):
     """
     r_max, er_max, oer_max = None, None, None
     if model_options.get("embedding",None) is not None:
-        if model_options["embedding"].get("r_max",None) is not None:
-            r_max = model_options["embedding"]["r_max"]
-        elif model_options["embedding"].get("rc",None) is not None:
-            er_max = model_options["embedding"]["rc"] 
+        # switch according to the embedding method
+        embedding = model_options.get("embedding")
+        if embedding["method"] == "se2":
+            er_max = embedding["rc"]
+        elif embedding["method"] in ["slem", "lem"]:
+            r_max = embedding["r_max"]
         else:
-            log.error("r_max or rc should be provided in model_options for embedding!")
-            raise ValueError("r_max or rc should be provided in model_options for embedding!")
+            log.error("The method of embedding have not been defined in get cutoff functions")
+            raise NotImplementedError("The method of embedding have not been defined in get cutoff functions")
         
     if model_options.get("nnsk", None) is not None:
         assert r_max is None, "r_max should not be provided in outside the nnsk for training nnsk model."
