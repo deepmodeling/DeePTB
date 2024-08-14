@@ -59,8 +59,8 @@ Si:
 MAE: 0.0012505357153713703
 RMSE: 0.0023699181620031595
 ```
-![MAE onsite](../../img/MAE_onsite.png)
-![RMSE onsite](../../img/RMSE_onsite.png)
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/MAE_onsite.png" alt="MAE_onsite" width="500"/>
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/RMSE_onsite.png" alt="RMSE_onsite" width="500"/>
 
 ```
 Hopping: 
@@ -68,8 +68,9 @@ Si-Si:
 MAE: 0.00016888207755982876
 RMSE: 0.0003886453341692686
 ```
-![MAE hopping](../../img/MAE_hopping.png)
-![RMSE hopping](../../img/RMSE_hopping.png)
+
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/MAE_hopping.png" alt="MAE_hopping" width="500"/>
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/RMSE_hopping.png" alt="RMSE_hopping" width="500"/>
 
 If the user wants to see the loss in a decomposed irreps format, one can set the `decompose` of the `HamilLossAnalysis` class to `True`, and rerun the analysis.  We can display the decomposed irreps results using the following code:
 ```Python

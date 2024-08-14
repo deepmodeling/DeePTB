@@ -497,7 +497,7 @@ class AtomicData(Data):
     def from_ase(
         cls,
         atoms,
-        r_max,
+        r_max: Union[float, int, dict],
         er_max: Optional[float] = None,
         oer_max: Optional[float] = None,
         key_mapping: Optional[Dict[str, str]] = {},

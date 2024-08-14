@@ -1,4 +1,4 @@
-# Bulk Silicon model
+# DeePTB-E3: Bulk Silicon
 
 DeePTB supports training an E3-equalvariant model to predict DFT Hamiltonian, density and overlap matrix under LCAO basis. Here, cubic-phase bulk silicon has been chosen as a quick start example.
 
@@ -32,7 +32,7 @@ We prepared one frame of silicon cubic bulk structure as an example. The data wa
 }
 ```
 
-The `input_short.json` file contains the least number of parameters that are required to start training the **E3TB** model, we list some important parameters:
+The `input_short.json` file contains the least number of parameters that are required to start training the **DeePTB-E3** model, we list some important parameters:
 ```json
 "common_options": {
     "basis": {
@@ -69,7 +69,7 @@ In `embedding`, the `method` supports `slem` and `lem` for now, where `slem` has
 
 For `irreps_hidden`, this parameter defines the size of the hidden equivariant irreducible representation, which is highly related to the power of the model. There are certain rules to define this param. First, we should check the largest angular momentum defined in the DFT LCAO basis, the irreps's highest angular momentum should always be double. For example, for `1s1p` basis, the irreps should contain features with angular momentum from 0 to 2, which is 2 times 1, the angular momentum of `p` orbital. If the basis contains `d` orbital, then the irreps should contain angular momentum up to 4. `f` and `g` or even higher orbitals are also supported.
 
-In `prediction`, we should use the `e3tb` method to let the model know the output features are arranged in **E3TB** format. The neurons are defined for a simple MLP to predict the slater-koster-like parameters for predicting the overlap matrix, for which [64,64] is usually fine.
+In `prediction`, we should use the `e3tb` method to let the model know the output features are arranged in **DeePTB-E3** format. The neurons are defined for a simple MLP to predict the slater-koster-like parameters for predicting the overlap matrix, for which [64,64] is usually fine.
 
 
 Now everything is prepared! We can using the following command and we can train the first model:
@@ -89,6 +89,7 @@ or just using the command line
 ```bash
 dptb run ./run/band.json -i ./e3_silicon/checkpoint/nnenv.best.pth -o ./band_plot
 ```
-![band_first](../../img/silicon_e3_band.png)
 
-Now you know how to train a **E3TB** model for Hamiltonian and overlap matrix. For better usage, we encourage the user to read the full input parameters for the **E3TB** model. Also, the **DeePTB** model supports several post-process tools, and the user can directly extract any predicted properties just using a few lines of code. Please see the basis_api for details.
+![band_e3_Si](https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/silicon_e3_band.png)
+
+Now you know how to train a **DeePTB-E3** model for Hamiltonian and overlap matrix. For better usage, we encourage the user to read the full input parameters for the **DeePTB-E3** model. Also, the **DeePTB** model supports several post-process tools, and the user can directly extract any predicted properties just using a few lines of code. Please see the basis_api for details.

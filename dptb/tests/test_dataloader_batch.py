@@ -14,6 +14,9 @@ rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data")
 
 class TestDataLoaderBatch:
     data_options = {
+        "r_max": 5.0,
+        "er_max": 5.0,
+        "oer_max": 2.5,
         "train": {
             "root": f"{rootdir}/test_sktb/dataset",
             "prefix": "kpath_spk",
@@ -29,7 +32,7 @@ class TestDataLoaderBatch:
     "overlap": False,
     "seed": 3982377700
     }
-    train_datasets = build_dataset(**data_options["train"], **common_options)
+    train_datasets = build_dataset(**data_options, **data_options["train"], **common_options)
 
     def test_init(self):
         train_loader = DataLoader(dataset=self.train_datasets, batch_size=1, shuffle=True)

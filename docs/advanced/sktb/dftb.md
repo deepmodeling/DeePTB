@@ -75,7 +75,7 @@ bcal.band_plot(ref_band = kpath_kwargs["ref_band"],
                emin = -25,
                emax = 15)
 ```
-<img src="../img/hbn_dftb.png" alt="示例图片" width="500"/>
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hbn_dftb.png" alt="示例图片" width="500"/>
 
 
 ### Step 3: Use SK params from DFTB skfiles to train DeePTB nnsk model
@@ -185,8 +185,7 @@ bcal.band_plot(ref_band = kpath_kwargs["ref_band"],
                emax = 10)
 ```
 
-<img src="../img/hbn_nnsk_dftb_no_s.png" alt="示例图片" width="500"/>
-
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hbn_nnsk_dftb_no_s.png" alt="示例图片" width="500"/>
 
 **NOTE:** By setting the "overlap": true, and retrain the model, deeptb can get the overlap back.
 
@@ -237,8 +236,7 @@ bcal.band_plot(ref_band = kpath_kwargs["ref_band"],
                emax = 10)
 ```
 
-<img src="../img/hbn_nnsk_dftb.png" alt="示例图片" width="500"/>
-
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hbn_nnsk_dftb.png" alt="示例图片" width="500"/>
 
 ### Step4: load the previous trained model to further train the model use eigenvalues
 
@@ -329,5 +327,4 @@ bcal.band_plot(ref_band = kpath_kwargs["ref_band"],
                emax = 10)
 ```
 
-<img src="../img/hbn_nnsk_eigs.png" alt="示例图片" width="500"/>
-
+<img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/hbn_nnsk_eigs.png" alt="示例图片" width="500"/>
