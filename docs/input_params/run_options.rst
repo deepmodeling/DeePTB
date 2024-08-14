@@ -23,7 +23,7 @@ run_op:
         task:
             | type: ``str`` (flag key)
             | argument path: ``run_op/task_options/task`` 
-            | possible choices: |code:run_op/task_options[band]|_, |code:run_op/task_options[dos]|_, |code:run_op/task_options[pdos]|_, |code:run_op/task_options[FS2D]|_, |code:run_op/task_options[FS3D]|_, |code:run_op/task_options[write_sk]|_, |code:run_op/task_options[ifermi]|_, |code:run_op/task_options[negf]|_, |code:run_op/task_options[tbtrans_negf]|_
+            | possible choices: |code:run_op/task_options[band]|_, |code:run_op/task_options[dos]|_, |code:run_op/task_options[pdos]|_, |code:run_op/task_options[FS2D]|_, |code:run_op/task_options[FS3D]|_, |code:run_op/task_options[write_sk]|_, |code:run_op/task_options[ifermi]|_, |code:run_op/task_options[negf]|_, |code:run_op/task_options[tbtrans_negf]|_, |code:run_op/task_options[write_block]|_
 
             The string define the task DeePTB conduct, includes: 
                                 - `band`: for band structure plotting. 
@@ -55,6 +55,8 @@ run_op:
             .. _`code:run_op/task_options[negf]`: `run_op/task_options[negf]`_
             .. |code:run_op/task_options[tbtrans_negf]| replace:: ``tbtrans_negf``
             .. _`code:run_op/task_options[tbtrans_negf]`: `run_op/task_options[tbtrans_negf]`_
+            .. |code:run_op/task_options[write_block]| replace:: ``write_block``
+            .. _`code:run_op/task_options[write_block]`: `run_op/task_options[write_block]`_
 
         .. |flag:run_op/task_options/task| replace:: *task*
         .. _`flag:run_op/task_options/task`: `run_op/task_options/task`_
@@ -1297,6 +1299,12 @@ run_op:
             | type: ``bool``, optional, default: ``False``
             | argument path: ``run_op/task_options[tbtrans_negf]/out_lcurrent``
 
+
+        .. _`run_op/task_options[write_block]`: 
+
+        When |flag:run_op/task_options/task|_ is set to ``write_block``: 
+
+
     .. _`run_op/structure`: 
 
     structure: 
@@ -1312,6 +1320,27 @@ run_op:
         | argument path: ``run_op/use_gui``
 
         To use the GUI or not
+
+    .. _`run_op/device`: 
+
+    device: 
+        | type: ``str`` | ``NoneType``, optional, default: ``None``
+        | argument path: ``run_op/device``
+
+        The device to run the calculation, choose among `cpu` and `cuda[:int]`, Default: None. default None means to use the device seeting in the model ckpt file.
+
+    .. _`run_op/dtype`: 
+
+    dtype: 
+        | type: ``str`` | ``NoneType``, optional, default: ``None``
+        | argument path: ``run_op/dtype``
+
+        The digital number's precison, choose among: 
+                            Default: None,
+                                - `float32`: indicating torch.float32
+                                - `float64`: indicating torch.float64
+                            default None means to use the device seeting in the model ckpt file.
+                
 
     .. _`run_op/AtomicData_options`: 
 
