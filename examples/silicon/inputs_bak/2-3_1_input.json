@@ -8,10 +8,11 @@
             "overlap": false
     },
     "train_options": {
-        "num_epoch": 1600,
+        "num_epoch": 50,
         "batch_size": 1,
+        "ref_batch_size": 1,
         "optimizer": {
-            "lr": 0.05,
+            "lr": 0.01,
             "type": "Adam"
         },
         "lr_scheduler": {
@@ -19,24 +20,27 @@
             "gamma": 0.999
         },
         "loss_options":{
-            "train": {"method": "eigvals"}
+            "train": {"method": "eigvals"},
+            "reference": {"method": "eigvals"}
         },
-        "save_freq": 8,
+        "save_freq": 50,
         "validation_freq": 10,
-        "display_freq": 100
+        "display_freq": 1
     },
     "model_options": {
         "nnsk": {
             "onsite": {"method": "strain", "rs":2.5 ,"w":0.3},
-            "hopping": {"method": "powerlaw", "rs":5.0, "w": 0.3},
-            "freeze": false,
-            "push": {"w_thr": -0.001, "period": 8}
+            "hopping": {"method": "powerlaw", "rs":5.0, "w": 0.1},
+            "freeze": false
         }
     },
     "data_options": {
-        "r_max": 7.4,
-        "oer_max": 4.9,
         "train": {
+            "root": "./data/",
+            "prefix": "kpathmd25",
+            "get_eigenvalues": true
+        },
+        "reference": {
             "root": "./data/",
             "prefix": "kpath_spk",
             "get_eigenvalues": true

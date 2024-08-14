@@ -8,7 +8,7 @@
             "overlap": false
     },
     "train_options": {
-        "num_epoch": 50,
+        "num_epoch": 20,
         "batch_size": 1,
         "ref_batch_size": 1,
         "optimizer": {
@@ -23,7 +23,7 @@
             "train": {"method": "eigvals"},
             "reference": {"method": "eigvals"}
         },
-        "save_freq": 50,
+        "save_freq": 5,
         "validation_freq": 10,
         "display_freq": 1
     },
