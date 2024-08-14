@@ -1075,10 +1075,17 @@ def run_options():
                         - `float64`: indicating torch.float64
                     default None means to use the device seeting in the model ckpt file.
                 """
+    doc_pbc = """The periodic boundary condition, choose among: 
+                    Default: True,
+                        - True: indicating the structure is periodic
+                        - False: indicating the structure is not periodic
+                        - list of bool: indicating the structure is periodic in x,y,z direction respectively.
+                """
  
     args = [
         Argument("task_options", dict, sub_fields=[], optional=True, sub_variants=[task_options()], doc = doc_task),
         Argument("structure", [str,None], optional=True, default=None, doc = doc_structure),
+        Argument("pbc", [None, bool, list], optional=True, doc=doc_pbc, default=None),
         Argument("use_gui", bool, optional=True, default=False, doc = doc_gui),
         Argument("device", [str,None], optional = True, default=None, doc = doc_device),
         Argument("dtype", [str,None], optional = True, default=None, doc = doc_dtype),
@@ -1409,11 +1416,10 @@ def AtomicData_options_sub():
     args = [
         Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max, default=4.0),
         Argument("er_max", [float, int, dict], optional=True, doc=doc_er_max, default=None),
-        Argument("oer_max", [float, int, dict], optional=True, doc=doc_oer_max,default=None),
-        Argument("pbc", bool, optional=False, doc=doc_pbc, default=True),
+        Argument("oer_max", [float, int, dict], optional=True, doc=doc_oer_max,default=None)
     ]
 
-    return Argument("AtomicData_options", dict, optional=False, sub_fields=args, sub_variants=[], doc="")
+    return Argument("AtomicData_options", dict, optional=True, sub_fields=args, sub_variants=[], doc="", default=None)
 
 def set_info_options():
     doc_nframes = "Number of frames in this trajectory."

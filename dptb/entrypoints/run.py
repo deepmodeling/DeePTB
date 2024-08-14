@@ -78,6 +78,7 @@ def run(
         bcal = Band(model=model, results_path=results_path, use_gui=use_gui)
         bcal.get_bands( data=struct_file, 
                         kpath_kwargs=jdata["task_options"], 
+                        pbc=jdata["pbc"],
                         AtomicData_options=jdata['AtomicData_options'])
         
         bcal.band_plot( ref_band=jdata["task_options"].get("ref_band", None),

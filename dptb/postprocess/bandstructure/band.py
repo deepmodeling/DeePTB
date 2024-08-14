@@ -276,14 +276,13 @@ class Band(ElecStruCal):
 
         matplotlib.rcParams['font.size'] = 7
         matplotlib.rcParams['pdf.fonttype'] = 42
-
-        matplotlib.rcParams['font.sans-serif'] = ["Times New Roman"]
+        matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial', 'Helvetica', 'sans-serif']
         matplotlib.rcParams['axes.linewidth'] = 0.5
         matplotlib.rcParams['xtick.major.width'] =0.3
         matplotlib.rcParams['ytick.major.width'] =0.3
         # plt.rcParams['font.sans-serif'] = ['Times New Roman']
 
-        fig = plt.figure(figsize=(3.2,2.8),dpi=100)
+        fig = plt.figure(figsize=(3.2,2.8),dpi=200)
 
         ax = fig.add_subplot(111)
 
