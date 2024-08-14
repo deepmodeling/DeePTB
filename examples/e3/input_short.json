@@ -14,7 +14,7 @@
             },
             "irreps_hidden": "32x0e+32x1o+16x2e",
             "n_layers": 3,
-            "avg_num_neighbors": 51,
+            "avg_num_neighbors": 86,
             "tp_radial_emb": true
         },
         "prediction":{
