@@ -25,7 +25,7 @@ model_options:
         method:
             | type: ``str`` (flag key), default: ``se2``
             | argument path: ``model_options/embedding/method`` 
-            | possible choices: |code:model_options/embedding[se2]|_, |code:model_options/embedding[baseline]|_, |code:model_options/embedding[deeph-e3]|_, |code:model_options/embedding[e3baseline_0]|_, |code:model_options/embedding[e3baseline_1]|_, |code:model_options/embedding[e3baseline_2]|_, |code:model_options/embedding[e3baseline_3]|_, |code:model_options/embedding[e3baseline_4]|_, |code:model_options/embedding[e3baseline_5]|_, |code:model_options/embedding[e3baseline_6]|_, |code:model_options/embedding[e3baseline_nonlocal]|_
+            | possible choices: |code:model_options/embedding[se2]|_, |code:model_options/embedding[baseline]|_, |code:model_options/embedding[deeph-e3]|_, |code:model_options/embedding[e3baseline_5]|_, |code:model_options/embedding[e3baseline_6]|_, |code:model_options/embedding[slem]|_, |code:model_options/embedding[lem]|_, |code:model_options/embedding[e3baseline_nonlocal]|_
 
             The parameters to define the embedding model.
 
@@ -35,20 +35,14 @@ model_options:
             .. _`code:model_options/embedding[baseline]`: `model_options/embedding[baseline]`_
             .. |code:model_options/embedding[deeph-e3]| replace:: ``deeph-e3``
             .. _`code:model_options/embedding[deeph-e3]`: `model_options/embedding[deeph-e3]`_
-            .. |code:model_options/embedding[e3baseline_0]| replace:: ``e3baseline_0``
-            .. _`code:model_options/embedding[e3baseline_0]`: `model_options/embedding[e3baseline_0]`_
-            .. |code:model_options/embedding[e3baseline_1]| replace:: ``e3baseline_1``
-            .. _`code:model_options/embedding[e3baseline_1]`: `model_options/embedding[e3baseline_1]`_
-            .. |code:model_options/embedding[e3baseline_2]| replace:: ``e3baseline_2``
-            .. _`code:model_options/embedding[e3baseline_2]`: `model_options/embedding[e3baseline_2]`_
-            .. |code:model_options/embedding[e3baseline_3]| replace:: ``e3baseline_3``
-            .. _`code:model_options/embedding[e3baseline_3]`: `model_options/embedding[e3baseline_3]`_
-            .. |code:model_options/embedding[e3baseline_4]| replace:: ``e3baseline_4``
-            .. _`code:model_options/embedding[e3baseline_4]`: `model_options/embedding[e3baseline_4]`_
             .. |code:model_options/embedding[e3baseline_5]| replace:: ``e3baseline_5``
             .. _`code:model_options/embedding[e3baseline_5]`: `model_options/embedding[e3baseline_5]`_
             .. |code:model_options/embedding[e3baseline_6]| replace:: ``e3baseline_6``
             .. _`code:model_options/embedding[e3baseline_6]`: `model_options/embedding[e3baseline_6]`_
+            .. |code:model_options/embedding[slem]| replace:: ``slem``
+            .. _`code:model_options/embedding[slem]`: `model_options/embedding[slem]`_
+            .. |code:model_options/embedding[lem]| replace:: ``lem``
+            .. _`code:model_options/embedding[lem]`: `model_options/embedding[lem]`_
             .. |code:model_options/embedding[e3baseline_nonlocal]| replace:: ``e3baseline_nonlocal``
             .. _`code:model_options/embedding[e3baseline_nonlocal]`: `model_options/embedding[e3baseline_nonlocal]`_
 
@@ -251,371 +245,6 @@ model_options:
         n_layer: 
             | type: ``int``, optional, default: ``3``
             | argument path: ``model_options/embedding[deeph-e3]/n_layer``
-
-
-        .. _`model_options/embedding[e3baseline_0]`: 
-
-        When |flag:model_options/embedding/method|_ is set to ``e3baseline_0``: 
-
-        .. _`model_options/embedding[e3baseline_0]/irreps_hidden`: 
-
-        irreps_hidden: 
-            | type: ``str``, optional, default: ``64x0e+32x1o+16x2e+8x3o+8x4e+4x5o``
-            | argument path: ``model_options/embedding[e3baseline_0]/irreps_hidden``
-
-        .. _`model_options/embedding[e3baseline_0]/lmax`: 
-
-        lmax: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_0]/lmax``
-
-        .. _`model_options/embedding[e3baseline_0]/avg_num_neighbors`: 
-
-        avg_num_neighbors: 
-            | type: ``float`` | ``int``, optional, default: ``50``
-            | argument path: ``model_options/embedding[e3baseline_0]/avg_num_neighbors``
-
-        .. _`model_options/embedding[e3baseline_0]/r_max`: 
-
-        r_max: 
-            | type: ``dict`` | ``float`` | ``int``
-            | argument path: ``model_options/embedding[e3baseline_0]/r_max``
-
-        .. _`model_options/embedding[e3baseline_0]/n_layers`: 
-
-        n_layers: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_0]/n_layers``
-
-        .. _`model_options/embedding[e3baseline_0]/n_radial_basis`: 
-
-        n_radial_basis: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_0]/n_radial_basis``
-
-        .. _`model_options/embedding[e3baseline_0]/PolynomialCutoff_p`: 
-
-        PolynomialCutoff_p: 
-            | type: ``int``, optional, default: ``6``
-            | argument path: ``model_options/embedding[e3baseline_0]/PolynomialCutoff_p``
-
-            The order of polynomial cutoff function. Default: 6
-
-        .. _`model_options/embedding[e3baseline_0]/latent_kwargs`: 
-
-        latent_kwargs: 
-            | type: ``dict`` | ``NoneType``, optional, default: ``None``
-            | argument path: ``model_options/embedding[e3baseline_0]/latent_kwargs``
-
-        .. _`model_options/embedding[e3baseline_0]/env_embed_multiplicity`: 
-
-        env_embed_multiplicity: 
-            | type: ``int``, optional, default: ``1``
-            | argument path: ``model_options/embedding[e3baseline_0]/env_embed_multiplicity``
-
-        .. _`model_options/embedding[e3baseline_0]/linear_after_env_embed`: 
-
-        linear_after_env_embed: 
-            | type: ``bool``, optional, default: ``False``
-            | argument path: ``model_options/embedding[e3baseline_0]/linear_after_env_embed``
-
-        .. _`model_options/embedding[e3baseline_0]/latent_resnet_update_ratios_learnable`: 
-
-        latent_resnet_update_ratios_learnable: 
-            | type: ``bool``, optional, default: ``False``
-            | argument path: ``model_options/embedding[e3baseline_0]/latent_resnet_update_ratios_learnable``
-
-
-        .. _`model_options/embedding[e3baseline_1]`: 
-
-        When |flag:model_options/embedding/method|_ is set to ``e3baseline_1``: 
-
-        .. _`model_options/embedding[e3baseline_1]/irreps_hidden`: 
-
-        irreps_hidden: 
-            | type: ``str``, optional, default: ``64x0e+32x1o+16x2e+8x3o+8x4e+4x5o``
-            | argument path: ``model_options/embedding[e3baseline_1]/irreps_hidden``
-
-        .. _`model_options/embedding[e3baseline_1]/lmax`: 
-
-        lmax: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_1]/lmax``
-
-        .. _`model_options/embedding[e3baseline_1]/avg_num_neighbors`: 
-
-        avg_num_neighbors: 
-            | type: ``float`` | ``int``, optional, default: ``50``
-            | argument path: ``model_options/embedding[e3baseline_1]/avg_num_neighbors``
-
-        .. _`model_options/embedding[e3baseline_1]/r_max`: 
-
-        r_max: 
-            | type: ``dict`` | ``float`` | ``int``
-            | argument path: ``model_options/embedding[e3baseline_1]/r_max``
-
-        .. _`model_options/embedding[e3baseline_1]/n_layers`: 
-
-        n_layers: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_1]/n_layers``
-
-        .. _`model_options/embedding[e3baseline_1]/n_radial_basis`: 
-
-        n_radial_basis: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_1]/n_radial_basis``
-
-        .. _`model_options/embedding[e3baseline_1]/PolynomialCutoff_p`: 
-
-        PolynomialCutoff_p: 
-            | type: ``int``, optional, default: ``6``
-            | argument path: ``model_options/embedding[e3baseline_1]/PolynomialCutoff_p``
-
-            The order of polynomial cutoff function. Default: 6
-
-        .. _`model_options/embedding[e3baseline_1]/latent_kwargs`: 
-
-        latent_kwargs: 
-            | type: ``dict`` | ``NoneType``, optional, default: ``None``
-            | argument path: ``model_options/embedding[e3baseline_1]/latent_kwargs``
-
-        .. _`model_options/embedding[e3baseline_1]/env_embed_multiplicity`: 
-
-        env_embed_multiplicity: 
-            | type: ``int``, optional, default: ``1``
-            | argument path: ``model_options/embedding[e3baseline_1]/env_embed_multiplicity``
-
-        .. _`model_options/embedding[e3baseline_1]/linear_after_env_embed`: 
-
-        linear_after_env_embed: 
-            | type: ``bool``, optional, default: ``False``
-            | argument path: ``model_options/embedding[e3baseline_1]/linear_after_env_embed``
-
-        .. _`model_options/embedding[e3baseline_1]/latent_resnet_update_ratios_learnable`: 
-
-        latent_resnet_update_ratios_learnable: 
-            | type: ``bool``, optional, default: ``False``
-            | argument path: ``model_options/embedding[e3baseline_1]/latent_resnet_update_ratios_learnable``
-
-
-        .. _`model_options/embedding[e3baseline_2]`: 
-
-        When |flag:model_options/embedding/method|_ is set to ``e3baseline_2``: 
-
-        .. _`model_options/embedding[e3baseline_2]/irreps_hidden`: 
-
-        irreps_hidden: 
-            | type: ``str``, optional, default: ``64x0e+32x1o+16x2e+8x3o+8x4e+4x5o``
-            | argument path: ``model_options/embedding[e3baseline_2]/irreps_hidden``
-
-        .. _`model_options/embedding[e3baseline_2]/lmax`: 
-
-        lmax: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_2]/lmax``
-
-        .. _`model_options/embedding[e3baseline_2]/avg_num_neighbors`: 
-
-        avg_num_neighbors: 
-            | type: ``float`` | ``int``, optional, default: ``50``
-            | argument path: ``model_options/embedding[e3baseline_2]/avg_num_neighbors``
-
-        .. _`model_options/embedding[e3baseline_2]/r_max`: 
-
-        r_max: 
-            | type: ``dict`` | ``float`` | ``int``
-            | argument path: ``model_options/embedding[e3baseline_2]/r_max``
-
-        .. _`model_options/embedding[e3baseline_2]/n_layers`: 
-
-        n_layers: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_2]/n_layers``
-
-        .. _`model_options/embedding[e3baseline_2]/n_radial_basis`: 
-
-        n_radial_basis: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_2]/n_radial_basis``
-
-        .. _`model_options/embedding[e3baseline_2]/PolynomialCutoff_p`: 
-
-        PolynomialCutoff_p: 
-            | type: ``int``, optional, default: ``6``
-            | argument path: ``model_options/embedding[e3baseline_2]/PolynomialCutoff_p``
-
-            The order of polynomial cutoff function. Default: 6
-
-        .. _`model_options/embedding[e3baseline_2]/latent_kwargs`: 
-
-        latent_kwargs: 
-            | type: ``dict`` | ``NoneType``, optional, default: ``None``
-            | argument path: ``model_options/embedding[e3baseline_2]/latent_kwargs``
-
-        .. _`model_options/embedding[e3baseline_2]/env_embed_multiplicity`: 
-
-        env_embed_multiplicity: 
-            | type: ``int``, optional, default: ``1``
-            | argument path: ``model_options/embedding[e3baseline_2]/env_embed_multiplicity``
-
-        .. _`model_options/embedding[e3baseline_2]/linear_after_env_embed`: 
-
-        linear_after_env_embed: 
-            | type: ``bool``, optional, default: ``False``
-            | argument path: ``model_options/embedding[e3baseline_2]/linear_after_env_embed``
-
-        .. _`model_options/embedding[e3baseline_2]/latent_resnet_update_ratios_learnable`: 
-
-        latent_resnet_update_ratios_learnable: 
-            | type: ``bool``, optional, default: ``False``
-            | argument path: ``model_options/embedding[e3baseline_2]/latent_resnet_update_ratios_learnable``
-
-
-        .. _`model_options/embedding[e3baseline_3]`: 
-
-        When |flag:model_options/embedding/method|_ is set to ``e3baseline_3``: 
-
-        .. _`model_options/embedding[e3baseline_3]/irreps_hidden`: 
-
-        irreps_hidden: 
-            | type: ``str``, optional, default: ``64x0e+32x1o+16x2e+8x3o+8x4e+4x5o``
-            | argument path: ``model_options/embedding[e3baseline_3]/irreps_hidden``
-
-        .. _`model_options/embedding[e3baseline_3]/lmax`: 
-
-        lmax: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_3]/lmax``
-
-        .. _`model_options/embedding[e3baseline_3]/avg_num_neighbors`: 
-
-        avg_num_neighbors: 
-            | type: ``float`` | ``int``, optional, default: ``50``
-            | argument path: ``model_options/embedding[e3baseline_3]/avg_num_neighbors``
-
-        .. _`model_options/embedding[e3baseline_3]/r_max`: 
-
-        r_max: 
-            | type: ``dict`` | ``float`` | ``int``
-            | argument path: ``model_options/embedding[e3baseline_3]/r_max``
-
-        .. _`model_options/embedding[e3baseline_3]/n_layers`: 
-
-        n_layers: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_3]/n_layers``
-
-        .. _`model_options/embedding[e3baseline_3]/n_radial_basis`: 
-
-        n_radial_basis: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_3]/n_radial_basis``
-
-        .. _`model_options/embedding[e3baseline_3]/PolynomialCutoff_p`: 
-
-        PolynomialCutoff_p: 
-            | type: ``int``, optional, default: ``6``
-            | argument path: ``model_options/embedding[e3baseline_3]/PolynomialCutoff_p``
-
-            The order of polynomial cutoff function. Default: 6
-
-        .. _`model_options/embedding[e3baseline_3]/latent_kwargs`: 
-
-        latent_kwargs: 
-            | type: ``dict`` | ``NoneType``, optional, default: ``None``
-            | argument path: ``model_options/embedding[e3baseline_3]/latent_kwargs``
-
-        .. _`model_options/embedding[e3baseline_3]/env_embed_multiplicity`: 
-
-        env_embed_multiplicity: 
-            | type: ``int``, optional, default: ``1``
-            | argument path: ``model_options/embedding[e3baseline_3]/env_embed_multiplicity``
-
-        .. _`model_options/embedding[e3baseline_3]/linear_after_env_embed`: 
-
-        linear_after_env_embed: 
-            | type: ``bool``, optional, default: ``False``
-            | argument path: ``model_options/embedding[e3baseline_3]/linear_after_env_embed``
-
-        .. _`model_options/embedding[e3baseline_3]/latent_resnet_update_ratios_learnable`: 
-
-        latent_resnet_update_ratios_learnable: 
-            | type: ``bool``, optional, default: ``False``
-            | argument path: ``model_options/embedding[e3baseline_3]/latent_resnet_update_ratios_learnable``
-
-
-        .. _`model_options/embedding[e3baseline_4]`: 
-
-        When |flag:model_options/embedding/method|_ is set to ``e3baseline_4``: 
-
-        .. _`model_options/embedding[e3baseline_4]/irreps_hidden`: 
-
-        irreps_hidden: 
-            | type: ``str``, optional, default: ``64x0e+32x1o+16x2e+8x3o+8x4e+4x5o``
-            | argument path: ``model_options/embedding[e3baseline_4]/irreps_hidden``
-
-        .. _`model_options/embedding[e3baseline_4]/lmax`: 
-
-        lmax: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_4]/lmax``
-
-        .. _`model_options/embedding[e3baseline_4]/avg_num_neighbors`: 
-
-        avg_num_neighbors: 
-            | type: ``float`` | ``int``, optional, default: ``50``
-            | argument path: ``model_options/embedding[e3baseline_4]/avg_num_neighbors``
-
-        .. _`model_options/embedding[e3baseline_4]/r_max`: 
-
-        r_max: 
-            | type: ``dict`` | ``float`` | ``int``
-            | argument path: ``model_options/embedding[e3baseline_4]/r_max``
-
-        .. _`model_options/embedding[e3baseline_4]/n_layers`: 
-
-        n_layers: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_4]/n_layers``
-
-        .. _`model_options/embedding[e3baseline_4]/n_radial_basis`: 
-
-        n_radial_basis: 
-            | type: ``int``, optional, default: ``3``
-            | argument path: ``model_options/embedding[e3baseline_4]/n_radial_basis``
-
-        .. _`model_options/embedding[e3baseline_4]/PolynomialCutoff_p`: 
-
-        PolynomialCutoff_p: 
-            | type: ``int``, optional, default: ``6``
-            | argument path: ``model_options/embedding[e3baseline_4]/PolynomialCutoff_p``
-
-            The order of polynomial cutoff function. Default: 6
-
-        .. _`model_options/embedding[e3baseline_4]/latent_kwargs`: 
-
-        latent_kwargs: 
-            | type: ``dict`` | ``NoneType``, optional, default: ``None``
-            | argument path: ``model_options/embedding[e3baseline_4]/latent_kwargs``
-
-        .. _`model_options/embedding[e3baseline_4]/env_embed_multiplicity`: 
-
-        env_embed_multiplicity: 
-            | type: ``int``, optional, default: ``1``
-            | argument path: ``model_options/embedding[e3baseline_4]/env_embed_multiplicity``
-
-        .. _`model_options/embedding[e3baseline_4]/linear_after_env_embed`: 
-
-        linear_after_env_embed: 
-            | type: ``bool``, optional, default: ``False``
-            | argument path: ``model_options/embedding[e3baseline_4]/linear_after_env_embed``
-
-        .. _`model_options/embedding[e3baseline_4]/latent_resnet_update_ratios_learnable`: 
-
-        latent_resnet_update_ratios_learnable: 
-            | type: ``bool``, optional, default: ``False``
-            | argument path: ``model_options/embedding[e3baseline_4]/latent_resnet_update_ratios_learnable``
 
 
         .. _`model_options/embedding[e3baseline_5]`: 
@@ -856,6 +485,232 @@ model_options:
             Whether to make the ratios of residual update learnable.
 
 
+        .. _`model_options/embedding[slem]`: 
+
+        When |flag:model_options/embedding/method|_ is set to ``slem``: 
+
+        .. _`model_options/embedding[slem]/irreps_hidden`: 
+
+        irreps_hidden: 
+            | type: ``str``
+            | argument path: ``model_options/embedding[slem]/irreps_hidden``
+
+        .. _`model_options/embedding[slem]/avg_num_neighbors`: 
+
+        avg_num_neighbors: 
+            | type: ``float`` | ``int``
+            | argument path: ``model_options/embedding[slem]/avg_num_neighbors``
+
+        .. _`model_options/embedding[slem]/r_max`: 
+
+        r_max: 
+            | type: ``dict`` | ``float`` | ``int``
+            | argument path: ``model_options/embedding[slem]/r_max``
+
+        .. _`model_options/embedding[slem]/n_layers`: 
+
+        n_layers: 
+            | type: ``int``
+            | argument path: ``model_options/embedding[slem]/n_layers``
+
+        .. _`model_options/embedding[slem]/n_radial_basis`: 
+
+        n_radial_basis: 
+            | type: ``int``, optional, default: ``10``
+            | argument path: ``model_options/embedding[slem]/n_radial_basis``
+
+        .. _`model_options/embedding[slem]/PolynomialCutoff_p`: 
+
+        PolynomialCutoff_p: 
+            | type: ``int``, optional, default: ``6``
+            | argument path: ``model_options/embedding[slem]/PolynomialCutoff_p``
+
+            The order of polynomial cutoff function. Default: 6
+
+        .. _`model_options/embedding[slem]/cutoff_type`: 
+
+        cutoff_type: 
+            | type: ``str``, optional, default: ``polynomial``
+            | argument path: ``model_options/embedding[slem]/cutoff_type``
+
+            The type of cutoff function. Default: polynomial
+
+        .. _`model_options/embedding[slem]/env_embed_multiplicity`: 
+
+        env_embed_multiplicity: 
+            | type: ``int``, optional, default: ``10``
+            | argument path: ``model_options/embedding[slem]/env_embed_multiplicity``
+
+        .. _`model_options/embedding[slem]/tp_radial_emb`: 
+
+        tp_radial_emb: 
+            | type: ``bool``, optional, default: ``False``
+            | argument path: ``model_options/embedding[slem]/tp_radial_emb``
+
+            Whether to use tensor product radial embedding.
+
+        .. _`model_options/embedding[slem]/tp_radial_channels`: 
+
+        tp_radial_channels: 
+            | type: ``list``, optional, default: ``[32]``
+            | argument path: ``model_options/embedding[slem]/tp_radial_channels``
+
+            The number of channels in tensor product radial embedding.
+
+        .. _`model_options/embedding[slem]/latent_channels`: 
+
+        latent_channels: 
+            | type: ``list``, optional, default: ``[32]``
+            | argument path: ``model_options/embedding[slem]/latent_channels``
+
+            The number of channels in latent embedding.
+
+        .. _`model_options/embedding[slem]/latent_dim`: 
+
+        latent_dim: 
+            | type: ``int``, optional, default: ``64``
+            | argument path: ``model_options/embedding[slem]/latent_dim``
+
+            The dimension of latent embedding.
+
+        .. _`model_options/embedding[slem]/res_update`: 
+
+        res_update: 
+            | type: ``bool``, optional, default: ``True``
+            | argument path: ``model_options/embedding[slem]/res_update``
+
+            Whether to use residual update.
+
+        .. _`model_options/embedding[slem]/res_update_ratios`: 
+
+        res_update_ratios: 
+            | type: ``float``, optional, default: ``0.5``
+            | argument path: ``model_options/embedding[slem]/res_update_ratios``
+
+            The ratios of residual update, should in (0,1).
+
+        .. _`model_options/embedding[slem]/res_update_ratios_learnable`: 
+
+        res_update_ratios_learnable: 
+            | type: ``bool``, optional, default: ``False``
+            | argument path: ``model_options/embedding[slem]/res_update_ratios_learnable``
+
+            Whether to make the ratios of residual update learnable.
+
+
+        .. _`model_options/embedding[lem]`: 
+
+        When |flag:model_options/embedding/method|_ is set to ``lem``: 
+
+        .. _`model_options/embedding[lem]/irreps_hidden`: 
+
+        irreps_hidden: 
+            | type: ``str``
+            | argument path: ``model_options/embedding[lem]/irreps_hidden``
+
+        .. _`model_options/embedding[lem]/avg_num_neighbors`: 
+
+        avg_num_neighbors: 
+            | type: ``float`` | ``int``
+            | argument path: ``model_options/embedding[lem]/avg_num_neighbors``
+
+        .. _`model_options/embedding[lem]/r_max`: 
+
+        r_max: 
+            | type: ``dict`` | ``float`` | ``int``
+            | argument path: ``model_options/embedding[lem]/r_max``
+
+        .. _`model_options/embedding[lem]/n_layers`: 
+
+        n_layers: 
+            | type: ``int``
+            | argument path: ``model_options/embedding[lem]/n_layers``
+
+        .. _`model_options/embedding[lem]/n_radial_basis`: 
+
+        n_radial_basis: 
+            | type: ``int``, optional, default: ``10``
+            | argument path: ``model_options/embedding[lem]/n_radial_basis``
+
+        .. _`model_options/embedding[lem]/PolynomialCutoff_p`: 
+
+        PolynomialCutoff_p: 
+            | type: ``int``, optional, default: ``6``
+            | argument path: ``model_options/embedding[lem]/PolynomialCutoff_p``
+
+            The order of polynomial cutoff function. Default: 6
+
+        .. _`model_options/embedding[lem]/cutoff_type`: 
+
+        cutoff_type: 
+            | type: ``str``, optional, default: ``polynomial``
+            | argument path: ``model_options/embedding[lem]/cutoff_type``
+
+            The type of cutoff function. Default: polynomial
+
+        .. _`model_options/embedding[lem]/env_embed_multiplicity`: 
+
+        env_embed_multiplicity: 
+            | type: ``int``, optional, default: ``10``
+            | argument path: ``model_options/embedding[lem]/env_embed_multiplicity``
+
+        .. _`model_options/embedding[lem]/tp_radial_emb`: 
+
+        tp_radial_emb: 
+            | type: ``bool``, optional, default: ``False``
+            | argument path: ``model_options/embedding[lem]/tp_radial_emb``
+
+            Whether to use tensor product radial embedding.
+
+        .. _`model_options/embedding[lem]/tp_radial_channels`: 
+
+        tp_radial_channels: 
+            | type: ``list``, optional, default: ``[32]``
+            | argument path: ``model_options/embedding[lem]/tp_radial_channels``
+
+            The number of channels in tensor product radial embedding.
+
+        .. _`model_options/embedding[lem]/latent_channels`: 
+
+        latent_channels: 
+            | type: ``list``, optional, default: ``[32]``
+            | argument path: ``model_options/embedding[lem]/latent_channels``
+
+            The number of channels in latent embedding.
+
+        .. _`model_options/embedding[lem]/latent_dim`: 
+
+        latent_dim: 
+            | type: ``int``, optional, default: ``64``
+            | argument path: ``model_options/embedding[lem]/latent_dim``
+
+            The dimension of latent embedding.
+
+        .. _`model_options/embedding[lem]/res_update`: 
+
+        res_update: 
+            | type: ``bool``, optional, default: ``True``
+            | argument path: ``model_options/embedding[lem]/res_update``
+
+            Whether to use residual update.
+
+        .. _`model_options/embedding[lem]/res_update_ratios`: 
+
+        res_update_ratios: 
+            | type: ``float``, optional, default: ``0.5``
+            | argument path: ``model_options/embedding[lem]/res_update_ratios``
+
+            The ratios of residual update, should in (0,1).
+
+        .. _`model_options/embedding[lem]/res_update_ratios_learnable`: 
+
+        res_update_ratios_learnable: 
+            | type: ``bool``, optional, default: ``False``
+            | argument path: ``model_options/embedding[lem]/res_update_ratios_learnable``
+
+            Whether to make the ratios of residual update learnable.
+
+
         .. _`model_options/embedding[e3baseline_nonlocal]`: 
 
         When |flag:model_options/embedding/method|_ is set to ``e3baseline_nonlocal``: 
@@ -1056,6 +911,30 @@ model_options:
 
             whether to shift the training target.
 
+        .. _`model_options/prediction[e3tb]/neurons`: 
+
+        neurons: 
+            | type: ``list`` | ``NoneType``, optional, default: ``None``
+            | argument path: ``model_options/prediction[e3tb]/neurons``
+
+            neurons in the neural network.
+
+        .. _`model_options/prediction[e3tb]/activation`: 
+
+        activation: 
+            | type: ``str``, optional, default: ``tanh``
+            | argument path: ``model_options/prediction[e3tb]/activation``
+
+            activation function.
+
+        .. _`model_options/prediction[e3tb]/if_batch_normalized`: 
+
+        if_batch_normalized: 
+            | type: ``bool``, optional, default: ``False``
+            | argument path: ``model_options/prediction[e3tb]/if_batch_normalized``
+
+            if to turn on batch normalization
+
     .. _`model_options/nnsk`: 
 
     nnsk: 
@@ -1135,11 +1014,11 @@ model_options:
 
             When |flag:model_options/nnsk/onsite/method|_ is set to ``NRL``: 
 
-            .. _`model_options/nnsk/onsite[NRL]/rc`: 
+            .. _`model_options/nnsk/onsite[NRL]/rs`: 
 
-            rc: 
+            rs: 
                 | type: ``float``, optional, default: ``6.0``
-                | argument path: ``model_options/nnsk/onsite[NRL]/rc``
+                | argument path: ``model_options/nnsk/onsite[NRL]/rs``
 
                 The smooth cutoff of `fc` for nrl model, rc is where fc ~ 0.0
 
@@ -1181,7 +1060,7 @@ model_options:
             method:
                 | type: ``str`` (flag key)
                 | argument path: ``model_options/nnsk/hopping/method`` 
-                | possible choices: |code:model_options/nnsk/hopping[powerlaw]|_, |code:model_options/nnsk/hopping[varTang96]|_, |code:model_options/nnsk/hopping[NRL0]|_, |code:model_options/nnsk/hopping[NRL1]|_, |code:model_options/nnsk/hopping[custom]|_
+                | possible choices: |code:model_options/nnsk/hopping[powerlaw]|_, |code:model_options/nnsk/hopping[poly1pow]|_, |code:model_options/nnsk/hopping[poly2pow]|_, |code:model_options/nnsk/hopping[poly3pow]|_, |code:model_options/nnsk/hopping[poly2exp]|_, |code:model_options/nnsk/hopping[varTang96]|_, |code:model_options/nnsk/hopping[NRL0]|_, |code:model_options/nnsk/hopping[NRL1]|_, |code:model_options/nnsk/hopping[custom]|_
 
                 The hopping formula. 
                                     -  `powerlaw`: the powerlaw formula for bond length dependence for sk integrals.
@@ -1192,6 +1071,14 @@ model_options:
 
                 .. |code:model_options/nnsk/hopping[powerlaw]| replace:: ``powerlaw``
                 .. _`code:model_options/nnsk/hopping[powerlaw]`: `model_options/nnsk/hopping[powerlaw]`_
+                .. |code:model_options/nnsk/hopping[poly1pow]| replace:: ``poly1pow``
+                .. _`code:model_options/nnsk/hopping[poly1pow]`: `model_options/nnsk/hopping[poly1pow]`_
+                .. |code:model_options/nnsk/hopping[poly2pow]| replace:: ``poly2pow``
+                .. _`code:model_options/nnsk/hopping[poly2pow]`: `model_options/nnsk/hopping[poly2pow]`_
+                .. |code:model_options/nnsk/hopping[poly3pow]| replace:: ``poly3pow``
+                .. _`code:model_options/nnsk/hopping[poly3pow]`: `model_options/nnsk/hopping[poly3pow]`_
+                .. |code:model_options/nnsk/hopping[poly2exp]| replace:: ``poly2exp``
+                .. _`code:model_options/nnsk/hopping[poly2exp]`: `model_options/nnsk/hopping[poly2exp]`_
                 .. |code:model_options/nnsk/hopping[varTang96]| replace:: ``varTang96``
                 .. _`code:model_options/nnsk/hopping[varTang96]`: `model_options/nnsk/hopping[varTang96]`_
                 .. |code:model_options/nnsk/hopping[NRL0]| replace:: ``NRL0``
@@ -1226,6 +1113,90 @@ model_options:
                  The decay w in fc
 
 
+            .. _`model_options/nnsk/hopping[poly1pow]`: 
+
+            When |flag:model_options/nnsk/hopping/method|_ is set to ``poly1pow``: 
+
+            .. _`model_options/nnsk/hopping[poly1pow]/rs`: 
+
+            rs: 
+                | type: ``float``, optional, default: ``6.0``
+                | argument path: ``model_options/nnsk/hopping[poly1pow]/rs``
+
+                The cut-off for smooth function fc for powerlaw and varTang96, fc(rs)=0.5
+
+            .. _`model_options/nnsk/hopping[poly1pow]/w`: 
+
+            w: 
+                | type: ``float``, optional, default: ``0.1``
+                | argument path: ``model_options/nnsk/hopping[poly1pow]/w``
+
+                 The decay w in fc
+
+
+            .. _`model_options/nnsk/hopping[poly2pow]`: 
+
+            When |flag:model_options/nnsk/hopping/method|_ is set to ``poly2pow``: 
+
+            .. _`model_options/nnsk/hopping[poly2pow]/rs`: 
+
+            rs: 
+                | type: ``float``, optional, default: ``6.0``
+                | argument path: ``model_options/nnsk/hopping[poly2pow]/rs``
+
+                The cut-off for smooth function fc for powerlaw and varTang96, fc(rs)=0.5
+
+            .. _`model_options/nnsk/hopping[poly2pow]/w`: 
+
+            w: 
+                | type: ``float``, optional, default: ``0.1``
+                | argument path: ``model_options/nnsk/hopping[poly2pow]/w``
+
+                 The decay w in fc
+
+
+            .. _`model_options/nnsk/hopping[poly3pow]`: 
+
+            When |flag:model_options/nnsk/hopping/method|_ is set to ``poly3pow``: 
+
+            .. _`model_options/nnsk/hopping[poly3pow]/rs`: 
+
+            rs: 
+                | type: ``float``, optional, default: ``6.0``
+                | argument path: ``model_options/nnsk/hopping[poly3pow]/rs``
+
+                The cut-off for smooth function fc for powerlaw and varTang96, fc(rs)=0.5
+
+            .. _`model_options/nnsk/hopping[poly3pow]/w`: 
+
+            w: 
+                | type: ``float``, optional, default: ``0.1``
+                | argument path: ``model_options/nnsk/hopping[poly3pow]/w``
+
+                 The decay w in fc
+
+
+            .. _`model_options/nnsk/hopping[poly2exp]`: 
+
+            When |flag:model_options/nnsk/hopping/method|_ is set to ``poly2exp``: 
+
+            .. _`model_options/nnsk/hopping[poly2exp]/rs`: 
+
+            rs: 
+                | type: ``float``, optional, default: ``6.0``
+                | argument path: ``model_options/nnsk/hopping[poly2exp]/rs``
+
+                The cut-off for smooth function fc for powerlaw and varTang96, fc(rs)=0.5
+
+            .. _`model_options/nnsk/hopping[poly2exp]/w`: 
+
+            w: 
+                | type: ``float``, optional, default: ``0.1``
+                | argument path: ``model_options/nnsk/hopping[poly2exp]/w``
+
+                 The decay w in fc
+
+
             .. _`model_options/nnsk/hopping[varTang96]`: 
 
             When |flag:model_options/nnsk/hopping/method|_ is set to ``varTang96``: 
@@ -1251,11 +1222,11 @@ model_options:
 
             When |flag:model_options/nnsk/hopping/method|_ is set to ``NRL0``: 
 
-            .. _`model_options/nnsk/hopping[NRL0]/rc`: 
+            .. _`model_options/nnsk/hopping[NRL0]/rs`: 
 
-            rc: 
+            rs: 
                 | type: ``float``, optional, default: ``6.0``
-                | argument path: ``model_options/nnsk/hopping[NRL0]/rc``
+                | argument path: ``model_options/nnsk/hopping[NRL0]/rs``
 
                 The cut-off for smooth function fc for NRL, fc(rc) = 0.
 
@@ -1272,11 +1243,11 @@ model_options:
 
             When |flag:model_options/nnsk/hopping/method|_ is set to ``NRL1``: 
 
-            .. _`model_options/nnsk/hopping[NRL1]/rc`: 
+            .. _`model_options/nnsk/hopping[NRL1]/rs`: 
 
-            rc: 
+            rs: 
                 | type: ``float``, optional, default: ``6.0``
-                | argument path: ``model_options/nnsk/hopping[NRL1]/rc``
+                | argument path: ``model_options/nnsk/hopping[NRL1]/rs``
 
                 The cut-off for smooth function fc for NRL, fc(rc) = 0.
 
@@ -1363,6 +1334,14 @@ model_options:
 
                 The step size for decay factor w.
 
+            .. _`model_options/nnsk/push/ovp_thr`: 
+
+            ovp_thr: 
+                | type: ``float`` | ``int``, optional, default: ``0.0``
+                | argument path: ``model_options/nnsk/push/ovp_thr``
+
+                The step size for overlap reduction
+
             .. _`model_options/nnsk/push/period`: 
 
             period: 
@@ -1370,4 +1349,28 @@ model_options:
                 | argument path: ``model_options/nnsk/push/period``
 
                 the interval of iterations to modify the rs w values.
+
+    .. _`model_options/dftbsk`: 
+
+    dftbsk: 
+        | type: ``dict``, optional
+        | argument path: ``model_options/dftbsk``
+
+        The parameters to define the dftb sk model.
+
+        .. _`model_options/dftbsk/skdata`: 
+
+        skdata: 
+            | type: ``str``
+            | argument path: ``model_options/dftbsk/skdata``
+
+            The path to the skfile or sk database.
+
+        .. _`model_options/dftbsk/r_max`: 
+
+        r_max: 
+            | type: ``float``
+            | argument path: ``model_options/dftbsk/r_max``
+
+            the cutoff values to use sk files.
 

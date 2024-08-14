@@ -31,6 +31,14 @@ setinfo:
 
         Type of atomic position input. Can be frac / cart / ase.
 
+    .. _`setinfo/pbc`: 
+
+    pbc: 
+        | type: ``list`` | ``bool``
+        | argument path: ``setinfo/pbc``
+
+        The periodic condition for the structure, can bool or list of bool to specific x,y,z direction.
+
     .. _`setinfo/bandinfo`: 
 
     bandinfo: 
@@ -71,42 +79,4 @@ setinfo:
             | argument path: ``setinfo/bandinfo/emax``
 
             the max energy window, emax value is respect to the min value of the band at index band_min
-
-    .. _`setinfo/AtomicData_options`: 
-
-    AtomicData_options: 
-        | type: ``dict``
-        | argument path: ``setinfo/AtomicData_options``
-
-        .. _`setinfo/AtomicData_options/r_max`: 
-
-        r_max: 
-            | type: ``dict`` | ``float`` | ``int``
-            | argument path: ``setinfo/AtomicData_options/r_max``
-
-            the cutoff value for bond considering in TB model.
-
-        .. _`setinfo/AtomicData_options/er_max`: 
-
-        er_max: 
-            | type: ``dict`` | ``float`` | ``int`` | ``NoneType``, optional, default: ``None``
-            | argument path: ``setinfo/AtomicData_options/er_max``
-
-            The cutoff value for environment for each site for env correction model. should set for nnsk+env correction model.
-
-        .. _`setinfo/AtomicData_options/oer_max`: 
-
-        oer_max: 
-            | type: ``dict`` | ``float`` | ``int`` | ``NoneType``, optional, default: ``None``
-            | argument path: ``setinfo/AtomicData_options/oer_max``
-
-            The cutoff value for onsite environment for nnsk model, for now only need to set in strain and NRL mode.
-
-        .. _`setinfo/AtomicData_options/pbc`: 
-
-        pbc: 
-            | type: ``bool``
-            | argument path: ``setinfo/AtomicData_options/pbc``
-
-            The periodic condition for the structure, can bool or list of bool to specific x,y,z direction.
 
