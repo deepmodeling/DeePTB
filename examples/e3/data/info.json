@@ -1,8 +1,5 @@
 {
 	"nframes": 1,
 	"pos_type": "cart",
-	"AtomicData_options": {
-		"r_max": 7.4,
-		"pbc": true
-	}
+    "pbc": true
 }

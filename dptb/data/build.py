@@ -15,6 +15,7 @@ from dptb.utils import instantiate, get_w_prefix
 from dptb.utils.tools import j_loader
 from dptb.utils.argcheck import normalize_setinfo, normalize_lmdbsetinfo
 from dptb.utils.argcheck import collect_cutoffs 
+from dptb.utils.argcheck import get_cutoffs_from_model_options
 import logging
 import torch
 import copy
@@ -302,8 +303,10 @@ class DatasetBuilder:
         Returns:
             dataset: The built dataset.
         """
-        cutoff_options = collect_cutoffs(model.model_options)
-    
+        # cutoff_options = collect_cutoffs(model.model_options)
+        r_max, er_max, oer_max  = get_cutoffs_from_model_options(model.model_options)
+        cutoff_options = {'r_max': r_max, 'er_max': er_max, 'oer_max': oer_max}
+        
         dataset = self(
             root = root,
             **cutoff_options,
