@@ -209,7 +209,8 @@ def train(
         log_field.append("validation_loss")
     trainer.register_plugin(TrainLossMonitor())
     trainer.register_plugin(LearningRateMonitor())
-    trainer.register_plugin(TensorBoardMonitor())
+    if jdata["train_options"]["use_tensorboard"]:
+        trainer.register_plugin(TensorBoardMonitor())
     trainer.register_plugin(Logger(log_field,
         interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
     
