@@ -1,7 +1,7 @@
 from dptb.nnops.trainer import Trainer
 from dptb.nn.build import build_model
 from dptb.data.build import build_dataset
-from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
+from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor
 from dptb.plugins.train_logger import Logger
 from dptb.utils.argcheck import normalize, collect_cutoffs
 from dptb.plugins.saver import Saver
@@ -209,7 +209,9 @@ def train(
         log_field.append("validation_loss")
     trainer.register_plugin(TrainLossMonitor())
     trainer.register_plugin(LearningRateMonitor())
-    trainer.register_plugin(Logger(log_field, 
+    if jdata["train_options"]["use_tensorboard"]:
+        trainer.register_plugin(TensorBoardMonitor())
+    trainer.register_plugin(Logger(log_field,
         interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
     
     for q in trainer.plugin_queues.values():
