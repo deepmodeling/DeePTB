@@ -12,7 +12,7 @@ from dptb.utils.tools import j_must_have
 from dptb.postprocess.NEGF import NEGF
 from dptb.postprocess.tbtrans_init import TBTransInputSet,sisl_installed
 
-from dptb.postprocess.write_ham import write_ham
+# from dptb.postprocess.write_ham import write_ham
 from dptb.postprocess.write_block import write_block
 import torch
 import h5py

@@ -113,6 +113,7 @@ class NEGF(object):
                                                     results_path=self.results_path,
                                                     torch_device = self.torch_device)
         with torch.no_grad():
+            # if useBloch is None, structure_leads_fold,bloch_sorted_indices,bloch_R_lists = None,None,None
             struct_device, struct_leads,structure_leads_fold,bloch_sorted_indices,bloch_R_lists,subblocks = \
                 self.negf_hamiltonian.initialize(kpoints=self.kpoints,block_tridiagnal=self.block_tridiagonal,\
                                                  useBloch=self.useBloch,bloch_factor=self.bloch_factor)

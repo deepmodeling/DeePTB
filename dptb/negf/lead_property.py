@@ -8,7 +8,7 @@ from dptb.utils.constants import Boltzmann, eV2J
 import numpy as np
 from dptb.negf.bloch import Bloch
 import torch.profiler
-
+import ase
 
 log = logging.getLogger(__name__)
 
@@ -67,7 +67,8 @@ class LeadProperty(object):
 
     '''
     def __init__(self, tab, hamiltonian, structure, results_path, voltage,\
-                 structure_leads_fold,bloch_sorted_indice, useBloch: bool=False, bloch_factor: List[int]=[1,1,1],bloch_R_list:List=None,\
+                 structure_leads_fold:ase.Atoms=None,bloch_sorted_indice:torch.Tensor=None, useBloch: bool=False, \
+                    bloch_factor: List[int]=[1,1,1],bloch_R_list:List=None,\
                     e_T=300, efermi=0.0) -> None:
         self.hamiltonian = hamiltonian
         self.structure = structure
@@ -80,12 +81,18 @@ class LeadProperty(object):
         self.mu = self.efermi - self.voltage
         self.kpoint = None
         self.voltage_old = None
-        self.structure_leads_fold = structure_leads_fold
+        
         
         self.useBloch = useBloch
         self.bloch_factor = bloch_factor
         self.bloch_sorted_indice = bloch_sorted_indice
         self.bloch_R_list = bloch_R_list
+        self.structure_leads_fold = structure_leads_fold
+        if self.useBloch:
+            assert self.bloch_sorted_indice is not None
+            assert self.bloch_R_list is not None
+            assert self.bloch_factor is not None
+            assert self.structure_leads_fold is not None
 
     def self_energy(self, kpoint, energy, eta_lead: float=1e-5, method: str="Lopez-Sancho", \
                     ):
