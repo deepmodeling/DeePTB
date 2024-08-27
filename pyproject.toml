@@ -8,7 +8,7 @@ readme = "README.md"
 repository = "https://github.com/deepmodeling/DeePTB"
 
 [tool.poetry.dependencies]
-python = ">=3.8"
+python = ">=3.9"
 pytest = ">=7.2.0"
 pytest-order = "1.2.0"
 numpy = "*"
@@ -29,6 +29,7 @@ torch_geometric = ">=2.4.0"
 opt-einsum = "3.3.0"
 h5py = "3.7.0"
 lmdb = "1.4.1"
+pyfiglet = "1.0.2"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -52,6 +53,7 @@ torch_geometric = ">=2.4.0"
 opt-einsum = "3.3.0"
 h5py = "3.7.0"
 lmdb = "1.4.1"
+pyfiglet = "1.0.2"
 
 [tool.poetry.group.3Dfermi]
 optional = true

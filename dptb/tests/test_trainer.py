@@ -2,7 +2,7 @@ import pytest
 from dptb.nnops.trainer import Trainer
 import os
 from pathlib import Path
-from dptb.utils.argcheck import normalize
+from dptb.utils.argcheck import normalize,collect_cutoffs
 from dptb.utils.tools import j_loader
 from dptb.nn.build import build_model
 from dptb.data.build import build_dataset
@@ -24,7 +24,8 @@ class TestTrainer:
     
     jdata = j_loader(INPUT_file)
     jdata = normalize(jdata)
-    train_datasets = build_dataset(**jdata["data_options"]["train"], **jdata["common_options"])
+    cutoffops = collect_cutoffs(jdata)
+    train_datasets = build_dataset(**cutoffops, **jdata["data_options"]["train"], **jdata["common_options"])
 
 
     
@@ -47,7 +48,7 @@ class TestTrainer:
         jdata = self.jdata
         train_datasets = self.train_datasets
         model = build_model(None, model_options=jdata["model_options"], 
-                        common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
+                        common_options=jdata["common_options"])
         trainer = Trainer(
             train_options=jdata["train_options"],
             common_options=jdata["common_options"],
@@ -70,10 +71,10 @@ class TestTrainer:
         jdata["train_options"]["loss_options"]["reference"] = jdata["train_options"]["loss_options"]["train"]
         train_datasets = self.train_datasets
 
-        reference_datasets = build_dataset(**jdata["data_options"]["reference"], **jdata["common_options"])
+        reference_datasets = build_dataset(**self.cutoffops,**jdata["data_options"]["reference"], **jdata["common_options"])
 
         model = build_model(None, model_options=jdata["model_options"], 
-                        common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
+                        common_options=jdata["common_options"])
         
         trainer = Trainer(
             train_options=jdata["train_options"],
@@ -97,10 +98,10 @@ class TestTrainer:
         jdata["train_options"]["loss_options"]["validation"] = jdata["train_options"]["loss_options"]["train"]
         train_datasets = self.train_datasets
 
-        validation_datasets = build_dataset(**jdata["data_options"]["validation"], **jdata["common_options"])
+        validation_datasets = build_dataset(**self.cutoffops,**jdata["data_options"]["validation"], **jdata["common_options"])
 
         model = build_model(None, model_options=jdata["model_options"], 
-                        common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
+                        common_options=jdata["common_options"])
         
         trainer = Trainer(
             train_options=jdata["train_options"],
@@ -126,7 +127,7 @@ class TestTrainer:
         checkpoint = f"{rootdir}/test_sktb/output/test_valence/checkpoint/nnsk.best.pth"
         run_options.update({"init_model": checkpoint, "restart": None})
         model = build_model(checkpoint, model_options=jdata["model_options"], 
-                            common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
+                            common_options=jdata["common_options"])
         trainer = Trainer(
             train_options=jdata["train_options"],
             common_options=jdata["common_options"],

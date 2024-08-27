@@ -13,6 +13,7 @@ from dptb.postprocess.NEGF import NEGF
 from dptb.postprocess.tbtrans_init import TBTransInputSet,sisl_installed
 
 from dptb.postprocess.write_ham import write_ham
+from dptb.postprocess.write_block import write_block
 import torch
 import h5py
 
@@ -79,9 +80,10 @@ def run(
     struct_file = run_opt["structure"]
 
     if task=='band':        
-        bcal = Band(model=model, results_path=results_path, use_gui=use_gui)
+        bcal = Band(model=model, results_path=results_path, use_gui=use_gui, device=model.device)
         bcal.get_bands( data=struct_file, 
                         kpath_kwargs=jdata["task_options"], 
+                        pbc=jdata["pbc"],
                         AtomicData_options=jdata['AtomicData_options'])
         
         bcal.band_plot( ref_band=jdata["task_options"].get("ref_band", None),
@@ -134,7 +136,7 @@ def run(
     
     elif task=='write_block':
         task = torch.load(init_model, map_location="cpu")["task"]
-        block = write_ham(data=struct_file, AtomicData_options=jdata['AtomicData_options'], model=model, device=jdata["device"])
+        block = write_block(data=struct_file, AtomicData_options=jdata['AtomicData_options'], model=model, device=jdata["device"])
         # write to h5 file, block is a dict, write to a h5 file
         with h5py.File(os.path.join(results_path, task+".h5"), 'w') as fid:
             default_group = fid.create_group("0")

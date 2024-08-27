@@ -1,6 +1,5 @@
 FROM ubuntu:20.04
-
-SHELL ["/bin/bash", "-c"]  # Set default shell for subsequent RUN commands
+SHELL ["/bin/bash", "-c"]
 
 ARG MINIFORGE_NAME=Miniforge3
 ARG MINIFORGE_VERSION=23.11.0-0
@@ -34,6 +33,7 @@ RUN source ~/.bashrc &&  \
     conda create -n deeptb python=3.9 -c conda-forge -y  && \
     source activate deeptb && \
     pip install torch==2.1.1 && \
+    pip install torch-scatter -f https://data.pyg.org/whl/torch-2.1.1+cpu.html && \
     cd ./DeePTB && \
     pip install . && \
     cd ..  && \ 

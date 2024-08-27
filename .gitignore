@@ -6,6 +6,9 @@ dptb/tests/**/*.pth
 dptb/tests/**/*.npy
 dptb/tests/**/*.traj
 dptb/tests/**/out*/*
+dptb/tests/**/out*/*
+dptb/tests/**/*lmdb
+dptb/tests/**/*h5
 examples/_*
 *.dat
 *log*

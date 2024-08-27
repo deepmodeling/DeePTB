@@ -229,7 +229,7 @@ class NNSK(torch.nn.Module):
         # map the parameters to the edge/node/env features
         # compute integrals from parameters using hopping and onsite clas
         if self.push is not None and self.push is not False:
-            if abs(self.push.get("rs_thr")) + abs(self.push.get("rc_thr")) + abs(self.push.get("w_thr")) + abs(self.push.get("ovp_thr")) > 0:
+            if abs(self.push.get("rs_thr")) + abs(self.push.get("rc_thr")) + abs(self.push.get("w_thr")) + abs(self.push.get("ovp_thr",0)) > 0:
                 self.push_decay(**self.push)
 
         reflective_bonds = np.array([self.idp_sk.bond_to_type["-".join(self.idp_sk.type_to_bond[i].split("-")[::-1])] for i  in range(len(self.idp_sk.bond_types))])

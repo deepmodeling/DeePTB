@@ -222,14 +222,19 @@ class LMDBDataset(AtomicDataset):
                             # we do a running avg and var here
                             node_norm_ave[tp][ir] = (node_norm_ave[tp][ir] * count_at[tp] + norms.sum(dim=0)) / (count_at[tp] + n_at)
                             node_square_ave[tp][ir] = (node_square_ave[tp][ir] * count_at[tp] + (norms**2).sum(dim=0)) / (count_at[tp] + n_at)
-                            node_norm_std[tp][ir] = torch.nan_to_num(torch.sqrt((count_at[tp] + n_at) / (count_at[tp] + n_at - 1) * (node_square_ave[tp][ir] - node_norm_ave[tp][ir]**2)), nan=0.0)
+                            if count_at[tp] + n_at > 1:
+                                node_norm_std[tp][ir] = torch.nan_to_num(torch.sqrt((count_at[tp] + n_at) / (count_at[tp] + n_at - 1) * (node_square_ave[tp][ir] - node_norm_ave[tp][ir]**2)), nan=0.0)
+                            else:
+                                node_norm_std[tp][ir] = 1.0
 
                             if sub_tensor.shape[-1] == 1:
                                 # is scalar
                                 node_scalar_ave[tp][count_scalar-1] = (node_scalar_ave[tp][count_scalar-1] * count_at[tp] + sub_tensor.sum()) / (count_at[tp] + n_at)
                                 node_scalar_square_ave[tp][count_scalar-1] = (node_scalar_square_ave[tp][count_scalar-1] * count_at[tp] + (sub_tensor**2).sum()) / (count_at[tp] + n_at)
-                                node_scalar_std[tp][count_scalar-1] = torch.nan_to_num(torch.sqrt((count_at[tp] + n_at) / (count_at[tp] + n_at - 1) * (node_scalar_square_ave[tp][count_scalar-1] - node_scalar_ave[tp][count_scalar-1]**2)), nan=0.0)
-
+                                if count_at[tp] + n_at > 1:
+                                    node_scalar_std[tp][count_scalar-1] = torch.nan_to_num(torch.sqrt((count_at[tp] + n_at) / (count_at[tp] + n_at - 1) * (node_scalar_square_ave[tp][count_scalar-1] - node_scalar_ave[tp][count_scalar-1]**2)), nan=0.0)
+                                else:    
+                                    node_scalar_std[tp][count_scalar-1] = 1.0
                         subcount_at[tp] = n_at
                         count_at[tp] += n_at
                 assert sum(subcount_at.values()) == atomicdata[AtomicDataDict.POSITIONS_KEY].shape[0]
@@ -252,14 +257,19 @@ class LMDBDataset(AtomicDataset):
                             # we do a running avg and var here
                             edge_norm_ave[tp][ir] = (edge_norm_ave[tp][ir] * count_bt[tp] + norms.sum(dim=0)) / (count_bt[tp] + n_bt)
                             edge_square_ave[tp][ir] = (edge_square_ave[tp][ir] * count_bt[tp] + (norms**2).sum(dim=0)) / (count_bt[tp] + n_bt)
-                            edge_norm_std[tp][ir] = torch.nan_to_num(torch.sqrt((count_bt[tp] + n_bt) / (count_bt[tp] + n_bt - 1) * (edge_square_ave[tp][ir] - edge_norm_ave[tp][ir]**2)), nan=0.0)
-
+                            if count_bt[tp] + n_bt > 1:
+                                edge_norm_std[tp][ir] = torch.nan_to_num(torch.sqrt((count_bt[tp] + n_bt) / (count_bt[tp] + n_bt - 1) * (edge_square_ave[tp][ir] - edge_norm_ave[tp][ir]**2)), nan=0.0)
+                            else:
+                                edge_norm_std[tp][ir] = 1.0
                             if sub_tensor.shape[-1] == 1:
                                 # is scalar
                                 edge_scalar_ave[tp][count_scalar-1] = (edge_scalar_ave[tp][count_scalar-1] * count_bt[tp] + sub_tensor.sum()) / (count_bt[tp] + n_bt)
                                 edge_scalar_square_ave[tp][count_scalar-1] = (edge_scalar_square_ave[tp][count_scalar-1] * count_bt[tp] + (sub_tensor**2).sum()) / (count_bt[tp] + n_bt)
-                                edge_scalar_std[tp][count_scalar-1] = torch.nan_to_num(torch.sqrt((count_bt[tp] + n_bt) / (count_bt[tp] + n_bt - 1) * (edge_scalar_square_ave[tp][count_scalar-1] - edge_scalar_ave[tp][count_scalar-1]**2)), nan=0.0)
-                        
+                                if count_bt[tp] + n_bt > 1:
+                                    edge_scalar_std[tp][count_scalar-1] = torch.nan_to_num(torch.sqrt((count_bt[tp] + n_bt) / (count_bt[tp] + n_bt - 1) * (edge_scalar_square_ave[tp][count_scalar-1] - edge_scalar_ave[tp][count_scalar-1]**2)), nan=0.0)
+                                else:
+                                    edge_scalar_std[tp][count_scalar-1] = 1.0
+                                    
                         subcount_bt[tp] = n_bt
                         count_bt[tp] += n_bt
                 assert sum(subcount_bt.values()) == atomicdata[AtomicDataDict.EDGE_INDEX_KEY].shape[1]

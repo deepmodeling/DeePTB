@@ -1,0 +1,54 @@
+{
+    "common_options": {
+        "basis": {
+            "Si": "1s1p"
+        },
+        "device": "cpu",
+        "overlap": true
+    },
+    "model_options": {
+        "embedding": {
+            "method": "slem",
+            "r_max": {
+                "Si": 7.4
+            },
+            "irreps_hidden": "32x0e+32x1o+16x2e",
+            "n_layers": 3,
+            "avg_num_neighbors": 86,
+            "tp_radial_emb": true
+        },
+        "prediction":{
+            "method": "e3tb",
+            "neurons": [64,64]
+        }
+    },
+    "train_options": {
+        "num_epoch": 1500,
+        "batch_size": 1,
+        "optimizer": {
+            "lr": 0.005,
+            "type": "Adam"
+        },
+        "lr_scheduler": {
+            "type": "rop",
+            "factor": 0.8,
+            "patience": 50,
+            "min_lr": 1e-6
+        },
+        "loss_options":{
+            "train":{"method": "hamil_abs"}
+        },
+        "save_freq": 100,
+        "validation_freq": 10,
+        "display_freq": 1
+    },
+    "data_options": {
+        "train": {
+            "root": "./data",
+            "prefix": "Si64",
+            "get_Hamiltonian": true,
+            "get_overlap": true
+        }
+    }
+}
+

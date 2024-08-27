@@ -9,6 +9,8 @@ import logging
 log = logging.getLogger(__name__)
 from dptb.data import AtomicData, AtomicDataDict
 from dptb.nn.energy import Eigenvalues
+from dptb.utils.argcheck import get_cutoffs_from_model_options
+from copy import deepcopy
 
 # This class `ElecStruCal`  is designed to calculate electronic structure properties such as
 # eigenvalues and Fermi energy based on provided input data and model. 
@@ -42,6 +44,10 @@ class ElecStruCal(object):
         self.model.eval()
         self.overlap = hasattr(model, 'overlap')
 
+        if not self.model.transform:
+            log.error('The model.transform is not True, please check the model.')
+            raise RuntimeError('The model.transform is not True, please check the model.')
+        
         if self.overlap:
             self.eigv = Eigenvalues(
                 idp=model.idp,
@@ -57,8 +63,9 @@ class ElecStruCal(object):
                 device=self.device,
                 dtype=model.dtype,
             )
-
-    def get_data(self,data: Union[AtomicData, ase.Atoms, str],AtomicData_options: dict={},device: Union[str, torch.device]=None):
+        r_max, er_max, oer_max  = get_cutoffs_from_model_options(model.model_options)
+        self.cutoffs = {'r_max': r_max, 'er_max': er_max, 'oer_max': oer_max}
+    def get_data(self,data: Union[AtomicData, ase.Atoms, str],pbc:Union[bool,list]=None, device: Union[str, torch.device]=None, AtomicData_options:dict=None):
         '''The function `get_data` takes input data in the form of a string, ase.Atoms object, or AtomicData
         object, processes it accordingly, and returns the AtomicData class.
         
@@ -79,15 +86,36 @@ class ElecStruCal(object):
             the loaded AtomicData object.
         
         '''
+        atomic_options = deepcopy(self.cutoffs)
+        if pbc is not None:
+            atomic_options.update({'pbc': pbc})
+
+        if AtomicData_options is not None:
+            if AtomicData_options.get('r_max', None) is not None:
+                if atomic_options['r_max'] != AtomicData_options.get('r_max'):
+                    atomic_options['r_max'] = AtomicData_options.get('r_max')
+                    log.warning(f'Overwrite the r_max setting in the model with the r_max setting in the AtomicData_options: {AtomicData_options.get("r_max")}')
+                    log.warning(f'This is very dangerous, please make sure you know what you are doing.')
+            if AtomicData_options.get('er_max', None) is not None:
+                if atomic_options['er_max'] != AtomicData_options.get('er_max'):
+                    atomic_options['er_max'] = AtomicData_options.get('er_max')
+                    log.warning(f'Overwrite the er_max setting in the model with the er_max setting in the AtomicData_options: {AtomicData_options.get("er_max")}')
+                    log.warning(f'This is very dangerous, please make sure you know what you are doing.')
+            if AtomicData_options.get('oer_max', None) is not None:
+                if atomic_options['oer_max'] != AtomicData_options.get('oer_max'):
+                    atomic_options['oer_max'] = AtomicData_options.get('oer_max')
+                    log.warning(f'Overwrite the oer_max setting in the model with the oer_max setting in the AtomicData_options: {AtomicData_options.get("oer_max")}')
+                    log.warning(f'This is very dangerous, please make sure you know what you are doing.')
 
         if isinstance(data, str):
             structase = read(data)
-            data = AtomicData.from_ase(structase, **AtomicData_options)
+            data = AtomicData.from_ase(structase, **atomic_options)
         elif isinstance(data, ase.Atoms):
             structase = data
-            data = AtomicData.from_ase(structase, **AtomicData_options)
+            data = AtomicData.from_ase(structase, **atomic_options)
         elif isinstance(data, AtomicData):
             # structase = data.to("cpu").to_ase()
+            log.info('The data is already an instance of AtomicData. Then the data is used directly.')
             data = data
         else:
             raise ValueError('data should be either a string, ase.Atoms, or AtomicData')
@@ -100,7 +128,7 @@ class ElecStruCal(object):
         return data
 
 
-    def get_eigs(self, data: Union[AtomicData, ase.Atoms, str], klist: np.ndarray, AtomicData_options: dict={}):
+    def get_eigs(self, data: Union[AtomicData, ase.Atoms, str], klist: np.ndarray, pbc:Union[bool,list]=None, AtomicData_options:dict=None):
         '''This function calculates eigenvalues for Hk at specified k-points.
         
         Parameters
@@ -120,7 +148,7 @@ class ElecStruCal(object):
         
         '''
             
-        data  = self.get_data(data=data, AtomicData_options=AtomicData_options, device=self.device)
+        data  = self.get_data(data=data, pbc=pbc, device=self.device,AtomicData_options=AtomicData_options)
         # set the kpoint of the AtomicData
         data[AtomicDataDict.KPOINT_KEY] = \
             torch.nested.as_nested_tensor([torch.as_tensor(klist, dtype=self.model.dtype, device=self.device)])
@@ -133,7 +161,7 @@ class ElecStruCal(object):
         return data, data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy()
 
     def get_fermi_level(self, data: Union[AtomicData, ase.Atoms, str], nel_atom: dict, \
-                        meshgrid: list = None, klist: np.ndarray=None, AtomicData_options: dict={}):
+                        meshgrid: list = None, klist: np.ndarray=None, pbc:Union[bool,list]=None,AtomicData_options:dict=None):
         '''This function calculates the Fermi level based on provided data with iteration method, electron counts per atom, and
         optional parameters like specific k-points and eigenvalues.
         
@@ -184,7 +212,7 @@ class ElecStruCal(object):
 
         # eigenvalues would be used if provided, otherwise the eigenvalues would be calculated from the model on the specified k-points
         if not AtomicDataDict.ENERGY_EIGENVALUE_KEY in data:
-            data, eigs = self.get_eigs(data=data, klist=klist, AtomicData_options=AtomicData_options) 
+            data, eigs = self.get_eigs(data=data, klist=klist, pbc=pbc, AtomicData_options=AtomicData_options) 
             log.info('Getting eigenvalues from the model.')
         else:
             log.info('The eigenvalues are already in data. will use them.')
