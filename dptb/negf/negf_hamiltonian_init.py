@@ -172,11 +172,14 @@ class NEGFHamiltonianInit(object):
         # device_id[0] = n_proj_atom_pre
         # device_id[1] = n_proj_atom_pre + n_proj_atom_device
         # self.device_id = device_id
-    
-        self.structase.set_pbc(self.pbc_negf)
-        alldata = AtomicData.from_ase(self.structase, **self.AtomicData_options)
-        alldata[AtomicDataDict.PBC_KEY][2] = True # force pbc in z-axis to get reasonable chemical environment in two ends
 
+        self.structase.set_pbc(self.pbc_negf)
+        self.structase.pbc[2] = True
+        alldata = AtomicData.from_ase(self.structase, **self.AtomicData_options)
+        print('alldata[AtomicDataDict.PBC_KEY]',alldata[AtomicDataDict.PBC_KEY])
+        alldata[AtomicDataDict.PBC_KEY][2] = True # force pbc in z-axis to get reasonable chemical environment in two ends
+        print('alldata[AtomicDataDict.PBC_KEY]',alldata[AtomicDataDict.PBC_KEY])
+        
         alldata = AtomicData.to_AtomicDataDict(alldata.to(self.torch_device))
         self.alldata = self.model.idp(alldata)
         self.alldata[AtomicDataDict.KPOINT_KEY] = \

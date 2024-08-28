@@ -52,8 +52,7 @@
         "out_current_nscf": true
 },    
 "AtomicData_options" :{
-    "r_max": 2.0,
-    "pbc": true
+    "r_max": 2.0
 },
 "structure":"./chain.vasp"
 }

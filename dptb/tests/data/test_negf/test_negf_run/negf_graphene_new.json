@@ -55,8 +55,7 @@
             "out_lcurrent": false
     },    
     "AtomicData_options" :{
-        "r_max": 2.0,
-        "pbc": true
+        "r_max": 2.0
     },
     "structure":"./graphene.xyz"
 }
