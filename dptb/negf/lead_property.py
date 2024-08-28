@@ -185,8 +185,12 @@ class LeadProperty(object):
             else:
                 eeshifted = energy + self.efermi
             self.se = (eeshifted*self.SDL-self.HDL) @ sgf_k[:b,:b] @ (eeshifted*self.SDL.conj().T-self.HDL.conj().T)
-            # torch.save(self.se, os.path.join(self.results_path, f"se_bloch_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_{energy}.pth"))
-            
+
+
+            # if self.useBloch:
+            #     torch.save(self.se, os.path.join(self.results_path, f"se_bloch_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_{energy}.pth"))
+            # else:
+            #     torch.save(self.se, os.path.join(self.results_path, f"se_nobloch_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_{energy}.pth"))
 
     def sigmaLR2Gamma(self, se):
         '''calculate the Gamma function from the self energy.
