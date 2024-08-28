@@ -80,6 +80,7 @@ class NEGFHamiltonianInit(object):
         self.torch_device = torch_device   
         self.model = model
         self.AtomicData_options = AtomicData_options
+        log.info(msg="The AtomicData_options is {}".format(AtomicData_options))
         self.model.eval()
         
         # get bondlist with pbc in all directions for complete chemical environment
@@ -289,19 +290,24 @@ class NEGFHamiltonianInit(object):
                 if not useBloch:
                     err_l_HK = (hL - HL).abs().max()
                     err_l_SK = (sL - SL).abs().max()
+                    rmse_l_HK = abs(torch.sqrt(torch.mean((hL - HL) ** 2)))
+                    rmse_l_SK = abs(torch.sqrt(torch.mean((sL - SL) ** 2)))
+
                 else: #TODO: add err_l_Hk and err_l_SK check in bloch case
                     err_l_HK = 0
                     err_l_SK = 0
 
-                if  max(err_l_HK,err_l_SK) >= 1e-3: 
+                
+                # if  max(err_l_HK,err_l_SK) >= 1e-3: 
+                if max(rmse_l_HK,rmse_l_SK) >= 1e-4:
                     # check the lead hamiltonian get from device and lead calculation matches each other
                     # a standard check to see the lead environment is bulk-like or not
-                    log.info(msg="The lead's hamiltonian or overlap attained from device and lead calculation does not match. \
-                                  The error is {:.7f}.".format(max(err_l_HK,err_l_SK)))
+                    # Here we use RMSE to check the difference between the lead's hamiltonian and overlap
+                    log.info(msg="The lead's hamiltonian or overlap attained from device and lead calculation does not match. RMSE for HK is {:.7f} and for SK is {:.7f} ".format(rmse_l_HK,rmse_l_SK))
                     log.error(msg="ERROR, the lead's hamiltonian attained from diffferent methods does not match.")
-                    # raise RuntimeError
-                elif 1e-7 <= max(err_l_HK,err_l_SK) <= 1e-4:
-                    log.warning(msg="WARNING, the lead's hamiltonian attained from diffferent methods have slight differences {:.7f}.".format(max(err_l_HK,err_l_SK)))
+                # elif 1e-7 <= max(err_l_HK,err_l_SK) <= 1e-4:
+                elif 1e-7 <= max(rmse_l_HK,rmse_l_SK) <= 1e-4:
+                    log.warning(msg="WARNING, the lead's hamiltonian attained from diffferent methods have slight differences   RMSE = {:.7f}.".format(max(rmse_l_HK,rmse_l_SK)))
 
                 HS_leads.update({
                     "HL":hL.cdouble()*self.h_factor, 
