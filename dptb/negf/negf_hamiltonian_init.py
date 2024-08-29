@@ -298,7 +298,8 @@ class NEGFHamiltonianInit(object):
                 else: #TODO: add err_l_Hk and err_l_SK check in bloch case
                     err_l_HK = 0
                     err_l_SK = 0
-
+                    rmse_l_HK = 0
+                    rmse_l_SK = 0
                 
                 # if  max(err_l_HK,err_l_SK) >= 1e-3: 
                 if max(rmse_l_HK,rmse_l_SK) >= 1e-4:
