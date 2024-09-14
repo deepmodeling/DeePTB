@@ -23,6 +23,9 @@ from . import AtomicDataDict
 from .util import _TORCH_INTEGER_DTYPES
 from dptb.utils.torch_geometric.data import Data
 from dptb.utils.constants import atomic_num_dict
+import logging
+
+log = logging.getLogger(__name__)
 
 # A type representing ASE-style periodic boundary condtions, which can be partial (the tuple case)
 PBC = Union[bool, Tuple[bool, bool, bool]]
@@ -1026,6 +1029,13 @@ def neighbor_list_and_relative_vec(
         # so， only when key_rev is not in the dict, we keep the bond. that is when rev_dict.get(key_rev, False) is False, we set o_mast = True.
         if not (rev_dict.get(key_rev, False) and rev_dict.get(key, False)):
             o_mask[i] = True
+        
+        if self_interaction:
+            log.warning("self_interaction is True, but usually we do not want the self-interaction, please check if it is correct.")
+            # for self-interaction, the above will remove the self-interaction, i.e. i == j, shift == [0, 0, 0]. since -0 = 0.
+            if (o_shift[i] == np.array([0, 0, 0])).all():
+                o_mask[i] = True
+
     del rev_dict
     del o_first_idex
     del o_second_idex
@@ -1038,6 +1048,7 @@ def neighbor_list_and_relative_vec(
     shifts = torch.as_tensor(shifts[mask], dtype=out_dtype, device=out_device)
 
     if not reduce:
+        assert self_interaction == False, "for self_interaction = True,  i i 0 0 0 will be duplicated."
         first_idex, second_idex = torch.cat((first_idex, second_idex), dim=0), torch.cat((second_idex, first_idex), dim=0)
         shifts = torch.cat((shifts, -shifts), dim=0)
     
@@ -1049,7 +1060,7 @@ def neighbor_list_and_relative_vec(
     # TODO: mask the edges that is larger than r_max
     if mask_r:
         edge_vec = pos[edge_index[1]] - pos[edge_index[0]]
-        if cell is not None:
+        if cell is not None :
             edge_vec = edge_vec + torch.einsum(
                 "ni,ij->nj",
                 shifts,
@@ -1069,6 +1080,12 @@ def neighbor_list_and_relative_vec(
         if any(~r_mask):
             edge_index = edge_index[:, r_mask]
             shifts = shifts[r_mask]
+        # 收集不同类型的边及其对应的最大截断半径
+        #edge_types = {}
+        #for i in range(edge_index.shape[1]):
+        #    atom_type_pair = (atomic_numbers[edge_index[0, i]], atomic_numbers[edge_index[1, i]])
+        #    if atom_type_pair not in edge_types:
+        #        edge_types[atom_type_pair] = edge_length_max[i].item()
         
         del edge_length
         del edge_vec
