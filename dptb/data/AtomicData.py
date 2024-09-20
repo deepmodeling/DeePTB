@@ -1069,12 +1069,15 @@ def neighbor_list_and_relative_vec(
 
         edge_length = torch.linalg.norm(edge_vec, dim=-1)
 
-        atom_species_num = [atomic_num_dict[k] for k in r_max.keys()]
-        for i in set(atomic_numbers):
-            assert i in atom_species_num
-        r_map = torch.zeros(max(atom_species_num))
-        for k, v in r_max.items():
-            r_map[atomic_num_dict[k]-1] = v
+        # atom_species_num = [atomic_num_dict[k] for k in r_max.keys()]
+        # for i in set(atomic_numbers):
+        #     assert i in atom_species_num
+        # r_map = torch.zeros(max(atom_species_num))
+        # for k, v in r_max.items():
+        #     r_map[atomic_num_dict[k]-1] = v
+        
+        r_map = get_r_map(r_max, atomic_numbers)
+
         edge_length_max = 0.5 * (r_map[atomic_numbers[edge_index[0]]-1] + r_map[atomic_numbers[edge_index[1]]-1])
         r_mask = edge_length <= edge_length_max
         if any(~r_mask):
@@ -1094,3 +1097,13 @@ def neighbor_list_and_relative_vec(
         del r_mask
 
     return edge_index, shifts, cell_tensor
+
+def get_r_map(r_max: dict, atomic_numbers: torch.Tensor):
+    assert len(atomic_numbers.shape)==2 and atomic_numbers.shape[1]==1
+    atom_species_num = [atomic_num_dict[k] for k in r_max.keys()]
+    for i in set(atomic_numbers):
+        assert i in atom_species_num
+    r_map = torch.zeros(max(atom_species_num))
+    for k, v in r_max.items():
+        r_map[atomic_num_dict[k]-1] = v
+    return r_map

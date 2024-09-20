@@ -157,6 +157,10 @@ class HoppingFormula(BaseHopping):
         alpha1, alpha2, alpha3, alpha4 = paraArray[..., 0], paraArray[..., 1].abs(), paraArray[..., 2].abs(), paraArray[..., 3].abs()
         shape = [-1]+[1] * (len(alpha1.shape)-1)
         rij = rij.reshape(shape)
+        if isinstance(rs, torch.Tensor):
+            rs = rs.reshape(shape)
+        else:
+            assert isinstance(rs, (float, int)), 'rs should be a tensor or a float or int.'
         return alpha1 * rij**(-alpha2) * torch.exp(-alpha3 * rij**alpha4)/(1+torch.exp((rij-rs)/w))
 
     def powerlaw(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
@@ -174,7 +178,10 @@ class HoppingFormula(BaseHopping):
         r0 = r0.reshape(shape)
 
         r0 = r0 / 1.8897259886
-
+        if isinstance(rs, torch.Tensor):
+            rs = rs.reshape(shape)
+        else:
+            assert isinstance(rs, (float, int)), 'rs should be a tensor or a float or int.'
         return alpha1 * (r0/rij)**(1 + alpha2) / (1+torch.exp((rij-rs)/w))
     
     def poly1pow(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
@@ -192,7 +199,10 @@ class HoppingFormula(BaseHopping):
         r0 = r0.reshape(shape)
 
         r0 = r0 / 1.8897259886
-
+        if isinstance(rs, torch.Tensor):
+            rs = rs.reshape(shape)
+        else:
+            assert isinstance(rs, (float, int)), 'rs should be a tensor or a float or int.'
         # r_decay = w * rc
         # evlp = 0.5 * (torch.cos((torch.pi / (rc - r_decay)) * (rij.clamp(r_decay, rc) - r_decay)) + 1.0)
         f_rij = 1/(1+torch.exp((rij-rs+5*w)/w))
@@ -214,7 +224,10 @@ class HoppingFormula(BaseHopping):
         r0 = r0.reshape(shape)
 
         r0 = r0 / 1.8897259886
-
+        if isinstance(rs, torch.Tensor):
+            rs = rs.reshape(shape)
+        else:
+            assert isinstance(rs, (float, int)), 'rs should be a tensor or a float or int.'
         # r_decay = w * rc
         f_rij = 1/(1+torch.exp((rij-rs+5*w)/w))
 
@@ -235,7 +248,10 @@ class HoppingFormula(BaseHopping):
         r0 = r0.reshape(shape)
 
         r0 = r0 / 1.8897259886
-
+        if isinstance(rs, torch.Tensor):
+            rs = rs.reshape(shape)
+        else:
+            assert isinstance(rs, (float, int)), 'rs should be a tensor or a float or int.'
         # r_decay = w * rc
         # evlp = 0.5 * (torch.cos((torch.pi / (rc - r_decay)) * (rij.clamp(r_decay, rc) - r_decay)) + 1.0)
         f_rij = 1/(1+torch.exp((rij-rs+5*w)/w))
@@ -258,6 +274,11 @@ class HoppingFormula(BaseHopping):
 
         r0 = r0 / 1.8897259886
 
+        if isinstance(rs, torch.Tensor):
+            rs = rs.reshape(shape)
+        else:
+            assert isinstance(rs, (float, int)), 'rs should be a tensor or a float or int.'
+
         f_rij = 1/(1+torch.exp((rij-rs+5*w)/w))
 
         return (alpha1 + alpha2 * (rij-r0) + alpha3 * (rij-r0)**2) * torch.exp(-rij * alpha4) * f_rij
@@ -277,6 +298,12 @@ class HoppingFormula(BaseHopping):
         a, b, c, d = paraArray[..., 0], paraArray[..., 1], paraArray[..., 2], paraArray[..., 3]
         shape = [-1]+[1] * (len(a.shape)-1)
         rij = rij.reshape(shape)
+        
+        if isinstance(rs, torch.Tensor):
+            rs = rs.reshape(shape)
+        else:
+            assert isinstance(rs, (float, int)), 'rs should be a tensor or a float or int.'
+
         f_rij = 1/(1+torch.exp((rij-rs+5*w)/w))
         # f_rij[rij>=rs] = 0.0
 
@@ -301,7 +328,10 @@ class HoppingFormula(BaseHopping):
         a, b, c, d = paraArray[..., 0], paraArray[..., 1], paraArray[..., 2], paraArray[..., 3]
         shape = [-1]+[1] * (len(a.shape)-1)
         rij = rij.reshape(shape)
-
+        if isinstance(rs, torch.Tensor):
+            rs = rs.reshape(shape)
+        else:
+            assert isinstance(rs, (float, int)), 'rs should be a tensor or a float or int.'
         f_rij = 1/(1+torch.exp((rij-rs+5*w)/w))
 
         return (a + b * rij + c * rij**2) * torch.exp(-d**2 * rij)*f_rij
@@ -326,7 +356,10 @@ class HoppingFormula(BaseHopping):
         delta_ll = paraconst
         shape = [-1]+[1] * (len(a.shape)-1)
         rij = rij.reshape(shape)
-
+        if isinstance(rs, torch.Tensor):
+            rs = rs.reshape(shape)
+        else:
+            assert isinstance(rs, (float, int)), 'rs should be a tensor or a float or int.'
         f_rij = 1/(1+torch.exp((rij-rs+5*w)/w))
         # f_rij[rij>=rc] = 0.0
 

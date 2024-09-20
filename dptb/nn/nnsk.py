@@ -18,7 +18,7 @@ from dptb.nn.hamiltonian import SKHamiltonian
 from dptb.utils.tools import j_loader
 from dptb.utils.constants import ALLOWED_VERSIONS
 from dptb.nn.sktb.soc import SOCFormula
-
+from dptb.data.AtomicData import get_r_map
 import logging
 
 log = logging.getLogger(__name__)
@@ -145,7 +145,9 @@ class NNSK(torch.nn.Module):
         
         if freeze:  
             self.freezefunc(freeze)
-    
+
+        self.check_push(push)
+
     def freezefunc(self, freeze: Union[bool,str,list]):
         if freeze is False:
             return 0
@@ -194,6 +196,29 @@ class NNSK(torch.nn.Module):
             if len(frozen_params)!=len(dict(self.named_parameters()).keys()):
                 raise ValueError("freeze is True, all parameters should frozen. But the frozen_params != all model.named_parameters. Please check the freeze tag.")
         log.info(f'The {frozen_params} are frozen!')
+    
+    # add check for push:
+    def check_push(self, push: Dict):
+        self.if_push = False
+        if push is not None and push is not False:
+            if abs(push.get("rs_thr")) + abs(push.get("rc_thr")) + abs(push.get("w_thr")) + abs(push.get("ovp_thr",0)) > 0:
+                self.if_push = True
+                        
+        if self.if_push:
+            if abs(push.get("rs_thr")) >0:
+                if isinstance(self.hopping_options["rs"], dict):
+                    log.error(f"rs is a dict, so cannot be decayed. Please provide a float or int for rs.")
+
+            if abs(push.get("rc_thr")) >0:
+                if isinstance(self.hopping_options["rc"], dict):
+                    log.error(f"rc is a dict, so cannot be decayed. Please provide a float or int for rc.")
+                    raise ValueError("rc is a dict, so cannot be decayed. Please provide a float or int for rc.")
+
+            if abs(push.get("ovp_thr",0)) > 0:
+                if push.get("ovp_thr",0) > 0:
+                    log.error(f"ovp_thr is positive, which means the ovp_factor will be increased. This is not allowed in the push mode.")
+                    raise ValueError("ovp_thr is positive, which means the ovp_factor will be increased. This is not allowed in the push mode.")
+
 
     def push_decay(self, rs_thr: float=0., rc_thr: float=0., w_thr: float=0., ovp_thr: float=0., period:int=100):
         """Push the soft cutoff function
@@ -214,9 +239,13 @@ class NNSK(torch.nn.Module):
                 self.hopping_options["w"] += w_thr
             if abs(rc_thr) > 0:
                 self.hopping_options["rc"] += rc_thr
-            if abs(ovp_thr) > 0 and self.ovp_factor >= abs(ovp_thr):
-                self.ovp_factor += ovp_thr
-                log.info(f"ovp_factor is decreased to {self.ovp_factor}")
+            if abs(ovp_thr) > 0 :
+                if self.ovp_factor >= abs(ovp_thr):
+                    self.ovp_factor += ovp_thr
+                    log.info(f"ovp_factor is decreased to {self.ovp_factor}")
+                else:
+                    log.info(f"ovp_factor is already less than {abs(ovp_thr)}, so not decreased.")
+
             self.model_options["nnsk"]["hopping"] = self.hopping_options
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
@@ -228,9 +257,9 @@ class NNSK(torch.nn.Module):
         # return the data with updated edge/node features
         # map the parameters to the edge/node/env features
         # compute integrals from parameters using hopping and onsite clas
-        if self.push is not None and self.push is not False:
-            if abs(self.push.get("rs_thr")) + abs(self.push.get("rc_thr")) + abs(self.push.get("w_thr")) + abs(self.push.get("ovp_thr",0)) > 0:
-                self.push_decay(**self.push)
+
+        if self.if_push:
+            self.push_decay(**self.push)
 
         reflective_bonds = np.array([self.idp_sk.bond_to_type["-".join(self.idp_sk.type_to_bond[i].split("-")[::-1])] for i  in range(len(self.idp_sk.bond_types))])
         params = self.hopping_param.data
@@ -267,11 +296,19 @@ class NNSK(torch.nn.Module):
         # assert (edge_number <= 83).all(), "The bond length list is only available for the first 83 elements."
         r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number-1].sum(0)
         assert (r0 > 0).all(), "The bond length list is only available for atomic numbers < 84 and excluding the lanthanides."
+        
+        hopping_options = self.hopping_options.copy() 
+        if isinstance (self.hopping_options['rs'], dict):
+            atomic_numbers = self.idp_sk.untransform_atom(data[AtomicDataDict.ATOM_TYPE_KEY])
+            r_map = get_r_map(self.hopping_options['rs'], atomic_numbers)
+            rs_edgewise = 0.5*r_map[edge_number-1].sum(0)
+            hopping_options['rs'] = rs_edgewise
+
 
         data[AtomicDataDict.EDGE_FEATURES_KEY] = self.hopping_fn.get_skhij(
             rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
             paraArray=self.hopping_param[edge_index], # [N_edge, n_pairs, n_paras],
-            **self.hopping_options,
+            **hopping_options,
             r0=r0
             ) # [N_edge, n_pairs]
 
@@ -289,7 +326,7 @@ class NNSK(torch.nn.Module):
                 rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
                 paraArray=self.overlap_param[edge_index],
                 paraconst=paraconst,
-                **self.hopping_options,
+                **hopping_options,
                 r0=r0,
                 )
             
