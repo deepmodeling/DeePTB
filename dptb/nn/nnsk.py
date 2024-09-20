@@ -203,7 +203,7 @@ class NNSK(torch.nn.Module):
         if push is not None and push is not False:
             if abs(push.get("rs_thr")) + abs(push.get("rc_thr")) + abs(push.get("w_thr")) + abs(push.get("ovp_thr",0)) > 0:
                 self.if_push = True
-                        
+
         if self.if_push:
             if abs(push.get("rs_thr")) >0:
                 if isinstance(self.hopping_options["rs"], dict):
