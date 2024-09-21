@@ -98,6 +98,10 @@ def train_options():
     doc_save_freq = "Frequency, or every how many iteration to saved the current model into checkpoints, The name of checkpoint is formulated as `latest|best_dptb|nnsk_b<bond_cutoff>_c<sk_cutoff>_w<sk_decay_w>`. Default: `10`"
     doc_validation_freq = "Frequency or every how many iteration to do model validation on validation datasets. Default: `10`"
     doc_display_freq = "Frequency, or every how many iteration to display the training log to screem. Default: `1`"
+    doc_use_tensorboard = "Set true to use tensorboard. It will record iteration error once every `25` iterations, epoch error once per epoch. " \
+                          "There are tree types of error will be recorded. `train_loss_iter` is iteration loss, `train_loss_last` is the error of the last iteration in an epoch, `train_loss_mean` is the mean error of all iterations in an epoch." \
+                          "Learning rates are tracked as well. A folder named `tensorboard_logs` will be created in the working directory. Use `tensorboard --logdir=tensorboard_logs` to view the logs." \
+                          "Default: `False`"
     doc_optimizer = "\
         The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `SGD` and `LBFGS` \n\n\
         For more information about these optmization algorithm, we refer to:\n\n\
@@ -121,6 +125,7 @@ def train_options():
         Argument("save_freq", int, optional=True, default=10, doc=doc_save_freq),
         Argument("validation_freq", int, optional=True, default=10, doc=doc_validation_freq),
         Argument("display_freq", int, optional=True, default=1, doc=doc_display_freq),
+        Argument("use_tensorboard", bool, optional=True, default=False, doc=doc_use_tensorboard),
         Argument("max_ckpt", int, optional=True, default=4, doc=doc_max_ckpt),
         loss_options()
     ]
