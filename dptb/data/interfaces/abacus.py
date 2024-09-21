@@ -344,7 +344,7 @@ def _abacus_parse(input_path,
                                                     np.array(line4).astype(np.int32)), shape=(norbits, norbits), dtype=np.complex64).toarray()
                     for index_site_i in range(nsites):
                         for index_site_j in range(nsites):
-                            key_str = f"{index_site_i + 1}_{index_site_j + 1}_{R_cur[0]}_{R_cur[1]}_{R_cur[2]}"
+                            key_str = f"{index_site_i}_{index_site_j}_{R_cur[0]}_{R_cur[1]}_{R_cur[2]}"
                             mat = hamiltonian_cur[(site_norbits_cumsum[index_site_i]
                                                     - site_norbits[index_site_i]) * (1 + spinful):
                                                     site_norbits_cumsum[index_site_i] * (1 + spinful),
@@ -374,7 +374,7 @@ def _abacus_parse(input_path,
             with h5py.File(os.path.join(output_path, "hamiltonians.h5"), 'w') as fid:
                 # creating a default group here adapting to the format used in DefaultDataset.
                 # by the way DefaultDataset loading h5 file, the index should be "1" here.
-                default_group = fid.create_group("1")
+                default_group = fid.create_group("0")
                 for key_str, value in hamiltonian_dict.items():
                     default_group[key_str] = value
         elif output_mode == "lmdb":
@@ -398,7 +398,7 @@ def _abacus_parse(input_path,
 
         if output_mode == "conv":
             with h5py.File(os.path.join(output_path, "overlaps.h5"), 'w') as fid:
-                default_group = fid.create_group("1")
+                default_group = fid.create_group("0")
                 for key_str, value in overlap_dict.items():
                     default_group[key_str] = value
         elif output_mode == "lmdb":
@@ -421,7 +421,7 @@ def _abacus_parse(input_path,
         #     overlap_dict_spinless, overlap_dict = overlap_dict, overlap_dict_spinless
         if output_mode == "conv":
             with h5py.File(os.path.join(output_path, "DM.h5"), 'w') as fid:
-                default_group = fid.create_group("1")
+                default_group = fid.create_group("0")
                 for key_str, value in DM_dict.items():
                     default_group[key_str] = value
         elif output_mode == "lmdb":
@@ -655,7 +655,7 @@ def _abacus_parse_md(input_path,
                                                     np.array(line4).astype(int)), shape=(norbits, norbits)).toarray()
                     for index_site_i in range(nsites):
                         for index_site_j in range(nsites):
-                            key_str = f"{index_site_i + 1}_{index_site_j + 1}_{R_cur[0]}_{R_cur[1]}_{R_cur[2]}"
+                            key_str = f"{index_site_i}_{index_site_j}_{R_cur[0]}_{R_cur[1]}_{R_cur[2]}"
                             mat = hamiltonian_cur[(site_norbits_cumsum[index_site_i]
                                                     - site_norbits[index_site_i]) * (1 + spinful):
                                                     site_norbits_cumsum[index_site_i] * (1 + spinful),
@@ -684,7 +684,7 @@ def _abacus_parse_md(input_path,
                 assert tmp == norbits * (1 + spinful)
                 # creating a default group here adapting to the format used in DefaultDataset.
                 # by the way DefaultDataset loading h5 file, the index should be "1" here.
-                default_group = fid.create_group(str(i+1))
+                default_group = fid.create_group(str(i))
                 for key_str, value in hamiltonian_dict.items():
                     default_group[key_str] = value
 
@@ -700,7 +700,7 @@ def _abacus_parse_md(input_path,
                         overlap_dict_spinless[k] = v[:v.shape[0] // 2, :v.shape[1] // 2].real
                     overlap_dict_spinless, overlap_dict = overlap_dict, overlap_dict_spinless
 
-                default_group = fid.create_group(str(i+1))
+                default_group = fid.create_group(str(i))
                 for key_str, value in overlap_dict.items():
                     default_group[key_str] = value
 
@@ -715,7 +715,7 @@ def _abacus_parse_md(input_path,
             #     for k, v in overlap_dict.items():
             #         overlap_dict_spinless[k] = v[:v.shape[0] // 2, :v.shape[1] // 2].real
             #     overlap_dict_spinless, overlap_dict = overlap_dict, overlap_dict_spinless
-                default_group = fid.create_group(str(i+1))
+                default_group = fid.create_group(str(i))
                 for key_str, value in DM_dict.items():
                     default_group[key_str] = value
 

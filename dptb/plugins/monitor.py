@@ -1,8 +1,10 @@
-from dptb.plugins.base_plugin import Plugin
 import logging
 import time
+
 import torch
 from dptb.data import AtomicData
+from dptb.plugins.base_plugin import Plugin
+from torch.utils.tensorboard import SummaryWriter
 
 log = logging.getLogger(__name__)
 
@@ -141,3 +143,23 @@ class Validationer(Monitor):
             return self.trainer.validation(fast=True)
         else:
             return self.trainer.validation()
+        
+
+class TensorBoardMonitor(Plugin):
+    def __init__(self):
+        super(TensorBoardMonitor, self).__init__([(25, 'iteration'), (1, 'epoch')])
+        self.writer = SummaryWriter(log_dir='./tensorboard_logs')
+
+    def register(self, trainer):
+        self.trainer = trainer
+
+    def epoch(self, **kwargs):
+        epoch = self.trainer.ep
+        self.writer.add_scalar(f'lr/epoch', self.trainer.stats['lr']['last'], epoch)
+        self.writer.add_scalar(f'train_loss_last/epoch', self.trainer.stats['train_loss']['last'], epoch)
+        self.writer.add_scalar(f'train_loss_mean/epoch', self.trainer.stats['train_loss']['epoch_mean'], epoch)
+
+    def iteration(self, **kwargs):
+        iteration = self.trainer.iter
+        self.writer.add_scalar(f'lr_iter/iteration', self.trainer.stats['lr']['last'], iteration)
+        self.writer.add_scalar(f'train_loss_iter/iteration', self.trainer.stats['train_loss']['last'], iteration)

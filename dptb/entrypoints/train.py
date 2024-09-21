@@ -1,9 +1,9 @@
 from dptb.nnops.trainer import Trainer
 from dptb.nn.build import build_model
 from dptb.data.build import build_dataset
-from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer
+from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor
 from dptb.plugins.train_logger import Logger
-from dptb.utils.argcheck import normalize
+from dptb.utils.argcheck import normalize, collect_cutoffs
 from dptb.plugins.saver import Saver
 from typing import Dict, List, Optional, Any
 from dptb.utils.tools import j_loader, setup_seed, j_must_have
@@ -18,6 +18,7 @@ from pathlib import Path
 import json
 import os
 import time
+import copy
 
 __all__ = ["train"]
 
@@ -147,12 +148,19 @@ def train(
                     jdata["train_options"] = f["config"]["train_options"]
                 if jdata.get("model_options") is None:
                     jdata["model_options"] = f["config"]["model_options"]
+                
+                ## add some warning !
+                for k, v in jdata["model_options"].items():
+                    if k not in f["config"]["model_options"]:
+                        log.warning(f"The model options {k} is not defined in checkpoint, set to {v}.")
+                    else:
+                        deep_dict_difference(k, v, f["config"]["model_options"])
             del f
     else:
         j_must_have(jdata, "model_options")
         j_must_have(jdata, "train_options")
 
-
+    cutoff_options =collect_cutoffs(jdata)
     # setup seed
     setup_seed(seed=jdata["common_options"]["seed"])
 
@@ -160,13 +168,13 @@ def train(
     #     json.dump(jdata, fp, indent=4)
 
     # build dataset
-    train_datasets = build_dataset(**jdata["data_options"]["train"], **jdata["common_options"])
+    train_datasets = build_dataset(**cutoff_options,**jdata["data_options"]["train"], **jdata["common_options"])
     if jdata["data_options"].get("validation"):
-        validation_datasets = build_dataset(**jdata["data_options"]["validation"], **jdata["common_options"])
+        validation_datasets = build_dataset(**cutoff_options, **jdata["data_options"]["validation"], **jdata["common_options"])
     else:
         validation_datasets = None
     if jdata["data_options"].get("reference"):
-        reference_datasets = build_dataset(**jdata["data_options"]["reference"], **jdata["common_options"])
+        reference_datasets = build_dataset(**cutoff_options, **jdata["data_options"]["reference"], **jdata["common_options"])
     else:
         reference_datasets = None
 
@@ -183,7 +191,8 @@ def train(
         # include the init model and from scratch
         # build model will handle the init model cases where the model options provided is not equals to the ones in checkpoint.
         checkpoint = init_model if init_model else None
-        model = build_model(checkpoint=checkpoint, model_options=jdata["model_options"], common_options=jdata["common_options"], statistics=train_datasets.E3statistics())
+        model = build_model(checkpoint=checkpoint, model_options=jdata["model_options"], common_options=jdata["common_options"])
+        train_datasets.E3statistics(model=model)
         trainer = Trainer(
             train_options=jdata["train_options"],
             common_options=jdata["common_options"],
@@ -200,7 +209,9 @@ def train(
         log_field.append("validation_loss")
     trainer.register_plugin(TrainLossMonitor())
     trainer.register_plugin(LearningRateMonitor())
-    trainer.register_plugin(Logger(log_field, 
+    if jdata["train_options"]["use_tensorboard"]:
+        trainer.register_plugin(TensorBoardMonitor())
+    trainer.register_plugin(Logger(log_field,
         interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
     
     for q in trainer.plugin_queues.values():
@@ -227,3 +238,26 @@ def train(
     log.info(f"wall time: {(end_time - start_time):.3f} s")
 
 
+def deep_dict_difference(base_key, expected_value, model_options):
+    """
+    递归地记录嵌套字典中的选项差异。
+    
+    :param base_key: 基础键名，用于构建警告消息的前缀。
+    :param expected_value: 期望的值，可能是字典或非字典类型。
+    :param model_options: 用于比较的模型选项字典。
+    """
+    target_dict= copy.deepcopy(model_options) # 防止修改原始字典
+    if isinstance(expected_value, dict):
+        for subk, subv in expected_value.items():
+            
+            if  not isinstance(target_dict.get(base_key, {}),dict):
+                log.warning(f"The model option {subk} in {base_key} is not defined in  checkpoint, set to {subv}.")
+            
+            elif subk not in target_dict.get(base_key, {}):
+                log.warning(f"The model option {subk} in {base_key} is not defined in  checkpoint, set to {subv}.")
+            else:
+                target2 = copy.deepcopy(target_dict[base_key])
+                deep_dict_difference(f"{subk}", subv, target2)
+    else:
+        if expected_value != target_dict[base_key]:
+            log.warning(f"The model option {base_key} is set to {expected_value}, but in checkpoint it is {target_dict[base_key]}, make sure it it correct!")

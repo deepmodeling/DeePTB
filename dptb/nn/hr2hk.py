@@ -49,13 +49,17 @@ class HR2HK(torch.nn.Module):
 
         # construct bond wise hamiltonian block from obital pair wise node/edge features
         # we assume the edge feature have the similar format as the node feature, which is reduced from orbitals index oj-oi with j>i
-
+        
         orbpair_hopping = data[self.edge_field]
         orbpair_onsite = data.get(self.node_field)
         bondwise_hopping = torch.zeros((len(orbpair_hopping), self.idp.full_basis_norb, self.idp.full_basis_norb), dtype=self.dtype, device=self.device)
         bondwise_hopping.to(self.device)
         bondwise_hopping.type(self.dtype)
         onsite_block = torch.zeros((len(data[AtomicDataDict.ATOM_TYPE_KEY]), self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
+        kpoints = data[AtomicDataDict.KPOINT_KEY]
+        if kpoints.is_nested:
+            assert kpoints.size(0) == 1
+            kpoints = kpoints[0]
 
         soc = data.get(AtomicDataDict.NODE_SOC_SWITCH_KEY, False)
         if isinstance(soc, torch.Tensor):
@@ -88,8 +92,10 @@ class HR2HK(torch.nn.Module):
 
                 # constructing onsite blocks
                 if self.overlap:
-                    if iorb == jorb:
-                        onsite_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = factor * torch.eye(2*li+1, dtype=self.dtype, device=self.device).reshape(1, 2*li+1, 2*lj+1).repeat(onsite_block.shape[0], 1, 1)
+                    # if iorb == jorb:
+                    #     onsite_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = factor * torch.eye(2*li+1, dtype=self.dtype, device=self.device).reshape(1, 2*li+1, 2*lj+1).repeat(onsite_block.shape[0], 1, 1)
+                    if i <= j:
+                        onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
                 else:
                     if i <= j:
                         onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
@@ -103,13 +109,13 @@ class HR2HK(torch.nn.Module):
             ist += 2*li+1
         self.onsite_block = onsite_block
         self.bondwise_hopping = bondwise_hopping
-        if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
+        if soc:
             self.soc_upup_block = soc_upup_block
             self.soc_updn_block = soc_updn_block
 
         # R2K procedure can be done for all kpoint at once.
         all_norb = self.idp.atom_norb[data[AtomicDataDict.ATOM_TYPE_KEY]].sum()
-        block = torch.zeros(data[AtomicDataDict.KPOINT_KEY][0].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
+        block = torch.zeros(kpoints.shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
         # block = torch.complex(block, torch.zeros_like(block))
         # if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
         #     block_uu = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
@@ -147,13 +153,13 @@ class HR2HK(torch.nn.Module):
             masked_hblock = hblock[imask][:,jmask]
 
             block[:,iatom_indices,jatom_indices] += masked_hblock.squeeze(0).type_as(block) * \
-                torch.exp(-1j * 2 * torch.pi * (data[AtomicDataDict.KPOINT_KEY][0] @ data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i])).reshape(-1,1,1)
+                torch.exp(-1j * 2 * torch.pi * (kpoints @ data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i])).reshape(-1,1,1)
 
         block = block + block.transpose(1,2).conj()
         block = block.contiguous()
         
         if soc:
-            HK_SOC = torch.zeros(data[AtomicDataDict.KPOINT_KEY][0].shape[0], 2*all_norb, 2*all_norb, dtype=self.ctype, device=self.device)
+            HK_SOC = torch.zeros(kpoints.shape[0], 2*all_norb, 2*all_norb, dtype=self.ctype, device=self.device)
             #HK_SOC[:,:all_norb,:all_norb] = block + block_uu
             #HK_SOC[:,:all_norb,all_norb:] = block_ud
             #HK_SOC[:,all_norb:,:all_norb] = block_ud.conj()

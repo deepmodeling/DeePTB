@@ -366,7 +366,7 @@ train_options:
             method:
                 | type: ``str`` (flag key)
                 | argument path: ``train_options/loss_options/train/method`` 
-                | possible choices: |code:train_options/loss_options/train[hamil]|_, |code:train_options/loss_options/train[eigvals]|_, |code:train_options/loss_options/train[hamil_abs]|_, |code:train_options/loss_options/train[hamil_blas]|_
+                | possible choices: |code:train_options/loss_options/train[eigvals]|_, |code:train_options/loss_options/train[skints]|_, |code:train_options/loss_options/train[hamil_abs]|_, |code:train_options/loss_options/train[hamil_blas]|_
 
                 The loss function type, defined by a string like `<fitting target>_<loss type>`, Default: `eigs_l2dsf`. supported loss functions includes:
 
@@ -376,10 +376,10 @@ train_options:
                                     - `hamil_blas`:
                 
 
-                .. |code:train_options/loss_options/train[hamil]| replace:: ``hamil``
-                .. _`code:train_options/loss_options/train[hamil]`: `train_options/loss_options/train[hamil]`_
                 .. |code:train_options/loss_options/train[eigvals]| replace:: ``eigvals``
                 .. _`code:train_options/loss_options/train[eigvals]`: `train_options/loss_options/train[eigvals]`_
+                .. |code:train_options/loss_options/train[skints]| replace:: ``skints``
+                .. _`code:train_options/loss_options/train[skints]`: `train_options/loss_options/train[skints]`_
                 .. |code:train_options/loss_options/train[hamil_abs]| replace:: ``hamil_abs``
                 .. _`code:train_options/loss_options/train[hamil_abs]`: `train_options/loss_options/train[hamil_abs]`_
                 .. |code:train_options/loss_options/train[hamil_blas]| replace:: ``hamil_blas``
@@ -387,19 +387,6 @@ train_options:
 
             .. |flag:train_options/loss_options/train/method| replace:: *method*
             .. _`flag:train_options/loss_options/train/method`: `train_options/loss_options/train/method`_
-
-
-            .. _`train_options/loss_options/train[hamil]`: 
-
-            When |flag:train_options/loss_options/train/method|_ is set to ``hamil``: 
-
-            .. _`train_options/loss_options/train[hamil]/onsite_shift`: 
-
-            onsite_shift: 
-                | type: ``bool``, optional, default: ``False``
-                | argument path: ``train_options/loss_options/train[hamil]/onsite_shift``
-
-                Whether to use onsite shift in loss function. Default: False
 
 
             .. _`train_options/loss_options/train[eigvals]`: 
@@ -429,6 +416,35 @@ train_options:
                 | argument path: ``train_options/loss_options/train[eigvals]/diff_weight``
 
                 The weight of eigenvalue difference. Default: 0.01
+
+            .. _`train_options/loss_options/train[eigvals]/diff_valence`: 
+
+            diff_valence: 
+                | type: ``dict`` | ``NoneType``, optional, default: ``None``
+                | argument path: ``train_options/loss_options/train[eigvals]/diff_valence``
+
+                set the difference of the number of valence electrons in DFT and TB. eg {'A':6,'B':7}, Default: None, which means no difference
+
+            .. _`train_options/loss_options/train[eigvals]/spin_deg`: 
+
+            spin_deg: 
+                | type: ``int``, optional, default: ``2``
+                | argument path: ``train_options/loss_options/train[eigvals]/spin_deg``
+
+                The spin degeneracy of band structure. Default: 2
+
+
+            .. _`train_options/loss_options/train[skints]`: 
+
+            When |flag:train_options/loss_options/train/method|_ is set to ``skints``: 
+
+            .. _`train_options/loss_options/train[skints]/skdata`: 
+
+            skdata: 
+                | type: ``str``
+                | argument path: ``train_options/loss_options/train[skints]/skdata``
+
+                The path to the skfile or sk database.
 
 
             .. _`train_options/loss_options/train[hamil_abs]`: 
@@ -472,7 +488,7 @@ train_options:
             method:
                 | type: ``str`` (flag key)
                 | argument path: ``train_options/loss_options/validation/method`` 
-                | possible choices: |code:train_options/loss_options/validation[hamil]|_, |code:train_options/loss_options/validation[eigvals]|_, |code:train_options/loss_options/validation[hamil_abs]|_, |code:train_options/loss_options/validation[hamil_blas]|_
+                | possible choices: |code:train_options/loss_options/validation[eigvals]|_, |code:train_options/loss_options/validation[skints]|_, |code:train_options/loss_options/validation[hamil_abs]|_, |code:train_options/loss_options/validation[hamil_blas]|_
 
                 The loss function type, defined by a string like `<fitting target>_<loss type>`, Default: `eigs_l2dsf`. supported loss functions includes:
 
@@ -482,10 +498,10 @@ train_options:
                                     - `hamil_blas`:
                 
 
-                .. |code:train_options/loss_options/validation[hamil]| replace:: ``hamil``
-                .. _`code:train_options/loss_options/validation[hamil]`: `train_options/loss_options/validation[hamil]`_
                 .. |code:train_options/loss_options/validation[eigvals]| replace:: ``eigvals``
                 .. _`code:train_options/loss_options/validation[eigvals]`: `train_options/loss_options/validation[eigvals]`_
+                .. |code:train_options/loss_options/validation[skints]| replace:: ``skints``
+                .. _`code:train_options/loss_options/validation[skints]`: `train_options/loss_options/validation[skints]`_
                 .. |code:train_options/loss_options/validation[hamil_abs]| replace:: ``hamil_abs``
                 .. _`code:train_options/loss_options/validation[hamil_abs]`: `train_options/loss_options/validation[hamil_abs]`_
                 .. |code:train_options/loss_options/validation[hamil_blas]| replace:: ``hamil_blas``
@@ -493,19 +509,6 @@ train_options:
 
             .. |flag:train_options/loss_options/validation/method| replace:: *method*
             .. _`flag:train_options/loss_options/validation/method`: `train_options/loss_options/validation/method`_
-
-
-            .. _`train_options/loss_options/validation[hamil]`: 
-
-            When |flag:train_options/loss_options/validation/method|_ is set to ``hamil``: 
-
-            .. _`train_options/loss_options/validation[hamil]/onsite_shift`: 
-
-            onsite_shift: 
-                | type: ``bool``, optional, default: ``False``
-                | argument path: ``train_options/loss_options/validation[hamil]/onsite_shift``
-
-                Whether to use onsite shift in loss function. Default: False
 
 
             .. _`train_options/loss_options/validation[eigvals]`: 
@@ -535,6 +538,35 @@ train_options:
                 | argument path: ``train_options/loss_options/validation[eigvals]/diff_weight``
 
                 The weight of eigenvalue difference. Default: 0.01
+
+            .. _`train_options/loss_options/validation[eigvals]/diff_valence`: 
+
+            diff_valence: 
+                | type: ``dict`` | ``NoneType``, optional, default: ``None``
+                | argument path: ``train_options/loss_options/validation[eigvals]/diff_valence``
+
+                set the difference of the number of valence electrons in DFT and TB. eg {'A':6,'B':7}, Default: None, which means no difference
+
+            .. _`train_options/loss_options/validation[eigvals]/spin_deg`: 
+
+            spin_deg: 
+                | type: ``int``, optional, default: ``2``
+                | argument path: ``train_options/loss_options/validation[eigvals]/spin_deg``
+
+                The spin degeneracy of band structure. Default: 2
+
+
+            .. _`train_options/loss_options/validation[skints]`: 
+
+            When |flag:train_options/loss_options/validation/method|_ is set to ``skints``: 
+
+            .. _`train_options/loss_options/validation[skints]/skdata`: 
+
+            skdata: 
+                | type: ``str``
+                | argument path: ``train_options/loss_options/validation[skints]/skdata``
+
+                The path to the skfile or sk database.
 
 
             .. _`train_options/loss_options/validation[hamil_abs]`: 
@@ -578,7 +610,7 @@ train_options:
             method:
                 | type: ``str`` (flag key)
                 | argument path: ``train_options/loss_options/reference/method`` 
-                | possible choices: |code:train_options/loss_options/reference[hamil]|_, |code:train_options/loss_options/reference[eigvals]|_, |code:train_options/loss_options/reference[hamil_abs]|_, |code:train_options/loss_options/reference[hamil_blas]|_
+                | possible choices: |code:train_options/loss_options/reference[eigvals]|_, |code:train_options/loss_options/reference[skints]|_, |code:train_options/loss_options/reference[hamil_abs]|_, |code:train_options/loss_options/reference[hamil_blas]|_
 
                 The loss function type, defined by a string like `<fitting target>_<loss type>`, Default: `eigs_l2dsf`. supported loss functions includes:
 
@@ -588,10 +620,10 @@ train_options:
                                     - `hamil_blas`:
                 
 
-                .. |code:train_options/loss_options/reference[hamil]| replace:: ``hamil``
-                .. _`code:train_options/loss_options/reference[hamil]`: `train_options/loss_options/reference[hamil]`_
                 .. |code:train_options/loss_options/reference[eigvals]| replace:: ``eigvals``
                 .. _`code:train_options/loss_options/reference[eigvals]`: `train_options/loss_options/reference[eigvals]`_
+                .. |code:train_options/loss_options/reference[skints]| replace:: ``skints``
+                .. _`code:train_options/loss_options/reference[skints]`: `train_options/loss_options/reference[skints]`_
                 .. |code:train_options/loss_options/reference[hamil_abs]| replace:: ``hamil_abs``
                 .. _`code:train_options/loss_options/reference[hamil_abs]`: `train_options/loss_options/reference[hamil_abs]`_
                 .. |code:train_options/loss_options/reference[hamil_blas]| replace:: ``hamil_blas``
@@ -599,19 +631,6 @@ train_options:
 
             .. |flag:train_options/loss_options/reference/method| replace:: *method*
             .. _`flag:train_options/loss_options/reference/method`: `train_options/loss_options/reference/method`_
-
-
-            .. _`train_options/loss_options/reference[hamil]`: 
-
-            When |flag:train_options/loss_options/reference/method|_ is set to ``hamil``: 
-
-            .. _`train_options/loss_options/reference[hamil]/onsite_shift`: 
-
-            onsite_shift: 
-                | type: ``bool``, optional, default: ``False``
-                | argument path: ``train_options/loss_options/reference[hamil]/onsite_shift``
-
-                Whether to use onsite shift in loss function. Default: False
 
 
             .. _`train_options/loss_options/reference[eigvals]`: 
@@ -641,6 +660,35 @@ train_options:
                 | argument path: ``train_options/loss_options/reference[eigvals]/diff_weight``
 
                 The weight of eigenvalue difference. Default: 0.01
+
+            .. _`train_options/loss_options/reference[eigvals]/diff_valence`: 
+
+            diff_valence: 
+                | type: ``dict`` | ``NoneType``, optional, default: ``None``
+                | argument path: ``train_options/loss_options/reference[eigvals]/diff_valence``
+
+                set the difference of the number of valence electrons in DFT and TB. eg {'A':6,'B':7}, Default: None, which means no difference
+
+            .. _`train_options/loss_options/reference[eigvals]/spin_deg`: 
+
+            spin_deg: 
+                | type: ``int``, optional, default: ``2``
+                | argument path: ``train_options/loss_options/reference[eigvals]/spin_deg``
+
+                The spin degeneracy of band structure. Default: 2
+
+
+            .. _`train_options/loss_options/reference[skints]`: 
+
+            When |flag:train_options/loss_options/reference/method|_ is set to ``skints``: 
+
+            .. _`train_options/loss_options/reference[skints]/skdata`: 
+
+            skdata: 
+                | type: ``str``
+                | argument path: ``train_options/loss_options/reference[skints]/skdata``
+
+                The path to the skfile or sk database.
 
 
             .. _`train_options/loss_options/reference[hamil_abs]`: 

@@ -233,7 +233,7 @@ class SKParam:
             for ot in self.idp_sk.basis[asym]:
                 fot = self.idp_sk.basis_to_full_basis[asym][ot]
                 indt = self.onsite_orb_map[fot]
-                onsiteE_params[idx][self.idp_sk.skonsite_maps[fot]] = skdict['OnsiteE'][asym][indt]   
+                onsiteE_params[idx][self.idp_sk.skonsite_maps[fot+"-"+fot]] = skdict['OnsiteE'][asym][indt]   
         onsiteE_params = onsiteE_params.reshape([self.idp_sk.num_types, self.idp_sk.n_onsite_Es, 1])
         
         hopping_params = torch.zeros([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, len(xlist_all)])

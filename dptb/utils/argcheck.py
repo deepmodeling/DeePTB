@@ -1,6 +1,8 @@
-from typing import List, Callable
+from typing import List, Callable, Dict, Any, Union
 from dargs import dargs, Argument, Variant, ArgumentEncoder
 import logging
+from numbers import Number
+
 
 log = logging.getLogger(__name__)
 
@@ -96,6 +98,10 @@ def train_options():
     doc_save_freq = "Frequency, or every how many iteration to saved the current model into checkpoints, The name of checkpoint is formulated as `latest|best_dptb|nnsk_b<bond_cutoff>_c<sk_cutoff>_w<sk_decay_w>`. Default: `10`"
     doc_validation_freq = "Frequency or every how many iteration to do model validation on validation datasets. Default: `10`"
     doc_display_freq = "Frequency, or every how many iteration to display the training log to screem. Default: `1`"
+    doc_use_tensorboard = "Set true to use tensorboard. It will record iteration error once every `25` iterations, epoch error once per epoch. " \
+                          "There are tree types of error will be recorded. `train_loss_iter` is iteration loss, `train_loss_last` is the error of the last iteration in an epoch, `train_loss_mean` is the mean error of all iterations in an epoch." \
+                          "Learning rates are tracked as well. A folder named `tensorboard_logs` will be created in the working directory. Use `tensorboard --logdir=tensorboard_logs` to view the logs." \
+                          "Default: `False`"
     doc_optimizer = "\
         The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `SGD` and `LBFGS` \n\n\
         For more information about these optmization algorithm, we refer to:\n\n\
@@ -119,6 +125,7 @@ def train_options():
         Argument("save_freq", int, optional=True, default=10, doc=doc_save_freq),
         Argument("validation_freq", int, optional=True, default=10, doc=doc_validation_freq),
         Argument("display_freq", int, optional=True, default=1, doc=doc_display_freq),
+        Argument("use_tensorboard", bool, optional=True, default=False, doc=doc_use_tensorboard),
         Argument("max_ckpt", int, optional=True, default=4, doc=doc_max_ckpt),
         loss_options()
     ]
@@ -338,6 +345,9 @@ def test_data_sub():
 
 def data_options():
     args = [
+            Argument("r_max", [float,int], optional=True, default="5.0", doc="r_max"),
+            Argument("oer_max", [float,int], optional=True, default="5.0", doc="oer_max"),
+            Argument("er_max", [float,int], optional=True, default="5.0", doc="er_max"),
             train_data_sub(),
             validation_data_sub(),
             reference_data_sub()
@@ -365,13 +375,10 @@ def embedding():
             Argument("se2", dict, se2()),
             Argument("baseline", dict, baseline()),
             Argument("deeph-e3", dict, deephe3()),
-            Argument("e3baseline_0", dict, e3baseline()),
-            Argument("e3baseline_1", dict, e3baseline()),
-            Argument("e3baseline_2", dict, e3baseline()),
-            Argument("e3baseline_3", dict, e3baseline()),
-            Argument("e3baseline_4", dict, e3baseline()),
             Argument("e3baseline_5", dict, e3baselinev5()),
             Argument("e3baseline_6", dict, e3baselinev5()),
+            Argument("slem", dict, slem()),
+            Argument("lem", dict, slem()),
             Argument("e3baseline_nonlocal", dict, e3baselinev5()),
         ],optional=True, default_tag="se2", doc=doc_method)
 
@@ -509,6 +516,33 @@ def e3baselinev5():
             Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
         ]
 
+def slem():
+    doc_irreps_hidden = ""
+    doc_avg_num_neighbors = ""
+    doc_n_radial_basis = ""
+    doc_r_max = ""
+    doc_n_layers = ""
+    doc_env_embed_multiplicity = ""
+
+    return [
+            Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
+            Argument("avg_num_neighbors", [int, float], optional=False, doc=doc_avg_num_neighbors),
+            Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
+            Argument("n_layers", int, optional=False, doc=doc_n_layers),
+            
+            Argument("n_radial_basis", int, optional=True, default=10, doc=doc_n_radial_basis),
+            Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
+            Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
+            Argument("env_embed_multiplicity", int, optional=True, default=10, doc=doc_env_embed_multiplicity),
+            Argument("tp_radial_emb", bool, optional=True, default=False, doc="Whether to use tensor product radial embedding."),
+            Argument("tp_radial_channels", list, optional=True, default=[32], doc="The number of channels in tensor product radial embedding."),
+            Argument("latent_channels", list, optional=True, default=[32], doc="The number of channels in latent embedding."),
+            Argument("latent_dim", int, optional=True, default=64, doc="The dimension of latent embedding."),
+            Argument("res_update", bool, optional=True, default=True, doc="Whether to use residual update."),
+            Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
+            Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
+        ]
+
 
 def prediction():
     doc_method = "The options to indicate the prediction model. Can be sktb or e3tb."
@@ -536,10 +570,16 @@ def sktb_prediction():
 def e3tb_prediction():
     doc_scales_trainable = "whether to scale the trianing target."
     doc_shifts_trainable = "whether to shift the training target."
+    doc_neurons = "neurons in the neural network."
+    doc_activation = "activation function."
+    doc_if_batch_normalized = "if to turn on batch normalization"
 
     nn = [
         Argument("scales_trainable", bool, optional=True, default=False, doc=doc_scales_trainable),
         Argument("shifts_trainable", bool, optional=True, default=False, doc=doc_shifts_trainable),
+        Argument("neurons", list, optional=True, default=None, doc=doc_neurons),
+        Argument("activation", str, optional=True, default="tanh", doc=doc_activation),
+        Argument("if_batch_normalized", bool, optional=True, default=False, doc=doc_if_batch_normalized),
     ]
 
     return nn
@@ -564,6 +604,7 @@ def dftbsk():
 
     return Argument("dftbsk", dict, sub_fields=[
                 Argument("skdata", str, optional=False, doc="The path to the skfile or sk database."),
+                Argument("r_max", float, optional=False, doc="the cutoff values to use sk files."),
                 ], sub_variants=[], optional=True, doc=doc_dftbsk)
 
 def nnsk():
@@ -714,6 +755,8 @@ def loss_options():
         Argument("diff_on", bool, optional=True, default=False, doc="Whether to use random differences in loss function. Default: False"),
         Argument("eout_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue out of range. Default: 0.01"),
         Argument("diff_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue difference. Default: 0.01"),
+        Argument("diff_valence", [dict,None], optional=True, default=None, doc="set the difference of the number of valence electrons in DFT and TB. eg {'A':6,'B':7}, Default: None, which means no difference"),
+        Argument("spin_deg", int, optional=True, default=2, doc="The spin degeneracy of band structure. Default: 2"),
     ]
 
     skints = [
@@ -721,7 +764,7 @@ def loss_options():
     ]
 
     loss_args = Variant("method", [
-        Argument("hamil", dict, sub_fields=hamil),
+        # Argument("hamil", dict, sub_fields=hamil),
         Argument("eigvals", dict, sub_fields=eigvals),
         Argument("skints", dict, sub_fields=skints),
         Argument("hamil_abs", dict, sub_fields=hamil),
@@ -1037,10 +1080,17 @@ def run_options():
                         - `float64`: indicating torch.float64
                     default None means to use the device seeting in the model ckpt file.
                 """
+    doc_pbc = """The periodic boundary condition, choose among: 
+                    Default: True,
+                        - True: indicating the structure is periodic
+                        - False: indicating the structure is not periodic
+                        - list of bool: indicating the structure is periodic in x,y,z direction respectively.
+                """
  
     args = [
         Argument("task_options", dict, sub_fields=[], optional=True, sub_variants=[task_options()], doc = doc_task),
         Argument("structure", [str,None], optional=True, default=None, doc = doc_structure),
+        Argument("pbc", [None, bool, list], optional=True, doc=doc_pbc, default=None),
         Argument("use_gui", bool, optional=True, default=False, doc = doc_gui),
         Argument("device", [str,None], optional = True, default=None, doc = doc_device),
         Argument("dtype", [str,None], optional = True, default=None, doc = doc_dtype),
@@ -1371,25 +1421,33 @@ def AtomicData_options_sub():
     args = [
         Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max, default=4.0),
         Argument("er_max", [float, int, dict], optional=True, doc=doc_er_max, default=None),
-        Argument("oer_max", [float, int, dict], optional=True, doc=doc_oer_max,default=None),
-        Argument("pbc", bool, optional=False, doc=doc_pbc, default=True),
+        Argument("oer_max", [float, int, dict], optional=True, doc=doc_oer_max,default=None)
     ]
 
-    return Argument("AtomicData_options", dict, optional=False, sub_fields=args, sub_variants=[], doc="")
+    return Argument("AtomicData_options", dict, optional=True, sub_fields=args, sub_variants=[], doc="", default=None)
 
 def set_info_options():
     doc_nframes = "Number of frames in this trajectory."
     doc_natoms = "Number of atoms in each frame."
     doc_pos_type = "Type of atomic position input. Can be frac / cart / ase."
+    doc_pbc = "The periodic condition for the structure, can bool or list of bool to specific x,y,z direction."
 
     args = [
         Argument("nframes", int, optional=False, doc=doc_nframes),
         Argument("natoms", int, optional=True, default=-1, doc=doc_natoms),
         Argument("pos_type", str, optional=False, doc=doc_pos_type),
-        bandinfo_sub(),
-        AtomicData_options_sub()
+        Argument("pbc", [bool, list], optional=False, doc=doc_pbc),
+        bandinfo_sub()
     ]
 
+    return Argument("setinfo", dict, sub_fields=args)
+
+def lmdbset_info_options():
+    doc_r_max = "the cutoff value for bond considering in TB model."
+
+    args = [
+        Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max, default=4.0)
+    ]
     return Argument("setinfo", dict, sub_fields=args)
 
 def normalize_setinfo(data):
@@ -1399,3 +1457,146 @@ def normalize_setinfo(data):
     setinfo.check_value(data, strict=True)
 
     return data
+
+def normalize_lmdbsetinfo(data):
+
+    setinfo = lmdbset_info_options()
+    data = setinfo.normalize_value(data)
+    setinfo.check_value(data, strict=True)
+
+    return data
+
+
+def format_cuts(rcut: Union[Dict[str, Number], Number], decay_w: Number, nbuffer: int) -> Union[Dict[str, Number], Number]:
+    if not isinstance(decay_w, Number) or decay_w <= 0:
+        raise ValueError("decay_w should be a positive number")
+
+    buffer_addition = decay_w * nbuffer
+
+    if isinstance(rcut, dict):
+        return {key: value + buffer_addition for key, value in rcut.items()}
+    elif isinstance(rcut, Number):
+        return rcut + buffer_addition
+    else:
+        raise TypeError("rcut should be a dict or a number")
+
+def get_cutoffs_from_model_options(model_options):
+    """
+    Extract cutoff values from the provided model options.
+
+    This function retrieves the cutoff values `r_max`, `er_max`, and `oer_max` from the `model_options` 
+    dictionary. It handles different model types such as `embedding`, `nnsk`, and `dftbsk`, ensuring 
+    that the appropriate cutoff values are provided and valid.
+
+    Parameters:
+    model_options (dict): A dictionary containing model configuration options. It may include keys 
+                          like `embedding`, `nnsk`, and `dftbsk` with their respective cutoff values.
+
+    Returns:
+    tuple: A tuple containing the cutoff values (`r_max`, `er_max`, `oer_max`).
+
+    Raises:
+    ValueError: If neither `r_max` nor `rc` is provided in `model_options` for embedding.
+    AssertionError: If `r_max` is provided outside the `nnsk` or `dftbsk` context when those models are used.
+
+    Logs:
+    Error messages if required cutoff values are missing or incorrectly provided.
+    """
+    r_max, er_max, oer_max = None, None, None
+    if model_options.get("embedding",None) is not None:
+        # switch according to the embedding method
+        embedding = model_options.get("embedding")
+        if embedding["method"] == "se2":
+            er_max = embedding["rc"]
+        elif embedding["method"] in ["slem", "lem"]:
+            r_max = embedding["r_max"]
+        else:
+            log.error("The method of embedding have not been defined in get cutoff functions")
+            raise NotImplementedError("The method of embedding have not been defined in get cutoff functions")
+        
+    if model_options.get("nnsk", None) is not None:
+        assert r_max is None, "r_max should not be provided in outside the nnsk for training nnsk model."
+        if model_options["nnsk"]["hopping"].get("rs",None) is not None:
+            # 其他方法在模型公式中，已经包含了 +5w 的范围，所以这里为了保险额外加上3w 的范围; 
+            # 对于两个特例，powerlaw 和 varTang96 的情况，为了和旧版存档的兼容, 模型公式的本身并没有 +5w 的范围，所以这里额外加上8w 的范围。
+            if model_options["nnsk"]["hopping"]['method'] in ["powerlaw","varTang96"]:
+                # r_max = model_options["nnsk"]["hopping"]["rs"] + 8 * model_options["nnsk"]["hopping"]["w"]
+                r_max = format_cuts(model_options["nnsk"]["hopping"]["rs"], model_options["nnsk"]["hopping"]["w"], 8)
+            else:
+                # r_max = model_options["nnsk"]["hopping"]["rs"] + 3 * model_options["nnsk"]["hopping"]["w"]
+                r_max = format_cuts(model_options["nnsk"]["hopping"]["rs"], model_options["nnsk"]["hopping"]["w"], 3)
+
+        if model_options["nnsk"]["onsite"].get("rs",None) is not None:
+            if  model_options["nnsk"]["onsite"]['method'] == "strain" and model_options["nnsk"]["hopping"]['method'] in ["powerlaw","varTang96"]:
+                # oer_max = model_options["nnsk"]["onsite"]["rs"] + 8 * model_options["nnsk"]["onsite"]["w"]
+                oer_max = format_cuts(model_options["nnsk"]["onsite"]["rs"], model_options["nnsk"]["onsite"]["w"], 8)
+            else:
+                # oer_max = model_options["nnsk"]["onsite"]["rs"] + 3 * model_options["nnsk"]["onsite"]["w"]
+                oer_max = format_cuts(model_options["nnsk"]["onsite"]["rs"], model_options["nnsk"]["onsite"]["w"], 3)
+    
+    elif model_options.get("dftbsk", None) is not None:
+        assert r_max is None, "r_max should not be provided in outside the dftbsk for training dftbsk model."
+        r_max = model_options["dftbsk"]["r_max"]
+    
+    else:
+        # not nnsk not dftbsk, must be only env or E3. the embedding should be provided.
+        assert model_options.get("embedding",None) is not None   
+
+    return r_max, er_max, oer_max
+def collect_cutoffs(jdata):
+    """
+    Collect cutoff values from the provided JSON data.
+
+    This function extracts the cutoff values `r_max`, `er_max`, and `oer_max` from the `model_options` 
+    in the provided JSON data. If the `nnsk` push model is used, it ensures that the necessary 
+    cutoff values are provided in `data_options` and overrides the values from `model_options` 
+    accordingly.
+
+    Parameters:
+    jdata (dict): A dictionary containing model and data options. It must include `model_options` 
+                  and optionally `data_options` if `nnsk` push model is used.
+
+    Returns:
+    dict: A dictionary containing the cutoff options with keys `r_max`, `er_max`, and `oer_max`.
+
+    Raises:
+    AssertionError: If required keys are missing in `jdata` or if `r_max` is not provided when 
+                    using the `nnsk` push model.
+
+    Logs:
+    Various informational messages about the cutoff values and their sources.
+    """ 
+
+    model_options = jdata["model_options"]
+    r_max, er_max, oer_max = get_cutoffs_from_model_options(model_options)
+
+    if model_options.get("nnsk", None) is not None:
+        if model_options["nnsk"]["push"]:
+            assert jdata.get("data_options",None) is not None, "data_options should be provided in jdata for nnsk push"
+            assert jdata['data_options'].get("r_max") is not None, "r_max should be provided in data_options for nnsk push"
+            log.info('YOU ARE USING NNSK PUSH MODEL, r_max will be used from data_options. Be careful! check the value in data options and model options. r_max or rs/rc !')
+            r_max = jdata['data_options']['r_max']
+
+            if model_options["nnsk"]["onsite"]["method"] in ["strain", "NRL"]:
+                assert jdata['data_options'].get("oer_max") is not None, "oer_max should be provided in data_options for nnsk push with strain onsite mode"
+                log.info('YOU ARE USING NNSK PUSH MODEL with `strain` onsite mode, oer_max will be used from data_options. Be careful! check the value in data options and model options. rs/rc !')
+                oer_max = jdata['data_options']['oer_max']
+
+            if jdata['data_options'].get("er_max") is not None:
+                log.info("IN PUSH mode, the env correction should not be used. the er_max will not take effect.")     
+        else:
+            if  jdata['data_options'].get("r_max") is not None:
+                log.info("When not nnsk/push. the cutoffs will take from the model options: r_max  rs and rc values. this seting in data_options will be ignored.")
+
+    assert r_max is not None
+    cutoff_options = ({"r_max": r_max, "er_max": er_max, "oer_max": oer_max})
+    
+    log.info("-"*66)
+    log.info('     {:<55}    '.format("Cutoff options:"))
+    log.info('     {:<55}    '.format(" "*30))
+    log.info('     {:<16} : {:<36}    '.format("r_max", f"{r_max}"))
+    log.info('     {:<16} : {:<36}    '.format("er_max", f"{er_max}"))
+    log.info('     {:<16} : {:<36}    '.format("oer_max", f"{oer_max}"))
+    log.info("-"*66)
+
+    return cutoff_options

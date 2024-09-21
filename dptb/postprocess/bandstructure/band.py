@@ -170,7 +170,7 @@ class Band(ElecStruCal):
         self.results_path = results_path
         self.use_gui = use_gui
             
-    def get_bands(self, data: Union[AtomicData, ase.Atoms, str], kpath_kwargs: dict, AtomicData_options: dict={}):
+    def get_bands(self, data: Union[AtomicData, ase.Atoms, str], kpath_kwargs: dict, pbc:Union[bool,list]=None, AtomicData_options:dict=None):
         kline_type = kpath_kwargs['kline_type']
 
         # get  the ase structure
@@ -208,7 +208,7 @@ class Band(ElecStruCal):
             log.error('Error, now, kline_type only support ase_kpath, abacus, or vasp.')
             raise ValueError
         
-        data, eigenvalues = self.get_eigs(data, klist, AtomicData_options)
+        data, eigenvalues = self.get_eigs(data=data, klist=klist, pbc=pbc, AtomicData_options=AtomicData_options)
         
 
         # get the E_fermi from data
@@ -229,7 +229,7 @@ class Band(ElecStruCal):
         #     estimated_E_fermi = None
         if nel_atom is not None:
             data,estimated_E_fermi = self.get_fermi_level(data=data, nel_atom=nel_atom, \
-                        klist = klist, AtomicData_options=AtomicData_options)
+                        klist = klist, pbc=pbc, AtomicData_options=AtomicData_options)
         else:
             estimated_E_fermi = None
 
@@ -276,9 +276,13 @@ class Band(ElecStruCal):
 
         matplotlib.rcParams['font.size'] = 7
         matplotlib.rcParams['pdf.fonttype'] = 42
+        matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial', 'Helvetica', 'sans-serif']
+        matplotlib.rcParams['axes.linewidth'] = 0.5
+        matplotlib.rcParams['xtick.major.width'] =0.3
+        matplotlib.rcParams['ytick.major.width'] =0.3
         # plt.rcParams['font.sans-serif'] = ['Times New Roman']
 
-        fig = plt.figure(figsize=(4.5,4),dpi=100)
+        fig = plt.figure(figsize=(3.2,2.8),dpi=200)
 
         ax = fig.add_subplot(111)
 
@@ -300,19 +304,19 @@ class Band(ElecStruCal):
                 raise ValueError
             ref_band = ref_band - (np.min(ref_band) - np.min(self.eigenstatus["eigenvalues"]))
 
-            nkplot = (len(np.unique(self.eigenstatus["high_sym_kpoints"]))-1) * 7
-            nintp = len(self.eigenstatus["xlist"]) // nkplot 
-            if nintp == 0:
-                nintp = 1
-            band_ref = ax.plot(self.eigenstatus["xlist"][::nintp], ref_band[::nintp] - E_fermi, 'o', ms=4, color=band_color, alpha=0.8, label="Ref")
-            band_pre = ax.plot(self.eigenstatus["xlist"], self.eigenstatus["eigenvalues"] - E_fermi, color="tab:red", lw=1.5, alpha=0.8, label="DeePTB")
+            # nkplot = (len(np.unique(self.eigenstatus["high_sym_kpoints"]))-1) * 5
+            # nintp = len(self.eigenstatus["xlist"]) // nkplot 
+            # if nintp == 0:
+            nintp = self.eigenstatus["xlist"].shape[0] // 25
+            band_ref = ax.plot(self.eigenstatus["xlist"][::nintp], ref_band[::nintp] - E_fermi, 'o', ms=2, color=band_color, alpha=0.95, label="Ref")
+            band_pre = ax.plot(self.eigenstatus["xlist"], self.eigenstatus["eigenvalues"] - E_fermi, color="tab:red", lw=0.5, alpha=0.95, label="DeePTB")
 
         else:
-            ax.plot(self.eigenstatus["xlist"], self.eigenstatus["eigenvalues"] - E_fermi, color="tab:red",lw=1.5, alpha=0.8)
+            ax.plot(self.eigenstatus["xlist"], self.eigenstatus["eigenvalues"] - E_fermi, color="tab:red",lw=0.5, alpha=0.95)
 
         # add verticle line
         for ii in self.eigenstatus["high_sym_kpoints"][1:-1]:
-            ax.axvline(ii, color='gray', lw=1,ls='--')
+            ax.axvline(ii, color='gray', lw=0.3,ls='--')
 
         # add shadow
         # for i in range(self.eigenvalues.shape[1]):
@@ -322,32 +326,33 @@ class Band(ElecStruCal):
         if not (emin is None or emax is None):
             ax.set_ylim(emin,emax)
 
-        ax.set_xlim(self.eigenstatus["xlist"].min()-0.03,self.eigenstatus["xlist"].max()+0.03)
-        ax.set_ylabel('E - EF (eV)',fontsize=12)
+        # amp = self.eigenstatus["xlist"].max()
+        ax.set_xlim(self.eigenstatus["xlist"].min(),self.eigenstatus["xlist"].max())
+        ax.set_ylabel('E - EF (eV)',fontsize=8)
         ax.yaxis.set_minor_locator(MultipleLocator(1.0))
-        ax.tick_params(which='both', direction='in', labelsize=12, width=1.5)
+        ax.tick_params(which='both', direction='in', labelsize=8)
         ax.tick_params(which='major', length=6)
-        ax.tick_params(which='minor', length=4, color='gray')
+        ax.tick_params(which='minor', length=4)
         
         # ax.set_yticks(None, fontsize=12)
-        ax.set_xticks(self.eigenstatus["high_sym_kpoints"], self.eigenstatus["labels"], fontsize=12)
+        ax.set_xticks(self.eigenstatus["high_sym_kpoints"], self.eigenstatus["labels"], fontsize=8)
 
-        ax.grid(color='gray', alpha=0.2, linestyle='-', linewidth=1)
+        # ax.grid(color='gray', alpha=0.2, linestyle='-', linewidth=1)
         ax.set_axisbelow(True)
 
-        fig.patch.set_facecolor('#f2f2f2')
-        fig.patch.set_alpha(1)
-        for spine in ax.spines.values():
-            spine.set_edgecolor('#5d5d5d')
-            spine.set_linewidth(1.5)
+        # fig.patch.set_facecolor('#f2f2f2')
+        # fig.patch.set_alpha(1)
+        # for spine in ax.spines.values():
+        #     spine.set_edgecolor('#5d5d5d')
+        #     spine.set_linewidth(1.5)
         
         if ref_band is not None:
             plt.legend(handles=[band_pre[0], band_ref[0]], loc="best")
-        
         plt.tight_layout()
         # remove the box around the plot
-        ax.set_frame_on(False)
+        # ax.set_frame_on(False) # setting of whether to show the frame line
         if self.results_path is not None:
             plt.savefig(f'{self.results_path}/band.png',dpi=300)
         if self.use_gui:
             plt.show()
+

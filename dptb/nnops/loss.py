@@ -84,6 +84,8 @@ class EigLoss(nn.Module):
             diff_on: bool=False,
             eout_weight: float=0.01,
             diff_weight: float=0.01,
+            diff_valence: dict=None,
+            spin_deg: int = 2,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             **kwargs,
@@ -94,6 +96,9 @@ class EigLoss(nn.Module):
         self.diff_on = diff_on
         self.eout_weight = eout_weight
         self.diff_weight = diff_weight
+        self.diff_valence = diff_valence  
+        self.spin_deg = spin_deg  
+
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
@@ -145,7 +150,6 @@ class EigLoss(nn.Module):
 
         datalist = data.to_data_list()
         ref_datalist = ref_data.to_data_list()
-
         for data, ref_data in zip(datalist, ref_datalist):
             data = self.eigenvalue(AtomicData.to_AtomicDataDict(data))
             ref_data = AtomicData.to_AtomicDataDict(ref_data)
@@ -156,6 +160,15 @@ class EigLoss(nn.Module):
             band_min, band_max = ref_data.get(AtomicDataDict.BAND_WINDOW_KEY, (0, None))
             eig_pred = data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0] # (n_kpt, n_band)
             eig_label = ref_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0] # (n_kpt, n_band_dft/n_band)
+
+            if self.diff_valence is not None and isinstance(self.diff_valence, dict):
+                nbands_exclude = sum([self.diff_valence[self.idp.type_to_chemical_symbol[int(ii)]] for ii in ref_data['atom_types']])
+                assert nbands_exclude % self.spin_deg == 0
+                nbands_exclude = nbands_exclude // self.spin_deg
+            else:
+                nbands_exclude = 0
+            
+            eig_label = eig_label[:,nbands_exclude:]
 
             norbs = eig_pred.shape[-1]
             nbanddft = eig_label.shape[-1]
@@ -230,59 +243,59 @@ class EigLoss(nn.Module):
 
         return total_loss / len(datalist)
 
-@Loss.register("hamil")
-class HamilLoss(nn.Module):
-    def __init__(
-            self, 
-            basis: Dict[str, Union[str, list]]=None,
-            idp: Union[OrbitalMapper, None]=None,
-            overlap: bool=False,
-            dtype: Union[str, torch.dtype] = torch.float32, 
-            device: Union[str, torch.device] = torch.device("cpu"),
-            **kwargs,
-        ):
+# @Loss.register("hamil")
+# class HamilLoss(nn.Module):
+#     def __init__(
+#             self, 
+#             basis: Dict[str, Union[str, list]]=None,
+#             idp: Union[OrbitalMapper, None]=None,
+#             overlap: bool=False,
+#             dtype: Union[str, torch.dtype] = torch.float32, 
+#             device: Union[str, torch.device] = torch.device("cpu"),
+#             **kwargs,
+#         ):
 
-        super(HamilLoss, self).__init__()
-        self.loss1 = nn.L1Loss()
-        self.loss2 = nn.MSELoss()
-        self.overlap = overlap
-        self.device = device
+#         super(HamilLoss, self).__init__()
+#         self.loss1 = nn.L1Loss()
+#         self.loss2 = nn.MSELoss()
+#         self.overlap = overlap
+#         self.device = device
 
-        if basis is not None:
-            self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
-            if idp is not None:
-                assert idp == self.idp, "The basis of idp and basis should be the same."
-        else:
-            assert idp is not None, "Either basis or idp should be provided."
-            self.idp = idp
+#         if basis is not None:
+#             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
+#             if idp is not None:
+#                 assert idp == self.idp, "The basis of idp and basis should be the same."
+#         else:
+#             assert idp is not None, "Either basis or idp should be provided."
+#             self.idp = idp
 
-    def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
-        # mask the data
+#     def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
+#         # mask the data
 
-        # data[AtomicDataDict.NODE_FEATURES_KEY].masked_fill(~self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY]], 0.)
-        # data[AtomicDataDict.EDGE_FEATURES_KEY].masked_fill(~self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY]], 0.)
+#         # data[AtomicDataDict.NODE_FEATURES_KEY].masked_fill(~self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY]], 0.)
+#         # data[AtomicDataDict.EDGE_FEATURES_KEY].masked_fill(~self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY]], 0.)
 
-        node_mean = ref_data[AtomicDataDict.NODE_FEATURES_KEY].mean(dim=-1, keepdim=True)
-        edge_mean = ref_data[AtomicDataDict.EDGE_FEATURES_KEY].mean(dim=-1, keepdim=True)
-        node_weight = 1/((ref_data[AtomicDataDict.NODE_FEATURES_KEY]-node_mean).norm(dim=-1, keepdim=True)+1e-5)
-        edge_weight = 1/((ref_data[AtomicDataDict.EDGE_FEATURES_KEY]-edge_mean).norm(dim=-1, keepdim=True)+1e-5)
+#         node_mean = ref_data[AtomicDataDict.NODE_FEATURES_KEY].mean(dim=-1, keepdim=True)
+#         edge_mean = ref_data[AtomicDataDict.EDGE_FEATURES_KEY].mean(dim=-1, keepdim=True)
+#         node_weight = 1/((ref_data[AtomicDataDict.NODE_FEATURES_KEY]-node_mean).norm(dim=-1, keepdim=True)+1e-5)
+#         edge_weight = 1/((ref_data[AtomicDataDict.EDGE_FEATURES_KEY]-edge_mean).norm(dim=-1, keepdim=True)+1e-5)
         
-        pre = (node_weight*(data[AtomicDataDict.NODE_FEATURES_KEY]-node_mean))[self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
-        tgt = (node_weight*(ref_data[AtomicDataDict.NODE_FEATURES_KEY]-node_mean))[self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
-        onsite_loss = self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt))
+#         pre = (node_weight*(data[AtomicDataDict.NODE_FEATURES_KEY]-node_mean))[self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+#         tgt = (node_weight*(ref_data[AtomicDataDict.NODE_FEATURES_KEY]-node_mean))[self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+#         onsite_loss = self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt))
 
-        pre = (edge_weight*(data[AtomicDataDict.EDGE_FEATURES_KEY]-edge_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-        tgt = (edge_weight*(ref_data[AtomicDataDict.EDGE_FEATURES_KEY]-edge_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-        hopping_loss = self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt))
+#         pre = (edge_weight*(data[AtomicDataDict.EDGE_FEATURES_KEY]-edge_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
+#         tgt = (edge_weight*(ref_data[AtomicDataDict.EDGE_FEATURES_KEY]-edge_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
+#         hopping_loss = self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt))
         
-        if self.overlap:
-            over_mean = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY].mean(dim=-1, keepdim=True)
-            over_weight = 1/((ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]-over_mean).norm(dim=-1, keepdim=True)+1e-5)
-            pre = (over_weight*(data[AtomicDataDict.EDGE_OVERLAP_KEY]-over_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-            tgt = (over_weight*(ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]-over_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-            hopping_loss += self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt))
+#         if self.overlap:
+#             over_mean = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY].mean(dim=-1, keepdim=True)
+#             over_weight = 1/((ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]-over_mean).norm(dim=-1, keepdim=True)+1e-5)
+#             pre = (over_weight*(data[AtomicDataDict.EDGE_OVERLAP_KEY]-over_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
+#             tgt = (over_weight*(ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]-over_mean))[self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
+#             hopping_loss += self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt))
         
-        return hopping_loss + onsite_loss
+#         return hopping_loss + onsite_loss
     
 
 @Loss.register("hamil_abs")
@@ -320,15 +333,27 @@ class HamilLossAbs(nn.Module):
         # data[AtomicDataDict.EDGE_FEATURES_KEY].masked_fill(~self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY]], 0.)
 
         if self.onsite_shift:
-            assert data["batch"].max() == 0, "The onsite shift is only supported for batchsize=1."
-            data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] = \
-                data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
-                data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]].min()
-            
-            ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] = \
-                ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
-                ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]].min()
-        
+            batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
+            # assert batch.max() == 0, "The onsite shift is only supported for batchsize=1."
+            mu = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+                  ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            if batch.max() == 0: # when batchsize is zero
+                mu = mu.mean().detach()
+                ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+                ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
+            elif batch.max() >= 1:
+                slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
+                slices = [0] + slices
+                ndiag_batch = torch.stack([i.sum() for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
+                mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
+                mu = mu.detach()
+                ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu[batch, None] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+                edge_mu_index = torch.zeros(data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], dtype=torch.long, device=self.device)
+                for i in range(1, batch.max().item()+1):
+                    edge_mu_index[data["__slices__"]["edge_index"][i]:data["__slices__"]["edge_index"][i+1]] += i
+                ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu[edge_mu_index, None] * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
+                
         pre = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
         tgt = ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
         onsite_loss = 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
@@ -341,6 +366,10 @@ class HamilLossAbs(nn.Module):
             pre = data[AtomicDataDict.EDGE_OVERLAP_KEY][self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
             tgt = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY][self.idp.mask_to_erme[ref_data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
             overlap_loss = 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
+
+            pre = data[AtomicDataDict.NODE_OVERLAP_KEY][self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            tgt = ref_data[AtomicDataDict.NODE_OVERLAP_KEY][self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            overlap_loss += 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
 
             return (1/3) * (hopping_loss + onsite_loss + overlap_loss)
         else:
@@ -378,14 +407,27 @@ class HamilLossBlas(nn.Module):
         # data[AtomicDataDict.EDGE_FEATURES_KEY].masked_fill(~self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY]], 0.)
 
         if self.onsite_shift:
-            data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] = \
-                data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
-                data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]].min()
-            
-            ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] = \
-                ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
-                ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]].min()
-        
+            batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
+            # assert batch.max() == 0, "The onsite shift is only supported for batchsize=1."
+            mu = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+                  ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            if batch.max() == 0: # when batchsize is zero
+                mu = mu.mean().detach()
+                ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+                ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
+            elif batch.max() >= 1:
+                slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
+                slices = [0] + slices
+                ndiag_batch = torch.stack([i.sum() for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
+                mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
+                mu = mu.detach()
+                ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu[batch, None] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+                edge_mu_index = torch.zeros(data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], dtype=torch.long, device=self.device)
+                for i in range(1, batch.max().item()+1):
+                    edge_mu_index[data["__slices__"]["edge_index"][i]:data["__slices__"]["edge_index"][i+1]] += i
+                ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu[edge_mu_index, None] * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
+                
         onsite_loss = data[AtomicDataDict.NODE_FEATURES_KEY]-ref_data[AtomicDataDict.NODE_FEATURES_KEY]
         onsite_index = data[AtomicDataDict.ATOM_TYPE_KEY].flatten().unique()
         onsite_loss = scatter_mean(
@@ -444,6 +486,7 @@ class HamilLossAnalysis(object):
             overlap: bool=False,
             dtype: Union[str, torch.dtype] = torch.float32,
             decompose: bool = False,
+            onsite_shift: bool=False,
             device: Union[str, torch.device] = torch.device("cpu"),
             **kwargs,
         ):
@@ -454,6 +497,7 @@ class HamilLossAnalysis(object):
         self.decompose = decompose
         self.dtype = dtype
         self.device = device
+        self.onsite_shift = onsite_shift
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
@@ -470,6 +514,29 @@ class HamilLossAnalysis(object):
             self.e3s = E3Hamiltonian(idp=self.idp, decompose=decompose, overlap=True, device=device, dtype=dtype)
     
     def __call__(self, data: AtomicDataDict, ref_data: AtomicDataDict, running_avg: bool=False):
+
+        if self.onsite_shift:
+            batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
+            # assert batch.max() == 0, "The onsite shift is only supported for batchsize=1."
+            mu = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+                  ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            if batch.max() == 0: # when batchsize is zero
+                mu = mu.mean().detach()
+                ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+                ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
+            elif batch.max() >= 1:
+                slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
+                slices = [0] + slices
+                ndiag_batch = torch.stack([i.sum() for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
+                mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
+                mu = mu.detach()
+                ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu[batch, None] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+                edge_mu_index = torch.zeros(data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], dtype=torch.long, device=self.device)
+                for i in range(1, batch.max().item()+1):
+                    edge_mu_index[data["__slices__"]["edge_index"][i]:data["__slices__"]["edge_index"][i+1]] += i
+                ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu[edge_mu_index, None] * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
+                
         if self.decompose:
             data = self.e3h(data)
             ref_data = self.e3h(ref_data)
@@ -649,11 +716,16 @@ class HamilLossAnalysis(object):
             
         return self.stats
     
-    def visualize(self):
+    def report(self):
         assert hasattr(self, "stats"), "The stats is not computed yet."
 
+        print(f"TOTAL:")
+        print(f"MAE: {self.stats['mae']}")
+        print(f"RMSE: {self.stats['rmse']}")
+        print(f"\n")
+        
         with torch.no_grad():
-            print("Onsite:")
+            print(f"Onsite: ")
             for at, tp in self.idp.chemical_symbol_to_type.items():
                 print(f"{at}:")
                 print(f"MAE: {self.stats['onsite'][at]['mae']}")
@@ -662,6 +734,11 @@ class HamilLossAnalysis(object):
                 # compute the onsite per block err
                 onsite_mae = torch.zeros((self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
                 onsite_rmse = torch.zeros((self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
+                mae_per_block_element = torch.zeros((self.idp.reduced_matrix_element,), dtype=self.dtype, device=self.device)
+                mae_per_block_element[self.idp.mask_to_nrme[tp]] = self.stats["onsite"][at]["mae_per_block_element"]
+                rmse_per_block_element = torch.zeros((self.idp.reduced_matrix_element,), dtype=self.dtype, device=self.device)              
+                rmse_per_block_element[self.idp.mask_to_nrme[tp]] = self.stats["onsite"][at]["rmse_per_block_element"]
+                
                 ist = 0
                 for i,iorb in enumerate(self.idp.full_basis):
                     jst = 0
@@ -678,8 +755,8 @@ class HamilLossAnalysis(object):
 
                         # constructing onsite blocks
                         if i <= j:
-                            onsite_mae[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * self.stats["onsite"][at]["mae_per_block_element"][self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
-                            onsite_rmse[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * self.stats["onsite"][at]["rmse_per_block_element"][self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
+                            onsite_mae[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * mae_per_block_element[self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
+                            onsite_rmse[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * rmse_per_block_element[self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
 
                         jst += 2*lj+1
                     ist += 2*li+1
@@ -691,24 +768,30 @@ class HamilLossAnalysis(object):
                 onsite_mae = onsite_mae[imask][:,imask]
                 onsite_rmse = onsite_rmse[imask][:,imask]
 
-                plt.matshow(onsite_mae.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=1e-3)
+                vmax = onsite_mae.max().item()
+                plt.matshow(onsite_mae.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=vmax)
                 plt.title("MAE")
                 plt.colorbar()
                 plt.show()
 
-                plt.matshow(onsite_rmse.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=1e-3)
+                vmax = onsite_rmse.max().item()
+                plt.matshow(onsite_rmse.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=vmax)
                 plt.title("RMSE")
                 plt.colorbar()
                 plt.show()
 
             # compute the hopping per block err
-            print("Hopping:")
+            print(f"Hopping: ")
             for bt, tp in self.idp.bond_to_type.items():
                 print(f"{bt}:")
                 print(f"MAE: {self.stats['hopping'][bt]['mae']}")
                 print(f"RMSE: {self.stats['hopping'][bt]['rmse']}")
                 hopping_mae = torch.zeros((self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
                 hopping_rmse = torch.zeros((self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
+                mae_per_block_element = torch.zeros((self.idp.reduced_matrix_element,), dtype=self.dtype, device=self.device)
+                mae_per_block_element[self.idp.mask_to_erme[tp]] = self.stats["hopping"][bt]["mae_per_block_element"]
+                rmse_per_block_element = torch.zeros((self.idp.reduced_matrix_element,), dtype=self.dtype, device=self.device)              
+                rmse_per_block_element[self.idp.mask_to_erme[tp]] = self.stats["hopping"][bt]["rmse_per_block_element"]
                 ist = 0
                 for i,iorb in enumerate(self.idp.full_basis):
                     jst = 0
@@ -725,26 +808,29 @@ class HamilLossAnalysis(object):
 
                         # constructing onsite blocks
                         if i <= j:
-                            hopping_mae[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * self.stats["hopping"][bt]["mae_per_block_element"][self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
-                            hopping_rmse[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * self.stats["hopping"][bt]["rmse_per_block_element"][self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
+                            hopping_mae[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * mae_per_block_element[self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
+                            hopping_rmse[ist:ist+2*li+1,jst:jst+2*lj+1] = factor * rmse_per_block_element[self.idp.orbpair_maps[orbpair]].reshape(2*li+1, 2*lj+1)
 
                         jst += 2*lj+1
                     ist += 2*li+1
 
                 hopping_mae += hopping_mae.clone().T
                 hopping_rmse += hopping_rmse.clone().T
-
-                imask = self.idp.mask_to_basis[tp]
-                jmask = self.idp.mask_to_basis[tp]
+                
+                iat, jat = bt.split("-")
+                imask = self.idp.mask_to_basis[self.idp.chemical_symbol_to_type[iat]]
+                jmask = self.idp.mask_to_basis[self.idp.chemical_symbol_to_type[jat]]
                 hopping_mae = hopping_mae[imask][:,jmask]
                 hopping_rmse = hopping_rmse[imask][:,jmask]
 
-                plt.matshow(hopping_mae.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=1e-3)
+                vmax = hopping_mae.max().item()
+                plt.matshow(hopping_mae.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=vmax)
                 plt.title("MAE")
                 plt.colorbar()
                 plt.show()
 
-                plt.matshow(hopping_mae.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=1e-3)
+                vmax = hopping_mae.max().item()
+                plt.matshow(hopping_rmse.detach().cpu().numpy(), cmap="Blues", vmin=0, vmax=vmax)
                 plt.title("RMSE")
                 plt.colorbar()
                 plt.show()

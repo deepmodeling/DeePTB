@@ -16,7 +16,6 @@ from .utils import makedirs
 
 IndexType = Union[slice, Tensor, np.ndarray, Sequence]
 
-
 class Dataset(torch.utils.data.Dataset):
     r"""Dataset base class for creating graph datasets.
     See `here <https://pytorch-geometric.readthedocs.io/en/latest/notes/
@@ -275,7 +274,6 @@ def files_exist(files: List[str]) -> bool:
     # NOTE: We return `False` in case `files` is empty, leading to a
     # re-processing of files on every instantiation.
     return len(files) != 0 and all([osp.exists(f) for f in files])
-
 
 def _repr(obj: Any) -> str:
     if obj is None:
