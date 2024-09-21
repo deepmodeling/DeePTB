@@ -19,6 +19,5 @@ def test_get_fermi():
     _, efermi =elec_cal.get_fermi_level(data=stru_data, 
                     nel_atom = nel_atom,
                 meshgrid=[30,30,30])
-    print(efermi)
     assert abs(efermi  + 3.2257686853408813) < 1e-5
 
