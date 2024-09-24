@@ -24,6 +24,6 @@ from dptb.utils.constants import atomic_num_dict
 import torch
 
 # unit. \AA. 
-BondLenCovalent = torch.zeros(int(max(atomic_num_dict.values()))) - 100
+R_cov_list = torch.zeros(int(max(atomic_num_dict.values()))) - 100
 for k, v in Covalent_radii.items():
-    BondLenCovalent[atomic_num_dict[k]-1] = v * 0.01
+    R_cov_list[atomic_num_dict[k]-1] = v * 0.01
