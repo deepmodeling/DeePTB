@@ -14,3 +14,12 @@ def test_bond_length_list():
             assert bond_length_full_dict[atom_symbol] is None
             assert bond_length_list[ii-1] == -100
         
+from dptb.nn.sktb.cov_radiiDB import Covalent_radii, BondLenCovalent
+from dptb.utils.constants import atomic_num_dict
+
+def test_Covalent_radii():
+    for key, val in atomic_num_dict.items():
+        if key in Covalent_radii:
+            assert Covalent_radii[key] * 0.01 == BondLenCovalent[val-1] 
+        else:
+            assert BondLenCovalent[val-1] == -100
