@@ -4,6 +4,7 @@
 # in practice, it is usual to obtain an average value from a variety of covalent compounds, although the difference is usually small.
 # Therefore the bandlength A-B we can use the sum of the covalent radii of A and B.
 
+# unit pm.
 Covalent_radii = {
     'H': 31,                                                                                                                                                                                                                                                    'He': 28, 
     'Li': 128,    'Be': 96,                                                                                                                                                            'B': 84,       'C': 76,       'N': 71,       'O': 66,       'F': 57,     'Ne': 58, 
@@ -15,3 +16,14 @@ Covalent_radii = {
     'La': 207,    'Ce': 204,    'Pr': 203,    'Nd': 201,    'Pm': 199,    'Sm': 198,    'Eu': 198,    'Gd': 196,    'Tb': 194,    'Dy': 192,    'Ho': 192,    'Er': 189,    'Tm': 190,    'Yb': 187,
     'Ac': 215,    'Th': 206,    'Pa': 200,     'U': 196,    'Np': 190,    'Pu': 187,    'Am': 180,    'Cm': 169
 }
+
+# To constract the bond length, we can use the sum of the covalent radii of A and B.
+
+
+from dptb.utils.constants import atomic_num_dict
+import torch
+
+# unit. \AA. 
+BondLenCovalent = torch.zeros(int(max(atomic_num_dict.values()))) - 100
+for k, v in Covalent_radii.items():
+    BondLenCovalent[atomic_num_dict[k]-1] = v * 0.01
