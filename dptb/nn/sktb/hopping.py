@@ -177,7 +177,7 @@ class HoppingFormula(BaseHopping):
         rij = rij.reshape(shape)
         r0 = r0.reshape(shape)
 
-        r0 = r0 / 1.8897259886
+        # r0 = r0 / 1.8897259886
         if isinstance(rs, torch.Tensor):
             rs = rs.reshape(shape)
         else:
@@ -198,7 +198,7 @@ class HoppingFormula(BaseHopping):
         rij = rij.reshape(shape)
         r0 = r0.reshape(shape)
 
-        r0 = r0 / 1.8897259886
+        # r0 = r0 / 1.8897259886
         if isinstance(rs, torch.Tensor):
             rs = rs.reshape(shape)
         else:
@@ -223,7 +223,7 @@ class HoppingFormula(BaseHopping):
         rij = rij.reshape(shape)
         r0 = r0.reshape(shape)
 
-        r0 = r0 / 1.8897259886
+        # r0 = r0 / 1.8897259886
         if isinstance(rs, torch.Tensor):
             rs = rs.reshape(shape)
         else:
@@ -247,7 +247,7 @@ class HoppingFormula(BaseHopping):
         rij = rij.reshape(shape)
         r0 = r0.reshape(shape)
 
-        r0 = r0 / 1.8897259886
+        # r0 = r0 / 1.8897259886
         if isinstance(rs, torch.Tensor):
             rs = rs.reshape(shape)
         else:
@@ -272,7 +272,7 @@ class HoppingFormula(BaseHopping):
         rij = rij.reshape(shape)
         r0 = r0.reshape(shape)
 
-        r0 = r0 / 1.8897259886
+        # r0 = r0 / 1.8897259886
 
         if isinstance(rs, torch.Tensor):
             rs = rs.reshape(shape)
