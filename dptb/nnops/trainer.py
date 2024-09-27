@@ -30,6 +30,7 @@ class Trainer(BaseTrainer):
         self.model = model.to(self.device)
         self.optimizer = get_optimizer(model_param=self.model.parameters(), **train_options["optimizer"])
         self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **train_options["lr_scheduler"])  # add optmizer
+        self.update_lr_per_step_flag = train_options["update_lr_per_step_flag"]
         self.common_options = common_options
         self.train_options = train_options
         
@@ -129,6 +130,11 @@ class Trainer(BaseTrainer):
         loss.backward()
         #TODO: add clip large gradient
         self.optimizer.step()
+        if self.update_lr_per_step_flag:
+            if isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                self.lr_scheduler.step(self.stats["train_loss"]["epoch_mean"])
+            else:
+                self.lr_scheduler.step()
 
         state = {'field':'iteration', "train_loss": loss.detach(), "lr": self.optimizer.state_dict()["param_groups"][0]['lr']}
         self.call_plugins(queue_name='iteration', time=self.iter, **state)

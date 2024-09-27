@@ -146,8 +146,8 @@ class Validationer(Monitor):
         
 
 class TensorBoardMonitor(Plugin):
-    def __init__(self):
-        super(TensorBoardMonitor, self).__init__([(25, 'iteration'), (1, 'epoch')])
+    def __init__(self, interval):
+        super(TensorBoardMonitor, self).__init__(interval=interval)
         self.writer = SummaryWriter(log_dir='./tensorboard_logs')
 
     def register(self, trainer):
