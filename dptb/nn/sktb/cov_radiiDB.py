@@ -5,7 +5,7 @@
 # Therefore the bandlength A-B we can use the sum of the covalent radii of A and B.
 
 # unit pm.
-Covalent_radii = {
+Covalent_radii_pm = {
     'H': 31,                                                                                                                                                                                                                                                    'He': 28, 
     'Li': 128,    'Be': 96,                                                                                                                                                            'B': 84,       'C': 76,       'N': 71,       'O': 66,       'F': 57,     'Ne': 58, 
     'Na': 166,    'Mg': 141,                                                                                                                                                          'Al': 121,     'Si': 111,      'P': 107,      'S': 105,     'Cl': 102,    'Ar': 106,
@@ -17,6 +17,14 @@ Covalent_radii = {
     'Ac': 215,    'Th': 206,    'Pa': 200,     'U': 196,    'Np': 190,    'Pu': 187,    'Am': 180,    'Cm': 169
 }
 
+# unit AA
+Covalent_radii = {}
+for k, v in Covalent_radii_pm.items():
+    if v is not None:
+        Covalent_radii[k] = v * 0.01
+    else:
+        Covalent_radii[k] = v
+
 # To constract the bond length, we can use the sum of the covalent radii of A and B.
 
 
@@ -25,5 +33,5 @@ import torch
 
 # unit. \AA. 
 R_cov_list = torch.zeros(int(max(atomic_num_dict.values()))) - 100
-for k, v in Covalent_radii.items():
+for k, v in Covalent_radii_pm.items():
     R_cov_list[atomic_num_dict[k]-1] = v * 0.01
