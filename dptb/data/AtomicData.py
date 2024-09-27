@@ -877,10 +877,9 @@ class AtomicData(Data):
         return type(self)(**new_dict)
 
 
-_ERROR_ON_NO_EDGES: bool = os.environ.get("NEQUIP_ERROR_ON_NO_EDGES", "true").lower()
-assert _ERROR_ON_NO_EDGES in ("true", "false")
+_ERROR_ON_NO_EDGES = os.environ.get("NEQUIP_ERROR_ON_NO_EDGES", "true").lower()
+assert _ERROR_ON_NO_EDGES in ("true", "false"), "NEQUIP_ERROR_ON_NO_EDGES must be 'true' or 'false'"
 _ERROR_ON_NO_EDGES = _ERROR_ON_NO_EDGES == "true"
-
 
 def neighbor_list_and_relative_vec(
     pos,
