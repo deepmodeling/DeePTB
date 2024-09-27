@@ -7,6 +7,8 @@ import logging
 from typing import Tuple, Union, Dict
 from dptb.data.transforms import OrbitalMapper
 from dptb.utils._xitorch.interpolate import Interp1D
+import numpy as np
+from dptb.nn.sktb.cov_radiiDB import Covalent_radii
 
 log = logging.getLogger(__name__)
 
@@ -26,7 +28,8 @@ class SKParam:
     def __init__(self,
                 basis: Dict[str, Union[str, list]]=None,
                 idp_sk: Union[OrbitalMapper, None]=None,
-                skdata: Union[str,dict] = None) -> None:
+                skdata: Union[str,dict] = None,
+                cal_rcuts: bool = False) -> None:
 
         if basis is not None:
             self.idp_sk = OrbitalMapper(basis, method="sktb")
@@ -79,7 +82,13 @@ class SKParam:
         else:
             log.error("The skdata should be a dict or string for a file path.")
             raise ValueError("The skdata should be a dict or string for a file path.")
-
+        
+        if cal_rcuts:
+            self.atomic_r_min, self.atomic_r_max = cal_rmin_rmax(skdata=skdata)
+        else:
+            self.atomic_r_min = None
+            self.atomic_r_max = None
+            
         self.skdict = self.format_skparams(skdict)
 
     @classmethod
@@ -266,3 +275,75 @@ class SKParam:
 
         return format_skdict
 
+def find_first_false(arr):
+    """
+    Find the index of the first occurrence of False in each row of a 2D array, counting from the end of the row.
+
+    Parameters:
+    arr (numpy.ndarray): The input 2D array.
+
+    Returns:
+    numpy.ndarray: An array containing the indices of the first occurrence of False in each row.
+                   If a row does not contain any False, the corresponding index is set to -1.
+    """
+    assert arr.ndim == 2
+    reversed_arr = np.flip(arr, axis=1)
+    reversed_indices = np.argmax(reversed_arr == False, axis=1)
+    original_indices = arr.shape[1] - 1 - reversed_indices
+    no_false_rows = np.all(reversed_arr, axis=1)
+    original_indices[no_false_rows] = -1
+    return original_indices
+
+
+def cal_rmin_rmax(skdata):
+    """
+    Calculate the minimum and maximum atomic radii based on the given skdata.
+
+    Args:
+        skdata (dict): Dictionary containing the skdata.
+
+    Returns:
+        tuple: A tuple containing two dictionaries. The first dictionary contains the minimum atomic radii
+               for each atomic symbol, and the second dictionary contains the maximum atomic radii for each
+               atomic symbol.
+    """
+
+    atomic_symbols = list(skdata['OnsiteE'].keys())
+    atomic_r_max_dict = {}
+    for isym in atomic_symbols:
+        bondtype = isym + '-' + isym
+        hopp = skdata['Hopping'][bondtype].numpy()
+        dist = skdata['Distance'][bondtype].numpy()
+        assert len(dist) == hopp.shape[1]
+        ind = find_first_false(np.abs(hopp)<1e-3)
+        rmax = dist[np.max(ind)]
+        # rmx 保留两位小数
+        atomic_r_max_dict[isym] = round(rmax / 2,2)
+    
+
+    for isym in atomic_symbols:
+        for jsym in atomic_symbols:
+            if isym != jsym:
+                bondtype = isym + '-' + jsym
+                hopp = skdata['Hopping'][bondtype].numpy()
+                dist = skdata['Distance'][bondtype].numpy()
+                assert len(dist) == hopp.shape[1]
+                ind = find_first_false(np.abs(hopp)<1e-3)
+                rmax = dist[np.max(ind)]
+
+                # 按照共价半径比例拆分
+                rario = Covalent_radii[isym] / (Covalent_radii[isym] + Covalent_radii[jsym])
+                rmax_isym = rmax * rario
+                rmax_jsym = rmax * (1-rario)
+                if rmax_isym >  atomic_r_max_dict[isym]:
+                    atomic_r_max_dict[isym] = round(rmax_isym,2)
+                if rmax_jsym >  atomic_r_max_dict[jsym]:
+                    atomic_r_max_dict[jsym] = round(rmax_jsym,2)
+
+
+    atomic_r_min_dict = {}
+    for isym in atomic_symbols:
+        atomic_r_min_dict[isym] = round(0.5 * Covalent_radii[isym],2)
+
+    return atomic_r_min_dict, atomic_r_max_dict
+ 
