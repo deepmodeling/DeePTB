@@ -59,6 +59,12 @@ bond_length_full_dict = {
 from dptb.utils.constants import atomic_num_dict
 import torch
 
+# unit  \AA
+atomic_radius_v1 = {}
+for k, v in bond_length_full_dict.items():
+    if v is not None:
+        atomic_radius_v1[k] = v / 1.8897259886 / 2
+
 # unit. \AA. 
 bond_length_list = torch.zeros(int(max(atomic_num_dict.values()))) - 100
 for k, v in bond_length_full_dict.items():
