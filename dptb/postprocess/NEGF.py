@@ -568,7 +568,7 @@ class NEGF(object):
         return self.deviceprop._cal_current_nscf_(ee, tc)
 
     def compute_density_Ozaki(self, kpoint,Vbias):
-        DM_eq, DM_neq = self.density.integrate(deviceprop=self.deviceprop, kpoint=kpoint, Vbias=Vbias)
+        DM_eq, DM_neq = self.density.integrate(deviceprop=self.deviceprop, kpoint=kpoint, Vbias=Vbias, block_tridiagonal=self.block_tridiagonal)
         return DM_eq, DM_neq
      
 
