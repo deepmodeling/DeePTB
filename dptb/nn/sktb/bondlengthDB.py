@@ -27,7 +27,7 @@ bond_length_list_err = torch.tensor([1.6,1.4,5.0,3.4,3.0,3.2,3.4,3.1,2.7,3.2,5.9
  5.2,5.2,6.2,5.2,10.6,7.7,7.4,5.9,5.2,4.8,4.2,4.2,4.0,3.9,3.8,4.8,6.7,
  7.3,5.7,5.8])
 
-bond_length_list = torch.tensor([1.6, 1.4, 5.0, 3.4, 3.0, 3.2, 3.4, 3.1, 2.7, 3.2, 5.9, 5.0, 5.9, 4.4, 4.0, 3.9, 
+bond_length_list_bohr = torch.tensor([1.6, 1.4, 5.0, 3.4, 3.0, 3.2, 3.4, 3.1, 2.7, 3.2, 5.9, 5.0, 5.9, 4.4, 4.0, 3.9, 
                                  3.8, 4.5, 6.5, 4.9, 5.1, 4.2, 4.3, 4.7, 3.6, 3.7, 3.3, 3.7, 5.2, 4.6, 5.9, 4.5, 
                                  4.4, 4.5, 4.3, 4.8, 9.1, 6.9, 5.7, 5.2, 5.2, 4.3, 4.1, 4.1, 4.0, 4.4, 6.5, 5.4, 
                                  4.8, 4.7, 5.2, 5.2, 6.2, 5.2, 10.6, 7.7, 7.4, -100, -100, -100, -100, -100, -100,
@@ -45,6 +45,7 @@ bond_length = {
     'W': 4.2, 'Re': 4.2, 'Os': 4.0, 'Ir': 3.9, 'Pt': 3.8, 'Au': 4.8, 'Hg': 6.7, 'Tl': 7.3, 'Pb': 5.7, 'Bi': 5.8, 'Po': 5.5, 'Ra': 7.0, 
     'Th': 6.2}
 
+# unit bohr
 bond_length_full_dict = {
  'H': 1.6,                                                                                                                                                                                  'He': 1.4,
  'Li': 5.0,                                                                                                               'Be': 3.4, 'B': 3.0,   'C': 3.2,  'N': 3.4,  'O': 3.1,  'F': 2.7, 'Ne': 3.2,
@@ -54,3 +55,12 @@ bond_length_full_dict = {
  'Cs': 10.6, 'Ba': 7.7, 'La': 7.4, 'Ce': None, 'Pr': None, 'Nd': None, 'Pm': None, 'Sm': None, 'Eu': None, 'Gd': None, 'Tb': None, 'Dy': None, 'Ho': None, 'Er': None, 'Tm': None, 'Yb': None, 'Lu': 5.9, 'Hf': 5.2, 'Ta': 4.8, 'W': 4.2, 'Re': 4.2, 'Os': 4.0, 'Ir': 3.9, 'Pt': 3.8, 'Au': 4.8, 'Hg': 6.7, 'Tl': 7.3, 'Pb': 5.7, 'Bi': 5.8, 'Po': 5.5, 'At': None, 'Rn': None,
  'Fr': None, 'Ra': 7.0, 'Ac': None, 'Th': 6.2, 'Pa': None, 'U': None, 'Np': None, 'Pu': None, 'Am': None, 'Cm': None, 'Bk': None, 'Cf': None, 'Es': None, 'Fm': None, 'Md': None, 'No': None, 'Lr': None, 'Rf': None, 'Db': None, 'Sg': None, 'Bh': None, 'Hs': None, 'Mt': None, 'Ds': None, 'Rg': None, 'Cn': None, 'Nh': None, 'Fl': None, 'Mc': None, 'Lv': None, 'Ts': None, 'Og': None
  }
+
+from dptb.utils.constants import atomic_num_dict
+import torch
+
+# unit. \AA. 
+bond_length_list = torch.zeros(int(max(atomic_num_dict.values()))) - 100
+for k, v in bond_length_full_dict.items():
+    if v is not None:
+        bond_length_list[atomic_num_dict[k]-1] = v / 1.8897259886

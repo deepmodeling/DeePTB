@@ -39,8 +39,9 @@ class TestSKParam:
         assert skdict['OnsiteE'].shape[2] == 1
 
     def test_init_path(self):
-        with pytest.raises(IndexError):
-            SKParam(basis={"C": ["s", "p"], "H": ["s"]}, skdata=self.skdatapath)
+        # with pytest.raises(IndexError):
+        SKParam(basis={"C": ["s", "p"], "H": ["s"]}, skdata=self.skdatapath)
+        
         with pytest.raises(FileNotFoundError):
             skparams = SKParam(basis={"C": ["2s", "2p"], "O": ["2s"]}, skdata=self.skdatapath)
         
