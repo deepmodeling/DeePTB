@@ -1,7 +1,8 @@
 from dptb.nn.sktb.hopping import BaseHopping
 import torch
 from dptb.utils._xitorch.interpolate import Interp1D
-
+import logging
+log = logging.getLogger(__name__)
 class HoppingIntp(BaseHopping):
 
     def __init__(
@@ -36,7 +37,19 @@ class HoppingIntp(BaseHopping):
             assert rij.shape[0] == self.num_ingrls, "the bond distance shape rij is not correct."
         else:
             raise ValueError("The shape of rij is not correct.")
+        # 检查 rij 是否在 xx 的范围内
+        min_x, max_x = self.xx.min(), self.xx.max()
+        mask_in_range = (rij >= min_x) & (rij <= max_x)
+        mask_out_range = ~mask_in_range
+        if mask_out_range.any():
+            log.warning("Some rij values are outside the interpolation range and will be set to 0.")
+            # 创建 rij 的副本，并将范围外的值替换为范围内的值（例如，使用 min_x）
+            rij_modified = rij.clone()
+            rij_modified[mask_out_range] = (min_x + max_x) / 2
+            yyintp = self.intpfunc(xq=rij_modified, y=yy)
+            yyintp[mask_out_range] = 0.0
+        else:
+            yyintp = self.intpfunc(xq=rij, y=yy)
 
-        yyintp = self.intpfunc(xq=rij,y=yy)
         return yyintp.T
         
