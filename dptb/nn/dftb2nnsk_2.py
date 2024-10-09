@@ -123,18 +123,11 @@ class DFTB2NNSK:
                 self.overlap_params.data[:,self.idp_sk.orbpair_maps[k],:] = 0.5 * (params[:,self.idp_sk.orbpair_maps[k],:] + reflect_params[:,self.idp_sk.orbpair_maps[k],:])
         
         return True
-
+    
     def step(self, r):
-        
-        #if r.reshape(-1).shape[0] == 1:
-        #    r = r.reshape(-1)
-        #    r = r.repeat(len(self.idp_sk.bond_types))
         assert r.shape[0] == len(self.curr_bond_indices)
-        nsample = r.shape[1]
-        bond_ind_r_shp = self.curr_bond_indices.reshape([-1,1]).repeat(1, nsample)
-        assert bond_ind_r_shp.shape == r.shape
         r = r.reshape(-1)
-        bond_ind_r_shp = bond_ind_r_shp.reshape(-1)
+        bond_ind_r_shp = self.curr_bond_indices.reshape(-1)
 
         edge_number = self.idp_sk.untransform_bond(bond_ind_r_shp).T
         r0 = self.atomic_radius_list[edge_number-1].sum(0)  # bond length r0 = r1 + r2. (r1, r2 are atomic radii of the two atoms)
@@ -162,9 +155,6 @@ class DFTB2NNSK:
             w=self.w,
             r0=r0
             )
-        nbs, nints = hopping.shape
-        hopping = hopping.reshape([-1, nsample, nints])
-        overlap = overlap.reshape([-1, nsample, nints])
         return hopping, overlap
     
 
@@ -251,7 +241,7 @@ class DFTB2NNSK:
                 r_max_ = r_max
 
             r = torch.rand([len(self.curr_bond_indices),nsample]) * (r_max_ - r_min_) + r_min_
-            hopping, overlap = self.step(r)
+            hopping, overlap = vmap(self.step,in_dims=1)(r)
 
             dftb_hopping = self.dftb(r, bond_indices = self.curr_bond_indices, mode="hopping").permute(1,0,2)
             dftb_overlap = self.dftb(r, bond_indices = self.curr_bond_indices, mode="overlap").permute(1,0,2)
@@ -265,14 +255,10 @@ class DFTB2NNSK:
             return self.loss
 
         total_bond_types = len(self.idp_sk.bond_types)
-        # bond_indices_all = np.arange(total_bond_types)
-        
-
+    
         for istep in range(nstep):
             if istep % dis_freq == 0:
                 print(f"step {istep}, loss {self.loss.item()}, lr {lrscheduler.get_last_lr()[0]}")
-            
-            
             # 如果 total_bond_types 太大, 会导致内存不够, 可以考虑分批次优化, 每次优化一部分的bond_types
             # 我们定义一次优化最大的bond_types数量为 max_elmt_batch^2    
             bond_indices_all = torch.randperm(total_bond_types)
@@ -283,7 +269,6 @@ class DFTB2NNSK:
             
             lrscheduler.step()
             self.symmetrize()
-        
         if viz:
             self.viz(r_min=r_min, r_max=r_max)
         return True
