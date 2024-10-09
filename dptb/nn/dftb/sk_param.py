@@ -84,7 +84,7 @@ class SKParam:
             raise ValueError("The skdata should be a dict or string for a file path.")
         
         if cal_rcuts:
-            self.atomic_r_min, self.atomic_r_max = cal_rmin_rmax(skdata=skdata)
+            self.atomic_r_min, self.atomic_r_max = cal_rmin_rmax(skdata=skdict)
         else:
             self.atomic_r_min = None
             self.atomic_r_max = None
@@ -226,9 +226,9 @@ class SKParam:
             assert len(skdict["Distance"][ibtype].shape) == 1
             x_num.append(len(skdict["Distance"][ibtype]))
 
-        x_min = torch.tensor(x_min).max()
-        x_max = torch.tensor(x_max).min()
-        x_num = torch.tensor(x_num).min()
+        x_min = torch.tensor(x_min).min()
+        x_max = torch.tensor(x_max).max()
+        x_num = torch.tensor(x_num).max()
         xlist_all = torch.linspace(x_min, x_max, x_num)
 
         format_skdict = {}
@@ -257,24 +257,34 @@ class SKParam:
             
             xx = xx.reshape(1, -1).repeat(10, 1)
             xx_int = xlist_all.reshape([1,-1]).repeat(10, 1)
-
             intp = Interp1D(x=xx, method='linear')
-            hh_intp = intp(xq=xx_int, y=hh)
-            ss_intp = intp(xq=xx_int, y=ss)
+
+            x_min = xx.min().item()
+            x_max = xx.max().item()
+            mask_in_range = (xx_int >= x_min) & (xx_int <= x_max)
+            mask_out_range = ~mask_in_range
+            if mask_out_range.any():
+                xx_tmp = xx_int.clone()
+                xx_tmp[mask_out_range] = (x_min + x_max) / 2
+                hh_intp = intp(xq=xx_tmp, y=hh)
+                ss_intp = intp(xq=xx_tmp, y=ss)
+                hh_intp[mask_out_range] = 0.0
+                ss_intp[mask_out_range] = 0.0
+            else:
+                hh_intp = intp(xq=xx_int, y=hh)
+                ss_intp = intp(xq=xx_int, y=ss)
             
             for ipt in self.idp_sk.orbpairtype_maps.keys():
                 slc = self.idp_sk.orbpairtype_maps[ipt]
                 hopping_params[idx][slc] = hh_intp[self.intgl_order[ipt]]
                 overlap_params[idx][slc] = ss_intp[self.intgl_order[ipt]]
 
-
-
         format_skdict['Hopping'] = hopping_params
         format_skdict['Overlap'] = overlap_params
         format_skdict['OnsiteE'] = onsiteE_params
 
         return format_skdict
-
+    
 def find_first_false(arr):
     """
     Find the index of the first occurrence of False in each row of a 2D array, counting from the end of the row.
@@ -309,18 +319,21 @@ def cal_rmin_rmax(skdata):
     """
 
     atomic_symbols = list(skdata['OnsiteE'].keys())
+
+    # using homo param to determine  the rmax
     atomic_r_max_dict = {}
+
     for isym in atomic_symbols:
         bondtype = isym + '-' + isym
         hopp = skdata['Hopping'][bondtype].numpy()
         dist = skdata['Distance'][bondtype].numpy()
         assert len(dist) == hopp.shape[1]
-        ind = find_first_false(np.abs(hopp)<1e-3)
+        ind = find_first_false(np.abs(hopp)<1e-2)
         rmax = dist[np.max(ind)]
         # rmx 保留两位小数
         atomic_r_max_dict[isym] = round(rmax / 2,2)
     
-
+    # update rmax based on the homo rmax and hetero param.
     for isym in atomic_symbols:
         for jsym in atomic_symbols:
             if isym != jsym:
@@ -328,18 +341,17 @@ def cal_rmin_rmax(skdata):
                 hopp = skdata['Hopping'][bondtype].numpy()
                 dist = skdata['Distance'][bondtype].numpy()
                 assert len(dist) == hopp.shape[1]
-                ind = find_first_false(np.abs(hopp)<1e-3)
+                ind = find_first_false(np.abs(hopp)<1e-2)
                 rmax = dist[np.max(ind)]
 
                 # 按照共价半径比例拆分
-                rario = Covalent_radii[isym] / (Covalent_radii[isym] + Covalent_radii[jsym])
+                rario = atomic_r_max_dict[isym] / (atomic_r_max_dict[isym] + atomic_r_max_dict[jsym])
                 rmax_isym = rmax * rario
                 rmax_jsym = rmax * (1-rario)
                 if rmax_isym >  atomic_r_max_dict[isym]:
                     atomic_r_max_dict[isym] = round(rmax_isym,2)
                 if rmax_jsym >  atomic_r_max_dict[jsym]:
                     atomic_r_max_dict[jsym] = round(rmax_jsym,2)
-
 
     atomic_r_min_dict = {}
     for isym in atomic_symbols:
