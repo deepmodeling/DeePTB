@@ -29,6 +29,7 @@ class HoppingFormula(BaseHopping):
         'poly2exp': 4,
         'NRL0': 4,
         "NRL1": 4,
+        'poly4pow':6,
         'custom': None,
     }
 
@@ -36,36 +37,16 @@ class HoppingFormula(BaseHopping):
         super(HoppingFormula, self).__init__()
         # one can modify this by add his own formula with the name functype to deifine num of pars.
         self.overlap = overlap
-        if functype == 'varTang96':
-            assert hasattr(self, 'varTang96')
-
-        elif functype == 'poly2exp':
-            assert hasattr(self, 'poly2exp')
-       
-        elif functype == 'poly1pow':
-            assert hasattr(self, 'poly1pow')
-
-        elif functype == 'poly2pow':
-            assert hasattr(self, 'poly3pow')
-
-        elif functype == 'poly3pow':
-            assert hasattr(self, 'poly3pow')
-
-        elif functype == 'powerlaw':
-            assert hasattr(self, 'powerlaw')
-
-        elif functype in ['NRL0', "NRL1"]:
-            assert hasattr(self, 'NRL_HOP')
-            if overlap:
-                assert hasattr(self, 'NRL_OVERLAP0') and hasattr(self, 'NRL_OVERLAP1')
-
-        elif functype =='custom':
-             # the functype custom, is for user to define their own formula.
-            # just modify custom to the name of your formula.
-            # and define the funnction self.custom(rij, paraArray, **kwargs)
-            assert hasattr(self, 'custom')
+        if functype in self.num_paras_dict.keys():
+            if functype in ['NRL0', 'NRL1']:
+                assert hasattr(self, 'NRL_HOP')
+                if overlap:
+                    assert hasattr(self, 'NRL_OVERLAP0') and hasattr(self, 'NRL_OVERLAP1')
+            else:
+                assert hasattr(self, functype)
         else:
-            raise ValueError('No such formula')
+            raise ValueError(f'No such formula: {functype}')
+        
         
         self.functype = functype
         self.num_paras = self.num_paras_dict[functype]
@@ -79,23 +60,16 @@ class HoppingFormula(BaseHopping):
             The function defined by functype is called to cal skhij and returned.
         
         '''
-
-        if self.functype == 'varTang96':
-            return self.varTang96(rij=rij, **kwargs)
-        elif self.functype == 'powerlaw':
-            return self.powerlaw(rij=rij, **kwargs)
-        elif self.functype == 'poly1pow':
-            return self.poly1pow(rij=rij, **kwargs)
-        elif self.functype == 'poly2pow':
-            return self.poly2pow(rij=rij, **kwargs)
-        elif self.functype == 'poly3pow':
-            return self.poly3pow(rij=rij, **kwargs)
-        elif self.functype == 'poly2exp':
-            return self.poly2exp(rij=rij, **kwargs)
-        elif self.functype.startswith('NRL'):
-            return self.NRL_HOP(rij=rij, **kwargs)
+        if self.functype.startswith('NRL'):
+            method_name = 'NRL_HOP'
         else:
-            raise ValueError('No such formula')
+            method_name = self.functype
+
+        try:
+            method = getattr(self, method_name)
+            return method(rij=rij, **kwargs)
+        except AttributeError:
+            raise ValueError(f'No such formula: {self.functype}')
 
     def get_sksij(self,rij,**kwargs):
         '''This is a wrap function for a self-defined formula of sk overlap. one can easily modify it into whatever form they want.
@@ -107,25 +81,16 @@ class HoppingFormula(BaseHopping):
         '''
         assert self.overlap, 'overlap is False, no overlap function is defined.'
 
-        if self.functype == 'NRL0':
-            return self.NRL_OVERLAP0(rij=rij, **kwargs)
-        if self.functype == 'NRL1':
-            return self.NRL_OVERLAP1(rij=rij, **kwargs)
-        elif self.functype == "powerlaw":
-            return self.powerlaw(rij=rij, **kwargs)
-        elif self.functype == 'poly1pow':
-            return self.poly1pow(rij=rij, **kwargs)
-        elif self.functype == 'poly2pow':
-            return self.poly2pow(rij=rij, **kwargs)
-        elif self.functype == 'poly3pow':
-            return self.poly3pow(rij=rij, **kwargs)
-        elif self.functype == 'poly2exp':
-            return self.poly2exp(rij=rij, **kwargs)
-        elif self.functype == "varTang96":
-            return self.varTang96(rij=rij, **kwargs)
+        if self.functype in ['NRL0', 'NRL1']:
+            method_name = f'NRL_OVERLAP{self.functype[-1]}'
         else:
-            raise ValueError('No such formula')
+            method_name = self.functype
 
+        try: 
+            method = getattr(self, method_name)
+            return method(rij=rij, **kwargs)
+        except AttributeError:
+            raise ValueError(f'No such formula: {self.functype}')
 
     def varTang96(self, rij: torch.Tensor, paraArray: torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """> This function calculates the value of the variational form of Tang et al 1996. without the
@@ -257,7 +222,33 @@ class HoppingFormula(BaseHopping):
         f_rij = 1/(1+torch.exp((rij-rs+5*w)/w))
 
         return (alpha1 + alpha2 * (rij-r0) + 0.5 * alpha3 * (rij - r0)**2 + 1/6 * alpha4 * (rij-r0)**3) * (r0/rij)**(1 + alpha5) * f_rij
+
+    def poly4pow(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
+        """> This function calculates SK integrals without the environment dependence of the form of powerlaw
+
+                $$ h(rij) = alpha_1 * (rij / r_ij0)^(lambda + alpha_2) $$
+        """
+
+        #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
+        alpha1, alpha2, alpha3, alpha4, alpha5, alpha6 = paraArray[..., 0], paraArray[..., 1], paraArray[..., 2], paraArray[..., 3], paraArray[..., 4], paraArray[..., 5].abs()
+        #[N, n_op]
+        shape = [-1]+[1] * (len(alpha1.shape)-1)
+        # [-1, 1]
+        rij = rij.reshape(shape)
+        r0 = r0.reshape(shape)
+
+        # r0 = r0 / 1.8897259886
+        if isinstance(rs, torch.Tensor):
+            rs = rs.reshape(shape)
+        else:
+            assert isinstance(rs, (float, int)), 'rs should be a tensor or a float or int.'
+        # r_decay = w * rc
+        # evlp = 0.5 * (torch.cos((torch.pi / (rc - r_decay)) * (rij.clamp(r_decay, rc) - r_decay)) + 1.0)
+        f_rij = 1/(1+torch.exp((rij-rs+5*w)/w))
+
+        return (alpha1 + alpha2 * (rij-r0) + 0.5 * alpha3 * (rij - r0)**2 + 1/6 * alpha4 * (rij-r0)**3 + 1/8 * alpha5 * (rij-r0)**4) * (r0/rij)**(1 + alpha6) * f_rij
     
+
     def poly2exp(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """> This function calculates SK integrals without the environment dependence of the form of powerlaw
 
