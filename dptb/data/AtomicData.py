@@ -1097,7 +1097,17 @@ def neighbor_list_and_relative_vec(
 
     return edge_index, shifts, cell_tensor
 
-def get_r_map(r_max: dict,atomic_numbers=None):
+def get_r_map(r_max: dict, atomic_numbers=None):
+    """
+    Returns a torch tensor representing the mapping of atomic species to their maximum distances.
+
+    Args:
+        r_max (dict): A dictionary mapping atomic species to their maximum distances.
+        atomic_numbers (list, optional): A list of atomic numbers to validate against the atomic species. Defaults to None.
+
+    Returns:
+        torch.Tensor: A torch tensor representing the mapping of atomic species to their maximum distances.
+    """
     atom_species_num = [atomic_num_dict[k] for k in r_max.keys()]
     if atomic_numbers is not None:
         for i in atomic_numbers:
@@ -1105,4 +1115,39 @@ def get_r_map(r_max: dict,atomic_numbers=None):
     r_map = torch.zeros(max(atom_species_num))
     for k, v in r_max.items():
         r_map[atomic_num_dict[k]-1] = v
+    return r_map
+
+def get_r_map_bondwise(r_max:dict, atomic_numbers=None):
+    """
+    Calculate the bondwise distance map based on the maximum bond length dictionary.
+
+    Args:
+        r_max (dict): A dictionary containing the maximum bond lengths for different atom pairs.
+        atomic_numbers (list, optional): A list of atomic numbers. Defaults to None.
+
+    Returns:
+        torch.Tensor: A torch tensor representing the bondwise distance map.
+    """
+    atom_species_num = []
+    for k in r_max.keys():
+        assert len(k.split('-')) == 2
+        atom_a, atom_b = k.split('-')
+        if atom_a not in atom_species_num:
+            atom_species_num.append(atomic_num_dict[atom_a])    
+        if atom_b not in atom_species_num:
+            atom_species_num.append(atomic_num_dict[atom_b])    
+
+    r_map = torch.zeros(max(atom_species_num), max(atom_species_num))
+    for k, v in r_max.items():
+        atom_a, atom_b = k.split('-')
+        
+        inv_value = r_map[atomic_num_dict[atom_b]-1, atomic_num_dict[atom_a]-1]
+        if inv_value == 0:
+            r_map[atomic_num_dict[atom_a]-1, atomic_num_dict[atom_b]-1] = v
+            r_map[atomic_num_dict[atom_b]-1, atomic_num_dict[atom_a]-1] = v
+        else:
+            mean_val = (v + inv_value) / 2
+            r_map[atomic_num_dict[atom_a]-1, atomic_num_dict[atom_b]-1] = mean_val
+            r_map[atomic_num_dict[atom_b]-1, atomic_num_dict[atom_a]-1] = mean_val
+
     return r_map
