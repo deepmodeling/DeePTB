@@ -20,6 +20,6 @@ from dptb.utils.constants import atomic_num_dict
 def test_Covalent_radii():
     for key, val in atomic_num_dict.items():
         if key in Covalent_radii:
-            assert Covalent_radii[key] * 0.01 == R_cov_list[val-1] 
+            assert Covalent_radii[key] == R_cov_list[val-1] 
         else:
             assert R_cov_list[val-1] == -100

@@ -25,7 +25,7 @@ class TestDFTB2NNSK:
             w=1.0,
             functype="powerlaw"
             )
-        dftb2nnsk.optimize(nstep=10)
+        dftb2nnsk.optimize(r_min=1,r_max=6,nstep=10)
 
     def test_tonnsk(self):
         dftb2nnsk = DFTB2NNSK(
