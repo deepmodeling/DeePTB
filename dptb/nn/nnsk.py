@@ -149,10 +149,12 @@ class NNSK(torch.nn.Module):
         self.check_push(push)
 
         if isinstance (self.hopping_options['rs'], dict):
-            if len(self.hopping_options['rs'].keys()[0].split("-")) ==1: # atom-wise rs eg. {'A': 3.0,...}
+            first_key = next(iter(self.hopping_options['rs'].keys()))
+            key_parts = first_key.split("-")
+            if len(key_parts) == 1: # atom-wise rs eg. {'A': 3.0,...}
                 self.r_map = get_r_map(self.hopping_options['rs'])
                 self.r_map_type = 1 # 1 for atom-wise
-            elif len(self.hopping_options['rs'].keys()[0].split("-")) ==2: # bond-wise rs eg. {'A-B': 3.0,...}
+            elif len(key_parts) == 2: # bond-wise rs eg. {'A-B': 3.0,...}
                 self.r_map = get_r_map_bondwise(self.hopping_options['rs'])
                 self.r_map_type = 2 # 2 for bond-wise
             else:

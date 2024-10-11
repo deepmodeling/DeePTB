@@ -357,3 +357,61 @@ class TestNNSK_rmax_dict:
                     fij_new = 1/(1+torch.exp((rij-rs+5*w)/w))
                 
                 assert torch.allclose(hopping_new[i] / fij_new, hopping_old[i] / fij_old, atol=1e-5)    
+    
+    def test_nnsk_rmax_bondwise_dict_samevalue(self):
+        model_options = self.model_options.copy()
+        rs_old = 2.6
+        rs_new_dict = {'B-B':2.6, 'N-N':2.6,'B-N':2.6}
+        for formula in self.hopping_formula:
+            model_options["nnsk"]["hopping"]["method"] = formula
+            model_options["nnsk"]["hopping"]["rs"] = rs_old
+            model = NNSK(**model_options['nnsk'], **self.common_options,transform=False)
+            data = model(self.batch)
+            hopping_old = data[AtomicDataDict.EDGE_FEATURES_KEY].clone()
+            
+            model_options["nnsk"]["hopping"]["rs"] = rs_new_dict
+            model2 = NNSK(**model_options['nnsk'], **self.common_options,transform=False)
+            model2.hopping_param = model.hopping_param
+            data = model2(self.batch)
+            hopping_new = data[AtomicDataDict.EDGE_FEATURES_KEY].clone()
+            assert torch.allclose(hopping_old, hopping_new, atol=1e-5)
+
+    def test_nnsk_rmax_bondwise_dict_diffvalue(self):
+        model_options = self.model_options.copy()
+        rs_old = 2.6
+        rs_new_dict = {'B-B':3.6, 'B-N':2.8, 'N-B':2.8, 'N-N':2.0}
+        for formula in self.hopping_formula:
+            model_options["nnsk"]["hopping"]["method"] = formula
+            model_options["nnsk"]["hopping"]["rs"] = 2.6
+            model = NNSK(**model_options['nnsk'], **self.common_options,transform=False)
+            data = model(self.batch)
+            hopping_old = data[AtomicDataDict.EDGE_FEATURES_KEY].clone()
+
+            model_options["nnsk"]["hopping"]["rs"] = rs_new_dict
+            model3 = NNSK(**model_options['nnsk'], **self.common_options,transform=False)
+            model3.hopping_param = model.hopping_param
+            data = model3(self.batch)
+            hopping_new = data[AtomicDataDict.EDGE_FEATURES_KEY].clone()
+            assert not torch.allclose(hopping_old, hopping_new, atol=1e-5)
+
+            edge_index = data[AtomicDataDict.EDGE_TYPE_KEY].flatten() # it is bond_type index, transform it to reduced bond index
+            edge_number = model.idp_sk.untransform_bond(edge_index).T
+
+            assert edge_number.shape[1] == hopping_old.shape[0]
+
+            for i in range(edge_number.shape[1]):
+                isymbol = atomic_num_dict_r[int(edge_number[0,i])]
+                jsymbol = atomic_num_dict_r[int(edge_number[1,i])]
+                # rs =  0.5 * (rs_new_dict[isymbol] + rs_new_dict[jsymbol])
+                rs = rs_new_dict[f"{isymbol}-{jsymbol}"]
+                rij = data[AtomicDataDict.EDGE_LENGTH_KEY][i]
+                w = model_options["nnsk"]["hopping"]["w"]
+                if formula in ['varTang96', 'powerlaw']:
+                    fij_old = 1/(1+torch.exp((rij-rs_old)/w))
+                    fij_new = 1/(1+torch.exp((rij-rs)/w))
+
+                else:
+                    fij_old = 1/(1+torch.exp((rij-rs_old+5*w)/w))
+                    fij_new = 1/(1+torch.exp((rij-rs+5*w)/w))
+                
+                assert torch.allclose(hopping_new[i] / fij_new, hopping_old[i] / fij_old, atol=1e-5)   
