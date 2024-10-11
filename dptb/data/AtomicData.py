@@ -1074,12 +1074,15 @@ def neighbor_list_and_relative_vec(
         # r_map = torch.zeros(max(atom_species_num))
         # for k, v in r_max.items():
         #     r_map[atomic_num_dict[k]-1] = v
+
+        first_key = next(iter(r_max.keys()))
+        key_parts = first_key.split("-")
         
-        if len*(r_max.keys()[0].split('-')==1):
+        if len(key_parts)==1:
             r_map = get_r_map(r_max, atomic_numbers)
             edge_length_max = 0.5 * (r_map[atomic_numbers[edge_index[0]]-1] + r_map[atomic_numbers[edge_index[1]]-1])
         
-        elif len*(r_max.keys()[0].split('-')==2):
+        elif len(key_parts)==2:
             r_map = get_r_map_bondwise(r_max, atomic_numbers)
             edge_length_max = r_map[atomic_numbers[edge_index[0]]-1,atomic_numbers[edge_index[1]]-1]            
         else:
