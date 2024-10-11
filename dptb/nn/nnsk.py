@@ -18,7 +18,7 @@ from dptb.nn.hamiltonian import SKHamiltonian
 from dptb.utils.tools import j_loader
 from dptb.utils.constants import ALLOWED_VERSIONS
 from dptb.nn.sktb.soc import SOCFormula
-from dptb.data.AtomicData import get_r_map
+from dptb.data.AtomicData import get_r_map, get_r_map_bondwise
 import logging
 
 log = logging.getLogger(__name__)
@@ -147,6 +147,16 @@ class NNSK(torch.nn.Module):
             self.freezefunc(freeze)
 
         self.check_push(push)
+
+        if isinstance (self.hopping_options['rs'], dict):
+            if len(self.hopping_options['rs'].keys()[0].split("-")) ==1: # atom-wise rs eg. {'A': 3.0,...}
+                self.r_map = get_r_map(self.hopping_options['rs'])
+                self.r_map_type = 1 # 1 for atom-wise
+            elif len(self.hopping_options['rs'].keys()[0].split("-")) ==2: # bond-wise rs eg. {'A-B': 3.0,...}
+                self.r_map = get_r_map_bondwise(self.hopping_options['rs'])
+                self.r_map_type = 2 # 2 for bond-wise
+            else:
+                raise ValueError("The rs tag is not recognized. Please check the rs tag.")
 
     def freezefunc(self, freeze: Union[bool,str,list]):
         if freeze is False:
@@ -299,9 +309,13 @@ class NNSK(torch.nn.Module):
         
         hopping_options = self.hopping_options.copy() 
         if isinstance (self.hopping_options['rs'], dict):
-            atomic_numbers = self.idp_sk.untransform_atom(data[AtomicDataDict.ATOM_TYPE_KEY])
-            r_map = get_r_map(self.hopping_options['rs'], atomic_numbers)
-            rs_edgewise = 0.5*r_map[edge_number-1].sum(0)
+            if self.r_map_type == 1:
+                rs_edgewise = 0.5*self.r_map[edge_number-1].sum(0)
+            elif self.r_map_type == 2:
+                rs_edgewise = self.r_map[edge_number[0]-1, edge_number[1]-1]
+            else:
+                raise ValueError(f"r_map_type {self.r_map_type} is not recognized.")
+                
             hopping_options['rs'] = rs_edgewise
 
 
