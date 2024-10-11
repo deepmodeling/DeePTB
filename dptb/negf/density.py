@@ -173,7 +173,7 @@ class Ozaki(Density):
         for i, e in enumerate(poles):
             deviceprop.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
             deviceprop.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
-            deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device,\
+            deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=block_tridiagonal, eta_device=eta_device,\
                                           Vbias = Vbias)
             term = ((-4 * 1j * kBT) * deviceprop.grd[0] * self.residues[i]).imag
             DM_eq -= term
@@ -189,7 +189,7 @@ class Ozaki(Density):
             for i, e in enumerate(xs):
                 deviceprop.lead_L.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
                 deviceprop.lead_R.self_energy(kpoint=kpoint, energy=e, eta_lead=eta_lead)
-                deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=False, eta_device=eta_device)
+                deviceprop.cal_green_function(energy=e, kpoint=kpoint, block_tridiagonal=block_tridiagonal, eta_device=eta_device)
                 gr_gamma_ga = torch.mm(torch.mm(deviceprop.grd[0], deviceprop.lead_R.gamma), deviceprop.grd[0].conj().T).real
                 gr_gamma_ga = gr_gamma_ga * (deviceprop.lead_R.fermi_dirac(e+deviceprop.mu) - deviceprop.lead_L.fermi_dirac(e+deviceprop.mu))
                 DM_neq = DM_neq + wlg[i] * gr_gamma_ga
