@@ -30,6 +30,8 @@ class HoppingFormula(BaseHopping):
         'NRL0': 4,
         "NRL1": 4,
         'poly4pow':6,
+        'poly3exp':5,
+        'poly4exp':6,
         'custom': None,
     }
 
@@ -272,8 +274,59 @@ class HoppingFormula(BaseHopping):
 
         f_rij = 1/(1+torch.exp((rij-rs+5*w)/w))
 
-        return (alpha1 + alpha2 * (rij-r0) + alpha3 * (rij-r0)**2) * torch.exp(-rij * alpha4) * f_rij
+        return (alpha1 + alpha2 * (rij-r0) + 0.5 * alpha3 * (rij-r0)**2) * torch.exp(-rij * alpha4) * f_rij
 
+    def poly3exp(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
+        """> This function calculates SK integrals without the environment dependence of the form of powerlaw
+
+                $$ h(rij) = alpha_1 * (rij / r_ij0)^(lambda + alpha_2) $$
+        """
+
+        #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
+        alpha1, alpha2, alpha3, alpha4, alpha5 = paraArray[..., 0], paraArray[..., 1], paraArray[..., 2],paraArray[..., 3], paraArray[..., 4].abs()
+        #[N, n_op]
+        shape = [-1]+[1] * (len(alpha1.shape)-1)
+        # [-1, 1]
+        rij = rij.reshape(shape)
+        r0 = r0.reshape(shape)
+
+        # r0 = r0 / 1.8897259886
+
+        if isinstance(rs, torch.Tensor):
+            rs = rs.reshape(shape)
+        else:
+            assert isinstance(rs, (float, int)), 'rs should be a tensor or a float or int.'
+
+        f_rij = 1/(1+torch.exp((rij-rs+5*w)/w))
+
+        return (alpha1 + alpha2 * (rij-r0) + 0.5 * alpha3 * (rij-r0)**2 + 1/6 * alpha4 * (rij-r0)**3) * torch.exp(-rij * alpha5) * f_rij
+    
+
+    def poly4exp(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
+        """> This function calculates SK integrals without the environment dependence of the form of powerlaw
+
+                $$ h(rij) = alpha_1 * (rij / r_ij0)^(lambda + alpha_2) $$
+        """
+
+        #alpha1, alpha2, alpha3, alpha4 = paraArray[:, 0], paraArray[:, 1]**2, paraArray[:, 2]**2, paraArray[:, 3]**2
+        alpha1, alpha2, alpha3, alpha4, alpha5, alpha6 = paraArray[..., 0], paraArray[..., 1], paraArray[..., 2], paraArray[..., 3], paraArray[..., 4], paraArray[..., 5].abs()
+        #[N, n_op]
+        shape = [-1]+[1] * (len(alpha1.shape)-1)
+        # [-1, 1]
+        rij = rij.reshape(shape)
+        r0 = r0.reshape(shape)
+
+        # r0 = r0 / 1.8897259886
+        if isinstance(rs, torch.Tensor):
+            rs = rs.reshape(shape)
+        else:
+            assert isinstance(rs, (float, int)), 'rs should be a tensor or a float or int.'
+        # r_decay = w * rc
+        # evlp = 0.5 * (torch.cos((torch.pi / (rc - r_decay)) * (rij.clamp(r_decay, rc) - r_decay)) + 1.0)
+        f_rij = 1/(1+torch.exp((rij-rs+5*w)/w))
+
+        return (alpha1 + alpha2 * (rij-r0) + 0.5 * alpha3 * (rij - r0)**2 + 1/6 * alpha4 * (rij-r0)**3 + 1/8 * alpha5 * (rij-r0)**4) * torch.exp(-rij * alpha6) * f_rij
+    
     def NRL_HOP(self, rij, paraArray, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """
         This function calculates the SK integral value of the form of NRL-TB 
