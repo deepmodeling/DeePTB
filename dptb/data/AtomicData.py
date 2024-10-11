@@ -1075,9 +1075,16 @@ def neighbor_list_and_relative_vec(
         # for k, v in r_max.items():
         #     r_map[atomic_num_dict[k]-1] = v
         
-        r_map = get_r_map(r_max, atomic_numbers)
-
-        edge_length_max = 0.5 * (r_map[atomic_numbers[edge_index[0]]-1] + r_map[atomic_numbers[edge_index[1]]-1])
+        if len*(r_max.keys()[0].split('-')==1):
+            r_map = get_r_map(r_max, atomic_numbers)
+            edge_length_max = 0.5 * (r_map[atomic_numbers[edge_index[0]]-1] + r_map[atomic_numbers[edge_index[1]]-1])
+        
+        elif len*(r_max.keys()[0].split('-')==2):
+            r_map = get_r_map_bondwise(r_max, atomic_numbers)
+            edge_length_max = r_map[atomic_numbers[edge_index[0]]-1,atomic_numbers[edge_index[1]]-1]            
+        else:
+            raise ValueError("The r_max keys should be either atomic number or atomic number pair.")
+        
         r_mask = edge_length <= edge_length_max
         if any(~r_mask):
             edge_index = edge_index[:, r_mask]
@@ -1136,6 +1143,10 @@ def get_r_map_bondwise(r_max:dict, atomic_numbers=None):
             atom_species_num.append(atomic_num_dict[atom_a])    
         if atom_b not in atom_species_num:
             atom_species_num.append(atomic_num_dict[atom_b])    
+    
+    if atomic_numbers is not None:
+        for i in atomic_numbers:
+            assert i in atom_species_num
 
     r_map = torch.zeros(max(atom_species_num), max(atom_species_num))
     for k, v in r_max.items():
