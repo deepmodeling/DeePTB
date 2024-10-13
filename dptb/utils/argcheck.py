@@ -751,6 +751,11 @@ def loss_options():
         Argument("onsite_shift", bool, optional=True, default=False, doc="Whether to use onsite shift in loss function. Default: False"),
     ]
 
+    wt = [
+        Argument("onsite_weight", [int, float, list], optional=True, default=1., doc="Whether to use onsite shift in loss function. Default: False"),
+        Argument("hopping_weight", [int, float, list], optional=True, default=1., doc="Whether to use onsite shift in loss function. Default: False"),
+    ]
+
     eigvals = [
         Argument("diff_on", bool, optional=True, default=False, doc="Whether to use random differences in loss function. Default: False"),
         Argument("eout_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue out of range. Default: 0.01"),
@@ -769,6 +774,7 @@ def loss_options():
         Argument("skints", dict, sub_fields=skints),
         Argument("hamil_abs", dict, sub_fields=hamil),
         Argument("hamil_blas", dict, sub_fields=hamil),
+        Argument("hamil_wt", dict, sub_fields=hamil+wt),
     ], optional=False, doc=doc_method)
 
     
