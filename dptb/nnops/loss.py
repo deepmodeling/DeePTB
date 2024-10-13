@@ -507,7 +507,7 @@ class HamilLossWT(nn.Module):
             **kwargs,
         ):
 
-        super(HamilLossBlas, self).__init__()
+        super(HamilLossWT, self).__init__()
         self.overlap = overlap
         self.device = device
         self.onsite_shift = onsite_shift
