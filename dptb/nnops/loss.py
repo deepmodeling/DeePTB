@@ -480,7 +480,7 @@ class HamilLossBlas(nn.Module):
                 dim=0,
                 dim_size=len(self.idp.type_names)
                 )[onsite_index][self.idp.mask_to_nrme[onsite_index]].mean() + scatter_mean(
-                src = onsite_loss**2,
+                src = overlap_onsite_loss**2,
                 index = data[AtomicDataDict.ATOM_TYPE_KEY].flatten(),
                 dim=0,
                 dim_size=len(self.idp.type_names)
@@ -512,8 +512,8 @@ class HamilLossWT(nn.Module):
         self.device = device
         self.onsite_shift = onsite_shift
 
-        self.onsite_weight = torch.tensor(onsite_weight, dtype=dtype, device=device).flatten().unsqueeze(1)
-        self.hopping_weight = torch.tensor(hopping_weight, dtype=dtype, device=device).flatten().unsqueeze(1)
+        self.onsite_weight = torch.tensor(onsite_weight, device=device).flatten().unsqueeze(1)
+        self.hopping_weight = torch.tensor(hopping_weight, device=device).flatten().unsqueeze(1)
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
@@ -611,8 +611,8 @@ class HamilLossWT(nn.Module):
                 index = data[AtomicDataDict.ATOM_TYPE_KEY].flatten(),
                 dim=0,
                 dim_size=len(self.idp.type_names)
-                )[onsite_index])[self.idp.mask_to_nrme[onsite_index]].mean() + (self.onsite_weight ** 2 * scatter_mean(
-                src = onsite_loss**2,
+                )[onsite_index])[self.idp.mask_to_nrme[onsite_index]].mean() + ((self.onsite_weight ** 2) * scatter_mean(
+                src = overlap_onsite_loss**2,
                 index = data[AtomicDataDict.ATOM_TYPE_KEY].flatten(),
                 dim=0,
                 dim_size=len(self.idp.type_names)
