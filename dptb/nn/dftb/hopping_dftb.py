@@ -42,7 +42,7 @@ class HoppingIntp(BaseHopping):
         mask_in_range = (rij >= min_x) & (rij <= max_x)
         mask_out_range = ~mask_in_range
         if mask_out_range.any():
-            log.warning("Some rij values are outside the interpolation range and will be set to 0.")
+            # log.warning("Some rij values are outside the interpolation range and will be set to 0.")
             # 创建 rij 的副本，并将范围外的值替换为范围内的值（例如，使用 min_x）
             rij_modified = rij.clone()
             rij_modified[mask_out_range] = (min_x + max_x) / 2

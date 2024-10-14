@@ -254,15 +254,15 @@ class DFTB2NNSK:
                 r_max_ = self.r_max[self.curr_bond_indices]
             else:
                 assert r_min is not None and r_max is not None, "bothr_min and r_max should be provided or both None."
-                r_min_ = r_min
+                r_min_ = torch.tensor(r_min)
                 r_max_ = r_max
-
+            
             # r = torch.rand([len(self.curr_bond_indices),nsample]) * (r_max_ - r_min_) + r_min_
             # 用 gauss 分布的随机数，重点采样在 r_min 和 r_max范围中心区域的值
             # std = (r_max_ - r_min_)/8  4 sigma 展宽
             # mean = (r_max_ + r_min_)/2 中心为 r_max 和 r_min 的中点
             # r =torch.randn([len(self.curr_bond_indices),nsample]) * (r_max_ - r_min_)/8 + (r_max_ + r_min_)/2
-            r = self.truncated_normal(shape=[len(self.curr_bond_indices),nsample], min_val=r_min_, max_val=r_max_, stdsigma=2)
+            r = self.truncated_normal(shape=[len(self.curr_bond_indices),nsample], min_val=r_min_, max_val=r_max_, stdsigma=0.5)
             hopping, overlap = vmap(self.step,in_dims=1)(r)
 
             dftb_hopping = self.dftb(r, bond_indices = self.curr_bond_indices, mode="hopping").permute(1,0,2)
@@ -336,8 +336,11 @@ class DFTB2NNSK:
     
     @staticmethod
     def truncated_normal(shape, min_val, max_val, stdsigma=2):
+        min_val = torch.as_tensor(min_val)
+        max_val = torch.as_tensor(max_val)
+        
         mean = (min_val + max_val) / 2
-        mean = (2 * min_val + mean) / 2
+        #mean = (2 * min_val + mean) / 2
         std = (max_val - min_val) / (2 * stdsigma)
         u = torch.rand(shape)
         cdf_low = torch.erf((min_val - mean) / (std * 2.0**0.5)) / 2.0 + 0.5

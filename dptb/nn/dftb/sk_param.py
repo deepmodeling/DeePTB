@@ -84,10 +84,10 @@ class SKParam:
             raise ValueError("The skdata should be a dict or string for a file path.")
         
         if cal_rcuts:
-            self.atomic_r_min, self.atomic_r_max = cal_rmin_rmax(skdata=skdict)
+            self.bond_r_min, self.bond_r_max = cal_rmin_rmax_bondwise(skdata=skdict)
         else:
-            self.atomic_r_min = None
-            self.atomic_r_max = None
+            self.bond_r_min = None
+            self.bond_r_max = None
             
         self.skdict = self.format_skparams(skdict)
 
@@ -303,6 +303,54 @@ def find_first_false(arr):
     no_false_rows = np.all(reversed_arr, axis=1)
     original_indices[no_false_rows] = -1
     return original_indices
+
+
+def cal_rmin_rmax_bondwise(skdata):
+    """
+    Calculate the minimum and maximum bond distances for each pair of atomic symbols.
+
+    This function computes the minimum and maximum bond distances (rmin and rmax) for each 
+    pair of atomic symbols based on the provided Slater-Koster data. The minimum bond distance 
+    is calculated using the covalent radii of the atoms, and the maximum bond distance is 
+    determined from the hopping integrals and distances.
+
+    Parameters:
+    skdata (dict): A dictionary containing Slater-Koster data with the following keys:
+        - 'OnsiteE': A dictionary where keys are atomic symbols and values are onsite energies.
+        - 'Hopping': A dictionary where keys are bond types (e.g., 'C-H') and values are 
+                     tensors of hopping integrals.
+        - 'Distance': A dictionary where keys are bond types and values are tensors of distances.
+
+    Returns:
+    tuple: A tuple containing two dictionaries:
+        - atomic_r_min_dict (dict): A dictionary where keys are bond types and values are the 
+                                    minimum bond distances.
+        - atomic_r_max_dict (dict): A dictionary where keys are bond types and values are the 
+                                    maximum bond distances.
+    """
+    atomic_symbols = list(skdata['OnsiteE'].keys())
+
+    atomic_r_max_dict = {}
+    atomic_r_min_dict = {}
+    for isym in atomic_symbols:
+        for jsym in atomic_symbols:
+            bondtype = isym + '-' + jsym
+            inv_bondtype = jsym + '-' + isym
+
+            hopp = skdata['Hopping'][bondtype].numpy()
+            dist = skdata['Distance'][bondtype].numpy()
+            assert len(dist) == hopp.shape[1]
+            # ind = find_first_false(np.abs(hopp)<1e-3*np.abs(hopp).max())
+            ind = find_first_false(np.abs(hopp)<1e-2)
+            rmax = dist[np.max(ind)]
+            if inv_bondtype in atomic_r_max_dict:
+                rmax = max(rmax, atomic_r_max_dict[inv_bondtype])
+            atomic_r_max_dict[bondtype] = round(rmax,2)
+            atomic_r_max_dict[inv_bondtype] = round(rmax,2)
+
+
+            atomic_r_min_dict[bondtype] = round(0.5 * Covalent_radii[isym] + 0.5 * Covalent_radii[jsym],2)
+    return atomic_r_min_dict, atomic_r_max_dict
 
 
 def cal_rmin_rmax(skdata):
