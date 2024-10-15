@@ -24,8 +24,8 @@ from dptb.data import AtomicData
 atomicdata = AtomicData.from_ase(
     atoms=ase.Atoms[Your ase Atoms structure class],
     r_max=float[some cutoff radius],
-    er_max: Optional[float],
-    oer_max: Optional[float]
+    er_max: Optional[float], # work in sk mode, ignore in e3
+    oer_max: Optional[float] # work in sk mode, ignore in e3
 )
 
 atomicdata.from_points(
@@ -51,6 +51,9 @@ atomicdata = dataset[0] # dataset contains a list of atomicdata, you can get any
 ```
 
 ## make prediction
+
+### SKTB
+
 The prediction can be simply performed once we have a AtomicData class and a model:
 ```Python
 atomicdata = model(AtomicData.to_AtomicDataDict(atomicdata))
@@ -67,14 +70,24 @@ The SKTB hamiltonian can be constructed from the infered atomicdata:
 ```Python
 atomicdata = skham(atomicdata)
 ```
-After this step, we have attained the SK Hamiltonian stored in atomicdata class. The hamiltonian is arranged as the edge(bond)-wide hopping block and node(atom)-wise onsite block, which is then reshaped as a 1-D array. We doing this to save memory and help to perform batchlized operations. You can simply recover this format to a conventional `H(R)` with $(i,j,R)->H_{ij}(R)$ block with a transcript function:
+
+### E3TB
+For E3 model, the hamiltonian and overlap can be predict at one shot, by:
+```Python
+atomicdata = model(AtomicData.to_AtomicDataDict(atomicdata))
+```
+Then the "edge_features", "node_features", "edge_overlap", "node_overlap" would be the Hamiltonian and Overlap features.
+
+
+After this step, we have attained the Hamiltonian and/or Overlap stored in atomicdata class. The hamiltonian is arranged as the edge(bond)-wide hopping block and node(atom)-wise onsite block, which is then reshaped as a 1-D array. We doing this to save memory and help to perform batchlized operations. You can simply recover this format to a conventional `H(R)` with $(i,j,R)->H_{ij}(R)$ block with a transcript function:
 
 ```Python
 from dptb.data import feature_to_block
 
 H_block = feature_to_block(data=atomicdata, idp=model.idp)
+S_block = feature_to_block(data=atomicdata, idp=model.idp, overlap=True)
 ```
-H_block is a dictionary of python.
+H_block and S_block is a dictionary of python.
 
 ## compute properties
 The DeePTB package provide many tools to compute physical quantities from the predicted `H(R)`, here we make a list of the functions and their importing method.
