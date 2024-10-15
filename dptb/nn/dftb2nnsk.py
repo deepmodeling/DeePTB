@@ -81,7 +81,7 @@ class DFTB2NNSK:
         if rs is None:
             if not cal_rcuts:
                 log.warning('rs is not provided, the r_max and r_min will be calculated from the dftb parameters.'), 
-            self.rs = self.dftb.atomic_r_max
+            self.rs = self.dftb.bond_r_max
             self.r_map = get_r_map_bondwise(self.dftb.bond_r_max)
             self.r_max = []
             self.r_min = []

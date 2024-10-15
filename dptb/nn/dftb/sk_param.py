@@ -342,7 +342,7 @@ def cal_rmin_rmax_bondwise(skdata):
             assert len(dist) == hopp.shape[1]
             # ind = find_first_false(np.abs(hopp)<1e-3*np.abs(hopp).max())
             ind = find_first_false(np.abs(hopp)<1e-2)
-            rmax = dist[np.max(ind)]
+            rmax = dist[np.max(ind)].item()
             if inv_bondtype in bond_r_max_dict:
                 rmax = max(rmax, bond_r_max_dict[inv_bondtype])
             bond_r_max_dict[bondtype] = round(rmax,2)
