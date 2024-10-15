@@ -330,8 +330,8 @@ def cal_rmin_rmax_bondwise(skdata):
     """
     atomic_symbols = list(skdata['OnsiteE'].keys())
 
-    atomic_r_max_dict = {}
-    atomic_r_min_dict = {}
+    bond_r_max_dict = {}
+    bond_r_min_dict = {}
     for isym in atomic_symbols:
         for jsym in atomic_symbols:
             bondtype = isym + '-' + jsym
@@ -343,14 +343,14 @@ def cal_rmin_rmax_bondwise(skdata):
             # ind = find_first_false(np.abs(hopp)<1e-3*np.abs(hopp).max())
             ind = find_first_false(np.abs(hopp)<1e-2)
             rmax = dist[np.max(ind)]
-            if inv_bondtype in atomic_r_max_dict:
-                rmax = max(rmax, atomic_r_max_dict[inv_bondtype])
-            atomic_r_max_dict[bondtype] = round(rmax,2)
-            atomic_r_max_dict[inv_bondtype] = round(rmax,2)
+            if inv_bondtype in bond_r_max_dict:
+                rmax = max(rmax, bond_r_max_dict[inv_bondtype])
+            bond_r_max_dict[bondtype] = round(rmax,2)
+            bond_r_max_dict[inv_bondtype] = round(rmax,2)
 
 
-            atomic_r_min_dict[bondtype] = round(0.5 * Covalent_radii[isym] + 0.5 * Covalent_radii[jsym],2)
-    return atomic_r_min_dict, atomic_r_max_dict
+            bond_r_min_dict[bondtype] = round(0.5 * Covalent_radii[isym] + 0.5 * Covalent_radii[jsym],2)
+    return bond_r_min_dict, bond_r_max_dict
 
 
 def cal_rmin_rmax(skdata):

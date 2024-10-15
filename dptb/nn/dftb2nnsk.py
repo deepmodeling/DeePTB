@@ -12,7 +12,7 @@ from torch.optim import Adam, LBFGS, RMSprop, SGD
 from torch.optim.lr_scheduler import ExponentialLR
 from dptb.nn.nnsk import NNSK
 from dptb.nn.sktb.onsite import onsite_energy_database
-from dptb.data.AtomicData import get_r_map
+from dptb.data.AtomicData import get_r_map, get_r_map_bondwise
 import numpy as np
 from typing import Union
 import logging
@@ -22,8 +22,8 @@ log = logging.getLogger(__name__)
 class dftb:
     def __init__(self, basis, skdata, cal_rcuts=False):
         self.param = SKParam(basis=basis, skdata=skdata, cal_rcuts=cal_rcuts)
-        self.atomic_r_min = self.param.atomic_r_min
-        self.atomic_r_max = self.param.atomic_r_max
+        self.bond_r_min = self.param.bond_r_min
+        self.bond_r_max = self.param.bond_r_max
         self.idp_sk = self.param.idp_sk
 
         self.param = self.param.format_skparams(self.param.skdict)
@@ -82,15 +82,12 @@ class DFTB2NNSK:
             if not cal_rcuts:
                 log.warning('rs is not provided, the r_max and r_min will be calculated from the dftb parameters.'), 
             self.rs = self.dftb.atomic_r_max
-            self.r_map = get_r_map(self.dftb.atomic_r_max)
+            self.r_map = get_r_map_bondwise(self.dftb.bond_r_max)
             self.r_max = []
             self.r_min = []
             for ibt in self.idp_sk.bond_types:
-                it = ibt.split('-')[0]
-                jt = ibt.split('-')[1]
-                #print(atomic_r_min_dict[it],atomic_r_min_dict[jt],atomic_r_min_dict[it] + atomic_r_min_dict[jt])
-                self.r_max.append(self.dftb.atomic_r_max[it] + self.dftb.atomic_r_max[jt])
-                self.r_min.append(self.dftb.atomic_r_min[it] + self.dftb.atomic_r_min[jt])
+                self.r_max.append(self.dftb.bond_r_max[ibt])
+                self.r_min.append(self.dftb.bond_r_min[ibt])
             self.r_max = torch.tensor(self.r_max, dtype=torch.float32).reshape(-1,1)
             self.r_min = torch.tensor(self.r_min, dtype=torch.float32).reshape(-1,1)
 
@@ -136,7 +133,8 @@ class DFTB2NNSK:
 
         if isinstance(self.rs, dict):
             assert hasattr(self, "r_map")
-            r_cutoffs = self.r_map[edge_number-1].sum(0)
+            # r_cutoffs = self.r_map[edge_number-1].sum(0)
+            r_cutoffs = self.r_map[edge_number[0]-1, edge_number[1]-1]
             assert torch.allclose(r_cutoffs,self.r_max[bond_ind_r_shp].reshape(-1))
         else:
             assert isinstance(self.rs, (int,float))
