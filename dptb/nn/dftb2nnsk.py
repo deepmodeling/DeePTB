@@ -1,6 +1,7 @@
 from dptb.nn.dftb.sk_param import SKParam
 from dptb.nn.dftb.hopping_dftb import HoppingIntp
 import torch
+from torch import nn
 from dptb.nn.sktb.hopping import HoppingFormula
 from dptb.nn.sktb import OnsiteFormula, bond_length_list
 from dptb.nn.sktb.cov_radiiDB import Covalent_radii
@@ -16,6 +17,7 @@ from dptb.data.AtomicData import get_r_map, get_r_map_bondwise
 import numpy as np
 from typing import Union
 import logging
+import os
 
 log = logging.getLogger(__name__)
 
@@ -44,9 +46,14 @@ class dftb:
         
         return torch.stack(out)
     
-class DFTB2NNSK:
+class DFTB2NNSK(nn.Module):
+
     def __init__(self, basis, skdata, functype='poly2pow', rs=None, w=0.2, cal_rcuts=False, atomic_radius='cov'):
+        if rs is None:
+            assert not cal_rcuts, "If rs is not provided, cal_rcuts should be False."
+
         self.dftb = dftb(basis=basis, skdata=skdata, cal_rcuts=cal_rcuts)
+        self.basis = basis
         self.functype = functype
         self.idp_sk = self.dftb.idp_sk
         # self.rs = rs
@@ -55,7 +62,11 @@ class DFTB2NNSK:
         self.nnsk_overlap = HoppingFormula(functype=self.functype, overlap=True)
         self.hopping_params = torch.nn.Parameter(torch.randn(len(self.idp_sk.bond_types), self.dftb.hopping.num_ingrls, self.nnsk_hopping.num_paras))
         self.overlap_params = torch.nn.Parameter(torch.randn(len(self.idp_sk.bond_types), self.dftb.hopping.num_ingrls, self.nnsk_hopping.num_paras))
-
+        self.atomic_radius = atomic_radius
+        self.initialize_atomic_radius(basis, atomic_radius)
+        self.initialize_rs_and_cutoffs(rs, cal_rcuts)
+        
+    def initialize_atomic_radius(self, basis, atomic_radius):
         if isinstance(atomic_radius, str):
             if atomic_radius == 'cov':
                 atomic_radius = Covalent_radii
@@ -78,10 +89,22 @@ class DFTB2NNSK:
             
             self.atomic_radius_list[atomic_num_dict[at]-1] = radii
 
-        if rs is None:
-            if not cal_rcuts:
-                log.warning('rs is not provided, the r_max and r_min will be calculated from the dftb parameters.'), 
-            self.rs = self.dftb.bond_r_max
+    def initialize_rs_and_cutoffs(self, rs, cal_rcuts):
+        if not cal_rcuts:
+            assert isinstance(rs, (float,int)), "If cal_rcuts is False, the rs should be a float"
+            self.rs = rs
+            self.r_max = None
+            self.r_min = None 
+        else:
+            if rs is None:
+                self.rs = self.dftb.bond_r_max
+            else:
+                assert isinstance(rs, dict)
+                for k, v in self.dftb.bond_r_max.items():
+                    assert k in rs, f"The bond type {k} is not in the rs dict."
+                    assert rs[k] == v, f"The bond type rmax in {k} is not equal to the dftb bond_r_max."
+                self.rs = rs    
+
             self.r_map = get_r_map_bondwise(self.dftb.bond_r_max)
             self.r_max = []
             self.r_min = []
@@ -91,16 +114,6 @@ class DFTB2NNSK:
             self.r_max = torch.tensor(self.r_max, dtype=torch.float32).reshape(-1,1)
             self.r_min = torch.tensor(self.r_min, dtype=torch.float32).reshape(-1,1)
 
-        else:
-            if not cal_rcuts :
-                assert isinstance(rs, (float, dict))
-                self.rs = rs
-                self.r_max = None
-                self.r_min = None
-            else:
-                log.error("The rs is seted but the cal_rcuts is also set true. you should only set one of them.")
-                raise ValueError("The rs is seted but the cal_rcuts is also set true. you should only set one of them.")
-            
 
     def symmetrize(self):
         reflective_bonds = np.array([self.idp_sk.bond_to_type["-".join(self.idp_sk.type_to_bond[i].split("-")[::-1])] for i  in range(len(self.idp_sk.bond_types))])
@@ -122,7 +135,44 @@ class DFTB2NNSK:
                 self.overlap_params.data[:,self.idp_sk.orbpair_maps[k],:] = 0.5 * (params[:,self.idp_sk.orbpair_maps[k],:] + reflect_params[:,self.idp_sk.orbpair_maps[k],:])
         
         return True
+    def save(self,filepath='./'):
+        state = {
+            "basis": self.basis,
+            "model_state_dict": self.state_dict(),
+            'functype': self.functype,
+            'rs': self.rs,
+            'w': self.w,
+            'cal_rcuts': self.r_max is not None,
+            'atomic_radius': self.atomic_radius
+        }
+        torch.save(state, f"{filepath}/dftb2nnsk.pt")
+        log.info(f"The model is saved to {filepath}/dftb2nnsk.pt")
+
+    def get_config(self):
+        return {
+            'basis': self.basis,
+            'functype': self.functype,
+            'rs': self.rs,
+            'w': self.w,
+            'cal_rcuts': self.r_max is not None,
+            'atomic_radius': self.atomic_radius
+        }
+
+    @classmethod
+    def load(cls, ckpt, skdata):
+        if not os.path.exists(ckpt):
+            raise FileNotFoundError(f"No file found at {ckpt}")
+
+        state = torch.load(ckpt)
+        model = cls(basis=state["basis"], skdata=skdata, functype=state['functype'], 
+                    rs=state['rs'], w=state['w'], cal_rcuts=state['cal_rcuts'],
+                    atomic_radius=state['atomic_radius'])
+        
+        model.load_state_dict(state['model_state_dict'])
+        
+        return model 
     
+
     def step(self, r):
         assert r.shape[0] == len(self.curr_bond_indices)
         r = r.reshape(-1)
@@ -156,8 +206,85 @@ class DFTB2NNSK:
             r0=r0
             )
         return hopping, overlap
-    
+            
+    def optimize(self, r_min=None, r_max=None, nsample=256, nstep=40000, lr=1e-1, dis_freq=1000, method="RMSprop", viz=False, max_elmt_batch=4):
+        """
+        Optimize the parameters of the neural network model.
 
+        Args:
+            r_min (float): The minimum value for the random range of r.
+            r_max (float): The maximum value for the random range of r.
+            nsample (int): The number of samples to generate for r.
+            nstep (int): The number of optimization steps to perform.
+            lr (float): The learning rate for the optimizer.
+            dis_freq (int): The frequency at which to display the loss during optimization.
+            method (str): The optimization method to use. Supported methods are "RMSprop" and "LBFGS".
+            viz (bool): Whether to visualize the optimized results.
+            max_elmt_batch (int): max_elmt_batch^2 defines The maximum number of bond types to optimize in each batch.
+             ie. if max_elmt_batch=4, we will optimize 16 bond types in each batch.
+
+        Returns:
+            bool: True if the optimization is successful.
+
+        Raises:
+            NotImplementedError: If the specified optimization method is not supported.
+        """
+
+        if method=="RMSprop":
+            optimizer = RMSprop([self.hopping_params, self.overlap_params], lr=lr, momentum=0.2)
+        elif method=="LBFGS":
+            optimizer = LBFGS([self.hopping_params, self.overlap_params], lr=lr)
+        else:
+            raise NotImplementedError
+        
+        lrscheduler = ExponentialLR(optimizer, gamma=0.9998)
+        self.loss = torch.tensor(0.)
+
+
+        def closure():
+            optimizer.zero_grad()
+            if r_min is None and r_max is None:
+                assert self.r_min is not None and self.r_max is not None, "When both r_min and r_max  are None. cal_rcuts=True when initializing the DFTB2NNSK object."
+                r_min_ = self.r_min[self.curr_bond_indices]
+                r_max_ = self.r_max[self.curr_bond_indices]
+            else:
+                assert r_min is not None and r_max is not None, "bothr_min and r_max should be provided or both None."
+                r_min_ = torch.tensor(r_min)
+                r_max_ = r_max
+            
+            # 用 gauss 分布的随机数，重点采样在 r_min 和 r_max范围中心区域的值
+            r = self.truncated_normal(shape=[len(self.curr_bond_indices),nsample], min_val=r_min_, max_val=r_max_, stdsigma=0.5)
+            hopping, overlap = vmap(self.step,in_dims=1)(r)
+
+            dftb_hopping = self.dftb(r, bond_indices = self.curr_bond_indices, mode="hopping").permute(1,0,2)
+            dftb_overlap = self.dftb(r, bond_indices = self.curr_bond_indices, mode="overlap").permute(1,0,2)
+
+            self.loss = (hopping - dftb_hopping).abs().mean() + \
+                torch.nn.functional.mse_loss(hopping, dftb_hopping).sqrt() + \
+                    15*torch.nn.functional.mse_loss(overlap, dftb_overlap).sqrt() + \
+                        15*(overlap - dftb_overlap).abs().mean()
+            self.loss.backward()
+            return self.loss
+
+        total_bond_types = len(self.idp_sk.bond_types)
+    
+        for istep in range(nstep):
+            if istep % dis_freq == 0:
+                print(f"step {istep}, loss {self.loss.item()}, lr {lrscheduler.get_last_lr()[0]}")
+            # 如果 total_bond_types 太大, 会导致内存不够, 可以考虑分批次优化, 每次优化一部分的bond_types
+            # 我们定义一次优化最大的bond_types数量为 max_elmt_batch^2    
+            bond_indices_all = torch.randperm(total_bond_types)
+            for i in range(0, total_bond_types, max_elmt_batch**2):
+                curr_indices = torch.arange(i, min(i+max_elmt_batch**2, total_bond_types))
+                self.curr_bond_indices = bond_indices_all[curr_indices]
+                optimizer.step(closure)
+            
+            lrscheduler.step()
+            self.symmetrize()
+        if viz:
+            self.viz(r_min=r_min, r_max=r_max)
+        return True
+    
     def viz(self, atom_a:str, atom_b:str=None, r_min:Union[float, int]=None, r_max:Union[float, int]=None, nsample=100):
         with torch.no_grad():
             if atom_b is None:
@@ -208,91 +335,7 @@ class DFTB2NNSK:
             plt.tight_layout()
             # plt.legend()
             plt.show()
-    
         
-    def optimize(self, r_min=None, r_max=None, nsample=256, nstep=40000, lr=1e-1, dis_freq=1000, method="RMSprop", viz=False, max_elmt_batch=4):
-        """
-        Optimize the parameters of the neural network model.
-
-        Args:
-            r_min (float): The minimum value for the random range of r.
-            r_max (float): The maximum value for the random range of r.
-            nsample (int): The number of samples to generate for r.
-            nstep (int): The number of optimization steps to perform.
-            lr (float): The learning rate for the optimizer.
-            dis_freq (int): The frequency at which to display the loss during optimization.
-            method (str): The optimization method to use. Supported methods are "RMSprop" and "LBFGS".
-            viz (bool): Whether to visualize the optimized results.
-            max_elmt_batch (int): max_elmt_batch^2 defines The maximum number of bond types to optimize in each batch.
-             ie. if max_elmt_batch=4, we will optimize 16 bond types in each batch.
-
-        Returns:
-            bool: True if the optimization is successful.
-
-        Raises:
-            NotImplementedError: If the specified optimization method is not supported.
-        """
-
-        if method=="RMSprop":
-            optimizer = RMSprop([self.hopping_params, self.overlap_params], lr=lr, momentum=0.2)
-        elif method=="LBFGS":
-            optimizer = LBFGS([self.hopping_params, self.overlap_params], lr=lr)
-        else:
-            raise NotImplementedError
-        
-        lrscheduler = ExponentialLR(optimizer, gamma=0.9998)
-        self.loss = torch.tensor(0.)
-
-
-        def closure():
-            optimizer.zero_grad()
-            if r_min is None and r_max is None:
-                assert self.r_min is not None and self.r_max is not None, "When both r_min and r_max  are None. cal_rcuts=True when initializing the DFTB2NNSK object."
-                r_min_ = self.r_min[self.curr_bond_indices]
-                r_max_ = self.r_max[self.curr_bond_indices]
-            else:
-                assert r_min is not None and r_max is not None, "bothr_min and r_max should be provided or both None."
-                r_min_ = torch.tensor(r_min)
-                r_max_ = r_max
-            
-            # r = torch.rand([len(self.curr_bond_indices),nsample]) * (r_max_ - r_min_) + r_min_
-            # 用 gauss 分布的随机数，重点采样在 r_min 和 r_max范围中心区域的值
-            # std = (r_max_ - r_min_)/8  4 sigma 展宽
-            # mean = (r_max_ + r_min_)/2 中心为 r_max 和 r_min 的中点
-            # r =torch.randn([len(self.curr_bond_indices),nsample]) * (r_max_ - r_min_)/8 + (r_max_ + r_min_)/2
-            r = self.truncated_normal(shape=[len(self.curr_bond_indices),nsample], min_val=r_min_, max_val=r_max_, stdsigma=0.5)
-            hopping, overlap = vmap(self.step,in_dims=1)(r)
-
-            dftb_hopping = self.dftb(r, bond_indices = self.curr_bond_indices, mode="hopping").permute(1,0,2)
-            dftb_overlap = self.dftb(r, bond_indices = self.curr_bond_indices, mode="overlap").permute(1,0,2)
-
-
-            self.loss = (hopping - dftb_hopping).abs().mean() + \
-                torch.nn.functional.mse_loss(hopping, dftb_hopping).sqrt() + \
-                    15*torch.nn.functional.mse_loss(overlap, dftb_overlap).sqrt() + \
-                        15*(overlap - dftb_overlap).abs().mean()
-            self.loss.backward()
-            return self.loss
-
-        total_bond_types = len(self.idp_sk.bond_types)
-    
-        for istep in range(nstep):
-            if istep % dis_freq == 0:
-                print(f"step {istep}, loss {self.loss.item()}, lr {lrscheduler.get_last_lr()[0]}")
-            # 如果 total_bond_types 太大, 会导致内存不够, 可以考虑分批次优化, 每次优化一部分的bond_types
-            # 我们定义一次优化最大的bond_types数量为 max_elmt_batch^2    
-            bond_indices_all = torch.randperm(total_bond_types)
-            for i in range(0, total_bond_types, max_elmt_batch**2):
-                curr_indices = torch.arange(i, min(i+max_elmt_batch**2, total_bond_types))
-                self.curr_bond_indices = bond_indices_all[curr_indices]
-                optimizer.step(closure)
-            
-            lrscheduler.step()
-            self.symmetrize()
-        if viz:
-            self.viz(r_min=r_min, r_max=r_max)
-        return True
-    
     def to_nnsk(self, ebase=True):
         if ebase:
             nnsk = NNSK(
