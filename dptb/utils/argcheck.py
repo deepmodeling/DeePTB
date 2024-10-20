@@ -751,8 +751,7 @@ def hopping():
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
 
-    formulas = ['varTang96',
-        'powerlaw',
+    formulas = [
         'poly1pow',
         'poly2pow',
         'poly3pow',
