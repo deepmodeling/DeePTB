@@ -13,6 +13,8 @@ from dptb.data import AtomicDataDict
 import numpy as np
 import torch.nn as nn
 from .sktb import OnsiteFormula, bond_length_list, HoppingFormula
+from dptb.nn.sktb.cov_radiiDB import Covalent_radii
+from dptb.nn.sktb.bondlengthDB import atomic_radius_v1
 from dptb.utils.constants import atomic_num_dict_r, atomic_num_dict
 from dptb.nn.hamiltonian import SKHamiltonian
 from dptb.utils.tools import j_loader
@@ -39,6 +41,7 @@ class NNSK(torch.nn.Module):
             freeze: Union[bool,str,list] = False,
             push: Union[bool,dict]=False,
             std: float = 0.01,
+            atomic_radius: Union[str, Dict] = "v1",
             **kwargs,
             ) -> None:
         
@@ -65,6 +68,7 @@ class NNSK(torch.nn.Module):
         self.hopping_options = hopping
         self.soc_options = soc
         self.push = push
+
         self.model_options = {
             "nnsk":{
                 "onsite": onsite, 
@@ -72,10 +76,26 @@ class NNSK(torch.nn.Module):
                 "soc": soc,
                 "freeze": freeze,
                 "push": push,
-                "std": std                
+                "std": std,
+                "atomic_radius":atomic_radius                
                 }
             }
         
+        if atomic_radius == "v1":
+            self.atomic_radius = atomic_radius_v1
+        elif atomic_radius == "cov":
+            self.atomic_radius = Covalent_radii
+        else:
+            raise ValueError(f"The atomic radius {atomic_radius} is not recognized.")
+
+        
+        atomic_numbers = [atomic_num_dict[key] for key in self.basis.keys()]
+        self.atomic_radius_list =  torch.zeros(int(max(atomic_numbers))) - 100
+        for at in self.basis.keys():
+            assert  self.atomic_radius[at] is not None, f"The atomic radius for {at} is not provided."
+            radii = self.atomic_radius[at]
+            self.atomic_radius_list[atomic_num_dict[at]-1] = radii
+
         if self.soc_options.get("method", None) is not None:
             self.idp_sk.get_sksoc_maps()
         
@@ -306,7 +326,9 @@ class NNSK(torch.nn.Module):
         # The bond length list is actually the nucli radius (unit of angstrom) at the atomic number.
         # now this bond length list is only available for the first 83 elements.
         # assert (edge_number <= 83).all(), "The bond length list is only available for the first 83 elements."
-        r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number-1].sum(0)
+        # r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number-1].sum(0)
+        # r0 = self.atomic_radius_list[edge_number-1].sum(0)  # bond length r0 = r1 + r2. (r1, r2 are atomic radii of the two atoms)
+        r0 = self.atomic_radius_list.type(self.dtype).to(self.device)[edge_number-1].sum(0)
         assert (r0 > 0).all(), "The bond length list is only available for atomic numbers < 84 and excluding the lanthanides."
         
         hopping_options = self.hopping_options.copy() 
@@ -382,7 +404,8 @@ class NNSK(torch.nn.Module):
             # onsitenv_params = torch.cat([self.strain_param, 
             #     reflect_params], dim=0)
             
-            r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[onsitenv_number-1].sum(0)
+            # r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[onsitenv_number-1].sum(0)
+            r0 = self.atomic_radius_list.type(self.dtype).to(self.device)[onsitenv_number-1].sum(0)  # bond length r0 = r1 + r2. (r1, r2 are atomic radii of the two atoms)
             assert (r0 > 0).all(), "The bond length list is only available for atomic numbers < 84 and excluding the lanthanides."
             onsitenv_params = self.hopping_fn.get_skhij(
             rij=data[AtomicDataDict.ONSITENV_LENGTH_KEY],
@@ -431,6 +454,7 @@ class NNSK(torch.nn.Module):
         freeze: Union[bool,str,list] = False,
         std: float = 0.01,
         transform: bool = True,
+        atomic_radius: Union[str, Dict] = None,
         **kwargs,
         ):
         # the mapping from the parameters of the ref_model and the current model can be found using
@@ -449,7 +473,8 @@ class NNSK(torch.nn.Module):
             "soc": soc,
             "freeze": freeze,
             "push": push,
-            "std": std
+            "std": std,
+            "atomic_radius": atomic_radius
         }
 
 
@@ -481,7 +506,10 @@ class NNSK(torch.nn.Module):
             for k,v in nnsk.items():
                 if k != 'push' and v is None:
                     if json_model.get("model_options",{}).get("nnsk",{}).get(k, None) is  None:
-                        raise ValueError(f"{k} is not provided in both the json model file and the input json.")
+                        if k=='atomic_radius':
+                            nnsk[k] = 'v1'
+                        else:
+                            raise ValueError(f"{k} is not provided in both the json model file and the input json.")
                     else:
                         nnsk[k] = json_model["model_options"]["nnsk"][k]
                         log.info(f"{k} is not provided in the input json, set to the value {nnsk[k]}in the json model file.")
@@ -580,7 +608,10 @@ class NNSK(torch.nn.Module):
                     log.info(f"{k} is not provided in the input json, set to the value {common_options[k]} in model ckpt.")
             for k,v in nnsk.items():
                 if v is None and k != "push" :
-                    nnsk[k] = f["config"]["model_options"]["nnsk"][k]
+                    if k=='atomic_radius' and f["config"]["model_options"]["nnsk"].get(k, None) is None:
+                        nnsk[k] = 'v1'
+                    else:
+                        nnsk[k] = f["config"]["model_options"]["nnsk"][k]
                     log.info(f"{k} is not provided in the input json, set to the value {nnsk[k]} in model ckpt.")
 
             model = cls(**common_options, **nnsk, transform=transform)
@@ -722,6 +753,7 @@ class NNSK(torch.nn.Module):
         freeze: Union[bool,str,list] = False,
         push: Union[bool,None,dict] = False,
         transform: bool = True,
+        atomic_radius: Union[str, Dict] = None,
         **kwargs
         ):
         # could support json file and .pth file checkpoint of nnsk
@@ -750,7 +782,8 @@ class NNSK(torch.nn.Module):
                 log.warning("CUDA is not available. The model will be loaded on CPU.")
                 
         nnsk_model = cls(basis=basis, idp_sk=idp_sk,  onsite=onsite,
-                          hopping=hopping, overlap=overlap, soc=soc, std=std,freeze=freeze, push=push, dtype=dtype, device=device)
+                          hopping=hopping, overlap=overlap, soc=soc, std=std,freeze=freeze, push=push, dtype=dtype, device=device,
+                          atomic_radius=atomic_radius, transform=transform)
 
         onsite_param = v1_model["onsite"]
         hopping_param = v1_model["hopping"]
