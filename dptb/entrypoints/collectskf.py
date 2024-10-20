@@ -110,7 +110,7 @@ def skf2nnsk(
         dftb2nn = DFTB2NNSK(
                         basis = basis,
                         skdata = skdata,
-                        functype=j_must_have(model_options, "functype"),
+                        method=j_must_have(model_options, "method"),
                         rs=model_options.get('rs', None),
                         w = j_must_have(model_options, "w"),
                         cal_rcuts= model_options.get('rs', None) is None,

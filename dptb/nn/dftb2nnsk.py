@@ -49,13 +49,13 @@ class dftb:
     
 class DFTB2NNSK(nn.Module):
 
-    def __init__(self, basis, skdata, train_options, functype='poly2pow', rs=None, w=0.2, cal_rcuts=False, atomic_radius='cov'):
+    def __init__(self, basis, skdata, train_options, method='poly2pow', rs=None, w=0.2, cal_rcuts=False, atomic_radius='cov'):
         if rs is None:
             assert cal_rcuts, "If rs is not provided, cal_rcuts should be False."
         super(DFTB2NNSK, self).__init__()
         self.dftb = dftb(basis=basis, skdata=skdata, cal_rcuts=cal_rcuts)
         self.basis = basis
-        self.functype = functype
+        self.functype = method
         self.idp_sk = self.dftb.idp_sk
         # self.rs = rs
         self.w = w         
@@ -145,7 +145,7 @@ class DFTB2NNSK(nn.Module):
         state = {
             "basis": self.basis,
             "model_state_dict": self.state_dict(),
-            'functype': self.functype,
+            'method': self.functype,
             'rs': self.rs,
             'w': self.w,
             'cal_rcuts': self.r_max is not None,
@@ -157,7 +157,7 @@ class DFTB2NNSK(nn.Module):
     def get_config(self):
         return {
             'basis': self.basis,
-            'functype': self.functype,
+            'method': self.functype,
             'rs': self.rs,
             'w': self.w,
             'cal_rcuts': self.r_max is not None,
@@ -170,7 +170,7 @@ class DFTB2NNSK(nn.Module):
             raise FileNotFoundError(f"No file found at {ckpt}")
 
         state = torch.load(ckpt)
-        model = cls(basis=state["basis"], skdata=skdata, train_options=train_options, functype=state['functype'], 
+        model = cls(basis=state["basis"], skdata=skdata, train_options=train_options, method=state['method'], 
                     rs=state['rs'], w=state['w'], cal_rcuts=state['cal_rcuts'], atomic_radius=state['atomic_radius'])
         
         model.load_state_dict(state['model_state_dict'])
@@ -324,11 +324,7 @@ class DFTB2NNSK(nn.Module):
                              f"Ovl MAE {self.loss_ovl_mae.item():7.4f}, "
                              f"Ovl RMSE {self.loss_ovl_rmse.item():7.4f}, "
                              f"LR {lrscheduler.get_last_lr()[0]:8.6f}")
-                    if 'ipykernel' in sys.modules:
-                        print(loginfo)
-                        
-                    else:
-                        log.info(loginfo)
+                    log.info(loginfo)
                         
             if istep % dis_freq == 0 and total_bond_types > max_elmt_batch**2:
                 total_loss = total_loss / ((total_bond_types + max_elmt_batch**2 - 1) // max_elmt_batch**2)
@@ -344,17 +340,14 @@ class DFTB2NNSK(nn.Module):
                          f"Ovl MAE {total_ovl_mae:.4f}, "
                          f"Ovl RMSE {total_ovl_rmse:.4f}, "
                          f"LR {lrscheduler.get_last_lr()[0]:.6f}")
-                if 'ipykernel' in sys.modules:
-                    print('--'*15)
-                    print(loginfo)
-                else:
-                    log.info('--'*15)
-                    log.info(loginfo)
+
+                log.info('--'*15)
+                log.info(loginfo)
 
             lrscheduler.step()
             self.symmetrize()
 
-            if total_loss < self.best_loss:
+            if total_loss < min(self.best_loss, 1):
                 self.best_loss = total_loss
                 self.save('best_df2sk.pth')
             if istep % save_freq == 0 or istep == nstep-1:

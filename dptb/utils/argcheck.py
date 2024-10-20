@@ -1689,11 +1689,11 @@ def normalize_skf2nnsk(data):
     "
     
     train_ops = [
-        Argument('nstep', int, optimal=False, doc="The number of steps for the training."),
-        Argument('nsample', int, optimal=True, default=256, doc="The number of steps for the training."),
-        Argument('max_elmt_batch', int, optimal=True, default=4, doc="The max number of elements in a batch."),
-        Argument('dis_freq', int, optimal=True, default=1, doc="The frequency of the display."),
-        Argument('save_freq', int, optimal=True, default=1, doc="The frequency of the save."),
+        Argument('nstep', int, optional=False, doc="The number of steps for the training."),
+        Argument('nsample', int, optional=True, default=256, doc="The number of steps for the training."),
+        Argument('max_elmt_batch', int, optional=True, default=4, doc="The max number of elements in a batch."),
+        Argument('dis_freq', int, optional=True, default=1, doc="The frequency of the display."),
+        Argument('save_freq', int, optional=True, default=1, doc="The frequency of the save."),
         Argument("optimizer", dict, sub_fields=[], optional=True, default={}, sub_variants=[optimizer()], doc = doc_optimizer),
         Argument("lr_scheduler", dict, sub_fields=[], optional=True, default={}, sub_variants=[lr_scheduler()], doc = doc_lr_scheduler)
     ]

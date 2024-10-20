@@ -30,7 +30,7 @@ class TestDFTB2NNSK:
             train_options=train_ops,
             rs=6.0,
             w=1.0,
-            functype="powerlaw"
+            method="powerlaw"
             )
 
     def test_optimize(self):
