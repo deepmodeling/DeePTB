@@ -118,8 +118,6 @@ class NEGF(object):
                 self.negf_hamiltonian.initialize(kpoints=self.kpoints,block_tridiagnal=self.block_tridiagonal,\
                                                  useBloch=self.useBloch,bloch_factor=self.bloch_factor)
         self.subblocks = subblocks # for not block_tridiagonal case, subblocks is [HD.shape[1]]
-        self.left_connected = abs(struct_device.positions[:,2]-min(struct_device.positions[:,2]))<1e-6
-        self.right_connected = abs(struct_device.positions[:,2]-max(struct_device.positions[:,2]))<1e-6
 
         self.deviceprop = DeviceProperty(self.negf_hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)
         self.deviceprop.set_leadLR(
@@ -169,6 +167,14 @@ class NEGF(object):
 
         # number of orbitals on atoms in device region
         self.device_atom_norbs = self.negf_hamiltonian.h2k.atom_norbs[self.negf_hamiltonian.device_id[0]:self.negf_hamiltonian.device_id[1]]
+        left_connected_atom_mask = abs(struct_device.positions[:,2]-min(struct_device.positions[:,2]))<1e-6
+        right_connected_atom_mask = abs(struct_device.positions[:,2]-max(struct_device.positions[:,2]))<1e-6
+
+        self.left_connected_orb_mask = torch.tensor( [p for p, norb in zip(left_connected_atom_mask, self.device_atom_norbs) \
+                                                      for _ in range(norb)],dtype=torch.bool)
+        self.right_connected_orb_mask = torch.tensor( [p for p, norb in zip(right_connected_atom_mask, self.device_atom_norbs) \
+                                                        for _ in range(norb)],dtype=torch.bool)
+
         # np.save(self.results_path+"/device_atom_norbs.npy",self.device_atom_norbs)
 
         # geting the output settings
@@ -377,10 +383,10 @@ class NEGF(object):
                             if Vbias is not None  and self.density_options["method"] == "Fiori":
                                 # set voltage as -1*potential_at_orb[0] and -1*potential_at_orb[-1] for self-energy same as in NanoTCAD
                                 if ll == 'lead_L' :
-                                    getattr(self.deviceprop, ll).voltage = Vbias[self.left_connected].mean()
+                                    getattr(self.deviceprop, ll).voltage = Vbias[self.left_connected_orb_mask].mean()
                                     # getattr(self.deviceprop, ll).voltage = Vbias[0]
                                 else:
-                                    getattr(self.deviceprop, ll).voltage = Vbias[self.right_connected].mean()
+                                    getattr(self.deviceprop, ll).voltage = Vbias[self.right_connected_orb_mask].mean()
                                     # getattr(self.deviceprop, ll).voltage = Vbias[-1]
 
                     self.density.density_integrate_Fiori(
@@ -416,10 +422,10 @@ class NEGF(object):
                                 if Vbias is not None  and self.density_options["method"] == "Fiori":
                                     # set voltage as -1*potential_at_orb[0] and -1*potential_at_orb[-1] for self-energy same as in NanoTCAD
                                     if ll == 'lead_L':
-                                        getattr(self.deviceprop, ll).voltage = self.potential_at_atom[self.left_connected].mean()
+                                        getattr(self.deviceprop, ll).voltage = Vbias[self.left_connected_orb_mask].mean()
                                         
                                     else:
-                                        getattr(self.deviceprop, ll).voltage = self.potential_at_atom[self.right_connected].mean()
+                                        getattr(self.deviceprop, ll).voltage = Vbias[self.right_connected_orb_mask].mean()
                                         
                                 
                                 getattr(self.deviceprop, ll).self_energy(
