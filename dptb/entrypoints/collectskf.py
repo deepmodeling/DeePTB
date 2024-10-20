@@ -104,7 +104,9 @@ def skf2nnsk(
     if init_model:
         dftb2nn = DFTB2NNSK.load(ckpt=init_model, 
                                  skdata=skdata,
-                                 train_options=train_options)
+                                 train_options=train_options,
+                                 output=run_opt.get('output', './')
+                                 )
     
     else:
         dftb2nn = DFTB2NNSK(
@@ -115,7 +117,8 @@ def skf2nnsk(
                         w = j_must_have(model_options, "w"),
                         cal_rcuts= model_options.get('rs', None) is None,
                         atomic_radius= model_options.get('atomic_radius', 'cov'),
-                        train_options=train_options
+                        train_options=train_options,
+                        output=run_opt.get('output', './')
                     )
         
     dftb2nn.optimize()
