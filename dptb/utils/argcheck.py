@@ -760,8 +760,7 @@ def hopping():
         'poly3exp',
         'poly4exp',
         'NRL0',
-        "NRL1",
-        'custom']
+        "NRL1"]
 
     args = [
         Argument("powerlaw", dict, powerlaw),
