@@ -68,7 +68,7 @@ class NNSK(torch.nn.Module):
         self.hopping_options = hopping
         self.soc_options = soc
         self.push = push
-
+        self.atomic_radius = atomic_radius
         self.model_options = {
             "nnsk":{
                 "onsite": onsite, 
@@ -82,9 +82,9 @@ class NNSK(torch.nn.Module):
             }
         
         if atomic_radius == "v1":
-            self.atomic_radius = atomic_radius_v1
+            atomic_radius_dict = atomic_radius_v1
         elif atomic_radius == "cov":
-            self.atomic_radius = Covalent_radii
+            atomic_radius_dict = Covalent_radii
         else:
             raise ValueError(f"The atomic radius {atomic_radius} is not recognized.")
 
@@ -92,9 +92,8 @@ class NNSK(torch.nn.Module):
         atomic_numbers = [atomic_num_dict[key] for key in self.basis.keys()]
         self.atomic_radius_list =  torch.zeros(int(max(atomic_numbers))) - 100
         for at in self.basis.keys():
-            assert  self.atomic_radius[at] is not None, f"The atomic radius for {at} is not provided."
-            radii = self.atomic_radius[at]
-            self.atomic_radius_list[atomic_num_dict[at]-1] = radii
+            assert  atomic_radius_dict[at] is not None, f"The atomic radius for {at} is not provided."
+            self.atomic_radius_list[atomic_num_dict[at]-1] = atomic_radius_dict[at]
 
         if self.soc_options.get("method", None) is not None:
             self.idp_sk.get_sksoc_maps()

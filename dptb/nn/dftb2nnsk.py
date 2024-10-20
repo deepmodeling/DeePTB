@@ -76,24 +76,20 @@ class DFTB2NNSK(nn.Module):
     def initialize_atomic_radius(self, basis, atomic_radius):
         if isinstance(atomic_radius, str):
             if atomic_radius == 'cov':
-                atomic_radius = Covalent_radii
+                atomic_radius_dict = Covalent_radii
             elif atomic_radius == 'v1':
-                atomic_radius = atomic_radius_v1
+                atomic_radius_dict = atomic_radius_v1
             else:
                 raise ValueError("The atomic_radius should be either str of 'cov' or 'v1' or a dict.")
         else:
             assert isinstance(atomic_radius, dict), "The atomic_radius should be either str of 'cov' or 'v1' or a dict."
-   
-        for at in basis.keys():
-            assert at in atomic_radius, f"The atomic radius for {at} is not provided."
-            assert atomic_radius[at] is not None, f"The atomic radius for {at} is None."
-        atomic_numbers = [atomic_num_dict[key] for key in basis.keys()]
+            atomic_radius_dict = atomic_radius
 
+        atomic_numbers = [atomic_num_dict[key] for key in basis.keys()]
         self.atomic_radius_list =  torch.zeros(int(max(atomic_numbers))) - 100
         for at in basis.keys():
-            assert at in atomic_radius and atomic_radius[at] is not None, f"The atomic radius for {at} is not provided."
-            radii = atomic_radius[at]
-            
+            assert at in atomic_radius_dict and atomic_radius_dict[at] is not None, f"The atomic radius for {at} is not provided."
+            radii = atomic_radius_dict[at]
             self.atomic_radius_list[atomic_num_dict[at]-1] = radii
 
     def initialize_rs_and_cutoffs(self, rs, cal_rcuts):
@@ -460,6 +456,7 @@ class DFTB2NNSK(nn.Module):
             onsite={"method": "uniform"},
             hopping={"method": self.functype, "rs":self.rs, "w": self.w},
             overlap=True,
+            atomic_radius = self.atomic_radius
             )
         
             nnsk.hopping_param.data = self.hopping_params.data
@@ -480,6 +477,7 @@ class DFTB2NNSK(nn.Module):
             onsite={"method": "uniform_noref"},
             hopping={"method": self.functype, "rs":self.rs, "w": self.w},
             overlap=True,
+            atomic_radius = self.atomic_radius
             )
 
             nnsk.hopping_param.data = self.hopping_params.data
