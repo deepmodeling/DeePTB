@@ -353,7 +353,7 @@ class HoppingFormula(BaseHopping):
 
         return (a + b * rij + c * rij**2) * torch.exp(-d**2 * rij)*f_rij
 
-    def NRL_OVERLAP0(self, rij, paraArray, paraconst, rs:torch.float32 = torch.tensor(6), w:torch.float32 = 0.1, **kwargs):
+    def NRL_OVERLAP0(self, rij, paraArray, paraconst, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """
         This function calculates the Overlap value of the form of NRL-TB 
 
@@ -380,7 +380,7 @@ class HoppingFormula(BaseHopping):
 
         return (a + b * rij + c * rij**2) * torch.exp(-d**2 * rij)*f_rij
     
-    def NRL_OVERLAP1(self, rij, paraArray, paraconst, rs:torch.float32 = torch.tensor(6), w:torch.float32 = 0.1, **kwargs):
+    def NRL_OVERLAP1(self, rij, paraArray, paraconst, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """
         This function calculates the Overlap value of the form of NRL-TB 
 
