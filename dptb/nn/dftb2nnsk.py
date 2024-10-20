@@ -49,7 +49,7 @@ class dftb:
     
 class DFTB2NNSK(nn.Module):
 
-    def __init__(self, basis, skdata, train_options, method='poly2pow', rs=None, w=0.2, cal_rcuts=False, atomic_radius='cov'):
+    def __init__(self, basis, skdata, train_options, output='./', method='poly2pow', rs=None, w=0.2, cal_rcuts=False, atomic_radius='cov'):
         if rs is None:
             assert cal_rcuts, "If rs is not provided, cal_rcuts should be False."
         super(DFTB2NNSK, self).__init__()
@@ -71,6 +71,7 @@ class DFTB2NNSK(nn.Module):
         self.mse_loss = torch.nn.MSELoss()
         self.best_loss = float("inf")
         self.train_options = train_options
+        self.output = output
 
     def initialize_atomic_radius(self, basis, atomic_radius):
         if isinstance(atomic_radius, str):
@@ -349,15 +350,15 @@ class DFTB2NNSK(nn.Module):
 
             if total_loss < min(self.best_loss, 1):
                 self.best_loss = total_loss
-                self.save('best_df2sk.pth')
+                self.save(f'{self.output}/best_df2sk.pth')
             if istep % save_freq == 0 or istep == nstep-1:
-                self.save('lastest_df2sk.pth')
+                self.save(f'{self.output}/lastest_df2sk.pth')
         if viz:
             self.viz(r_min=r_min, r_max=r_max)
         return True
     
         
-    def viz(self, atom_a:str, atom_b:str=None, r_min:Union[float, int]=None, r_max:Union[float, int]=None, nsample=100):
+    def viz(self, atom_a:str, atom_b:str=None, show_int=True, r_min:Union[float, int]=None, r_max:Union[float, int]=None, nsample=100):
         with torch.no_grad():
             if atom_b is None:
                 atom_b = atom_a
@@ -384,29 +385,74 @@ class DFTB2NNSK(nn.Module):
             fig = plt.figure(figsize=(6,4))
             # hops[0] shape - [n_r, n_edge, n_skintegrals]
 
-            for i in range(hops[0].shape[1]):
-                plt.plot(r[i], hops[0][:,i, :-1].detach().numpy(), c="C"+str(i))
-                plt.plot(r[i], hops[0][:,i, -1].detach().numpy(), c="C"+str(i))
-                plt.plot(r[i], dftb_hopping[:,i, :-1].numpy(), c="C"+str(i), linestyle="--")
-                plt.plot(r[i], dftb_hopping[:,i, -1].numpy(), c="C"+str(i), linestyle="--")
-            plt.title("hoppings")
-            plt.xlabel("r(angstrom)")
-            plt.tight_layout()
-            # plt.legend()
-            plt.show()
+            if not show_int:
+                # hops[0].shape[1] == 1, since we only plot one bond type.
+                for i in range(hops[0].shape[1]):
+                    plt.plot(r[i], hops[0][:,i, :-1].detach().numpy(), c="C"+str(i))
+                    plt.plot(r[i], hops[0][:,i, -1].detach().numpy(), c="C"+str(i),label="nn:"+bond_type)
+                    plt.plot(r[i], dftb_hopping[:,i, :-1].numpy(), c="C"+str(i), linestyle="--")
+                    plt.plot(r[i], dftb_hopping[:,i, -1].numpy(), c="C"+str(i), linestyle="--",label="skf:"+bond_type)
+                plt.title("hoppings")
+                plt.xlabel("r(angstrom)")
+                plt.tight_layout()
+                plt.legend()
+                plt.savefig(f"{self.output}/hopping_{bond_type}.png")
+                plt.show()
 
-            fig = plt.figure(figsize=(6,4))
-            for i in range(hops[1].shape[1]):
-                plt.plot(r[i], hops[1][:,i, :-1].detach().numpy(), c="C"+str(i))
-                plt.plot(r[i], hops[1][:,i, -1].detach().numpy(), c="C"+str(i))
-                plt.plot(r[i], dftb_overlap[:,i, :-1].numpy(), c="C"+str(i), linestyle="--")
-                plt.plot(r[i], dftb_overlap[:,i, -1].numpy(), c="C"+str(i), linestyle="--")
-            plt.title("overlaps")
-            plt.xlabel("r(angstrom)")
-            plt.tight_layout()
-            # plt.legend()
-            plt.show()
-        
+                fig = plt.figure(figsize=(6,4))
+                for i in range(hops[1].shape[1]):
+                    plt.plot(r[i], hops[1][:,i, :-1].detach().numpy(), c="C"+str(i))
+                    plt.plot(r[i], hops[1][:,i, -1].detach().numpy(), c="C"+str(i),label="nn:"+bond_type)
+                    plt.plot(r[i], dftb_overlap[:,i, :-1].numpy(), c="C"+str(i), linestyle="--")
+                    plt.plot(r[i], dftb_overlap[:,i, -1].numpy(), c="C"+str(i), linestyle="--",label="skf:"+bond_type)
+                plt.title("overlaps")
+                plt.xlabel("r(angstrom)")
+                plt.tight_layout()
+                plt.legend()
+                plt.savefig(f"{self.output}/overlap_{bond_type}.png")
+                plt.show()
+            else:
+                assert hops[0].shape[1] ==1
+                hopps = hops[0][:,0,:].detach().numpy()
+                dftb_hopps = dftb_hopping[:,0,:].numpy()
+                fig = plt.figure(figsize=(6,4))
+                ic=-1
+                for k, v in self.idp_sk.orbpairtype_maps:
+                    hopps_ibt = hopps[:, v]
+                    dftb_hopps_ibt = dftb_hopps[:, v]
+                    for ii in range(hopps_ibt.shape[1]):
+                        ic+=1
+                        plt.plot(r[0], hopps_ibt[:,ii], c="C"+str(ii), label=f"nn:{k}-{ii}")
+                        plt.plot(r[0], dftb_hopps_ibt[:,ii], c="C"+str(ii), linestyle="--", label=f"skf:{k}-{ii}")
+
+                plt.title("hoppings")
+                plt.xlabel("r(angstrom)")
+                plt.tight_layout()
+                plt.legend()
+                plt.savefig(f"{self.output}/hopping_{bond_type}.png")
+                plt.show()
+
+                ovlps = hops[1][:,0,:].detach().numpy()
+                dftb_ovlps = dftb_overlap[:,0,:].numpy()
+                fig = plt.figure(figsize=(6,4))
+                ic=-1
+                for k, v in self.idp_sk.orbpairtype_maps:
+                    ovlps_ibt = ovlps[:, v]
+                    dftb_ovlps_ibt = dftb_ovlps[:, v]
+                    for ii in range(ovlps_ibt.shape[1]):
+                        ic+=1
+                        plt.plot(r[0], ovlps_ibt[:,ii], c="C"+str(ii), label=f"nn:{k}-{ii}")
+                        plt.plot(r[0], dftb_ovlps_ibt[:,ii], c="C"+str(ii), linestyle="--", label=f"skf:{k}-{ii}")
+                
+                plt.title("overlaps")
+                plt.xlabel("r(angstrom)")
+                plt.tight_layout()
+                plt.legend()
+                plt.savefig(f"{self.output}/overlap_{bond_type}.png")
+                plt.show()
+        return True
+
+
     def to_nnsk(self, ebase=True):
         if ebase:
             nnsk = NNSK(
