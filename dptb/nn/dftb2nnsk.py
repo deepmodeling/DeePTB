@@ -417,18 +417,18 @@ class DFTB2NNSK(nn.Module):
                 dftb_hopps = dftb_hopping[:,0,:].numpy()
                 fig = plt.figure(figsize=(6,4))
                 ic=-1
-                for k, v in self.idp_sk.orbpairtype_maps:
+                for k, v in self.idp_sk.orbpairtype_maps.items():
                     hopps_ibt = hopps[:, v]
                     dftb_hopps_ibt = dftb_hopps[:, v]
                     for ii in range(hopps_ibt.shape[1]):
                         ic+=1
-                        plt.plot(r[0], hopps_ibt[:,ii], c="C"+str(ii), label=f"nn:{k}-{ii}")
-                        plt.plot(r[0], dftb_hopps_ibt[:,ii], c="C"+str(ii), linestyle="--", label=f"skf:{k}-{ii}")
+                        plt.plot(r[0], hopps_ibt[:,ii], c="C"+str(ic), label=f"nn:{k}-{ii}")
+                        plt.plot(r[0], dftb_hopps_ibt[:,ii], c="C"+str(ic), linestyle="--")
 
                 plt.title("hoppings")
                 plt.xlabel("r(angstrom)")
                 plt.tight_layout()
-                plt.legend()
+                plt.legend(ncol=2)
                 plt.savefig(f"{self.output}/hopping_{bond_type}.png")
                 plt.show()
 
@@ -436,18 +436,18 @@ class DFTB2NNSK(nn.Module):
                 dftb_ovlps = dftb_overlap[:,0,:].numpy()
                 fig = plt.figure(figsize=(6,4))
                 ic=-1
-                for k, v in self.idp_sk.orbpairtype_maps:
+                for k, v in self.idp_sk.orbpairtype_maps.items():
                     ovlps_ibt = ovlps[:, v]
                     dftb_ovlps_ibt = dftb_ovlps[:, v]
                     for ii in range(ovlps_ibt.shape[1]):
                         ic+=1
-                        plt.plot(r[0], ovlps_ibt[:,ii], c="C"+str(ii), label=f"nn:{k}-{ii}")
-                        plt.plot(r[0], dftb_ovlps_ibt[:,ii], c="C"+str(ii), linestyle="--", label=f"skf:{k}-{ii}")
+                        plt.plot(r[0], ovlps_ibt[:,ii], c="C"+str(ic), label=f"nn:{k}-{ii}")
+                        plt.plot(r[0], dftb_ovlps_ibt[:,ii], c="C"+str(ic), linestyle="--")
                 
                 plt.title("overlaps")
                 plt.xlabel("r(angstrom)")
                 plt.tight_layout()
-                plt.legend()
+                plt.legend(ncol=2)
                 plt.savefig(f"{self.output}/overlap_{bond_type}.png")
                 plt.show()
         return True
