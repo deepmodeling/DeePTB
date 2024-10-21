@@ -127,7 +127,7 @@ class NNSK(torch.nn.Module):
         if self.soc_options.get("method", None) is not None:
             if self.soc_options.get("method", None) == 'none':
                 self.soc_param = None
-            elif self.soc_options.get("method", None) == 'uniform':
+            elif self.soc_options.get("method", None) in ['uniform', 'uniform_noref']:
                 soc_param = torch.empty([len(self.idp_sk.type_names), self.idp_sk.n_onsite_socLs, self.soc_fn.num_paras], dtype=self.dtype, device=self.device)
                 nn.init.normal_(soc_param, mean=0.0, std=std)
                 self.soc_param = torch.nn.Parameter(soc_param)
@@ -138,7 +138,7 @@ class NNSK(torch.nn.Module):
             self.onsite_param = None
         elif self.onsite_options["method"] == "none":
             self.onsite_param = None
-        elif self.onsite_options["method"] in ["NRL", "uniform"]:
+        elif self.onsite_options["method"] in ["NRL", "uniform", "uniform_noref"]:
             onsite_param = torch.empty([len(self.idp_sk.type_names), self.idp_sk.n_onsite_Es, self.onsite_fn.num_paras], dtype=self.dtype, device=self.device)
             nn.init.normal_(onsite_param, mean=0.0, std=std)
             self.onsite_param = torch.nn.Parameter(onsite_param)
