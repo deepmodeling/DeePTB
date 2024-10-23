@@ -1574,7 +1574,7 @@ def get_cutoffs_from_model_options(model_options):
     
     elif model_options.get("dftbsk", None) is not None:
         assert r_max is None, "r_max should not be provided in outside the dftbsk for training dftbsk model."
-        r_max = model_options["dftbsk"]["r_max"]
+        r_max = model_options["dftbsk"].get("r_max")
     
     else:
         # not nnsk not dftbsk, must be only env or E3. the embedding should be provided.
