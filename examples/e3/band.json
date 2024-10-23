@@ -19,5 +19,6 @@
         "E_fermi":0.0,
         "emin":-7,
         "emax":18
-    }
+    },
+    "device": "cuda"
 }

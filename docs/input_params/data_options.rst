@@ -9,6 +9,30 @@ data_options:
 
     The options for dataset settings in training.
 
+    .. _`data_options/r_max`: 
+
+    r_max: 
+        | type: ``str`` | ``float`` | ``int``, optional, default: ``5.0``
+        | argument path: ``data_options/r_max``
+
+        r_max
+
+    .. _`data_options/oer_max`: 
+
+    oer_max: 
+        | type: ``str`` | ``float`` | ``int``, optional, default: ``5.0``
+        | argument path: ``data_options/oer_max``
+
+        oer_max
+
+    .. _`data_options/er_max`: 
+
+    er_max: 
+        | type: ``str`` | ``float`` | ``int``, optional, default: ``5.0``
+        | argument path: ``data_options/er_max``
+
+        er_max
+
     .. _`data_options/train`: 
 
     train: 
