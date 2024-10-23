@@ -1,0 +1,34 @@
+{
+    "common_options":
+    {
+        "basis": "auto",
+        "skdata": "./examples/skf2nnsk/H_B_C_N_O_Si.pth",
+        "device": "cpu",
+        "dtype": "float32",
+        "seed": 12345678
+    },
+
+    "model_options":
+    {
+        "method": "poly4pow",
+        "rs":null,
+        "w":0.2,
+        "atomic_radius": "cov"
+    },
+    "train_options":
+    {
+        "nstep":100,
+        "dis_freq":100,
+        "nsample":256,
+        "save_freq":100,
+        "max_elmt_batch":4,
+        "optimizer": {
+            "lr": 0.01,
+            "type": "RMSprop"
+        },
+        "lr_scheduler": {
+            "type": "exp",
+            "gamma": 0.9997
+        }
+    }
+}

@@ -3,8 +3,11 @@ import os
 from pathlib import Path
 from dptb.nn.dftb2nnsk import DFTB2NNSK
 from dptb.nn.nnsk import NNSK
+from dptb.entrypoints.collectskf import skf2nnsk
 
-rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data/")
+
+rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data")
+exampledir = os.path.join(Path(os.path.abspath(__file__)).parent, "..", "..", "examples")
 
 class TestDFTB2NNSK:
     rootdir = f"{rootdir}"
@@ -43,4 +46,11 @@ class TestDFTB2NNSK:
     def test_tojson(self):
         jdata = self.dftb2nnsk.to_json()
         assert isinstance(jdata, dict)
-        
+
+def test_skf2nnsk_run():
+    input_file = os.path.join(exampledir, "skf2nnsk", "input_test.json")
+    skf2nnsk(INPUT = input_file,
+        init_model = None,
+        output = os.path.join(rootdir, "..","test_temp"),
+        log_level = 2
+    )
