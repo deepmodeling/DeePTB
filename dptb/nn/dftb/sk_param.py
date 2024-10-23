@@ -29,8 +29,15 @@ class SKParam:
                 basis: Dict[str, Union[str, list]]=None,
                 idp_sk: Union[OrbitalMapper, None]=None,
                 skdata: Union[str,dict] = None,
-                cal_rcuts: bool = False) -> None:
-
+                cal_rcuts: bool = False,
+                device='cpu',
+                dtype=torch.float32) -> None:
+        
+        self.device = device
+        if isinstance(dtype, str):
+            dtype =  getattr(torch, dtype)
+        self.dtype = dtype
+        
         if basis is not None:
             self.idp_sk = OrbitalMapper(basis, method="sktb")
             if idp_sk is not None:

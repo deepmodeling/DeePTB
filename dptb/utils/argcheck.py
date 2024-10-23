@@ -1668,7 +1668,10 @@ def normalize(data):
 def normalize_skf2nnsk(data):
     common_ops = [
         Argument("basis", [dict,str], optional=False, default='auto', doc="The basis set for the model, can be a dict or a string, default is 'auto'."),
-        Argument("skdata",str, optional=False, doc="The path to the skf file.")
+        Argument("skdata",str, optional=False, doc="The path to the skf file."),
+        Argument("device",str, optional=True, default='cpu', doc="The device to run the calculation, choose among `cpu` and `cuda[:int]`, Default: 'cpu'."),
+        Argument("dtype",str, optional=True, default='float32', doc="The digital number's precison, choose among: 'float32', 'float64', Default: 'float32'."),
+        Argument("seed", int, optional=True, default=3982377700, doc="The random seed used to initialize the parameters and determine the shuffling order of datasets. Default: `3982377700`")
     ]
 
     model_ops = [
@@ -1677,7 +1680,6 @@ def normalize_skf2nnsk(data):
         Argument('w', [float,int], optional=True, default=0.2, doc="The w value for the hopping term."),
         Argument('atomic_radius',[str,dict], optional=True, default='cov', doc="The atomic radius for the hopping term, default is 'cov'.")
     ]
-
     
     doc_lr_scheduler = "The learning rate scheduler tools settings, the lr scheduler is used to scales down the learning rate during the training process. Proper setting can make the training more stable and efficient. The supported lr schedular includes: `Exponential Decaying (exp)`, `Linear multiplication (linear)`"
     doc_optimizer = "\

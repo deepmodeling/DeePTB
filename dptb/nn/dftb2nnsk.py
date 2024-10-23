@@ -18,12 +18,16 @@ import numpy as np
 from typing import Union
 import logging
 import os, sys
-from dptb.utils.tools import get_lr_scheduler, get_optimizer
+from dptb.utils.tools import get_lr_scheduler, get_optimizer, setup_seed
 
 log = logging.getLogger(__name__)
 
 class dftb:
-    def __init__(self, basis, skdata, cal_rcuts=False):
+    def __init__(self, basis, skdata, cal_rcuts=False, device='cpu', dtype=torch.float32):
+        self.device = device
+        if isinstance(dtype, str):
+            dtype =  getattr(torch, dtype)
+        self.dtype = dtype
         self.param = SKParam(basis=basis, skdata=skdata, cal_rcuts=cal_rcuts)
         self.bond_r_min = self.param.bond_r_min
         self.bond_r_max = self.param.bond_r_max
@@ -38,22 +42,28 @@ class dftb:
     def __call__(self, r, bond_indices = None, mode="hopping"):
         out = []
         if bond_indices is None:
-            bond_indices = torch.arange(len(self.idp_sk.bond_types))
+            bond_indices = torch.arange(len(self.idp_sk.bond_types), device=self.device)
 
         assert len(bond_indices) == len(r), "The bond_indices and r should have the same length."
         
         for i, ind in enumerate(bond_indices):
-            out.append(self.hopping.get_skhij(rij=r[i], xx=self.param["Distance"], yy=self.param[mode[0].upper()+mode[1:]][ind]))
+            out.append(self.hopping.get_skhij(rij=r[i], xx=self.param["Distance"].to(device=self.device, dtype=self.dtype), 
+                                              yy=self.param[mode[0].upper()+mode[1:]][ind].to(device=self.device, dtype=self.dtype)))
         
         return torch.stack(out)
     
 class DFTB2NNSK(nn.Module):
 
-    def __init__(self, basis, skdata, train_options, output='./', method='poly2pow', rs=None, w=0.2, cal_rcuts=False, atomic_radius='cov'):
+    def __init__(self, basis, skdata, train_options, output='./', method='poly2pow', rs=None, w=0.2, cal_rcuts=False, atomic_radius='cov',seed=3982377700, device='cpu', dtype=torch.float32):
         if rs is None:
             assert cal_rcuts, "If rs is not provided, cal_rcuts should be False."
         super(DFTB2NNSK, self).__init__()
-        self.dftb = dftb(basis=basis, skdata=skdata, cal_rcuts=cal_rcuts)
+        self.device = device
+        if isinstance(dtype, str):
+            dtype =  getattr(torch, dtype)
+        self.dtype = dtype
+        
+        self.dftb = dftb(basis=basis, skdata=skdata, cal_rcuts=cal_rcuts, device=self.device, dtype=self.dtype)
         self.basis = basis
         self.functype = method
         self.idp_sk = self.dftb.idp_sk
@@ -61,8 +71,8 @@ class DFTB2NNSK(nn.Module):
         self.w = w         
         self.nnsk_hopping = HoppingFormula(functype=self.functype)
         self.nnsk_overlap = HoppingFormula(functype=self.functype, overlap=True)
-        self.hopping_params = torch.nn.Parameter(torch.randn(len(self.idp_sk.bond_types), self.dftb.hopping.num_ingrls, self.nnsk_hopping.num_paras))
-        self.overlap_params = torch.nn.Parameter(torch.randn(len(self.idp_sk.bond_types), self.dftb.hopping.num_ingrls, self.nnsk_hopping.num_paras))
+        self.hopping_params = torch.nn.Parameter(torch.randn(len(self.idp_sk.bond_types), self.dftb.hopping.num_ingrls, self.nnsk_hopping.num_paras, device=self.device, dtype=self.dtype))
+        self.overlap_params = torch.nn.Parameter(torch.randn(len(self.idp_sk.bond_types), self.dftb.hopping.num_ingrls, self.nnsk_hopping.num_paras, device=self.device, dtype=self.dtype))
         self.atomic_radius = atomic_radius
         self.initialize_atomic_radius(basis, atomic_radius)
         self.initialize_rs_and_cutoffs(rs, cal_rcuts)
@@ -72,7 +82,9 @@ class DFTB2NNSK(nn.Module):
         self.best_loss = float("inf")
         self.train_options = train_options
         self.output = output
-
+        self.seed = seed 
+        setup_seed(seed)
+       
     def initialize_atomic_radius(self, basis, atomic_radius):
         if isinstance(atomic_radius, str):
             if atomic_radius == 'cov':
@@ -86,7 +98,7 @@ class DFTB2NNSK(nn.Module):
             atomic_radius_dict = atomic_radius
 
         atomic_numbers = [atomic_num_dict[key] for key in basis.keys()]
-        self.atomic_radius_list =  torch.zeros(int(max(atomic_numbers))) - 100
+        self.atomic_radius_list =  torch.zeros(int(max(atomic_numbers)),device= self.device, dtype=self.dtype) - 100
         for at in basis.keys():
             assert at in atomic_radius_dict and atomic_radius_dict[at] is not None, f"The atomic radius for {at} is not provided."
             radii = atomic_radius_dict[at]
@@ -108,14 +120,14 @@ class DFTB2NNSK(nn.Module):
                     assert rs[k] == v, f"The bond type rmax in {k} is not equal to the dftb bond_r_max."
                 self.rs = rs    
 
-            self.r_map = get_r_map_bondwise(self.dftb.bond_r_max)
+            self.r_map = get_r_map_bondwise(self.dftb.bond_r_max).to(device=self.device, dtype=self.dtype)
             self.r_max = []
             self.r_min = []
             for ibt in self.idp_sk.bond_types:
                 self.r_max.append(self.dftb.bond_r_max[ibt])
                 self.r_min.append(self.dftb.bond_r_min[ibt])
-            self.r_max = torch.tensor(self.r_max, dtype=torch.float32).reshape(-1,1)
-            self.r_min = torch.tensor(self.r_min, dtype=torch.float32).reshape(-1,1)
+            self.r_max = torch.tensor(self.r_max, device=self.device, dtype=self.dtype).reshape(-1,1)
+            self.r_min = torch.tensor(self.r_min, device=self.device, dtype=self.dtype).reshape(-1,1)
 
 
     def symmetrize(self):
@@ -138,28 +150,39 @@ class DFTB2NNSK(nn.Module):
                 self.overlap_params.data[:,self.idp_sk.orbpair_maps[k],:] = 0.5 * (params[:,self.idp_sk.orbpair_maps[k],:] + reflect_params[:,self.idp_sk.orbpair_maps[k],:])
         
         return True
+    
     def save(self,filepath):
-        state = {
-            "basis": self.basis,
-            "model_state_dict": self.state_dict(),
-            'method': self.functype,
-            'rs': self.rs,
-            'w': self.w,
-            'cal_rcuts': self.r_max is not None,
-            'atomic_radius': self.atomic_radius
-        }
-        torch.save(state, f"{filepath}")
-        log.info(f"The model is saved to {filepath}")
-
-    def get_config(self):
-        return {
+        state = {}
+        config = {
             'basis': self.basis,
             'method': self.functype,
             'rs': self.rs,
             'w': self.w,
             'cal_rcuts': self.r_max is not None,
-            'atomic_radius': self.atomic_radius
+            'atomic_radius': self.atomic_radius,
+            'device': self.device,
+            'dtype': self.dtype,
+            'seed': self.seed
         }
+        state.update({"config": config})
+        state.update({"model_state_dict": self.state_dict()})
+
+        torch.save(state, f"{filepath}")
+        log.info(f"The model is saved to {filepath}")
+
+    def get_config(self):
+        config = {
+            'basis': self.basis,
+            'method': self.functype,
+            'rs': self.rs,
+            'w': self.w,
+            'cal_rcuts': self.r_max is not None,
+            'atomic_radius': self.atomic_radius,
+            'device': self.device,
+            'dtype': self.dtype,
+            'seed': self.seed
+        }
+        return config
 
     @classmethod
     def load(cls, ckpt, skdata, train_options):
@@ -167,11 +190,9 @@ class DFTB2NNSK(nn.Module):
             raise FileNotFoundError(f"No file found at {ckpt}")
 
         state = torch.load(ckpt)
-        model = cls(basis=state["basis"], skdata=skdata, train_options=train_options, method=state['method'], 
-                    rs=state['rs'], w=state['w'], cal_rcuts=state['cal_rcuts'], atomic_radius=state['atomic_radius'])
-        
+        config = state['config']
+        model = cls(skdata=skdata, train_options=train_options, **config)
         model.load_state_dict(state['model_state_dict'])
-        
         return model 
     
 
@@ -181,7 +202,7 @@ class DFTB2NNSK(nn.Module):
         bond_ind_r_shp = self.curr_bond_indices.reshape(-1)
 
         edge_number = self.idp_sk.untransform_bond(bond_ind_r_shp).T
-        r0 = self.atomic_radius_list[edge_number-1].sum(0)  # bond length r0 = r1 + r2. (r1, r2 are atomic radii of the two atoms)
+        r0 = self.atomic_radius_list[edge_number-1].sum(0).to(device=self.device, dtype=self.dtype)  # bond length r0 = r1 + r2. (r1, r2 are atomic radii of the two atoms)
 
         if isinstance(self.rs, dict):
             assert hasattr(self, "r_map")
@@ -259,7 +280,7 @@ class DFTB2NNSK(nn.Module):
         optimizer = get_optimizer(model_param=[self.hopping_params, self.overlap_params], **self.train_options["optimizer"])
         lrscheduler = get_lr_scheduler(optimizer=optimizer, **self.train_options["lr_scheduler"])  # add optmizer
 
-        self.loss = torch.tensor(0.)
+        self.loss = torch.tensor(0., device=self.device, dtype=self.dtype)
         def closure():
             optimizer.zero_grad()
             if r_min is None and r_max is None:
@@ -272,7 +293,7 @@ class DFTB2NNSK(nn.Module):
                 r_max_ = r_max
             
             # 用 gauss 分布的随机数，重点采样在 r_min 和 r_max范围中心区域的值
-            r = self.truncated_normal(shape=[len(self.curr_bond_indices),nsample], min_val=r_min_, max_val=r_max_, stdsigma=0.5)
+            r = self.truncated_normal(shape=[len(self.curr_bond_indices),nsample], min_val=r_min_, max_val=r_max_, stdsigma=0.5, device=self.device, dtype=self.dtype)
            
             hopping, overlap, dftb_hopping, dftb_overlap = self(r, bond_indices=self.curr_bond_indices)
 
@@ -296,7 +317,7 @@ class DFTB2NNSK(nn.Module):
         for istep in range(nstep):
             # 如果 total_bond_types 太大, 会导致内存不够, 可以考虑分批次优化, 每次优化一部分的bond_types
             # 我们定义一次优化最大的bond_types数量为 max_elmt_batch^2    
-            bond_indices_all = torch.randperm(total_bond_types)
+            bond_indices_all = torch.randperm(total_bond_types, device=self.device)
             total_loss = 0
             total_hop_mae = 0
             total_hop_rmse = 0
@@ -304,7 +325,7 @@ class DFTB2NNSK(nn.Module):
             total_ovl_rmse = 0
 
             for i in range(0, total_bond_types, max_elmt_batch**2):
-                curr_indices = torch.arange(i, min(i+max_elmt_batch**2, total_bond_types))
+                curr_indices = torch.arange(i, min(i+max_elmt_batch**2, total_bond_types),device=self.device)
                 self.curr_bond_indices = bond_indices_all[curr_indices]
                 optimizer.step(closure)
                 total_loss += self.loss.item()
@@ -449,18 +470,20 @@ class DFTB2NNSK(nn.Module):
         return True
 
 
-    def to_nnsk(self, ebase=True):
+    def to_nnsk(self, ebase=False):
         if ebase:
-            nnsk = NNSK(
+            self.nnsk = NNSK(
             idp_sk=self.dftb.idp_sk, 
             onsite={"method": "uniform"},
             hopping={"method": self.functype, "rs":self.rs, "w": self.w},
             overlap=True,
-            atomic_radius = self.atomic_radius
+            atomic_radius = self.atomic_radius,
+            device=self.device,
+            dtype=self.dtype
             )
         
-            nnsk.hopping_param.data = self.hopping_params.data
-            nnsk.overlap_param.data = self.overlap_params.data
+            self.nnsk.hopping_param.data = self.hopping_params.data
+            self.nnsk.overlap_param.data = self.overlap_params.data
 
             self.E_base = torch.zeros(self.idp_sk.num_types, self.idp_sk.n_onsite_Es)
             for asym, idx in self.idp_sk.chemical_symbol_to_type.items():
@@ -469,36 +492,46 @@ class DFTB2NNSK(nn.Module):
                     fot = self.idp_sk.basis_to_full_basis[asym][ot]
                     self.E_base[idx][self.idp_sk.skonsite_maps[fot+"-"+fot]] = onsite_energy_database[asym][ot]
             
-            nnsk.onsite_param.data = self.dftb.param["OnsiteE"] - self.E_base[torch.arange(len(self.idp_sk.type_names))].unsqueeze(-1)
+            self.nnsk.onsite_param.data = self.dftb.param["OnsiteE"] - self.E_base[torch.arange(len(self.idp_sk.type_names))].unsqueeze(-1)
         
         else:
-            nnsk = NNSK(
+            self.nnsk = NNSK(
             idp_sk=self.dftb.idp_sk, 
             onsite={"method": "uniform_noref"},
             hopping={"method": self.functype, "rs":self.rs, "w": self.w},
             overlap=True,
-            atomic_radius = self.atomic_radius
+            atomic_radius = self.atomic_radius,
+            device=self.device,
+            dtype=self.dtype
             )
 
-            nnsk.hopping_param.data = self.hopping_params.data
-            nnsk.overlap_param.data = self.overlap_params.data
-            nnsk.onsite_param.data = self.dftb.param["OnsiteE"]
+            self.nnsk.hopping_param.data = self.hopping_params.data
+            self.nnsk.overlap_param.data = self.overlap_params.data
+            self.nnsk.onsite_param.data = self.dftb.param["OnsiteE"]
 
-        return nnsk
-    
+        return self.nnsk
+
+    def to_pth(self):
+        if not hasattr(self, "nnsk"):
+            self.to_nnsk()
+        self.nnsk.save(f"{self.output}/nnsk_from_skf.pth")        
+        
+        return True 
+        
     def to_json(self):
-        nnsk = self.to_nnsk()
-        return nnsk.to_json()
+        if not hasattr(self, "nnsk"):
+            self.to_nnsk()
+        return self.nnsk.to_json()
     
     @staticmethod
-    def truncated_normal(shape, min_val, max_val, stdsigma=2):
-        min_val = torch.as_tensor(min_val)
-        max_val = torch.as_tensor(max_val)
+    def truncated_normal(shape, min_val, max_val, stdsigma=2,device='cpu', dtype=torch.float32):
+        min_val = torch.as_tensor(min_val, device=device, dtype=dtype)
+        max_val = torch.as_tensor(max_val, device=device, dtype=dtype)
         
         mean = (min_val + max_val) / 2
         #mean = (2 * min_val + mean) / 2
         std = (max_val - min_val) / (2 * stdsigma)
-        u = torch.rand(shape)
+        u = torch.rand(shape, device=device, dtype=dtype)
         cdf_low = torch.erf((min_val - mean) / (std * 2.0**0.5)) / 2.0 + 0.5
         cdf_high = torch.erf((max_val - mean) / (std * 2.0**0.5)) / 2.0 + 0.5
         return torch.erfinv(2 * (cdf_low + u * (cdf_high - cdf_low)) - 1) * (2**0.5) * std + mean

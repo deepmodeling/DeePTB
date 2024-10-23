@@ -929,6 +929,19 @@ class NNSK(torch.nn.Module):
 
         return nnsk_model
     
+    def save(self,filepath):
+        obj = {}
+        model_options=self.model_options
+        common_options={
+            "basis":self.basis,
+            "overlap":hasattr(self, "overlap_param"),
+            "dtype":self.dtype,
+            "device":self.device
+        }
+        obj.update({"config": {"model_options": model_options, "common_options": common_options}})
+        obj.update({"model_state_dict": self.state_dict()})
+        torch.save(obj, f=filepath)
+        
     def to_json(self,version=2):
         ckpt = {}
         # load hopping params
