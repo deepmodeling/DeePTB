@@ -313,6 +313,7 @@ class EigHamLoss(nn.Module):
             diff_valence: dict=None,
             spin_deg: int = 2,
             coeff_ham: float=1.,
+            coeff_ovp: float=1.,
             **kwargs,
         ):
         super(EigHamLoss, self).__init__()
@@ -322,6 +323,7 @@ class EigHamLoss(nn.Module):
         self.device = device
         self.onsite_shift = onsite_shift
         self.coeff_ham = coeff_ham
+        self.coeff_ovp = coeff_ovp
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
@@ -385,7 +387,7 @@ class EigHamLoss(nn.Module):
             tgt = ref_data[AtomicDataDict.NODE_OVERLAP_KEY][self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
             overlap_loss += 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
 
-            ham_loss = (1/3) * (hopping_loss + onsite_loss + overlap_loss)
+            ham_loss = (1/3) * (hopping_loss + onsite_loss + (self.coeff_ovp / self.coeff_ham) * overlap_loss)
         else:
             ham_loss = 0.5 * (onsite_loss + hopping_loss)
 

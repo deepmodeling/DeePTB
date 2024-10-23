@@ -756,6 +756,7 @@ def loss_options():
 
     eig_ham = [
         Argument("coeff_ham", float, optional=True, default=1., doc="The coefficient of the hamiltonian penalty. Default: 1"),
+        Argument("coeff_ovp", float, optional=True, default=1., doc="The coefficient of the hamiltonian penalty. Default: 1"),
     ]
 
     skints = [
