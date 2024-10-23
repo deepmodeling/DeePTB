@@ -165,8 +165,6 @@ class OnsiteFormula(BaseOnsite):
         atomic_numbers = atomic_numbers.reshape(-1)
         if nn_onsite_paras.shape[-1] == 1:
             nn_onsite_paras = nn_onsite_paras.squeeze(-1)
-        
-        assert len(nn_onsite_paras) == self.E_base.shape[0]
 
         idx = self.idp.transform_atom(atomic_numbers)
 
