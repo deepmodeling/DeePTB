@@ -500,8 +500,8 @@ class HamilLossWT(nn.Module):
             idp: Union[OrbitalMapper, None]=None,
             overlap: bool=False,
             onsite_shift: bool=False,
-            onsite_weight: Union[float, int, list]=1.,
-            hopping_weight: Union[float, int, list]=1.,
+            onsite_weight: Union[float, int, dict]=1.,
+            hopping_weight: Union[float, int, dict]=1.,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             **kwargs,
@@ -512,9 +512,6 @@ class HamilLossWT(nn.Module):
         self.device = device
         self.onsite_shift = onsite_shift
 
-        self.onsite_weight = torch.tensor(onsite_weight, device=device).flatten().unsqueeze(1)
-        self.hopping_weight = torch.tensor(hopping_weight, device=device).flatten().unsqueeze(1)
-
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
             if idp is not None:
@@ -523,15 +520,26 @@ class HamilLossWT(nn.Module):
             assert idp is not None, "Either basis or idp should be provided."
             self.idp = idp
 
-        if self.onsite_weight.shape[0] == 1:
-            self.onsite_weight = self.onsite_weight.repeat(len(self.idp.type_names), 1)
+        self.onsite_weight = torch.ones(idp.num_types)
+        self.hopping_weight = torch.ones(len(idp.bond_types))
+        if isinstance(onsite_weight, float) or isinstance(onsite_weight, int):
+            self.onsite_weight *= onsite_weight
+        elif isinstance(onsite_weight, dict):
+            for k,v in onsite_weight.items():
+                self.onsite_weight[idp.chemical_symbol_to_type[k]] = v
         else:
-            assert self.onsite_weight.shape[0] == self.idp.num_types
+            raise TypeError("onsite weight should be either float, int or dict")
         
-        if self.hopping_weight.shape[0] == 1:
-            self.hopping_weight = self.hopping_weight.repeat(len(self.idp.bond_types), 1)
+        if isinstance(hopping_weight, float) or isinstance(hopping_weight, int):
+            self.hopping_weight *= hopping_weight
+        elif isinstance(hopping_weight, dict):
+            for k,v in hopping_weight.items():
+                self.hopping_weight[idp.bond_to_type[k]] = v
         else:
-            assert self.hopping_weight.shape[0] == len(self.idp.bond_types)
+            raise TypeError("hopping weight should be either float, int or dict")
+        
+        self.onsite_weight = self.onsite_weight.unsqueeze(1)
+        self.hopping_weight = self.hopping_weight.unsqueeze(1)
 
     def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
         # mask the data

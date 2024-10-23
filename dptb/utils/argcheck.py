@@ -752,8 +752,8 @@ def loss_options():
     ]
 
     wt = [
-        Argument("onsite_weight", [int, float, list], optional=True, default=1., doc="Whether to use onsite shift in loss function. Default: False"),
-        Argument("hopping_weight", [int, float, list], optional=True, default=1., doc="Whether to use onsite shift in loss function. Default: False"),
+        Argument("onsite_weight", [int, float, dict], optional=True, default=1., doc="Whether to use onsite shift in loss function. Default: False"),
+        Argument("hopping_weight", [int, float, dict], optional=True, default=1., doc="Whether to use onsite shift in loss function. Default: False"),
     ]
 
     eigvals = [
