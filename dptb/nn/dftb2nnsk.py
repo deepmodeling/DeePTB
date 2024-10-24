@@ -185,13 +185,13 @@ class DFTB2NNSK(nn.Module):
         return config
 
     @classmethod
-    def load(cls, ckpt, skdata, train_options):
+    def load(cls, ckpt, skdata, train_options, output='./'):
         if not os.path.exists(ckpt):
             raise FileNotFoundError(f"No file found at {ckpt}")
 
         state = torch.load(ckpt)
         config = state['config']
-        model = cls(skdata=skdata, train_options=train_options, **config)
+        model = cls(skdata=skdata, train_options=train_options, output=output, **config)
         model.load_state_dict(state['model_state_dict'])
         return model 
     
