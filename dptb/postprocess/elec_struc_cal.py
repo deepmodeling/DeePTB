@@ -88,6 +88,11 @@ class ElecStruCal(object):
         '''
         atomic_options = deepcopy(self.cutoffs)
         if pbc is not None:
+            # 这一句要结合后面AtomicData.from_ase(structase, **atomic_options) 看。在from_ase中
+            # pbc = kwargs.pop("pbc", atoms.pbc), 所以当默认 调用get_dat 传入 pbc = None 时，
+            # atomic_options 中并没有 pbc 这个key，所以在from_ase中，pbc = atoms.pbc 默认采用atoms的pbc
+            # 当传入pbc 非None时，atomic_options中会有pbc这个key，所以from_ase中的pbc 将不会采用atoms的pbc。 
+            # 逻辑线埋的比较深，需要注意。
             atomic_options.update({'pbc': pbc})
 
         if AtomicData_options is not None:
@@ -106,7 +111,12 @@ class ElecStruCal(object):
                     atomic_options['oer_max'] = AtomicData_options.get('oer_max')
                     log.warning(f'Overwrite the oer_max setting in the model with the oer_max setting in the AtomicData_options: {AtomicData_options.get("oer_max")}')
                     log.warning(f'This is very dangerous, please make sure you know what you are doing.')
-
+        
+        else:
+            if atomic_options['r_max'] is None:
+                log.error('The r_max is not provided in model_options, please provide it in AtomicData_options.')
+                raise RuntimeError('The r_max is not provided in model_options, please provide it in AtomicData_options.')
+            
         if isinstance(data, str):
             structase = read(data)
             data = AtomicData.from_ase(structase, **atomic_options)

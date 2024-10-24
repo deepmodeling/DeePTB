@@ -12,7 +12,7 @@ from dptb.entrypoints.pth2json import pth2json
 from dptb.entrypoints.data import data
 from dptb.utils.loggers import set_log_handles
 from dptb.utils.config_check import check_config_train
-from dptb.entrypoints.collectskf import skf2pth
+from dptb.entrypoints.collectskf import skf2pth, skf2nnsk
 from dptb import __version__
 
 
@@ -364,6 +364,37 @@ def main_parser() -> argparse.ArgumentParser:
         help="The output pth files of sk params from skfiles."
     )
 
+    # neighbour
+    parser_skf2nn = subparsers.add_parser(
+        "skf2nn",
+        parents=[parser_log],
+        help="Convert the sk files to nn-sk TB model",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    
+    parser_skf2nn.add_argument(
+        "INPUT", help="the input parameter file in json or yaml format",
+        type=str,
+        default=None
+    )
+
+    parser_skf2nn.add_argument(
+        "-i",
+        "--init-model",
+        type=str,
+        default=None,
+        help="Initialize the model by the provided checkpoint.",
+    )
+
+    parser_skf2nn.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default="./",
+        help="The output files in training.",
+    )
+
+
     return parser
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
@@ -424,3 +455,6 @@ def main():
         
     elif args.command == 'cskf':
         skf2pth(**dict_args)
+
+    elif args.command == 'skf2nn':
+        skf2nnsk(**dict_args)

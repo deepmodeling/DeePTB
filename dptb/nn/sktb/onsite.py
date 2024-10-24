@@ -27,6 +27,7 @@ class BaseOnsite(ABC):
 class OnsiteFormula(BaseOnsite):
     num_paras_dict = {
         'uniform': 1,
+        'uniform_noref': 1,
         'none': 0,
         'strain': 0,
         "NRL": 4,
@@ -47,7 +48,8 @@ class OnsiteFormula(BaseOnsite):
             assert hasattr(self, 'none')
         elif functype == 'uniform':
             assert hasattr(self, 'uniform')
-
+        elif functype == 'uniform_noref':
+            assert hasattr(self, 'uniform_noref')
         elif functype == 'NRL':
             assert hasattr(self, 'NRL')
 
@@ -73,6 +75,8 @@ class OnsiteFormula(BaseOnsite):
     def get_skEs(self, **kwargs):
         if self.functype == 'uniform':
             return self.uniform(**kwargs)
+        if self.functype == 'uniform_noref':
+            return self.uniform_noref(**kwargs)
         if self.functype == 'NRL':
             return self.NRL(**kwargs)
         if self.functype in ['none', 'strain']:
@@ -142,7 +146,30 @@ class OnsiteFormula(BaseOnsite):
         idx = self.idp.transform_atom(atomic_numbers)
 
         return nn_onsite_paras[idx] + self.none(atomic_numbers=atomic_numbers)
-        
+
+    def uniform_noref(self, atomic_numbers: torch.Tensor, nn_onsite_paras: torch.Tensor, **kwargs):
+        """The uniform onsite function, that have the same onsite energies for one specific orbital of a atom type.
+
+        Parameters
+        ----------
+        atomic_numbers : torch.Tensor(N) or torch.Tensor(N,1)
+            The atomic number list.
+        nn_onsite_paras : torch.Tensor(N_atom_type, n_orb)
+            The nn fitted parameters for onsite energies.
+
+        Returns
+        -------
+        torch.Tensor(N, n_orb)
+            the onsite energies by composing results from nn and ones from database.
+        """
+        atomic_numbers = atomic_numbers.reshape(-1)
+        if nn_onsite_paras.shape[-1] == 1:
+            nn_onsite_paras = nn_onsite_paras.squeeze(-1)
+
+        idx = self.idp.transform_atom(atomic_numbers)
+
+        return nn_onsite_paras[idx]
+             
 
     def NRL(self, atomic_numbers, onsitenv_index, onsitenv_length, nn_onsite_paras, rs:th.float32 = th.tensor(6), w:th.float32 = 0.1, lda=1.0, **kwargs):
         """ This is NRL-TB formula for onsite energies.
