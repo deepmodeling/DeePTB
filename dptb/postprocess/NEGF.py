@@ -196,6 +196,7 @@ class NEGF(object):
         self.free_charge = {} # net charge: hole - electron
         self.gate_region = [self.poisson_options[i] for i in self.poisson_options if i.startswith("gate")]
         self.dielectric_region = [self.poisson_options[i] for i in self.poisson_options if i.startswith("dielectric")]
+        self.doped_region = [self.poisson_options[i] for i in self.poisson_options if i.startswith("doped")]
 
 
 
@@ -270,19 +271,27 @@ class NEGF(object):
         # create dielectric
         Dielectric_list = []
         for dd in range(len(self.dielectric_region)):
-            dielectric_init = Dielectric(self.dielectric_region[dd].get("x_range",None).split(':'),\
-                self.dielectric_region[dd].get("y_range",None).split(':'),\
-                self.dielectric_region[dd].get("z_range",None).split(':'))
+            dielectric_init = Dielectric(   self.dielectric_region[dd].get("x_range",None).split(':'),\
+                                            self.dielectric_region[dd].get("y_range",None).split(':'),\
+                                            self.dielectric_region[dd].get("z_range",None).split(':'))
             dielectric_init.eps = float(self.dielectric_region[dd].get("relative permittivity",None))
             Dielectric_list.append(dielectric_init)        
 
         # create interface
         interface_poisson = Interface3D(grid,Gate_list,Dielectric_list)
+        atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values()) # atomic site index in the grid
+
+        for dp in range(len(self.doped_region)):
+            interface_poisson.get_fixed_charge( self.doped_region[dp].get("x_range",None).split(':'),\
+                                                self.doped_region[dp].get("y_range",None).split(':'),\
+                                                self.doped_region[dp].get("z_range",None).split(':'),\
+                                                self.doped_region[dp].get("charge",None),\
+                                                atom_gridpoint_index)
 
         #initial guess for electrostatic potential
         log.info(msg="-----Initial guess for electrostatic potential----")
         interface_poisson.solve_poisson_NRcycle(method=self.poisson_options['solver'],tolerance=tolerance)
-        atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values())
+        
         log.info(msg="-------------------------------------------\n")
 
         max_diff_phi = 1e30; max_diff_list = [] 
@@ -290,7 +299,6 @@ class NEGF(object):
         # Gummel type iteration
         while max_diff_phi > err:
             # update Hamiltonian by modifying onsite energy with potential
-            atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values())
             self.potential_at_atom = interface_poisson.phi[atom_gridpoint_index]
             self.potential_at_orb = torch.cat([torch.full((norb,), p) for p, norb\
                                                 in zip(self.potential_at_atom, self.device_atom_norbs)])

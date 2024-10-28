@@ -53,7 +53,7 @@ class Grid(object):
         # print('Number of grid points: ',self.Np,' grid shape: ',self.grid_coord.shape,' Number of atoms: ',self.Na)
 
         # find the index of the atoms in the grid
-        self.atom_index_dict = self.find_atom_index(xa,ya,za)
+        self.atom_index_dict = self.get_atom_index(xa,ya,za)
 
 
         # create surface area for each grid point along x,y,z axis
@@ -75,7 +75,7 @@ class Grid(object):
         self.surface_grid = surface_grid  # grid points order are the same as that of  self.grid_coord
         
 
-    def find_atom_index(self,xa,ya,za):
+    def get_atom_index(self,xa,ya,za):
         # find the index of the atoms in the grid
         swap = {}
         for atom_index in range(self.Na):
@@ -142,14 +142,29 @@ class Interface3D(object):
 
         # store the boundary information: xmin,xmax,ymin,ymax,zmin,zmax,gate
         self.boudnary_points = {i:"in" for i in range(self.grid.Np)} # initially set all points as internal
-        self.boundary_points_get()
+        self.get_boundary_points()
 
         self.lead_gate_potential = np.zeros(grid.Np) # no gate potential initially, all grid points are set to zero
-        self.potential_eps_get(gate_list+dielectric_list)
+        self.get_potential_eps(gate_list+dielectric_list)
         
 
+    def get_fixed_charge(self,x_range,y_range,z_range,molar_fraction,atom_gridpoint_index):
+        # set the fixed charge density
+        mask = (
+            (float(x_range[0]) <= self.grid.grid_coord[:, 0]) &
+            (float(x_range[1]) >= self.grid.grid_coord[:, 0]) &
+            (float(y_range[0]) <= self.grid.grid_coord[:, 1]) &
+            (float(y_range[1]) >= self.grid.grid_coord[:, 1]) &
+            (float(z_range[0]) <= self.grid.grid_coord[:, 2]) &
+            (float(z_range[1]) >= self.grid.grid_coord[:, 2])
+        )
+        index = np.nonzero(mask)[0]
+        valid_indices = index[np.isin(index, atom_gridpoint_index)]
+        self.fixed_charge[valid_indices] = molar_fraction
 
-    def boundary_points_get(self):
+
+
+    def get_boundary_points(self):
         # set the boundary points
         xmin,xmax = np.min(self.grid.xall),np.max(self.grid.xall)
         ymin,ymax = np.min(self.grid.yall),np.max(self.grid.yall)
@@ -166,7 +181,7 @@ class Interface3D(object):
                 
         self.internal_NP = internal_NP
     
-    def potential_eps_get(self,region_list):
+    def get_potential_eps(self,region_list):
         # set the gate potential
         # ingore the lead potential temporarily
         gate_point = 0
