@@ -244,56 +244,54 @@ class NEGF(object):
     def compute(self):
 
         if self.scf:
-            # if not self.out_density:
-            #     self.out_density = True
-            #     raise UserWarning("SCF is required, but out_density is set to False. Automatically Setting out_density to True.")
-            self.poisson_negf_scf(err=self.poisson_options['err'],tolerance=self.poisson_options['tolerance'],\
-                                  max_iter=self.poisson_options['max_iter'],mix_rate=self.poisson_options['mix_rate'])
+
+            # create real-space grid
+            grid = self.get_grid(self.poisson_options["grid"],self.deviceprop.structure)
+
+            # create gate
+            Gate_list = []
+            for gg in range(len(self.gate_region)):
+                gate_init = Gate(self.gate_region[gg].get("x_range",None).split(':'),\
+                                self.gate_region[gg].get("y_range",None).split(':'),\
+                                self.gate_region[gg].get("z_range",None).split(':'))
+                gate_init.Ef = float(self.gate_region[gg].get("voltage",None)) # in unit of volt
+                Gate_list.append(gate_init)
+            
+            # create dielectric            
+            Dielectric_list = []
+            for dd in range(len(self.dielectric_region)):
+                dielectric_init = Dielectric(   self.dielectric_region[dd].get("x_range",None).split(':'),\
+                                                self.dielectric_region[dd].get("y_range",None).split(':'),\
+                                                self.dielectric_region[dd].get("z_range",None).split(':'))
+                dielectric_init.eps = float(self.dielectric_region[dd].get("relative permittivity",None))
+                Dielectric_list.append(dielectric_init) 
+
+            # create interface
+            interface_poisson = Interface3D(grid,Gate_list,Dielectric_list)
+            atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values()) # atomic site index in the grid
+            interface_poisson.get_potential_eps(Gate_list+Dielectric_list)
+            for dp in range(len(self.doped_region)):
+                interface_poisson.get_fixed_charge( self.doped_region[dp].get("x_range",None).split(':'),\
+                                                    self.doped_region[dp].get("y_range",None).split(':'),\
+                                                    self.doped_region[dp].get("z_range",None).split(':'),\
+                                                    self.doped_region[dp].get("charge",None),\
+                                                    atom_gridpoint_index)
+
+            #initial guess for electrostatic potential
+            log.info(msg="-----Initial guess for electrostatic potential----")
+            interface_poisson.solve_poisson_NRcycle(method=self.poisson_options['solver'],tolerance=self.poisson_options['tolerance'])
+            log.info(msg="-------------------------------------------\n")
+
+            self.poisson_negf_scf(  interface_poisson=interface_poisson,atom_gridpoint_index=atom_gridpoint_index,\
+                                    err=self.poisson_options['err'],max_iter=self.poisson_options['max_iter'],\
+                                    mix_rate=self.poisson_options['mix_rate'],tolerance=self.poisson_options['tolerance'])
         else:
             self.negf_compute(scf_require=False,Vbias=None)
 
-    def poisson_negf_scf(self,err=1e-6,max_iter=1000,mix_rate=0.3,tolerance=1e-7):
+    def poisson_negf_scf(self,interface_poisson,atom_gridpoint_index,err=1e-6,max_iter=1000,mix_rate=0.3,tolerance=1e-7):
 
         
         # profiler.start() 
-        # create real-space grid
-        grid = self.get_grid(self.poisson_options["grid"],self.deviceprop.structure)
-        
-        # create gate
-        Gate_list = []
-        for gg in range(len(self.gate_region)):
-            gate_init = Gate(self.gate_region[gg].get("x_range",None).split(':'),\
-                             self.gate_region[gg].get("y_range",None).split(':'),\
-                             self.gate_region[gg].get("z_range",None).split(':'))
-            gate_init.Ef = float(self.gate_region[gg].get("voltage",None)) # in unit of volt
-            Gate_list.append(gate_init)
-                      
-        # create dielectric
-        Dielectric_list = []
-        for dd in range(len(self.dielectric_region)):
-            dielectric_init = Dielectric(   self.dielectric_region[dd].get("x_range",None).split(':'),\
-                                            self.dielectric_region[dd].get("y_range",None).split(':'),\
-                                            self.dielectric_region[dd].get("z_range",None).split(':'))
-            dielectric_init.eps = float(self.dielectric_region[dd].get("relative permittivity",None))
-            Dielectric_list.append(dielectric_init)        
-
-        # create interface
-        interface_poisson = Interface3D(grid,Gate_list,Dielectric_list)
-        atom_gridpoint_index =  list(interface_poisson.grid.atom_index_dict.values()) # atomic site index in the grid
-
-        for dp in range(len(self.doped_region)):
-            interface_poisson.get_fixed_charge( self.doped_region[dp].get("x_range",None).split(':'),\
-                                                self.doped_region[dp].get("y_range",None).split(':'),\
-                                                self.doped_region[dp].get("z_range",None).split(':'),\
-                                                self.doped_region[dp].get("charge",None),\
-                                                atom_gridpoint_index)
-
-        #initial guess for electrostatic potential
-        log.info(msg="-----Initial guess for electrostatic potential----")
-        interface_poisson.solve_poisson_NRcycle(method=self.poisson_options['solver'],tolerance=tolerance)
-        
-        log.info(msg="-------------------------------------------\n")
-
         max_diff_phi = 1e30; max_diff_list = [] 
         iter_count=0
         # Gummel type iteration
@@ -312,12 +310,6 @@ class NEGF(object):
             # DM_eq,DM_neq = self.out["DM_eq"], self.out["DM_neq"]
             # elec_density = torch.diag(DM_eq+DM_neq)
             
-
-            # elec_density_per_atom = []
-            # pre_atom_orbs = 0
-            # for i in range(len(device_atom_norbs)):
-            #     elec_density_per_atom.append(torch.sum(elec_density[pre_atom_orbs : pre_atom_orbs+device_atom_norbs[i]]).numpy())
-            #     pre_atom_orbs += device_atom_norbs[i]
 
             # TODO: check the sign of free_charge
             # TODO: check the spin degenracy

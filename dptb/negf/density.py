@@ -286,6 +286,7 @@ class Fiori(Density):
                 A_Rd = [torch.mm(torch.mm(deviceprop.gr_lc[i],gammaR[-x1:, -x1:]),deviceprop.gr_lc[i].conj().T) for i in range(len(deviceprop.gr_lc))]
             
             A_Ld = [1j*(deviceprop.grd[i]-deviceprop.grd[i].conj().T)-A_Rd[i] for i in range(len(A_Rd))]
+            # the chemical potential in fermi_dirac is always set as lead_L.mu, representing the source and drain fermi level
             gnd = [A_Ld[i]*deviceprop.lead_L.fermi_dirac(e+deviceprop.lead_L.efermi) \
                     +A_Rd[i]*deviceprop.lead_R.fermi_dirac(e+deviceprop.lead_R.efermi) for i in range(len(A_Ld))]
             gpd = [A_Ld[i] + A_Rd[i] - gnd[i] for i in range(len(A_Ld))]

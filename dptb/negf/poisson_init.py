@@ -145,7 +145,7 @@ class Interface3D(object):
         self.get_boundary_points()
 
         self.lead_gate_potential = np.zeros(grid.Np) # no gate potential initially, all grid points are set to zero
-        self.get_potential_eps(gate_list+dielectric_list)
+        
         
 
     def get_fixed_charge(self,x_range,y_range,z_range,molar_fraction,atom_gridpoint_index):

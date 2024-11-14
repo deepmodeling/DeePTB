@@ -1092,6 +1092,7 @@ def pyamg():
     doc_grid=""
     doc_gate=""
     doc_dielectric=""
+    doc_doped=""
     doc_max_iter=""
     doc_mix_rate=""
     return [
@@ -1102,7 +1103,8 @@ def pyamg():
         Argument("grid", dict, optional=False, sub_fields=grid(), doc=doc_grid),
         Argument("gate_top", dict, optional=False, sub_fields=gate(), doc=doc_gate),
         Argument("gate_bottom", dict, optional=False, sub_fields=gate(), doc=doc_gate),
-        Argument("dielectric_region", dict, optional=False, sub_fields=dielectric(), doc=doc_dielectric)
+        Argument("dielectric_region", dict, optional=False, sub_fields=dielectric(), doc=doc_dielectric),
+        Argument("doped_region", dict, optional=False, sub_fields=doped(), doc=doc_doped)
     ]
 
 def scipy():
@@ -1111,6 +1113,7 @@ def scipy():
     doc_grid=""
     doc_gate=""
     doc_dielectric=""
+    doc_doped=""
     doc_max_iter=""
     doc_mix_rate=""
     return [
@@ -1118,10 +1121,12 @@ def scipy():
         Argument("tolerance", [int, float], optional=True, default=1e-7, doc=doc_tolerance),
         Argument("max_iter", int, optional=True, default=100, doc=doc_max_iter),
         Argument("mix_rate", int, optional=True, default=0.25, doc=doc_mix_rate),
-        Argument("grid", dict, optional=False, sub_fields=grid(), doc=doc_grid),
-        Argument("gate_top", dict, optional=False, sub_fields=gate(), doc=doc_gate),
-        Argument("gate_bottom", dict, optional=False, sub_fields=gate(), doc=doc_gate),
-        Argument("dielectric_region", dict, optional=False, sub_fields=dielectric(), doc=doc_dielectric)
+        Argument("grid", dict, optional=True, sub_fields=grid(), doc=doc_grid),
+        Argument("gate_top", dict, optional=True, sub_fields=gate(), doc=doc_gate),
+        Argument("gate_bottom", dict, optional=True, sub_fields=gate(), doc=doc_gate),
+        Argument("dielectric_region", dict, optional=True, sub_fields=dielectric(), doc=doc_dielectric),
+        Argument("doped_region1", dict, optional=True, sub_fields=doped(), doc=doc_doped),
+        Argument("doped_region2", dict, optional=True, sub_fields=doped(), doc=doc_doped)
     ]
 
 def grid():
@@ -1156,6 +1161,18 @@ def dielectric():
         Argument("y_range", str, optional=False, doc=doc_yrange),
         Argument("z_range", str, optional=False, doc=doc_zrange),
         Argument("relative permittivity", [int, float], optional=False, doc=doc_permittivity)
+    ]
+
+def doped():
+    doc_xrange=""
+    doc_yrange=""
+    doc_zrange=""
+    doc_charge=""
+    return [
+        Argument("x_range", str, optional=False, doc=doc_xrange),
+        Argument("y_range", str, optional=False, doc=doc_yrange),
+        Argument("z_range", str, optional=False, doc=doc_zrange),
+        Argument("charge", [int, float], optional=False, doc=doc_charge)
     ]
 
 def run_options():
