@@ -58,7 +58,7 @@
     },
     "data_options": {
         "train": {
-            "root": "./data_10",
+            "root": "./gau_2_items",
             "prefix": "data",
             "type": "LMDBDataset",
             "get_Hamiltonian": true,
