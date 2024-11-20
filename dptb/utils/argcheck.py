@@ -345,9 +345,9 @@ def test_data_sub():
 
 def data_options():
     args = [
-            Argument("r_max", [float,int], optional=True, default="5.0", doc="r_max"),
-            Argument("oer_max", [float,int], optional=True, default="5.0", doc="oer_max"),
-            Argument("er_max", [float,int], optional=True, default="5.0", doc="er_max"),
+            Argument("r_max", [float,int], optional=True, default=5.0, doc="r_max"),
+            Argument("oer_max", [float,int], optional=True, default=5.0, doc="oer_max"),
+            Argument("er_max", [float,int], optional=True, default=5.0, doc="er_max"),
             train_data_sub(),
             validation_data_sub(),
             reference_data_sub()
