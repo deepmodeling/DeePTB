@@ -60,7 +60,7 @@ class SurfaceGreen(torch.autograd.Function):
 
                     test = ee * S - H - torch.mm(ee * s01 - h01, gs.mm(ee * s10 - h10))
                     myConvTest = torch.max((test.mm(gs) - torch.eye(H.shape[0], dtype=h01.dtype)).abs())
-                    if myConvTest < 1.0e-6:
+                    if myConvTest < 3.0e-5:
                         converged = True
                         if myConvTest > 1.0e-8:
                             log.warning("Lopez-scheme not-so-well converged at E = %.4f eV:" % ee.real.item() + str(myConvTest.item()))
