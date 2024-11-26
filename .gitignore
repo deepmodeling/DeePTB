@@ -21,6 +21,10 @@ dptb/tests/data/test_all/checkpoint/best_nnsk_b5.000_c6.615_w0.265.json
 dptb/tests/data/test_all/checkpoint/best_nnsk_b4.000_c4.000_w0.300.json
 dptb/tests/data/test_all/fancy_ones/checkpoint/best_nnsk_b4.000_c4.000_w0.300.json
 dptb/tests/data/test_negf/test_negf_run/out_negf/run_config.json
+dptb/data/try_test.ipynb
+dptb/negf/check.ipynb
+dptb/tests/data/test_negf/show.ipynb
+dptb/tests/data/test_tbtrans/show.ipynb
 run_config.json
 dptb/nnet/__pycache__/
 dptb/sktb/__pycache__/
@@ -172,3 +176,6 @@ dmypy.json
 _date.py
 _version.py
 /.idea/
+
+
+
