@@ -73,7 +73,7 @@ class NEGFHamiltonianInit(object):
                  ) -> None:
         
         # TODO: add dtype and device setting to the model
-        # torch.set_default_dtype(torch.float64)
+        torch.set_default_dtype(torch.float64)
 
         if isinstance(torch_device, str):
             torch_device = torch.device(torch_device)
@@ -201,7 +201,7 @@ class NEGFHamiltonianInit(object):
 
 
 
-        self.remove_bonds_nonpbc(self.alldata,self.pbc_negf)  
+        self.remove_bonds_nonpbc(data=self.alldata,pbc=self.pbc_negf,overlap=self.overlap)  
         self.alldata = self.h2k(self.alldata)
         HK = self.alldata[AtomicDataDict.HAMILTONIAN_KEY]
 
@@ -276,7 +276,7 @@ class NEGFHamiltonianInit(object):
                     torch.nested.as_nested_tensor([torch.as_tensor(HS_leads["kpoints"], dtype=self.model.dtype, device=self.torch_device)])
                 lead_data = self.model(lead_data)               
              
-                self.remove_bonds_nonpbc(lead_data,self.pbc_negf)
+                self.remove_bonds_nonpbc(data=lead_data,pbc=self.pbc_negf,overlap=self.overlap)
                 lead_data = self.h2k(lead_data)
                 HK_lead = lead_data[AtomicDataDict.HAMILTONIAN_KEY]
                 if self.overlap: 
@@ -312,6 +312,12 @@ class NEGFHamiltonianInit(object):
                 elif 1e-7 <= max(rmse_l_HK,rmse_l_SK) <= 1e-4:
                     log.warning(msg="WARNING, the lead's hamiltonian attained from diffferent methods have slight differences   RMSE = {:.7f}.".format(max(rmse_l_HK,rmse_l_SK)))
 
+                # ensure the locality of the lead's Hamiltonian to stablize the self energy algorithm
+                h_lead_threshold = 1e-6
+                for ik in range(HK.shape[0]):
+                    hL[ik][torch.abs(hL[ik])<h_lead_threshold] = 0
+                    hLL[ik][torch.abs(hLL[ik])<h_lead_threshold] = 0
+
                 HS_leads.update({
                     "HL":hL.cdouble()*self.h_factor, 
                     "SL":sL.cdouble(), 
@@ -343,7 +349,8 @@ class NEGFHamiltonianInit(object):
         torch.set_default_dtype(torch.float32)
         return structure_device, structure_leads, structure_leads_fold, bloch_sorted_indices, bloch_R_lists,subblocks
 
-    def remove_bonds_nonpbc(self,data,pbc):
+    @staticmethod
+    def remove_bonds_nonpbc(data,pbc,overlap):
 
         for ip,p in enumerate(pbc):
             if not p:
@@ -351,7 +358,7 @@ class NEGFHamiltonianInit(object):
                 data[AtomicDataDict.EDGE_CELL_SHIFT_KEY] = data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][mask]
                 data[AtomicDataDict.EDGE_INDEX_KEY] = data[AtomicDataDict.EDGE_INDEX_KEY][:,mask]
                 data[AtomicDataDict.EDGE_FEATURES_KEY] = data[AtomicDataDict.EDGE_FEATURES_KEY][mask]
-                if self.overlap:
+                if overlap:
                     data[AtomicDataDict.EDGE_OVERLAP_KEY] = data[AtomicDataDict.EDGE_OVERLAP_KEY][mask]
 
     def get_lead_structure(self,kk,natom,useBloch=False,bloch_factor=None,lead_id=None):       
