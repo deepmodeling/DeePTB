@@ -157,8 +157,10 @@ def get_lr_scheduler(type: str, optimizer: optim.Optimizer, **sch_options):
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, **sch_options)
     elif type == 'cos':
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, **sch_options)
+    elif type == "cyclic":
+        scheduler = optim.lr_scheduler.CyclicLR(optimizer=optimizer, **sch_options)
     else:
-        raise RuntimeError("Scheduler should be exp/linear/rop..., not {}".format(type))
+        raise RuntimeError("Scheduler should be exp/linear/rop/cyclic..., not {}".format(type))
 
     return scheduler
 

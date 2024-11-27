@@ -102,6 +102,8 @@ def train_options():
                           "There are tree types of error will be recorded. `train_loss_iter` is iteration loss, `train_loss_last` is the error of the last iteration in an epoch, `train_loss_mean` is the mean error of all iterations in an epoch." \
                           "Learning rates are tracked as well. A folder named `tensorboard_logs` will be created in the working directory. Use `tensorboard --logdir=tensorboard_logs` to view the logs." \
                           "Default: `False`"
+    update_lr_per_step_flag = "Set true to update learning rate per-step. By default, it's false."
+
     doc_optimizer = "\
         The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `SGD` and `LBFGS` \n\n\
         For more information about these optmization algorithm, we refer to:\n\n\
@@ -109,7 +111,7 @@ def train_options():
         - `SGD`: [Stochastic Gradient Descent.](https://pytorch.org/docs/stable/generated/torch.optim.SGD.html)\n\n\
         - `LBFGS`: [On the limited memory BFGS method for large scale optimization.](http://users.iems.northwestern.edu/~nocedal/PDFfiles/limited-memory.pdf) \n\n\
     "
-    doc_lr_scheduler = "The learning rate scheduler tools settings, the lr scheduler is used to scales down the learning rate during the training process. Proper setting can make the training more stable and efficient. The supported lr schedular includes: `Exponential Decaying (exp)`, `Linear multiplication (linear)`"
+    doc_lr_scheduler = "The learning rate scheduler tools settings, the lr scheduler is used to scales down the learning rate during the training process. Proper setting can make the training more stable and efficient. The supported lr schedular includes: `Exponential Decaying (exp)`, `Linear multiplication (linear)`, `Reduce on pleatau (rop)`, `Cyclic learning rate (cyclic)`. See more documentation on Pytorch. "
     doc_batch_size = "The batch size used in training, Default: 1"
     doc_ref_batch_size = "The batch size used in reference data, Default: 1"
     doc_val_batch_size = "The batch size used in validation data, Default: 1"
@@ -126,6 +128,7 @@ def train_options():
         Argument("validation_freq", int, optional=True, default=10, doc=doc_validation_freq),
         Argument("display_freq", int, optional=True, default=1, doc=doc_display_freq),
         Argument("use_tensorboard", bool, optional=True, default=False, doc=doc_use_tensorboard),
+        Argument("update_lr_per_step_flag", bool, optional=True, default=False, doc=update_lr_per_step_flag),
         Argument("max_ckpt", int, optional=True, default=4, doc=doc_max_ckpt),
         loss_options()
     ]
@@ -271,6 +274,37 @@ def ReduceOnPlateau():
         Argument("eps", float, optional=True, default=1e-8, doc=doc_eps),
     ]
 
+def CyclicLR():
+    doc_base_lr = "Initial learning rate which is the lower boundary in the cycle for each parameter group."
+    doc_max_lr = "Upper learning rate boundaries in the cycle for each parameter group. Functionally, it defines the cycle amplitude (max_lr - base_lr). The lr at any cycle is the sum of base_lr and some scaling of the amplitude; therefore max_lr may not actually be reached depending on scaling function."
+    doc_step_size_up = "Number of training iterations in the increasing half of a cycle. Default: 2000"
+    doc_step_size_down = "Number of training iterations in the decreasing half of a cycle. If step_size_down is None, it is set to step_size_up. Default: None"
+    doc_mode = "One of {triangular, triangular2, exp_range}. Values correspond to policies detailed above. If scale_fn is not None, this argument is ignored. Default: 'triangular'"
+    doc_gamma = "Constant in 'exp_range' scaling function: gamma**(cycle iterations) Default: 1.0"
+    doc_scale_fn = "Custom scaling policy defined by a single argument lambda function, where 0 <= scale_fn(x) <= 1 for all x >= 0. If specified, then 'mode' is ignored. Default: None"
+    doc_scale_mode = "{'cycle', 'iterations'}. Defines whether scale_fn is evaluated on cycle number or cycle iterations (training iterations since start of cycle). Default: 'cycle'"
+    doc_cycle_momentum = "If True, momentum is cycled inversely to learning rate between 'base_momentum' and 'max_momentum'. Default: True"
+    doc_base_momentum = "Lower momentum boundaries in the cycle for each parameter group. Note that momentum is cycled inversely to learning rate; at the start of a cycle, momentum is 'max_momentum' and learning rate is 'base_lr'. Default: 0.8"
+    doc_max_momentum = "Upper momentum boundaries in the cycle for each parameter group. Functionally, it defines the cycle amplitude (max_momentum - base_momentum). The momentum at any cycle is the difference of max_momentum and some scaling of the amplitude; therefore base_momentum may not actually be reached depending on scaling function. Note that momentum is cycled inversely to learning rate; at the start of a cycle, momentum is 'max_momentum' and learning rate is 'base_lr'. Default: 0.9"
+    doc_last_epoch = "The index of the last batch. This parameter is used when resuming a training job. Since step() should be invoked after each batch instead of after each epoch, this number represents the total number of batches computed, not the total number of epochs computed. When last_epoch=-1, the schedule is started from the beginning. Default: -1"
+    doc_verbose = "If True, prints a message to stdout for each update. Default: False."
+
+    return [
+        Argument("base_lr", [float, list], optional=False, doc=doc_base_lr),
+        Argument("max_lr", [float, list], optional=False, doc=doc_max_lr),
+        Argument("step_size_up", int, optional=True, default=10, doc=doc_step_size_up),
+        Argument("step_size_down", int, optional=True, default=40, doc=doc_step_size_down),
+        Argument("mode", str, optional=True, default="exp_range", doc=doc_mode),
+        Argument("gamma", float, optional=True, default=1.0, doc=doc_gamma),
+        Argument("scale_fn", object, optional=True, default=None, doc=doc_scale_fn),
+        Argument("scale_mode", str, optional=True, default="cycle", doc=doc_scale_mode),
+        Argument("cycle_momentum", bool, optional=True, default=False, doc=doc_cycle_momentum),
+        Argument("base_momentum", [float, list], optional=True, default=0.8, doc=doc_base_momentum),
+        Argument("max_momentum", [float, list], optional=True, default=0.9, doc=doc_max_momentum),
+        Argument("last_epoch", int, optional=True, default=-1, doc=doc_last_epoch),
+        Argument("verbose", [bool, str], optional=True, default="deprecated", doc=doc_verbose)
+    ]
+
 
 def CosineAnnealingLR():
     doc_T_max = "Maximum number of iterations. Default: 100."
@@ -289,6 +323,7 @@ def lr_scheduler():
             Argument("linear", dict, LinearLR()),
             Argument("rop", dict, ReduceOnPlateau(), doc="rop: reduce on plateau"),
             Argument("cos", dict, CosineAnnealingLR(), doc="cos: cosine annealing")
+            Argument("cyclic", dict, CyclicLR(), doc="Cyclic learning rate")
         ],optional=True, default_tag="exp", doc=doc_type)
 
 

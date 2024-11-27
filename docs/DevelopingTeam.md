@@ -7,6 +7,7 @@ The current development team consists of the following research members / groups
 - Zhanghao Zhouyin
 - Jijie Zou
 - Zixi Gan
+- MingKang Liu
 - AI for Science Institute, Beijing
 
 ## Previous Contributors
