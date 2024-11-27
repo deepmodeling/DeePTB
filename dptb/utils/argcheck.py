@@ -322,7 +322,7 @@ def lr_scheduler():
             Argument("exp", dict, ExponentialLR()),
             Argument("linear", dict, LinearLR()),
             Argument("rop", dict, ReduceOnPlateau(), doc="rop: reduce on plateau"),
-            Argument("cos", dict, CosineAnnealingLR(), doc="cos: cosine annealing")
+            Argument("cos", dict, CosineAnnealingLR(), doc="cos: cosine annealing"),
             Argument("cyclic", dict, CyclicLR(), doc="Cyclic learning rate")
         ],optional=True, default_tag="exp", doc=doc_type)
 
