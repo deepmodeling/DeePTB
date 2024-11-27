@@ -11,7 +11,8 @@ log = logging.getLogger(__name__)
 def build_model(
         checkpoint: str=None,
         model_options: dict={}, 
-        common_options: dict={}
+        common_options: dict={},
+        no_check: bool=False
         ):
     """
     The build model method should composed of the following steps:
@@ -161,12 +162,12 @@ def build_model(
             model = DFTBSK.from_reference(checkpoint, **model_options["dftbsk"], **common_options)
         else:
             model = None
-        
-    for k, v in model.model_options.items():
-        if k not in model_options:
-            log.warning(f"The model options {k} is not defined in input model_options, set to {v}.")
-        else:
-            deep_dict_difference(k, v, model_options)
+    if not no_check:  
+        for k, v in model.model_options.items():
+            if k not in model_options:
+                log.warning(f"The model options {k} is not defined in input model_options, set to {v}.")
+            else:
+                deep_dict_difference(k, v, model_options)
     model.to(model.device)
     return model
 

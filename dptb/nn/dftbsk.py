@@ -88,8 +88,11 @@ class DFTBSK(torch.nn.Module):
                                         strain=False,soc=False)
         if overlap:
             self.overlap = SKHamiltonian(idp_sk=self.idp_sk, onsite=True, edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, node_field=AtomicDataDict.NODE_OVERLAP_KEY, dtype=self.dtype, device=self.device)
+            # 这里是为了解决当轨道中包含多个相同 l 的轨道时，overlap 也具有数值。比如 1s-2s之间的overlap. 一般对于 dftb的参数spd 轨道没有这一项，此时all(self.idp_sk.mask_diag) 为True。
+            # 当 not all(self.idp_sk.mask_diag) 时。其实这里变成可训练参数也不合适，毕竟这里是直接对接DFTB参数，是不会进行训练的。不过这里这么暂时放着吧。遇到再说。
             overlaponsite_param = torch.ones([len(self.idp_sk.type_names), self.idp_sk.n_onsite_Es, 1], dtype=self.dtype, device=self.device)
             if not all(self.idp_sk.mask_diag):
+                log.warning('In dftbsk model, there are multi-orbital with the same angular momentum l, hence there will be overlap between the orbitals. but the implementation is not full supported!')
                 self.overlaponsite_param = torch.nn.Parameter(overlaponsite_param)
             else:
                 self.overlaponsite_param = overlaponsite_param

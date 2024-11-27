@@ -13,12 +13,14 @@ from dptb.data import AtomicDataDict
 import numpy as np
 import torch.nn as nn
 from .sktb import OnsiteFormula, bond_length_list, HoppingFormula
+from dptb.nn.sktb.cov_radiiDB import Covalent_radii
+from dptb.nn.sktb.bondlengthDB import atomic_radius_v1
 from dptb.utils.constants import atomic_num_dict_r, atomic_num_dict
 from dptb.nn.hamiltonian import SKHamiltonian
 from dptb.utils.tools import j_loader
 from dptb.utils.constants import ALLOWED_VERSIONS
 from dptb.nn.sktb.soc import SOCFormula
-
+from dptb.data.AtomicData import get_r_map, get_r_map_bondwise
 import logging
 
 log = logging.getLogger(__name__)
@@ -39,6 +41,7 @@ class NNSK(torch.nn.Module):
             freeze: Union[bool,str,list] = False,
             push: Union[bool,dict]=False,
             std: float = 0.01,
+            atomic_radius: Union[str, Dict] = "v1",
             **kwargs,
             ) -> None:
         
@@ -65,6 +68,7 @@ class NNSK(torch.nn.Module):
         self.hopping_options = hopping
         self.soc_options = soc
         self.push = push
+        self.atomic_radius = atomic_radius
         self.model_options = {
             "nnsk":{
                 "onsite": onsite, 
@@ -72,10 +76,25 @@ class NNSK(torch.nn.Module):
                 "soc": soc,
                 "freeze": freeze,
                 "push": push,
-                "std": std                
+                "std": std,
+                "atomic_radius":atomic_radius                
                 }
             }
         
+        if atomic_radius == "v1":
+            atomic_radius_dict = atomic_radius_v1
+        elif atomic_radius == "cov":
+            atomic_radius_dict = Covalent_radii
+        else:
+            raise ValueError(f"The atomic radius {atomic_radius} is not recognized.")
+
+        
+        atomic_numbers = [atomic_num_dict[key] for key in self.basis.keys()]
+        self.atomic_radius_list =  torch.zeros(int(max(atomic_numbers))) - 100
+        for at in self.basis.keys():
+            assert  atomic_radius_dict[at] is not None, f"The atomic radius for {at} is not provided."
+            self.atomic_radius_list[atomic_num_dict[at]-1] = atomic_radius_dict[at]
+
         if self.soc_options.get("method", None) is not None:
             self.idp_sk.get_sksoc_maps()
         
@@ -108,7 +127,7 @@ class NNSK(torch.nn.Module):
         if self.soc_options.get("method", None) is not None:
             if self.soc_options.get("method", None) == 'none':
                 self.soc_param = None
-            elif self.soc_options.get("method", None) == 'uniform':
+            elif self.soc_options.get("method", None) in ['uniform', 'uniform_noref']:
                 soc_param = torch.empty([len(self.idp_sk.type_names), self.idp_sk.n_onsite_socLs, self.soc_fn.num_paras], dtype=self.dtype, device=self.device)
                 nn.init.normal_(soc_param, mean=0.0, std=std)
                 self.soc_param = torch.nn.Parameter(soc_param)
@@ -119,7 +138,7 @@ class NNSK(torch.nn.Module):
             self.onsite_param = None
         elif self.onsite_options["method"] == "none":
             self.onsite_param = None
-        elif self.onsite_options["method"] in ["NRL", "uniform"]:
+        elif self.onsite_options["method"] in ["NRL", "uniform", "uniform_noref"]:
             onsite_param = torch.empty([len(self.idp_sk.type_names), self.idp_sk.n_onsite_Es, self.onsite_fn.num_paras], dtype=self.dtype, device=self.device)
             nn.init.normal_(onsite_param, mean=0.0, std=std)
             self.onsite_param = torch.nn.Parameter(onsite_param)
@@ -145,7 +164,21 @@ class NNSK(torch.nn.Module):
         
         if freeze:  
             self.freezefunc(freeze)
-    
+
+        self.check_push(push)
+
+        if isinstance (self.hopping_options['rs'], dict):
+            first_key = next(iter(self.hopping_options['rs'].keys()))
+            key_parts = first_key.split("-")
+            if len(key_parts) == 1: # atom-wise rs eg. {'A': 3.0,...}
+                self.r_map = get_r_map(self.hopping_options['rs'])
+                self.r_map_type = 1 # 1 for atom-wise
+            elif len(key_parts) == 2: # bond-wise rs eg. {'A-B': 3.0,...}
+                self.r_map = get_r_map_bondwise(self.hopping_options['rs'])
+                self.r_map_type = 2 # 2 for bond-wise
+            else:
+                raise ValueError("The rs tag is not recognized. Please check the rs tag.")
+
     def freezefunc(self, freeze: Union[bool,str,list]):
         if freeze is False:
             return 0
@@ -194,6 +227,29 @@ class NNSK(torch.nn.Module):
             if len(frozen_params)!=len(dict(self.named_parameters()).keys()):
                 raise ValueError("freeze is True, all parameters should frozen. But the frozen_params != all model.named_parameters. Please check the freeze tag.")
         log.info(f'The {frozen_params} are frozen!')
+    
+    # add check for push:
+    def check_push(self, push: Dict):
+        self.if_push = False
+        if push is not None and push is not False:
+            if abs(push.get("rs_thr")) + abs(push.get("rc_thr")) + abs(push.get("w_thr")) + abs(push.get("ovp_thr",0)) > 0:
+                self.if_push = True
+
+        if self.if_push:
+            if abs(push.get("rs_thr")) >0:
+                if isinstance(self.hopping_options["rs"], dict):
+                    log.error(f"rs is a dict, so cannot be decayed. Please provide a float or int for rs.")
+
+            if abs(push.get("rc_thr")) >0:
+                if isinstance(self.hopping_options["rc"], dict):
+                    log.error(f"rc is a dict, so cannot be decayed. Please provide a float or int for rc.")
+                    raise ValueError("rc is a dict, so cannot be decayed. Please provide a float or int for rc.")
+
+            if abs(push.get("ovp_thr",0)) > 0:
+                if push.get("ovp_thr",0) > 0:
+                    log.error(f"ovp_thr is positive, which means the ovp_factor will be increased. This is not allowed in the push mode.")
+                    raise ValueError("ovp_thr is positive, which means the ovp_factor will be increased. This is not allowed in the push mode.")
+
 
     def push_decay(self, rs_thr: float=0., rc_thr: float=0., w_thr: float=0., ovp_thr: float=0., period:int=100):
         """Push the soft cutoff function
@@ -214,9 +270,13 @@ class NNSK(torch.nn.Module):
                 self.hopping_options["w"] += w_thr
             if abs(rc_thr) > 0:
                 self.hopping_options["rc"] += rc_thr
-            if abs(ovp_thr) > 0 and self.ovp_factor >= abs(ovp_thr):
-                self.ovp_factor += ovp_thr
-                log.info(f"ovp_factor is decreased to {self.ovp_factor}")
+            if abs(ovp_thr) > 0 :
+                if self.ovp_factor >= abs(ovp_thr):
+                    self.ovp_factor += ovp_thr
+                    log.info(f"ovp_factor is decreased to {self.ovp_factor}")
+                else:
+                    log.info(f"ovp_factor is already less than {abs(ovp_thr)}, so not decreased.")
+
             self.model_options["nnsk"]["hopping"] = self.hopping_options
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
@@ -228,9 +288,9 @@ class NNSK(torch.nn.Module):
         # return the data with updated edge/node features
         # map the parameters to the edge/node/env features
         # compute integrals from parameters using hopping and onsite clas
-        if self.push is not None and self.push is not False:
-            if abs(self.push.get("rs_thr")) + abs(self.push.get("rc_thr")) + abs(self.push.get("w_thr")) + abs(self.push.get("ovp_thr",0)) > 0:
-                self.push_decay(**self.push)
+
+        if self.if_push:
+            self.push_decay(**self.push)
 
         reflective_bonds = np.array([self.idp_sk.bond_to_type["-".join(self.idp_sk.type_to_bond[i].split("-")[::-1])] for i  in range(len(self.idp_sk.bond_types))])
         params = self.hopping_param.data
@@ -265,13 +325,27 @@ class NNSK(torch.nn.Module):
         # The bond length list is actually the nucli radius (unit of angstrom) at the atomic number.
         # now this bond length list is only available for the first 83 elements.
         # assert (edge_number <= 83).all(), "The bond length list is only available for the first 83 elements."
-        r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number-1].sum(0)
+        # r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[edge_number-1].sum(0)
+        # r0 = self.atomic_radius_list[edge_number-1].sum(0)  # bond length r0 = r1 + r2. (r1, r2 are atomic radii of the two atoms)
+        r0 = self.atomic_radius_list.type(self.dtype).to(self.device)[edge_number-1].sum(0)
         assert (r0 > 0).all(), "The bond length list is only available for atomic numbers < 84 and excluding the lanthanides."
+        
+        hopping_options = self.hopping_options.copy() 
+        if isinstance (self.hopping_options['rs'], dict):
+            if self.r_map_type == 1:
+                rs_edgewise = 0.5*self.r_map[edge_number-1].sum(0)
+            elif self.r_map_type == 2:
+                rs_edgewise = self.r_map[edge_number[0]-1, edge_number[1]-1]
+            else:
+                raise ValueError(f"r_map_type {self.r_map_type} is not recognized.")
+                
+            hopping_options['rs'] = rs_edgewise
+
 
         data[AtomicDataDict.EDGE_FEATURES_KEY] = self.hopping_fn.get_skhij(
             rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
             paraArray=self.hopping_param[edge_index], # [N_edge, n_pairs, n_paras],
-            **self.hopping_options,
+            **hopping_options,
             r0=r0
             ) # [N_edge, n_pairs]
 
@@ -289,7 +363,7 @@ class NNSK(torch.nn.Module):
                 rij=data[AtomicDataDict.EDGE_LENGTH_KEY],
                 paraArray=self.overlap_param[edge_index],
                 paraconst=paraconst,
-                **self.hopping_options,
+                **hopping_options,
                 r0=r0,
                 )
             
@@ -329,7 +403,8 @@ class NNSK(torch.nn.Module):
             # onsitenv_params = torch.cat([self.strain_param, 
             #     reflect_params], dim=0)
             
-            r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[onsitenv_number-1].sum(0)
+            # r0 = 0.5*bond_length_list.type(self.dtype).to(self.device)[onsitenv_number-1].sum(0)
+            r0 = self.atomic_radius_list.type(self.dtype).to(self.device)[onsitenv_number-1].sum(0)  # bond length r0 = r1 + r2. (r1, r2 are atomic radii of the two atoms)
             assert (r0 > 0).all(), "The bond length list is only available for atomic numbers < 84 and excluding the lanthanides."
             onsitenv_params = self.hopping_fn.get_skhij(
             rij=data[AtomicDataDict.ONSITENV_LENGTH_KEY],
@@ -378,6 +453,7 @@ class NNSK(torch.nn.Module):
         freeze: Union[bool,str,list] = False,
         std: float = 0.01,
         transform: bool = True,
+        atomic_radius: Union[str, Dict] = None,
         **kwargs,
         ):
         # the mapping from the parameters of the ref_model and the current model can be found using
@@ -396,7 +472,8 @@ class NNSK(torch.nn.Module):
             "soc": soc,
             "freeze": freeze,
             "push": push,
-            "std": std
+            "std": std,
+            "atomic_radius": atomic_radius
         }
 
 
@@ -428,7 +505,10 @@ class NNSK(torch.nn.Module):
             for k,v in nnsk.items():
                 if k != 'push' and v is None:
                     if json_model.get("model_options",{}).get("nnsk",{}).get(k, None) is  None:
-                        raise ValueError(f"{k} is not provided in both the json model file and the input json.")
+                        if k=='atomic_radius':
+                            nnsk[k] = 'v1'
+                        else:
+                            raise ValueError(f"{k} is not provided in both the json model file and the input json.")
                     else:
                         nnsk[k] = json_model["model_options"]["nnsk"][k]
                         log.info(f"{k} is not provided in the input json, set to the value {nnsk[k]}in the json model file.")
@@ -527,7 +607,10 @@ class NNSK(torch.nn.Module):
                     log.info(f"{k} is not provided in the input json, set to the value {common_options[k]} in model ckpt.")
             for k,v in nnsk.items():
                 if v is None and k != "push" :
-                    nnsk[k] = f["config"]["model_options"]["nnsk"][k]
+                    if k=='atomic_radius' and f["config"]["model_options"]["nnsk"].get(k, None) is None:
+                        nnsk[k] = 'v1'
+                    else:
+                        nnsk[k] = f["config"]["model_options"]["nnsk"][k]
                     log.info(f"{k} is not provided in the input json, set to the value {nnsk[k]} in model ckpt.")
 
             model = cls(**common_options, **nnsk, transform=transform)
@@ -669,6 +752,7 @@ class NNSK(torch.nn.Module):
         freeze: Union[bool,str,list] = False,
         push: Union[bool,None,dict] = False,
         transform: bool = True,
+        atomic_radius: Union[str, Dict] = None,
         **kwargs
         ):
         # could support json file and .pth file checkpoint of nnsk
@@ -697,7 +781,8 @@ class NNSK(torch.nn.Module):
                 log.warning("CUDA is not available. The model will be loaded on CPU.")
                 
         nnsk_model = cls(basis=basis, idp_sk=idp_sk,  onsite=onsite,
-                          hopping=hopping, overlap=overlap, soc=soc, std=std,freeze=freeze, push=push, dtype=dtype, device=device)
+                          hopping=hopping, overlap=overlap, soc=soc, std=std,freeze=freeze, push=push, dtype=dtype, device=device,
+                          atomic_radius=atomic_radius, transform=transform)
 
         onsite_param = v1_model["onsite"]
         hopping_param = v1_model["hopping"]
@@ -844,6 +929,19 @@ class NNSK(torch.nn.Module):
 
         return nnsk_model
     
+    def save(self,filepath):
+        obj = {}
+        model_options=self.model_options
+        common_options={
+            "basis":self.basis,
+            "overlap":hasattr(self, "overlap_param"),
+            "dtype":self.dtype,
+            "device":self.device
+        }
+        obj.update({"config": {"model_options": model_options, "common_options": common_options}})
+        obj.update({"model_state_dict": self.state_dict()})
+        torch.save(obj, f=filepath)
+        
     def to_json(self,version=2):
         ckpt = {}
         # load hopping params

@@ -52,6 +52,34 @@ def test_build_dataset_success(root_directory):
 
     assert isinstance(dataset.info_files["kpath_spk.0"]["bandinfo"], dict)
 
+def test_build_dataset_rmax_dict(root_directory):
+    set_options = {
+        "r_max": {'Si':5.0},
+        "er_max": 5.0,
+        "oer_max": 2.5,
+        "root": f"{root_directory}/dptb/tests/data/test_sktb/dataset",
+        "prefix": "kpath_spk",
+        "get_eigenvalues": True,
+        "get_Hamiltonian": False,
+    }
+    common_options={"basis": {"Si": ["3s", "3p"]}}
+
+
+    dataset = build_dataset(**set_options, **common_options)
+
+def test_build_dataset_rmax_dict_bondwise(root_directory):
+    set_options = {
+        "r_max": {'Si-Si':5.0},
+        "er_max": 5.0,
+        "oer_max": 2.5,
+        "root": f"{root_directory}/dptb/tests/data/test_sktb/dataset",
+        "prefix": "kpath_spk",
+        "get_eigenvalues": True,
+        "get_Hamiltonian": False,
+    }
+    common_options={"basis": {"Si": ["3s", "3p"]}}
+    
+    dataset = build_dataset(**set_options, **common_options)
 
 
 def test_build_dataset_fail(root_directory):
@@ -69,5 +97,7 @@ def test_build_dataset_fail(root_directory):
     with pytest.raises(AssertionError) as excinfo:
         dataset = build_dataset(**set_options, **common_options)
     assert "Hamiltonian file not found" in str(excinfo.value)
+
+
 
 #TODO: Add failure test cases for build_dataset. when get_eigenvalues is True and get_Hamiltonian is False; 当我们补充E3的测试案例时，会有一个数据集，只有Hamiltonian，没有eigenvalues。我们需要测试这种情况。
