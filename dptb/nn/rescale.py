@@ -6,6 +6,7 @@ import logging
 from typing import Optional, List, Union
 import torch.nn.functional
 from e3nn.o3 import Linear
+from .sktb import HoppingFormul
 from e3nn.util.jit import compile_mode
 from dptb.data import AtomicDataDict
 import e3nn.o3 as o3
@@ -524,3 +525,138 @@ class E3ElementLinear(torch.nn.Module):
             x = x
 
         return x
+
+
+class E3PerEdgeSpeciesRadialDpdtScaleShift(torch.nn.Module):
+    """Sum edgewise energies.
+
+    Includes optional per-species-pair edgewise energy scales. 
+    """
+
+    field: str
+    out_field: str
+    scales_trainble: bool
+    shifts_trainable: bool
+    has_scales: bool
+    has_shifts: bool
+
+    def __init__(
+        self,
+        field: str,
+        num_types: int,
+        irreps_in,
+        shifts: Optional[torch.Tensor],
+        scales: Optional[torch.Tensor],
+        out_field: Optional[str] = None,
+        scales_trainable: bool = False,
+        shifts_trainable: bool = False,
+        shift_func: Optional[torch.nn.Module] = "poly3pow",
+        dtype: Union[str, torch.dtype] = torch.float32,
+        device: Union[str, torch.device] = torch.device("cpu"),
+        **kwargs,
+    ):
+        """Sum edges into nodes."""
+        super(E3PerEdgeSpeciesRadialDpdtScaleShift, self).__init__()
+        self.num_types = num_types
+        self.field = field
+        self.out_field = f"shifted_{field}" if out_field is None else out_field
+        self.irreps_in = irreps_in
+        self.num_scalar = 0
+        self.device = device
+        self.dtype = dtype
+        self.shift_index = []
+        self.scale_index = []
+        self.shift_func = shift_func
+
+        self.shift_func = HoppingFormul(functype=self.functype)
+
+        start = 0
+        start_scalar = 0
+        for mul, ir in irreps_in:
+            if str(ir) == "0e":
+                self.num_scalar += mul
+                self.shift_index += list(range(start_scalar, start_scalar + mul))
+                start_scalar += mul
+            else:
+                self.shift_index += [-1] * mul * ir.dim
+
+            for _ in range(mul):
+                self.scale_index += [start] * ir.dim
+                start += 1
+
+        self.shift_index = torch.as_tensor(self.shift_index, dtype=torch.long, device=device)
+        self.scale_index = torch.as_tensor(self.scale_index, dtype=torch.long, device=device)
+
+        self.has_shifts = shifts is not None
+        self.has_scales = scales is not None
+        if scales is not None:
+            scales = torch.as_tensor(scales, dtype=self.dtype, device=device)
+            if len(scales.reshape(-1)) == 1:
+                scales = scales * torch.ones(num_types*num_types, self.irreps_in.num_irreps, dtype=self.dtype, device=self.device)
+            assert scales.shape == (num_types*num_types, self.irreps_in.num_irreps), f"Invalid shape of scales {scales}"
+            self.scales_trainable = scales_trainable
+            if scales_trainable:
+                self.scales = torch.nn.Parameter(scales)
+            else:
+                self.register_buffer("scales", scales)
+
+        if shifts is not None:
+            shifts = torch.as_tensor(shifts, dtype=self.dtype, device=device)
+            if len(shifts.reshape(-1)) == 1:
+                shifts = shifts * torch.ones(num_types*num_types, self.num_scalar, dtype=self.dtype, device=self.device)
+            assert shifts.shape == (num_types*num_types, self.num_scalar), f"Invalid shape of shifts {shifts}"
+            self.shifts_trainable = shifts_trainable
+            if shifts_trainable:
+                self.shifts = torch.nn.Parameter(shifts)
+            else:
+                self.register_buffer("shifts", shifts)
+
+    def set_scale_shift(self, scales: torch.Tensor=None, shifts: torch.Tensor=None):
+        self.has_scales = scales is not None or self.has_scales
+        if scales is not None:
+            assert scales.shape == (self.num_types*self.num_types, self.irreps_in.num_irreps), f"Invalid shape of scales {scales}"
+            if self.scales_trainable:
+                self.scales = torch.nn.Parameter(scales)
+            else:
+                self.register_buffer("scales", scales)
+        
+        self.has_shifts = shifts is not None or self.has_shifts
+        if shifts is not None:
+            assert shifts.shape == (self.num_types*self.num_types, self.num_scalar, self.shift_func.num_paras), f"Invalid shape of shifts {shifts}"
+            if self.shifts_trainable:
+                self.shifts = torch.nn.Parameter(shifts)
+            else:
+                self.register_buffer("shifts", shifts)
+    
+    def fit_radialdpdt_shift(self, decay):
+        shifts = torch.randn(self.num_types*self.num_types, self.num_scalar, self.shift_func.num_paras, dtype=self.dtype, device=self.device)
+        shifts.requires_grad_()
+        
+
+        return shifts
+
+
+
+    def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
+
+        if not (self.has_scales or self.has_shifts):
+            return data
+
+        edge_center = data[AtomicDataDict.EDGE_INDEX_KEY][0]
+
+        species_idx = data[AtomicDataDict.EDGE_TYPE_KEY].flatten()
+        in_field = data[self.field]
+
+        assert len(in_field) == len(
+            edge_center
+        ), "in_field doesnt seem to have correct per-edge shape"
+
+        if self.has_scales:
+            in_field = self.scales[species_idx][:,self.scale_index].view(-1, self.irreps_in.dim) * in_field
+        if self.has_shifts:
+            shifts = self.shifts[species_idx][:,self.shift_index[self.shift_index>=0]].view(-1, self.num_scalar)
+            in_field[:, self.shift_index>=0] = shifts + in_field[:, self.shift_index>=0]
+        
+        data[self.out_field] = in_field
+
+        return data
