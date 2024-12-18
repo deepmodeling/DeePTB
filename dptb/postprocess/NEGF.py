@@ -285,6 +285,9 @@ class NEGF(object):
             self.poisson_negf_scf(  interface_poisson=interface_poisson,atom_gridpoint_index=atom_gridpoint_index,\
                                     err=self.poisson_options['err'],max_iter=self.poisson_options['max_iter'],\
                                     mix_rate=self.poisson_options['mix_rate'],tolerance=self.poisson_options['tolerance'])
+            # calculate transport properties with converged potential
+            self.negf_compute(scf_require=False,Vbias=self.potential_at_orb)
+        
         else:
             self.negf_compute(scf_require=False,Vbias=None)
 
@@ -350,8 +353,7 @@ class NEGF(object):
         self.poisson_out['max_diff_list'] = torch.tensor(max_diff_list)
         torch.save(self.poisson_out, self.results_path+"/poisson.out.pth")
 
-        # calculate transport properties with converged potential
-        self.negf_compute(scf_require=False,Vbias=self.potential_at_orb)
+
 
         # output the profile report in html format
         # if iter_count <= max_iter: 
@@ -475,7 +477,26 @@ class NEGF(object):
                             prop_DM_neq = self.out.setdefault('DM_neq', {})
                             prop_DM_eq[str(k)], prop_DM_neq[str(k)] = self.compute_density_Ozaki(k,Vbias)
                         elif self.density_options["method"] == "Fiori":
-                            log.warning("Fiori method does not support  output density in this version.")
+                            log.warning("Fiori method is under test in this version.")
+                            try:
+                                self.density.density_integrate_Fiori(
+                                    e_grid = self.uni_grid, 
+                                    kpoint=k,
+                                    Vbias=Vbias,
+                                    block_tridiagonal=self.block_tridiagonal,
+                                    subblocks=self.subblocks,
+                                    integrate_way = self.density_options["integrate_way"],  
+                                    deviceprop=self.deviceprop,
+                                    device_atom_norbs=self.device_atom_norbs,
+                                    potential_at_atom = self.potential_at_atom,
+                                    free_charge = self.free_charge,
+                                    eta_lead = self.eta_lead,
+                                    eta_device = self.eta_device
+                                    )
+                                prop_freecharge = self.out.setdefault('FREE_CHARGE', {})
+                                prop_freecharge[str(k)] = self.free_charge[str(k)]
+                            except:
+                                log.warning("Free charge output has some problems.")
                         else:
                             raise ValueError("Unknown method for density calculation.")
                     if self.out_potential:
