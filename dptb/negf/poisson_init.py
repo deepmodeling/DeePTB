@@ -383,7 +383,7 @@ class Interface3D(object):
                     J[gp_index,gp_index-Nx*Ny] = -1.0
                     B[gp_index] = (self.phi[gp_index]-self.phi[gp_index-Nx*Ny])
                 elif self.boudnary_points[gp_index] == "Gate":
-                    B[gp_index] = (self.phi[gp_index]+self.lead_gate_potential[gp_index])
+                    B[gp_index] = (self.phi[gp_index]-self.lead_gate_potential[gp_index])
 
             if B[gp_index]!=0: # for convenience change the sign of B in later NR iteration
                 B[gp_index] = -B[gp_index]
