@@ -1142,9 +1142,9 @@ def get_r_map_bondwise(r_max:dict, atomic_numbers=None):
     for k in r_max.keys():
         assert len(k.split('-')) == 2
         atom_a, atom_b = k.split('-')
-        if atom_a not in atom_species_num:
+        if atomic_num_dict[atom_a] not in atom_species_num:
             atom_species_num.append(atomic_num_dict[atom_a])    
-        if atom_b not in atom_species_num:
+        if atomic_num_dict[atom_b] not in atom_species_num:
             atom_species_num.append(atomic_num_dict[atom_b])    
     
     if atomic_numbers is not None:
