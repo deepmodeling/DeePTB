@@ -2,16 +2,16 @@ import numpy as np
 import logging
 import shutil
 import re
-from dptb.structure.structure import BaseStruct
 from dptb.utils.tools import j_loader,j_must_have
-
+from typing import Optional, Union
 from ase.io import read,write
 from ase.build import sort
 import ase.atoms
 import torch
 
 from dptb.utils.constants import atomic_num_dict_r
-
+from dptb.data import AtomicData, AtomicDataDict
+from  dptb.data.interfaces.ham_to_feature import feature_to_block
 
 log = logging.getLogger(__name__)
 
@@ -37,72 +37,67 @@ if  shutil.which('tbtrans') is None:
 
 
 class TBTransInputSet(object):
-    """ The TBTransInputSet class is used to transform input data for DeePTB-negf into a TBTrans object.
 
-        Attention: the transport direction is forced to be z direction in this stage, please make sure the structure is in 
-        correct direction.
 
-    Properties
-    -----------
-        - apiHrk
-            apiHrk has been loaded in the run.py file. It is used as an API for
-            performing certain operations or accessing certain functionalities.
-        - run_opt
-            The `run_opt` parameter is a dictionary that contains options for running the model.
-            It has been loaded and prepared in the run.py file.
-        - jdata
-            jdata is a JSON object that contains options and parameters for the task Generation of Input Files for TBtrans. 
-            It is loaded in the run.py.
-        - results_path
-            The `results_path` parameter is a string that represents the path to the directory where the
-            results will be saved.
-        - stru_options
-            The `stru_options` parameter is a dictionary that contains options for the structure from DeePTB input.
-        - energy_unit_option
-            The `energy_unit_option` parameter is a string that specifies the unit of energy for the
-            calculation. It can be either "Hartree" or "eV".
-        - geom_all
-            The `geom_all` parameter is the geometry of the whole structure, including the device and leads.
-        - H_all
-            The `H_all` parameter is the sisl.Hamiltonian for the entire system, including the device and leads.
-        - H_lead_L
-            The `H_lead_L` parameter is sisl.Hamiltonian  for the left lead.
-        - H_lead_R
-            The `H_lead_R` parameter is sisl.Hamiltonian  for the right lead.
-        - allbonds_all
-            The `allbonds_all` parameter is a tensor that contains all of the bond information for the entire system.
-        - allbonds_lead_L
-            The `allbonds_lead_L` parameter is a tensor that contains all of the bond information for the left lead.
-        - allbonds_lead_R
-            The `allbonds_lead_R` parameter is a tensor that contains all of the bond information for the right lead.
-        - hamil_block_all
-            The `hamil_block_all` parameter is a tensor that contains  the Hamiltonian matrix elements for each specific bond in allbonds_all.
-        - hamil_block_lead_L
-            The `hamil_block_lead_L` parameter is a tensor that contains the Hamiltonian matrix elements for each specific bond in allbonds_lead_L.
-        - hamil_block_lead_R
-            The `hamil_block_lead_L` parameter is a tensor that contains the Hamiltonian matrix elements for each specific bond in allbonds_lead_R.
-        - overlap_block_all
-            The `overlap_block_all` parameter is a tensor that contains the overlap matrix elements for each specific basis in the entire system.
-        - overlap_block_lead_L
-            The `overlap_block_lead_L` parameter is a tensor that contains the overlap matrix elements for each specific basis in the left lead.
-        - overlap_block_lead_R
-            The `overlap_block_lead_R` parameter is a tensor that contains the overlap matrix elements for each specific basis in the right lead.
-    """
-    def __init__(self, apiHrk, run_opt, jdata):
-        self.apiHrk = apiHrk  #apiHrk has been loaded in run.py
-        self.jdata = jdata    #jdata has been loaded in run.py, jdata is written in negf.json    
+    def __init__(self, 
+                model: torch.nn.Module,
+                AtomicData_options: dict, 
+                structure: Union[AtomicData, ase.Atoms, str],
+                stru_options: dict,
+                basis_dict:dict,
+                results_path: Optional[str]=None,
+                unit: str='eV',
+                nel_atom: Optional[dict]=None,
+                **kwargs): 
+        '''
+        This function initializes  properties and calculations for TBtrans input files.
+        
+        Parameters
+        ----------
+        model : torch.nn.Module
+            The `model` parameter in the `__init__` method is expected to be an instance of
+        `torch.nn.Module`. This parameter is used to store a neural network model that has been loaded
+        in the `run.py` script.
+        AtomicData_options : dict
+            The `AtomicData_options` parameter is a dictionary containing options for atomic data.
+         These options are used to provide necessary atomic information for the model.
+        structure : Union[AtomicData, ase.Atoms, str]
+            The `structure` parameter in the `__init__` method is used to specify the structure of the
+        system. 
+        stru_options : dict
+            The `stru_options` parameter in the `__init__` method is a dictionary containing options for
+        the structure. This dictionary includes pbc, kmesh and the regions division of the structure.
+        basis_dict : dict
+            The `basis_dict` parameter in the `__init__` method is used in the `orbitals_get`
+        method. It is  a dictionary that contains the basis functions used in the calculations. 
+        results_path : Optional[str]
+            The `results_path` parameter is a string that specifies the path where the results of the
+        calculations will be saved. 
+        unit : str, optional
+            The `unit` parameter in the `__init__` function is used to specify the energy unit for TBtrans
+        calculation. It can take two possible values: eV or Hartree. The default value is eV.
+        nel_atom : Optional[dict]
+            The `nel_atom` parameter in the `__init__` function is an optional dictionary that represents
+        the number of electrons per atom. 
+        '''  
+        
+        self.model = model  #apiHrk has been loaded in run.py
+        self.AtomicData_options = AtomicData_options
+        # self.jdata = jdata    #jdata has been loaded in run.py, jdata is written in negf.json    
 
-        self.results_path = run_opt['results_path']
+        self.results_path = results_path
         if not self.results_path.endswith('/'):self.results_path += '/'             
-        self.stru_options = j_must_have(jdata, "stru_options")
-        self.energy_unit_option = 'eV'  # enenrgy unit for TBtrans calculation
+        self.stru_options = stru_options
+        self.energy_unit_option = unit  # enenrgy unit for TBtrans calculation
+        self.nel_atom = nel_atom
 
        
         self.geom_all,self.geom_lead_L,self.geom_lead_R,self.all_tbtrans_stru,self.lead_L_tbtrans_stru,self.lead_R_tbtrans_stru\
-                   = self.read_rewrite_structure(run_opt['structure'],self.stru_options,self.results_path)
+                   = self.read_rewrite_structure(structure,self.stru_options,self.results_path)
         
-        
-        self.orbitals_get(self.geom_all,self.geom_lead_L,self.geom_lead_R,apiHrk=apiHrk)
+        if nel_atom is not None:
+            self.orbitals_get(self.geom_all,self.geom_lead_L,self.geom_lead_R,basis_dict)
+            log.warning('nel_atom is none!')
         
         self.H_all = sisl.Hamiltonian(self.geom_all)
         self.H_lead_L = sisl.Hamiltonian(self.geom_lead_L)
@@ -124,6 +119,16 @@ class TBTransInputSet(object):
         self.hamil_block_lead_R = None
         self.overlap_block_lead_R = None
 
+        if self.energy_unit_option=='Hartree':
+            self.unit_constant = 1.0000/13.605662285137 /2
+           
+        elif self.energy_unit_option=='eV':
+            self.unit_constant = 1.0000000000
+            
+        else:
+            raise RuntimeError("energy_unit_option should be 'Hartree' or 'eV'")
+
+   
  
     def hamil_get_write(self,write_nc:bool=True):
         
@@ -146,21 +151,18 @@ class TBTransInputSet(object):
 
         # get the Hamiltonian matrix for the entire system
         self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
-                    =self._load_model(self.apiHrk,self.all_tbtrans_stru)
-        self.hamiltonian_get(self.allbonds_all,self.hamil_block_all,self.overlap_block_all,\
-                             self.H_all,self.energy_unit_option)    
+                    =self._load_model(self.model,self.AtomicData_options,self.all_tbtrans_stru)
+        self.hamiltonian_get(self.allbonds_all,self.hamil_block_all,self.overlap_block_all,self.H_all)    
 
         # get the Hamiltonian matrix for the left lead
         self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
-                        =self._load_model(self.apiHrk,self.lead_L_tbtrans_stru)
-        self.hamiltonian_get(self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L,\
-                             self.H_lead_L,self.energy_unit_option)
+                        =self._load_model(self.model,self.AtomicData_options,self.lead_L_tbtrans_stru)
+        self.hamiltonian_get(self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L,self.H_lead_L)
         
         # get the Hamiltonian matrix for the right lead
         self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
-                        =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)       
-        self.hamiltonian_get(self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R,\
-                             self.H_lead_R,self.energy_unit_option)
+                        =self._load_model(self.model,self.AtomicData_options,self.lead_R_tbtrans_stru)       
+        self.hamiltonian_get(self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R,self.H_lead_R)
 
         if write_nc:
             self.H_all.write(self.results_path+'structure.nc')
@@ -168,15 +170,6 @@ class TBTransInputSet(object):
             self.H_lead_L.write(self.results_path+'lead_R.nc')
         else:
             print('Hamiltonian matrices have been generated, but not written to nc files(TBtrans input file).')
-
-    # def hamil_write(self):
-    #     '''The function `hamil_write` writes the contents of `self.H_all`, `self.H_lead_L`, and `self.H_lead_R`
-    #     to separate files in the `results_path` directory.
-        
-    #     '''
-    #     self.H_all.write(self.results_path+'structure.nc')
-    #     self.H_lead_L.write(self.results_path+'lead_L.nc')
-    #     self.H_lead_L.write(self.results_path+'lead_R.nc')
 
 
 
@@ -239,13 +232,6 @@ class TBTransInputSet(object):
         geom_lead_R = geom_lead_R.sort(axis=(2,1,0));geom_lead_L=geom_lead_L.sort(axis=(2,1,0))  
         geom_all=geom_all.sort(axis=(2,1,0))
     
-    ##redefine the Lattice vector of Lead L/R
-    # lead_L_cor = geom_lead_L.axyz()
-    # Natom_PL = int(len(lead_L_cor)/2)
-    # first_PL_leadL = lead_L_cor[Natom_PL:];second_PL_leadL =lead_L_cor[:Natom_PL]
-    # PL_leadL_zspace = first_PL_leadL[0][2]-second_PL_leadL[-1][2] # the distance between Principal layers
-    # geom_lead_L.lattice.cell[2,2]=first_PL_leadL[-1][2]-second_PL_leadL[0][2]+PL_leadL_zspace
-    # assert geom_lead_L.lattice.cell[2,2]>0
 
         lead_L_cor = geom_lead_L.axyz() #Return the atomic coordinates in the supercell of a given atom.
         cell = np.array(geom_lead_L.lattice.cell)[:2]
@@ -272,28 +258,7 @@ class TBTransInputSet(object):
         cell = np.concatenate([cell, R_vec.reshape(1,-1)])
         # PL_leadR_zspace = second_PL_leadR[0][2]-first_PL_leadR[-1][2]
         geom_lead_R.lattice.cell = cell
-        # print(cell)
-    # assert geom_lead_R.lattice.cell[2,2]>0
 
-    # set supercell
-    # PBC requirement in TBtrans
-    ## lead calculation have periodicity in all directions,which is different from dptb-negf
-    ## all(lead + central part) have periodicity in x,y,z directions: interaction between supercells
-    ### not sure that geom_all need pbc in z direction   
-
-        # pbc = struct_options['pbc']
-        # if pbc[0]==True: nsc_x = 3  
-        # else: nsc_x = 1
-
-        # if pbc[1]==True: nsc_y = 3
-        # else: nsc_y = 1
-
-        # geom_lead_L.set_nsc(a=nsc_x,b=nsc_y,c=3) #Set the number of super-cells in the `Lattice` object
-        # geom_lead_R.set_nsc(a=nsc_x,b=nsc_y,c=3)
-        # geom_all.set_nsc(a=nsc_x,b=nsc_y,c=3)
-
-
-            # output sorted geometry into xyz Structure file
         all_tbtrans_stru=results_path+'structure_tbtrans.xyz'
         sorted_structure = sisl.io.xyzSile(all_tbtrans_stru,'w')
         geom_all.write(sorted_structure)
@@ -316,7 +281,7 @@ class TBTransInputSet(object):
 
 
 
-    def orbitals_get(self,geom_all, geom_lead_L,geom_lead_R,apiHrk):
+    def orbitals_get(self,geom_all, geom_lead_L,geom_lead_R,basis_dict:dict):
         '''The function `orbitals_get` takes in various inputs such as geometric devices, leads, deeptb model, and
         configurations, and assigns orbitals number, orbital names, shell-electron numbers to the atoms in the given sisl geometries .
 
@@ -346,8 +311,8 @@ class TBTransInputSet(object):
         geom_list = [geom_lead_L,geom_lead_R,geom_all]  
 
 
-        dict_element_orbital = apiHrk.apihost.model_config['proj_atom_anglr_m']
-        dict_shell_electron = apiHrk.apihost.model_config['proj_atom_neles']
+        dict_element_orbital = basis_dict
+        dict_shell_electron = self.nel_atom
 
         for n_species, geom_part in zip(n_species_list,geom_list):
             # species_symbols = split_string(geom_part.atoms.formula())
@@ -426,109 +391,11 @@ class TBTransInputSet(object):
                 raise RuntimeError("At this stage dptb-negf only supports s, p, d orbitals")
         # print(orbital_name_list)
         # raise RuntimeError('stop here')
-        return orbital_name_list
-    
-    # def _shell_electrons(self,element_symbol):
-    #     '''The function `_shell_electrons` calculates the number of shell electrons for a given element symbol.
-
-    #         In this code, shell electron number is trivial for subgroup element. It would be improved soon.
-        
-    #     Parameters
-    #     ----------
-    #     element_symbol
-    #         The element symbol is a string representing the symbol of an element on the periodic table. For
-    #     example, "H" for hydrogen, "O" for oxygen, or "Fe" for iron.
-        
-    #     Returns
-    #     -------
-    #         the number of shell electrons for the given element symbol.
-        
-    #     '''
-    #     atomic_number = PeriodicTable().Z_int(element_symbol)
-    #     assert atomic_number > 1 and atomic_number <=118
-
-    #     if atomic_number>18:
-    #         print('In this code, shell electron number is trivial for subgroup element ')      
-    #     rare_element_index = [2,10,18,36,54,86]
-        
-    #     for index in range(len(rare_element_index)-1):
-    #         if atomic_number > rare_element_index[index] and atomic_number <= rare_element_index[index+1]:
-    #             core_ele_num = atomic_number-rare_element_index[index]
-
-    #     print(element_symbol+'  shell elec: '+str(core_ele_num))
-    #     return core_ele_num
-    
+        return orbital_name_list      
 
 
-    # def _load_dptb_model(self,checkfile:str,config:str,structure_tbtrans_file:str,run_sk:bool,use_correction:Optional[str]):
-
-    # def _load_model(self,apiHrk,structure_tbtrans_file:str):        
-    #     '''The `_load_model` function loads model from deeptb and returns the Hamiltonian elements.
-        
-    #     Parameters
-    #     ----------
-    #     apiHrk
-    #         apiHrk has been loaded in the run.py file. It is used as an API for
-    #         performing certain operations or accessing certain functionalities when loading dptb model.
-    #     structure_tbtrans_file : str
-    #         The parameter `structure_tbtrans_file` is a string that represents the file path to the structure
-    #     file in the TBTrans format.
-        
-    #     Returns
-    #     -------
-    #         The function `_load_model` returns three variables: `allbonds`, `hamil_block`, and
-    #     `overlap_block`.
-        
-    #     '''
-        # if all((use_correction, run_sk)):
-        #     raise RuntimeError("--use-correction and --train_sk should not be set at the same time")
-        
-        # ## read Hamiltonian elements
-        # if run_sk:
-        #     apihost = NNSKHost(checkpoint=checkfile, config=config)
-        #     apihost.register_plugin(InitSKModel())
-        #     apihost.build()
-        #     ## define nnHrk for Hamiltonian model.
-        #     apiHrk = NN2HRK(apihost=apihost, mode='nnsk')
-        # else:
-        #     apihost = DPTBHost(dptbmodel=checkfile,use_correction=use_correction)
-        #     apihost.register_plugin(InitDPTBModel())
-        #     apihost.build()
-        #     apiHrk = NN2HRK(apihost=apihost, mode='dptb')   
-        
-
-        # self.allbonds_all,self.hamil_block_all,self.overlap_block_all\
-        #                 =self._load_model(self.apiHrk,self.all_tbtrans_stru)
-        # self.allbonds_lead_L,self.hamil_block_lead_L,self.overlap_block_lead_L\
-        #                 =self._load_model(self.apiHrk,self.lead_L_tbtrans_stru)
-        # self.allbonds_lead_R,self.hamil_block_lead_R,self.overlap_block_lead_R\
-        #                 =self._load_model(self.apiHrk,self.lead_R_tbtrans_stru)
-        
-        # structure_tbtrans_file_list = [self.all_tbtrans_stru,self.lead_L_tbtrans_stru,self.lead_R_tbtrans_stru]
-
-        ## create BaseStruct
-        # structure_base =BaseStruct(
-        #                     atom=ase.io.read(structure_tbtrans_file), 
-        #                     format='ase',  
-        #                     cutoff=apiHrk.apihost.model_config['bond_cutoff'], 
-        #                     proj_atom_anglr_m=apiHrk.apihost.model_config['proj_atom_anglr_m'], 
-        #                     proj_atom_neles=apiHrk.apihost.model_config['proj_atom_neles'], 
-        #                     onsitemode=apiHrk.apihost.model_config['onsitemode'], 
-        #                     time_symm=apiHrk.apihost.model_config['time_symm']
-        #                     )
-            
-        # apiHrk.update_struct(structure_base)
-        # allbonds,hamil_block,overlap_block = apiHrk.get_HR()
-        
-        # return allbonds,hamil_block,overlap_block
-
-        
-
-
-    def _load_model(self,apiHrk,structure_tbtrans_file:str):
-        '''The `load_dptb_model` function loads a DPTB or NNSK model and returns the Hamiltonian elements.
-            Here run_sk is a boolean flag that determines whether to run the model using the NNSK or DPTB.
-        
+    def _load_model(self,model,AtomicData_options,structure_tbtrans_file:str):
+        '''The `load_dptb_model` function loads model and returns the Hamiltonian elements.
         Parameters
         ----------
         checkfile : str
@@ -558,23 +425,34 @@ class TBTransInputSet(object):
         `overlap_block`.
         
         '''
-        ## create BaseStruct
-        structure_base =BaseStruct(
-                            atom=ase.io.read(structure_tbtrans_file), 
-                            format='ase',  
-                            cutoff=apiHrk.apihost.model_config['bond_cutoff'], 
-                            proj_atom_anglr_m=apiHrk.apihost.model_config['proj_atom_anglr_m'], 
-                            proj_atom_neles=apiHrk.apihost.model_config['proj_atom_neles'], 
-                            onsitemode=apiHrk.apihost.model_config['onsitemode'], 
-                            time_symm=apiHrk.apihost.model_config['time_symm']
-                            )
+        structase = read(structure_tbtrans_file)
 
-        apiHrk.update_struct(structure_base)
-        allbonds,hamil_block,overlap_block = apiHrk.get_HR()
+        data = AtomicData.from_ase(structase,**AtomicData_options)
+        data = AtomicData.to_AtomicDataDict(data)
+        data = model.idp(data)
+
+        data = model(data)
+        HR_dict = feature_to_block(data,model.idp) # get HR
+        allbonds = [] # a list contain bond info in the form like (type1,atom1_index,type2,atom2_index,displacement)
+        hamil_block = []
+        overlap_block = []
+
+        for key,value in HR_dict.items():
+            bond = key.split('_')
+            bond = torch.as_tensor([int(bond[i]) for i in range(len(bond))])
+            iatom,jatom = model.idp.untransform(data[AtomicDataDict.ATOM_TYPE_KEY][bond[0]-1]),\
+                            model.idp.untransform(data[AtomicDataDict.ATOM_TYPE_KEY][bond[1]-1])
+            allbonds.append(torch.cat([iatom,torch.tensor([bond[0]-1]),jatom,torch.tensor([bond[1]-1]),bond[2:]]))
+            hamil_block.append(value)
+        
+        allbonds = torch.stack(allbonds)
+        hamil_block = torch.stack(hamil_block)
+        overlap_block = torch.stack([torch.eye(hamil_block.shape[-1]) for i in range(hamil_block.shape[0])])
+        # TODO: check tbtrans support overlap matrix or not in TB-NEGF
 
         return allbonds,hamil_block,overlap_block
 
-    def hamiltonian_get(self,allbonds:torch.tensor,hamil_block:torch.tensor,overlap_block:torch.tensor,Hamil_sisl,energy_unit_option:str):
+    def hamiltonian_get(self,allbonds:torch.tensor,hamil_block:torch.tensor,overlap_block:torch.tensor,Hamil_sisl):
         '''The function `hamiltonian_get` takes in various parameters and calculates the Hamiltonian matrix
         for a given set of bonds, storing the result in the `Hamil_sisl` matrix.
         
@@ -599,27 +477,10 @@ class TBTransInputSet(object):
             The `energy_unit_option` parameter is a string that specifies the unit of energy for the
         calculation. It can be either "Hartree" or "eV".
         
-        '''
-
-        if energy_unit_option=='Hartree':
-            unit_constant = 1.0000
-           
-        elif energy_unit_option=='eV':
-            unit_constant = 13.605662285137 * 2
-            
-        else:
-            raise RuntimeError("energy_unit_option should be 'Hartree' or 'eV'")
-
-
-        # print(len(allbonds))
-        # H_device.H[1000,1000]=1
-
+        '''   
         x_max = abs(allbonds[:,-3].numpy()).max()
         y_max = abs(allbonds[:,-2].numpy()).max()
         z_max = abs(allbonds[:,-1].numpy()).max()
-        # print('x_max: ',x_max)
-        # print('y_max: ',y_max)
-        # print('z_max: ',z_max)
         Hamil_sisl.set_nsc(a=2*abs(x_max)+1,b=2*abs(y_max)+1,c=2*abs(z_max)+1)
         # set the number of super-cells in Hamiltonian object in sisl, which is based on allbonds results
         
@@ -636,23 +497,17 @@ class TBTransInputSet(object):
                 
                 for orb_a in range(orb_first_a,orb_last_a):
                     for orb_b in range(orb_first_b,orb_last_b):
-                        Hamil_sisl[orb_a,orb_b]=hamil_block[i].detach().numpy()[orb_a-orb_first_a,orb_b-orb_first_b]*unit_constant
+                        Hamil_sisl[orb_a,orb_b]=hamil_block[i].detach().numpy()[orb_a-orb_first_a,orb_b-orb_first_b]*self.unit_constant
                         # Hamil_sisl[orb_b,orb_a]=hamil_block[i].detach().numpy()[orb_b-orb_first_b,orb_a-orb_first_a]*unit_constant
                         Hamil_sisl[orb_b,orb_a]=np.conjugate(Hamil_sisl[orb_a,orb_b])
             else: 
                 x = allbonds[i,-3].numpy().tolist()
                 y = allbonds[i,-2].numpy().tolist()
                 z = allbonds[i,-1].numpy().tolist()
-                # consistent with supercell setting:Set the number of super-cells in the `Lattice` object in sisl
-                # if abs(x) > 1 or abs(y) > 1 or abs(z) > 1:
-                    
-                #     print("Unexpected supercell index: ",[x,y,z])
-                #     print("Attention: the supercell setting may be too small to satisfy the nearest cell interaction, \
-                #           error in Lead self-energy calculation may occur.")
 
                 for orb_a in range(orb_first_a,orb_last_a):
                     for orb_b in range(orb_first_b,orb_last_b):
-                        H_value = hamil_block[i].detach().numpy()[orb_a-orb_first_a,orb_b-orb_first_b]*unit_constant
+                        H_value = hamil_block[i].detach().numpy()[orb_a-orb_first_a,orb_b-orb_first_b]*self.unit_constant
                         if H_value != 0:
                             Hamil_sisl[orb_a,orb_b,(x,y,z)]=H_value
                             Hamil_sisl[orb_b,orb_a,(-1*x,-1*y,-1*z)]=np.conjugate(Hamil_sisl[orb_a,orb_b,(x,y,z)])
