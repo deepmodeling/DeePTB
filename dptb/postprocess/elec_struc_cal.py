@@ -11,6 +11,7 @@ from dptb.data import AtomicData, AtomicDataDict
 from dptb.nn.energy import Eigenvalues
 from dptb.utils.argcheck import get_cutoffs_from_model_options
 from copy import deepcopy
+from dptb.utils.constants import Boltzmann,eV2J
 
 # This class `ElecStruCal`  is designed to calculate electronic structure properties such as
 # eigenvalues and Fermi energy based on provided input data and model. 
@@ -171,7 +172,8 @@ class ElecStruCal(object):
         return data, data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy()
 
     def get_fermi_level(self, data: Union[AtomicData, ase.Atoms, str], nel_atom: dict, \
-                        meshgrid: list = None, klist: np.ndarray=None, pbc:Union[bool,list]=None,AtomicData_options:dict=None):
+                        meshgrid: list = None, klist: np.ndarray=None, pbc:Union[bool,list]=None,AtomicData_options:dict=None,
+                        q_tol:float=1e-10,smearing_method:str='FD',temp:float=300):
         '''This function calculates the Fermi level based on provided data with iteration method, electron counts per atom, and
         optional parameters like specific k-points and eigenvalues.
         
@@ -200,6 +202,16 @@ class ElecStruCal(object):
         you to provide pre-calculated eigenvalues for the system. If `eigenvalues` is provided, the method
         will use these provided eigenvalues directly. Otherwise, the eigenvalues will be calculated from the model 
         on the specified k-points (from kmesh or klist).
+        q_tol: float
+            The `q_tol` parameter in the `get_fermi_level` function represents the tolerance level for the
+        calculated charge compared to the total number of electrons.
+        smearing_method : str
+            The `smearing_method` parameter in the `get_fermi_level` function is used to specify the method of
+        smearing to be used in the calculation of the Fermi energy. The default method is 'FD' (Fermi-Dirac).
+        Other possible methods include 'Gaussian'.
+        temp : float
+            The `temp` parameter in the `get_fermi_level` function represents the temperature for smearing in the
+        calculation of the Fermi energy.
         
         Returns
         -------
@@ -236,7 +248,8 @@ class ElecStruCal(object):
                 spindeg = 1
             else:
                 spindeg = 2
-            E_fermi = self.cal_E_fermi(eigs, total_nel, spindeg, wk)
+            E_fermi = self.cal_E_fermi(eigs, total_nel, spindeg, wk, 
+                                       q_tol= q_tol, smearing_method = smearing_method,temp=temp)
             log.info(f'Estimated E_fermi: {E_fermi} based on the valence electrons setting nel_atom : {nel_atom} .')
         else:
             E_fermi = None
@@ -245,13 +258,17 @@ class ElecStruCal(object):
         return data, E_fermi
 
 
-
+    
     @classmethod
-    def cal_E_fermi(cls, eigenvalues: np.ndarray, total_electrons: int, spindeg: int=2,wk: np.ndarray=None,q_tol=1e-10):
+    def cal_E_fermi(cls,eigenvalues: np.ndarray, total_electrons: int, spindeg: int=2,wk: np.ndarray=None,
+                    q_tol:float=1e-10,smearing_method:str='FD',temp:float=300):
         '''This  function calculates the Fermi energy using iteration algorithm.
 
             In this version, the function calculates the Fermi energy in the case of spin-degeneracy. 
-        
+        The smearing method here is to ensure the convergence of the Fermi energy calculation especially in metal systems.
+        The detailed description of the smearing methods can be found in dos Santos, F. J. and N. Marzari (2023). "Fermi energy 
+        determination for advanced smearing techniques." Physical Review B 107(19): 195122.
+	       
         Parameters
         ----------
         eigenvalues : np.ndarray
@@ -266,35 +283,57 @@ class ElecStruCal(object):
             The `wk` parameter in the `cal_E_fermi` function represents the weights assigned to each kpoints
         in the calculation. If `wk` is not provided by the user, the function assigns equal weight to each
         kpoint for the calculation of the Fermi energy.
-        q_tol
+        q_tol: float
             The `q_tol` parameter in the `cal_E_fermi` function represents the tolerance level for the
         calculated charge compared to the total number of electrons.
+        smearing_method : str
+            The `smearing_method` parameter in the `cal_E_fermi` function is used to specify the method of
+        smearing to be used in the calculation of the Fermi energy. The default method is 'FD' (Fermi-Dirac).
+        Other possible methods include 'Gaussian'.
+        temp : float
+            The `temp` parameter in the `cal_E_fermi` function represents the temperature for smearing in the
+        calculation of the Fermi energy.
 
         Returns
         -------
             The Fermi energy `Ef`
         
-        '''
+        '''        
+        
         nextafter = np.nextafter
         total_electrons = total_electrons / spindeg # This version is for the case of spin-degeneracy
         log.info('Calculating Fermi energy in the case of spin-degeneracy.')
-        def fermi_dirac(E, kT=0.4, mu=0.0):
-            return 1.0 / (np.expm1((E - mu) / kT) + 2.0)
+            
         
         # calculate boundaries
         min_Ef, max_Ef = eigenvalues.min(), eigenvalues.max()
+        kT = Boltzmann/eV2J * temp
+        drange = kT*np.sqrt(-np.log(q_tol*1e-2))
+        min_Ef = min_Ef - drange
+        max_Ef = max_Ef + drange
+
         Ef = (min_Ef + max_Ef) * 0.5
 
         if wk is None:
             wk = np.ones(eigenvalues.shape[0]) / eigenvalues.shape[0]
             log.info('wk is not provided, using equal weight for kpoints.')
 
+        icounter = 0
         while nextafter(min_Ef, max_Ef) < max_Ef:
+        # while icounter <= 150:
+            icounter += 1
             # Calculate guessed charge
             wk = wk.reshape(-1,1)
-            q_cal = (wk * fermi_dirac(eigenvalues, mu=Ef)).sum()
+            if smearing_method == 'FD':
+                q_cal = (wk * cls.fermi_dirac_smearing(eigenvalues,kT=kT, mu=Ef)).sum()
+            elif smearing_method == 'Gaussian':
+                q_cal = (wk * cls.Gaussian_smearing(eigenvalues,sigma = kT, mu=Ef)).sum()
+            else:
+                raise ValueError(f'Unknown smearing method: {smearing_method}')
 
             if abs(q_cal - total_electrons) < q_tol:
+                log.info(f'Fermi energy converged after {icounter} iterations.')
+                log.info(f'q_cal: {q_cal*spindeg}, total_electrons: {total_electrons*spindeg}, diff q: {abs(q_cal - total_electrons)*spindeg}')
                 return Ef
 
             if q_cal >= total_electrons:
@@ -303,4 +342,16 @@ class ElecStruCal(object):
                 min_Ef = Ef
             Ef = (min_Ef + max_Ef) * 0.5
 
+        log.warning(f'Fermi level bisection did not converge under tolerance {q_tol} after {icounter} iterations.')
+        log.info(f'q_cal: {q_cal*spindeg}, total_electrons: {total_electrons*spindeg}, diff q: {abs(q_cal - total_electrons)*spindeg}')
         return Ef
+    
+    @classmethod
+    def fermi_dirac_smearing(cls, E, kT=0.025852, mu=0.0):
+            return 1.0 / (np.expm1((E - mu) / kT) + 2.0)
+        
+    @classmethod
+    def Gaussian_smearing(cls, E, sigma=0.025852, mu=0.0):
+            from scipy.special import erfc
+            x = (mu - E) / sigma
+            return 0.5 * erfc(-1*x)
