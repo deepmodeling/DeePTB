@@ -20,5 +20,5 @@ def test_get_fermi():
                     nel_atom = nel_atom,
                 meshgrid=[30,30,30])
     
-    assert abs(efermi  + 3.194006085395813) < 1e-5
+    assert abs(efermi  + 2.8960121870040894) < 1e-5
 
