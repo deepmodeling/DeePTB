@@ -17,7 +17,11 @@ def test_get_fermi():
 
     elec_cal = ElecStruCal(model=model,device='cpu')
     _, efermi =elec_cal.get_fermi_level(data=stru_data, 
-                    nel_atom = nel_atom,
+                    nel_atom = nel_atom,smearing_method='FD',
                 meshgrid=[30,30,30])
-    assert abs(efermi  + 3.2257686853408813) < 1e-5
+    assert abs(efermi  + 2.896199107170105) < 1e-5
 
+    _, efermi =elec_cal.get_fermi_level(data=stru_data, 
+                    nel_atom = nel_atom,smearing_method='Gaussian',
+                meshgrid=[30,30,30])
+    assert abs(efermi  + 2.8937143087387085) < 1e-5

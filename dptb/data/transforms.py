@@ -560,7 +560,7 @@ class OrbitalMapper(BondMapper):
         for ib in self.basis.keys():
             self.basis[ib] = sorted(
                 self.basis[ib], 
-                key=lambda s: (anglrMId[re.findall(r"[a-z]",s)[0]], re.findall(r"[1-9*]",s)[0])
+                key=lambda s: (anglrMId[re.findall(r"[a-z]",s)[0]], re.findall(r"[1-9*]",s)[0] if re.findall(r"[1-9*]",s) else '0')
                 )
 
         # TODO: get full basis set
