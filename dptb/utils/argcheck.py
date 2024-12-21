@@ -832,6 +832,11 @@ def loss_options():
         Argument("spin_deg", int, optional=True, default=2, doc="The spin degeneracy of band structure. Default: 2"),
     ]
 
+    eig_ham = [
+        Argument("coeff_ham", float, optional=True, default=1., doc="The coefficient of the hamiltonian penalty. Default: 1"),
+        Argument("coeff_ovp", float, optional=True, default=1., doc="The coefficient of the hamiltonian penalty. Default: 1"),
+    ]
+
     skints = [
         Argument("skdata", str, optional=False, doc="The path to the skfile or sk database."),
     ]
@@ -842,6 +847,7 @@ def loss_options():
         Argument("skints", dict, sub_fields=skints),
         Argument("hamil_abs", dict, sub_fields=hamil),
         Argument("hamil_blas", dict, sub_fields=hamil),
+        Argument("eig_ham", dict, sub_fields=hamil+eigvals+eig_ham),
     ], optional=False, doc=doc_method)
 
     

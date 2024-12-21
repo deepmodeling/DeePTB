@@ -107,6 +107,7 @@ _DEFAULT_GRAPH_FIELDS: Set[str] = {
     AtomicDataDict.HAMILTONIAN_KEY, # new # should be nested
     AtomicDataDict.OVERLAP_KEY, # new # should be nested
     AtomicDataDict.ENERGY_EIGENVALUE_KEY, # new # should be nested
+    AtomicDataDict.EIGENVECTOR_KEY, # new # should be nested
     AtomicDataDict.ENERGY_WINDOWS_KEY, # new,
     AtomicDataDict.BAND_WINDOW_KEY, # new,
     AtomicDataDict.NODE_SOC_SWITCH_KEY # new
