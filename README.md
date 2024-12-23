@@ -1,21 +1,36 @@
-# DeePTB
+<p align="center">
+    <img src="docs/deeptb-logo.svg" alt="DeePTB Logo">
+</p>
 
+<!-- <h1 align="center">DeePTB</h1> -->
+
+<!--# DeePTB -->
+<p align="center">
+ <a href="https://github.com/deepmodeling"><img src="https://img.shields.io/badge/DeepModeling-Incubating_Project-blue" alt="DeepModeling"></a>
+ <a href="https://github.com/deepmodeling/DeePTB/actions/workflows/image.yml"><img src="https://github.com/deepmodeling/DeePTB/actions/workflows/image.yml/badge.svg" alt="Build"></a>
+ <a href="https://github.com/deepmodeling/DeePTB/actions/workflows/unit_test.yml"><img src="https://github.com/deepmodeling/DeePTB/actions/workflows/unit_test.yml/badge.svg" alt="Test"></a>
+ <a href="https://pypi.org/project/dptb/"><img src="https://img.shields.io/pypi/v/dptb.svg" alt="PyPI version"></a>
+ <a href="https://github.com/deepmodeling/DeePTB/blob/main/LICENSE"><img src="https://img.shields.io/github/license/deepmodeling/DeePTB.svg" alt="License"></a>
+</p>
+
+<!--
 [![DeepModeling](https://img.shields.io/badge/DeepModeling-Incubating_Project-blue)](https://github.com/deepmodeling)
 [![Build](https://github.com/deepmodeling/DeePTB/actions/workflows/image.yml/badge.svg)](https://github.com/deepmodeling/DeePTB/actions/workflows/image.yml)
 [![Test](https://github.com/deepmodeling/DeePTB/actions/workflows/unit_test.yml/badge.svg)](https://github.com/deepmodeling/DeePTB/actions/workflows/unit_test.yml)
+-->
 
 ## About DeePTB
 DeePTB is an innovative Python package that uses deep learning to accelerate *ab initio* electronic structure simulations. It offers versatile, accurate, and efficient simulations for a wide range of materials and phenomena. Trained on small systems, DeePTB can predict electronic structures of large systems, handle structural perturbations, and integrate with molecular dynamics for finite temperature simulations, providing comprehensive insights into atomic and electronic behavior.
 
+### Key Features
 
-#### Key Features:
 DeePTB contains two main components: 
 1. **DeePTB-SK**: deep learning based local environment dependent Slater-Koster TB.
    - Customizable Slater-Koster parameterization with neural network corrections for . 
    - Flexible basis and exchange-correlation functional choices.
    - Handle systems with strong spin-orbit coupling (SOC) effects.
 
-1. **DeePTB-E3**: E3-equivariant neural networks for representing quantum operators.
+2. **DeePTB-E3**: E3-equivariant neural networks for representing quantum operators.
    - Construct DFT Hamiltonians/density and overlap matrices under full LCAO basis.
    - Utilize (**S**trictly) **L**ocalized **E**quivariant **M**essage-passing (**(S)LEM**) model for high data-efficiency and accuracy.
    - Employs SO(2) convolution for efficient handling of higher-order orbitals in LCAO basis.
@@ -56,7 +71,7 @@ Installing **DeePTB** is straightforward. We recommend using a virtual environme
    pip install .
    ```
 
-## Usage
+## Documentation
 For a comprehensive guide and usage tutorials, visit [our documentation website](https://deeptb.readthedocs.io/en/latest/).
 
 
