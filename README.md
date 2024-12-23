@@ -19,21 +19,20 @@
 [![Test](https://github.com/deepmodeling/DeePTB/actions/workflows/unit_test.yml/badge.svg)](https://github.com/deepmodeling/DeePTB/actions/workflows/unit_test.yml)
 -->
 
-## About DeePTB
+## 🚀 About DeePTB
 DeePTB is an innovative Python package that uses deep learning to accelerate *ab initio* electronic structure simulations. It offers versatile, accurate, and efficient simulations for a wide range of materials and phenomena. Trained on small systems, DeePTB can predict electronic structures of large systems, handle structural perturbations, and integrate with molecular dynamics for finite temperature simulations, providing comprehensive insights into atomic and electronic behavior.
 
-### Key Features
-
+- **Key Features**
 DeePTB contains two main components: 
-1. **DeePTB-SK**: deep learning based local environment dependent Slater-Koster TB.
-   - Customizable Slater-Koster parameterization with neural network corrections for . 
-   - Flexible basis and exchange-correlation functional choices.
-   - Handle systems with strong spin-orbit coupling (SOC) effects.
+  1. **DeePTB-SK**: deep learning based local environment dependent Slater-Koster TB.
+      - Customizable Slater-Koster parameterization with neural network corrections for . 
+      - Flexible basis and exchange-correlation functional choices.
+      - Handle systems with strong spin-orbit coupling (SOC) effects.
 
-2. **DeePTB-E3**: E3-equivariant neural networks for representing quantum operators.
-   - Construct DFT Hamiltonians/density and overlap matrices under full LCAO basis.
-   - Utilize (**S**trictly) **L**ocalized **E**quivariant **M**essage-passing (**(S)LEM**) model for high data-efficiency and accuracy.
-   - Employs SO(2) convolution for efficient handling of higher-order orbitals in LCAO basis.
+  2. **DeePTB-E3**: E3-equivariant neural networks for representing quantum operators.
+      - Construct DFT Hamiltonians/density and overlap matrices under full LCAO basis.
+      - Utilize (**S**trictly) **L**ocalized **E**quivariant **M**essage-passing (**(S)LEM**) model for high data-efficiency and accuracy.
+      - Employs SO(2) convolution for efficient handling of higher-order orbitals in LCAO basis.
 
 
 For more details, see our papers:
@@ -42,49 +41,46 @@ For more details, see our papers:
 
 
 
-## Installation
+## 🛠️ Installation
 
 Installing **DeePTB** is straightforward. We recommend using a virtual environment for dependency management.
 
-### Requirements
-- Python 3.8 or later.
-- Torch 1.13.0 or later ([PyTorch Installation](https://pytorch.org/get-started/locally)).
-- ifermi (optional, for 3D fermi-surface plotting).
+- **Requirements**
+  - Python 3.8 or later.
+  - Torch 1.13.0 or later ([PyTorch Installation](https://pytorch.org/get-started/locally)).
+  - ifermi (optional, for 3D fermi-surface plotting).
 
-### Installation Steps
+- **Easy Installation**
+  1. Using PyPi
+  2. Ensure you have Python 3.8 or later and Torch installed.
+  3. Install DeePTB with pip:
+        ```bash
+        pip install dptb
+        ```
 
-#### Using PyPi
-1. Ensure you have Python 3.8 or later and Torch installed.
-2. Install DeePTB with pip:
-   ```bash
-   pip install dptb
-   ```
+- **From Source**
+    1. Clone the repository:
+        ```bash
+        git clone https://github.com/deepmodeling/DeePTB.git
+        ```
+    2. Navigate to the root directory and install DeePTB:
+        ```bash
+        cd DeePTB
+        pip install .
+        ```
 
-#### From Source
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/deepmodeling/DeePTB.git
-   ```
-2. Navigate to the root directory and install DeePTB:
-   ```bash
-   cd DeePTB
-   pip install .
-   ```
+## 📚 Documentation
 
-## Documentation
+- **Online documentation**
 For a comprehensive guide and usage tutorials, visit [our documentation website](https://deeptb.readthedocs.io/en/latest/).
 
+- **Community**
+DeePTB joins the DeepModeling community, a community devoted of AI for science, as an incubating level project. To learn more about the DeepModeling community, see the [introduction of community](https://github.com/deepmodeling/community).
+- **Contributing**
+We welcome contributions to DeePTB. Please refer to our [contributing guidelines](https://deeptb.readthedocs.io/en/latest/community/contribution_guide.html) for details.
 
 
-## Community
-
-**DeePTB** joins the DeepModeling community, a community devoted of AI for science, as an incubating level project. To learn more about the DeepModeling community, see the [introduction of community](https://github.com/deepmodeling/community).
-
-## Contributing
-We welcome contributions to **DeePTB**. Please refer to our [contributing guidelines](https://deeptb.readthedocs.io/en/latest/community/contribution_guide.html) for details.
-
-
-## How to Cite
+## 🤝 How to Cite
 
 The following references are required to be cited when using DeePTB. Specifically:
 
