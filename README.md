@@ -1,7 +1,6 @@
 <p align="center">
-    <img src="docs/deeptb-logo.svg" alt="DeePTB Logo">
+    <img src="docs/deeptb-logo.png" alt="DeePTB Logo" style="width: 80vw; height: auto;" />
 </p>
-
 <!-- <h1 align="center">DeePTB</h1> -->
 
 <!--# DeePTB -->
