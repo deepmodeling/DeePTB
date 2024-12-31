@@ -394,7 +394,7 @@ class EigHamLoss(nn.Module):
 
         eigloss = self.eigloss(data, ref_data)
 
-        return self.coeff_ham * ham_loss + (1 - self.coeff_ham) eigloss
+        return self.coeff_ham * ham_loss + (1 - self.coeff_ham) * eigloss
 
         
 
