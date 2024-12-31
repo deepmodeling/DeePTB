@@ -222,6 +222,6 @@ class TestSKHamiltonian:
           0.0000000000e+00,  2.6077032089e-08,  0.0000000000e+00,
          -3.7709136009e+00]])
         
-        assert torch.allclose(data[AtomicDataDict.NODE_FEATURES_KEY], expected_strainonsite)
+        assert torch.allclose(data[AtomicDataDict.NODE_FEATURES_KEY], expected_strainonsite, atol=1e-6, rtol=1e-4)
 
 

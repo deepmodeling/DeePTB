@@ -298,6 +298,10 @@ class Band(ElecStruCal):
                 raise ValueError
 
             if ref_band.shape[0] != self.eigenstatus["eigenvalues"].shape[0]:
+                # print('ref_band.shape[0]',ref_band.shape[0])
+                # print('self.eigenstatus["eigenvalues"].shape[0]',self.eigenstatus["eigenvalues"].shape[0])
+                log.info("kpoints in ref_band: ", ref_band.shape[0])
+                log.info("kpoints in model's prediction: ", self.eigenstatus["eigenvalues"].shape[0])
                 log.error("Reference Eigenvalues' should have sampled from the sample kpath as model's prediction.")
                 raise ValueError
             ref_band = ref_band - (np.min(ref_band) - np.min(self.eigenstatus["eigenvalues"]))

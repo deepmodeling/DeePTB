@@ -210,7 +210,7 @@ def train(
     trainer.register_plugin(TrainLossMonitor())
     trainer.register_plugin(LearningRateMonitor())
     if jdata["train_options"]["use_tensorboard"]:
-        trainer.register_plugin(TensorBoardMonitor())
+        trainer.register_plugin(TensorBoardMonitor(interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
     trainer.register_plugin(Logger(log_field,
         interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
     

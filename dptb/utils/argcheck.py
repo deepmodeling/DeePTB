@@ -102,6 +102,8 @@ def train_options():
                           "There are tree types of error will be recorded. `train_loss_iter` is iteration loss, `train_loss_last` is the error of the last iteration in an epoch, `train_loss_mean` is the mean error of all iterations in an epoch." \
                           "Learning rates are tracked as well. A folder named `tensorboard_logs` will be created in the working directory. Use `tensorboard --logdir=tensorboard_logs` to view the logs." \
                           "Default: `False`"
+    update_lr_per_step_flag = "Set true to update learning rate per-step. By default, it's false."
+
     doc_optimizer = "\
         The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `SGD` and `LBFGS` \n\n\
         For more information about these optmization algorithm, we refer to:\n\n\
@@ -109,7 +111,7 @@ def train_options():
         - `SGD`: [Stochastic Gradient Descent.](https://pytorch.org/docs/stable/generated/torch.optim.SGD.html)\n\n\
         - `LBFGS`: [On the limited memory BFGS method for large scale optimization.](http://users.iems.northwestern.edu/~nocedal/PDFfiles/limited-memory.pdf) \n\n\
     "
-    doc_lr_scheduler = "The learning rate scheduler tools settings, the lr scheduler is used to scales down the learning rate during the training process. Proper setting can make the training more stable and efficient. The supported lr schedular includes: `Exponential Decaying (exp)`, `Linear multiplication (linear)`"
+    doc_lr_scheduler = "The learning rate scheduler tools settings, the lr scheduler is used to scales down the learning rate during the training process. Proper setting can make the training more stable and efficient. The supported lr schedular includes: `Exponential Decaying (exp)`, `Linear multiplication (linear)`, `Reduce on pleatau (rop)`, `Cyclic learning rate (cyclic)`. See more documentation on Pytorch. "
     doc_batch_size = "The batch size used in training, Default: 1"
     doc_ref_batch_size = "The batch size used in reference data, Default: 1"
     doc_val_batch_size = "The batch size used in validation data, Default: 1"
@@ -126,6 +128,7 @@ def train_options():
         Argument("validation_freq", int, optional=True, default=10, doc=doc_validation_freq),
         Argument("display_freq", int, optional=True, default=1, doc=doc_display_freq),
         Argument("use_tensorboard", bool, optional=True, default=False, doc=doc_use_tensorboard),
+        Argument("update_lr_per_step_flag", bool, optional=True, default=False, doc=update_lr_per_step_flag),
         Argument("max_ckpt", int, optional=True, default=4, doc=doc_max_ckpt),
         loss_options()
     ]
@@ -179,12 +182,48 @@ def SGD():
         Argument("nesterov", bool, optional=True, default=False, doc=doc_nesterov)
     ]
 
+
+def RMSprop():
+    doc_lr = "learning rate. Default: 1e-2"
+    doc_alpha = "smoothing constant, Default: 0.99"
+    doc_eps = "term added to the denominator to improve numerical stability, Default: 1e-8"
+    doc_weight_decay = "weight decay (L2 penalty), Default: 0"
+    doc_momentum = "momentum factor, Default: 0"
+    doc_centered = "if True, compute the centered RMSProp, the gradient is normalized by an estimation of its variance, Default: False"
+
+    return [
+        Argument("lr", float, optional=True, default=1e-2, doc=doc_lr),
+        Argument("alpha", float, optional=True, default=0.99, doc=doc_alpha),
+        Argument("eps", float, optional=True, default=1e-8, doc=doc_eps),
+        Argument("weight_decay", float, optional=True, default=0, doc=doc_weight_decay),
+        Argument("momentum", float, optional=True, default=0, doc=doc_momentum),
+        Argument("centered", bool, optional=True, default=False, doc=doc_centered)
+    ]
+
+
+def LBFGS():
+    doc_lr = "learning rate. Default: 1"
+    doc_max_iter = "maximal number of iterations per optimization step. Default: 20"
+    doc_max_eval = "maximal number of function evaluations per optimization step. Default: None -> max_iter*1.25"
+    # doc_tolerance_grad = "termination tolerance on first order optimality (default: 1e-7)."
+    # doc_line_search_fn = "either 'strong_wolfe' or None (default: None)."
+    # doc_history_size = "update history size. Default: 100"
+    # doc_tolerance_change = "termination tolerance on function value/parameter changes (default: 1e-9)."
+
+    return [
+        Argument("lr", float, optional=True, default=1, doc=doc_lr),
+        Argument("max_iter", int, optional=True, default=20, doc=doc_max_iter),
+        Argument("max_eval", int, optional=True, default=None, doc=doc_max_eval)
+    ]
+
 def optimizer():
     doc_type = "select type of optimizer, support type includes: `Adam`, `SGD` and `LBFGS`. Default: `Adam`"
 
     return Variant("type", [
             Argument("Adam", dict, Adam()),
-            Argument("SGD", dict, SGD())
+            Argument("SGD", dict, SGD()),
+            Argument("RMSprop", dict, RMSprop()),
+            Argument("LBFGS", dict, LBFGS()),
         ],optional=True, default_tag="Adam", doc=doc_type)
 
 def ExponentialLR():
@@ -235,6 +274,46 @@ def ReduceOnPlateau():
         Argument("eps", float, optional=True, default=1e-8, doc=doc_eps),
     ]
 
+def CyclicLR():
+    doc_base_lr = "Initial learning rate which is the lower boundary in the cycle for each parameter group."
+    doc_max_lr = "Upper learning rate boundaries in the cycle for each parameter group. Functionally, it defines the cycle amplitude (max_lr - base_lr). The lr at any cycle is the sum of base_lr and some scaling of the amplitude; therefore max_lr may not actually be reached depending on scaling function."
+    doc_step_size_up = "Number of training iterations in the increasing half of a cycle. Default: 2000"
+    doc_step_size_down = "Number of training iterations in the decreasing half of a cycle. If step_size_down is None, it is set to step_size_up. Default: None"
+    doc_mode = "One of {triangular, triangular2, exp_range}. Values correspond to policies detailed above. If scale_fn is not None, this argument is ignored. Default: 'triangular'"
+    doc_gamma = "Constant in 'exp_range' scaling function: gamma**(cycle iterations) Default: 1.0"
+    doc_scale_fn = "Custom scaling policy defined by a single argument lambda function, where 0 <= scale_fn(x) <= 1 for all x >= 0. If specified, then 'mode' is ignored. Default: None"
+    doc_scale_mode = "{'cycle', 'iterations'}. Defines whether scale_fn is evaluated on cycle number or cycle iterations (training iterations since start of cycle). Default: 'cycle'"
+    doc_cycle_momentum = "If True, momentum is cycled inversely to learning rate between 'base_momentum' and 'max_momentum'. Default: True"
+    doc_base_momentum = "Lower momentum boundaries in the cycle for each parameter group. Note that momentum is cycled inversely to learning rate; at the start of a cycle, momentum is 'max_momentum' and learning rate is 'base_lr'. Default: 0.8"
+    doc_max_momentum = "Upper momentum boundaries in the cycle for each parameter group. Functionally, it defines the cycle amplitude (max_momentum - base_momentum). The momentum at any cycle is the difference of max_momentum and some scaling of the amplitude; therefore base_momentum may not actually be reached depending on scaling function. Note that momentum is cycled inversely to learning rate; at the start of a cycle, momentum is 'max_momentum' and learning rate is 'base_lr'. Default: 0.9"
+    doc_last_epoch = "The index of the last batch. This parameter is used when resuming a training job. Since step() should be invoked after each batch instead of after each epoch, this number represents the total number of batches computed, not the total number of epochs computed. When last_epoch=-1, the schedule is started from the beginning. Default: -1"
+    doc_verbose = "If True, prints a message to stdout for each update. Default: False."
+
+    return [
+        Argument("base_lr", [float, list], optional=False, doc=doc_base_lr),
+        Argument("max_lr", [float, list], optional=False, doc=doc_max_lr),
+        Argument("step_size_up", int, optional=True, default=10, doc=doc_step_size_up),
+        Argument("step_size_down", int, optional=True, default=40, doc=doc_step_size_down),
+        Argument("mode", str, optional=True, default="exp_range", doc=doc_mode),
+        Argument("gamma", float, optional=True, default=1.0, doc=doc_gamma),
+        Argument("scale_fn", object, optional=True, default=None, doc=doc_scale_fn),
+        Argument("scale_mode", str, optional=True, default="cycle", doc=doc_scale_mode),
+        Argument("cycle_momentum", bool, optional=True, default=False, doc=doc_cycle_momentum),
+        Argument("base_momentum", [float, list], optional=True, default=0.8, doc=doc_base_momentum),
+        Argument("max_momentum", [float, list], optional=True, default=0.9, doc=doc_max_momentum),
+        Argument("last_epoch", int, optional=True, default=-1, doc=doc_last_epoch),
+        Argument("verbose", [bool, str], optional=True, default="deprecated", doc=doc_verbose)
+    ]
+
+
+def CosineAnnealingLR():
+    doc_T_max = "Maximum number of iterations. Default: 100."
+    doc_eta_min = "Minimum learning rate. Default: 0."
+
+    return [
+        Argument("T_max", int, optional=True, default=100, doc=doc_T_max),
+        Argument("eta_min", float, optional=True, default=0, doc=doc_eta_min),
+    ]
 
 def lr_scheduler():
     doc_type = "select type of lr_scheduler, support type includes `exp`, `linear`"
@@ -242,7 +321,9 @@ def lr_scheduler():
     return Variant("type", [
             Argument("exp", dict, ExponentialLR()),
             Argument("linear", dict, LinearLR()),
-            Argument("rop", dict, ReduceOnPlateau(), doc="rop: reduce on plateau")
+            Argument("rop", dict, ReduceOnPlateau(), doc="rop: reduce on plateau"),
+            Argument("cos", dict, CosineAnnealingLR(), doc="cos: cosine annealing"),
+            Argument("cyclic", dict, CyclicLR(), doc="Cyclic learning rate")
         ],optional=True, default_tag="exp", doc=doc_type)
 
 
@@ -688,53 +769,45 @@ def hopping():
                     -  `NRL0`: the old version of NRL formula for overlap, we set overlap and hopping share same options.
                     -  `NRL1`: the new version of NRL formula for overlap. 
                     """
-    doc_rs = "The cut-off for smooth function fc for powerlaw and varTang96, fc(rs)=0.5"
+    doc_rs_soft = "The cut-off for smooth function fc for powerlaw and varTang96, fc(rs)=0.5"
     doc_w = " The decay w in fc"
-    doc_rc = "The cut-off for smooth function fc for NRL, fc(rc) = 0."
+    doc_rs_hard = "The cut-off for smooth function fc, fc(rs) = 0."
 
     powerlaw = [
-        Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
-        Argument("w", float, optional=True, default=0.1, doc=doc_w),
-    ]
-    poly1pow = [
-        Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
-        Argument("w", float, optional=True, default=0.1, doc=doc_w),
-    ]
-    poly2pow = [
-        Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
-        Argument("w", float, optional=True, default=0.1, doc=doc_w),
-    ]
-    poly3pow = [
-        Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
-        Argument("w", float, optional=True, default=0.1, doc=doc_w),
-    ]    
-    poly2exp = [
-        Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rs_soft),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
     varTang96 = [
-        Argument("rs", float, optional=True, default=6.0, doc=doc_rs),
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rs_soft),
+        Argument("w", float, optional=True, default=0.1, doc=doc_w),
+    ]
+    common_params = [
+        Argument("rs", float, optional=True, default=6.0, doc=doc_rs_hard),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
 
-    NRL = [
-        Argument("rs", float, optional=True, default=6.0, doc=doc_rc),
-        Argument("w", float, optional=True, default=0.1, doc=doc_w),
+    formulas = [
+        'poly1pow',
+        'poly2pow',
+        'poly3pow',
+        'poly4pow',
+        'poly2exp',
+        'poly3exp',
+        'poly4exp',
+        'NRL0',
+        "NRL1"]
+
+    args = [
+        Argument("powerlaw", dict, powerlaw),
+        Argument("varTang96", dict, varTang96),
+        Argument("custom", dict, [])
     ]
 
-
-    return Variant("method", [
-                    Argument("powerlaw", dict, powerlaw),
-                    Argument("poly1pow", dict, poly1pow),
-                    Argument("poly2pow", dict, poly2pow),
-                    Argument("poly3pow", dict, poly3pow),
-                    Argument("poly2exp", dict, poly2exp),
-                    Argument("varTang96", dict, varTang96),
-                    Argument("NRL0", dict, NRL),
-                    Argument("NRL1", dict, NRL),
-                    Argument("custom", dict, []),
-                ],optional=False, doc=doc_method)
+    for ii in formulas:
+        args.append(Argument(ii, dict, common_params))
     
+    return Variant("method", args,optional=False, doc=doc_method)
+
 
 def loss_options():
     doc_method = """The loss function type, defined by a string like `<fitting target>_<loss type>`, Default: `eigs_l2dsf`. supported loss functions includes:\n\n\
@@ -749,6 +822,11 @@ def loss_options():
 
     hamil = [
         Argument("onsite_shift", bool, optional=True, default=False, doc="Whether to use onsite shift in loss function. Default: False"),
+    ]
+
+    wt = [
+        Argument("onsite_weight", [int, float, dict], optional=True, default=1., doc="Whether to use onsite shift in loss function. Default: False"),
+        Argument("hopping_weight", [int, float, dict], optional=True, default=1., doc="Whether to use onsite shift in loss function. Default: False"),
     ]
 
     eigvals = [
@@ -774,7 +852,7 @@ def loss_options():
         Argument("skints", dict, sub_fields=skints),
         Argument("hamil_abs", dict, sub_fields=hamil),
         Argument("hamil_blas", dict, sub_fields=hamil),
-        Argument("eig_ham", dict, sub_fields=hamil+eigvals+eig_ham),
+        Argument("eig_ham", dict, sub_fields=hamil+eigvals+eig_ham+wt),
     ], optional=False, doc=doc_method)
 
     
@@ -1542,7 +1620,7 @@ def get_cutoffs_from_model_options(model_options):
     
     elif model_options.get("dftbsk", None) is not None:
         assert r_max is None, "r_max should not be provided in outside the dftbsk for training dftbsk model."
-        r_max = model_options["dftbsk"]["r_max"]
+        r_max = model_options["dftbsk"].get("r_max")
     
     else:
         # not nnsk not dftbsk, must be only env or E3. the embedding should be provided.
@@ -1606,3 +1684,75 @@ def collect_cutoffs(jdata):
     log.info("-"*66)
 
     return cutoff_options
+
+
+def normalize(data):
+
+    co = common_options()
+    tr = train_options()
+    da = data_options()
+    mo = model_options()
+
+    base = Argument("base", dict, [co, tr, da, mo])
+    data = base.normalize_value(data)
+    # data = base.normalize_value(data, trim_pattern="_*")
+    base.check_value(data, strict=True)
+    
+    # add check loss and use wannier:
+    
+    # if data['data_options']['use_wannier']:
+    #     if not data['loss_options']['losstype'] .startswith("block"):
+    #         log.info(msg='\n Warning! set data_options use_wannier true, but the loss type is not block_l2! The the wannier TB will not be used when training!\n')
+    
+    # if data['loss_options']['losstype'] .startswith("block"):
+    #     if not data['data_options']['use_wannier']:
+    #         log.error(msg="\n ERROR! for block loss type, must set data_options:use_wannier True\n")
+    #         raise ValueError
+
+    return data
+
+def normalize_skf2nnsk(data):
+    common_ops = [
+        Argument("basis", [dict,str], optional=False, default='auto', doc="The basis set for the model, can be a dict or a string, default is 'auto'."),
+        Argument("skdata",str, optional=False, doc="The path to the skf file."),
+        Argument("device",str, optional=True, default='cpu', doc="The device to run the calculation, choose among `cpu` and `cuda[:int]`, Default: 'cpu'."),
+        Argument("dtype",str, optional=True, default='float32', doc="The digital number's precison, choose among: 'float32', 'float64', Default: 'float32'."),
+        Argument("seed", int, optional=True, default=3982377700, doc="The random seed used to initialize the parameters and determine the shuffling order of datasets. Default: `3982377700`")
+    ]
+
+    model_ops = [
+        Argument('method',str, optional=False, default='poly2pow', doc="The method for the hopping term, default is 'powerlaw'."),
+        Argument('rs',[float,None,int], optional=True, default=None, doc="The rs value for the hopping term."),
+        Argument('w', [float,int], optional=True, default=0.2, doc="The w value for the hopping term."),
+        Argument('atomic_radius',[str,dict], optional=True, default='cov', doc="The atomic radius for the hopping term, default is 'cov'.")
+    ]
+    
+    doc_lr_scheduler = "The learning rate scheduler tools settings, the lr scheduler is used to scales down the learning rate during the training process. Proper setting can make the training more stable and efficient. The supported lr schedular includes: `Exponential Decaying (exp)`, `Linear multiplication (linear)`"
+    doc_optimizer = "\
+        The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `SGD` and `LBFGS` \n\n\
+        For more information about these optmization algorithm, we refer to:\n\n\
+        - `Adam`: [Adam: A Method for Stochastic Optimization.](https://arxiv.org/abs/1412.6980)\n\n\
+        - `SGD`: [Stochastic Gradient Descent.](https://pytorch.org/docs/stable/generated/torch.optim.SGD.html)\n\n\
+        - `LBFGS`: [On the limited memory BFGS method for large scale optimization.](http://users.iems.northwestern.edu/~nocedal/PDFfiles/limited-memory.pdf) \n\n\
+    "
+    
+    train_ops = [
+        Argument('nstep', int, optional=False, doc="The number of steps for the training."),
+        Argument('nsample', int, optional=True, default=256, doc="The number of steps for the training."),
+        Argument('max_elmt_batch', int, optional=True, default=4, doc="The max number of elements in a batch."),
+        Argument('dis_freq', int, optional=True, default=1, doc="The frequency of the display."),
+        Argument('save_freq', int, optional=True, default=1, doc="The frequency of the save."),
+        Argument("optimizer", dict, sub_fields=[], optional=True, default={}, sub_variants=[optimizer()], doc = doc_optimizer),
+        Argument("lr_scheduler", dict, sub_fields=[], optional=True, default={}, sub_variants=[lr_scheduler()], doc = doc_lr_scheduler)
+    ]
+    co = Argument("common_options", dict, optional=False, sub_fields=common_ops, sub_variants=[], doc='The common options.')
+    mo = Argument("model_options", dict, optional=False, sub_fields=model_ops, sub_variants=[], doc='The model options.')
+    tr =  Argument("train_options", dict, sub_fields=train_ops, sub_variants=[], optional=False, doc='The training options.')
+
+    base = Argument("base", dict, [co, mo, tr])
+    data = base.normalize_value(data)
+    # data = base.normalize_value(data, trim_pattern="_*")
+    base.check_value(data, strict=True)
+
+    return data
+    
