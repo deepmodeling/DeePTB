@@ -422,6 +422,10 @@ class DefaultDataset(AtomicInMemoryDataset):
             edge_scales = stats["edge"]["norm_ave"]
             edge_scales[:,scalar_mask] = stats["edge"]["scalar_std"]
             model.node_prediction_h.set_scale_shift(scales=node_scales, shifts=node_shifts)
+
+            if decay:
+                edge_shifts = model.edge_prediction_h.fit_radialdpdt_shift(stats["edge"]["decay"], self.type_mapper)
+                edge_scales = None
             model.edge_prediction_h.set_scale_shift(scales=edge_scales, shifts=edge_shifts)
 
         return stats
@@ -476,7 +480,7 @@ class DefaultDataset(AtomicInMemoryDataset):
                 if decay:
                     if not torch.isnan(sub_tensor).all():
                         if sub_tensor.shape[-1] == 1: # is scalar
-                            scalar_per_irrep.append(sub_tensor)
+                            scalar_per_irrep.append(sub_tensor.squeeze(-1))
                         norms_per_irrep.append(norms)
 
             assert count_scalar <= n_scalar

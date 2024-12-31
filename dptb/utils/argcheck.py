@@ -605,6 +605,7 @@ def sktb_prediction():
 def e3tb_prediction():
     doc_scales_trainable = "whether to scale the trianing target."
     doc_shifts_trainable = "whether to shift the training target."
+    doc_decay = "whether the edge normalization takes into account the decaying behaviour of the edge irreps"
     doc_neurons = "neurons in the neural network."
     doc_activation = "activation function."
     doc_if_batch_normalized = "if to turn on batch normalization"
@@ -612,6 +613,7 @@ def e3tb_prediction():
     nn = [
         Argument("scales_trainable", bool, optional=True, default=False, doc=doc_scales_trainable),
         Argument("shifts_trainable", bool, optional=True, default=False, doc=doc_shifts_trainable),
+        Argument("decay", bool, optional=True, default=False, doc=doc_decay),
         Argument("neurons", list, optional=True, default=None, doc=doc_neurons),
         Argument("activation", str, optional=True, default="tanh", doc=doc_activation),
         Argument("if_batch_normalized", bool, optional=True, default=False, doc=doc_if_batch_normalized),
