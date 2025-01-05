@@ -10,7 +10,7 @@ from dptb.nn.hamiltonian import E3Hamiltonian, SKHamiltonian
 from dptb.nn.nnsk import NNSK
 from dptb.nn.dftbsk import DFTBSK
 from e3nn.o3 import Linear
-from dptb.nn.rescale import E3PerSpeciesScaleShift, E3PerEdgeSpeciesScaleShift
+from dptb.nn.rescale import E3PerSpeciesScaleShift, E3PerEdgeSpeciesScaleShift, E3PerEdgeSpeciesRadialDpdtScaleShift
 import logging
 
 log = logging.getLogger(__name__)
@@ -180,18 +180,32 @@ class NNENV(nn.Module):
                 device=self.device,
                 **prediction_copy,
             )
+
+            if prediction_copy.get("decay"):
+                self.edge_prediction_h = E3PerEdgeSpeciesRadialDpdtScaleShift(
+                    field=AtomicDataDict.EDGE_FEATURES_KEY,
+                    num_types=n_species,
+                    irreps_in=self.embedding.out_edge_irreps,
+                    out_field = AtomicDataDict.EDGE_FEATURES_KEY,
+                    shifts=0.,
+                    scales=1.,
+                    dtype=self.dtype,
+                    device=self.device,
+                    **prediction_copy,
+                )
+            else:
+                self.edge_prediction_h = E3PerEdgeSpeciesScaleShift(
+                    field=AtomicDataDict.EDGE_FEATURES_KEY,
+                    num_types=n_species,
+                    irreps_in=self.embedding.out_edge_irreps,
+                    out_field = AtomicDataDict.EDGE_FEATURES_KEY,
+                    shifts=0.,
+                    scales=1.,
+                    dtype=self.dtype,
+                    device=self.device,
+                    **prediction_copy,
+                )
             
-            self.edge_prediction_h = E3PerEdgeSpeciesScaleShift(
-                field=AtomicDataDict.EDGE_FEATURES_KEY,
-                num_types=n_species,
-                irreps_in=self.embedding.out_edge_irreps,
-                out_field = AtomicDataDict.EDGE_FEATURES_KEY,
-                shifts=0.,
-                scales=1.,
-                dtype=self.dtype,
-                device=self.device,
-                **prediction_copy,
-            )
 
             if overlap:
                 self.idp_sk = OrbitalMapper(self.idp.basis, method="sktb", device=self.device)

@@ -422,6 +422,10 @@ class DefaultDataset(AtomicInMemoryDataset):
             edge_scales = stats["edge"]["norm_ave"]
             edge_scales[:,scalar_mask] = stats["edge"]["scalar_std"]
             model.node_prediction_h.set_scale_shift(scales=node_scales, shifts=node_shifts)
+
+            if decay:
+                edge_shifts = model.edge_prediction_h.fit_radialdpdt_shift(stats["edge"]["decay"], self.type_mapper)
+                edge_scales = None
             model.edge_prediction_h.set_scale_shift(scales=edge_scales, shifts=edge_shifts)
 
         return stats
@@ -447,12 +451,14 @@ class DefaultDataset(AtomicInMemoryDataset):
         
         # calculate norm & mean
         typed_norm = {}
+        typed_scalar = {}
         typed_norm_ave = torch.ones(len(idp.bond_to_type), idp.orbpair_irreps.num_irreps)
         typed_norm_std = torch.zeros(len(idp.bond_to_type), idp.orbpair_irreps.num_irreps)
         typed_scalar_ave = torch.ones(len(idp.bond_to_type), n_scalar)
         typed_scalar_std = torch.zeros(len(idp.bond_to_type), n_scalar)
         for bt, tp in idp.bond_to_type.items():
             norms_per_irrep = []
+            scalar_per_irrep = []
             count_scalar = 0
             for ir, s in enumerate(irrep_slices):
                 sub_tensor = typed_hopping[bt][:, s]
@@ -472,13 +478,17 @@ class DefaultDataset(AtomicInMemoryDataset):
                     norms = torch.ones_like(sub_tensor[:, 0])
 
                 if decay:
-                    norms_per_irrep.append(norms)
+                    if not torch.isnan(sub_tensor).all():
+                        if sub_tensor.shape[-1] == 1: # is scalar
+                            scalar_per_irrep.append(sub_tensor.squeeze(-1))
+                        norms_per_irrep.append(norms)
 
             assert count_scalar <= n_scalar
             # shape of typed_norm: (n_irreps, n_edges)
 
             if decay:
-                typed_norm[bt] = torch.stack(norms_per_irrep)
+                typed_scalar[bt] = torch.stack(scalar_per_irrep) # [n_scalar, n_edge]
+                typed_norm[bt] = torch.stack(norms_per_irrep) # [n_irreps, n_edge]
 
         edge_stats = {
             "norm_ave": typed_norm_ave,
@@ -495,11 +505,12 @@ class DefaultDataset(AtomicInMemoryDataset):
                 lengths_bt = typed_dataset["edge_lengths"][typed_dataset["edge_type"].flatten().eq(tp)]
                 sorted_lengths, indices = lengths_bt.sort() # from small to large
                 # sort the norms by irrep l
-                sorted_norms = typed_norm[bt][idp.orbpair_irreps.sort().inv, :]
+                sorted_norms = typed_norm[bt]
                 # sort the norms by edge length
                 sorted_norms = sorted_norms[:, indices]
                 decay_bt["edge_length"] = sorted_lengths
                 decay_bt["norm_decay"] = sorted_norms
+                decay_bt["scalar_decay"] = typed_scalar[bt][:, indices]
                 decay[bt] = decay_bt
             
             edge_stats["decay"] = decay
