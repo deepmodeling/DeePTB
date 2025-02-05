@@ -37,8 +37,8 @@ def check_config_train(
     if train_data_config.get("get_Hamiltonian") and not train_data_config.get("get_eigenvalues"):
         assert jdata['train_options']['loss_options']['train'].get("method").startswith("hamil")
 
-    if train_data_config.get("get_Hamiltonian") and train_data_config.get("get_eigenvalues"):
-        raise RuntimeError("The train data set should not have both get_Hamiltonian and get_eigenvalues set to True.")
+    # if train_data_config.get("get_Hamiltonian") and train_data_config.get("get_eigenvalues"):
+    #     raise RuntimeError("The train data set should not have both get_Hamiltonian and get_eigenvalues set to True.")
 
     #if jdata["data_options"].get("validation"):
     
