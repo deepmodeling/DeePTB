@@ -108,8 +108,8 @@ def test_negf_RGF(root_directory):
         V = 0.
 
     if not hasattr(device, "hd") or not hasattr(device, "sd"):
-        device.hd, device.sd, _, _, _, _ = hamiltonian.get_hs_device(kpoint,V, block_tridiagonal)
-    s_in = [torch.zeros(i.shape).cdouble() for i in device.hd]
+        device.hd_k, device.sd, _, _, _, _ = hamiltonian.get_hs_device(kpoint,V, block_tridiagonal)
+    s_in = [torch.zeros(i.shape).cdouble() for i in device.hd_k]
 
     tags = ["g_trans","grd", "grl", "gru", "gr_left", \
             "gnd", "gnl", "gnu", "gin_left", \
@@ -168,7 +168,7 @@ def test_negf_RGF(root_directory):
     assert abs(s_in[-1]-s_in_1_standard).max()<1e-5
 
 
-    ans = recursive_gf(e, hl=[], hd=device.hd, hu=[],
+    ans = recursive_gf(e, hl=[], hd=device.hd_k, hu=[],
                         sd=device.sd, su=[], sl=[], 
                         left_se=seL, right_se=seR, seP=None, s_in=s_in,
                         s_out=None, eta=eta_device, chemiPot=device.mu)

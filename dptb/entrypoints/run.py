@@ -9,9 +9,14 @@ from dptb.utils.loggers import set_log_handles
 from dptb.utils.argcheck import normalize_run
 from dptb.utils.tools import j_loader
 from dptb.utils.tools import j_must_have
+from dptb.postprocess.NEGF import NEGF
+from dptb.postprocess.tbtrans_init import TBTransInputSet,sisl_installed
+
+# from dptb.postprocess.write_ham import write_ham
 from dptb.postprocess.write_block import write_block
 import torch
 import h5py
+
 
 log = logging.getLogger(__name__)
 
@@ -87,6 +92,48 @@ def run(
                         emax=jdata["task_options"].get("emax", None))
         log.info(msg='band calculation successfully completed.')
 
+    elif task=='negf':
+
+        # try:
+        #     from pyinstrument import Profiler
+        # except ImportWarning:
+        #     log.warning(msg="pyinstrument is not installed, no profiling will be done.")
+        #     Profiler = None
+        # if Profiler is not None:
+        #     profiler = Profiler()
+        #     profiler.start()
+        
+        negf = NEGF(
+            model=model,
+            AtomicData_options=jdata['AtomicData_options'],
+            structure=structure,
+            results_path=results_path,  
+            **task_options
+            )
+   
+        negf.compute()
+        log.info(msg='negf calculation successfully completed.')
+
+        # if Profiler is not None:
+        #     profiler.stop()
+        #     with open(results_path+'/profile_report.html', 'w') as report_file:
+        #         report_file.write(profiler.output_html())
+
+    elif task == 'tbtrans_negf':
+        if not(sisl_installed):
+            log.error(msg="sisl is required to perform tbtrans calculation !")
+            raise RuntimeError
+        basis_dict = json.load(open(init_model))['common_options']['basis']
+        tbtrans_init = TBTransInputSet(
+            model=model, 
+            AtomicData_options=jdata['AtomicData_options'],
+            structure=structure,
+            basis_dict=basis_dict,
+            results_path=results_path,
+            **task_options)
+        tbtrans_init.hamil_get_write(write_nc=True)
+        log.info(msg='TBtrans input files are successfully generated.')
+    
     elif task=='write_block':
         task = torch.load(init_model, map_location="cpu")["task"]
         block = write_block(data=struct_file, AtomicData_options=jdata['AtomicData_options'], model=model, device=jdata["device"])

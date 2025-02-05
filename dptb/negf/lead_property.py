@@ -6,6 +6,9 @@ from dptb.negf.negf_utils import update_kmap, update_temp_file
 import os
 from dptb.utils.constants import Boltzmann, eV2J
 import numpy as np
+from dptb.negf.bloch import Bloch
+import torch.profiler
+import ase
 
 log = logging.getLogger(__name__)
 
@@ -63,7 +66,10 @@ class LeadProperty(object):
         calculate the Gamma function from the self energy.
 
     '''
-    def __init__(self, tab, hamiltonian, structure, results_path, voltage, e_T=300, efermi=0.0) -> None:
+    def __init__(self, tab, hamiltonian, structure, results_path, voltage,\
+                 structure_leads_fold:ase.Atoms=None,bloch_sorted_indice:torch.Tensor=None, useBloch: bool=False, \
+                    bloch_factor: List[int]=[1,1,1],bloch_R_list:List=None,\
+                    e_T=300, efermi=0.0) -> None:
         self.hamiltonian = hamiltonian
         self.structure = structure
         self.tab = tab
@@ -74,8 +80,22 @@ class LeadProperty(object):
         self.efermi = efermi
         self.mu = self.efermi - self.voltage
         self.kpoint = None
+        self.voltage_old = None
+        
+        
+        self.useBloch = useBloch
+        self.bloch_factor = bloch_factor
+        self.bloch_sorted_indice = bloch_sorted_indice
+        self.bloch_R_list = bloch_R_list
+        self.structure_leads_fold = structure_leads_fold
+        if self.useBloch:
+            assert self.bloch_sorted_indice is not None
+            assert self.bloch_R_list is not None
+            assert self.bloch_factor is not None
+            assert self.structure_leads_fold is not None
 
-    def self_energy(self, kpoint, energy, eta_lead: float=1e-5, method: str="Lopez-Sancho"):
+    def self_energy(self, kpoint, energy, eta_lead: float=1e-5, method: str="Lopez-Sancho", \
+                    ):
         '''calculate and loads the self energy and surface green function at the given kpoint and energy.
         
         Parameters
@@ -91,33 +111,86 @@ class LeadProperty(object):
         
         '''
         assert len(np.array(kpoint).reshape(-1)) == 3
-        
         # according to given kpoint and e_mesh, calculating or loading the self energy and surface green function to self.
         if not isinstance(energy, torch.Tensor):
-            energy = torch.tensor(energy)
+            energy = torch.tensor(energy) # Energy relative to Ef
 
+        # if not hasattr(self, "HL"):
+        #TODO: check here whether it is necessary to calculate the self energy every time
+
+
+        if not self.useBloch:
+            if not hasattr(self, "HL") or abs(self.voltage_old-self.voltage)>1e-6 or max(abs(self.kpoint-torch.tensor(kpoint)))>1e-6:
+                self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL \
+                    = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
+                self.voltage_old = self.voltage
+                self.kpoint = torch.tensor(kpoint)
                 
+            self.se, _ = selfEnergy(
+                ee=energy,
+                hL=self.HL,
+                hLL=self.HLL,
+                sL=self.SL,
+                sLL=self.SLL,
+                hDL=self.HDL,
+                sDL=self.SDL,             #TODO: check chemiPot settiing is correct or not
+                chemiPot=self.efermi, # temmporarily change to self.efermi for the case in which applying lead bias to corresponding to Nanotcad
+                etaLead=eta_lead, 
+                method=method
+            )
 
-        if not hasattr(self, "HL") or self.kpoint is None:
-            self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
-            self.kpoint = torch.tensor(kpoint)
-        elif not torch.allclose(self.kpoint, torch.tensor(kpoint), atol=1e-5):
-            self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
-            self.kpoint = torch.tensor(kpoint)
-            
+            # torch.save(self.se, os.path.join(self.results_path, f"se_nobloch_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_{energy}.pth"))
+        
+        else:
+            if not hasattr(self, "HL") or abs(self.voltage_old-self.voltage)>1e-6 or max(abs(self.kpoint-torch.tensor(kpoint)))>1e-6:
+                self.kpoint = torch.tensor(kpoint)
+                self.voltage_old = self.voltage
 
-        self.se, _ = selfEnergy(
-            ee=energy,
-            hL=self.HL,
-            hLL=self.HLL,
-            sL=self.SL,
-            sLL=self.SLL,
-            hDL=self.HDL,
-            sDL=self.SDL,
-            chemiPot=self.mu,
-            etaLead=eta_lead, 
-            method=method
-        )
+            bloch_unfolder = Bloch(self.bloch_factor)
+            kpoints_bloch = bloch_unfolder.unfold_points(self.kpoint.tolist())
+            sgf_k = []
+            m_size = self.bloch_factor[1]*self.bloch_factor[0]
+            for ik_lead,k_bloch in enumerate(kpoints_bloch):
+                k_bloch = torch.tensor(k_bloch)
+                self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL \
+                    = self.hamiltonian.get_hs_lead(k_bloch, tab=self.tab, v=self.voltage)
+                
+                _, sgf = selfEnergy(
+                    ee=energy,
+                    hL=self.HL,
+                    hLL=self.HLL,
+                    sL=self.SL,
+                    sLL=self.SLL,            #TODO: check chemiPot settiing is correct or not
+                    chemiPot=self.efermi, # temmporarily change to self.efermi for the case in which applying lead bias to corresponding to Nanotcad
+                    etaLead=eta_lead, 
+                    method=method
+                )
+                phase_factor_m = torch.zeros([m_size,m_size],dtype=torch.complex128)
+                for i in range(m_size):
+                    for j in range(m_size):
+                        if i == j:
+                            phase_factor_m[i,j] = 1
+                        else:
+                            phase_factor_m[i,j] = torch.exp(torch.tensor(1j)*2*torch.pi*torch.dot(self.bloch_R_list[j]-self.bloch_R_list[i],k_bloch))  
+                phase_factor_m = phase_factor_m.contiguous()
+                sgf = sgf.contiguous()
+                sgf_k.append(torch.kron(phase_factor_m,sgf)) 
+             
+
+            sgf_k = torch.sum(torch.stack(sgf_k),dim=0)/len(sgf_k)
+            sgf_k = sgf_k[self.bloch_sorted_indice,:][:,self.bloch_sorted_indice]
+            b = self.HDL.shape[1]
+            if not isinstance(energy, torch.Tensor):
+                eeshifted = torch.scalar_tensor(energy, dtype=torch.complex128) + self.efermi
+            else:
+                eeshifted = energy + self.efermi
+            self.se = (eeshifted*self.SDL-self.HDL) @ sgf_k[:b,:b] @ (eeshifted*self.SDL.conj().T-self.HDL.conj().T)
+
+
+            # if self.useBloch:
+            #     torch.save(self.se, os.path.join(self.results_path, f"se_bloch_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_{energy}.pth"))
+            # else:
+            #     torch.save(self.se, os.path.join(self.results_path, f"se_nobloch_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_{energy}.pth"))
 
     def sigmaLR2Gamma(self, se):
         '''calculate the Gamma function from the self energy.
@@ -132,10 +205,10 @@ class LeadProperty(object):
         Returns
         -------
         Gamma
-            The Gamma function, $\Gamma = -1j(se-se^\dagger)$
+            The Gamma function, $\Gamma = 1j(se-se^\dagger)$.
         
         '''
-        return -1j * (se - se.conj().T)
+        return 1j * (se - se.conj().T)
     
     def fermi_dirac(self, x) -> torch.Tensor:
         return 1 / (1 + torch.exp((x - self.mu)/ self.kBT))
