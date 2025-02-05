@@ -1,4 +1,3 @@
-
 import numpy as np
 
 
@@ -6,6 +5,15 @@ import numpy as np
 class Bloch(object):
 
     def __init__(self,bloch_factor) -> None:
+        '''This Python function initializes an object with a Bloch factor represented as a 3D vector.
+        
+        Parameters
+        ----------
+        bloch_factor
+            It is expected to be a list or numpy array representing a 3D vector to expand the provided
+         k points.
+        
+        '''
         
         if  isinstance(bloch_factor,list):
             bloch_factor = np.array(bloch_factor)
@@ -26,8 +34,7 @@ class Bloch(object):
         Returns
         -------
             The `unfold_points` method returns a reshaped array of expansion points calculated based on the
-        input parameter `k` and the bloch factor `B`. The expansion points are created using B-casting rules
-        and then reshaped into a 2D array with 3 columns.
+        input parameter `k` and the bloch factor `B`.
         
         '''
                 
