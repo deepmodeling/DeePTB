@@ -196,7 +196,7 @@ class Interface3D(object):
             if region_list[i].__class__.__name__ == 'Gate': 
                 #attribute gate potential to the corresponding grid points
                 self.boudnary_points.update({index[i]: "Gate" for i in range(len(index))})
-                self.lead_gate_potential[index] = region_list[i].Ef 
+                self.lead_gate_potential[index] = -1*region_list[i].Ef 
                 gate_point += len(index)
             elif region_list[i].__class__.__name__ == 'Dielectric':
                 # attribute dielectric permittivity to the corresponding grid points

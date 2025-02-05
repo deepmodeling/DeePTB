@@ -254,7 +254,7 @@ class NEGF(object):
                 gate_init = Gate(self.gate_region[gg].get("x_range",None).split(':'),\
                                 self.gate_region[gg].get("y_range",None).split(':'),\
                                 self.gate_region[gg].get("z_range",None).split(':'))
-                gate_init.Ef = float(self.gate_region[gg].get("voltage",None)) # in unit of volt
+                gate_init.Ef = -1*float(self.gate_region[gg].get("voltage",None)) # in unit of eV
                 Gate_list.append(gate_init)
             
             # create dielectric            
