@@ -76,7 +76,7 @@ Installing **DeePTB** is straightforward. We recommend using a virtual environme
 
 - **Community**
 
-    DeePTB joins the DeepModeling community, a community devoted of AI for science, as an incubating level project. To learn more about the DeepModeling community, see the [introduction of community](https://github.com/deepmodeling/community).
+    DeePTB joins the DeepModeling community, a community devoted to AI for science, as an incubating level project. To learn more about the DeepModeling community, see the [introduction to the community](https://github.com/deepmodeling/community).
 
 - **Contributing**
 
