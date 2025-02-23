@@ -1180,11 +1180,13 @@ def pyamg():
     doc_doped=""
     doc_max_iter=""
     doc_mix_rate=""
+    doc_poisson_dtype="The dtype of the poisson solver"
     return [
         Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err),
         Argument("tolerance", [int, float], optional=True, default=1e-7, doc=doc_tolerance),
         Argument("max_iter", int, optional=True, default=100, doc=doc_max_iter),
         Argument("mix_rate", int, optional=True, default=0.25, doc=doc_mix_rate),
+        Argument("poisson_dtype", str, optional=True, default='float64', doc=doc_poisson_dtype),
         Argument("grid", dict, optional=False, sub_fields=grid(), doc=doc_grid),
         Argument("gate_top", dict, optional=False, sub_fields=gate(), doc=doc_gate),
         Argument("gate_bottom", dict, optional=False, sub_fields=gate(), doc=doc_gate),
@@ -1201,11 +1203,13 @@ def scipy():
     doc_doped=""
     doc_max_iter=""
     doc_mix_rate=""
+    doc_poisson_dtype="The dtype of the poisson solver"
     return [
         Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err),
         Argument("tolerance", [int, float], optional=True, default=1e-7, doc=doc_tolerance),
         Argument("max_iter", int, optional=True, default=100, doc=doc_max_iter),
         Argument("mix_rate", int, optional=True, default=0.25, doc=doc_mix_rate),
+        Argument("poisson_dtype", str, optional=True, default='float64', doc=doc_poisson_dtype),
         Argument("grid", dict, optional=True, sub_fields=grid(), doc=doc_grid),
         Argument("gate_top", dict, optional=True, sub_fields=gate(), doc=doc_gate),
         Argument("gate_bottom", dict, optional=True, sub_fields=gate(), doc=doc_gate),

@@ -222,7 +222,8 @@ class Interface3D(object):
     def to_scipy_Jac_B(self,dtype=np.float64):
         # create the Jacobian and B for the Poisson equation in scipy sparse format
         
-        Jacobian = csr_matrix(np.zeros((self.grid.Np,self.grid.Np),dtype=dtype))
+        # Jacobian = csr_matrix(np.zeros((self.grid.Np,self.grid.Np),dtype=dtype))
+        Jacobian = csr_matrix((self.grid.Np,self.grid.Np),dtype=dtype)
         B = np.zeros(Jacobian.shape[0],dtype=Jacobian.dtype)
 
         Jacobian_lil = Jacobian.tolil()
@@ -233,7 +234,7 @@ class Interface3D(object):
     
 
 
-    def solve_poisson_NRcycle(self,method='pyamg',tolerance=1e-7):
+    def solve_poisson_NRcycle(self,method='pyamg',tolerance=1e-7,dtype:str='float64'):
         # solve the Poisson equation with Newton-Raphson method
         # delta_phi: the correction on the potential
       
@@ -241,9 +242,16 @@ class Interface3D(object):
         norm_delta_phi = 1.0 #  Euclidean norm of delta_phi in each step
         NR_cycle_step = 0
 
+        if dtype == 'float64':
+            dtype = np.float64
+        elif dtype == 'float32':
+            dtype = np.float32
+        else:
+            raise ValueError('Unknown data type: ',dtype)
+
         while norm_delta_phi > 1e-3 and NR_cycle_step < 100:
             # obtain the Jacobian and B for the Poisson equation
-            Jacobian,B = self.to_scipy_Jac_B()
+            Jacobian,B = self.to_scipy_Jac_B(dtype=dtype)
             norm_B = np.linalg.norm(B)
            
             if method == 'scipy':   

@@ -279,7 +279,9 @@ class NEGF(object):
 
             #initial guess for electrostatic potential
             log.info(msg="-----Initial guess for electrostatic potential----")
-            interface_poisson.solve_poisson_NRcycle(method=self.poisson_options['solver'],tolerance=self.poisson_options['tolerance'])
+            interface_poisson.solve_poisson_NRcycle(method=self.poisson_options['solver'],\
+                                                    tolerance=self.poisson_options['tolerance'],\
+                                                    dtype=self.poisson_options['poisson_dtype'])
             log.info(msg="-------------------------------------------\n")
 
             self.poisson_negf_scf(  interface_poisson=interface_poisson,atom_gridpoint_index=atom_gridpoint_index,\
@@ -324,7 +326,9 @@ class NEGF(object):
             
 
             interface_poisson.phi_old = interface_poisson.phi.copy()
-            max_diff_phi = interface_poisson.solve_poisson_NRcycle(method=self.poisson_options['solver'],tolerance=tolerance)
+            max_diff_phi = interface_poisson.solve_poisson_NRcycle(method=self.poisson_options['solver'],\
+                                                                tolerance=tolerance,\
+                                                                dtype=self.poisson_options['poisson_dtype'])
             interface_poisson.phi = interface_poisson.phi + mix_rate*(interface_poisson.phi_old-interface_poisson.phi)
             
 
