@@ -95,7 +95,7 @@ class LeadProperty(object):
             assert self.structure_leads_fold is not None
 
     def self_energy(self, kpoint, energy, eta_lead: float=1e-5, method: str="Lopez-Sancho", \
-                    ):
+                    save: bool=False, save_path: str=None):
         '''calculate and loads the self energy and surface green function at the given kpoint and energy.
         
         Parameters
@@ -108,7 +108,10 @@ class LeadProperty(object):
             the broadening parameter for calculating lead surface green function.
         method : 
             specify the method for calculating the self energy. At this stage it only supports "Lopez-Sancho".
-        
+        save :
+            whether to save the self energy. 
+        save_path :
+            the path to save the self energy. If not specified, the self energy will be saved in the results_path.
         '''
         assert len(np.array(kpoint).reshape(-1)) == 3
         # according to given kpoint and e_mesh, calculating or loading the self energy and surface green function to self.
@@ -118,6 +121,20 @@ class LeadProperty(object):
         # if not hasattr(self, "HL"):
         #TODO: check here whether it is necessary to calculate the self energy every time
 
+        # If the file in save_path exists, then directly load the self energy from the file
+        if save_path is None:
+            save_path = os.path.join(self.results_path, \
+                                        "self_energy",\
+                                        f"se_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_E{energy}.pth")
+            parent_dir = os.path.dirname(save_path)
+            if not os.path.exists(parent_dir): os.makedirs(parent_dir)
+            
+        if os.path.exists(save_path):
+            log.info(f"     Loading self energy from {save_path}")
+            self.se = torch.load(save_path)
+            return
+        else:
+            log.warning(f"     Not find the stored self energy file. Calculating it at kpoint {kpoint} and energy {energy}.")
 
         if not self.useBloch:
             if not hasattr(self, "HL") or abs(self.voltage_old-self.voltage)>1e-6 or max(abs(self.kpoint-torch.tensor(kpoint)))>1e-6:
@@ -187,6 +204,13 @@ class LeadProperty(object):
             self.se = (eeshifted*self.SDL-self.HDL) @ sgf_k[:b,:b] @ (eeshifted*self.SDL.conj().T-self.HDL.conj().T)
 
 
+        if save:
+            if save_path is None:
+                save_path = os.path.join(self.results_path, \
+                                         "self_energy",\
+                                         f"se_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_E{energy}.pth")
+            log.info(f"Saving self energy to {save_path}")
+            torch.save(self.se, save_path)
             # if self.useBloch:
             #     torch.save(self.se, os.path.join(self.results_path, f"se_bloch_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_{energy}.pth"))
             # else:

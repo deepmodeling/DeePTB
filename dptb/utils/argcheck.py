@@ -1045,6 +1045,8 @@ def negf():
         Argument("stru_options", dict, optional=False, sub_fields=stru_options(), doc=doc_stru_options),
         Argument("poisson_options", dict, optional=True, default={}, sub_fields=[], sub_variants=[poisson_options()], doc=doc_poisson_options),
         Argument("sgf_solver", str, optional=True, default="Sancho-Rubio", doc=doc_sgf_solver),
+        Argument("self_energy_save", bool, optional=True, default=False, doc="whether to save the self energy"),
+        Argument("self_energy_save_path", str, optional=True, default=None, doc="the path to save the self energy"),
         Argument("espacing", [int, float], optional=False, doc=doc_espacing),
         Argument("emin", [int, float], optional=False, doc=doc_emin),
         Argument("emax", [int, float], optional=False, doc=doc_emax),

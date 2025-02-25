@@ -237,6 +237,7 @@ class Interface3D(object):
     def solve_poisson_NRcycle(self,method='pyamg',tolerance=1e-7,dtype:str='float64'):
         # solve the Poisson equation with Newton-Raphson method
         # delta_phi: the correction on the potential
+        # It has been tested that dtype='float64' is a more stable SCF choice.
       
         
         norm_delta_phi = 1.0 #  Euclidean norm of delta_phi in each step
