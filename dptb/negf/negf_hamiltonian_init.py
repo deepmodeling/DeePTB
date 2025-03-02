@@ -97,6 +97,7 @@ class NEGFHamiltonianInit(object):
         self.pbc_negf = pbc_negf
         assert len(self.pbc_negf) == 3
         self.results_path = results_path
+        self.subblocks = None
 
         self.h2k = HR2HK(
             idp=model.idp, 
@@ -186,12 +187,12 @@ class NEGFHamiltonianInit(object):
                                 useBloch=useBloch,bloch_factor=bloch_factor) 
 
         # Hamiltonian initialization
-        subblocks = self.Hamiltonian_initialized(kpoints,useBloch,bloch_factor,block_tridiagnal,\
+        self.Hamiltonian_initialized(kpoints,useBloch,bloch_factor,block_tridiagnal,\
                                                  lead_atom_range,structure_leads,structure_leads_fold)
 
         torch.set_default_dtype(torch.float32)
         return  structure_device, structure_leads, structure_leads_fold, \
-                bloch_sorted_indices, bloch_R_lists,subblocks
+                bloch_sorted_indices, bloch_R_lists
 
 
     def Hamiltonian_initialized(self,kpoints:List[List[float]],useBloch:bool,bloch_factor:List[int],\
@@ -367,7 +368,8 @@ class NEGFHamiltonianInit(object):
                     "HDL":HDL.cdouble()*self.h_factor, 
                     "SDL":SDL.cdouble(),
                     "HLL":hLL.cdouble()*self.h_factor, 
-                    "SLL":sLL.cdouble()
+                    "SLL":sLL.cdouble(),
+                    "useBloch":useBloch
                     })                
                                 
                 torch.save(HS_leads, os.path.join(self.results_path, "HS_"+kk+".pth"))
@@ -380,16 +382,17 @@ class NEGFHamiltonianInit(object):
             SD = torch.unsqueeze(SD,dim=1)
             HS_device.update({"HD":HD.cdouble()*self.h_factor, "SD":SD.cdouble()})
             HS_device.update({"Hall":Hall.cdouble()*self.h_factor, "Sall":Sall.cdouble()})
+            HS_device.update({"subblocks":subblocks, "block_tridiagonal":False})
         else:
             leftmost_size = coupling_width['lead_L']
             rightmost_size = coupling_width['lead_R']
             hd, hu, hl, sd, su, sl, subblocks = self.get_block_tridiagonal(HD*self.h_factor,SD.cdouble(),self.structase,\
                                                                 leftmost_size,rightmost_size)
-            HS_device.update({"hd":hd, "hu":hu, "hl":hl, "sd":sd, "su":su, "sl":sl})
+            HS_device.update({"hd":hd, "hu":hu, "hl":hl, "sd":sd, "su":su, "sl":sl, \
+                              "subblocks":subblocks, "block_tridiagonal":True})
 
+        self.subblocks = subblocks
         torch.save(HS_device, os.path.join(self.results_path, "HS_device.pth"))
-
-        return subblocks
 
 
 

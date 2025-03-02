@@ -46,7 +46,7 @@ def test_negf_Hamiltonian(root_directory):
     # hamiltonian = NEGFHamiltonianInit(apiH=apiHrk, structase=structase, stru_options=task_options["stru_options"], results_path=results_path)
     kpoints= kmesh_sampling(negf_json['task_options']["stru_options"]["kmesh"])
     with torch.no_grad():
-        struct_device, struct_leads, _,_,_,_ = hamiltonian.initialize(kpoints=kpoints)
+        struct_device, struct_leads, _,_,_ = hamiltonian.initialize(kpoints=kpoints)
 
     
     deviceprop = DeviceProperty(hamiltonian, struct_device, results_path=results_path, efermi=negf_json['task_options']['e_fermi'])

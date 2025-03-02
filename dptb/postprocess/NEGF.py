@@ -119,10 +119,10 @@ class NEGF(object):
                                                     torch_device = self.torch_device)
         with torch.no_grad():
             # if useBloch is None, structure_leads_fold,bloch_sorted_indices,bloch_R_lists = None,None,None
-            struct_device, struct_leads,structure_leads_fold,bloch_sorted_indices,bloch_R_lists,subblocks = \
+            struct_device, struct_leads,structure_leads_fold,bloch_sorted_indices,bloch_R_lists = \
                 self.negf_hamiltonian.initialize(kpoints=self.kpoints,block_tridiagnal=self.block_tridiagonal,\
                                                  useBloch=self.useBloch,bloch_factor=self.bloch_factor)
-        self.subblocks = subblocks # for not block_tridiagonal case, subblocks is [HD.shape[1]]
+        # self.subblocks = subblocks # for not block_tridiagonal case, subblocks is [HD.shape[1]]
 
         self.deviceprop = DeviceProperty(self.negf_hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)
         self.deviceprop.set_leadLR(
@@ -404,7 +404,7 @@ class NEGF(object):
                         kpoint=k,
                         Vbias=Vbias,
                         block_tridiagonal=self.block_tridiagonal,
-                        subblocks=self.subblocks,
+                        subblocks=self.negf_hamiltonian.subblocks,
                         integrate_way = self.density_options["integrate_way"],  
                         deviceprop=self.deviceprop,
                         device_atom_norbs=self.device_atom_norbs,
@@ -495,7 +495,7 @@ class NEGF(object):
                                     kpoint=k,
                                     Vbias=Vbias,
                                     block_tridiagonal=self.block_tridiagonal,
-                                    subblocks=self.subblocks,
+                                    subblocks=self.negf_hamiltonian.subblocks,
                                     integrate_way = self.density_options["integrate_way"],  
                                     deviceprop=self.deviceprop,
                                     device_atom_norbs=self.device_atom_norbs,
