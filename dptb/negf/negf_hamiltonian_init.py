@@ -141,27 +141,33 @@ class NEGFHamiltonianInit(object):
             raise ValueError
 
     def initialize(self, kpoints, block_tridiagnal=False,useBloch=False,bloch_factor=None):
-        """initializes the device and lead Hamiltonians 
+        '''This function initializes the structure and Hamiltonian for a system with optional block tridiagonal
+        and Bloch factor parameters.
         
-        construct device and lead Hamiltonians and return the structures respectively.The lead Hamiltonian 
-        is k-resolved due to the transverse k point sampling.
-
-        Args: 
-                kpoints: k-points in the Brillouin zone with three coordinates (kx, ky, kz)
-                block_tridiagnal: A boolean parameter that determines whether to block-tridiagonalize the
-                    device Hamiltonian or not. 
-                useBloch: A boolean parameter that determines whether to unfold the lead Hamiltonian with Bloch theorem or not.
-                bloch_factor: A list of three integers that determines the Bloch factor for unfolding the lead Hamiltonian.
-
-        Returns: 
-                structure_device and structure_leads corresponding to the structure of device and leads.
-
-        Raises:
-                RuntimeError: if the lead hamiltonian attained from device and lead calculation does not match.                
+        Parameters
+        ----------
+        kpoints
+            Kpoints in the Brillouin zone
+        block_tridiagnal, optional
+             a boolean flag that determines whether the Hamiltonian matrix should be stored in a block-tridiagonal form. 
+        useBloch, optional
+            a boolean flag that determines whether Bloch boundary conditions should be used in the lead self energy calculations. 
+        bloch_factor
+            a list of integers that determines the Bloch factor for the lead self energy calculations.
         
-        """
-       
+        Returns
+        -------
+            The `initialize` method returns the following variables in this order:
+        - `structure_device`
+        - `structure_leads`
+        - `structure_leads_fold`
+        - `bloch_sorted_indices`
+        - `bloch_R_lists`
+        - `subblocks`
+        
+        '''
 
+        # structure initialization       
         self.structase.set_pbc(self.pbc_negf)
         self.structase.pbc[2] = True
         structure_device = self.structase[self.device_id[0]:self.device_id[1]]
@@ -179,7 +185,55 @@ class NEGFHamiltonianInit(object):
                 bloch_sorted_indices[kk],bloch_R_lists[kk] = self.get_lead_structure(kk,n_proj_atom_lead,\
                                 useBloch=useBloch,bloch_factor=bloch_factor) 
 
+        # Hamiltonian initialization
+        subblocks = self.Hamiltonian_initialized(kpoints,useBloch,bloch_factor,block_tridiagnal,\
+                                                 lead_atom_range,structure_leads,structure_leads_fold)
 
+        torch.set_default_dtype(torch.float32)
+        return  structure_device, structure_leads, structure_leads_fold, \
+                bloch_sorted_indices, bloch_R_lists,subblocks
+
+
+    def Hamiltonian_initialized(self,kpoints:List[List[float]],useBloch:bool,bloch_factor:List[int],\
+                                block_tridiagnal:bool,lead_atom_range:dict,structure_leads:Atoms,structure_leads_fold:Atoms):
+        '''This function initializes the Hamiltonian for a device with leads, handling various calculations
+        and checks along the way.
+        
+        Parameters
+        ----------
+        kpoints : List[List[float]]
+            the k-points in Brillouin zone
+        useBloch : bool
+            The `useBloch` parameter is a boolean flag that indicates whether to use Bloch boundary conditions
+        for the lead self energy calculations. If `useBloch` is set to `True`, the Bloch boundary conditions
+        will be used. Otherwise, the calculations will be performed without Bloch boundary conditions.
+        bloch_factor : List[int]
+            The `bloch_factor` parameter is a list of integers that determines the Bloch factor for the lead
+        self energy calculations. The Bloch factor is used to fold the lead structures in the context of the
+        larger device structure. The Bloch factor specifies the number of times the lead structure is
+        replicated along each direction to create a periodic structure.
+        block_tridiagnal : bool
+            The `block_tridiagnal` parameter is a boolean flag that determines whether the Hamiltonian matrix
+        should be stored in a block-tridiagonal form. If `block_tridiagnal` is set to `True`, the Hamiltonian
+        matrix will be stored in a block-tridiagonal form. Otherwise, the Hamiltonian matrix will be stored in
+        a full matrix format.
+        lead_atom_range : dict
+            The `lead_atom_range` parameter indicates the range of leads. The key of the dictionary is the
+        lead name, and the value is a list containing the start and end indices of the lead atoms.
+        structure_leads : Atoms
+            The `structure_leads` parameter is an Atoms object containing the structures of the leads. 
+        structure_leads_fold : Atoms
+            The `structure_leads_fold` parameter is an Atoms object containing the folded structures of the leads 
+        by the Bloch theorem.
+            
+        
+        Returns
+        -------
+        subblocks : List[int]
+        
+        '''
+                                
+        
         HS_device = {}
         assert len(np.array(kpoints).shape) == 2
         HS_device["kpoints"] = kpoints
@@ -335,9 +389,9 @@ class NEGFHamiltonianInit(object):
 
         torch.save(HS_device, os.path.join(self.results_path, "HS_device.pth"))
 
-        torch.set_default_dtype(torch.float32)
-        return  structure_device, structure_leads, structure_leads_fold, \
-                bloch_sorted_indices, bloch_R_lists,subblocks
+        return subblocks
+
+
 
     @staticmethod
     def remove_bonds_nonpbc(data,pbc,overlap):
