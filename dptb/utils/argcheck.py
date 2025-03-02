@@ -1041,6 +1041,8 @@ def negf():
         Argument("block_tridiagonal", bool, optional=True, default=False, doc=doc_block_tridiagonal),
         Argument("ele_T", [float, int], optional=False, doc=doc_ele_T),
         Argument("unit", str, optional=True, default="Hartree", doc=doc_unit),
+        Argument("use_saved_HS", bool, optional=True, default=False, doc="Whether to use saved Hamiltonian and overlap matrix"),
+        Argument("saved_HS_path", str, optional=True, default=None, doc="The path to the saved Hamiltonian and overlap matrix"),
         Argument("scf_options", dict, optional=True, default={}, sub_fields=[], sub_variants=[scf_options()], doc=doc_scf_options),
         Argument("stru_options", dict, optional=False, sub_fields=stru_options(), doc=doc_stru_options),
         Argument("poisson_options", dict, optional=True, default={}, sub_fields=[], sub_variants=[poisson_options()], doc=doc_poisson_options),

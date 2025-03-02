@@ -35,6 +35,7 @@ class NEGF(object):
                 structure: Union[AtomicData, ase.Atoms, str],
                 ele_T: float,e_fermi: float,
                 emin: float, emax: float, espacing: float,
+                use_saved_HS: bool, saved_HS_path: str,
                 density_options: dict,
                 unit: str,
                 scf: bool, poisson_options: dict,
@@ -49,11 +50,8 @@ class NEGF(object):
                 **kwargs):
         
         
-        # self.apiH = apiHrk
-        
         self.model = model      
         self.results_path = results_path
-        # self.jdata = jdata
         self.cdtype = torch.complex128
         self.torch_device = torch_device
                
@@ -64,6 +62,10 @@ class NEGF(object):
         self.eta_lead = eta_lead; self.eta_device = eta_device
         self.emin = emin; self.emax = emax; self.espacing = espacing
         self.stru_options = stru_options
+
+        self.use_saved_HS = use_saved_HS
+        self.saved_HS_path = saved_HS_path
+
         self.sgf_solver = sgf_solver
         self.self_energy_save = self_energy_save
         self.self_energy_save_path = self_energy_save_path
@@ -121,7 +123,8 @@ class NEGF(object):
             # if useBloch is None, structure_leads_fold,bloch_sorted_indices,bloch_R_lists = None,None,None
             struct_device, struct_leads,structure_leads_fold,bloch_sorted_indices,bloch_R_lists = \
                 self.negf_hamiltonian.initialize(kpoints=self.kpoints,block_tridiagnal=self.block_tridiagonal,\
-                                                 useBloch=self.useBloch,bloch_factor=self.bloch_factor)
+                                                 useBloch=self.useBloch,bloch_factor=self.bloch_factor,\
+                                                 use_saved_HS=self.use_saved_HS, saved_HS_path=self.saved_HS_path)
         # self.subblocks = subblocks # for not block_tridiagonal case, subblocks is [HD.shape[1]]
 
         self.deviceprop = DeviceProperty(self.negf_hamiltonian, struct_device, results_path=self.results_path, efermi=self.e_fermi)

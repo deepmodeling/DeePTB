@@ -97,6 +97,7 @@ class NEGFHamiltonianInit(object):
         self.pbc_negf = pbc_negf
         assert len(self.pbc_negf) == 3
         self.results_path = results_path
+        self.saved_HS_path = None
         self.subblocks = None
 
         self.h2k = HR2HK(
@@ -141,7 +142,8 @@ class NEGFHamiltonianInit(object):
             log.error("The unit name is not correct !")
             raise ValueError
 
-    def initialize(self, kpoints, block_tridiagnal=False,useBloch=False,bloch_factor=None):
+    def initialize(self, kpoints, block_tridiagnal=False,useBloch=False,bloch_factor=None,\
+                   use_saved_HS=False, saved_HS_path=None):
         '''This function initializes the structure and Hamiltonian for a system with optional block tridiagonal
         and Bloch factor parameters.
         
@@ -187,8 +189,22 @@ class NEGFHamiltonianInit(object):
                                 useBloch=useBloch,bloch_factor=bloch_factor) 
 
         # Hamiltonian initialization
-        self.Hamiltonian_initialized(kpoints,useBloch,bloch_factor,block_tridiagnal,\
+        if use_saved_HS:
+            if saved_HS_path is None:
+                saved_HS_path = self.results_path
+                log.warning(msg="The saved_HS_path is not provided, use the results path by default.")
+            self.saved_HS_path = saved_HS_path
+
+            log.info(msg="--"*40)
+            log.info(msg=f"The Hamiltonian is initialized from the saved path {self.saved_HS_path}.")
+            log.info(msg="=="*40)
+        else:
+            self.saved_HS_path = self.results_path
+            self.Hamiltonian_initialized(kpoints,useBloch,bloch_factor,block_tridiagnal,\
                                                  lead_atom_range,structure_leads,structure_leads_fold)
+            log.info(msg="--"*40)
+            log.info(msg=f"The Hamiltonian has been initialized by model.")
+            log.info(msg="=="*40)
 
         torch.set_default_dtype(torch.float32)
         return  structure_device, structure_leads, structure_leads_fold, \
@@ -573,7 +589,14 @@ class NEGFHamiltonianInit(object):
             if diagonalized, return the block tridiagonalized Hamiltonian and Overlap component hd, hu, hl,
             sd, su, sl.
         """
-        f = torch.load(os.path.join(self.results_path, "HS_device.pth"))
+        if self.saved_HS_path is None:
+            self.saved_HS_path = self.results_path
+        
+        HS_device_path = os.path.join(self.saved_HS_path, "HS_device.pth")
+        if not os.path.exists(HS_device_path):
+            log.error(msg="The HS_device.pth does not exist in the saved path {}.".format(self.saved_HS_path))
+            raise FileNotFoundError
+        f = torch.load(HS_device_path)
         kpoints = f["kpoints"]
 
         ik = None
@@ -626,7 +649,14 @@ class NEGFHamiltonianInit(object):
             if diagonalized, return the block tridiagonalized Hamiltonian and Overlap component hd, hu, hl,
             sd, su, sl.
         """
-        f = torch.load(os.path.join(self.results_path, "HS_{0}.pth".format(tab)))
+        if self.saved_HS_path is None:
+            self.saved_HS_path = self.results_path
+
+        HS_lead_path = os.path.join(self.saved_HS_path, "HS_{0}.pth".format(tab))
+        if not os.path.exists(HS_lead_path):
+            log.error(msg="The HS_{0}.pth does not exist in the saved path {1}.".format(tab, self.saved_HS_path))
+            raise FileNotFoundError
+        f = torch.load(HS_lead_path)
         kpoints = f["kpoints"]
         kpoints_bloch = f["kpoints_bloch"]
         bloch_factor = f["bloch_factor"]
