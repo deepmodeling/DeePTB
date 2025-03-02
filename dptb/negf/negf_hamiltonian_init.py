@@ -180,12 +180,12 @@ class NEGFHamiltonianInit(object):
 
         
         alldata = AtomicData.to_AtomicDataDict(alldata.to(self.torch_device))
-        self.alldata = self.model.idp(alldata)
-        self.alldata[AtomicDataDict.KPOINT_KEY] = \
+        alldata = self.model.idp(alldata)
+        alldata[AtomicDataDict.KPOINT_KEY] = \
             torch.nested.as_nested_tensor([torch.as_tensor(HS_device["kpoints"], dtype=self.model.dtype, device=self.torch_device)])        
-        self.alldata = self.model(self.alldata)
+        alldata = self.model(alldata)
         
-        if self.alldata.get(AtomicDataDict.EDGE_OVERLAP_KEY,None) is not None:
+        if alldata.get(AtomicDataDict.EDGE_OVERLAP_KEY,None) is not None:
             self.overlap = True
             self.s2k = HR2HK(
                 idp=self.model.idp, 
@@ -201,14 +201,14 @@ class NEGFHamiltonianInit(object):
 
 
 
-        self.remove_bonds_nonpbc(data=self.alldata,pbc=self.pbc_negf,overlap=self.overlap)  
-        self.alldata = self.h2k(self.alldata)
-        HK = self.alldata[AtomicDataDict.HAMILTONIAN_KEY]
+        self.remove_bonds_nonpbc(data=alldata,pbc=self.pbc_negf,overlap=self.overlap)  
+        alldata = self.h2k(alldata)
+        HK = alldata[AtomicDataDict.HAMILTONIAN_KEY]
 
 
         if self.overlap: 
-            self.alldata = self.s2k(self.alldata)
-            SK = self.alldata[AtomicDataDict.OVERLAP_KEY]
+            alldata = self.s2k(alldata)
+            SK = alldata[AtomicDataDict.OVERLAP_KEY]
         else:
             SK = torch.eye(HK.shape[1], dtype=self.model.dtype, device=self.torch_device).unsqueeze(0).repeat(HK.shape[0], 1, 1)          
       
