@@ -95,7 +95,7 @@ class LeadProperty(object):
             assert self.structure_leads_fold is not None
 
     def self_energy(self, kpoint, energy, eta_lead: float=1e-5, method: str="Lopez-Sancho", \
-                    save: bool=False, save_path: str=None):
+                    save: bool=False, save_path: str=None, se_info_display: bool=False):
         '''calculate and loads the self energy and surface green function at the given kpoint and energy.
         
         Parameters
@@ -112,6 +112,8 @@ class LeadProperty(object):
             whether to save the self energy. 
         save_path :
             the path to save the self energy. If not specified, the self energy will be saved in the results_path.
+        se_info_display :
+            whether to display the information of the self energy calculation.        
         '''
         assert len(np.array(kpoint).reshape(-1)) == 3
         # according to given kpoint and e_mesh, calculating or loading the self energy and surface green function to self.
@@ -121,7 +123,7 @@ class LeadProperty(object):
         # if not hasattr(self, "HL"):
         #TODO: check here whether it is necessary to calculate the self energy every time
 
-        # If the file in save_path exists, then directly load the self energy from the file
+        
         if save_path is None:
             save_path = os.path.join(self.results_path, \
                                         "self_energy",\
@@ -129,9 +131,11 @@ class LeadProperty(object):
             parent_dir = os.path.dirname(save_path)
             if not os.path.exists(parent_dir): 
                 os.makedirs(parent_dir)
-            
+
+        # If the file in save_path exists, then directly load the self energy from the file    
         if os.path.exists(save_path):
-            log.info(f"Loading self energy from {save_path}")
+
+            if se_info_display: log.info(f"Loading self energy from {save_path}")     
             if not save_path.endswith(".pth"):
                 # if the save_path is a directory, then the self energy file is stored in the directory
                 save_path = os.path.join(save_path, \
@@ -140,9 +144,10 @@ class LeadProperty(object):
             self.se = torch.load(save_path)
             return
         else:
-            log.info("-"*50)
-            log.info(f"Not find stored {self.tab} self energy. Calculating it at kpoint {kpoint} and energy {energy}.")
-            log.info("-"*50)
+            if se_info_display:
+                log.info("-"*50)
+                log.info(f"Not find stored {self.tab} self energy. Calculating it at kpoint {kpoint} and energy {energy}.")
+                log.info("-"*50)
 
         if not self.useBloch:
             if not hasattr(self, "HL") or abs(self.voltage_old-self.voltage)>1e-6 or max(abs(self.kpoint-torch.tensor(kpoint)))>1e-6:
@@ -214,7 +219,7 @@ class LeadProperty(object):
 
         if save:
             assert save_path is not None, "Please specify the path to save the self energy."
-            log.info(f"Saving self energy to {save_path}")
+            if se_info_display: log.info(f"Saving self energy to {save_path}")
             torch.save(self.se, save_path)
             # if self.useBloch:
             #     torch.save(self.se, os.path.join(self.results_path, f"se_bloch_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_{energy}.pth"))

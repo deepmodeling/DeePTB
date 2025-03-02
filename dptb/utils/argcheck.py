@@ -1047,6 +1047,7 @@ def negf():
         Argument("sgf_solver", str, optional=True, default="Sancho-Rubio", doc=doc_sgf_solver),
         Argument("self_energy_save", bool, optional=True, default=False, doc="whether to save the self energy"),
         Argument("self_energy_save_path", str, optional=True, default=None, doc="the path to save the self energy"),
+        Argument("se_info_display", bool, optional=True, default=False, doc="whether to display the self energy information"),
         Argument("espacing", [int, float], optional=False, doc=doc_espacing),
         Argument("emin", [int, float], optional=False, doc=doc_emin),
         Argument("emax", [int, float], optional=False, doc=doc_emax),

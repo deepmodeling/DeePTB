@@ -40,7 +40,8 @@ class NEGF(object):
                 scf: bool, poisson_options: dict,
                 stru_options: dict,eta_lead: float,eta_device: float,
                 block_tridiagonal: bool,
-                sgf_solver: str,self_energy_save: bool,self_energy_save_path: str,
+                sgf_solver: str,
+                self_energy_save: bool, self_energy_save_path: str, se_info_display: bool,
                 out_tc: bool=False,out_dos: bool=False,out_density: bool=False,out_potential: bool=False,
                 out_current: bool=False,out_current_nscf: bool=False,out_ldos: bool=False,out_lcurrent: bool=False,
                 results_path: Optional[str]=None,
@@ -66,6 +67,7 @@ class NEGF(object):
         self.sgf_solver = sgf_solver
         self.self_energy_save = self_energy_save
         self.self_energy_save_path = self_energy_save_path
+        self.se_info_display = se_info_display
         self.pbc = self.stru_options["pbc"]
 
         if  self.stru_options["lead_L"]["useBloch"] or self.stru_options["lead_R"]["useBloch"]:
@@ -442,7 +444,8 @@ class NEGF(object):
                                     eta_lead=self.eta_lead,
                                     method=self.sgf_solver,
                                     save=self.self_energy_save,
-                                    save_path=self.self_energy_save_path 
+                                    save_path=self.self_energy_save_path,
+                                    se_info_display=self.se_info_display
                                     )
                                 # self.out[str(ll)+"_se"][str(e.numpy())] = getattr(self.deviceprop, ll).se
                                 
@@ -532,7 +535,10 @@ class NEGF(object):
                                         energy=e, 
                                         kpoint=k, 
                                         eta_lead=self.eta_lead,
-                                        method=self.sgf_solver
+                                        method=self.sgf_solver,
+                                        save=self.self_energy_save,
+                                        save_path=self.self_energy_save_path,
+                                        se_info_display=self.se_info_display
                                         )
                                     
                             self.deviceprop.cal_green_function(
