@@ -178,7 +178,6 @@ class NEGF(object):
         self.right_connected_orb_mask = torch.tensor( [p for p, norb in zip(right_connected_atom_mask, self.device_atom_norbs) \
                                                         for _ in range(norb)],dtype=torch.bool)
 
-        # np.save(self.results_path+"/device_atom_norbs.npy",self.device_atom_norbs)
 
         # geting the output settings
         self.out_tc = out_tc

@@ -125,16 +125,24 @@ class LeadProperty(object):
         if save_path is None:
             save_path = os.path.join(self.results_path, \
                                         "self_energy",\
-                                        f"se_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_E{energy}.pth")
+                                        f"se_{self.tab}_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_E{energy}.pth")
             parent_dir = os.path.dirname(save_path)
-            if not os.path.exists(parent_dir): os.makedirs(parent_dir)
+            if not os.path.exists(parent_dir): 
+                os.makedirs(parent_dir)
             
         if os.path.exists(save_path):
-            log.info(f"     Loading self energy from {save_path}")
+            log.info(f"Loading self energy from {save_path}")
+            if not save_path.endswith(".pth"):
+                # if the save_path is a directory, then the self energy file is stored in the directory
+                save_path = os.path.join(save_path, \
+                                        f"se_{self.tab}_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_E{energy}.pth")
+                assert os.path.exists(save_path), f"Cannot find the self energy file {save_path}"
             self.se = torch.load(save_path)
             return
         else:
-            log.warning(f"     Not find the stored self energy file. Calculating it at kpoint {kpoint} and energy {energy}.")
+            log.info("-"*50)
+            log.info(f"Not find stored {self.tab} self energy. Calculating it at kpoint {kpoint} and energy {energy}.")
+            log.info("-"*50)
 
         if not self.useBloch:
             if not hasattr(self, "HL") or abs(self.voltage_old-self.voltage)>1e-6 or max(abs(self.kpoint-torch.tensor(kpoint)))>1e-6:
@@ -205,10 +213,7 @@ class LeadProperty(object):
 
 
         if save:
-            if save_path is None:
-                save_path = os.path.join(self.results_path, \
-                                         "self_energy",\
-                                         f"se_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_E{energy}.pth")
+            assert save_path is not None, "Please specify the path to save the self energy."
             log.info(f"Saving self energy to {save_path}")
             torch.save(self.se, save_path)
             # if self.useBloch:
