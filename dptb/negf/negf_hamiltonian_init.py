@@ -160,25 +160,31 @@ class NEGFHamiltonianInit(object):
                 RuntimeError: if the lead hamiltonian attained from device and lead calculation does not match.                
         
         """
-        assert len(np.array(kpoints).shape) == 2
-
-        HS_device = {}
-        HS_device["kpoints"] = kpoints
-
-        # change parameters to match the structure projection
-        # n_proj_atom_pre = np.array([1]*len(self.structase))[:self.device_id[0]].sum()
-        # n_proj_atom_device = np.array([1]*len(self.structase))[self.device_id[0]:self.device_id[1]].sum()
-        # device_id = [0,0]
-        # device_id[0] = n_proj_atom_pre
-        # device_id[1] = n_proj_atom_pre + n_proj_atom_device
-        # self.device_id = device_id
+       
 
         self.structase.set_pbc(self.pbc_negf)
         self.structase.pbc[2] = True
+        structure_device = self.structase[self.device_id[0]:self.device_id[1]]
+        structure_device.pbc = self.pbc_negf
+
+        lead_atom_range = {}
+        structure_leads = {};structure_leads_fold = {}
+        bloch_sorted_indices={};bloch_R_lists = {}
+        for kk in self.stru_options:
+            if kk.startswith("lead"):
+                n_proj_atom_pre = np.array([1]*len(self.structase))[:self.lead_ids[kk][0]].sum()
+                n_proj_atom_lead = np.array([1]*len(self.structase))[self.lead_ids[kk][0]:self.lead_ids[kk][1]].sum()
+                lead_atom_range[kk] = [n_proj_atom_pre, n_proj_atom_pre + n_proj_atom_lead]
+                structure_leads[kk],structure_leads_fold[kk],\
+                bloch_sorted_indices[kk],bloch_R_lists[kk] = self.get_lead_structure(kk,n_proj_atom_lead,\
+                                useBloch=useBloch,bloch_factor=bloch_factor) 
+
+
+        HS_device = {}
+        assert len(np.array(kpoints).shape) == 2
+        HS_device["kpoints"] = kpoints
         alldata = AtomicData.from_ase(self.structase, **self.AtomicData_options)
         alldata[AtomicDataDict.PBC_KEY][2] = True # force pbc in z-axis to get reasonable chemical environment in two ends
-
-        
         alldata = AtomicData.to_AtomicDataDict(alldata.to(self.torch_device))
         alldata = self.model.idp(alldata)
         alldata[AtomicDataDict.KPOINT_KEY] = \
@@ -199,12 +205,9 @@ class NEGFHamiltonianInit(object):
         else: 
             self.overlap = False   
 
-
-
         self.remove_bonds_nonpbc(data=alldata,pbc=self.pbc_negf,overlap=self.overlap)  
         alldata = self.h2k(alldata)
         HK = alldata[AtomicDataDict.HAMILTONIAN_KEY]
-
 
         if self.overlap: 
             alldata = self.s2k(alldata)
@@ -217,12 +220,8 @@ class NEGFHamiltonianInit(object):
         d_end = int(np.sum(self.h2k.atom_norbs)-np.sum(self.h2k.atom_norbs[self.device_id[1]:]))
         HD, SD = HK[:,d_start:d_end, d_start:d_end], SK[:, d_start:d_end, d_start:d_end]
         Hall, Sall = HK, SK
-        
-        structure_device = self.structase[self.device_id[0]:self.device_id[1]]
-        structure_device.pbc = self.pbc_negf
-                
-        structure_leads = {};structure_leads_fold = {}
-        bloch_sorted_indices={};coupling_width = {};bloch_R_lists = {}
+
+        coupling_width = {}
         for kk in self.stru_options:
             if kk.startswith("lead"):
                 HS_leads = {}
@@ -239,17 +238,9 @@ class NEGFHamiltonianInit(object):
                     HS_leads["kpoints"] = kpoints
                     HS_leads["kpoints_bloch"] = None
                     HS_leads["bloch_factor"] = None
-                
-                # update lead id
-                n_proj_atom_pre = np.array([1]*len(self.structase))[:self.lead_ids[kk][0]].sum()
-                n_proj_atom_lead = np.array([1]*len(self.structase))[self.lead_ids[kk][0]:self.lead_ids[kk][1]].sum()
-                lead_id = [0,0]
-                lead_id[0] = n_proj_atom_pre
-                lead_id[1] = n_proj_atom_pre + n_proj_atom_lead
-                
-
-                l_start = int(np.sum(self.h2k.atom_norbs[:lead_id[0]]))
-                l_end = int(l_start + np.sum(self.h2k.atom_norbs[lead_id[0]:lead_id[1]]) / 2)
+                        
+                l_start = int(np.sum(self.h2k.atom_norbs[:lead_atom_range[kk][0]]))
+                l_end = int(l_start + np.sum(self.h2k.atom_norbs[lead_atom_range[kk][0]:lead_atom_range[kk][1]]) / 2)
                 # lead hamiltonian in the first principal layer(the layer close to the device)
                 HL, SL = HK[:,l_start:l_end, l_start:l_end], SK[:, l_start:l_end, l_start:l_end]
                 # device and lead's hopping
@@ -259,8 +250,6 @@ class NEGFHamiltonianInit(object):
                                          torch.max(nonzero_indice[:,2]).item()-torch.min(nonzero_indice[:,2]).item() +1)
                 log.info(msg="The coupling width of {} is {}.".format(kk,coupling_width[kk]))
 
-                structure_leads[kk],structure_leads_fold[kk],bloch_sorted_indices[kk],bloch_R_lists[kk] = self.get_lead_structure(kk,n_proj_atom_lead,\
-                                useBloch=useBloch,bloch_factor=bloch_factor,lead_id=lead_id)
                 # get lead_data
                 if useBloch:
                     lead_data = AtomicData.from_ase(structure_leads_fold[kk], **self.AtomicData_options)
@@ -347,7 +336,8 @@ class NEGFHamiltonianInit(object):
         torch.save(HS_device, os.path.join(self.results_path, "HS_device.pth"))
 
         torch.set_default_dtype(torch.float32)
-        return structure_device, structure_leads, structure_leads_fold, bloch_sorted_indices, bloch_R_lists,subblocks
+        return  structure_device, structure_leads, structure_leads_fold, \
+                bloch_sorted_indices, bloch_R_lists,subblocks
 
     @staticmethod
     def remove_bonds_nonpbc(data,pbc,overlap):
@@ -361,7 +351,7 @@ class NEGFHamiltonianInit(object):
                 if overlap:
                     data[AtomicDataDict.EDGE_OVERLAP_KEY] = data[AtomicDataDict.EDGE_OVERLAP_KEY][mask]
 
-    def get_lead_structure(self,kk,natom,useBloch=False,bloch_factor=None,lead_id=None):       
+    def get_lead_structure(self,kk,natom,useBloch=False,bloch_factor=None):       
         stru_lead = self.structase[self.lead_ids[kk][0]:self.lead_ids[kk][1]]
         cell = np.array(stru_lead.cell)[:2]
         
@@ -381,7 +371,6 @@ class NEGFHamiltonianInit(object):
         write(os.path.join(self.results_path, "stru_leadall_"+kk+".xyz"),stru_lead,format='extxyz')
 
         if useBloch:
-            assert lead_id is not None
             assert bloch_factor is not None
             bloch_reduce_cell = np.array([
                 [cell[0][0]/bloch_factor[0], 0, 0],
