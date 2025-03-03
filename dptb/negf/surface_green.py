@@ -192,7 +192,8 @@ def selfEnergy(hL, hLL, sL, sLL, ee, hDL=None, sDL=None, etaLead=1e-8, Bulk=Fals
 
     if hDL == None:
         ESH = (eeshifted * sL - hL)
-        SGF = SurfaceGreen.apply(hL, hLL, sL, sLL, eeshifted + 1j * etaLead, method)
+        with torch.no_grad():
+            SGF = SurfaceGreen.apply(hL, hLL, sL, sLL, eeshifted + 1j * etaLead, method)
 
         if Bulk:
             Sig = tLA.inv(SGF)  # SGF^1
@@ -200,7 +201,8 @@ def selfEnergy(hL, hLL, sL, sLL, ee, hDL=None, sDL=None, etaLead=1e-8, Bulk=Fals
             Sig = ESH - tLA.inv(SGF)
     else:
         a, b = hDL.shape
-        SGF = SurfaceGreen.apply(hL, hLL, sL, sLL, eeshifted + 1j * etaLead, method)
+        with torch.no_grad():
+            SGF = SurfaceGreen.apply(hL, hLL, sL, sLL, eeshifted + 1j * etaLead, method)
         #SGF = iterative_simple(eeshifted + 1j * etaLead, hL, hLL, sL, sLL, iter_max=1000)
         Sig = (eeshifted*sDL-hDL) @ SGF[:b,:b] @ (eeshifted*sDL.conj().T-hDL.conj().T)
     return Sig, SGF  # R(nuo, nuo)
