@@ -190,7 +190,7 @@ class DeviceProperty(object):
         #         self.hd, self.sd, self.hl, self.su, self.sl, self.hu = self.hamiltonian.get_hs_device(self.kpoint, self.V, block_tridiagonal)
         
         # hd in format:(block_index,orb,orb)
-        if (hasattr(self, "hd") and hasattr(self, "sd")) or (self.newK_flag or self.newV_flag):               
+        if (not (hasattr(self, "hd") and hasattr(self, "sd"))) or (self.newK_flag or self.newV_flag):               
             self.hd, self.sd, self.hl, self.su, self.sl, self.hu = self.hamiltonian.get_hs_device(self.kpoint, self.V, block_tridiagonal)
 
 
@@ -343,6 +343,11 @@ class DeviceProperty(object):
             DOS with spin multiplicity
         '''
         dos = 0
+        #TODO: transfer cal_dos to static method for any k and energy
+        if (not(hasattr(self, "hd") and hasattr(self, "sd"))) or (self.newK_flag or self.newV_flag):               
+            self.hd, self.sd, self.hl, self.su, self.sl, self.hu = \
+                self.hamiltonian.get_hs_device(self.kpoint, self.V, self.block_tridiagonal)
+
         for jj in range(len(self.grd)):
             if not self.block_tridiagonal or len(self.gru) == 0:
                 temp = self.grd[jj] @ self.sd[jj] # taking each diagonal block with all energy e together
