@@ -109,7 +109,8 @@ class DeviceProperty(object):
       # self.mu = self.efermi - 0.5*(self.lead_L.voltage + self.lead_R.voltage) # temporarily for NanoTCAD
 
 
-    def cal_green_function(self, energy, kpoint, eta_device=0., block_tridiagonal=True, Vbias=None):
+    def cal_green_function(self, energy, kpoint, eta_device=0., block_tridiagonal=True, Vbias=None,
+                           HS_inmem:bool=False):
         ''' computes the Green's function for a given energy and k-point in device.
 
         the tags used here to identify different Green's functions follows the NEGF theory 
@@ -129,7 +130,9 @@ class DeviceProperty(object):
             A boolean parameter that shows whether the Hamiltonian matrix is block tridiagonal or not. 
             If set to True, the Hamiltonian matrix is assumed to have a block tridiagonal structure, 
             which can lead to computational efficiency in certain cases.
-        
+        HS_inmem
+            A boolean parameter that shows whether the Hamiltonian/overlap is stored in memory after finishing 
+            cal_green_function or not, which is important for large-scale calculations.
         '''
         assert len(np.array(kpoint).reshape(-1)) == 3
         if not isinstance(energy, torch.Tensor):
@@ -230,6 +233,10 @@ class DeviceProperty(object):
             green_funcs[tags[t]] = ans[t]
 
         self.greenfuncs = green_funcs
+
+        if not HS_inmem:
+            del self.hd, self.sd, self.hl, self.su, self.sl, self.hu
+
         # self.green = update_temp_file(update_fn=fn, file_path=GFpath, ee=ee, tags=tags, info="Computing Green's Function")
 
     def _cal_current_(self, espacing):
