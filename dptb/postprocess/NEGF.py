@@ -50,7 +50,7 @@ class NEGF(object):
                 **kwargs):
         
         
-        self.model = model      
+        # self.model = model # No need to set model as property for memory saving      
         self.results_path = results_path
         self.cdtype = torch.complex128
         self.torch_device = torch_device
@@ -401,7 +401,10 @@ class NEGF(object):
                                 else:
                                     getattr(self.deviceprop, ll).voltage = Vbias[self.right_connected_orb_mask].mean()
                                     # getattr(self.deviceprop, ll).voltage = Vbias[-1]
-
+                    
+                    if self.negf_hamiltonian.subblocks is None:
+                            self.negf_hamiltonian.subblocks = \
+                                    self.negf_hamiltonian.get_hs_device(only_subblocks=True)
                     self.density.density_integrate_Fiori(
                         e_grid = self.uni_grid, 
                         kpoint=k,
@@ -493,6 +496,10 @@ class NEGF(object):
                         elif self.density_options["method"] == "Fiori":
                             log.warning("Fiori method is under test in this version.")
                             try:
+                                if self.negf_hamiltonian.subblocks is None:
+                                    self.negf_hamiltonian.subblocks = \
+                                        self.negf_hamiltonian.get_hs_device(only_subblocks=True)
+
                                 self.density.density_integrate_Fiori(
                                     e_grid = self.uni_grid, 
                                     kpoint=k,

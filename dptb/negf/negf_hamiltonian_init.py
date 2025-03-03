@@ -572,7 +572,7 @@ class NEGFHamiltonianInit(object):
         
         return hd, hu, hl, sd, su, sl, subblocks
 
-    def get_hs_device(self, kpoint, V, block_tridiagonal=False):
+    def get_hs_device(self, kpoint=[0,0,0], V=None, block_tridiagonal=False, only_subblocks=False):
         """ get the device Hamiltonian and overlap matrix at a specific kpoint
 
         In diagonalization mode, the Hamiltonian and overlap matrix are block tridiagonalized,
@@ -597,6 +597,17 @@ class NEGFHamiltonianInit(object):
             log.error(msg="The HS_device.pth does not exist in the saved path {}.".format(self.saved_HS_path))
             raise FileNotFoundError
         f = torch.load(HS_device_path)
+
+        if only_subblocks:
+            if "subblocks" not in f:
+                log.warning(msg=" 'subblocks' might not be saved in the HS_device.pth for old version.")
+                log.error(msg="The subblocks are not saved in the HS_device.pth.")
+                
+                raise ValueError
+            subblocks = f["subblocks"]
+            return subblocks
+
+
         kpoints = f["kpoints"]
 
         ik = None
