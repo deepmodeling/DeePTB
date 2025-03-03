@@ -95,7 +95,8 @@ class LeadProperty(object):
             assert self.structure_leads_fold is not None
 
     def self_energy(self, kpoint, energy, eta_lead: float=1e-5, method: str="Lopez-Sancho", \
-                    save: bool=False, save_path: str=None, se_info_display: bool=False):
+                    save: bool=False, save_path: str=None, se_info_display: bool=False,
+                    HS_inmem: bool=False):
         '''calculate and loads the self energy and surface green function at the given kpoint and energy.
         
         Parameters
@@ -113,7 +114,9 @@ class LeadProperty(object):
         save_path :
             the path to save the self energy. If not specified, the self energy will be saved in the results_path.
         se_info_display :
-            whether to display the information of the self energy calculation.        
+            whether to display the information of the self energy calculation.   
+        HS_inmem :
+            whether to store the Hamiltonian and overlap matrix in memory. Default is False.     
         '''
         assert len(np.array(kpoint).reshape(-1)) == 3
         # according to given kpoint and e_mesh, calculating or loading the self energy and surface green function to self.
@@ -216,6 +219,8 @@ class LeadProperty(object):
                 eeshifted = energy + self.efermi
             self.se = (eeshifted*self.SDL-self.HDL) @ sgf_k[:b,:b] @ (eeshifted*self.SDL.conj().T-self.HDL.conj().T)
 
+        if not HS_inmem:
+            del self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL
 
         if save:
             assert save_path is not None, "Please specify the path to save the self energy."
