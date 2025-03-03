@@ -71,7 +71,24 @@ def test_negf_Hamiltonian(root_directory):
         )
     )
 
-    
+    leads = ["lead_L", "lead_R"]
+    e=0  
+    for ll in leads:
+        getattr(deviceprop, ll).self_energy(
+            energy=e, 
+            kpoint=kpoints[0], 
+            eta_lead=negf_json['task_options']["eta_lead"],
+            method=negf_json['task_options']["sgf_solver"],
+            save=False
+            )
+    print("lead_L self energy:",deviceprop.lead_L.se)
+    print("lead_R self energy:",deviceprop.lead_R.se)
+
+    lead_L_se_standard = torch.tensor([[1.8103e-08-0.6096j]], dtype=torch.complex128)
+    assert abs(deviceprop.lead_L.se-lead_L_se_standard).max()<1e-5
+    lead_R_se_standard = torch.tensor([[1.8103e-08-0.6096j]], dtype=torch.complex128)
+    assert abs(deviceprop.lead_R.se-lead_R_se_standard).max()<1e-5
+
     #check device's Hamiltonian
     assert all(struct_device.symbols=="C4")
     assert all(struct_device.pbc)==False

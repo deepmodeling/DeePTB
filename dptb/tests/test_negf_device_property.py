@@ -102,14 +102,8 @@ def test_negf_Device(root_directory):
                 )
 
         # check left and right leads' self-energy
-    lead_L_se_standard=torch.tensor([[-3.3171e-07-0.6096j,  0.0000e+00+0.0000j,  0.0000e+00+0.0000j,0.0000e+00+0.0000j],
-        [ 0.0000e+00+0.0000j,  0.0000e+00+0.0000j,  0.0000e+00+0.0000j,0.0000e+00+0.0000j],
-        [ 0.0000e+00+0.0000j,  0.0000e+00+0.0000j,  0.0000e+00+0.0000j,0.0000e+00+0.0000j],
-        [ 0.0000e+00+0.0000j,  0.0000e+00+0.0000j,  0.0000e+00+0.0000j,0.0000e+00+0.0000j]], dtype=torch.complex128)
-    lead_R_se_standard=torch.tensor([[ 0.0000e+00+0.0000j,  0.0000e+00+0.0000j,  0.0000e+00+0.0000j,0.0000e+00+0.0000j],
-        [ 0.0000e+00+0.0000j,  0.0000e+00+0.0000j,  0.0000e+00+0.0000j,0.0000e+00+0.0000j],
-        [ 0.0000e+00+0.0000j,  0.0000e+00+0.0000j,  0.0000e+00+0.0000j,0.0000e+00+0.0000j],
-        [ 0.0000e+00+0.0000j,  0.0000e+00+0.0000j,  0.0000e+00+0.0000j,-3.3171e-07-0.6096j]], dtype=torch.complex128)
+    lead_L_se_standard=torch.tensor([[-3.3171e-07-0.6096j]], dtype=torch.complex128)
+    lead_R_se_standard=torch.tensor([[-3.3171e-07-0.6096j]], dtype=torch.complex128)
     print('device.lead_L.se:',device.lead_L.se)
     print('device.lead_R.se:',device.lead_R.se)
     assert  abs(device.lead_L.se-lead_L_se_standard).max()<1e-5

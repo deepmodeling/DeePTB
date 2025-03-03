@@ -158,15 +158,17 @@ class LeadProperty(object):
                     = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
                 self.voltage_old = self.voltage
                 self.kpoint = torch.tensor(kpoint)
-                
+
+            HDL_reduced, SDL_reduced = self.HDL_reduced(self.HDL, self.SDL)
+            
             self.se, _ = selfEnergy(
                 ee=energy,
                 hL=self.HL,
                 hLL=self.HLL,
                 sL=self.SL,
                 sLL=self.SLL,
-                hDL=self.HDL,
-                sDL=self.SDL,             #TODO: check chemiPot settiing is correct or not
+                hDL=HDL_reduced,
+                sDL=SDL_reduced,             #TODO: check chemiPot settiing is correct or not
                 chemiPot=self.efermi, # temmporarily change to self.efermi for the case in which applying lead bias to corresponding to Nanotcad
                 etaLead=eta_lead, 
                 method=method
@@ -212,12 +214,16 @@ class LeadProperty(object):
 
             sgf_k = torch.sum(torch.stack(sgf_k),dim=0)/len(sgf_k)
             sgf_k = sgf_k[self.bloch_sorted_indice,:][:,self.bloch_sorted_indice]
-            b = self.HDL.shape[1]
+            b = self.HDL.shape[1] # size of lead hamiltonian
+
+            # HDL_reduced, SDL_reduced = self.HDL_reduced(self.HDL, self.SDL)
+            HDL_reduced, SDL_reduced = self.HDL, self.SDL
             if not isinstance(energy, torch.Tensor):
                 eeshifted = torch.scalar_tensor(energy, dtype=torch.complex128) + self.efermi
             else:
                 eeshifted = energy + self.efermi
-            self.se = (eeshifted*self.SDL-self.HDL) @ sgf_k[:b,:b] @ (eeshifted*self.SDL.conj().T-self.HDL.conj().T)
+            # self.se = (eeshifted*self.SDL-self.HDL) @ sgf_k[:b,:b] @ (eeshifted*self.SDL.conj().T-self.HDL.conj().T)
+            self.se = (eeshifted*SDL_reduced-HDL_reduced) @ sgf_k[:b,:b] @ (eeshifted*SDL_reduced.conj().T-HDL_reduced.conj().T)
 
         if not HS_inmem:
             del self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL
@@ -230,6 +236,40 @@ class LeadProperty(object):
             #     torch.save(self.se, os.path.join(self.results_path, f"se_bloch_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_{energy}.pth"))
             # else:
             #     torch.save(self.se, os.path.join(self.results_path, f"se_nobloch_k{kpoint[0]}_{kpoint[1]}_{kpoint[2]}_{energy}.pth"))
+
+    @staticmethod
+    def HDL_reduced(HDL: torch.Tensor, SDL: torch.Tensor) -> torch.Tensor:
+        '''This function takes in Hamiltonian/Overlap matrix between lead and device and reduces 
+        it based on the non-zero range of the Hamiltonian matrix.
+
+            When the device part has only one orbital, the Hamiltonian matrix is not reduced.
+        
+        Parameters
+        ----------
+        HDL : torch.Tensor
+            HDL is a torch.Tensor representing the Hamiltonian matrix between the first principal layer and the device.
+        SDL : torch.Tensor
+            SDL is a torch.Tensor representing the overlap matrix between the first principal layer and the device.
+        
+        Returns
+        -------
+        HDL_reduced, SDL_reduced
+            The reduced Hamiltonian and overlap matrix.
+        
+        '''
+        HDL_nonzero_range = (HDL.nonzero().min(dim=0).values, HDL.nonzero().max(dim=0).values)
+        if HDL.shape[0] == 1: # Only 1 orbital in the device
+            HDL_reduced = HDL
+            SDL_reduced = SDL
+        elif HDL_nonzero_range[0][0] > 0: # Right lead
+            HDL_reduced = HDL[HDL_nonzero_range[0][0]:, :]
+            SDL_reduced = SDL[HDL_nonzero_range[0][0]:, :]
+        else: # Left lead
+            HDL_reduced = HDL[:HDL_nonzero_range[1][0]+1, :]
+            SDL_reduced = SDL[:HDL_nonzero_range[1][0]+1, :]
+
+        return HDL_reduced, SDL_reduced
+
 
     def sigmaLR2Gamma(self, se):
         '''calculate the Gamma function from the self energy.
