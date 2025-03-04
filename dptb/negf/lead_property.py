@@ -258,6 +258,7 @@ class LeadProperty(object):
         
         '''
         HDL_nonzero_range = (HDL.nonzero().min(dim=0).values, HDL.nonzero().max(dim=0).values)
+        # HDL_nonzero_range is a tuple((min_row,min_col),(max_row,max_col))
         if HDL.shape[0] == 1: # Only 1 orbital in the device
             HDL_reduced = HDL
             SDL_reduced = SDL

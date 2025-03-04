@@ -110,7 +110,7 @@ class DeviceProperty(object):
 
 
     def cal_green_function(self, energy, kpoint, eta_device=0., block_tridiagonal=True, Vbias=None,
-                           HS_inmem:bool=False):
+                           HS_inmem:bool=True):
         ''' computes the Green's function for a given energy and k-point in device.
 
         the tags used here to identify different Green's functions follows the NEGF theory 
@@ -209,12 +209,16 @@ class DeviceProperty(object):
         # Fluctuation-Dissipation theorem
         seinL = 1j*(seL-seL.conj().T) * self.lead_L.fermi_dirac(energy+self.mu).reshape(-1)
         seinR = 1j*(seR-seR.conj().T) * self.lead_R.fermi_dirac(energy+self.mu).reshape(-1)
-        s01, s02 = s_in[0].shape
-        se01, se02 = seL.shape
-        idx0, idy0 = min(s01, se01), min(s02, se02)
+        s01, s02 = s_in[0].shape # The shape of the first H block
+        se01, se02 = seL.shape # The shape of the left self-energy
+        if se01 > s01 or se02 > s02:
+            log.warning("The shape of left self-energy is larger than the first Hamiltonian block.")
+        idx0, idy0 = min(s01, se01), min(s02, se02) # The minimum of the two shapes
 
         s11, s12 = s_in[-1].shape
         se11, se12 = seR.shape
+        if se11 > s11 or se12 > s12:
+            log.warning("The shape of right self-energy is larger than the last Hamiltonian block.")
         idx1, idy1 = min(s11, se11), min(s12, se12)
         
         green_funcs = {}
