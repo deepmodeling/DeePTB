@@ -627,15 +627,16 @@ class NEGFHamiltonianInit(object):
             if V.shape == torch.Size([]):
                 allorb = sum([hd_k[i].shape[0] for i in range(len(hd_k))])
                 V = V.repeat(allorb)
-            V = torch.diag(V).cdouble()
+            # V = torch.diag(V).cdouble()
             counted = 0
             for i in range(len(hd_k)): # TODO: this part may have probelms when V!=0
                 l_slice = slice(counted, counted+hd_k[i].shape[0])
-                hd_k[i] = hd_k[i] - V[l_slice,l_slice]@sd_k[i]
+                V_sub = V[l_slice].view(-1,1).cdouble()
+                hd_k[i] = hd_k[i] - V_sub * sd_k[i]
                 if i<len(hd_k)-1: 
-                    hu_k[i] = hu_k[i] - V[l_slice,l_slice]@su_k[i]
+                    hu_k[i] = hu_k[i] - V_sub * su_k[i]
                 if i > 0:
-                    hl_k[i-1] = hl_k[i-1] - V[l_slice,l_slice]@sl_k[i-1]
+                    hl_k[i-1] = hl_k[i-1] - V_sub * sl_k[i-1]
                 counted += hd_k[i].shape[0]
             
             return hd_k , sd_k, hl_k , su_k, sl_k, hu_k
