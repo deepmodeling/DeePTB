@@ -24,7 +24,8 @@ class SurfaceGreen(torch.autograd.Function):
     def forward(ctx, H, h01, S, s01, ee, method='Lopez-Sancho'):
         # '''
         # gs = [A_l - A_{l,l-1} gs A_{l-1,l}]^{-1}
-        # 
+        # H : HL
+        # h01 : HLL
         # 1. ee can be a list, to handle a batch of samples
         # '''
 
@@ -59,7 +60,7 @@ class SurfaceGreen(torch.autograd.Function):
 
                     test = ee * S - H - torch.mm(ee * s01 - h01, gs.mm(ee * s10 - h10))
                     myConvTest = torch.max((test.mm(gs) - torch.eye(H.shape[0], dtype=h01.dtype)).abs())
-                    if myConvTest < 1.0e-6:
+                    if myConvTest < 3.0e-5:
                         converged = True
                         if myConvTest > 1.0e-8:
                             log.warning("Lopez-scheme not-so-well converged at E = %.4f eV:" % ee.real.item() + str(myConvTest.item()))
@@ -191,7 +192,8 @@ def selfEnergy(hL, hLL, sL, sLL, ee, hDL=None, sDL=None, etaLead=1e-8, Bulk=Fals
 
     if hDL == None:
         ESH = (eeshifted * sL - hL)
-        SGF = SurfaceGreen.apply(hL, hLL, sL, sLL, eeshifted + 1j * etaLead, method)
+        with torch.no_grad():
+            SGF = SurfaceGreen.apply(hL, hLL, sL, sLL, eeshifted + 1j * etaLead, method)
 
         if Bulk:
             Sig = tLA.inv(SGF)  # SGF^1
@@ -199,8 +201,10 @@ def selfEnergy(hL, hLL, sL, sLL, ee, hDL=None, sDL=None, etaLead=1e-8, Bulk=Fals
             Sig = ESH - tLA.inv(SGF)
     else:
         a, b = hDL.shape
-        SGF = SurfaceGreen.apply(hL, hLL, sL, sLL, eeshifted + 1j * etaLead, method)
-        Sig = (ee*sDL-hDL) @ SGF[:b,:b] @ (ee*sDL.conj().T-hDL.conj().T)
+        with torch.no_grad():
+            SGF = SurfaceGreen.apply(hL, hLL, sL, sLL, eeshifted + 1j * etaLead, method)
+        #SGF = iterative_simple(eeshifted + 1j * etaLead, hL, hLL, sL, sLL, iter_max=1000)
+        Sig = (eeshifted*sDL-hDL) @ SGF[:b,:b] @ (eeshifted*sDL.conj().T-hDL.conj().T)
     return Sig, SGF  # R(nuo, nuo)
 
 
@@ -286,5 +290,22 @@ def iterative_gf(ee, gs, h00, h01, s00, s01, iter=1):
     for i in range(iter):
         gs = ee*s00 - h00 - (ee * s01 - h01) @ gs @ (ee * s01.conj().T - h01.conj().T)
         gs = tLA.pinv(gs)
+
+    return gs
+
+def iterative_simple(ee, h00, h01, s00, s01, iter_max=1000):
+    gs =  torch.linalg.inv(ee*s00 - h00)
+    diff_gs = 1
+    iter = 0
+    while diff_gs > 1e-8:
+        iter +=1
+        gs = ee*s00 - h00 - (ee * s01 - h01) @ gs @ (ee * s01.conj().T - h01.conj().T)
+        # gs = tLA.pinv(gs)
+        gs = torch.linalg.inv(gs)
+        diff_gs = \
+        torch.max(torch.abs(gs - torch.inverse(ee * s00 - h00 - torch.mm(h01 - ee * s01, gs).mm(h01.conj().T - ee * s01.conj().T))))
+        if iter > iter_max:
+            log.warning("iterative_simple not converged after 1000 iteration.")
+            break
 
     return gs
