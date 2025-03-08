@@ -211,15 +211,18 @@ class DeviceProperty(object):
         seinR = 1j*(seR-seR.conj().T) * self.lead_R.fermi_dirac(energy+self.mu).reshape(-1)
         s01, s02 = s_in[0].shape # The shape of the first H block
         se01, se02 = seL.shape # The shape of the left self-energy
-        if se01 > s01 or se02 > s02:
-            log.warning("The shape of left self-energy is larger than the first Hamiltonian block.")
-        idx0, idy0 = min(s01, se01), min(s02, se02) # The minimum of the two shapes
-
         s11, s12 = s_in[-1].shape
         se11, se12 = seR.shape
-        if se11 > s11 or se12 > s12:
-            log.warning("The shape of right self-energy is larger than the last Hamiltonian block.")
+        idx0, idy0 = min(s01, se01), min(s02, se02) # The minimum of the two shapes
         idx1, idy1 = min(s11, se11), min(s12, se12)
+        if block_tridiagonal:
+            if se01 != s01 or se02 != s02:
+                log.warning("The shape of left self-energy is not equal to the first Hamiltonian block.")
+                log.warning("This shouldn't happen in block tridiagonal format.")
+            if se11 != s11 or se12 != s12:
+                log.warning("The shape of right self-energy is not equal to the last Hamiltonian block.")
+                log.warning("This shouldn't happen in block tridiagonal format.")
+            
         
         green_funcs = {}
 
