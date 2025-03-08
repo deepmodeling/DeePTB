@@ -216,8 +216,9 @@ class LeadProperty(object):
             sgf_k = sgf_k[self.bloch_sorted_indice,:][:,self.bloch_sorted_indice]
             b = self.HDL.shape[1] # size of lead hamiltonian
 
-            # HDL_reduced, SDL_reduced = self.HDL_reduced(self.HDL, self.SDL)
-            HDL_reduced, SDL_reduced = self.HDL, self.SDL
+            # reduce the Hamiltonian and overlap matrix based on the non-zero range of HDL
+            HDL_reduced, SDL_reduced = self.HDL_reduced(self.HDL, self.SDL) 
+            # HDL_reduced, SDL_reduced = self.HDL, self.SDL
             if not isinstance(energy, torch.Tensor):
                 eeshifted = torch.scalar_tensor(energy, dtype=torch.complex128) + self.efermi
             else:
@@ -257,6 +258,10 @@ class LeadProperty(object):
             The reduced Hamiltonian and overlap matrix.
         
         '''
+        assert len(HDL.shape) == 2, "The shape of HDL should be 2."
+        assert len(SDL.shape) == 2, "The shape of SDL should be 2."
+        assert HDL.shape == SDL.shape, "The shape of HDL and SDL should be the same."
+        
         HDL_nonzero_range = (HDL.nonzero().min(dim=0).values, HDL.nonzero().max(dim=0).values)
         # HDL_nonzero_range is a tuple((min_row,min_col),(max_row,max_col))
         if HDL.shape[0] == 1: # Only 1 orbital in the device
