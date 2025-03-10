@@ -154,19 +154,19 @@ class LeadProperty(object):
 
         if not self.useBloch:
             if not hasattr(self, "HL") or abs(self.voltage_old-self.voltage)>1e-6 or max(abs(self.kpoint-torch.tensor(kpoint)))>1e-6:
-                self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL \
+                self.HLk, self.HLLk, self.HDLk, self.SLk, self.SLLk, self.SDLk \
                     = self.hamiltonian.get_hs_lead(kpoint, tab=self.tab, v=self.voltage)
                 self.voltage_old = self.voltage
                 self.kpoint = torch.tensor(kpoint)
 
-            HDL_reduced, SDL_reduced = self.HDL_reduced(self.HDL, self.SDL)
+            HDL_reduced, SDL_reduced = self.HDL_reduced(self.HDLk, self.SDLk)
             
             self.se, _ = selfEnergy(
                 ee=energy,
-                hL=self.HL,
-                hLL=self.HLL,
-                sL=self.SL,
-                sLL=self.SLL,
+                hL=self.HLk,
+                hLL=self.HLLk,
+                sL=self.SLk,
+                sLL=self.SLLk,
                 hDL=HDL_reduced,
                 sDL=SDL_reduced,             #TODO: check chemiPot settiing is correct or not
                 chemiPot=self.efermi, # temmporarily change to self.efermi for the case in which applying lead bias to corresponding to Nanotcad
@@ -187,15 +187,15 @@ class LeadProperty(object):
             m_size = self.bloch_factor[1]*self.bloch_factor[0]
             for ik_lead,k_bloch in enumerate(kpoints_bloch):
                 k_bloch = torch.tensor(k_bloch)
-                self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL \
+                self.HLk, self.HLLk, self.HDLk, self.SLk, self.SLLk, self.SDLk \
                     = self.hamiltonian.get_hs_lead(k_bloch, tab=self.tab, v=self.voltage)
                 
                 _, sgf = selfEnergy(
                     ee=energy,
-                    hL=self.HL,
-                    hLL=self.HLL,
-                    sL=self.SL,
-                    sLL=self.SLL,            #TODO: check chemiPot settiing is correct or not
+                    hL=self.HLk,
+                    hLL=self.HLLk,
+                    sL=self.SLk,
+                    sLL=self.SLLk,            #TODO: check chemiPot settiing is correct or not
                     chemiPot=self.efermi, # temmporarily change to self.efermi for the case in which applying lead bias to corresponding to Nanotcad
                     etaLead=eta_lead, 
                     method=method
@@ -214,10 +214,10 @@ class LeadProperty(object):
 
             sgf_k = torch.sum(torch.stack(sgf_k),dim=0)/len(sgf_k)
             sgf_k = sgf_k[self.bloch_sorted_indice,:][:,self.bloch_sorted_indice]
-            b = self.HDL.shape[1] # size of lead hamiltonian
+            b = self.HDLk.shape[1] # size of lead hamiltonian
 
             # reduce the Hamiltonian and overlap matrix based on the non-zero range of HDL
-            HDL_reduced, SDL_reduced = self.HDL_reduced(self.HDL, self.SDL) 
+            HDL_reduced, SDL_reduced = self.HDL_reduced(self.HDLk, self.SDLk) 
             # HDL_reduced, SDL_reduced = self.HDL, self.SDL
             if not isinstance(energy, torch.Tensor):
                 eeshifted = torch.scalar_tensor(energy, dtype=torch.complex128) + self.efermi
@@ -227,7 +227,7 @@ class LeadProperty(object):
             self.se = (eeshifted*SDL_reduced-HDL_reduced) @ sgf_k[:b,:b] @ (eeshifted*SDL_reduced.conj().T-HDL_reduced.conj().T)
 
         if not HS_inmem:
-            del self.HL, self.HLL, self.HDL, self.SL, self.SLL, self.SDL
+            del self.HLk, self.HLLk, self.HDLk, self.SLk, self.SLLk, self.SDLk
 
         if save:
             assert save_path is not None, "Please specify the path to save the self energy."
@@ -261,7 +261,7 @@ class LeadProperty(object):
         assert len(HDL.shape) == 2, "The shape of HDL should be 2."
         assert len(SDL.shape) == 2, "The shape of SDL should be 2."
         assert HDL.shape == SDL.shape, "The shape of HDL and SDL should be the same."
-        
+
         HDL_nonzero_range = (HDL.nonzero().min(dim=0).values, HDL.nonzero().max(dim=0).values)
         # HDL_nonzero_range is a tuple((min_row,min_col),(max_row,max_col))
         if HDL.shape[0] == 1: # Only 1 orbital in the device
