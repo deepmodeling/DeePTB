@@ -28,6 +28,7 @@ from dptb.negf.bloch import Bloch
 from dptb.negf.sort_btd import sort_lexico, sort_projection, sort_capacitance
 from dptb.negf.split_btd import show_blocks,split_into_subblocks,split_into_subblocks_optimized
 from scipy.spatial import KDTree
+import h5py
 '''
 a Hamiltonian object  that initializes and manipulates device and  lead Hamiltonians for NEGF
 '''
@@ -317,8 +318,13 @@ class NEGFHamiltonianInit(object):
                 # device and lead's hopping
                 HDL, SDL = HK[:,d_start:d_end, l_start:l_end], SK[:,d_start:d_end, l_start:l_end]
                 nonzero_indice = torch.nonzero(HDL)
-                coupling_width[kk] = max(torch.max(nonzero_indice[:,1]).item()-torch.min(nonzero_indice[:,1]).item() +1,\
-                                         torch.max(nonzero_indice[:,2]).item()-torch.min(nonzero_indice[:,2]).item() +1)
+                # The coupling width measures the coupling between the semi-infinite electrode and the electrode part in device
+                # depth_in_device measures the coupling extent in electrode part in device
+                # depth_in_lead measures the coupling extent in the semi-infinite electrode
+                # Considering it is a homojunction, depth_in_device and depth_in_lead should be same or very close
+                depth_in_device = torch.max(nonzero_indice[:,1]).item()-torch.min(nonzero_indice[:,1]).item() +1
+                depth_in_lead = torch.max(nonzero_indice[:,2]).item()-torch.min(nonzero_indice[:,2]).item() +1
+                coupling_width[kk] = max(depth_in_device,depth_in_lead)
                 log.info(msg="The coupling width of {} is {}.".format(kk,coupling_width[kk]))
 
                 # get lead_data
@@ -387,8 +393,27 @@ class NEGFHamiltonianInit(object):
                     "SLL":sLL.cdouble(),
                     "useBloch":useBloch
                     })                
-                                
-                torch.save(HS_leads, os.path.join(self.results_path, "HS_"+kk+".pth"))
+
+                lead_file = os.path.join(self.results_path, "HS_"+kk+".h5")
+                
+                with h5py.File(lead_file, "w") as f:
+                    for key, items in HS_leads.items():
+                        if key == "useBloch":
+                            f.create_dataset(f"{key}", data=items)
+                        elif key == "kpoints":
+                            f.create_dataset(f"{key}", data=np.array(items))
+                        elif key in ["kpoints_bloch", "bloch_factor"]:
+                            if items is not None:
+                                f.create_dataset(f"{key}", data=np.array(items))
+                            else:
+                                f.create_dataset(f"{key}", data=np.array("None", dtype=h5py.string_dtype()))
+                        elif key in ["HL", "SL", "HDL", "SDL", "HLL", "SLL"]:
+                            f.create_dataset(f"{key}", data=items.numpy())
+                        else:
+                            raise ValueError(f"Unsupported key {key} in HS_leads")
+                    
+
+                # torch.save(HS_leads, os.path.join(self.results_path, "HS_"+kk+".pth"))
 
         
         if not block_tridiagnal:
@@ -408,8 +433,29 @@ class NEGFHamiltonianInit(object):
                               "subblocks":subblocks, "block_tridiagonal":True})
 
         self.subblocks = subblocks
-        torch.save(HS_device, os.path.join(self.results_path, "HS_device.pth"))
+        # torch.save(HS_device, os.path.join(self.results_path, "HS_device.pth"))
 
+        device_file = os.path.join(self.results_path, "HS_device.h5")
+        with h5py.File(device_file, "w") as f:
+            for key, items in HS_device.items():
+                if key in ["kpoints", "subblocks"]:
+                    f.create_dataset(f"{key}", data=np.array(items))
+                elif key == "block_tridiagonal":
+                    f.create_dataset(f"{key}", data=items)  # bool type
+                elif key in ["HD", "SD", "Hall", "Sall", "hd", "hu", "hl", "sd", "su", "sl"]:
+                    if block_tridiagnal:
+                        assert key in ["hd", "hu", "hl", "sd", "su", "sl"], f"Unsupported key {key} for block_tridiagnal case"
+                        group = f.create_group(key)
+                        for idx_k, item in enumerate(items):
+                            assert isinstance(item, list), f"Unsupported type {type(item)} for {key}"
+                            sub_block_len = len(item)
+                            for idx_block in range(sub_block_len):  
+                                group.create_dataset(f"{key}_k{idx_k}_b{idx_block}", data=item[idx_block].numpy())
+                    else:
+                        assert key in ["HD", "SD", "Hall", "Sall"], f"Unsupported key {key} for not block_tridiagnal case"
+                        f.create_dataset(f"{key}", data=items.numpy())
+                else:
+                    raise ValueError(f"Unsupported key {key} in HS_device")
 
 
     @staticmethod
@@ -592,24 +638,61 @@ class NEGFHamiltonianInit(object):
         if self.saved_HS_path is None:
             self.saved_HS_path = self.results_path
         
-        HS_device_path = os.path.join(self.saved_HS_path, "HS_device.pth")
-        if not os.path.exists(HS_device_path):
-            log.error(msg="The HS_device.pth does not exist in the saved path {}.".format(self.saved_HS_path))
-            raise FileNotFoundError
-        f = torch.load(HS_device_path)
+        HS_device_path_pth = os.path.join(self.saved_HS_path, "HS_device.pth")
+        HS_device_path_h5 = os.path.join(self.saved_HS_path, "HS_device.h5")
+
+        
+        if os.path.exists(HS_device_path_h5):
+            log.info(msg="The HS_device.h5 exists in the saved path {}.".format(self.saved_HS_path))
+            HS_device_path = HS_device_path_h5
+            HS_device = {}
+            with h5py.File(HS_device_path, "r") as f:
+                for key in f.keys():
+                    if isinstance(f[key], h5py.Dataset): 
+                        if key in ["kpoints", "subblocks"]:
+                            HS_device[key] = np.array(f[key])
+                        elif key == "block_tridiagonal":
+                            HS_device[key] = f[key][()]
+                        else:
+                            assert isinstance(f[key][()], np.ndarray),f"Expected np.ndarray, but got {type(f[key][()])}"
+                            # read NumPy array: HD, SD, Hall, Sall
+                            HS_device[key] = torch.tensor(f[key][()])
+                    else:  
+                        group = f[key]
+                        items = [];sublist = []
+                        sub_keys = sorted(group.keys())  # ensure the order of subblocks
+                        current_idx_k = -1
+                        for sub_key in sub_keys: # sub_key format: f"{key}_k{idx_k}_b{idx_block}"
+                            parts = sub_key.split("_k")
+                            if len(parts) < 2:
+                                raise ValueError(f"Unexpected dataset format: {sub_key}")
+                            idx_k, idx_block = map(int, parts[1].split("_b"))
+                            if idx_k != current_idx_k:
+                                if sublist:
+                                    items.append(sublist)  # store the previous sublist
+                                sublist = []  # begin a new sublist
+                                current_idx_k = idx_k
+                            sublist.append(torch.tensor(group[sub_key][()]))
+                        if sublist:
+                            items.append(sublist)  # store the last sublist
+                        HS_device[key] = items # idx_k, idx_block
+        
+        elif os.path.exists(HS_device_path_pth):
+            log.info(msg="The HS_device.pth exists in the saved path {}.".format(self.saved_HS_path))
+            HS_device_path = HS_device_path_pth
+            HS_device = torch.load(HS_device_path)
+        
 
         if only_subblocks:
-            if "subblocks" not in f:
+            if "subblocks" not in HS_device:
                 log.warning(msg=" 'subblocks' might not be saved in the HS_device.pth for old version.")
                 log.error(msg="The subblocks are not saved in the HS_device.pth.")
                 
                 raise ValueError
-            subblocks = f["subblocks"]
+            subblocks = HS_device["subblocks"]
             return subblocks
-
-
-        kpoints = f["kpoints"]
-
+        
+        kpoints = HS_device["kpoints"]
         ik = None
         for i, k in enumerate(kpoints):
             if np.abs(np.array(k) - np.array(kpoint)).sum() < 1e-8:
@@ -622,7 +705,9 @@ class NEGFHamiltonianInit(object):
         
         if block_tridiagonal:
             # hd format: ( k_index,block_index, orb, orb)
-            hd_k, sd_k, hl_k, su_k, sl_k, hu_k = f["hd"][ik], f["sd"][ik], f["hl"][ik], f["su"][ik], f["sl"][ik], f["hu"][ik]
+            hd_k, sd_k, hl_k, su_k, sl_k, hu_k = HS_device["hd"][ik], HS_device["sd"][ik],\
+                                                 HS_device["hl"][ik], HS_device["su"][ik], \
+                                                 HS_device["sl"][ik], HS_device["hu"][ik]
 
             if V.shape == torch.Size([]):
                 allorb = sum([hd_k[i].shape[0] for i in range(len(hd_k))])
@@ -641,7 +726,7 @@ class NEGFHamiltonianInit(object):
             
             return hd_k , sd_k, hl_k , su_k, sl_k, hu_k
         else:
-            HD_k, SD_k = f["HD"][ik], f["SD"][ik]
+            HD_k, SD_k = HS_device["HD"][ik], HS_device["SD"][ik]
             return HD_k - V*SD_k, SD_k, [], [], [], []
     
     def get_hs_lead(self, kpoint, tab, v):
@@ -664,14 +749,37 @@ class NEGFHamiltonianInit(object):
         if self.saved_HS_path is None:
             self.saved_HS_path = self.results_path
 
-        HS_lead_path = os.path.join(self.saved_HS_path, "HS_{0}.pth".format(tab))
-        if not os.path.exists(HS_lead_path):
-            log.error(msg="The HS_{0}.pth does not exist in the saved path {1}.".format(tab, self.saved_HS_path))
-            raise FileNotFoundError
-        f = torch.load(HS_lead_path)
-        kpoints = f["kpoints"]
-        kpoints_bloch = f["kpoints_bloch"]
-        bloch_factor = f["bloch_factor"]
+        HS_lead_path_pth = os.path.join(self.saved_HS_path, "HS_{0}.pth".format(tab))
+        HS_lead_path_h5 = os.path.join(self.saved_HS_path, "HS_{0}.h5".format(tab))
+
+        HS_leads = {}
+        if os.path.exists(HS_lead_path_h5):
+            log.info(msg="The HS_{0}.h5 exists in the saved path {1}.".format(tab, self.saved_HS_path))
+            HS_lead_path = HS_lead_path_h5
+            with h5py.File(HS_lead_path, "r") as f:
+                for key in f.keys():
+                    dataset = f[key]  
+                    if key == "useBloch":
+                        HS_leads[key] = bool(dataset[()])
+                    elif key == "kpoints":
+                        HS_leads[key] = dataset[()]
+                    elif key in ["kpoints_bloch", "bloch_factor"]:
+                        if dataset[()].decode() == "None":
+                            HS_leads[key] = None
+                        else:
+                            HS_leads[key] = dataset[()]
+                    else:
+                        HS_leads[key] = torch.tensor(dataset[()])
+        elif os.path.exists(HS_lead_path_pth):
+            log.info(msg="The HS_{0}.pth exists in the saved path {1}.".format(tab, self.saved_HS_path))
+            HS_leads = torch.load(HS_lead_path_pth)
+        else:
+            log.error(msg="The HS_{0}.pth or HS_{0}.h5 does not exist in the saved path {1}.".format(tab, self.saved_HS_path))
+            raise ValueError
+        
+        kpoints = HS_leads["kpoints"]
+        kpoints_bloch = HS_leads["kpoints_bloch"]
+        bloch_factor = HS_leads["bloch_factor"]
 
         if kpoints_bloch is None:
             ik = None
@@ -681,9 +789,9 @@ class NEGFHamiltonianInit(object):
                     break
 
             assert ik is not None
-            assert len(kpoints) == f['HL'].shape[0], "The number of kpoints in the lead Hamiltonian file does not match the number of kpoints."
-            hL, hLL, sL, sLL = f["HL"][ik], f["HLL"][ik],f["SL"][ik], f["SLL"][ik]
-            hDL,sDL = f["HDL"][ik], f["SDL"][ik]
+            assert len(kpoints) == HS_leads['HL'].shape[0], "The number of kpoints in the lead Hamiltonian file does not match the number of kpoints."
+            hL, hLL, sL, sLL = HS_leads["HL"][ik], HS_leads["HLL"][ik],HS_leads["SL"][ik], HS_leads["SLL"][ik]
+            hDL,sDL = HS_leads["HDL"][ik], HS_leads["SDL"][ik]
 
         else:
             multi_k_num = int(bloch_factor[0]*bloch_factor[1])
@@ -694,10 +802,11 @@ class NEGFHamiltonianInit(object):
                     ik = int(i/multi_k_num)
                     break
             assert ik is not None
-            assert len(kpoints_bloch) == f['HL'].shape[0], "The number of kpoints in the lead Hamiltonian file does not match the number of kpoints."
-            assert len(kpoints) == f['HDL'].shape[0], "The number of kpoints in the lead Hamiltonian file does not match the number of kpoints."
-            hL, hLL, sL, sLL = f["HL"][ik_bloch], f["HLL"][ik_bloch],f["SL"][ik_bloch], f["SLL"][ik_bloch]
-            hDL,sDL = f["HDL"][ik], f["SDL"][ik]
+            assert len(kpoints_bloch) == HS_leads['HL'].shape[0], "The number of kpoints in the lead Hamiltonian file does not match the number of kpoints."
+            assert len(kpoints) == HS_leads['HDL'].shape[0], "The number of kpoints in the lead Hamiltonian file does not match the number of kpoints."
+            hL, hLL, sL, sLL = HS_leads["HL"][ik_bloch], HS_leads["HLL"][ik_bloch],\
+                               HS_leads["SL"][ik_bloch], HS_leads["SLL"][ik_bloch]
+            hDL,sDL = HS_leads["HDL"][ik], HS_leads["SDL"][ik]
 
         return hL-v*sL, hLL-v*sLL, hDL, sL, sLL, sDL 
 

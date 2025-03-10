@@ -2,6 +2,7 @@ from dptb.entrypoints.run import run
 import pytest
 import torch
 import numpy as np
+import os
 
 
 @pytest.fixture(scope='session', autouse=True)
@@ -22,9 +23,16 @@ def test_negf_run_chain(root_directory):
     run(INPUT=INPUT_file,init_model=checkfile,structure=structure,output=output,\
     log_level=5,log_path=output+"/output.log")
 
-    negf_results = torch.load(output+"/results/negf.out.pth")
+    
+    negf_out_path = output+"/results/negf.out.pth"
+    assert os.path.exists(negf_out_path), "NEGF calculation output file not found"
+    negf_results = torch.load(negf_out_path)
     trans = negf_results['T_avg']
     assert(abs(trans[int(len(trans)/2)]-1)<1e-5)  #compare with calculated transmission at efermi
+
+
+    if os.path.exists(output+"/results"):
+        os.system("rm -r "+output+"/results")
 
 
 
@@ -37,8 +45,11 @@ def test_negf_run_orth(root_directory):
     run(INPUT=INPUT_file,init_model=checkfile,output=output,run_sk=True,structure=structure,\
     log_level=5,log_path=output+"/test.log",use_correction=False)
 
-    negf_results = torch.load(output+"/results/negf.out.pth")
 
+    negf_out_path = output+"/results/negf.out.pth"
+    assert os.path.exists(negf_out_path), "NEGF calculation output file not found"
+    negf_results = torch.load(negf_out_path)
+    
     k_standard = np.array([[0. , 0. , 0.], [0. , 0.33333333, 0.]])
     k = negf_results['k']
     assert(abs(k-k_standard).max()<1e-5)  #compare with calculated kpoints
@@ -88,6 +99,11 @@ def test_negf_run_orth(root_directory):
     T_avg_standard = torch.tensor(T_avg_standard)
     assert  abs(T_avg-T_avg_standard).max()<1e-4  #compare with calculated transmission at efermi
 
+    if os.path.exists(output+"/results"):
+        os.system("rm -r "+output+"/results")
+
+
+
 def test_negf_run_S(root_directory):
     INPUT_file =  root_directory +"/dptb/tests/data/test_negf/test_negf_run/negf_graphene_new.json" 
     output =  root_directory +"/dptb/tests/data/test_negf/test_negf_run/out_negf_graphene"  
@@ -97,7 +113,9 @@ def test_negf_run_S(root_directory):
     run(INPUT=INPUT_file,init_model=checkfile,output=output,run_sk=True,structure=structure,\
     log_level=5,log_path=output+"/test.log",use_correction=False)
 
-    negf_results = torch.load(output+"/results/negf.out.pth")
+    negf_out_path = output+"/results/negf.out.pth"
+    assert os.path.exists(negf_out_path), "NEGF calculation output file not found"
+    negf_results = torch.load(negf_out_path)
 
     k_standard = np.array([[0. , 0. , 0.], [0. , 0.33333333, 0.]])
     k = negf_results['k']
@@ -147,3 +165,6 @@ def test_negf_run_S(root_directory):
         8.1390e-21, 2.3272e-21]
     T_avg_standard = torch.tensor(T_avg_standard)
     assert  abs(T_avg-T_avg_standard).max()<1e-4  #compare with calculated transmission at efermi
+
+    # if os.path.exists(output+"/results"):
+    #     os.system("rm -r "+output+"/results")
