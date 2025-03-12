@@ -131,8 +131,10 @@ class Trainer(BaseTrainer):
         #TODO: add clip large gradient
         self.optimizer.step()
         if self.update_lr_per_step_flag:
+            # set self.iter > 0 to ensure a valid
             if isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                self.lr_scheduler.step(self.stats["train_loss"]["epoch_mean"])
+                if 'latest_avg_iter_loss' in self.stats['train_loss'].keys() and self.iter > 0:
+                    self.lr_scheduler.step(self.stats["train_loss"]['latest_avg_iter_loss'])
             else:
                 self.lr_scheduler.step()
 

@@ -12,6 +12,11 @@ dptb_model_config_checklist = ['dptb-if_batch_normalized', 'dptb-hopping_net_typ
                         'dptb-hopping_net_neuron', 'dptb-env_net_neuron', 'dptb-soc_net_neuron', 'dptb-onsite_net_neuron', 'dptb-axis_neuron', 'skfunction-skformula', 'sknetwork-sk_onsite_nhidden', 
                         'sknetwork-sk_hop_nhidden']
 
+# set default values in case of rop & update lr per step
+def chk_avg_iter_loss_flag(jdata):
+    if jdata["train_options"]["lr_scheduler"]["type"] == 'rop' and jdata["train_options"]["update_lr_per_step_flag"]:
+        jdata["train_options"]["avg_iter_loss_flag"] = True
+    return jdata
 
 def gen_doc_train(*, make_anchor=True, make_link=True, **kwargs):
     if make_link:
@@ -102,7 +107,10 @@ def train_options():
                           "There are tree types of error will be recorded. `train_loss_iter` is iteration loss, `train_loss_last` is the error of the last iteration in an epoch, `train_loss_mean` is the mean error of all iterations in an epoch." \
                           "Learning rates are tracked as well. A folder named `tensorboard_logs` will be created in the working directory. Use `tensorboard --logdir=tensorboard_logs` to view the logs." \
                           "Default: `False`"
-    update_lr_per_step_flag = "Set true to update learning rate per-step. By default, it's false."
+
+    doc_update_lr_per_step_flag = "Set true to update learning rate per-step. Default: false."
+    doc_avg_iter_loss_flag = "Set true to calculate the latest average iteration loss. Default: false."
+    doc_sliding_win_size = "Sliding window size for the average of the latest iterations' loss. Used for the reduce on plateau learning rate scheduler in case of the pairing of large dataset and small batch size. Default: `50`"
 
     doc_optimizer = "\
         The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `SGD` and `LBFGS` \n\n\
@@ -128,7 +136,10 @@ def train_options():
         Argument("validation_freq", int, optional=True, default=10, doc=doc_validation_freq),
         Argument("display_freq", int, optional=True, default=1, doc=doc_display_freq),
         Argument("use_tensorboard", bool, optional=True, default=False, doc=doc_use_tensorboard),
-        Argument("update_lr_per_step_flag", bool, optional=True, default=False, doc=update_lr_per_step_flag),
+
+        Argument("update_lr_per_step_flag", bool, optional=True, default=False, doc=doc_update_lr_per_step_flag),
+        Argument("avg_iter_loss_flag", bool, optional=True, default=False, doc=doc_avg_iter_loss_flag),
+        Argument("sliding_win_size", int, optional=True, default=50, doc=doc_sliding_win_size),
         Argument("max_ckpt", int, optional=True, default=4, doc=doc_max_ckpt),
         loss_options()
     ]
@@ -604,6 +615,7 @@ def slem():
     doc_r_max = ""
     doc_n_layers = ""
     doc_env_embed_multiplicity = ""
+    doc_universal_flag = "Set true to activate universal model related features. Currently, this will create a broader onehot embedding for the transfer learning into unseen elements. Other features are on the way. Default: `False`"
 
     return [
             Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
@@ -622,7 +634,8 @@ def slem():
             Argument("res_update", bool, optional=True, default=True, doc="Whether to use residual update."),
             Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
             Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
-        ]
+            Argument("universal_flag", bool, optional=True, default=False, doc=doc_universal_flag),
+    ]
 
 
 def prediction():
