@@ -16,6 +16,9 @@ dptb_model_config_checklist = ['dptb-if_batch_normalized', 'dptb-hopping_net_typ
 def chk_avg_iter_loss_flag(jdata):
     if jdata["train_options"]["lr_scheduler"]["type"] == 'rop' and jdata["train_options"]["update_lr_per_step_flag"]:
         jdata["train_options"]["avg_iter_loss_flag"] = True
+    else:
+        jdata["train_options"]["avg_iter_loss_flag"] = False
+
     return jdata
 
 def gen_doc_train(*, make_anchor=True, make_link=True, **kwargs):
