@@ -1,5 +1,6 @@
 import logging
 import time
+import collections
 
 import torch
 from dptb.data import AtomicData
@@ -13,7 +14,7 @@ log = logging.getLogger(__name__)
 class Monitor(Plugin):
 
     def __init__(self, running_average=True, epoch_average=True, smoothing=0.7,
-                 precision=None, number_format=None, unit=''):
+                 precision=None, number_format=None, unit='', sliding_win_size=50, avg_iter_loss_flag=False):
 
         if precision is None:
             precision = 4
@@ -41,6 +42,9 @@ class Monitor(Plugin):
             self.log_iter_fields += [' ({running_avg' + number_format + '}' + unit + ')']
         if self.with_epoch_average:
             self.log_epoch_fields = ['{epoch_mean' + number_format + '}' + unit]
+        if avg_iter_loss_flag:
+            self.loss_queue = collections.deque(maxlen=sliding_win_size)
+        self.avg_iter_loss_flag = avg_iter_loss_flag
 
     def register(self, trainer):
         self.trainer = trainer
@@ -75,8 +79,12 @@ class Monitor(Plugin):
 
         if self.with_running_average:
             previous_avg = stats.get('running_avg', 0)
-            stats['running_avg'] = previous_avg * self.smoothing + \
-                stats['last'] * (1 - self.smoothing)
+            stats['running_avg'] = previous_avg * self.smoothing + stats['last'] * (1 - self.smoothing)
+
+        if self.avg_iter_loss_flag:
+            self.loss_queue.append(stats['last'])
+            stats['latest_avg_iter_loss'] = sum(self.loss_queue) / len(self.loss_queue)
+
 
     def epoch(self, **kwargs):
         '''It computes the average of the values of epoch_stats key in the `stats` dictionary, 
@@ -100,10 +108,7 @@ class TrainLossMonitor(Monitor):
     # It's a Monitor that records the loss.
     # stat_name is used in the Monitor class to register.
     stat_name = 'train_loss'
-    def __init__(self):
-        super(TrainLossMonitor, self).__init__(
-            precision=6,
-        )
+
     def _get_value(self, **kwargs):
         return kwargs.get('train_loss', None)
 
@@ -118,6 +123,7 @@ class TestLossMonitor(Monitor):
 
     def _get_value(self, **kwargs):
         return kwargs.get('test_loss', None)
+
 class LearningRateMonitor(Monitor):
     # It's a Monitor that records the loss.
     # stat_name is used in the Monitor class to register.
@@ -156,10 +162,11 @@ class TensorBoardMonitor(Plugin):
     def epoch(self, **kwargs):
         epoch = self.trainer.ep
         self.writer.add_scalar(f'lr/epoch', self.trainer.stats['lr']['last'], epoch)
-        self.writer.add_scalar(f'train_loss_last/epoch', self.trainer.stats['train_loss']['last'], epoch)
         self.writer.add_scalar(f'train_loss_mean/epoch', self.trainer.stats['train_loss']['epoch_mean'], epoch)
 
     def iteration(self, **kwargs):
         iteration = self.trainer.iter
         self.writer.add_scalar(f'lr_iter/iteration', self.trainer.stats['lr']['last'], iteration)
         self.writer.add_scalar(f'train_loss_iter/iteration', self.trainer.stats['train_loss']['last'], iteration)
+        if 'latest_avg_iter_loss' in self.trainer.stats['train_loss'].keys():
+            self.writer.add_scalar(f'latest_avg_loss/iteration', self.trainer.stats['train_loss']['latest_avg_iter_loss'], iteration)
