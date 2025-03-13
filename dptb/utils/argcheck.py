@@ -15,11 +15,11 @@ dptb_model_config_checklist = ['dptb-if_batch_normalized', 'dptb-hopping_net_typ
 # set default values in case of rop & update lr per step
 def chk_avg_iter_loss_flag(jdata):
     if jdata["train_options"]["lr_scheduler"]["type"] == 'rop' and jdata["train_options"]["update_lr_per_step_flag"]:
-        jdata["train_options"]["avg_iter_loss_flag"] = True
+        avg_iter_loss_flag = True
     else:
-        jdata["train_options"]["avg_iter_loss_flag"] = False
+        avg_iter_loss_flag = False
 
-    return jdata
+    return avg_iter_loss_flag
 
 def gen_doc_train(*, make_anchor=True, make_link=True, **kwargs):
     if make_link:
@@ -112,7 +112,6 @@ def train_options():
                           "Default: `False`"
 
     doc_update_lr_per_step_flag = "Set true to update learning rate per-step. Default: false."
-    doc_avg_iter_loss_flag = "Set true to calculate the latest average iteration loss. Default: false."
     doc_sliding_win_size = "Sliding window size for the average of the latest iterations' loss. Used for the reduce on plateau learning rate scheduler in case of the pairing of large dataset and small batch size. Default: `50`"
 
     doc_optimizer = "\
@@ -141,7 +140,6 @@ def train_options():
         Argument("use_tensorboard", bool, optional=True, default=False, doc=doc_use_tensorboard),
 
         Argument("update_lr_per_step_flag", bool, optional=True, default=False, doc=doc_update_lr_per_step_flag),
-        Argument("avg_iter_loss_flag", bool, optional=True, default=False, doc=doc_avg_iter_loss_flag),
         Argument("sliding_win_size", int, optional=True, default=50, doc=doc_sliding_win_size),
         Argument("max_ckpt", int, optional=True, default=4, doc=doc_max_ckpt),
         loss_options()
@@ -250,8 +248,7 @@ def ExponentialLR():
 def LinearLR():
     doc_start_factor = "The number we multiply learning rate in the first epoch. \
         The multiplication factor changes towards end_factor in the following epochs. Default: 1./3."
-    doc_end_factor = "The number we multiply learning rate in the first epoch. \
-    The multiplication factor changes towards end_factor in the following epochs. Default: 1./3."
+    doc_end_factor = "The multiplication factor changes towards end_factor in the following epochs. Default: 1./3."
     doc_total_iters = "The number of iterations that multiplicative factor reaches to 1. Default: 5."
 
     return [

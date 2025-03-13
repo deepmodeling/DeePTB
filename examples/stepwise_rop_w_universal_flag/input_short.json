@@ -53,7 +53,6 @@
     "save_freq": 100,
     "validation_freq": 10,
     "display_freq": 1,
-    "avg_iter_loss_flag": true,
     "sliding_win_size": 1,
     "update_lr_per_step_flag": true,
     "use_tensorboard": true

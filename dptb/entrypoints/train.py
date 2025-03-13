@@ -207,9 +207,9 @@ def train(
     if validation_datasets:
         trainer.register_plugin(Validationer())
         log_field.append("validation_loss")
-    jdata = chk_avg_iter_loss_flag(jdata)
+    avg_iter_loss_flag = chk_avg_iter_loss_flag(jdata)
     trainer.register_plugin(TrainLossMonitor(sliding_win_size=jdata["train_options"]["sliding_win_size"],
-                                             avg_iter_loss_flag=jdata["train_options"]["avg_iter_loss_flag"])) # by default, avg_iter_loss_flag is false, will not be activated.
+                                             avg_iter_loss_flag=avg_iter_loss_flag)) # by default, avg_iter_loss_flag is false, will not be activated.
     trainer.register_plugin(LearningRateMonitor())
     if jdata["train_options"]["use_tensorboard"]:
         trainer.register_plugin(TensorBoardMonitor(interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
