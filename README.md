@@ -45,13 +45,13 @@ For more details, see our papers:
 Installing **DeePTB** is straightforward. We recommend using a virtual environment for dependency management.
 
 - **Requirements**
-  - Python 3.8 or later.
+  - Python 3.9 or later.
   - Torch 1.13.0 or later ([PyTorch Installation](https://pytorch.org/get-started/locally)).
   - ifermi (optional, for 3D fermi-surface plotting).
 
 - **Easy Installation**
   1. Using PyPi
-  2. Ensure you have Python 3.8 or later and Torch installed.
+  2. Ensure you have Python 3.9 or later and Torch installed.
   3. Install DeePTB with pip:
         ```bash
         pip install dptb
