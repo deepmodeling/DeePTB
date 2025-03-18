@@ -348,10 +348,18 @@ class ElecStruCal(object):
     
     @classmethod
     def fermi_dirac_smearing(cls, E, kT=0.025852, mu=0.0):
-            return 1.0 / (np.expm1((E - mu) / kT) + 2.0)
+        x = (E - mu) / kT
+        mask_min = x < -40.0 # 40 results e16 precision
+        mask_max = x > 40.0
+        mask_in_limit = ~(mask_min | mask_max)
+        out = np.zeros_like(x)
+        out[mask_min] = 1.0
+        out[mask_max] = 0.0
+        out[mask_in_limit] = 1.0 / (np.expm1(x[mask_in_limit]) + 2.0)
+        return out
         
     @classmethod
     def Gaussian_smearing(cls, E, sigma=0.025852, mu=0.0):
-            from scipy.special import erfc
-            x = (mu - E) / sigma
-            return 0.5 * erfc(-1*x)
+        from scipy.special import erfc
+        x = (mu - E) / sigma
+        return 0.5 * erfc(-1*x)
