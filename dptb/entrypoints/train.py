@@ -104,7 +104,7 @@ def train(
         if f.split(".")[-1] == "json":
             assert not restart, "json model can not be used as restart! should be a checkpoint file"
         else:
-            f = torch.load(f, map_location="cpu")
+            f = torch.load(f, map_location="cpu", weights_only=False)
     
             if jdata.get("model_options", None) is None:
                 jdata["model_options"] = f["config"]["model_options"]

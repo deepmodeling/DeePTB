@@ -183,7 +183,7 @@ class InitSKModel(Plugin):
         # ----------------------------------------------------------------------------------------------------------
         json_model_types = ["onsite", "hopping", "overlap", "soc"]
         if modeltype == "ckpt":
-            ckpt_list = [torch.load(ckpt) for ckpt in checkpoint]
+            ckpt_list = [torch.load(ckpt, weights_only=False) for ckpt in checkpoint]
         elif modeltype == "json":
             # 只用一个文件包含所有的键积分参数：
             assert len(checkpoint) ==1

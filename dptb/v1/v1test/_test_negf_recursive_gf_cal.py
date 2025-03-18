@@ -101,7 +101,7 @@ def test_negf_RGF(root_directory):
         e = torch.tensor(e, dtype=torch.complex128)
 
     if os.path.exists(os.path.join(results_path, "POTENTIAL.pth")):
-        V = torch.load(os.path.join(results_path, "POTENTIAL.pth"))
+        V = torch.load(os.path.join(results_path, "POTENTIAL.pth"), weights_only=False)
     elif abs(device.mu - device.efermi) < 1e-7:
         V = device.efermi - device.mu
     else:

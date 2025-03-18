@@ -16,7 +16,7 @@ class DPTBHost(PluginUser):
     def __init__(self, dptbmodel, use_correction=False):
         # dptbmodel: str
         super(DPTBHost, self).__init__()
-        ckpt = torch.load(dptbmodel)
+        ckpt = torch.load(dptbmodel, weights_only=False)
         model_config = ckpt["model_config"]
         model_config["dtype"] = dtype_dict[model_config["dtype"]]
         model_config.update({'init_model':{"path":dptbmodel, "interpolation":False},'use_correction':use_correction})
@@ -95,7 +95,7 @@ class NNSKHost(PluginUser):
                 model_config.update({"freeze":False,"train_soc":False})
 
             elif init_type == "pth":
-                ckpt = torch.load(checkpoint)
+                ckpt = torch.load(checkpoint, weights_only=False)
                 model_config = ckpt["model_config"]
                 model_config.update({"init_model": {"path": checkpoint,"interpolate": False}})
             else:

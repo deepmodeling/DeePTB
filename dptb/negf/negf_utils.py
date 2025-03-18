@@ -248,7 +248,7 @@ def update_kmap(result_path, kpoint):
     
     '''
     if os.path.exists(os.path.join(result_path, "KMAP.pth")):
-        kmap = torch.load(os.path.join(result_path, "KMAP.pth"))
+        kmap = torch.load(os.path.join(result_path, "KMAP.pth"), weights_only=False)
         err = np.abs(np.array(kmap) - np.array(kpoint).reshape(1,-1)).sum(axis=1)
         ik = np.argmin(err)
         
@@ -279,7 +279,7 @@ def update_temp_file(update_fn, file_path, ee, tags, info):
     ## fix, giving a comparing accuracy of these ee
     ee = np.array(ee)
     if os.path.exists(file_path):
-        file = torch.load(file_path)
+        file = torch.load(file_path, weights_only=False)
         dis = np.argmin(np.abs(np.array(file["e_mesh"]).reshape(1,-1) - ee.reshape(-1,1)), axis=1)
         # print(ee, file["e_mesh"], dis)
         err = np.abs(ee - np.array(file["e_mesh"])[dis])

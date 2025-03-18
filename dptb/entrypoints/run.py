@@ -88,7 +88,7 @@ def run(
         log.info(msg='band calculation successfully completed.')
 
     elif task=='write_block':
-        task = torch.load(init_model, map_location="cpu")["task"]
+        task = torch.load(init_model, map_location="cpu", weights_only=False)["task"]
         block = write_block(data=struct_file, AtomicData_options=jdata['AtomicData_options'], model=model, device=jdata["device"])
         # write to h5 file, block is a dict, write to a h5 file
         with h5py.File(os.path.join(results_path, task+".h5"), 'w') as fid:

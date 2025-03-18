@@ -97,7 +97,7 @@ class InitDPTBModel(Plugin):
             checkpoint = options['init_model']['path']
         elif self.mode == "restart":
             checkpoint = options["restart"]
-        ckpt = torch.load(checkpoint)
+        ckpt = torch.load(checkpoint, weights_only=False)
         soc_env = options["dptb"]["soc_env"]
         if soc_env:
             assert options["soc"]
@@ -178,7 +178,7 @@ class InitDPTBModel(Plugin):
 
         # -------------------------------------------------------------------------------------------
         if modeltype == "ckpt":
-            ckpt_list = [torch.load(ckpt) for ckpt in checkpoint]
+            ckpt_list = [torch.load(ckpt, weights_only=False) for ckpt in checkpoint]
             model_config = ckpt_list[0]["model_config"]
 
             # load params from model_config and make sure the key param doesn't conflict

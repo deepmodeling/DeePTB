@@ -184,7 +184,7 @@ class NEGFHamiltonianInit(object):
             if diagonalized, return the block tridiagonalized Hamiltonian and Overlap component hd, hu, hl,
             sd, su, sl.
         """
-        f = torch.load(os.path.join(self.results_path, "HS_device.pth"))
+        f = torch.load(os.path.join(self.results_path, "HS_device.pth"), weights_only=False)
         kpoints = f["kpoints"]
 
         ix = None
@@ -222,7 +222,7 @@ class NEGFHamiltonianInit(object):
             if diagonalized, return the block tridiagonalized Hamiltonian and Overlap component hd, hu, hl,
             sd, su, sl.
         """
-        f = torch.load(os.path.join(self.results_path, "HS_{0}.pth".format(tab)))
+        f = torch.load(os.path.join(self.results_path, "HS_{0}.pth".format(tab)), weights_only=False)
         kpoints = f["kpoints"]
 
         ix = None

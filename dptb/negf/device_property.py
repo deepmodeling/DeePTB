@@ -142,7 +142,7 @@ class DeviceProperty(object):
         #     HD_ = HD
 
         if os.path.exists(os.path.join(self.results_path, "POTENTIAL.pth")):
-            self.V = torch.load(os.path.join(self.results_path, "POTENTIAL.pth"))
+            self.V = torch.load(os.path.join(self.results_path, "POTENTIAL.pth"), weights_only=False)
         elif abs(self.mu - self.efermi) > 1e-7:
             self.V = self.efermi - self.mu
         else:
