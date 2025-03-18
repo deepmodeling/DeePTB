@@ -7,7 +7,6 @@ from dptb.negf.negf_utils import quad, gauss_xw,update_kmap,leggauss
 from dptb.negf.ozaki_res_cal import ozaki_residues
 from dptb.negf.areshkin_pole_sum import pole_maker
 from ase.io import read
-from dptb.negf.poisson import Density2Potential, getImg
 from dptb.negf.scf_method import SCFMethod
 import logging
 import os
