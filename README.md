@@ -39,6 +39,17 @@ For more details, see our papers:
 - [DeePTB-E3: arXiv:2407.06053](https://arxiv.org/pdf/2407.06053)
 
 
+## 📚 Documentation
+
+- **Online documentation**
+  
+    For a comprehensive guide and usage tutorials, visit [Documentation website](https://deeptb.readthedocs.io/en/latest/).
+
+- **Contributing**
+
+    We welcome contributions to DeePTB. Please refer to our [contributing guidelines](https://deeptb.readthedocs.io/en/latest/community/contribution_guide.html) for details.
+
+
 
 ## 🛠️ Installation
 
@@ -104,21 +115,6 @@ Installing **DeePTB** is straightforward. We recommend using a virtual environme
         ```bash
         pip install dptb
         ```
-
-## 📚 Documentation
-
-- **Online documentation**
-  
-    For a comprehensive guide and usage tutorials, visit [our documentation website](https://deeptb.readthedocs.io/en/latest/).
-
-- **Community**
-
-    DeePTB joins the DeepModeling community, a community devoted of AI for science, as an incubating level project. To learn more about the DeepModeling community, see the [introduction of community](https://github.com/deepmodeling/community).
-
-- **Contributing**
-
-    We welcome contributions to DeePTB. Please refer to our [contributing guidelines](https://deeptb.readthedocs.io/en/latest/community/contribution_guide.html) for details.
-
 
 ## 🤝 How to Cite
 
