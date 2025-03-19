@@ -68,7 +68,7 @@ class NNSKTrainer(BaseTrainer):
         self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **self.train_options["lr_scheduler"])
         
         if self.run_opt["mode"] == "restart":
-            ckpt = torch.load(self.run_opt["restart"])
+            ckpt = torch.load(self.run_opt["restart"], weights_only=False)
             self.epoch = ckpt["epoch"]
             self.iteration = ckpt["iteration"]
             self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])

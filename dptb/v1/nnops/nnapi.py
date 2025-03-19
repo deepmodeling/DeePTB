@@ -38,7 +38,7 @@ class ModelAPI(ABC):
 class DeePTB(ModelAPI):
     def __init__(self, dptb_checkpoint:str, proj_atom_anglr_m:dict, 
                             sktbmode:str='nnsk', nnsk_checkpoint:str = None, sk_file_path=None):
-        f=torch.load(dptb_checkpoint)
+        f=torch.load(dptb_checkpoint, weights_only=False)
         model_config = f["model_config"]
         self.nntb = NNTB(**model_config)
         self.nntb.tb_net.load_state_dict(f['state_dict'])
@@ -48,7 +48,7 @@ class DeePTB(ModelAPI):
         self.unitenergy = model_config.get('unit','Hartree') 
 
         if sktbmode == 'nnsk':
-            f = torch.load(nnsk_checkpoint)
+            f = torch.load(nnsk_checkpoint, weights_only=False)
             model_config = f["model_config"]
             self.sknet = SKNet(**model_config)
             self.sknet.load_state_dict(f['state_dict'])
@@ -145,7 +145,7 @@ class DeePTB(ModelAPI):
 
 class NNSK(ModelAPI):
     def __init__(self,checkpoint, proj_atom_anglr_m):
-        f=torch.load(checkpoint)
+        f=torch.load(checkpoint, weights_only=False)
         model_config = f["model_config"]
         self.onsitemode =  model_config['onsitemode']
         self.onsite_cutoff = model_config.get('onsite_cutoff',0.)

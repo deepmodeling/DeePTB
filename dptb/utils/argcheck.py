@@ -8,8 +8,8 @@ log = logging.getLogger(__name__)
 
 nnsk_model_config_checklist = ['unit','skfunction-skformula']
 nnsk_model_config_updatelist = ['sknetwork-sk_hop_nhidden', 'sknetwork-sk_onsite_nhidden', 'sknetwork-sk_soc_nhidden']
-dptb_model_config_checklist = ['dptb-if_batch_normalized', 'dptb-hopping_net_type', 'dptb-soc_net_type', 'dptb-env_net_type', 'dptb-onsite_net_type', 'dptb-hopping_net_activation', 'dptb-soc_net_activation', 'dptb-env_net_activation', 'dptb-onsite_net_activation', 
-                        'dptb-hopping_net_neuron', 'dptb-env_net_neuron', 'dptb-soc_net_neuron', 'dptb-onsite_net_neuron', 'dptb-axis_neuron', 'skfunction-skformula', 'sknetwork-sk_onsite_nhidden', 
+dptb_model_config_checklist = ['dptb-if_batch_normalized', 'dptb-hopping_net_type', 'dptb-soc_net_type', 'dptb-env_net_type', 'dptb-onsite_net_type', 'dptb-hopping_net_activation', 'dptb-soc_net_activation', 'dptb-env_net_activation', 'dptb-onsite_net_activation',
+                        'dptb-hopping_net_neuron', 'dptb-env_net_neuron', 'dptb-soc_net_neuron', 'dptb-onsite_net_neuron', 'dptb-axis_neuron', 'skfunction-skformula', 'sknetwork-sk_onsite_nhidden',
                         'sknetwork-sk_hop_nhidden']
 
 
@@ -75,7 +75,7 @@ def common_options():
                         - `float32`: indicating torch.float32
                         - `float64`: indicating torch.float64
                 """
-    
+
     doc_seed = "The random seed used to initialize the parameters and determine the shuffling order of datasets. Default: `3982377700`"
     doc_basis = "The atomic orbitals used to construct the basis. e.p. {'A':['2s','2p','s*'],'B':'[3s','3p']}"
     doc_overlap = "Whether to calculate the overlap matrix. Default: False"
@@ -116,7 +116,7 @@ def train_options():
     doc_ref_batch_size = "The batch size used in reference data, Default: 1"
     doc_val_batch_size = "The batch size used in validation data, Default: 1"
     doc_max_ckpt = "The maximum number of saved checkpoints, Default: 4"
-    
+
     args = [
         Argument("num_epoch", int, optional=False, doc=doc_num_epoch),
         Argument("batch_size", int, optional=True, default=1, doc=doc_batch_size),
@@ -140,7 +140,7 @@ def train_options():
 def test_options():
     doc_display_freq = "Frequency, or every how many iteration to display the training log to screem. Default: `1`"
     doc_batch_size = "The batch size used in testing, Default: 1"
-    
+
     args = [
         Argument("batch_size", int, optional=True, default=1, doc=doc_batch_size),
         Argument("display_freq", int, optional=True, default=1, doc=doc_display_freq),
@@ -335,7 +335,7 @@ def train_data_sub():
     doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
     doc_DM = "Choose whether the density matrix is loaded when building dataset."
     doc_separator = "the sepatator used to separate the prefix and suffix in the dataset directory. Default: '.'"
-    
+
     args = [
         Argument("type", str, optional=True, default="DefaultDataset", doc="The type of dataset."),
         Argument("root", str, optional=False, doc=doc_root),
@@ -396,7 +396,7 @@ def reference_data_sub():
     ]
 
     doc_reference = "The dataset settings for reference."
-    
+
     return Argument("reference", dict, optional=True, sub_fields=args, sub_variants=[], doc=doc_reference)
 
 def test_data_sub():
@@ -420,7 +420,7 @@ def test_data_sub():
     ]
 
     doc_test = "The dataset settings for testing."
-    
+
     return Argument("test", dict, optional=False, sub_fields=args, default={}, sub_variants=[], doc=doc_test)
 
 
@@ -560,8 +560,8 @@ def e3baseline():
                 "mlp_latent_dimensions": [128, 128, 256],
                 "mlp_nonlinearity": "silu",
                 "mlp_initialization": "uniform"
-            }, 
-            default=None, 
+            },
+            default=None,
             doc=doc_latent_kwargs
             ),
             Argument("env_embed_multiplicity", int, optional=True, default=1, doc=doc_env_embed_multiplicity),
@@ -610,7 +610,7 @@ def slem():
             Argument("avg_num_neighbors", [int, float], optional=False, doc=doc_avg_num_neighbors),
             Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
             Argument("n_layers", int, optional=False, doc=doc_n_layers),
-            
+
             Argument("n_radial_basis", int, optional=True, default=10, doc=doc_n_radial_basis),
             Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
             Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
@@ -707,7 +707,7 @@ def nnsk():
     # overlap = Argument("overlap", bool, optional=True, default=False, doc="The parameters to define the overlap correction of nnsk model.")
 
     return Argument("nnsk", dict, sub_fields=[
-            Argument("onsite", dict, optional=False, sub_fields=[], sub_variants=[onsite()], doc=doc_onsite), 
+            Argument("onsite", dict, optional=False, sub_fields=[], sub_variants=[onsite()], doc=doc_onsite),
             Argument("hopping", dict, optional=False, sub_fields=[], sub_variants=[hopping()], doc=doc_hopping),
             Argument("soc", dict, optional=True, default={}, doc=doc_soc),
             Argument("freeze", [bool,str,list], optional=True, default=False, doc=doc_freeze),
@@ -731,7 +731,7 @@ def push():
     ], sub_variants=[], optional=True, default=False, doc="The parameters to define the push the soft cutoff of nnsk model.")
 
 def onsite():
-    doc_method = """The onsite correction mode, the onsite energy is expressed as the energy of isolated atoms plus the model correction, the correction mode are:
+    doc_method = r"""The onsite correction mode, the onsite energy is expressed as the energy of isolated atoms plus the model correction, the correction mode are:
                     Default: `none`: use the database onsite energy value.
                     - `strain`: The strain mode correct the onsite matrix densly by $$H_{i,i}^{lm,l^\prime m^\prime} = \epsilon_l^0 \delta_{ll^\prime}\delta_{mm^\prime} + \sum_p \sum_{\zeta} \Big[ \mathcal{U}_{\zeta}(\hat{\br}_{ip}) \ \epsilon_{ll^\prime \zeta} \Big]_{mm^\prime}$$ which is also parameterized as a set of Slater-Koster like integrals.\n\n\
                     - `uniform`: The correction is a energy shift respect of orbital of each atom. Which is formally written as: 
@@ -805,7 +805,7 @@ def hopping():
 
     for ii in formulas:
         args.append(Argument(ii, dict, common_params))
-    
+
     return Variant("method", args,optional=False, doc=doc_method)
 
 
@@ -856,7 +856,7 @@ def loss_options():
         Argument("eig_ham", dict, sub_fields=hamil+eigvals+eig_ham),
     ], optional=False, doc=doc_method)
 
-    
+
 
     args = [
         Argument("train", dict, optional=False, sub_fields=[], sub_variants=[loss_args], doc=doc_train),
@@ -879,13 +879,13 @@ def normalize(data):
     data = base.normalize_value(data)
     # data = base.normalize_value(data, trim_pattern="_*")
     base.check_value(data, strict=True)
-    
+
     # add check loss and use wannier:
-    
+
     # if data['data_options']['use_wannier']:
     #     if not data['loss_options']['losstype'] .startswith("block"):
     #         log.info(msg='\n Warning! set data_options use_wannier true, but the loss type is not block_l2! The the wannier TB will not be used when training!\n')
-    
+
     # if data['loss_options']['losstype'] .startswith("block"):
     #     if not data['data_options']['use_wannier']:
     #         log.error(msg="\n ERROR! for block loss type, must set data_options:use_wannier True\n")
@@ -902,13 +902,13 @@ def normalize(data):
 #     data = base.normalize_value(data)
 #     # data = base.normalize_value(data, trim_pattern="_*")
 #     base.check_value(data, strict=True)
-    
+
 #     # add check loss and use wannier:
-    
+
 #     # if data['data_options']['use_wannier']:
 #     #     if not data['loss_options']['losstype'] .startswith("block"):
 #     #         log.info(msg='\n Warning! set data_options use_wannier true, but the loss type is not block_l2! The the wannier TB will not be used when training!\n')
-    
+
 #     # if data['loss_options']['losstype'] .startswith("block"):
 #     #     if not data['data_options']['use_wannier']:
 #     #         log.error(msg="\n ERROR! for block loss type, must set data_options:use_wannier True\n")
@@ -926,13 +926,13 @@ def normalize(data):
 #     data = base.normalize_value(data)
 #     # data = base.normalize_value(data, trim_pattern="_*")
 #     base.check_value(data, strict=True)
-    
+
 #     # add check loss and use wannier:
-    
+
 #     # if data['data_options']['use_wannier']:
 #     #     if not data['loss_options']['losstype'] .startswith("block"):
 #     #         log.info(msg='\n Warning! set data_options use_wannier true, but the loss type is not block_l2! The the wannier TB will not be used when training!\n')
-    
+
 #     # if data['loss_options']['losstype'] .startswith("block"):
 #     #     if not data['data_options']['use_wannier']:
 #     #         log.error(msg="\n ERROR! for block loss type, must set data_options:use_wannier True\n")
@@ -945,7 +945,7 @@ def normalize_test(data):
     co = common_options()
     da = test_data_options()
     to = test_options()
-    
+
     base = Argument("base", dict, [co, da, to, lo])
     data = base.normalize_value(data)
     # data = base.normalize_value(data, trim_pattern="_*")
@@ -1171,7 +1171,7 @@ def run_options():
                         - False: indicating the structure is not periodic
                         - list of bool: indicating the structure is periodic in x,y,z direction respectively.
                 """
- 
+
     args = [
         Argument("task_options", dict, sub_fields=[], optional=True, sub_variants=[task_options()], doc = doc_task),
         Argument("structure", [str,None], optional=True, default=None, doc = doc_structure),
@@ -1189,7 +1189,7 @@ def normalize_run(data):
     run_op = run_options()
     data = run_op.normalize_value(data)
     run_op.check_value(data, strict=True)
-    
+
     return data
 
 def task_options():
@@ -1232,7 +1232,7 @@ def band():
     doc_E_fermi = "the fermi level used to plot band"
     doc_ref_band = "the reference band structure to be ploted together with dptb bands."
     doc_nel_atom = "the valence electron number of each type of atom."
-    
+
     return [
         Argument("kline_type", str, optional=False, doc=doc_kline_type),
         Argument("kpath", [str,list], optional=False, doc=doc_kpath),
@@ -1378,7 +1378,7 @@ def ifermi():
     KTOL = 1e-5
     SCALE = 4
 
- 
+
     plot_options=[
         Argument("colors", [str,dict,list,None], optional=True, default=None, doc=doc_colors),
         Argument("projection_axis", [list,None], optional=True, default=None, doc=doc_projection_axis),
@@ -1487,7 +1487,7 @@ def bandinfo_sub():
     doc_band_max = "The maxmum band index for training band window"
     doc_emin = "the minmum energy window, 0 meand the min value of the band at index band_min"
     doc_emax = "the max energy window, emax value is respect to the min value of the band at index band_min"
-    
+
     args = [
         Argument("band_min", int, optional=True, doc=doc_band_min, default=0),
         Argument("band_max", [int, None], optional=True, doc=doc_band_max, default=None),
@@ -1502,7 +1502,7 @@ def AtomicData_options_sub():
     doc_er_max = "The cutoff value for environment for each site for env correction model. should set for nnsk+env correction model."
     doc_oer_max = "The cutoff value for onsite environment for nnsk model, for now only need to set in strain and NRL mode."
     doc_pbc = "The periodic condition for the structure, can bool or list of bool to specific x,y,z direction."
-    
+
     args = [
         Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max, default=4.0),
         Argument("er_max", [float, int, dict], optional=True, doc=doc_er_max, default=None),
@@ -1598,7 +1598,7 @@ def get_cutoffs_from_model_options(model_options):
         else:
             log.error("The method of embedding have not been defined in get cutoff functions")
             raise NotImplementedError("The method of embedding have not been defined in get cutoff functions")
-        
+
     if model_options.get("nnsk", None) is not None:
         assert r_max is None, "r_max should not be provided in outside the nnsk for training nnsk model."
         if model_options["nnsk"]["hopping"].get("rs",None) is not None:
@@ -1618,14 +1618,14 @@ def get_cutoffs_from_model_options(model_options):
             else:
                 # oer_max = model_options["nnsk"]["onsite"]["rs"] + 3 * model_options["nnsk"]["onsite"]["w"]
                 oer_max = format_cuts(model_options["nnsk"]["onsite"]["rs"], model_options["nnsk"]["onsite"]["w"], 3)
-    
+
     elif model_options.get("dftbsk", None) is not None:
         assert r_max is None, "r_max should not be provided in outside the dftbsk for training dftbsk model."
         r_max = model_options["dftbsk"].get("r_max")
-    
+
     else:
         # not nnsk not dftbsk, must be only env or E3. the embedding should be provided.
-        assert model_options.get("embedding",None) is not None   
+        assert model_options.get("embedding",None) is not None
 
     return r_max, er_max, oer_max
 def collect_cutoffs(jdata):
@@ -1650,7 +1650,7 @@ def collect_cutoffs(jdata):
 
     Logs:
     Various informational messages about the cutoff values and their sources.
-    """ 
+    """
 
     model_options = jdata["model_options"]
     r_max, er_max, oer_max = get_cutoffs_from_model_options(model_options)
@@ -1668,14 +1668,14 @@ def collect_cutoffs(jdata):
                 oer_max = jdata['data_options']['oer_max']
 
             if jdata['data_options'].get("er_max") is not None:
-                log.info("IN PUSH mode, the env correction should not be used. the er_max will not take effect.")     
+                log.info("IN PUSH mode, the env correction should not be used. the er_max will not take effect.")
         else:
             if  jdata['data_options'].get("r_max") is not None:
                 log.info("When not nnsk/push. the cutoffs will take from the model options: r_max  rs and rc values. this seting in data_options will be ignored.")
 
     assert r_max is not None
     cutoff_options = ({"r_max": r_max, "er_max": er_max, "oer_max": oer_max})
-    
+
     log.info("-"*66)
     log.info('     {:<55}    '.format("Cutoff options:"))
     log.info('     {:<55}    '.format(" "*30))
@@ -1698,13 +1698,13 @@ def normalize(data):
     data = base.normalize_value(data)
     # data = base.normalize_value(data, trim_pattern="_*")
     base.check_value(data, strict=True)
-    
+
     # add check loss and use wannier:
-    
+
     # if data['data_options']['use_wannier']:
     #     if not data['loss_options']['losstype'] .startswith("block"):
     #         log.info(msg='\n Warning! set data_options use_wannier true, but the loss type is not block_l2! The the wannier TB will not be used when training!\n')
-    
+
     # if data['loss_options']['losstype'] .startswith("block"):
     #     if not data['data_options']['use_wannier']:
     #         log.error(msg="\n ERROR! for block loss type, must set data_options:use_wannier True\n")
@@ -1727,7 +1727,7 @@ def normalize_skf2nnsk(data):
         Argument('w', [float,int], optional=True, default=0.2, doc="The w value for the hopping term."),
         Argument('atomic_radius',[str,dict], optional=True, default='cov', doc="The atomic radius for the hopping term, default is 'cov'.")
     ]
-    
+
     doc_lr_scheduler = "The learning rate scheduler tools settings, the lr scheduler is used to scales down the learning rate during the training process. Proper setting can make the training more stable and efficient. The supported lr schedular includes: `Exponential Decaying (exp)`, `Linear multiplication (linear)`"
     doc_optimizer = "\
         The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `SGD` and `LBFGS` \n\n\
@@ -1736,7 +1736,7 @@ def normalize_skf2nnsk(data):
         - `SGD`: [Stochastic Gradient Descent.](https://pytorch.org/docs/stable/generated/torch.optim.SGD.html)\n\n\
         - `LBFGS`: [On the limited memory BFGS method for large scale optimization.](http://users.iems.northwestern.edu/~nocedal/PDFfiles/limited-memory.pdf) \n\n\
     "
-    
+
     train_ops = [
         Argument('nstep', int, optional=False, doc="The number of steps for the training."),
         Argument('nsample', int, optional=True, default=256, doc="The number of steps for the training."),
@@ -1756,4 +1756,4 @@ def normalize_skf2nnsk(data):
     base.check_value(data, strict=True)
 
     return data
-    
+

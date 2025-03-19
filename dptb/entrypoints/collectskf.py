@@ -91,7 +91,7 @@ def skf2nnsk(
         log.error("The skdata file should be a pth file.")
         raise ValueError("The skdata file should be a pth file.")
     log.info(f"Loading skdata from {skdata_file}")
-    skdata = torch.load(skdata_file)
+    skdata = torch.load(skdata_file, weights_only=False)
 
     if isinstance(basis, str) and basis == "auto":
         log.info("Automatically determining basis")

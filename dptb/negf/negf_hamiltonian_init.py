@@ -7,7 +7,6 @@ from dptb.negf.negf_utils import quad, gauss_xw,update_kmap,leggauss
 from dptb.negf.ozaki_res_cal import ozaki_residues
 from dptb.negf.areshkin_pole_sum import pole_maker
 from ase.io import read
-from dptb.negf.poisson import Density2Potential, getImg
 from dptb.negf.scf_method import SCFMethod
 import logging
 import os
@@ -185,7 +184,7 @@ class NEGFHamiltonianInit(object):
             if diagonalized, return the block tridiagonalized Hamiltonian and Overlap component hd, hu, hl,
             sd, su, sl.
         """
-        f = torch.load(os.path.join(self.results_path, "HS_device.pth"))
+        f = torch.load(os.path.join(self.results_path, "HS_device.pth"), weights_only=False)
         kpoints = f["kpoints"]
 
         ix = None
@@ -223,7 +222,7 @@ class NEGFHamiltonianInit(object):
             if diagonalized, return the block tridiagonalized Hamiltonian and Overlap component hd, hu, hl,
             sd, su, sl.
         """
-        f = torch.load(os.path.join(self.results_path, "HS_{0}.pth".format(tab)))
+        f = torch.load(os.path.join(self.results_path, "HS_{0}.pth".format(tab)), weights_only=False)
         kpoints = f["kpoints"]
 
         ix = None

@@ -22,7 +22,7 @@ def test_negf_run_chain(root_directory):
     run(INPUT=INPUT_file,init_model=checkfile,output=output,run_sk=True,structure=structure,\
     log_level=5,log_path=output+"/test.log",use_correction=False)
 
-    negf_results = torch.load(output+"/results/negf.out.pth")
+    negf_results = torch.load(output+"/results/negf.out.pth", weights_only=False)
     trans = negf_results['T_avg']
     assert(abs(trans[int(len(trans)/2)]-1)<1e-5)  #compare with calculated transmission at efermi
 
@@ -37,7 +37,7 @@ def test_negf_run(root_directory):
     run(INPUT=INPUT_file,init_model=checkfile,output=output,run_sk=True,structure=structure,\
     log_level=5,log_path=output+"/test.log",use_correction=False)
 
-    negf_results = torch.load(output+"/results/negf.out.pth")
+    negf_results = torch.load(output+"/results/negf.out.pth", weights_only=False)
 
     k_standard = np.array([[0. , 0. , 0.], [0. , 0.33333333, 0.]])
     k = negf_results['k']
