@@ -2,7 +2,7 @@
 name = "dptb"
 version = "2.0.1"
 license = "LGPL-3.0"
-description = "A deep learning package for emperical tight-binding approach with first-principle accuracy."
+description = "A unified deep learning package for electronic structure models including tight-binding, KS Hamiltonian and density matrix models"
 readme = "README.md"
 repository = "https://github.com/deepmodeling/DeePTB"
 
