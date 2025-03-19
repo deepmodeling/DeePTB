@@ -33,7 +33,6 @@ author = 'DeePTB'
 extensions = [
         'myst_parser',
         'deepmodeling_sphinx',
-        'sphinxcontrib.jquery',
 ]
 myst_enable_extensions = [
     "amsmath",
@@ -66,8 +65,22 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'sphinx_book_theme'
 html_logo = 'deeptb-logo.svg'
+
+
+# Changes for compatibility with Read the Docs
+import os
+
+# Define the canonical URL if you are using a custom domain on Read the Docs
+html_baseurl = os.environ.get("READTHEDOCS_CANONICAL_URL", "")
+
+# Tell Jinja2 templates the build is running on Read the Docs
+if os.environ.get("READTHEDOCS", "") == "True":
+    if "html_context" not in globals():
+        html_context = {}
+    html_context["READTHEDOCS"] = True
+
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
