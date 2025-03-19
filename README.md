@@ -65,11 +65,12 @@ Installing **DeePTB** is straightforward. We recommend using a virtual environme
         python -m venv dptb_venv
         source dptb_venv/bin/activate
 
-  2. **Clone DeePTB**:
+  2. **Clone DeePTB and  Navigate to the root directory**:
         ```bash
         git clone https://github.com/deepmodeling/DeePTB.git
+        cd DeePTB
         ```
-  3. Install torch and torch-scatter (two ways):
+  3. **Install `torch` and `torch-scatter`** (two ways):
         - **Recommended**: Install torch and torch-scatter using the following commands:
 
             ```bash
@@ -88,9 +89,8 @@ Installing **DeePTB** is straightforward. We recommend using a virtual environme
                 ```
                 where `${version}` is the version of torch, e.g., 2.5.0, and `${CUDA}` is the CUDA version, e.g., cpu, cu118, cu121, cu124. See [torch_scatter doc](https://github.com/rusty1s/pytorch_scatter) for more details.   
 
-  4. Navigate to the root directory and install DeePTB:
+  4. **Install DeePTB**:
         ```bash
-        cd DeePTB
         pip install .
         ```
 
