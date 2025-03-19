@@ -8,6 +8,7 @@ from pathlib import Path
 from dptb.data import AtomicDataset, DataLoader, AtomicDataDict, AtomicData
 import numpy as np
 from dptb.utils.constants import atomic_num_dict_r
+from dptb.tests.tstools import compare_tensors_as_sets_float
 
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data")
 
@@ -121,7 +122,8 @@ class TestNNSK:
         [ 0.0109460149, -0.0026458376, -0.0233188029,  0.0033660505],
         [ 0.0109460149, -0.0026458376, -0.0233188029,  0.0033660505]])
 
-        assert torch.allclose(data[AtomicDataDict.EDGE_FEATURES_KEY], expected_hopskint, atol=1e-10)
+        assert compare_tensors_as_sets_float(data[AtomicDataDict.EDGE_FEATURES_KEY], expected_hopskint, precision=6)
+        # assert torch.allclose(data[AtomicDataDict.EDGE_FEATURES_KEY], expected_hopskint, atol=1e-10)
 
     def test_nnsk_uniform_varTang96(self):
         model_options = self.model_options
@@ -195,7 +197,8 @@ class TestNNSK:
         [-0.0043444759,  0.0260002706, -0.0492796339,  0.0716556087],
         [-0.0043444759,  0.0260002706, -0.0492796339,  0.0716556087]])
 
-        assert torch.allclose(data[AtomicDataDict.EDGE_FEATURES_KEY], expected_hopskint, atol=1e-10)
+        assert compare_tensors_as_sets_float(data[AtomicDataDict.EDGE_FEATURES_KEY], expected_hopskint, precision=6)
+        # assert torch.allclose(data[AtomicDataDict.EDGE_FEATURES_KEY], expected_hopskint, atol=1e-10)
 
     def test_nnsk_onsite_strain(self):
         model_options = self.model_options

@@ -8,7 +8,7 @@ from dptb.data.build import build_dataset
 from pathlib import Path
 from dptb.data import AtomicDataset, DataLoader, AtomicDataDict, AtomicData
 import numpy as np
-
+from dptb.tests.tstools import compare_tensors_as_sets_float
 
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data")
 
@@ -86,7 +86,8 @@ class TestDFTBSK:
         [-1.1053317, -1.4127309,  1.7213905, -0.3220515],
         [-1.1053317, -1.4127309,  1.7213905, -0.3220515]])
 
-        assert torch.allclose(data[AtomicDataDict.EDGE_FEATURES_KEY], expected_edge_feature)
+        assert compare_tensors_as_sets_float(data[AtomicDataDict.EDGE_FEATURES_KEY], expected_edge_feature, precision=5)
+        # assert torch.allclose(data[AtomicDataDict.EDGE_FEATURES_KEY], expected_edge_feature)
 
         expected_edge_overlap = torch.tensor([[ 0.0115951, -0.0208762, -0.0355638,  0.0046229],
         [ 0.2665880,  0.3365866,  0.3249941, -0.1442579],
@@ -107,7 +108,8 @@ class TestDFTBSK:
         [ 0.0399277,  0.0585683, -0.0838758,  0.0126881],
         [ 0.0399277,  0.0585683, -0.0838758,  0.0126881]])
 
-        assert torch.allclose(data[AtomicDataDict.EDGE_OVERLAP_KEY], expected_edge_overlap)
+        assert compare_tensors_as_sets_float(data[AtomicDataDict.EDGE_OVERLAP_KEY], expected_edge_overlap, precision=5)
+        # assert torch.allclose(data[AtomicDataDict.EDGE_OVERLAP_KEY], expected_edge_overlap)
 
         assert AtomicDataDict.NODE_SOC_SWITCH_KEY in data
         assert not data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all()

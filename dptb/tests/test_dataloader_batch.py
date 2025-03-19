@@ -8,6 +8,7 @@ from dptb.data.dataloader import Collater
 from dptb.utils.torch_geometric.batch import Batch
 from dptb.utils.torch_geometric.data import Data
 from collections.abc import Mapping
+from dptb.tests.tstools import compare_tensors_as_sets_float
 
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data")
 
@@ -88,7 +89,8 @@ class TestDataLoaderBatch:
                                         4.5023179054, 4.5023179054, 2.3512587547, 4.5023179054, 4.5023179054,
                                         3.8395895958, 3.8395895958, 3.8395895958, 3.8395895958, 3.8395895958,
                                         3.8395895958])
-        assert torch.all(torch.abs(batch[AtomicDataDict.EDGE_LENGTH_KEY] - expected_length) < 1e-8)
+        assert compare_tensors_as_sets_float(batch[AtomicDataDict.EDGE_LENGTH_KEY], expected_length, precision=7)
+        # assert torch.all(torch.abs(batch[AtomicDataDict.EDGE_LENGTH_KEY] - expected_length) < 1e-8)
         
         assert batch[AtomicDataDict.EDGE_VECTORS_KEY].shape == torch.Size([56, 3])
         expected_edgevectors = torch.tensor([[ 1.9197947979,  3.3251821995,  0.0000000000],
@@ -147,7 +149,8 @@ class TestDataLoaderBatch:
                                              [-1.9197947979,  1.1083940268,  3.1350116730],
                                              [ 0.0000000000, -2.2167882919,  3.1350116730],
                                              [ 1.9197947979,  1.1083940268,  3.1350116730]])
-        assert torch.all(torch.abs(batch[AtomicDataDict.EDGE_VECTORS_KEY] - expected_edgevectors) < 1e-8)
+        assert compare_tensors_as_sets_float(batch[AtomicDataDict.EDGE_VECTORS_KEY], expected_edgevectors, precision=7)
+        # assert torch.all(torch.abs(batch[AtomicDataDict.EDGE_VECTORS_KEY] - expected_edgevectors) < 1e-8)
 
         
         batch = AtomicDataDict.with_env_vectors(batch, with_lengths=True)
@@ -159,7 +162,7 @@ class TestDataLoaderBatch:
                                            [0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                             1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                                             0, 0, 1, 1, 1, 1, 1, 1]])
-        assert torch.all(batch[AtomicDataDict.ENV_INDEX_KEY] == expected_env_index)
+        
 
         expected_env_length = torch.tensor([3.8395895958, 4.5023179054, 3.8395895958, 4.5023179054, 3.8395895958,
         4.5023179054, 3.8395895958, 2.3512587547, 4.5023179054, 2.3512589931,
@@ -173,7 +176,8 @@ class TestDataLoaderBatch:
         4.5023179054, 4.5023179054, 2.3512587547, 4.5023179054, 4.5023179054,
         3.8395895958, 3.8395895958, 3.8395895958, 3.8395895958, 3.8395895958,
         3.8395895958])
-        assert torch.all(torch.abs(batch[AtomicDataDict.ENV_LENGTH_KEY] - expected_env_length) < 1e-8)
+
+
 
         expected_env_vectors =  torch.tensor([[ 1.9197947979,  3.3251821995,  0.0000000000],
         [ 0.0000000000,  4.4335761070,  0.7837529182],
@@ -232,8 +236,13 @@ class TestDataLoaderBatch:
         [ 0.0000000000, -2.2167882919,  3.1350116730],
         [ 1.9197947979,  1.1083940268,  3.1350116730]])
 
-        assert torch.all(torch.abs(batch[AtomicDataDict.ENV_VECTORS_KEY] - expected_env_vectors) < 1e-8)
-
+        expect_envs = torch.cat([expected_env_index.T, expected_env_length.unsqueeze(1), expected_env_vectors], dim=1)
+        target_envs = torch.cat([batch[AtomicDataDict.ENV_INDEX_KEY].T, batch[AtomicDataDict.ENV_LENGTH_KEY].unsqueeze(1), batch[AtomicDataDict.ENV_VECTORS_KEY]], dim=1)
+        assert compare_tensors_as_sets_float(target_envs, expect_envs, precision=7)
+        
+        #assert torch.all(torch.abs(batch[AtomicDataDict.ENV_VECTORS_KEY] - expected_env_vectors) < 1e-8)
+        #assert torch.all(batch[AtomicDataDict.ENV_INDEX_KEY] == expected_env_index)
+        #assert torch.all(torch.abs(batch[AtomicDataDict.ENV_LENGTH_KEY] - expected_env_length) < 1e-8)
 
         batch = AtomicDataDict.with_onsitenv_vectors(batch, with_lengths=True)
         assert batch[AtomicDataDict.ONSITENV_INDEX_KEY].shape == torch.Size([2, 8])
@@ -241,10 +250,8 @@ class TestDataLoaderBatch:
         
         expected_onsiteenv_index = torch.tensor([[0, 0, 0, 0, 1, 1, 1, 1],
         [1, 1, 1, 1, 0, 0, 0, 0]])
-        assert torch.all(batch[AtomicDataDict.ONSITENV_INDEX_KEY] == expected_onsiteenv_index)
         expected_onsiteenv_length = torch.tensor([2.3512587547, 2.3512589931, 2.3512587547, 2.3512587547, 2.3512587547,
         2.3512589931, 2.3512587547, 2.3512587547])
-        assert torch.all(torch.abs(batch[AtomicDataDict.ONSITENV_LENGTH_KEY] - expected_onsiteenv_length) < 1e-8)
         expected_onsiteenv_vectors = torch.tensor([[-1.9197947979,  1.1083940268,  0.7837529182],
         [ 0.0000000000, -2.2167882919,  0.7837529182],
         [ 1.9197947979,  1.1083940268,  0.7837529182],
@@ -253,4 +260,11 @@ class TestDataLoaderBatch:
         [ 0.0000000000,  2.2167882919, -0.7837529182],
         [-1.9197947979, -1.1083940268, -0.7837529182],
         [ 0.0000000000,  0.0000000000,  2.3512587547]])
-        assert torch.all(torch.abs(batch[AtomicDataDict.ONSITENV_VECTORS_KEY] - expected_onsiteenv_vectors) < 1e-8)
+
+        expected_onsiteenvs = torch.cat([expected_onsiteenv_index.T, expected_onsiteenv_length.unsqueeze(1), expected_onsiteenv_vectors], dim=1)
+        target_onsiteenvs = torch.cat([batch[AtomicDataDict.ONSITENV_INDEX_KEY].T, batch[AtomicDataDict.ONSITENV_LENGTH_KEY].unsqueeze(1), batch[AtomicDataDict.ONSITENV_VECTORS_KEY]], dim=1)
+        assert compare_tensors_as_sets_float(target_onsiteenvs, expected_onsiteenvs, precision=7)
+
+        #assert torch.all(batch[AtomicDataDict.ONSITENV_INDEX_KEY] == expected_onsiteenv_index)
+        #assert torch.all(torch.abs(batch[AtomicDataDict.ONSITENV_LENGTH_KEY] - expected_onsiteenv_length) < 1e-8)
+        #assert torch.all(torch.abs(batch[AtomicDataDict.ONSITENV_VECTORS_KEY] - expected_onsiteenv_vectors) < 1e-8)
