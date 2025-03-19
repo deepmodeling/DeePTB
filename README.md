@@ -73,7 +73,7 @@ Installing **DeePTB** is straightforward. We recommend using a virtual environme
         - **Recommended**: Install torch and torch-scatter using the following commands:
 
             ```bash
-            pip install "torch>=2.0.0,<=2.5.0"
+            python docs/auto_install_torch_scatter.py
             ```
 
         - **Manual**: Install torch and torch-scatter manually:
