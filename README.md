@@ -36,7 +36,7 @@ DeePTB contains two main components:
 
 For more details, see our papers:
 - [DeePTB-SK: Nat Commun 15, 6772 (2024)](https://doi.org/10.1038/s41467-024-51006-4)
-- [DeePTB-E3: arXiv:2407.06053](https://arxiv.org/pdf/2407.06053)
+- [DeePTB-E3: ICLR 2025 Spotlight](https://openreview.net/forum?id=kpq3IIjUD3)
 
 
 ## 📚 Documentation
