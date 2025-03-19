@@ -48,29 +48,61 @@ Installing **DeePTB** is straightforward. We recommend using a virtual environme
   - Python 3.9 to 3.12.
   - Torch 2.0.0 to 2.5.1 ([PyTorch Installation](https://pytorch.org/get-started/locally)).
   - ifermi (optional, for 3D fermi-surface plotting).
+  - TBPLaS (optional).
+
+- **From Source** 
+  
+    Highly recommended to install DeePTB from source to get the latest features and bug fixes.
+  1. **Setup Python environment**:
+    
+        Using conda (recommended, python >=3.9, <=3.12 ), e.g.,
+        ```bash
+        conda create -n dptb_venv python=3.10
+        conda activate dptb_venv
+        ```
+        or using venv (make sure python >=3.9,<=3.12)
+        ```bash
+        python -m venv dptb_venv
+        source dptb_venv/bin/activate
+
+  2. **Clone DeePTB**:
+        ```bash
+        git clone https://github.com/deepmodeling/DeePTB.git
+        ```
+  3. Install torch and torch-scatter (two ways):
+        - **Recommended**: Install torch and torch-scatter using the following commands:
+
+            ```bash
+            pip install "torch>=2.0.0,<=2.5.0"
+            ```
+
+        - **Manual**: Install torch and torch-scatter manually:
+          1. install torch:
+                ```bash
+                pip install "torch>=2.0.0,<=2.5.0"
+                ```
+
+          2. install torch-scatter:
+                ```bash
+                pip install torch-scatter -f https://data.pyg.org/whl/torch-${version}+${CUDA}.html
+                ```
+                where `${version}` is the version of torch, e.g., 2.5.0, and `${CUDA}` is the CUDA version, e.g., cpu, cu118, cu121, cu124. See [torch_scatter doc](https://github.com/rusty1s/pytorch_scatter) for more details.   
+
+    1. Navigate to the root directory and install DeePTB:
+        ```bash
+        cd DeePTB
+        pip install .
+        ```
 
 - **Easy Installation**
+  
+  note: not fully tested, please use the source installation for a stable version.
   1. Using PyPi
   2. Ensure you have Python 3.9 to 3.12 and Torch installed.
   3. Install DeePTB with pip:
         ```bash
         pip install dptb
         ```
-
-- **From Source**
-    1. Clone the repository:
-        ```bash
-        git clone https://github.com/deepmodeling/DeePTB.git
-        ```
-    2. Navigate to the root directory and install DeePTB:
-        ```bash
-        cd DeePTB
-        pip install .
-        ```
-    Note: If you encounter a error that `torch_scatter` cannot be installed, you can try using an automatic installation script:
-    ```bash
-    python docs/auto_install_torch_scatter.py
-    ```
 
 ## 📚 Documentation
 
