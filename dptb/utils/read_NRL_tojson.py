@@ -5,10 +5,14 @@ import scipy.constants as con
 import json
 import logging
 log = logging.getLogger(__name__)
+from dptb.utils.constants import Bohr2Ang, Ryd2eV, Harte2eV
 
-bohr2ang = con.value('Bohr radius')*1e10
-harte2ev = con.value('Hartree energy in eV')
-ryd2ev = con.value('Rydberg constant times hc in eV')
+#bohr2ang = con.value('Bohr radius')*1e10
+#harte2ev = con.value('Hartree energy in eV')
+#ryd2ev = con.value('Rydberg constant times hc in eV')
+bohr2ang = Bohr2Ang
+ryd2ev = Ryd2eV
+harte2ev = Harte2eV
 
 def read_nrl_file(nrl_file):
     with open(nrl_file, 'r') as f:
