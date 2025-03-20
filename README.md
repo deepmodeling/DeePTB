@@ -116,6 +116,14 @@ Installing **DeePTB** is straightforward. We recommend using a virtual environme
         pip install dptb
         ```
 
+## Test code 
+
+To ensure the code is correctly installed, please run the unit tests first:
+```bash
+pytest ./dptb/tests/
+```
+Be careful if not all tests pass!
+
 ## 🤝 How to Cite
 
 The following references are required to be cited when using DeePTB. Specifically:
