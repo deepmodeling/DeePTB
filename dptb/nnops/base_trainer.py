@@ -35,7 +35,7 @@ class BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
                 '''
         self.iter = 1
         self.ep = 1
-        self.update_lr_per_step_flag = False
+        self.update_lr_per_iter = False
 
     @abstractmethod
     def restart(self, checkpoint):
@@ -53,7 +53,7 @@ class BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
             # run plugins of epoch events.
             self.call_plugins(queue_name='epoch', time=i)
 
-            if not self.update_lr_per_step_flag:
+            if not self.update_lr_per_iter:
                 if isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                     self.lr_scheduler.step(self.stats["train_loss"]["epoch_mean"])
                 else:

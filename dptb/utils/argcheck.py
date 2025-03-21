@@ -13,13 +13,13 @@ dptb_model_config_checklist = ['dptb-if_batch_normalized', 'dptb-hopping_net_typ
                         'sknetwork-sk_hop_nhidden']
 
 # set default values in case of rop & update lr per step
-def chk_avg_iter_loss_flag(jdata):
-    if jdata["train_options"]["lr_scheduler"]["type"] == 'rop' and jdata["train_options"]["update_lr_per_step_flag"]:
-        avg_iter_loss_flag = True
+def chk_avg_per_iter(jdata):
+    if jdata["train_options"]["lr_scheduler"]["type"] == 'rop' and jdata["train_options"]["update_lr_per_iter"]:
+        avg_per_iter = True
     else:
-        avg_iter_loss_flag = False
+        avg_per_iter = False
 
-    return avg_iter_loss_flag
+    return avg_per_iter
 
 def gen_doc_train(*, make_anchor=True, make_link=True, **kwargs):
     if make_link:
@@ -111,7 +111,7 @@ def train_options():
                           "Learning rates are tracked as well. A folder named `tensorboard_logs` will be created in the working directory. Use `tensorboard --logdir=tensorboard_logs` to view the logs." \
                           "Default: `False`"
 
-    doc_update_lr_per_step_flag = "Set true to update learning rate per-step. Default: false."
+    doc_update_lr_per_iter = "Set true to update learning rate per-step. Default: false."
     doc_sliding_win_size = "Sliding window size for the average of the latest iterations' loss. Used for the reduce on plateau learning rate scheduler in case of the pairing of large dataset and small batch size. Default: `50`"
 
     doc_optimizer = "\
@@ -139,7 +139,7 @@ def train_options():
         Argument("display_freq", int, optional=True, default=1, doc=doc_display_freq),
         Argument("use_tensorboard", bool, optional=True, default=False, doc=doc_use_tensorboard),
 
-        Argument("update_lr_per_step_flag", bool, optional=True, default=False, doc=doc_update_lr_per_step_flag),
+        Argument("update_lr_per_iter", bool, optional=True, default=False, doc=doc_update_lr_per_iter),
         Argument("sliding_win_size", int, optional=True, default=50, doc=doc_sliding_win_size),
         Argument("max_ckpt", int, optional=True, default=4, doc=doc_max_ckpt),
         loss_options()
@@ -615,7 +615,7 @@ def slem():
     doc_r_max = ""
     doc_n_layers = ""
     doc_env_embed_multiplicity = ""
-    doc_universal_flag = "Set true to activate universal model related features. Currently, this will create a broader onehot embedding for the transfer learning into unseen elements. Other features are on the way. Default: `False`"
+    doc_universal = "Set true to activate universal model related features. Currently, this will create a broader onehot embedding for the transfer learning into unseen elements. Other features are on the way. Default: `False`"
 
     return [
             Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
@@ -634,7 +634,7 @@ def slem():
             Argument("res_update", bool, optional=True, default=True, doc="Whether to use residual update."),
             Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
             Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
-            Argument("universal_flag", bool, optional=True, default=False, doc=doc_universal_flag),
+            Argument("universal", bool, optional=True, default=False, doc=doc_universal),
     ]
 
 

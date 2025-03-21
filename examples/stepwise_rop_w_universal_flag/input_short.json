@@ -21,7 +21,7 @@
         "H": 3,
         "Li": 10
       },
-      "universal_flag": true,
+      "universal": true,
       "tp_radial_emb": true
     },
     "prediction": {
@@ -54,7 +54,7 @@
     "validation_freq": 10,
     "display_freq": 1,
     "sliding_win_size": 1,
-    "update_lr_per_step_flag": true,
+    "update_lr_per_iter": true,
     "use_tensorboard": true
   },
   "data_options": {

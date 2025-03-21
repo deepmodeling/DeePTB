@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 class Monitor(Plugin):
 
     def __init__(self, running_average=True, epoch_average=True, smoothing=0.7,
-                 precision=None, number_format=None, unit='', sliding_win_size=50, avg_iter_loss_flag=False):
+                 precision=None, number_format=None, unit='', sliding_win_size=50, avg_per_iter=False):
 
         if precision is None:
             precision = 4
@@ -42,9 +42,9 @@ class Monitor(Plugin):
             self.log_iter_fields += [' ({running_avg' + number_format + '}' + unit + ')']
         if self.with_epoch_average:
             self.log_epoch_fields = ['{epoch_mean' + number_format + '}' + unit]
-        if avg_iter_loss_flag:
+        if avg_per_iter:
             self.loss_queue = collections.deque(maxlen=sliding_win_size)
-        self.avg_iter_loss_flag = avg_iter_loss_flag
+        self.avg_per_iter = avg_per_iter
 
     def register(self, trainer):
         self.trainer = trainer
@@ -81,7 +81,7 @@ class Monitor(Plugin):
             previous_avg = stats.get('running_avg', 0)
             stats['running_avg'] = previous_avg * self.smoothing + stats['last'] * (1 - self.smoothing)
 
-        if self.avg_iter_loss_flag:
+        if self.avg_per_iter:
             self.loss_queue.append(stats['last'])
             stats['latest_avg_iter_loss'] = sum(self.loss_queue) / len(self.loss_queue)
 

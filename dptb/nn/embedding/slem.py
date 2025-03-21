@@ -59,7 +59,7 @@ class Slem(torch.nn.Module):
             res_update_ratios_learnable: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
-            universal_flag: Optional[bool] = False,
+            universal: Optional[bool] = False,
             **kwargs,
             ):
         
@@ -92,7 +92,7 @@ class Slem(torch.nn.Module):
             
         self.basis = self.idp.basis
         self.idp.get_irreps(no_parity=False)
-        if universal_flag:
+        if universal:
             self.n_atom = 95
         else:
             self.n_atom = len(self.basis.keys())
@@ -114,7 +114,7 @@ class Slem(torch.nn.Module):
         self.sh = SphericalHarmonics(
             irreps_sh, sh_normalized, sh_normalization
         )
-        self.onehot = OneHotAtomEncoding(num_types=self.n_atom, set_features=False, idp=self.idp, universal_flag=universal_flag)
+        self.onehot = OneHotAtomEncoding(num_types=self.n_atom, set_features=False, idp=self.idp, universal=universal)
 
         self.init_layer = InitLayer(
             idp=self.idp,

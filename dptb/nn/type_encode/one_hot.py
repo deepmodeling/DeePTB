@@ -20,18 +20,18 @@ class OneHotAtomEncoding(torch.nn.Module):
         self,
         num_types: int,
         set_features: bool = True,
-        universal_flag: Optional[bool] = False,
+        universal: Optional[bool] = False,
         idp: Optional[OrbitalMapper] = None,
     ):
         super().__init__()
         self.num_types = num_types
         self.set_features = set_features
         self.idp = idp
-        self.universal_flag = universal_flag
+        self.universal = universal
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         type_numbers = data[AtomicDataDict.ATOM_TYPE_KEY].squeeze(-1)
-        if self.universal_flag:
+        if self.universal:
             atomic_numbers = self.idp.untransform_atom(type_numbers)
             one_hot = torch.nn.functional.one_hot(
                 atomic_numbers, num_classes=95
