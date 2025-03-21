@@ -133,7 +133,7 @@ class Trainer(BaseTrainer):
         if self.update_lr_per_iter:
             # set self.iter > 0 to ensure a valid
             if isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                if self.iter > 0:
+                if self.iter > 1:
                     self.lr_scheduler.step(self.stats["train_loss"]['latest_avg_iter_loss'])
             else:
                 self.lr_scheduler.step()
