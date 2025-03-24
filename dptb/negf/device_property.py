@@ -216,12 +216,16 @@ class DeviceProperty(object):
         idx0, idy0 = min(s01, se01), min(s02, se02) # The minimum of the two shapes
         idx1, idy1 = min(s11, se11), min(s12, se12)
         if block_tridiagonal:
-            if se01 != s01 or se02 != s02:
-                log.warning("The shape of left self-energy is not equal to the first Hamiltonian block.")
-                log.warning("This shouldn't happen in block tridiagonal format.")
-            if se11 != s11 or se12 != s12:
-                log.warning("The shape of right self-energy is not equal to the last Hamiltonian block.")
-                log.warning("This shouldn't happen in block tridiagonal format.")
+            # Based on the block tridiagonal algorithm, the shape of the self-energy should be 
+            # equal to or larger than the corresponding Hamiltonian block
+            if se01 > s01 or se02 > s02:
+                log.warning(f"The shape of left self-energy ({se01},{se02}) is larger than\
+                             the first Hamiltonian block ({s01},{s02}).")
+                raise ValueError("Left Lead Self Energy size is larger than the first Hamiltonian Block.")
+            if se11 > s11 or se12 > s12:
+                log.warning(f"The shape of right self-energy ({se11},{se12}) is different from\
+                             the last Hamiltonian block ({s11},{s12}).")
+                raise ValueError("Right Lead Self Energy size is larger than the last Hamiltonian Block.")
             
         
         green_funcs = {}
