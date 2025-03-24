@@ -27,8 +27,11 @@ from ase.build import sort
 from dptb.negf.bloch import Bloch
 from dptb.negf.sort_btd import sort_lexico, sort_projection, sort_capacitance
 from dptb.negf.split_btd import show_blocks,split_into_subblocks,split_into_subblocks_optimized
+from dptb.negf.negf_utils import natsorted
 from scipy.spatial import KDTree
 import h5py
+import re
+
 '''
 a Hamiltonian object  that initializes and manipulates device and  lead Hamiltonians for NEGF
 '''
@@ -92,6 +95,17 @@ class NEGFHamiltonianInit(object):
             self.structase = structure
         else:
             raise ValueError('structure must be ase.Atoms or str')
+        
+        # check the structure cell is larger than the range of device and leads
+        # In DeePTB-NEGF, the whole structure should be completely included in the cell
+        # for correct prediction of Hamiltonian and overlap matrix.
+        # TODO: Add support for non-ortho cell
+        xrange,yrange,zrange = self.structase.positions[:,0].max()-self.structase.positions[:,0].min(),\
+            self.structase.positions[:,1].max()-self.structase.positions[:,1].min(),\
+            self.structase.positions[:,2].max()-self.structase.positions[:,2].min()
+        if xrange > self.structase.cell[0][0] or yrange > self.structase.cell[1][1] or zrange > self.structase.cell[2][2]:
+            log.error(msg="The structure cell is smaller than the range of device and leads.")
+            raise ValueError
         
         self.unit = unit
         self.stru_options = stru_options
@@ -216,6 +230,9 @@ class NEGFHamiltonianInit(object):
                                 block_tridiagnal:bool,lead_atom_range:dict,structure_leads:Atoms,structure_leads_fold:Atoms):
         '''This function initializes the Hamiltonian for a device with leads, handling various calculations
         and checks along the way.
+
+            Note that the structure cell range should be larger than the device+leads range for correct 
+            prediction of Hamiltonian and overlap matrix.
         
         Parameters
         ----------
@@ -394,7 +411,8 @@ class NEGFHamiltonianInit(object):
                     "useBloch":useBloch
                     })                
 
-                lead_file = os.path.join(self.results_path, "HS_"+kk+".h5")
+                lead_file = os.path.join(self.results_path, "HS_"+kk+".h5") 
+                numpy_dtype = np.float32 if torch.get_default_dtype() == torch.float32 else np.float64
                 
                 with h5py.File(lead_file, "w") as f:
                     for key, items in HS_leads.items():
@@ -408,7 +426,9 @@ class NEGFHamiltonianInit(object):
                             else:
                                 f.create_dataset(f"{key}", data=np.array("None", dtype=h5py.string_dtype()))
                         elif key in ["HL", "SL", "HDL", "SDL", "HLL", "SLL"]:
-                            f.create_dataset(f"{key}", data=items.numpy())
+                            # TODO: HDL,SDL can be saved in reduced form by eliminating zero rows
+                            f.create_dataset(f"{key}_real", data=items.real.numpy().astype(numpy_dtype))
+                            f.create_dataset(f"{key}_imag", data=items.imag.numpy().astype(numpy_dtype))
                         else:
                             raise ValueError(f"Unsupported key {key} in HS_leads")
                     
@@ -450,7 +470,9 @@ class NEGFHamiltonianInit(object):
                             assert isinstance(item, list), f"Unsupported type {type(item)} for {key}"
                             sub_block_len = len(item)
                             for idx_block in range(sub_block_len):  
-                                group.create_dataset(f"{key}_k{idx_k}_b{idx_block}", data=item[idx_block].numpy())
+                                # group.create_dataset(f"{key}_k{idx_k}_b{idx_block}", data=item[idx_block].numpy())
+                                group.create_dataset(f"{key}_k{idx_k}_b{idx_block}_real", data=item[idx_block].real.numpy())
+                                group.create_dataset(f"{key}_k{idx_k}_b{idx_block}_imag", data=item[idx_block].imag.numpy())
                     else:
                         assert key in ["HD", "SD", "Hall", "Sall"], f"Unsupported key {key} for not block_tridiagnal case"
                         f.create_dataset(f"{key}", data=items.numpy())
@@ -641,9 +663,13 @@ class NEGFHamiltonianInit(object):
         HS_device_path_pth = os.path.join(self.saved_HS_path, "HS_device.pth")
         HS_device_path_h5 = os.path.join(self.saved_HS_path, "HS_device.h5")
 
+        torch_dtype = torch.float32 if torch.get_default_dtype() == torch.float32 else torch.float64
+        #in this version, we only support complex128 for complex dtype to ensure the accuracy.
+        #TODO: check other complex dtype
+        complex_dtype = torch.complex128 if torch_dtype == torch.float32 else torch.complex128
         
         if os.path.exists(HS_device_path_h5):
-            log.info(msg="The HS_device.h5 exists in the saved path {}.".format(self.saved_HS_path))
+            # log.info(msg="The HS_device.h5 exists in the saved path {}.".format(self.saved_HS_path))
             HS_device_path = HS_device_path_h5
             HS_device = {}
             with h5py.File(HS_device_path, "r") as f:
@@ -660,25 +686,33 @@ class NEGFHamiltonianInit(object):
                     else:  
                         group = f[key]
                         items = [];sublist = []
-                        sub_keys = sorted(group.keys())  # ensure the order of subblocks
+                        sub_keys = natsorted(group.keys())  # ensure the order of subblocks
                         current_idx_k = -1
-                        for sub_key in sub_keys: # sub_key format: f"{key}_k{idx_k}_b{idx_block}"
-                            parts = sub_key.split("_k")
-                            if len(parts) < 2:
-                                raise ValueError(f"Unexpected dataset format: {sub_key}")
-                            idx_k, idx_block = map(int, parts[1].split("_b"))
-                            if idx_k != current_idx_k:
-                                if sublist:
-                                    items.append(sublist)  # store the previous sublist
-                                sublist = []  # begin a new sublist
-                                current_idx_k = idx_k
-                            sublist.append(torch.tensor(group[sub_key][()]))
+                        for sub_key in sub_keys: # sub_key format: f"{key}_k{idx_k}_b{idx_block}_real"
+                            sub_key_type = sub_key.split("_")[-1]
+                            if sub_key_type == "real":
+                                parts = sub_key.split("_k")
+                                if len(parts) < 2:
+                                    raise ValueError(f"Unexpected dataset format: {sub_key}")
+                                match = re.search(r'_k(\d+)_', sub_key)
+                                if not match:
+                                    raise ValueError(f"Unexpected dataset format: {sub_key}")
+                                idx_k = int(match.group(1))
+                                if idx_k != current_idx_k:
+                                    if sublist:
+                                        items.append(sublist)  # store the previous sublist
+                                    sublist = []  # begin a new sublist
+                                    current_idx_k = idx_k
+                                real_part = torch.tensor(group[sub_key][()], dtype=torch_dtype)
+                                imag_part = torch.tensor(group[re.sub(r"(_real|_imag)$", "", sub_key)+"_imag"][()], dtype=torch_dtype)
+                                sublist.append(torch.complex(real_part, imag_part).to(complex_dtype))
+                                # sublist.append(torch.tensor(group[sub_key][()]))
                         if sublist:
                             items.append(sublist)  # store the last sublist
                         HS_device[key] = items # idx_k, idx_block
         
         elif os.path.exists(HS_device_path_pth):
-            log.info(msg="The HS_device.pth exists in the saved path {}.".format(self.saved_HS_path))
+            # log.info(msg="The HS_device.pth exists in the saved path {}.".format(self.saved_HS_path))
             HS_device_path = HS_device_path_pth
             HS_device = torch.load(HS_device_path)
         
@@ -752,9 +786,13 @@ class NEGFHamiltonianInit(object):
         HS_lead_path_pth = os.path.join(self.saved_HS_path, "HS_{0}.pth".format(tab))
         HS_lead_path_h5 = os.path.join(self.saved_HS_path, "HS_{0}.h5".format(tab))
 
+        torch_dtype = torch.float32 if torch.get_default_dtype() == torch.float32 else torch.float64
+        #in this version, we only support complex128 for complex dtype to ensure the accuracy.
+        complex_dtype = torch.complex128 if torch_dtype == torch.float32 else torch.complex128
+
         HS_leads = {}
         if os.path.exists(HS_lead_path_h5):
-            log.info(msg="The HS_{0}.h5 exists in the saved path {1}.".format(tab, self.saved_HS_path))
+            # log.info(msg="The HS_{0}.h5 exists in the saved path {1}.".format(tab, self.saved_HS_path))
             HS_lead_path = HS_lead_path_h5
             with h5py.File(HS_lead_path, "r") as f:
                 for key in f.keys():
@@ -764,14 +802,23 @@ class NEGFHamiltonianInit(object):
                     elif key == "kpoints":
                         HS_leads[key] = dataset[()]
                     elif key in ["kpoints_bloch", "bloch_factor"]:
-                        if dataset[()].decode() == "None":
-                            HS_leads[key] = None
-                        else:
+
+                        if isinstance(dataset[()], np.ndarray):
                             HS_leads[key] = dataset[()]
+                        else:
+                            try :
+                                assert dataset[()].decode() == "None"
+                                HS_leads[key] = None
+                            except:
+                                raise ValueError(f"Unsupported value {dataset[()]} for key {key}")
                     else:
-                        HS_leads[key] = torch.tensor(dataset[()])
+                        HSkey = key.split("_")
+                        if HSkey[1] == "real":
+                            HS_leads[HSkey[0]] = torch.tensor(dataset[()], dtype=torch_dtype) \
+                                                + 1j * torch.tensor(f[HSkey[0]+"_imag"][()], dtype=torch_dtype)
+                            HS_leads[HSkey[0]] = HS_leads[HSkey[0]].to(complex_dtype)
         elif os.path.exists(HS_lead_path_pth):
-            log.info(msg="The HS_{0}.pth exists in the saved path {1}.".format(tab, self.saved_HS_path))
+            # log.info(msg="The HS_{0}.pth exists in the saved path {1}.".format(tab, self.saved_HS_path))
             HS_leads = torch.load(HS_lead_path_pth)
         else:
             log.error(msg="The HS_{0}.pth or HS_{0}.h5 does not exist in the saved path {1}.".format(tab, self.saved_HS_path))
