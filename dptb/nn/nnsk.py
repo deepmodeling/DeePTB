@@ -21,6 +21,7 @@ from dptb.utils.tools import j_loader
 from dptb.utils.constants import ALLOWED_VERSIONS
 from dptb.nn.sktb.soc import SOCFormula
 from dptb.data.AtomicData import get_r_map, get_r_map_bondwise
+from dptb.nn.sktb.onsiteDB import  onsite_energy_database
 import logging
 
 log = logging.getLogger(__name__)
@@ -613,6 +614,20 @@ class NNSK(torch.nn.Module):
                         nnsk[k] = f["config"]["model_options"]["nnsk"][k]
                     log.info(f"{k} is not provided in the input json, set to the value {nnsk[k]} in model ckpt.")
 
+            elements = list(common_options['basis'].keys())
+            rs_out = {}
+            if isinstance(nnsk['hopping']['rs'], dict):
+                for irs, value in nnsk['hopping']['rs'].items():
+                    parts = irs.split('-')
+                    # 检查是否是一对元素且都在elements列表中
+                    if (len(parts) == 2 and parts[0] in elements and parts[1] in elements) or \
+                        (len(parts) == 1 and parts[0] in elements):
+                        rs_out[irs] = value
+            else:
+                rs_out = nnsk['hopping']['rs']
+            
+            nnsk['hopping']['rs'] = rs_out
+                
             model = cls(**common_options, **nnsk, transform=transform)
 
             if f["config"]["common_options"]["basis"] == common_options["basis"] and \
@@ -942,7 +957,29 @@ class NNSK(torch.nn.Module):
         obj.update({"model_state_dict": self.state_dict()})
         torch.save(obj, f=filepath)
         
-    def to_json(self,version=2):
+    def to_json(self, version=2, basisref=None):
+        """
+        basisref= {'Atom':{"s":"2s", "p":"2p", "d":"3d", "f":"4f"}}
+        """
+        
+        to_uniform = False
+        new_basis = self.basis.copy()
+        if basisref is not None:
+            if  self.model_options['nnsk']['onsite']['method'] in ['uniform_noref']:
+                for atom, orb in self.basis.items():
+                    new_basis[atom] = []
+                    if atom not in basisref:
+                        raise ValueError("The atom in the model basis should be in the basisref.")
+                    for o in orb:
+                        if o not in ['s', 'p', 'd', 'f']:
+                            raise ValueError("For uniform_noref mode, the orb in the model basis should be in ['s', 'p', 'd', 'f'].")
+                        if o not in list(basisref[atom].keys()):
+                            raise ValueError("The orb in the model basis should be in the basisref.")
+                        new_basis[atom].append(basisref[atom][o]) 
+                to_uniform = True
+            else:
+                print("The basisref is not used. since the onsite method is not uniform_noref.")
+
         ckpt = {}
         # load hopping params
         hopping = self.hopping_param.data.cpu().clone().numpy()
@@ -952,6 +989,8 @@ class NNSK(torch.nn.Module):
 
         hopping_param = {}
         basis = self.idp_sk.basis
+        if to_uniform:
+            basis = new_basis
 
         if isinstance(self.dtype, str):
             dtype = self.dtype
@@ -966,8 +1005,11 @@ class NNSK(torch.nn.Module):
             "overlap": is_overlap,
         }
 
+        mode_opt = self.model_options.copy()
+        if to_uniform:
+            mode_opt['nnsk']['onsite']['method'] = 'uniform'
         if version == 2:
-            ckpt.update({"model_options": self.model_options, 
+            ckpt.update({"model_options": mode_opt, 
                         "common_options": common_options})
 
 
@@ -1072,13 +1114,19 @@ class NNSK(torch.nn.Module):
                     iorb = self.idp_sk.full_basis_to_basis[asym][fiorb]
                     jorb = self.idp_sk.full_basis_to_basis[asym][fjorb]
                     if iorb == jorb:
+                        
                         for i in range(slices.start, slices.stop): 
                             ind = i-slices.start      
-                            onsite_param[f"{asym}-{iorb}-{ind}"] = (onsite[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
-                    else:
-                        for i in range(slices.start, slices.stop): 
-                            ind = i-slices.start
-                            onsite_param[f"{asym}-{iorb}-{jorb}-{ind}"] = (onsite[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
+                            if not to_uniform:
+                                onsite_param[f"{asym}-{iorb}-{ind}"] = (onsite[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
+                            else:
+                                iorb_ref = basisref[asym][iorb]
+                                ref_ene = onsite_energy_database[asym][iorb_ref]
+                                onsite_param[f"{asym}-{iorb_ref}-{ind}"] =  (onsite[self.idp_sk.chemical_symbol_to_type[asym], i]-ref_ene).tolist()
+                    #else:
+                    #    for i in range(slices.start, slices.stop): 
+                    #        ind = i-slices.start
+                    #        onsite_param[f"{asym}-{iorb}-{jorb}-{ind}"] = (onsite[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
         else:
             onsite_param = {}
 
