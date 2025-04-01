@@ -1022,6 +1022,9 @@ class NNSK(torch.nn.Module):
                 fiorb, fjorb = orbpair.split("-")
                 iorb = self.idp_sk.full_basis_to_basis[iasym].get(fiorb)
                 jorb = self.idp_sk.full_basis_to_basis[jasym].get(fjorb)
+                if to_uniform:
+                    iorb = basisref[iasym][iorb]
+                    jorb = basisref[jasym][jorb]
                 if iorb != None and jorb != None:
                     # iasym-jasym-iorb-jorb
                     for i in range(slices.stop-slices.start):
@@ -1034,7 +1037,9 @@ class NNSK(torch.nn.Module):
                                 hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = hopping[pos_line, slices][i].tolist()
                                 iiorb = self.idp_sk.full_basis_to_basis[iasym].get(fjorb)
                                 jjorb = self.idp_sk.full_basis_to_basis[jasym].get(fiorb)
-
+                                if to_uniform:
+                                    iiorb = basisref[iasym][iiorb]
+                                    jjorb = basisref[jasym][jjorb]
                                 hopping_param[f"{iasym}-{jasym}-{iiorb}-{jjorb}-{i}"] = hopping[rev_line, slices][i].tolist()
                         elif ian == jan:
                             if self.idp_sk.full_basis.index(fiorb) <= self.idp_sk.full_basis.index(fjorb):
@@ -1056,6 +1061,9 @@ class NNSK(torch.nn.Module):
                     fiorb, fjorb = orbpair.split("-")
                     iorb = self.idp_sk.full_basis_to_basis[iasym].get(fiorb)
                     jorb = self.idp_sk.full_basis_to_basis[jasym].get(fjorb)
+                    if to_uniform:
+                        iorb = basisref[iasym][iorb]
+                        jorb = basisref[jasym][jorb]
                     if iorb != None and jorb != None:
                         # iasym-jasym-iorb-jorb
                         for i in range(slices.stop-slices.start):
@@ -1068,7 +1076,9 @@ class NNSK(torch.nn.Module):
                                     overlap_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = overlap[pos_line, slices][i].tolist()
                                     iiorb = self.idp_sk.full_basis_to_basis[iasym].get(fjorb)
                                     jjorb = self.idp_sk.full_basis_to_basis[jasym].get(fiorb)
-
+                                    if to_uniform:
+                                        iiorb = basisref[iasym][iiorb]
+                                        jjorb = basisref[jasym][jjorb]
                                     overlap_param[f"{iasym}-{jasym}-{iiorb}-{jjorb}-{i}"] = overlap[rev_line, slices][i].tolist()
                             elif ian == jan:
                                 if self.idp_sk.full_basis.index(fiorb) <= self.idp_sk.full_basis.index(fjorb):
@@ -1085,6 +1095,9 @@ class NNSK(torch.nn.Module):
                         if fiorb != fjorb:
                             iorb = self.idp_sk.full_basis_to_basis[asym][fiorb]
                             jorb = self.idp_sk.full_basis_to_basis[asym][fjorb]
+                            if to_uniform:
+                                iorb = basisref[asym][iorb]
+                                jorb = basisref[asym][jorb]
                             for i in range(slices.start, slices.stop): 
                                 ind = i-slices.start
                                 overlaponsite_param[f"{asym}-{iorb}-{jorb}-{ind}"] = (overlaponsite[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
@@ -1100,6 +1113,9 @@ class NNSK(torch.nn.Module):
                     fiorb, fjorb = orbpair.split("-")
                     iorb = self.idp_sk.full_basis_to_basis[iasym].get(fiorb)
                     jorb = self.idp_sk.full_basis_to_basis[jasym].get(fjorb)
+                    if to_uniform:
+                        iorb = basisref[iasym][iorb]
+                        jorb = basisref[jasym][jorb]
                     if iorb != None and jorb != None and self.idp_sk.full_basis.index(fiorb) <= self.idp_sk.full_basis.index(fjorb):
                         for i in range(slices.stop-slices.start):
                             onsite_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = strain[pos_line, slices][i].tolist()
@@ -1113,16 +1129,16 @@ class NNSK(torch.nn.Module):
                     fiorb, fjorb = orbpair.split("-")
                     iorb = self.idp_sk.full_basis_to_basis[asym][fiorb]
                     jorb = self.idp_sk.full_basis_to_basis[asym][fjorb]
+                    if to_uniform:
+                        iorb = basisref[asym][iorb]
+                        jorb = basisref[asym][jorb]
+                        ref_ene = onsite_energy_database[asym][iorb]
+                    else:
+                        ref_ene = 0.0
                     if iorb == jorb:
-                        
                         for i in range(slices.start, slices.stop): 
                             ind = i-slices.start      
-                            if not to_uniform:
-                                onsite_param[f"{asym}-{iorb}-{ind}"] = (onsite[self.idp_sk.chemical_symbol_to_type[asym], i]).tolist()
-                            else:
-                                iorb_ref = basisref[asym][iorb]
-                                ref_ene = onsite_energy_database[asym][iorb_ref]
-                                onsite_param[f"{asym}-{iorb_ref}-{ind}"] =  (onsite[self.idp_sk.chemical_symbol_to_type[asym], i]-ref_ene).tolist()
+                            onsite_param[f"{asym}-{iorb}-{ind}"] = (onsite[self.idp_sk.chemical_symbol_to_type[asym], i]-ref_ene).tolist()
                     #else:
                     #    for i in range(slices.start, slices.stop): 
                     #        ind = i-slices.start
@@ -1135,13 +1151,13 @@ class NNSK(torch.nn.Module):
             soc = self.soc_param.data.cpu().clone().numpy()
             soc_param = {}
             for asym in self.idp_sk.type_names:
-                for iorb, slices in self.idp_sk.sksoc_maps.items():
-                    orb = self.idp_sk.full_basis_to_basis[asym][iorb]
+                for fiorb, slices in self.idp_sk.sksoc_maps.items():
+                    iorb = self.idp_sk.full_basis_to_basis[asym][fiorb]
+                    if to_uniform:
+                        iorb = basisref[asym][iorb]
                     for i in range(slices.start, slices.stop): 
                         ind = i-slices.start      
-                        soc_param[f"{asym}-{orb}-{ind}"] = (np.abs(soc[self.idp_sk.chemical_symbol_to_type[asym], i])).tolist()
-
-
+                        soc_param[f"{asym}-{iorb}-{ind}"] = (np.abs(soc[self.idp_sk.chemical_symbol_to_type[asym], i])).tolist()
         
         model_params = {
                     "onsite": onsite_param,
