@@ -87,6 +87,14 @@ def main_parser() -> argparse.ArgumentParser:
     )
 
     parser_config.add_argument(
+        "-m", 
+        "--model",
+        type=str,
+        default=None,
+        help="load model to update input template."
+    )
+
+    parser_config.add_argument(
         "-tr", 
         "--train",
         help="Generate the config templete for training.",

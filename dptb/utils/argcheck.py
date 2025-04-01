@@ -831,7 +831,7 @@ def loss_options():
 
     eigvals = [
         Argument("diff_on", bool, optional=True, default=False, doc="Whether to use random differences in loss function. Default: False"),
-        Argument("eout_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue out of range. Default: 0.01"),
+        Argument("eout_weight", float, optional=True, default=0.001, doc="The weight of eigenvalue out of range. Default: 0.01"),
         Argument("diff_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue difference. Default: 0.01"),
         Argument("diff_valence", [dict,None], optional=True, default=None, doc="set the difference of the number of valence electrons in DFT and TB. eg {'A':6,'B':7}, Default: None, which means no difference"),
         Argument("spin_deg", int, optional=True, default=2, doc="The spin degeneracy of band structure. Default: 2"),
