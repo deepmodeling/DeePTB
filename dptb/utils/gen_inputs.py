@@ -54,7 +54,7 @@ def gen_inputs(mode, task='train', model=None):
             "overlap": is_overlap,
         }
         input_dict["common_options"].update(common_options)
-        input_dict["model_options"].update(model.model_options())
+        input_dict["model_options"].update(model.model_options)
     #with open(os.path.join(outdir,'input_template.json'), 'w') as f:
     #    json.dump(input_dict, f, indent=4)
     return input_dict
