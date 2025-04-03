@@ -427,6 +427,7 @@ def main_parser() -> argparse.ArgumentParser:
         "--basemodel",
         type=str,
         default="poly2",
+        help="The base model type can be poly2 or poly4."
     )
     return parser
 

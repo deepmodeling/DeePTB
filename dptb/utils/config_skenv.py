@@ -24,7 +24,7 @@ TrainFullConfigSKEnv= {
             "train": {
                 "method": "eigvals",
                 "diff_on": False,
-                "eout_weight": 0.01,
+                "eout_weight": 0.001,
                 "diff_weight": 0.01
             }
         },
