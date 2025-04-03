@@ -46,7 +46,12 @@ def gen_inputs(mode, task='train', model=None):
             dtype = model.dtype
         else:
             dtype = model.dtype.__str__().split('.')[-1]
-        dd = "cpu" if model.device == torch.device("cpu") else "cuda"
+
+        if model.device == 'cpu' or model.device == torch.device("cpu"):
+            dd = "cpu"
+        else:
+            dd = "cuda"
+
         common_options = {
             "basis": basis,
             "dtype": dtype,
@@ -55,6 +60,11 @@ def gen_inputs(mode, task='train', model=None):
         }
         input_dict["common_options"].update(common_options)
         input_dict["model_options"].update(model.model_options)
+        if is_overlap:
+            if "nnsk" in input_dict["model_options"]:
+                # for nnsk if there is overlap param, freeze the overlap param in the nnsk model.
+                input_dict["model_options"]["nnsk"].update({"freeze": ["overlap"]})
+
     #with open(os.path.join(outdir,'input_template.json'), 'w') as f:
     #    json.dump(input_dict, f, indent=4)
     return input_dict
