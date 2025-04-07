@@ -426,9 +426,9 @@ def test_data_sub():
 
 def data_options():
     args = [
-            Argument("r_max", [float,int], optional=True, default="5.0", doc="r_max"),
-            Argument("oer_max", [float,int], optional=True, default="5.0", doc="oer_max"),
-            Argument("er_max", [float,int], optional=True, default="5.0", doc="er_max"),
+            Argument("r_max", [float,int,None], optional=True, default=None, doc="r_max"),
+            Argument("oer_max", [float,int,None], optional=True, default=None, doc="oer_max"),
+            Argument("er_max", [float,int,None], optional=True, default=None, doc="er_max"),
             train_data_sub(),
             validation_data_sub(),
             reference_data_sub()
@@ -703,6 +703,7 @@ def nnsk():
                      - 'hopping','onsite','overlap' and 'soc' to freeze the corresponding parameters.
                      - list of the strings e.g. ['overlap','soc'] to freeze both overlap and soc parameters."""
     doc_std = "The std value to initialize the nnsk parameters. Default: 0.01"
+    doc_atomic_radius = "The atomic radius to use for the nnsk model. Default: v1, can be v1 or cov"
 
     # overlap = Argument("overlap", bool, optional=True, default=False, doc="The parameters to define the overlap correction of nnsk model.")
 
@@ -712,6 +713,7 @@ def nnsk():
             Argument("soc", dict, optional=True, default={}, doc=doc_soc),
             Argument("freeze", [bool,str,list], optional=True, default=False, doc=doc_freeze),
             Argument("std", float, optional=True, default=0.01, doc=doc_std),
+            Argument("atomic_radius", str, optional=True, default='v1', doc=doc_atomic_radius),
             push(),
         ], sub_variants=[], optional=True, doc=doc_nnsk)
 
@@ -758,6 +760,7 @@ def onsite():
     return Variant("method", [
                     Argument("strain", dict, strain),
                     Argument("uniform", dict, []),
+                    Argument("uniform_noref", dict, []),
                     Argument("NRL", dict, NRL),
                     Argument("none", dict, []),
                 ],optional=False, doc=doc_method)
@@ -774,15 +777,15 @@ def hopping():
     doc_rs_hard = "The cut-off for smooth function fc, fc(rs) = 0."
 
     powerlaw = [
-        Argument("rs", float, optional=True, default=6.0, doc=doc_rs_soft),
+        Argument("rs", [float,dict], optional=True, default=6.0, doc=doc_rs_soft),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
     varTang96 = [
-        Argument("rs", float, optional=True, default=6.0, doc=doc_rs_soft),
+        Argument("rs",  [float,dict], optional=True, default=6.0, doc=doc_rs_soft),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
     common_params = [
-        Argument("rs", float, optional=True, default=6.0, doc=doc_rs_hard),
+        Argument("rs",  [float,dict], optional=True, default=6.0, doc=doc_rs_hard),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
 
@@ -831,7 +834,7 @@ def loss_options():
 
     eigvals = [
         Argument("diff_on", bool, optional=True, default=False, doc="Whether to use random differences in loss function. Default: False"),
-        Argument("eout_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue out of range. Default: 0.01"),
+        Argument("eout_weight", float, optional=True, default=0.001, doc="The weight of eigenvalue out of range. Default: 0.01"),
         Argument("diff_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue difference. Default: 0.01"),
         Argument("diff_valence", [dict,None], optional=True, default=None, doc="set the difference of the number of valence electrons in DFT and TB. eg {'A':6,'B':7}, Default: None, which means no difference"),
         Argument("spin_deg", int, optional=True, default=2, doc="The spin degeneracy of band structure. Default: 2"),

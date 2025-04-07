@@ -13,6 +13,8 @@ from dptb.entrypoints.data import data
 from dptb.utils.loggers import set_log_handles
 from dptb.utils.config_check import check_config_train
 from dptb.entrypoints.collectskf import skf2pth, skf2nnsk
+from dptb.entrypoints.emp_sk import to_empsk
+
 from dptb import __version__
 
 
@@ -84,6 +86,14 @@ def main_parser() -> argparse.ArgumentParser:
         "PATH", help="the path you want to put the config templete in",
         type=str,
         default="./input_templete.json"
+    )
+
+    parser_config.add_argument(
+        "-m", 
+        "--model",
+        type=str,
+        default=None,
+        help="load model to update input template."
     )
 
     parser_config.add_argument(
@@ -394,7 +404,31 @@ def main_parser() -> argparse.ArgumentParser:
         help="The output files in training.",
     )
 
-
+    parser_esk = subparsers.add_parser(
+        "esk",
+        parents=[parser_log],
+        help="Generate initial empirical SK parameters.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser_esk.add_argument(
+        "INPUT", help="the input parameter file in json or yaml format",
+        type=str,
+        default=None
+    )
+    parser_esk.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default="./",
+        help="The output files in training."
+    )
+    parser_esk.add_argument(
+        "-m",
+        "--basemodel",
+        type=str,
+        default="poly2",
+        help="The base model type can be poly2 or poly4."
+    )
     return parser
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
@@ -458,3 +492,6 @@ def main():
 
     elif args.command == 'skf2nn':
         skf2nnsk(**dict_args)
+
+    elif args.command == 'esk':
+        to_empsk(**dict_args)

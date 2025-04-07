@@ -29,32 +29,28 @@ Highly recommended to install DeePTB from source to get the latest features and 
     ```bash
     python -m venv dptb_venv
     source dptb_venv/bin/activate
-
+    ```
 2. **Clone DeePTB and  Navigate to the root directory**:
     ```bash
     git clone https://github.com/deepmodeling/DeePTB.git
     cd DeePTB
     ```
-3. **Install `torch` and `torch-scatter`** (two ways):
-- **Recommended**: Install torch and torch-scatter using the following commands:
-
+3. **Install `torch`**:
     ```bash
-    python docs/auto_install_torch_scatter.py
+    pip install "torch>=2.0.0,<=2.5.0"
     ```
-
-- **Manual**: Install torch and torch-scatter manually:
-  1. install torch:
+4. **Install `torch-scatter`** (two ways):
+    - **Recommended**: Install torch and torch-scatter using the following commands:
         ```bash
-        pip install "torch>=2.0.0,<=2.5.0"
+         python docs/auto_install_torch_scatter.py
         ```
-
-  2. install torch-scatter:
+    - **Manual**: Install torch and torch-scatter manually:
         ```bash
         pip install torch-scatter -f https://data.pyg.org/whl/torch-${version}+${CUDA}.html
         ```
         where `${version}` is the version of torch, e.g., 2.5.0, and `${CUDA}` is the CUDA version, e.g., cpu, cu118, cu121, cu124. See [torch_scatter doc](https://github.com/rusty1s/pytorch_scatter) for more details.   
 
-4. **Install DeePTB**:   
+5. **Install DeePTB**:   
     ```bash
     pip install .
     ```

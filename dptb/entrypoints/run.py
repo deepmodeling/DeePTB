@@ -12,6 +12,7 @@ from dptb.utils.tools import j_must_have
 from dptb.postprocess.write_block import write_block
 import torch
 import h5py
+from dptb.utils.auto_band_config import auto_band_config
 
 log = logging.getLogger(__name__)
 
@@ -49,8 +50,24 @@ def run(
 
     set_log_handles(log_level, Path(log_path) if log_path else None)
 
-    jdata = j_loader(INPUT)
-    jdata = normalize_run(jdata)
+    in_common_options = {}
+    if INPUT.endswith(".json"):
+        jdata = j_loader(INPUT)
+        jdata = normalize_run(jdata)  
+    else:
+        assert run_opt["structure"] is not None, "Please provide a structure file or a json file."
+        jdata, com_opts = auto_band_config(structure=structure, kpathtype='vasp')
+        assert jdata['task_options']["task"] == "band", "No Input json is provided, then only band task is supported."
+        jdata = normalize_run(jdata)
+
+        if init_model == 'ploy2':
+            init_model = os.path.join(os.path.dirname(__file__), '..', 'nn', 'dftb', "base_poly2.pth")
+        elif init_model == 'ploy4':
+            init_model = os.path.join(os.path.dirname(__file__), '..', 'nn', 'dftb', "base_poly4.pth")
+        else:
+            raise ValueError(f'init_model {init_model} is not supported.')
+        run_opt.update({'init_model': init_model})
+        in_common_options.update(com_opts)
 
     task_options = j_must_have(jdata, "task_options")
     task = task_options["task"]
@@ -58,7 +75,7 @@ def run(
     task_options.update({"use_gui": use_gui})
     results_path = run_opt.get("results_path", None)
 
-    in_common_options = {}
+    
     if jdata.get("device", None):
         in_common_options.update({"device": jdata["device"]})
     

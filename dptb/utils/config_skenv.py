@@ -14,14 +14,7 @@ TrainFullConfigSKEnv= {
         "batch_size": 1,
         "optimizer": {
             "lr": 0.001,
-            "type": "Adam",
-            "betas": [
-                0.9,
-                0.999
-            ],
-            "eps": 1e-08,
-            "weight_decay": 0,
-            "amsgrad": False
+            "type": "Adam"
         },
         "lr_scheduler": {
             "type": "exp",
@@ -31,7 +24,7 @@ TrainFullConfigSKEnv= {
             "train": {
                 "method": "eigvals",
                 "diff_on": False,
-                "eout_weight": 0.01,
+                "eout_weight": 0.001,
                 "diff_weight": 0.01
             }
         },

@@ -14,14 +14,7 @@ TrainFullConfigSK={
         "batch_size": 1,
         "optimizer": {
             "lr": 0.01,
-            "type": "Adam",
-            "betas": [
-                0.9,
-                0.999
-            ],
-            "eps": 1e-08,
-            "weight_decay": 0,
-            "amsgrad": False
+            "type": "Adam"
         },
         "lr_scheduler": {
             "type": "exp",
@@ -30,10 +23,8 @@ TrainFullConfigSK={
         "loss_options": {
             "train": {
                 "method": "eigvals",
-                "diff_valence":None,
-                "spin_deg":2,
                 "diff_on": False,
-                "eout_weight": 0.01,
+                "eout_weight": 0.001,
                 "diff_weight": 0.01
             }
         },

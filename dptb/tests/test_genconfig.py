@@ -16,16 +16,17 @@ def test_get_full_config_success():
     测试 `get_full_config` 函数在所有有效参数组合下是否正常工作
     """
     expected_configs = {
-        ("train", True, False, False): TrainFullConfigE3,
-        ("train", False, True, False): TrainFullConfigSK,
-        ("train", False, False, True): TrainFullConfigSKEnv,
-        ("test", True, False, False): TestFullConfigE3,
-        ("test", False, True, False): TestFullConfigSK,
-        ("test", False, False, True): TestFullConfigSKEnv,
+        (None,"train", True, False, False): TrainFullConfigE3,
+        (None,"train", False, True, False): TrainFullConfigSK,
+        (None,"train", False, False, True): TrainFullConfigSKEnv,
+        (None,"test", True, False, False): TestFullConfigE3,
+        (None,"test", False, True, False): TestFullConfigSK,
+        (None,"test", False, False, True): TestFullConfigSKEnv,
     }
 
-    for (mode, e3tb, sktb, sktbenv), expected_config in expected_configs.items():
+    for (model, mode, e3tb, sktb, sktbenv), expected_config in expected_configs.items():
         name, full_config = get_full_config(
+                model,
                 mode.lower() == "train",
                 mode.lower() == "test",
                 e3tb,
@@ -42,15 +43,15 @@ def test_get_full_config_errors():
     测试 `get_full_config` 函数是否在无效参数下抛出异常
     """
     with pytest.raises(ValueError) as excinfo:
-        get_full_config(False, False, False, False, False)
+        get_full_config(None,False, False, False, False, False)
     assert "Unknown mode" in str(excinfo.value)
 
     with pytest.raises(ValueError) as excinfo:
-        get_full_config(True, False, False, False, False)
+        get_full_config(None,True, False, False, False, False)
     assert "Unknown config type" in str(excinfo.value)
 
     with pytest.raises(ValueError) as excinfo:
-        get_full_config(False, True, False, False, False)
+        get_full_config(None,False, True, False, False, False)
     assert "Unknown config type" in str(excinfo.value)
 
 
