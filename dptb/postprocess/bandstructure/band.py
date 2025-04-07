@@ -270,10 +270,15 @@ class Band(ElecStruCal):
 
         if E_fermi != None and self.eigenstatus["E_fermi"] != E_fermi:
             log.info(f'use input fermi energy: {E_fermi}, While the estimated value in line-mode is {self.eigenstatus["E_fermi"]}')
-        else:
+        elif E_fermi is None and self.eigenstatus["E_fermi"] is not None:
             E_fermi = self.eigenstatus["E_fermi"]
             log.info(f'The fermi energy is not provided, use the estimated value in line-mode: {self.eigenstatus["E_fermi"]}')
-
+        elif E_fermi is None and self.eigenstatus["E_fermi"] is None:
+            E_fermi = 0.0
+            log.info(f'The fermi energy is not provided, set it to 0.0')
+        else:
+            log.error("E_fermi is not set correctly.")
+            raise ValueError
         matplotlib.rcParams['font.size'] = 7
         matplotlib.rcParams['pdf.fonttype'] = 42
         matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial', 'Helvetica', 'sans-serif']
