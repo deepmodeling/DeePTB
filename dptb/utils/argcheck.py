@@ -1225,17 +1225,20 @@ def band():
                     - "vasp" : the vasp format
                     - "ase" : the ase format
                     """
-    doc_kpath = "for abacus, this is list, for vasp it is a string to specifc the kpath."
+    doc_kpath = "for abacus, this is list of list of float, for vasp it is a list[str] to specify the kpath."
     doc_klabels = "the labels for high symmetry kpoint"
     doc_emin="the min energy to show the band plot"
     doc_emax="the max energy to show the band plot"
     doc_E_fermi = "the fermi level used to plot band"
     doc_ref_band = "the reference band structure to be ploted together with dptb bands."
     doc_nel_atom = "the valence electron number of each type of atom."
-
+    doc_high_sym_kpoints = "the high symmetry kpoints dict, e.g. {'G':[0,0,0],'K':[0.5,0.5,0]}, only used for kline_type is vasp"
+    doc_num_in_line = "the number of kpoints in each line path, only used for kline_type is vasp."
     return [
         Argument("kline_type", str, optional=False, doc=doc_kline_type),
         Argument("kpath", [str,list], optional=False, doc=doc_kpath),
+        Argument("high_sym_kpoints",dict,optional=True,default={},doc=doc_high_sym_kpoints),
+        Argument("number_in_line", int, optional=True, default=None, doc=doc_num_in_line),
         Argument("klabels", list, optional=True, default=[''], doc=doc_klabels),
         Argument("E_fermi", [float, int, None], optional=True, doc=doc_E_fermi, default=None),
         Argument("emin", [float, int, None], optional=True, doc=doc_emin, default=None),
