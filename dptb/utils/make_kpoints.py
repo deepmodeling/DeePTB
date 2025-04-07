@@ -330,7 +330,7 @@ def ase_kpath(structase, pathstr:str, total_nkpoints:int):
     klist = kpath.kpts
     return klist, xlist, high_sym_kpoints, labels
 
-def vasp_kpath(structase, pathstr:str, high_sym_kpoints_dict:dict, number_in_line:int):
+def vasp_kpath(structase, pathstr:list[str], high_sym_kpoints_dict:dict, number_in_line:int):
     """The function `vasp_kpath` takes in a structure, a string of high symmetry points, a dictionary of high symmetry points, and the number of k-points in each line. 
     It returns a list of k-points, a list of x-values, a list of high symmetry k-points, and a list of labels.
 
