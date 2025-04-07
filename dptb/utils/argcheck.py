@@ -1225,7 +1225,7 @@ def band():
                     - "vasp" : the vasp format
                     - "ase" : the ase format
                     """
-    doc_kpath = "for abacus, this is list of list of float, for vasp it is a list[str] to specifc the kpath."
+    doc_kpath = "for abacus, this is list of list of float, for vasp it is a list[str] to specify the kpath."
     doc_klabels = "the labels for high symmetry kpoint"
     doc_emin="the min energy to show the band plot"
     doc_emax="the max energy to show the band plot"
