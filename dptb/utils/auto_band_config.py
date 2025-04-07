@@ -34,8 +34,8 @@ def auto_band_config(structure: Union[str, ase.Atoms], kpathtype='vasp'):
                     asestruct.get_scaled_positions().tolist(),
                     asestruct.get_atomic_numbers().tolist())
     skpdata = skp.get_path(skpstructure)
-    log.info("The strucure space group is: %s (No. %d)"  %(skpdata['spacegroup_international'], skpdata['spacegroup_number']))
-    #log.info("The strucure space group number is: %d", skpdata['spacegroup_number'])
+    log.info("The structure space group is: %s (No. %d)"  %(skpdata['spacegroup_international'], skpdata['spacegroup_number']))
+    #log.info("The structure space group number is: %d", skpdata['spacegroup_number'])
 
     if not (skpdata['rotation_matrix'] == np.array([[1., 0., 0.], [0., 1., 0.],[0., 0., 1.]])).all() :
         log.warning("The input structure is not in standard primitive cell, will rotate it to standard primitive cell.")

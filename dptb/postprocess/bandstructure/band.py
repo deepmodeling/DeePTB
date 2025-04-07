@@ -276,6 +276,8 @@ class Band(ElecStruCal):
         elif E_fermi is None and self.eigenstatus["E_fermi"] is None:
             E_fermi = 0.0
             log.info(f'The fermi energy is not provided, set it to 0.0')
+        elif E_fermi!=None and E_fermi == self.eigenstatus["E_fermi"]:
+            log.info(f'The provided fermi energy matches the estimated value: {E_fermi}')
         else:
             log.error("E_fermi is not set correctly.")
             raise ValueError

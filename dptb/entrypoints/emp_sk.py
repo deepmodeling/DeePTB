@@ -83,7 +83,7 @@ class EmpSK(object):
             for ieorb in basis[ie]:
                 assert isinstance(ieorb, str), f'basis information for {ie} is not a string.'
                 if len(ieorb) == 1:
-                    assert use_basis_ref is False, 'wrong basis seting eithor s, p ,d or ns np d*. can not be both s and ns np d*.'
+                    assert use_basis_ref is False, 'Invalid basis setting: cannot mix s, p, d with ns, np, d*.'
                     continue
                 else:
                     use_basis_ref = True
