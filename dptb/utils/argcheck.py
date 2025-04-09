@@ -1623,7 +1623,7 @@ def get_cutoffs_from_model_options(model_options):
                 oer_max = format_cuts(model_options["nnsk"]["onsite"]["rs"], model_options["nnsk"]["onsite"]["w"], 3)
 
     elif model_options.get("dftbsk", None) is not None:
-        assert r_max is None, "r_max should not be provided in outside the dftbsk for training dftbsk model."
+        assert r_max is None, "r_max should not be provided orther than the dftbsk param section for training dftbsk model."
         r_max = model_options["dftbsk"].get("r_max")
 
     else:
