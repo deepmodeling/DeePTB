@@ -137,13 +137,13 @@ def train(
                             log.warning(f"{obj} in config file is not consistent with the checkpoint, using the one in checkpoint")
                             jdata["train_options"][obj] = f["config"]["train_options"][obj]
                 else:
-                    jdata["train_options"] = f["config"]["train_options"]
+                    jdata["train_options"] = f["config"]["train_options"] # restart can be preceeded without train_options
     
                 if jdata.get("model_options", None) is None or jdata["model_options"] != f["config"]["model_options"]:
                     log.warning("model_options in config file is not consistent with the checkpoint, using the one in checkpoint")
                     jdata["model_options"] = f["config"]["model_options"] # restart does not allow to change model options
             else:
-                # init model mode, allow model_options change
+                # init model mode, allow model_options change (Would it cause some error later if the param mismatch?)
                 if jdata.get("train_options", None) is None:
                     jdata["train_options"] = f["config"]["train_options"]
                 if jdata.get("model_options") is None:
