@@ -54,7 +54,7 @@
         "validation_freq": 10,
         "display_freq": 1,
         "use_tensorboard": true,
-        "update_lr_per_step_flag": false
+        "update_lr_per_iter": false
     },
     "data_options": {
         "train": {

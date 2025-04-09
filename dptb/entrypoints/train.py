@@ -3,7 +3,7 @@ from dptb.nn.build import build_model
 from dptb.data.build import build_dataset
 from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor
 from dptb.plugins.train_logger import Logger
-from dptb.utils.argcheck import normalize, collect_cutoffs
+from dptb.utils.argcheck import normalize, collect_cutoffs, chk_avg_per_iter
 from dptb.plugins.saver import Saver
 from typing import Dict, List, Optional, Any
 from dptb.utils.tools import j_loader, setup_seed, j_must_have
@@ -207,7 +207,9 @@ def train(
     if validation_datasets:
         trainer.register_plugin(Validationer())
         log_field.append("validation_loss")
-    trainer.register_plugin(TrainLossMonitor())
+    avg_per_iter = chk_avg_per_iter(jdata)
+    trainer.register_plugin(TrainLossMonitor(sliding_win_size=jdata["train_options"]["sliding_win_size"],
+                                             avg_per_iter=avg_per_iter)) # by default, avg_per_iter is false, will not be activated.
     trainer.register_plugin(LearningRateMonitor())
     if jdata["train_options"]["use_tensorboard"]:
         trainer.register_plugin(TensorBoardMonitor(interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))

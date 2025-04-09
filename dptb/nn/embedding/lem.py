@@ -58,6 +58,7 @@ class Lem(torch.nn.Module):
             res_update_ratios_learnable: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
+            universal: Optional[bool] = False,
             **kwargs,
             ):
         
@@ -91,7 +92,10 @@ class Lem(torch.nn.Module):
             
         self.basis = self.idp.basis
         self.idp.get_irreps(no_parity=False)
-        self.n_atom = len(self.basis.keys())
+        if universal:
+            self.n_atom = 95
+        else:
+            self.n_atom = len(self.basis.keys())
 
         irreps_sh=o3.Irreps([(1, (i, (-1) ** i)) for i in range(lmax + 1)])
         orbpair_irreps = self.idp.orbpair_irreps.sort()[0].simplify()
@@ -110,7 +114,7 @@ class Lem(torch.nn.Module):
         self.sh = SphericalHarmonics(
             irreps_sh, sh_normalized, sh_normalization
         )
-        self.onehot = OneHotAtomEncoding(num_types=self.n_atom, set_features=False)
+        self.onehot = OneHotAtomEncoding(num_types=self.n_atom, set_features=False, idp=self.idp, universal=universal)
 
         self.init_layer = InitLayer(
             idp=self.idp,
