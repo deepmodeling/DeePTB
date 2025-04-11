@@ -49,7 +49,9 @@ class EmpSK(object):
         """
         Convert the model to json format.
         """
-
+        # 判断是否存在输出目录
+        if not os.path.exists(outdir):
+            os.makedirs(outdir, exist_ok=True)
         json_dict = self.model.to_json(basisref=self.basisref)
         with open(os.path.join(outdir,'sktb.json'), 'w') as f:
             json.dump(json_dict, f, indent=4)
