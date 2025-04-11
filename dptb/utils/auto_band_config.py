@@ -33,18 +33,18 @@ def auto_band_config(structure: Union[str, ase.Atoms], kpathtype='vasp'):
     skpstructure = (asestruct.cell.tolist(),
                     asestruct.get_scaled_positions().tolist(),
                     asestruct.get_atomic_numbers().tolist())
-    skpdata = skp.get_path(skpstructure)
+    # skpdata = skp.get_path(skpstructure)
+    skpdata = skp.get_path_orig_cell(skpstructure)
     log.info("The structure space group is: %s (No. %d)"  %(skpdata['spacegroup_international'], skpdata['spacegroup_number']))
     #log.info("The structure space group number is: %d", skpdata['spacegroup_number'])
 
-    if not (skpdata['rotation_matrix'] == np.array([[1., 0., 0.], [0., 1., 0.],[0., 0., 1.]])).all() :
-        log.warning("The input structure is not in standard primitive cell, will rotate it to standard primitive cell.")
-        cell = skpdata['primitive_lattice']
-        atomic_numbers = skpdata['primitive_types']
-        atomic_positions = skpdata['primitive_positions']
-        pri_structure = Atoms(cell=cell, numbers=atomic_numbers, scaled_positions=atomic_positions)
-
-        write('standard_primitive_cell.vasp', pri_structure, format='vasp')
+    #if not (skpdata['rotation_matrix'] == np.array([[1., 0., 0.], [0., 1., 0.],[0., 0., 1.]])).all() :
+    #    log.warning("The input structure is not in standard primitive cell, will rotate it to standard primitive cell.")
+    #    cell = skpdata['primitive_lattice']
+    #    atomic_numbers = skpdata['primitive_types']
+    #    atomic_positions = skpdata['primitive_positions']
+    #    pri_structure = Atoms(cell=cell, numbers=atomic_numbers, scaled_positions=atomic_positions)
+    #    write('standard_primitive_cell.vasp', pri_structure, format='vasp')
     
     high_sym_kpoints_dict = skpdata['point_coords']
     pathstr = ['-'.join(ipt) for ipt in skpdata['path']]
