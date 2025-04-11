@@ -60,15 +60,14 @@ def run(
         assert jdata['task_options']["task"] == "band", "No Input json is provided, then only band task is supported."
         jdata = normalize_run(jdata)
 
-        if init_model == 'poly2':
-            init_model = os.path.join(os.path.dirname(__file__), '..', 'nn', 'dftb', "base_poly2.pth")
-        elif init_model == 'poly4':
-            init_model = os.path.join(os.path.dirname(__file__), '..', 'nn', 'dftb', "base_poly4.pth")
-        else:
+        if init_model in ['poly2','poly4']:
+            modelname = f'base_{init_model}.pth'
+            init_model = os.path.join(os.path.dirname(__file__), '..', 'nn', 'dftb', modelname)
+            in_common_options.update(com_opts)
+        elif not(init_model.endswith(".pth") or init_model.endswith(".json")):
             raise ValueError(f'init_model {init_model} is not supported.')
         run_opt.update({'init_model': init_model})
-        in_common_options.update(com_opts)
-
+            
     task_options = j_must_have(jdata, "task_options")
     task = task_options["task"]
     use_gui = jdata.get("use_gui", False)
