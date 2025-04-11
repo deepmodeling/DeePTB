@@ -72,6 +72,11 @@ optional = true
 [tool.poetry.group.pybinding.dependencies]
 pybinding = "*"
 
+[tool.poetry.group.seekpath]
+optional = true
+
+[tool.poetry.group.seekpath.dependencies]
+seekpath = "*"
 
 [tool.poetry.scripts]
 dptb = 'dptb.__main__:main'
