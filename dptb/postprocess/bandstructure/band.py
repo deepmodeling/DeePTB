@@ -268,19 +268,20 @@ class Band(ElecStruCal):
         if isinstance(ref_band, str):
             ref_band = np.load(ref_band)
 
-        if E_fermi != None and self.eigenstatus["E_fermi"] != E_fermi:
-            log.info(f'use input fermi energy: {E_fermi}, While the estimated value in line-mode is {self.eigenstatus["E_fermi"]}')
-        elif E_fermi is None and self.eigenstatus["E_fermi"] is not None:
+        ylabel = 'E - EF (eV)'
+        if E_fermi is not None:
+            if abs(self.eigenstatus["E_fermi"] - E_fermi)>1e-3:
+                log.info(f"Using input Fermi energy: {E_fermi:.4f} eV (estimated: {self.eigenstatus['E_fermi']:.4f} eV)")
+            else:
+                log.info(f"Using Fermi energy: {E_fermi:.4f} eV (matches estimated value)")
+        elif self.eigenstatus["E_fermi"] is not None:
             E_fermi = self.eigenstatus["E_fermi"]
-            log.info(f'The fermi energy is not provided, use the estimated value in line-mode: {self.eigenstatus["E_fermi"]}')
-        elif E_fermi is None and self.eigenstatus["E_fermi"] is None:
-            E_fermi = 0.0
-            log.info(f'The fermi energy is not provided, set it to 0.0')
-        elif E_fermi!=None and E_fermi == self.eigenstatus["E_fermi"]:
-            log.info(f'The provided fermi energy matches the estimated value: {E_fermi}')
+            log.info(f"No Fermi energy provided, using estimated value: {E_fermi:.4f} eV")
         else:
-            log.error("E_fermi is not set correctly.")
-            raise ValueError
+            E_fermi = 0.0
+            ylabel = 'E (eV)'
+            log.info("No Fermi energy available, setting to 0.0 eV")
+        
         matplotlib.rcParams['font.size'] = 7
         matplotlib.rcParams['pdf.fonttype'] = 42
         matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial', 'Helvetica', 'sans-serif']
@@ -337,7 +338,8 @@ class Band(ElecStruCal):
 
         # amp = self.eigenstatus["xlist"].max()
         ax.set_xlim(self.eigenstatus["xlist"].min(),self.eigenstatus["xlist"].max())
-        ax.set_ylabel('E - EF (eV)',fontsize=8)
+        # ax.set_ylabel('E - EF (eV)',fontsize=8)
+        ax.set_ylabel(ylabel,fontsize=8)
         ax.yaxis.set_minor_locator(MultipleLocator(1.0))
         ax.tick_params(which='both', direction='in', labelsize=8)
         ax.tick_params(which='major', length=6)
