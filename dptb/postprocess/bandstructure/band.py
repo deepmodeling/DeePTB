@@ -364,6 +364,8 @@ class Band(ElecStruCal):
         # ax.set_frame_on(False) # setting of whether to show the frame line
         if self.results_path is not None:
             plt.savefig(f'{self.results_path}/band.png',dpi=300)
-        if self.use_gui:
+        if plt.get_backend() != 'Agg':
             plt.show()
+        else:
+            plt.close()
 
