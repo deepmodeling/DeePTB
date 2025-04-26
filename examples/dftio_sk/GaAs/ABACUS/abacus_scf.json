@@ -1,0 +1,15 @@
+{
+    "basis_type": "lcao",
+    "basis": {
+        "As": "As_gga_7au_100Ry_2s2p1d.orb",
+        "Ga": "Ga_gga_8au_100Ry_2s2p2d1f.orb"
+    },
+    "ppdir": "/share/semicond/lmp_abacus/pporb/pp",
+    "orbdir": "/share/semicond/lmp_abacus/pporb/orb",
+    "pp": {
+        "As": "As_ONCV_PBE-1.0.upf",
+        "Ga": "Ga_.upf"
+    },
+    "out": ".//submit/GaAs-000/scf",
+    "kspacing": 0.08
+}
