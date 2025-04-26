@@ -179,7 +179,8 @@ class NNSK(torch.nn.Module):
                 self.r_map_type = 2 # 2 for bond-wise
             else:
                 raise ValueError("The rs tag is not recognized. Please check the rs tag.")
-
+            self.r_map = self.r_map.to(self.device)
+            
     def freezefunc(self, freeze: Union[bool,str,list]):
         if freeze is False:
             return 0
