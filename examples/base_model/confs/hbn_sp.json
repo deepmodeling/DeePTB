@@ -1,0 +1,8 @@
+{
+    "common_options": {
+        "basis": {
+            "B": ["s","p"],
+            "N": ["s","p"]
+        }
+    }
+}
