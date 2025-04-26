@@ -4,52 +4,56 @@ The following files are the central input files for DeePTB. Before executing the
 
 ## Inputs
 ### Data
-The dataset files contrains both the **atomic structure** and the **training label** information. 
+The dataset files contrains both the **atomic structure** and the **training label** information.
 
-The atomic structure should be prepared as a ASE trajectory binary file, where each structure is stored using an **Atom** class defined in ASE package. The provided trajectory file must have suffix `.traj` and the length of the trajectory is `nframes`. For labels, we currently support `eigenvalues`, `Hamiltonian`, `density matrix` and `overlap matrix`. 
+The **atomic structure** contains the atoms' position, unit-cell vector and atomic number vector. They **must** be included in your datafile in all task.
+The **training labels** are prepared dependent on each task. If you are working on `DeePTB-SK` mode, the eigenvalues and kpoints are needed. If you are working with `DeePTB-E3` mode the Hamiltonian/Density Matrix under LCAO basis must be provided, while overlap matrix are optionally provided (But we suggest to do so for convenience).
+
+The atomic structure should be prepared in either ASE trajectory binary file format, or the plain text format. We highly suggest to use the tool `dftio` to deal with the data preparation. It can transform the data from DFT output to the target format automatically. Herefore completion, we will introduce the format of each type.
+
+- For ASE trajectory binary file, each structure is stored using an **Atom** class defined in ASE package. The provided trajectory file must have suffix `.traj` and the length of the trajectory is `nframes`
+
+- For the plain text format,  three seperate textfiles for **atomic structures** need to be provided: `atomic_numbers.dat`, `cell.dat` and `positions.dat`. The length unit used in `cell.dat` and `positions.dat` (if cartesian coordinates) is Angstrom.
 
 
-For training a **DeePTB-SK** model, we need to prepare the `eigenvalues` label, which contrains the `eigenvalues.npy` and `kpoints.npy`. A typical dataset of **DeePTB-SK** task looks like:
+- For training a **DeePTB-SK** model, we need to prepare the `eigenvalues` label, which contrains the `eigenvalues.npy` and `kpoints.npy`. A typical dataset of **DeePTB-SK** task looks like:
 
-```
-data/
--- set.x
--- -- eigenvalues.npy  # numpy array of fixed shape [nframes, nkpoints, nbands]
--- -- kpoints.npy      # numpy array of fixed shape [nkpoints, 3]
--- -- xdat.traj        # ase trajectory file with nframes
--- -- info.json        # defining the parameters used in building AtomicData graph data
-```
+    ```
+    data/
+    -- set.x
+    -- -- eigenvalues.npy  # numpy array of fixed shape [nframes, nkpoints, nbands]
+    -- -- kpoints.npy      # numpy array of fixed shape [nkpoints, 3]
+    -- -- xdat.traj        # ase trajectory file with nframes
+    -- -- info.json        # defining the parameters used in building AtomicData graph data
+    ```
 
-> We also support another format to provide structure information, instead of loading structures from a single binary `.traj` file. In this way, three seperate textfiles for **atomic structures** need to be provided: `atomic_numbers.dat`, `pbc.dat`, `cell.dat` and `positions.dat`. The length unit used in `cell.dat` and `positions.dat` (if cartesian coordinates) is Angstrom.
+    The **band structures** data includes the kpoints list and eigenvalues in the binary format of `.npy`. The shape of kpoints data is fixed as **[nkpoints,3]** and eigenvalues is fixed as **[nframes,nkpoints,nbands]**. The `nframes` here must be the same as in **atomic structures** files.
 
-The **band structures** data includes the kpoints list and eigenvalues in the binary format of `.npy`. The shape of kpoints data is fixed as **[nkpoints,3]** and eigenvalues is fixed as **[nframes,nkpoints,nbands]**. The `nframes` here must be the same as in **atomic structures** files.
+    > **Important:** The eigenvalues.npy should not contain bands that contributed by the core electrons, which is not setted as the TB orbitals in model setting.
 
-> **Important:** The eigenvalues.npy should not contain bands that contributed by the core electrons, which is not setted as the TB orbitals in model setting.
-
-For typical **DeePTB-E3** task, we need to prepare the Hamiltonian/density matrix along with overlap matrix as labels. They are arranged as hdf5 binary format, and named as `hamiltonians.h5`/`density_matrices.h5` and `overlaps.h5` respectively. A typical dataset of **DeePTB-E3** looks like:
-
-```
-data/
--- set.x
--- -- positions.dat     # a text file with nframe x natom row and 3 col
--- -- pbc.dat           # a text file of three bool variables
--- -- cell.dat          # a text file with nframe x 3 row and 3 col, or 3 rol and 3 col.
--- -- atomic_numbers.dat    # a text file with nframe x natom row and 1 col
--- -- hamiltonian.h5    # a hdf5 dataset file with group named "0", "1", ..., "nframe". Each group contains a dict of {"i_j_Rx_Ry_Rz": numpy.ndarray} 
--- -- overlaps.h5       # a hdf5 dataset file with group named "0", "1", ..., "nframe". Each group contains a dict of {"i_j_Rx_Ry_Rz": numpy.ndarray} 
--- -- info.json
-```
+- For typical **DeePTB-E3** task, we need to prepare the Hamiltonian/density matrix along with overlap matrix as labels. They are arranged as hdf5 binary format, and named as `hamiltonians.h5`/`density_matrices.h5` and `overlaps.h5` respectively. A typical dataset of **DeePTB-E3** looks like:
+    ```
+    data/
+    -- set.x
+    -- -- positions.dat     # a text file with nframe x natom row and 3 col
+    -- -- cell.dat          # a text file with nframe x 3 row and 3 col, or 3 rol and 3 col.
+    -- -- atomic_numbers.dat    # a text file with nframe x natom row and 1 col
+    -- -- hamiltonian.h5    # a hdf5 dataset file with group named "0", "1", ..., "nframe". Each group contains a dict of {"i_j_Rx_Ry_Rz": numpy.ndarray} 
+    -- -- overlaps.h5       # a hdf5 dataset file with group named "0", "1", ..., "nframe". Each group contains a dict of {"i_j_Rx_Ry_Rz": numpy.ndarray} 
+    -- -- info.json
+    ```
 
 ### Data settings: info.json
 
 In **DeePTB**, the **atomic structures** and **band structures** data are stored in AtomicData graph structure. `info.json` defines the key parameters used in building AtomicData graph dataset, which looks like:
-```bash
+```JSON
 {
     "nframes": 1,
-    "pos_type": "ase/cart/frac"
+    "pos_type": "ase/cart/frac",
+    "pbc": [true, true, true]
 }
 ```
-`nframes` is the length of the trajectory, as we defined in the previous section. `pos_type` defines the input format of the **atomic structures**, which is set to `ase` if  ASE `.traj` file is provided, and `cart` or `frac` if cartesian / fractional coordinate in `positions.dat` file provided.
+`nframes` is the length of the trajectory, as we defined in the previous section. `pos_type` defines the input format of the **atomic structures**, which is set to `ase` if  ASE `.traj` file is provided, and `cart` or `frac` if cartesian / fractional coordinate in `positions.dat` file provided. The `pbc` specifies the periodic boundray condition of the system. The three value coresponding to the three boundary vector set in the unit cell information of the atomic data file.
 
 <!--In the `AtomicData_options` section, the key arguments in defining graph structure is provided. `r_max` is the maximum cutoff in building neighbour list for each atom. `er_max` and `oer_max` are optional value for additional environmental dependence TB parameterization in **DeePTB-SK** mode, such as strain correction and `nnenv`. All cutoff variables have the unit of Angstrom.
 For **DeePTB-SK**, We can get the recommended `r_max` value by `DeePTB`'s bond analysis function, using:
@@ -59,11 +63,12 @@ dptb bond <structure path> [[-c] <cutoff>] [[-acc] <accuracy>]
 
 For **DeePTB-E3**, we suggest the user align the `r_max` value to the LCAO basis's cutoff radius used in DFT calculation.
 -->
-For **DeePTB-SK** model, we should also specify the parameters in `info.json` that controls the fitting eigenvalues:
+For **DeePTB-SK** mode, we should also specify the parameters in `info.json` that controls the fitting eigenvalues:
 ```JSON
 {
     "nframes": 1,
     "pos_type": "ase/cart/frac",
+    "pbc": [true, true, true],
     "bandinfo": {
         "band_min": 0,
         "band_max": 6,
