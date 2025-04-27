@@ -77,13 +77,13 @@
     },
     "data_options": {
         "train": {
-            "root": "./data/",
+            "root": "../data/",
             "prefix": "kpathmd100",
             "get_eigenvalues": true,
             "get_Hamiltonian": false
         },
         "reference": {
-            "root": "./data/",
+            "root": "../data/",
             "prefix": "kpath_spk",
             "type": "DefaultDataset",
             "get_eigenvalues": true,
