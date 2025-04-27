@@ -16,6 +16,6 @@
         "E_fermi":-4.722,
         "emin":-15,
         "emax":10,
-        "ref_band": "./data/kpath.0/eigenvalues.npy"
+        "ref_band": "../data/kpath.0/eigenvalues.npy"
     }
 }
