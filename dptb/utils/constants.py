@@ -13,8 +13,17 @@ orbitalId = {0:'s',1:'p',2:'d',3:'f',4:'g',5:'h'}
 anglrMId_r = {0:'s',1:'p',2:"d",3:"f",4:"g",5:"h"}
 
 SKBondType = {0:'sigma',1:'pi',2:'delta'}
-au2Ang = 0.529177249
-Bohr2Ang = 0.529177249
+au2Ang = 0.529177210903
+Bohr2Ang = 0.529177210903
+Harte2eV = 27.211386245988
+Ryd2eV   = 13.605693122994
+
+dtype_dict = {"float32": torch.float32, "float64": torch.float64}
+# k = Boltzmann # k is the Boltzmann constant in old NEGF module
+Coulomb = 6.24150974e18 # in the unit of eV*Angstrom
+eV2J = 1.6021766208e-19 # in the unit of J
+
+
 # bond integral index in DFTB sk files. specific.
 SKAnglrMHSID = {'dd':np.array([0,1,2]),
                 'dp':np.array([3,4]), 'pd':np.array([3,4]),
@@ -99,7 +108,3 @@ PYSCF2DeePTB = {
         }
 
 
-dtype_dict = {"float32": torch.float32, "float64": torch.float64}
-# k = Boltzmann # k is the Boltzmann constant in old NEGF module
-Coulomb = 6.24150974e18 # in the unit of eV*Angstrom
-eV2J = 1.6021766208e-19 # in the unit of J

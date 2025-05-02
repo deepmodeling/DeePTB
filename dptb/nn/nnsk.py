@@ -600,7 +600,7 @@ class NNSK(torch.nn.Module):
                     log.warning("CUDA is not available. The model will be loaded on CPU.")
                     common_options.update({"device": device})
 
-            f = torch.load(checkpoint, map_location=device)
+            f = torch.load(checkpoint, map_location=device, weights_only=False)
             for k,v in common_options.items():
                 if v is None:
                     common_options[k] = f["config"]["common_options"][k]

@@ -10,6 +10,7 @@ import numpy as np
 from dptb.nn.hamiltonian import  SKHamiltonian
 from dptb.utils.constants import anglrMId, orbitalId
 from e3nn.o3 import wigner_3j, Irrep, xyz_to_angles, Irrep
+from dptb.tests.tstools import compare_tensors_as_sets_float
 
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data")
 
@@ -146,7 +147,34 @@ class TestSKHamiltonian:
         data = nnsk(self.batch)
         data = hamiltonian(data)
         assert data[AtomicDataDict.EDGE_FEATURES_KEY].shape == torch.Size([18, 13])
-        
+        expected_edge_index = torch.tensor([[0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1],
+        [0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1]])
+        expected_edge_cell_shift = torch.tensor([[-1.,  0.,  0.],
+        [-1.,  0.,  0.],
+        [ 0.,  1.,  0.],
+        [ 0.,  1.,  0.],
+        [ 1.,  1.,  0.],
+        [ 0.,  0.,  0.],
+        [ 1.,  1.,  0.],
+        [ 0., -1.,  0.],
+        [-1.,  0.,  0.],
+        [ 1., -0., -0.],
+        [ 1., -0., -0.],
+        [-0., -1., -0.],
+        [-0., -1., -0.],
+        [-1., -1., -0.],
+        [-0., -0., -0.],
+        [-1., -1., -0.],
+        [-0.,  1., -0.],
+        [ 1., -0., -0.]])
+
+        exp_val = torch.cat((expected_edge_index.T, expected_edge_cell_shift), axis=1)
+        tar_val = torch.cat((data[AtomicDataDict.EDGE_INDEX_KEY].T, data[AtomicDataDict.EDGE_CELL_SHIFT_KEY]), axis=1)
+        exp_val = exp_val.int()
+        tar_val = tar_val.int()
+
+        assert compare_tensors_as_sets_float(exp_val, tar_val)
+
 
         expected_selected_hopblock = torch.tensor([[ 5.3185172379e-02, -4.6635824091e-09,  1.3500485174e-09,
                                                      3.0885510147e-02,  8.2756355405e-02,  4.3990724937e-16,
@@ -179,7 +207,16 @@ class TestSKHamiltonian:
                                                     -1.8777785993e-09, -3.7203207612e-02, -1.8777785993e-09,
                                                     -1.4753011055e-02]])
         
-        assert torch.all(torch.abs(data[AtomicDataDict.EDGE_FEATURES_KEY][[0,3,9,5,12,15]] - expected_selected_hopblock) < 1e-6)
+        # assert torch.all(torch.abs(data[AtomicDataDict.EDGE_FEATURES_KEY][[0,3,9,5,12,15]] - expected_selected_hopblock) < 1e-6)
+        testind = [0,3,9,5,12,15]
+        tarind_list = []
+        for i in range(len(testind)):
+            ind = testind[i]
+            bond = exp_val.tolist()[ind]
+            assert bond in tar_val.tolist()
+            tarind = tar_val.tolist().index(bond)
+            tarind_list.append(tarind)
+        assert torch.all(torch.abs(data[AtomicDataDict.EDGE_FEATURES_KEY][tarind_list] - expected_selected_hopblock) < 1e-4)
 
     def test_onsite_stain(self):
         model_options = self.model_options

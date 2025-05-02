@@ -7,7 +7,7 @@ import os
 
 
 
-_Jd = torch.load(os.path.join(os.path.dirname(__file__), "Jd.pt"))
+_Jd = torch.load(os.path.join(os.path.dirname(__file__), "Jd.pt"), weights_only=False)
 
 def wigner_D(l, alpha, beta, gamma):
     if not l < len(_Jd):

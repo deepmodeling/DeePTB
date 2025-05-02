@@ -11,7 +11,6 @@ from dptb.negf.device_property import DeviceProperty
 from dptb.negf.lead_property import LeadProperty
 from ase.io import read
 import ase
-from dptb.negf.poisson import Density2Potential, getImg
 from dptb.negf.scf_method import SCFMethod
 from dptb.utils.constants import Boltzmann, eV2J
 import os

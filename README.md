@@ -36,7 +36,18 @@ DeePTB contains two main components:
 
 For more details, see our papers:
 - [DeePTB-SK: Nat Commun 15, 6772 (2024)](https://doi.org/10.1038/s41467-024-51006-4)
-- [DeePTB-E3: arXiv:2407.06053](https://arxiv.org/pdf/2407.06053)
+- [DeePTB-E3: ICLR 2025 Spotlight](https://openreview.net/forum?id=kpq3IIjUD3)
+
+
+## 📚 Documentation
+
+- **Online documentation**
+  
+    For a comprehensive guide and usage tutorials, visit [Documentation website](https://deeptb.readthedocs.io/en/latest/).
+
+- **Contributing**
+
+    We welcome contributions to DeePTB. Please refer to our [contributing guidelines](https://deeptb.readthedocs.io/en/latest/community/contribution_guide.html) for details.
 
 
 
@@ -45,43 +56,73 @@ For more details, see our papers:
 Installing **DeePTB** is straightforward. We recommend using a virtual environment for dependency management.
 
 - **Requirements**
-  - Python 3.8 or later.
-  - Torch 1.13.0 or later ([PyTorch Installation](https://pytorch.org/get-started/locally)).
+  - Git
+  - Python 3.9 to 3.12.
+  - Torch 2.0.0 to 2.5.1 ([PyTorch Installation](https://pytorch.org/get-started/locally)).
   - ifermi (optional, for 3D fermi-surface plotting).
+  - TBPLaS (optional).
+
+- **From Source** 
+  
+    Highly recommended to install DeePTB from source to get the latest features and bug fixes.
+  1. **Setup Python environment**:
+    
+        Using conda (recommended, python >=3.9, <=3.12 ), e.g.,
+        ```bash
+        conda create -n dptb_venv python=3.10
+        conda activate dptb_venv
+        ```
+        or using venv (make sure python >=3.9,<=3.12)
+        ```bash
+        python -m venv dptb_venv
+        source dptb_venv/bin/activate
+
+  2. **Clone DeePTB and  Navigate to the root directory**:
+        ```bash
+        git clone https://github.com/deepmodeling/DeePTB.git
+        cd DeePTB
+        ```
+  3. **Install `torch` and `torch-scatter`** (two ways):
+        - **Recommended**: Install torch and torch-scatter using the following commands:
+
+            ```bash
+            python docs/auto_install_torch_scatter.py
+            ```
+
+        - **Manual**: Install torch and torch-scatter manually:
+          1. install torch:
+                ```bash
+                pip install "torch>=2.0.0,<=2.5.0"
+                ```
+
+          2. install torch-scatter:
+                ```bash
+                pip install torch-scatter -f https://data.pyg.org/whl/torch-${version}+${CUDA}.html
+                ```
+                where `${version}` is the version of torch, e.g., 2.5.0, and `${CUDA}` is the CUDA version, e.g., cpu, cu118, cu121, cu124. See [torch_scatter doc](https://github.com/rusty1s/pytorch_scatter) for more details.   
+
+  4. **Install DeePTB**:
+        ```bash
+        pip install .
+        ```
 
 - **Easy Installation**
+  
+  note: not fully tested, please use the source installation for a stable version.
   1. Using PyPi
-  2. Ensure you have Python 3.8 or later and Torch installed.
+  2. Ensure you have Python 3.9 to 3.12 and Torch installed.
   3. Install DeePTB with pip:
         ```bash
         pip install dptb
         ```
 
-- **From Source**
-    1. Clone the repository:
-        ```bash
-        git clone https://github.com/deepmodeling/DeePTB.git
-        ```
-    2. Navigate to the root directory and install DeePTB:
-        ```bash
-        cd DeePTB
-        pip install .
-        ```
+## Test code 
 
-## 📚 Documentation
-
-- **Online documentation**
-  
-    For a comprehensive guide and usage tutorials, visit [our documentation website](https://deeptb.readthedocs.io/en/latest/).
-
-- **Community**
-
-    DeePTB joins the DeepModeling community, a community devoted of AI for science, as an incubating level project. To learn more about the DeepModeling community, see the [introduction of community](https://github.com/deepmodeling/community).
-
-- **Contributing**
-
-    We welcome contributions to DeePTB. Please refer to our [contributing guidelines](https://deeptb.readthedocs.io/en/latest/community/contribution_guide.html) for details.
-
+To ensure the code is correctly installed, please run the unit tests first:
+```bash
+pytest ./dptb/tests/
+```
+Be careful if not all tests pass!
 
 ## 🤝 How to Cite
 
@@ -93,4 +134,4 @@ The following references are required to be cited when using DeePTB. Specificall
   
 - **For DeePTB-E3:**
   
-    Z. Zhouyin, Z. Gan, S. K. Pandey, L. Zhang, and Q. Gu, Learning Local Equivariant Representations for Quantum Operators, arXiv:2407.06053.
+    Z. Zhouyin, Z. Gan, S. K. Pandey, L. Zhang, and Q. Gu, Learning Local Equivariant Representations for Quantum Operators, In The 13th International Conference on Learning Representations (ICLR) 2025. 

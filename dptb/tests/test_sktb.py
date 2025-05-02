@@ -48,8 +48,8 @@ def test_nnsk_push(root_directory):
     train(INPUT=INPUT_file_w, init_model=init_model, restart=None,\
           output=output+"/test_push_w", log_level=5, log_path=output+"/test_push_w.log")
     
-    model_rs = torch.load(f"{root_directory}/dptb/tests/data/test_sktb/output/test_push_rs/checkpoint/nnsk.iter_rs2.700_w0.300.pth")
-    model_w = torch.load(f"{root_directory}/dptb/tests/data/test_sktb/output/test_push_w/checkpoint/nnsk.iter_rs5.000_w0.400.pth")
+    model_rs = torch.load(f"{root_directory}/dptb/tests/data/test_sktb/output/test_push_rs/checkpoint/nnsk.iter_rs2.700_w0.300.pth", weights_only=False)
+    model_w = torch.load(f"{root_directory}/dptb/tests/data/test_sktb/output/test_push_w/checkpoint/nnsk.iter_rs5.000_w0.400.pth", weights_only=False)
     # test push limits
     # 10 epoch, 0.01 step, 1 period -> 0.05 added.
     assert np.isclose(model_rs["config"]["model_options"]["nnsk"]["hopping"]["rs"], 2.700)

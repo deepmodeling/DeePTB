@@ -149,7 +149,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def _process(self):
         f = osp.join(self.processed_dir, "pre_transform.pt")
-        if osp.exists(f) and torch.load(f) != _repr(self.pre_transform):
+        if osp.exists(f) and torch.load(f, weights_only=False) != _repr(self.pre_transform):
             warnings.warn(
                 f"The `pre_transform` argument differs from the one used in "
                 f"the pre-processed version of this dataset. If you want to "
@@ -158,7 +158,7 @@ class Dataset(torch.utils.data.Dataset):
             )
 
         f = osp.join(self.processed_dir, "pre_filter.pt")
-        if osp.exists(f) and torch.load(f) != _repr(self.pre_filter):
+        if osp.exists(f) and torch.load(f, weights_only=False) != _repr(self.pre_filter):
             warnings.warn(
                 "The `pre_filter` argument differs from the one used in the "
                 "pre-processed version of this dataset. If you want to make "

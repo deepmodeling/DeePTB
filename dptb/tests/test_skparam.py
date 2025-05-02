@@ -146,7 +146,7 @@ class TestSKParam:
             bond_type = ifile_name.split('.')[0]
             skfile_dict[bond_type] = ifile
 
-        skparams = torch.load(output)
+        skparams = torch.load(output, weights_only=False)
         self.check_skdict_fromfile(skfile_dict, skparams)
         
         format_skparams = SKParam(basis={"C": ["2s", "2p"], "H": ["1s"]}, skdata=skparams)
