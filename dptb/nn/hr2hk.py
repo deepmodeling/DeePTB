@@ -45,6 +45,8 @@ class HR2HK(torch.nn.Module):
         self.node_field = node_field
         self.out_field = out_field
 
+        self.atom_norbs = []
+
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
 
         # construct bond wise hamiltonian block from obital pair wise node/edge features
@@ -82,7 +84,7 @@ class HR2HK(torch.nn.Module):
                 
                 # constructing hopping blocks
                 if iorb == jorb:
-                    factor = 0.5
+                    factor = 0.5  # for diagonal elements, we need to divide by 2 for later conjugate transpose operation to construct the whole Hamiltonian
                 else:
                     factor = 1.0
 
@@ -127,6 +129,7 @@ class HR2HK(torch.nn.Module):
             masked_oblock = oblock[mask][:,mask]
             block[:,ist:ist+masked_oblock.shape[0],ist:ist+masked_oblock.shape[1]] = masked_oblock.squeeze(0)
             atom_id_to_indices[i] = slice(ist, ist+masked_oblock.shape[0])
+            self.atom_norbs.append(masked_oblock.shape[0])
             ist += masked_oblock.shape[0]
         
         # if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():

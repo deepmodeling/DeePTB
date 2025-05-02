@@ -426,9 +426,9 @@ def test_data_sub():
 
 def data_options():
     args = [
-            Argument("r_max", [float,int], optional=True, default="5.0", doc="r_max"),
-            Argument("oer_max", [float,int], optional=True, default="5.0", doc="oer_max"),
-            Argument("er_max", [float,int], optional=True, default="5.0", doc="er_max"),
+            Argument("r_max", [float,int], optional=True, default=5.0, doc="r_max"),
+            Argument("oer_max", [float,int], optional=True, default=5.0, doc="oer_max"),
+            Argument("er_max", [float,int], optional=True, default=5.0, doc="er_max"),
             train_data_sub(),
             validation_data_sub(),
             reference_data_sub()
@@ -1041,10 +1041,15 @@ def negf():
         Argument("block_tridiagonal", bool, optional=True, default=False, doc=doc_block_tridiagonal),
         Argument("ele_T", [float, int], optional=False, doc=doc_ele_T),
         Argument("unit", str, optional=True, default="Hartree", doc=doc_unit),
+        Argument("use_saved_HS", bool, optional=True, default=False, doc="Whether to use saved Hamiltonian and overlap matrix"),
+        Argument("saved_HS_path", str, optional=True, default=None, doc="The path to the saved Hamiltonian and overlap matrix"),
         Argument("scf_options", dict, optional=True, default={}, sub_fields=[], sub_variants=[scf_options()], doc=doc_scf_options),
         Argument("stru_options", dict, optional=False, sub_fields=stru_options(), doc=doc_stru_options),
         Argument("poisson_options", dict, optional=True, default={}, sub_fields=[], sub_variants=[poisson_options()], doc=doc_poisson_options),
         Argument("sgf_solver", str, optional=True, default="Sancho-Rubio", doc=doc_sgf_solver),
+        Argument("self_energy_save", bool, optional=True, default=False, doc="whether to save the self energy"),
+        Argument("self_energy_save_path", str, optional=True, default=None, doc="the path to save the self energy"),
+        Argument("se_info_display", bool, optional=True, default=False, doc="whether to display the self energy information"),
         Argument("espacing", [int, float], optional=False, doc=doc_espacing),
         Argument("emin", [int, float], optional=False, doc=doc_emin),
         Argument("emax", [int, float], optional=False, doc=doc_emax),
@@ -1092,10 +1097,13 @@ def device():
 def lead():
     doc_id=""
     doc_voltage=""
-
+    doc_useBloch=""
+    doc_bloch_factor=""
     return [
         Argument("id", str, optional=False, doc=doc_id),
-        Argument("voltage", [int, float], optional=False, doc=doc_voltage)
+        Argument("voltage", [int, float], optional=False, doc=doc_voltage),
+        Argument("useBloch", bool, optional=True, default=False, doc=doc_useBloch),
+        Argument("bloch_factor", list, optional=True, default=[1,1,1], doc=doc_bloch_factor)
     ]
 
 def scf_options():
@@ -1126,16 +1134,22 @@ def PDIIS():
 def poisson_options():
     doc_solver = ""
     doc_fmm = ""
+    doc_pyamg= ""
+    doc_scipy= ""
     return Variant("solver", [
-        Argument("fmm", dict, fmm(), doc=doc_fmm)
+        Argument("fmm", dict, fmm(), doc=doc_fmm),
+        Argument("pyamg", dict, pyamg(), doc=doc_pyamg),
+        Argument("scipy", dict, scipy(), doc=doc_scipy)
     ], optional=True, default_tag="fmm", doc=doc_solver)
 
 def density_options():
     doc_method = ""
     doc_Ozaki = ""
+    doc_Fiori = ""
     return Variant("method", [
-        Argument("Ozaki", dict, Ozaki(), doc=doc_method)
-    ], optional=True, default_tag="Ozaki", doc=doc_Ozaki)
+        Argument("Ozaki", dict, Ozaki(), doc=doc_Ozaki),
+        Argument("Fiori", dict, Fiori(), doc=doc_Fiori)
+    ], optional=True, default_tag="Ozaki", doc=doc_method)
 
 def Ozaki():
     doc_M_cut = ""
@@ -1147,11 +1161,112 @@ def Ozaki():
         Argument("n_gauss", int, optional=True, default=10, doc=doc_n_gauss),
     ]
 
+def Fiori():
+    doc_n_gauss = ""
+    doc_integrate_way=""
+    return [
+        Argument("integrate_way", int, optional=True, default='direct', doc=doc_integrate_way),
+        Argument("n_gauss", int, optional=True, default=100, doc=doc_n_gauss)
+    ]
+
 def fmm():
     doc_err = ""
 
     return [
         Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err)
+    ]
+
+def pyamg():
+    doc_err = ""
+    doc_tolerance=""
+    doc_grid=""
+    doc_gate=""
+    doc_dielectric=""
+    doc_doped=""
+    doc_max_iter=""
+    doc_mix_rate=""
+    doc_poisson_dtype="The dtype of the poisson solver"
+    return [
+        Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err),
+        Argument("tolerance", [int, float], optional=True, default=1e-7, doc=doc_tolerance),
+        Argument("max_iter", int, optional=True, default=100, doc=doc_max_iter),
+        Argument("mix_rate", int, optional=True, default=0.25, doc=doc_mix_rate),
+        Argument("poisson_dtype", str, optional=True, default='float64', doc=doc_poisson_dtype),
+        Argument("grid", dict, optional=False, sub_fields=grid(), doc=doc_grid),
+        Argument("gate_top", dict, optional=False, sub_fields=gate(), doc=doc_gate),
+        Argument("gate_bottom", dict, optional=False, sub_fields=gate(), doc=doc_gate),
+        Argument("dielectric_region", dict, optional=False, sub_fields=dielectric(), doc=doc_dielectric),
+        Argument("doped_region", dict, optional=False, sub_fields=doped(), doc=doc_doped)
+    ]
+
+def scipy():
+    doc_err = ""
+    doc_tolerance=""
+    doc_grid=""
+    doc_gate=""
+    doc_dielectric=""
+    doc_doped=""
+    doc_max_iter=""
+    doc_mix_rate=""
+    doc_poisson_dtype="The dtype of the poisson solver"
+    return [
+        Argument("err", [int, float], optional=True, default=1e-5, doc=doc_err),
+        Argument("tolerance", [int, float], optional=True, default=1e-7, doc=doc_tolerance),
+        Argument("max_iter", int, optional=True, default=100, doc=doc_max_iter),
+        Argument("mix_rate", int, optional=True, default=0.25, doc=doc_mix_rate),
+        Argument("poisson_dtype", str, optional=True, default='float64', doc=doc_poisson_dtype),
+        Argument("grid", dict, optional=True, sub_fields=grid(), doc=doc_grid),
+        Argument("gate_top", dict, optional=True, sub_fields=gate(), doc=doc_gate),
+        Argument("gate_bottom", dict, optional=True, sub_fields=gate(), doc=doc_gate),
+        Argument("dielectric_region", dict, optional=True, sub_fields=dielectric(), doc=doc_dielectric),
+        Argument("doped_region1", dict, optional=True, sub_fields=doped(), doc=doc_doped),
+        Argument("doped_region2", dict, optional=True, sub_fields=doped(), doc=doc_doped)
+    ]
+
+def grid():
+    doc_xrange=""
+    doc_yrange=""
+    doc_zrange=""
+    return [
+        Argument("x_range", str, optional=False, doc=doc_xrange),
+        Argument("y_range", str, optional=False, doc=doc_yrange),
+        Argument("z_range", str, optional=False, doc=doc_zrange),
+    ]
+
+def gate():
+    doc_xrange=""
+    doc_yrange=""
+    doc_zrange=""
+    doc_voltage=""
+    return [
+        Argument("x_range", str, optional=False, doc=doc_xrange),
+        Argument("y_range", str, optional=False, doc=doc_yrange),
+        Argument("z_range", str, optional=False, doc=doc_zrange),
+        Argument("voltage", [int, float], optional=False, doc=doc_voltage)
+    ]
+
+def dielectric():
+    doc_xrange=""
+    doc_yrange=""
+    doc_zrange=""
+    doc_permittivity=""
+    return [
+        Argument("x_range", str, optional=False, doc=doc_xrange),
+        Argument("y_range", str, optional=False, doc=doc_yrange),
+        Argument("z_range", str, optional=False, doc=doc_zrange),
+        Argument("relative permittivity", [int, float], optional=False, doc=doc_permittivity)
+    ]
+
+def doped():
+    doc_xrange=""
+    doc_yrange=""
+    doc_zrange=""
+    doc_charge=""
+    return [
+        Argument("x_range", str, optional=False, doc=doc_xrange),
+        Argument("y_range", str, optional=False, doc=doc_yrange),
+        Argument("z_range", str, optional=False, doc=doc_zrange),
+        Argument("charge", [int, float], optional=False, doc=doc_charge)
     ]
 
 def run_options():

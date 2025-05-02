@@ -125,6 +125,14 @@ def leggauss(fcn, xl, xu, params, n=100, **unused):
         res += wlg[i] * fcn(xs[i], *params)
     return res
 
+def natsorted(lst):
+    '''sorts a list of strings in a natural order.'''
+    def sort_key(s):
+        return [int(text) if text.isdigit() else text for text in re.split(r'(\d+)', s)]
+    
+    return sorted(lst, key=sort_key)
+
+
 def gauss_xw(xl, xu, n=100):
     '''calculates the Gauss-Legendre quadrature points and weights for numerical  integration.
     

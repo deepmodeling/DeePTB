@@ -87,8 +87,9 @@ class DeviceProperty(object):
         self.e_T = e_T
         self.efermi = efermi
         self.mu = self.efermi
-        self.kpoint = None
-        self.V = None
+        self.kpoint = None  # kpoint for cal_green_function
+        self.newK_flag = None # whether the kpoint is new or not in cal_green_function
+        self.newV_flag = None # whether the voltage is new or not in cal_green_function
     
     def set_leadLR(self, lead_L, lead_R):
         '''initialize the left and right lead in Device object
@@ -105,9 +106,11 @@ class DeviceProperty(object):
         '''
         self.lead_L = lead_L
         self.lead_R = lead_R
-        self.mu = self.efermi - 0.5*(self.lead_L.voltage + self.lead_R.voltage)
+      # self.mu = self.efermi - 0.5*(self.lead_L.voltage + self.lead_R.voltage) # temporarily for NanoTCAD
 
-    def cal_green_function(self, energy, kpoint, eta_device=0., block_tridiagonal=True):
+
+    def cal_green_function(self, energy, kpoint, eta_device=0., block_tridiagonal=True, Vbias=None,
+                           HS_inmem:bool=True):
         ''' computes the Green's function for a given energy and k-point in device.
 
         the tags used here to identify different Green's functions follows the NEGF theory 
@@ -127,64 +130,110 @@ class DeviceProperty(object):
             A boolean parameter that shows whether the Hamiltonian matrix is block tridiagonal or not. 
             If set to True, the Hamiltonian matrix is assumed to have a block tridiagonal structure, 
             which can lead to computational efficiency in certain cases.
-        
+        HS_inmem
+            A boolean parameter that shows whether the Hamiltonian/overlap is stored in memory after finishing 
+            cal_green_function or not, which is important for large-scale calculations.
         '''
         assert len(np.array(kpoint).reshape(-1)) == 3
         if not isinstance(energy, torch.Tensor):
             energy = torch.tensor(energy, dtype=torch.complex128)
 
         self.block_tridiagonal = block_tridiagonal
-        # self.kpoint = kpoint
+        if self.kpoint is None or abs(self.kpoint - torch.tensor(kpoint)).sum() > 1e-5:
+            self.kpoint = torch.tensor(kpoint)
+            self.newK_flag = True
+        else:
+            self.newK_flag = False
+
 
         # if V is not None:
         #     HD_ = self.attachPotential(HD, SD, V)
         # else:
         #     HD_ = HD
-
-        if os.path.exists(os.path.join(self.results_path, "POTENTIAL.pth")):
-            self.V = torch.load(os.path.join(self.results_path, "POTENTIAL.pth"), weights_only=False)
-        elif abs(self.mu - self.efermi) > 1e-7:
-            self.V = self.efermi - self.mu
+        if  hasattr(self, "V"):
+            self.oldV = self.V
         else:
-            self.V = 0.
+            self.oldV = None
+
+        if Vbias is None:
+            if os.path.exists(os.path.join(self.results_path, "POTENTIAL.pth")):
+                self.V = torch.load(os.path.join(self.results_path, "POTENTIAL.pth"))
+            elif abs(self.mu - self.efermi) > 1e-7:
+                self.V = torch.tensor(self.efermi - self.mu)
+            else:
+                self.V = torch.tensor(0.)
+        else:
+            self.V = Vbias
         
-        if not hasattr(self, "hd") or not hasattr(self, "sd") or self.kpoint is None:
-            self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
-            self.kpoint = torch.tensor(kpoint)
-        elif not torch.allclose(self.kpoint, torch.tensor(kpoint), atol=1e-5):
-            self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
-            self.kpoint = torch.tensor(kpoint)
+        assert torch.is_tensor(self.V)
+        if not self.oldV is None:
+            if torch.abs(self.V - self.oldV).sum() > 1e-5:
+                self.newV_flag = True
+            else:
+                self.newV_flag = False
+        else:
+            self.newV_flag = True  # for the first time to run cal_green_function in Poisson-NEGF SCF
 
-
+        
+        # if not hasattr(self, "hd") or not hasattr(self, "sd"): 
+        #maybe the reason why different kpoint has different green function
+        
+        # if [not hasattr(self, "hd") or not hasattr(self, "sd")]: 
+        #     if not self.block_tridiagonal:
+        #         self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(self.kpoint, self.V, block_tridiagonal)
+        #     else:
+        #         self.hd, self.sd, self.hl, self.su, self.sl, self.hu = self.hamiltonian.get_hs_device(self.kpoint, self.V, block_tridiagonal)
+        # elif [self.newK_flag or self.newV_flag]: # check whether kpoints or Vbias change or not
+        #     if not self.block_tridiagonal:
+        #         self.hd, self.sd, _, _, _, _ = self.hamiltonian.get_hs_device(kpoint, self.V, block_tridiagonal)
+        #     else:
+        #         self.hd, self.sd, self.hl, self.su, self.sl, self.hu = self.hamiltonian.get_hs_device(self.kpoint, self.V, block_tridiagonal)
+        
+        # hd in format:(block_index,orb,orb)
+        if (not (hasattr(self, "hd") and hasattr(self, "sd"))) or (self.newK_flag or self.newV_flag):               
+            self.hd, self.sd, self.hl, self.su, self.sl, self.hu = self.hamiltonian.get_hs_device(self.kpoint, self.V, block_tridiagonal)
 
 
         s_in = [torch.zeros(i.shape).cdouble() for i in self.hd]
         
         # for i, e in tqdm(enumerate(ee), desc="Compute green functions: "):
         
-        tags = ["g_trans", \
+        tags = ["g_trans","gr_lc", \
                "grd", "grl", "gru", "gr_left", \
                "gnd", "gnl", "gnu", "gin_left", \
                "gpd", "gpl", "gpu", "gip_left"]
         
         seL = self.lead_L.se
         seR = self.lead_R.se
+        # seinL = -i \Sigma_L^< = \Gamma_L f_L
+        # Fluctuation-Dissipation theorem
         seinL = 1j*(seL-seL.conj().T) * self.lead_L.fermi_dirac(energy+self.mu).reshape(-1)
         seinR = 1j*(seR-seR.conj().T) * self.lead_R.fermi_dirac(energy+self.mu).reshape(-1)
-        s01, s02 = s_in[0].shape
-        se01, se02 = seL.shape
-        idx0, idy0 = min(s01, se01), min(s02, se02)
-
+        s01, s02 = s_in[0].shape # The shape of the first H block
+        se01, se02 = seL.shape # The shape of the left self-energy
         s11, s12 = s_in[-1].shape
         se11, se12 = seR.shape
+        idx0, idy0 = min(s01, se01), min(s02, se02) # The minimum of the two shapes
         idx1, idy1 = min(s11, se11), min(s12, se12)
+        if block_tridiagonal:
+            # Based on the block tridiagonal algorithm, the shape of the self-energy should be 
+            # equal to or larger than the corresponding Hamiltonian block
+            if se01 > s01 or se02 > s02:
+                log.warning(f"The shape of left self-energy ({se01},{se02}) is larger than\
+                             the first Hamiltonian block ({s01},{s02}).")
+                raise ValueError("Left Lead Self Energy size is larger than the first Hamiltonian Block.")
+            if se11 > s11 or se12 > s12:
+                log.warning(f"The shape of right self-energy ({se11},{se12}) is different from\
+                             the last Hamiltonian block ({s11},{s12}).")
+                raise ValueError("Right Lead Self Energy size is larger than the last Hamiltonian Block.")
+            
         
         green_funcs = {}
 
         s_in[0][:idx0,:idy0] = s_in[0][:idx0,:idy0] + seinL[:idx0,:idy0]
         s_in[-1][-idx1:,-idy1:] = s_in[-1][-idx1:,-idy1:] + seinR[-idx1:,-idy1:]
-        ans = recursive_gf(energy, hl=[], hd=self.hd, hu=[],
-                            sd=self.sd, su=[], sl=[], 
+        ans = recursive_gf(energy, hl=self.hl, hd=self.hd, hu=self.hu,
+                            sd=self.sd, su=self.su, sl=self.sl, 
                             left_se=seL, right_se=seR, seP=None, s_in=s_in,
                             s_out=None, eta=eta_device, chemiPot=self.mu)
         s_in[0][:idx0,:idy0] = s_in[0][:idx0,:idy0] - seinL[:idx0,:idy0]
@@ -195,6 +244,10 @@ class DeviceProperty(object):
             green_funcs[tags[t]] = ans[t]
 
         self.greenfuncs = green_funcs
+
+        if not HS_inmem:
+            del self.hd, self.sd, self.hl, self.su, self.sl, self.hu
+
         # self.green = update_temp_file(update_fn=fn, file_path=GFpath, ee=ee, tags=tags, info="Computing Green's Function")
 
     def _cal_current_(self, espacing):
@@ -257,7 +310,7 @@ class DeviceProperty(object):
         cc = []
 
         for dv in vv * 0.5:
-            I = simpson((f(energy_grid+self.mu, self.lead_L.efermi-vm+dv) - f(energy_grid+self.mu, self.lead_R.efermi-vm-dv)) * tc, energy_grid)
+            I = simpson(y=(f(energy_grid+self.mu, self.lead_L.efermi-vm+dv) - f(energy_grid+self.mu, self.lead_R.efermi-vm-dv)) * tc, x=energy_grid)
             cc.append(I)
 
         return vv, cc
@@ -301,10 +354,22 @@ class DeviceProperty(object):
             DOS with spin multiplicity
         '''
         dos = 0
-        for jj in range(len(self.grd)):
-            temp = self.grd[jj] @ self.sd[jj] # taking each diagonal block with all energy e together
-            dos -= temp.imag.diag().sum(-1) / pi
+        #TODO: transfer cal_dos to static method for any k and energy
+        if (not(hasattr(self, "hd") and hasattr(self, "sd"))) or (self.newK_flag or self.newV_flag):               
+            self.hd, self.sd, self.hl, self.su, self.sl, self.hu = \
+                self.hamiltonian.get_hs_device(self.kpoint, self.V, self.block_tridiagonal)
 
+        for jj in range(len(self.grd)):
+            if not self.block_tridiagonal or len(self.gru) == 0:
+                temp = self.grd[jj] @ self.sd[jj] # taking each diagonal block with all energy e together
+            else:
+                if jj == 0:
+                    temp = self.grd[jj] @ self.sd[jj] + self.gru[jj] @ self.sl[jj]
+                elif jj == len(self.grd)-1:
+                    temp = self.grd[jj] @ self.sd[jj] + self.grl[jj-1] @ self.su[jj-1]
+                else:
+                    temp = self.grd[jj] @ self.sd[jj] + self.grl[jj-1] @ self.su[jj-1] + self.gru[jj] @ self.sl[jj]
+            dos -= temp.imag.diag().sum(-1) / pi
         return dos * 2
 
     def _cal_ldos_(self):
@@ -318,7 +383,15 @@ class DeviceProperty(object):
         ldos = []
         # sd = self.hamiltonian.get_hs_device(kpoint=self.kpoint, V=self.V, block_tridiagonal=self.block_tridiagonal)[1]
         for jj in range(len(self.grd)):
-            temp = self.grd[jj] @ self.sd[jj] # taking each diagonal block with all energy e together
+            if not self.block_tridiagonal or len(self.gru) == 0:
+                temp = self.grd[jj] @ self.sd[jj] # taking each diagonal block with all energy e together
+            else:
+                if jj == 0:
+                    temp = self.grd[jj] @ self.sd[jj] + self.gru[jj] @ self.sl[jj]
+                elif jj == len(self.grd)-1:
+                    temp = self.grd[jj] @ self.sd[jj] + self.grl[jj-1] @ self.su[jj-1]
+                else:
+                    temp = self.grd[jj] @ self.sd[jj] + self.grl[jj-1] @ self.su[jj-1] + self.gru[jj] @ self.sl[jj]
             ldos.append(-temp.imag.diag() / pi) # shape(Nd(diagonal elements))
 
         ldos = torch.cat(ldos, dim=0).contiguous()
@@ -327,6 +400,7 @@ class DeviceProperty(object):
         accmap = np.cumsum(norbs)
         ldos = torch.stack([ldos[accmap[i]:accmap[i+1]].sum() for i in range(len(accmap)-1)])
 
+        # return ldos*2
         return ldos*2
 
     def _cal_local_current_(self):
@@ -409,7 +483,9 @@ class DeviceProperty(object):
     @property
     def g_trans(self):
         return self.greenfuncs["g_trans"] # [n,n]
-    
+    @property
+    def gr_lc(self): # last column of Gr
+        return self.greenfuncs["gr_lc"]  
     @property
     def grd(self):
         return self.greenfuncs["grd"] # [[n,n]]
