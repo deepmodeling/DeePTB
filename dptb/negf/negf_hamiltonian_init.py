@@ -76,9 +76,9 @@ class NEGFHamiltonianInit(object):
                  ) -> None:
         
         # TODO: add dtype and device setting to the model
-        # torch.set_default_dtype(torch.float64)
+        torch.set_default_dtype(torch.float64)
 
-        torch.set_default_dtype(model.dtype)
+        # torch.set_default_dtype(model.dtype)
 
         if isinstance(torch_device, str):
             torch_device = torch.device(torch_device)
@@ -222,7 +222,7 @@ class NEGFHamiltonianInit(object):
             log.info(msg=f"The Hamiltonian has been initialized by model.")
             log.info(msg="=="*40)
 
-        # torch.set_default_dtype(torch.float32)
+        torch.set_default_dtype(torch.float32)
         return  structure_device, structure_leads, structure_leads_fold, \
                 bloch_sorted_indices, bloch_R_lists
 

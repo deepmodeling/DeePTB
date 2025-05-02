@@ -310,7 +310,7 @@ class DeviceProperty(object):
         cc = []
 
         for dv in vv * 0.5:
-            I = simpson((f(energy_grid+self.mu, self.lead_L.efermi-vm+dv) - f(energy_grid+self.mu, self.lead_R.efermi-vm-dv)) * tc, energy_grid)
+            I = simpson(y=(f(energy_grid+self.mu, self.lead_L.efermi-vm+dv) - f(energy_grid+self.mu, self.lead_R.efermi-vm-dv)) * tc, x=energy_grid)
             cc.append(I)
 
         return vv, cc

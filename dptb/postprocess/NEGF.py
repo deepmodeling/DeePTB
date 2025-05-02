@@ -177,9 +177,9 @@ class NEGF(object):
         left_connected_atom_mask = abs(struct_device.positions[:,2]-min(struct_device.positions[:,2]))<1e-6
         right_connected_atom_mask = abs(struct_device.positions[:,2]-max(struct_device.positions[:,2]))<1e-6
 
-        self.left_connected_orb_mask = torch.tensor( [p for p, norb in zip(left_connected_atom_mask, self.device_atom_norbs) \
+        self.left_connected_orb_mask = torch.tensor( [bool(p) for p, norb in zip(left_connected_atom_mask, self.device_atom_norbs) \
                                                       for _ in range(norb)],dtype=torch.bool)
-        self.right_connected_orb_mask = torch.tensor( [p for p, norb in zip(right_connected_atom_mask, self.device_atom_norbs) \
+        self.right_connected_orb_mask = torch.tensor( [bool(p) for p, norb in zip(right_connected_atom_mask, self.device_atom_norbs) \
                                                         for _ in range(norb)],dtype=torch.bool)
 
 
