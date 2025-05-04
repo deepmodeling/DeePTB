@@ -31,9 +31,8 @@ author = 'DeePTB'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-        'myst_parser',
-        'deepmodeling_sphinx',
         'myst_nb',
+        'deepmodeling_sphinx',
 ]
 myst_enable_extensions = [
     "amsmath",
