@@ -34,6 +34,8 @@ extensions = [
         'myst_nb',
         'deepmodeling_sphinx',
 ]
+nb_execute_notebooks = "off"  # 不执行notebooks
+
 myst_enable_extensions = [
     "amsmath",
     "colon_fence",
