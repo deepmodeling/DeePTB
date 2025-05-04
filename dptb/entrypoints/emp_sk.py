@@ -67,8 +67,20 @@ class EmpSK(object):
 
     def format_common_options(self, common_options):
         """
-        Format the common options for the model.
-        """        # check basis in common_options
+        Format the common options for the model. and construct the mapping between two kind of basis definition.
+        The two kind of basis definition are:
+            1. common_options = {'basis': {'C': ['s','p','d']}}
+            2. common_options = {'basis': {'C': ['2s','2p','d*']}}
+        
+        Args:
+            common_options: common options for the model. especially contain the basis information.
+            e.g. common_options = {'basis': {'C': ['s','p','d']}} or common_options = {'basis': {'C': ['2s','2p','d*']}}
+        
+        Returns:
+            common_options: common options for the model.
+            basisref: basis reference for the model.
+        """        
+        # check basis in common_options
         if 'basis' not in common_options:
             raise ValueError('basis information is not given in common_options.')
         # check basis type
