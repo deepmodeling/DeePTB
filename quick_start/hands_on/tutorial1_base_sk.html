@@ -1,0 +1,906 @@
+<!doctypehtml><html data-content_root=../../ lang=en><head><meta charset=utf-8><meta content=width=device-width,initial-scale=1.0 name=viewport><meta content=width=device-width,initial-scale=1 name=viewport><title>DeePTB Tutorial 1: deeptb-sk baseline model [v2.2] — DeePTB  documentation</title><script data-cfasync=false>document.documentElement.dataset.mode=localStorage.getItem(`mode`)||``;document.documentElement.dataset.theme=localStorage.getItem(`theme`)||``</script><link href=../../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b rel=stylesheet><link href=../../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b rel=stylesheet><link href=../../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b rel=stylesheet><link href=../../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b rel=stylesheet><link as=font crossorigin href=../../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2 rel=preload type=font/woff2><link as=font crossorigin href=../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2 rel=preload type=font/woff2><link as=font crossorigin href=../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2 rel=preload type=font/woff2><link href=../../_static/pygments.css?v=8f2a1f02 rel=stylesheet><link href=../../_static/styles/sphinx-book-theme.css?v=eba8b062 rel=stylesheet><link href=../../_static/mystnb.4510f1fc1dee50b3e5859aac5469c37c29e427902b24a333a5f9fcb2f0b3ac41.css rel=stylesheet><link href=../../_static/banner.css?v=f1520836 rel=stylesheet><link as=script href=../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b rel=preload><link as=script href=../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b rel=preload><script src=../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b></script><script src=../../_static/documentation_options.js?v=9eb32ce0></script><script src=../../_static/doctools.js?v=9bcbadda></script><script src=../../_static/sphinx_highlight.js?v=dc90522c></script><script src=../../_static/scripts/sphinx-book-theme.js?v=887ef09a></script><script src=../../_static/banner.js?v=a6a668d4></script><script>DOCUMENTATION_OPTIONS.pagename=`quick_start/hands_on/tutorial1_base_sk`</script><link href=../../genindex.html rel=index title=Index><link href=../../search.html rel=search title=Search><link title="Basic API"href=../basic_api.html rel=next><link title="DeePTB-E3: Bulk Silicon"href=e3tb_hands_on.html rel=prev><meta content=width=device-width,initial-scale=1 name=viewport><meta content=en name=docsearch:language><link href=https://unpkg.com/ rel=preconnect><link href=https://unpkg.com/@njzjz/icons@0.0.5/logos/deepmodeling.svg rel=icon type=image/png><div class="container-fluid header-holder tutorials-header"id=header-holder><div class=container><div class=header-container><a aria-label=deepmodeling class=header-logo href=https://deepmodeling.com></a><div class=main-menu><ul><li><a href=https://deepmodeling.com>Home</a></li><li><a href=https://blogs.deepmodeling.com>Blog</a></li><li><a href=https://tutorials.deepmodeling.com>Tutorials</a></li><li class="active docs-active"><div class=resources-dropdown data-toggle=resources-dropdown id=resourcesDropdownButton><a class="resource-option with-down-orange-arrow"href=https://docs.deepmodeling.com/> Docs </a><div class=resources-dropdown-menu><a class="doc-dropdown-option nav-dropdown-item"href=https://docs.deepmodeling.com/projects/deepmd/> <span class=dropdown-title>DeePMD-kit</span> <p></p> </a><a class="doc-dropdown-option nav-dropdown-item"href=https://docs.deepmodeling.com/projects/dpgen/> <span class=dropdown-title>DP-GEN</span> <p></p> </a><a class="doc-dropdown-option nav-dropdown-item"href=https://docs.deepmodeling.com/projects/dpdata/> <span class=dropdown-title>dpdata</span> <p></p> </a><a class="doc-dropdown-option nav-dropdown-item"href=https://docs.deepmodeling.com/projects/dpdispatcher/> <span class=dropdown-title>DPDispatcher</span> <p></p> </a><a class="doc-dropdown-option nav-dropdown-item"href=https://abacus.deepmodeling.com/> <span class=dropdown-title>ABACUS</span> <p></p> </a><a class="doc-dropdown-option nav-dropdown-item"href=https://deepflame.deepmodeling.com/> <span class=dropdown-title>DeepFlame</span> <p></p> </a><a class="doc-dropdown-option nav-dropdown-item"href=https://docs.deepmodeling.com/projects/dpti/> <span class=dropdown-title>DPTI</span> <p></p> </a></div></div></li><li><a href=https://blogs.deepmodeling.com/papers/>Publications</a></li><li><a href=https://github.com/deepmodeling>GitHub</a></li></ul></div><a class=main-menu-open-button data-behavior=open-mobile-menu href=#></a></div></div></div><div class=mobile-main-menu><div class=container-fluid><div class=container><div class=mobile-main-menu-header-container><a aria-label=deepmodeling class=header-logo href=https://deepmodeling.com></a><a class=main-menu-close-button data-behavior=close-mobile-menu href=#></a></div></div></div><div class=mobile-main-menu-links-container><div class=main-menu><ul><li><a href=https://deepmodeling.com>Home</a></li><li><a href=https://blogs.deepmodeling.com>Blog</a></li><li><a href=https://tutorials.deepmodeling.com>Tutorials</a></li><li><a href=https://docs.deepmodeling.com/>Docs</a></li><li><a href=https://blogs.deepmodeling.com/papers/>Publications</a></li><li><a href=https://github.com/deepmodeling>GitHub</a></li></ul></div></div></div></head><body data-bs-root-margin="0px 0px -60%"data-bs-spy=scroll data-bs-target=.bd-toc-nav data-default-mode data-offset=180><div class="skip-link d-print-none"id=pst-skip-link><a href=#main-content>Skip to main content</a></div><div id=pst-scroll-pixel-helper></div><button class="btn rounded-pill"id=pst-back-to-top type=button><i class="fa-solid fa-arrow-up"></i>Back to top</button><input class=sidebar-toggle id=pst-primary-sidebar-checkbox type=checkbox><label class="overlay overlay-primary"for=pst-primary-sidebar-checkbox></label><input class=sidebar-toggle id=pst-secondary-sidebar-checkbox type=checkbox><label class="overlay overlay-secondary"for=pst-secondary-sidebar-checkbox></label><div class=search-button__wrapper><div class=search-button__overlay></div><div class=search-button__search-container><form class="bd-search d-flex align-items-center"action=../../search.html><i class="fa-solid fa-magnifying-glass"></i><input aria-label=Search... autocapitalize=off autocomplete=off autocorrect=off class=form-control id=search-input name=q placeholder=Search... spellcheck=false type=search><span class=search-button__kbd-shortcut><kbd class=kbd-shortcut__modifier>Ctrl</kbd>+<kbd>K</kbd></span></form></div></div><div class="pst-async-banner-revealer d-none"><aside aria-label="Version warning"class="d-none d-print-none"id=bd-header-version-warning></aside></div><header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none"></header><div class=bd-container><div class="bd-container__inner bd-page-width"><div class="bd-sidebar-primary bd-sidebar"><div class="sidebar-header-items sidebar-primary__section"></div><div class="sidebar-primary-items__start sidebar-primary__section"><div class=sidebar-primary-item><a class="navbar-brand logo"href=../../index.html> <img alt="DeePTB  documentation - Home"class="logo__image only-light"src=../../_static/deeptb-logo.svg> <script>document.write(`<img src="../../_static/deeptb-logo.svg" class="logo__image only-dark" alt="DeePTB  documentation - Home"/>`)</script> </a></div><div class=sidebar-primary-item><script>document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `)</script></div><div class=sidebar-primary-item><nav class="bd-links bd-docs-nav"aria-label=Main><div class="bd-toc-item navbar-nav active"><p aria-level=2 class=caption role=heading><span class=caption-text>Quick Start</span></p><ul class="current nav bd-sidenav"><li class=toctree-l1><a class="reference internal"href=../easy_install.html>Installation Guide</a></li><li class=toctree-l1><a class="reference internal"href=../input.html>Brief Intro. to Inputs and Commands</a></li><li class="toctree-l1 current active has-children"><a class="reference internal"href=index.html>A quick Example</a><details open><summary><span class=toctree-toggle role=presentation><i class="fa-solid fa-chevron-down"></i></span></summary><ul class=current><li class=toctree-l2><a class="reference internal"href=sktb_hands_on.html>DeePTB-SK: h-BN</a></li><li class=toctree-l2><a class="reference internal"href=e3tb_hands_on.html>DeePTB-E3: Bulk Silicon</a></li><li class="toctree-l2 current active"><a class="current reference internal"href=#>DeePTB Tutorial 1: deeptb-sk baseline model [v2.2]</a></li></ul></details></li><li class=toctree-l1><a class="reference internal"href=../basic_api.html>Basic API</a></li></ul><p aria-level=2 class=caption role=heading><span class=caption-text>INPUT TAG</span></p><ul class="nav bd-sidenav"><li class="toctree-l1 has-children"><a class="reference internal"href=../../input_params/index.html>Full Input Parameters</a><details><summary><span class=toctree-toggle role=presentation><i class="fa-solid fa-chevron-down"></i></span></summary><ul><li class=toctree-l2><a class="reference internal"href=../../input_params/common_options.html>Common Options</a></li><li class=toctree-l2><a class="reference internal"href=../../input_params/train_options.html>Train Options</a></li><li class=toctree-l2><a class="reference internal"href=../../input_params/model_options.html>Model Options</a></li><li class=toctree-l2><a class="reference internal"href=../../input_params/data_options.html>Data Options</a></li><li class=toctree-l2><a class="reference internal"href=../../input_params/run_options.html>Run Options</a></li><li class=toctree-l2><a class="reference internal"href=../../input_params/set_info.html>Set Info</a></li></ul></details></li></ul><p aria-level=2 class=caption role=heading><span class=caption-text>Advanced</span></p><ul class="nav bd-sidenav"><li class="toctree-l1 has-children"><a class="reference internal"href=../../advanced/sktb/index.html>DeePTB-SK Advanced</a><details><summary><span class=toctree-toggle role=presentation><i class="fa-solid fa-chevron-down"></i></span></summary><ul><li class=toctree-l2><a class="reference internal"href=../../advanced/sktb/dftb.html>DFTB SK Files to DeePTB Model</a></li><li class=toctree-l2><a class="reference internal"href=../../advanced/sktb/dptb_env.html>Environment-dependent TB</a></li><li class=toctree-l2><a class="reference internal"href=../../advanced/sktb/nrl_tb.html>NRL-TB paramererization</a></li><li class=toctree-l2><a class="reference internal"href=../../advanced/sktb/soc.html>Spin-orbit coupling</a></li></ul></details></li><li class="toctree-l1 has-children"><a class="reference internal"href=../../advanced/e3tb/index.html>DeePTB-E3 Advanced</a><details><summary><span class=toctree-toggle role=presentation><i class="fa-solid fa-chevron-down"></i></span></summary><ul><li class=toctree-l2><a class="reference internal"href=../../advanced/e3tb/advanced_input.html>More on Input Parameters</a></li><li class=toctree-l2><a class="reference internal"href=../../advanced/e3tb/data_preparation.html>Data Preparation</a></li><li class=toctree-l2><a class="reference internal"href=../../advanced/e3tb/loss_analysis.html>Loss Analysis</a></li></ul></details></li><li class="toctree-l1 has-children"><a class="reference internal"href=../../advanced/elec_properties/index.html>Electronic Properties and Outputs</a><details><summary><span class=toctree-toggle role=presentation><i class="fa-solid fa-chevron-down"></i></span></summary><ul><li class=toctree-l2><a class="reference internal"href=../../advanced/elec_properties/band.html>Band structure</a></li></ul></details></li><li class="toctree-l1 has-children"><a class="reference internal"href=../../advanced/interface/index.html>Interfaces to Other Softwares</a><details><summary><span class=toctree-toggle role=presentation><i class="fa-solid fa-chevron-down"></i></span></summary><ul><li class=toctree-l2><a class="reference internal"href=../../advanced/interface/TBPLAS.html>TBPLAS</a></li><li class=toctree-l2><a class="reference internal"href=../../advanced/interface/TBtrans.html>TBtrans</a></li></ul></details></li></ul><p aria-level=2 class=caption role=heading><span class=caption-text>Citing DeePTB</span></p><ul class="nav bd-sidenav"><li class=toctree-l1><a class="reference internal"href=../../CITATIONS.html>How to Cite</a></li></ul><p aria-level=2 class=caption role=heading><span class=caption-text>Developing Team</span></p><ul class="nav bd-sidenav"><li class=toctree-l1><a class="reference internal"href=../../DevelopingTeam.html>Development Team</a></li></ul><p aria-level=2 class=caption role=heading><span class=caption-text>Community</span></p><ul class="nav bd-sidenav"><li class=toctree-l1><a class="reference internal"href=../../community/contribution_guide.html>DeePTB Contribution Guide</a></li><li class=toctree-l1><a class="reference internal"href=../../CONTRIBUTING.html>Contributing to DeePTB</a></li></ul></div></nav></div></div><div class="sidebar-primary-items__end sidebar-primary__section"></div><div id=rtd-footer-container></div></div><main class=bd-main id=main-content role=main><div class=sbt-scroll-pixel-helper></div><div class=bd-content><div class=bd-article-container><div class="bd-header-article d-print-none"><div class="header-article-items header-article__inner"><div class=header-article-items__start><div class=header-article-item><button class="sidebar-toggle primary-toggle btn btn-sm"title="Toggle primary sidebar"data-bs-placement=bottom data-bs-toggle=tooltip><span class="fa-solid fa-bars"></span></button></div></div><div class=header-article-items__end><div class=header-article-item><div class=article-header-buttons><div class="dropdown dropdown-download-buttons"><button aria-label="Download this page"class="btn dropdown-toggle"aria-expanded=false data-bs-toggle=dropdown type=button><i class="fas fa-download"></i></button><ul class=dropdown-menu><li><a class="btn btn-sm btn-download-source-button dropdown-item"title="Download source file"data-bs-placement=left data-bs-toggle=tooltip href=../../_sources/quick_start/hands_on/tutorial1_base_sk.ipynb target=_blank> <span class=btn__icon-container> <i class="fas fa-file"></i> </span> <span class=btn__text-container>.ipynb</span> </a></li><li><button class="btn btn-sm btn-download-pdf-button dropdown-item"title="Print to PDF"data-bs-placement=left data-bs-toggle=tooltip onclick=window.print()><span class=btn__icon-container> <i class="fas fa-file-pdf"></i> </span> <span class=btn__text-container>.pdf</span></button></li></ul></div><button class="btn btn-sm btn-fullscreen-button"title="Fullscreen mode"data-bs-placement=bottom data-bs-toggle=tooltip onclick=toggleFullScreen()><span class=btn__icon-container> <i class="fas fa-expand"></i> </span></button><script>document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`)</script><script>document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`)</script><button class="sidebar-toggle secondary-toggle btn btn-sm"title="Toggle secondary sidebar"data-bs-placement=bottom data-bs-toggle=tooltip><span class="fa-solid fa-list"></span></button></div></div></div></div></div><div class=onlyprint id=jb-print-docs-body><h1>DeePTB Tutorial 1: deeptb-sk baseline model [v2.2]</h1><div id=print-main-content><div id=jb-print-toc><div><h2>Contents</h2></div><nav aria-label=Page><ul class="visible nav section-nav flex-column"><li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link"href=#introduction>Introduction</a><ul class="nav section-nav flex-column"><li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link"href=#version-features>Version Features</a></li><li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link"href=#learning-objectives>Learning Objectives</a></li></ul></li><li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link"href=#calculating-band-structure-for-a-given-structure>1. Calculating Band Structure for a Given Structure</a></li><li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link"href=#extracting-sk-parameter-files-for-a-given-system>2. Extracting SK Parameter Files for a Given System</a></li></ul></nav></div></div></div><div id=searchbox></div><article class=bd-article><section class="tex2jax_ignore mathjax_ignore"id=deeptb-tutorial-1-deeptb-sk-baseline-model-v2-2><h1>DeePTB Tutorial 1: deeptb-sk baseline model [v2.2]<a title="Link to this heading"class=headerlink href=#deeptb-tutorial-1-deeptb-sk-baseline-model-v2-2>#</a></h1><div style="color:#000;background-color:#fff3e9;border:1px solid #ffe0c3;border-radius:10px;margin-bottom:1rem"><p style=margin:1rem;padding-left:1rem;line-height:2.5>Author: <a href=mailto:guqq@ustc.edu.cn style=font-weight:400>Gu, Qiangqiang 顾强强 📨 </a><br> Date: 2025-04-20<br> Protocol：<a href=http://creativecommons.org/licenses/by-nc-sa/4.0/ rel=license>Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License.</a><br> Quick Start：Click the <span style="color:#fff;background-color:#555be4;border-radius:5px;padding:3px;font-size:.75rem;box-shadow:2px 2px 3px #0000004d">Start Connection</span> button，then wait a moment to begin.</p></div><section id=introduction><h2>Introduction<a title="Link to this heading"class=headerlink href=#introduction>#</a></h2><p><strong>DeePTB</strong> is a method that uses deep learning to accelerate first-principles electronic structure simulations.</p><section id=version-features><h3>Version Features<a title="Link to this heading"class=headerlink href=#version-features>#</a></h3><ul class=simple><li><p><strong>v1</strong>: Constructed tight-binding (TB) models with first-principles accuracy (DeePTB-SK)</p></li><li><p><strong>v2</strong>: Added E3 equivariant networks to represent single-electron operators (Hamiltonian, density matrix, and overlap matrix) (DeePTB-E3)</p></li><li><p><strong>v2.2</strong>: Incorporated built-in SK empirical parameters covering commonly used elements across the periodic table</p></li></ul><p>Through these capabilities, DeePTB provides multiple approaches to accelerate electronic structure simulations of materials.</p></section><section id=learning-objectives><h3>Learning Objectives<a title="Link to this heading"class=headerlink href=#learning-objectives>#</a></h3><p>In this tutorial, you will:</p><ol class="arabic simple"><li><p>Learn how to use built-in base model to plot band structure for given crystal structure</p></li><li><p>Learn how to generate a empirical sk model in deeptb-sk format for target system</p></li></ol></section></section><section id=calculating-band-structure-for-a-given-structure><h2>1. Calculating Band Structure for a Given Structure<a title="Link to this heading"class=headerlink href=#calculating-band-structure-for-a-given-structure>#</a></h2><p>The deeptb-sk module now [since v2.2] has built-in empirical SK parameter models covering elements across the periodic table.</p><p>These can be directly used to obtain empirical SKTB models for given structures. It also supports directly plotting band structures for a given structure.</p><div class="cell docutils container"><div class="cell_input docutils container"><div class="highlight-ipython3 notranslate"><div class=highlight><pre><span></span><span class=kn>import</span><span class=w> </span><span class=nn>os</span>
+<span class=n>workdir</span><span class=o>=</span><span class=s1>'/root/soft/DeePTB/examples/base_model/'</span>
+<span class=n>os</span><span class=o>.</span><span class=n>chdir</span><span class=p>(</span><span class=sa>f</span><span class=s2>"</span><span class=si>{</span><span class=n>workdir</span><span class=si>}</span><span class=s2>/structures"</span><span class=p>)</span>
+<span class=o>!</span>tree<span class=w> </span>-L<span class=w> </span><span class=m>1</span><span class=w> </span>./
+</pre></div></div></div><div class="cell_output docutils container"><div class="output stream highlight-myst-ansi notranslate"><div class=highlight><pre><span></span><span class="-Color -Color-Bold -Color-Bold-Blue">./</span>
+├── gaas.vasp
+├── hBN.vasp
+└── silicon.vasp
+
+0 directories, 3 files
+</pre></div></div></div></div><p>Run the band structure plotting command. <strong>Note</strong> that the selection of high-symmetry paths in the Brillouin zone is based on the seekpath.get_path_orig_cell function, which has the following characteristics to be aware of:</p><ol class="arabic simple"><li><p>It does not support 2D materials and will treat 2D materials as 3D materials</p></li><li><p>If the input cell is a non-standard primitive unit cell, the returned k path is equivalent to the k path for the standard cell. For example, the band structure calculated along the k path for the standard and non-standard unit cells will be the same up to numerical errors.</p></li><li><p>If the input cell is a supercell of a smaller primitive cell, the returned k path is that of the associated primitive cell, in the basis of supercell reciprocal lattice. In this case, the k points are not the high-symmetry points of the first Brillouin zone of the given supercell, but the high-symmetry points of the Brillouin zone of the associated primitive cell.</p></li></ol><p>The command for plotting the band structure is as follows:</p><div class="cell docutils container"><div class="cell_input docutils container"><div class="highlight-ipython3 notranslate"><div class=highlight><pre><span></span><span class=c1># 1. Silicon</span>
+<span class=o>!</span>dptb<span class=w> </span>run<span class=w> </span>band<span class=w> </span>-i<span class=w> </span>poly4<span class=w> </span>-stu<span class=w> </span>silicon.vasp<span class=w> </span>-o<span class=w> </span>band_si
+
+<span class=c1># display the band plot:</span>
+<span class=kn>from</span><span class=w> </span><span class=nn>IPython.display</span><span class=w> </span><span class=kn>import</span> <span class=n>Image</span><span class=p>,</span> <span class=n>display</span>
+<span class=kn>import</span><span class=w> </span><span class=nn>os</span>
+<span class=n>image_path</span> <span class=o>=</span> <span class=sa>f</span><span class=s1>'./band_si/results/band.png'</span>
+<span class=n>display</span><span class=p>(</span><span class=n>Image</span><span class=p>(</span><span class=n>filename</span><span class=o>=</span><span class=n>image_path</span><span class=p>))</span>
+</pre></div></div></div><div class="cell_output docutils container"><div class="output stream highlight-myst-ansi notranslate"><div class=highlight><pre><span></span>TBPLaS is not installed. Thus the TBPLaS is not available, Please install it first.
+ 
+ 
+#################################################################################
+#                                                                               #
+#                                                                               #
+#      ██████████                     ███████████  ███████████ ███████████      #
+#     ░░███░░░░███                   ░░███░░░░░███░█░░░███░░░█░░███░░░░░███     #
+#      ░███   ░░███  ██████   ██████  ░███    ░███░   ░███  ░  ░███    ░███     #
+#      ░███    ░███ ███░░███ ███░░███ ░██████████     ░███     ░██████████      #
+#      ░███    ░███░███████ ░███████  ░███░░░░░░      ░███     ░███░░░░░███     #
+#      ░███    ███ ░███░░░  ░███░░░   ░███            ░███     ░███    ░███     #
+#      ██████████  ░░██████ ░░██████  █████           █████    ███████████      #
+#     ░░░░░░░░░░    ░░░░░░   ░░░░░░  ░░░░░           ░░░░░    ░░░░░░░░░░░       #
+#                                                                               #
+#                         Version: 2.0.4.dev87+5ed8d35                          #
+#                                                                               #
+#################################################################################
+ 
+ 
+/root/dptb_venv/lib/python3.10/site-packages/seekpath/hpkot/__init__.py:172: DeprecationWarning: dict interface is deprecated. Use attribute interface instead
+  conv_lattice = dataset["std_lattice"]
+DEEPTB INFO    The structure space group is: Fd-3m (No. 227)
+DEEPTB INFO    dtype is not provided in the input json, set to the value torch.float32 in model ckpt.
+DEEPTB INFO    device is not provided in the input json, set to the value cpu in model ckpt.
+DEEPTB INFO    overlap is not provided in the input json, set to the value True in model ckpt.
+/root/dptb_venv/lib/python3.10/site-packages/torch/nested/__init__.py:107: UserWarning: The PyTorch API of nested tensors is in prototype stage and will change in the near future. (Triggered internally at ../aten/src/ATen/NestedTensorImpl.cpp:178.)
+  return torch._nested_tensor_from_tensor_list(ts, dtype, None, device, None)
+DEEPTB INFO    No Fermi energy available, setting to 0.0 eV
+Figure(640x560)
+DEEPTB INFO    band calculation successfully completed.
+</pre></div></div><img alt=../../_images/6f4104a7d4325b5489a0f2f63749c33434a399ee5cbf077e75d5a8988b5d512b.png src=../../_images/6f4104a7d4325b5489a0f2f63749c33434a399ee5cbf077e75d5a8988b5d512b.png></div></div><div class="cell docutils container"><div class="cell_input docutils container"><div class="highlight-ipython3 notranslate"><div class=highlight><pre><span></span><span class=c1># 2. GaAs</span>
+<span class=o>!</span>dptb<span class=w> </span>run<span class=w> </span>band<span class=w> </span>-i<span class=w> </span>poly4<span class=w> </span>-stu<span class=w> </span>gaas.vasp<span class=w> </span>-o<span class=w> </span>band_gaas
+
+<span class=c1># display the band plot:</span>
+<span class=kn>from</span><span class=w> </span><span class=nn>IPython.display</span><span class=w> </span><span class=kn>import</span> <span class=n>Image</span><span class=p>,</span> <span class=n>display</span>
+<span class=kn>import</span><span class=w> </span><span class=nn>os</span>
+<span class=n>image_path</span> <span class=o>=</span> <span class=sa>f</span><span class=s1>'./band_gaas/results/band.png'</span>
+<span class=n>display</span><span class=p>(</span><span class=n>Image</span><span class=p>(</span><span class=n>filename</span><span class=o>=</span><span class=n>image_path</span><span class=p>))</span>
+</pre></div></div></div><div class="cell_output docutils container"><div class="output stream highlight-myst-ansi notranslate"><div class=highlight><pre><span></span>TBPLaS is not installed. Thus the TBPLaS is not available, Please install it first.
+ 
+ 
+#################################################################################
+#                                                                               #
+#                                                                               #
+#      ██████████                     ███████████  ███████████ ███████████      #
+#     ░░███░░░░███                   ░░███░░░░░███░█░░░███░░░█░░███░░░░░███     #
+#      ░███   ░░███  ██████   ██████  ░███    ░███░   ░███  ░  ░███    ░███     #
+#      ░███    ░███ ███░░███ ███░░███ ░██████████     ░███     ░██████████      #
+#      ░███    ░███░███████ ░███████  ░███░░░░░░      ░███     ░███░░░░░███     #
+#      ░███    ███ ░███░░░  ░███░░░   ░███            ░███     ░███    ░███     #
+#      ██████████  ░░██████ ░░██████  █████           █████    ███████████      #
+#     ░░░░░░░░░░    ░░░░░░   ░░░░░░  ░░░░░           ░░░░░    ░░░░░░░░░░░       #
+#                                                                               #
+#                         Version: 2.0.4.dev77+45eaa8c                          #
+#                                                                               #
+#################################################################################
+ 
+ 
+/root/dptb_venv/lib/python3.10/site-packages/seekpath/hpkot/__init__.py:172: DeprecationWarning: dict interface is deprecated. Use attribute interface instead
+  conv_lattice = dataset["std_lattice"]
+DEEPTB INFO    The structure space group is: F-43m (No. 216)
+DEEPTB INFO    dtype is not provided in the input json, set to the value torch.float32 in model ckpt.
+DEEPTB INFO    device is not provided in the input json, set to the value cpu in model ckpt.
+DEEPTB INFO    overlap is not provided in the input json, set to the value True in model ckpt.
+/root/dptb_venv/lib/python3.10/site-packages/torch/nested/__init__.py:107: UserWarning: The PyTorch API of nested tensors is in prototype stage and will change in the near future. (Triggered internally at ../aten/src/ATen/NestedTensorImpl.cpp:178.)
+  return torch._nested_tensor_from_tensor_list(ts, dtype, None, device, None)
+DEEPTB INFO    No Fermi energy available, setting to 0.0 eV
+Figure(640x560)
+DEEPTB INFO    band calculation successfully completed.
+</pre></div></div><img alt=../../_images/47fce2294595ff302a91186a66de0c6e6b7cbe1afe868b84a5f9358007b2146c.png src=../../_images/47fce2294595ff302a91186a66de0c6e6b7cbe1afe868b84a5f9358007b2146c.png></div></div><div class="cell docutils container"><div class="cell_input docutils container"><div class="highlight-ipython3 notranslate"><div class=highlight><pre><span></span><span class=c1># 3. hBN 2D </span>
+<span class=o>!</span>dptb<span class=w> </span>run<span class=w> </span>band<span class=w> </span>-i<span class=w> </span>poly4<span class=w> </span>-stu<span class=w> </span>hBN.vasp<span class=w> </span>-o<span class=w> </span>band_hBN
+
+<span class=c1># display the band plot:</span>
+<span class=kn>from</span><span class=w> </span><span class=nn>IPython.display</span><span class=w> </span><span class=kn>import</span> <span class=n>Image</span><span class=p>,</span> <span class=n>display</span>
+<span class=kn>import</span><span class=w> </span><span class=nn>os</span>
+<span class=n>image_path</span> <span class=o>=</span> <span class=sa>f</span><span class=s1>'./band_hBN/results/band.png'</span>
+<span class=n>display</span><span class=p>(</span><span class=n>Image</span><span class=p>(</span><span class=n>filename</span><span class=o>=</span><span class=n>image_path</span><span class=p>))</span>
+</pre></div></div></div><div class="cell_output docutils container"><div class="output stream highlight-myst-ansi notranslate"><div class=highlight><pre><span></span>TBPLaS is not installed. Thus the TBPLaS is not available, Please install it first.
+ 
+ 
+#################################################################################
+#                                                                               #
+#                                                                               #
+#      ██████████                     ███████████  ███████████ ███████████      #
+#     ░░███░░░░███                   ░░███░░░░░███░█░░░███░░░█░░███░░░░░███     #
+#      ░███   ░░███  ██████   ██████  ░███    ░███░   ░███  ░  ░███    ░███     #
+#      ░███    ░███ ███░░███ ███░░███ ░██████████     ░███     ░██████████      #
+#      ░███    ░███░███████ ░███████  ░███░░░░░░      ░███     ░███░░░░░███     #
+#      ░███    ███ ░███░░░  ░███░░░   ░███            ░███     ░███    ░███     #
+#      ██████████  ░░██████ ░░██████  █████           █████    ███████████      #
+#     ░░░░░░░░░░    ░░░░░░   ░░░░░░  ░░░░░           ░░░░░    ░░░░░░░░░░░       #
+#                                                                               #
+#                         Version: 2.0.4.dev87+5ed8d35                          #
+#                                                                               #
+#################################################################################
+ 
+ 
+/root/dptb_venv/lib/python3.10/site-packages/seekpath/hpkot/__init__.py:172: DeprecationWarning: dict interface is deprecated. Use attribute interface instead
+  conv_lattice = dataset["std_lattice"]
+DEEPTB INFO    The structure space group is: P-6m2 (No. 187)
+DEEPTB INFO    dtype is not provided in the input json, set to the value torch.float32 in model ckpt.
+DEEPTB INFO    device is not provided in the input json, set to the value cpu in model ckpt.
+DEEPTB INFO    overlap is not provided in the input json, set to the value True in model ckpt.
+/root/dptb_venv/lib/python3.10/site-packages/torch/nested/__init__.py:107: UserWarning: The PyTorch API of nested tensors is in prototype stage and will change in the near future. (Triggered internally at ../aten/src/ATen/NestedTensorImpl.cpp:178.)
+  return torch._nested_tensor_from_tensor_list(ts, dtype, None, device, None)
+DEEPTB INFO    No Fermi energy available, setting to 0.0 eV
+Figure(640x560)
+DEEPTB INFO    band calculation successfully completed.
+</pre></div></div><img alt=../../_images/d402d1eb7a8427489ab6e17786980a82c289e1eca2134436889e44d7d34ad1d8.png src=../../_images/d402d1eb7a8427489ab6e17786980a82c289e1eca2134436889e44d7d34ad1d8.png></div></div></section><section id=extracting-sk-parameter-files-for-a-given-system><h2>2. Extracting SK Parameter Files for a Given System<a title="Link to this heading"class=headerlink href=#extracting-sk-parameter-files-for-a-given-system>#</a></h2><p>Since there is a built-in baseline model covering the periodic table, for the target research system, you can extract the empirical parameter model for your target system from this built-in baseline model.</p><div class="cell docutils container"><div class="cell_input docutils container"><div class="highlight-ipython3 notranslate"><div class=highlight><pre><span></span><span class=n>os</span><span class=o>.</span><span class=n>chdir</span><span class=p>(</span><span class=sa>f</span><span class=s2>"</span><span class=si>{</span><span class=n>workdir</span><span class=si>}</span><span class=s2>/confs"</span><span class=p>)</span>
+<span class=o>!</span>tree<span class=w> </span>-L<span class=w> </span><span class=m>1</span><span class=w> </span>./
+</pre></div></div></div><div class="cell_output docutils container"><div class="output stream highlight-myst-ansi notranslate"><div class=highlight><pre><span></span><span class="-Color -Color-Bold -Color-Bold-Blue">./</span>
+├── gaas.json
+├── hbn_sp.json
+├── hbn_spd.json
+└── silicon.json
+
+0 directories, 4 files
+</pre></div></div></div></div><p>For the target system, we first need to define the basis set configuration and save it in a JSON file. Below is the configuration we use for hBN.</p><div class="cell docutils container"><div class="cell_input docutils container"><div class="highlight-ipython3 notranslate"><div class=highlight><pre><span></span><span class=o>!</span>cat<span class=w> </span>hbn_spd.json
+</pre></div></div></div><div class="cell_output docutils container"><div class="output stream highlight-myst-ansi notranslate"><div class=highlight><pre><span></span>{
+    "common_options": {
+        "basis": {
+            "B": ["s","p","d"],
+            "N": ["s","p","d"]
+        }
+    }
+}
+</pre></div></div></div></div><p>Run the following command to extract the empirical model settings and parameters for the target system from the built-in empirical model covering the periodic table, and save them in the sktb.json file.</p><div class="cell docutils container"><div class="cell_input docutils container"><div class="highlight-ipython3 notranslate"><div class=highlight><pre><span></span><span class=o>!</span>dptb<span class=w> </span>esk<span class=w> </span>hbn_spd.json<span class=w> </span>-m<span class=w> </span>poly4<span class=w> </span>-o<span class=w> </span>hbn_spd_model
+</pre></div></div></div><div class="cell_output docutils container"><div class="output stream highlight-myst-ansi notranslate"><div class=highlight><pre><span></span>TBPLaS is not installed. Thus the TBPLaS is not available, Please install it first.
+ 
+ 
+#################################################################################
+#                                                                               #
+#                                                                               #
+#      ██████████                     ███████████  ███████████ ███████████      #
+#     ░░███░░░░███                   ░░███░░░░░███░█░░░███░░░█░░███░░░░░███     #
+#      ░███   ░░███  ██████   ██████  ░███    ░███░   ░███  ░  ░███    ░███     #
+#      ░███    ░███ ███░░███ ███░░███ ░██████████     ░███     ░██████████      #
+#      ░███    ░███░███████ ░███████  ░███░░░░░░      ░███     ░███░░░░░███     #
+#      ░███    ███ ░███░░░  ░███░░░   ░███            ░███     ░███    ░███     #
+#      ██████████  ░░██████ ░░██████  █████           █████    ███████████      #
+#     ░░░░░░░░░░    ░░░░░░   ░░░░░░  ░░░░░           ░░░░░    ░░░░░░░░░░░       #
+#                                                                               #
+#                         Version: 2.0.4.dev87+5ed8d35                          #
+#                                                                               #
+#################################################################################
+ 
+ 
+DEEPTB INFO    Extracting empirical SK parameters for BN
+DEEPTB INFO    dtype is not provided in the input json, set to the value torch.float32 in model ckpt.
+DEEPTB INFO    device is not provided in the input json, set to the value cpu in model ckpt.
+DEEPTB INFO    overlap is not provided in the input json, set to the value True in model ckpt.
+DEEPTB INFO    Empirical SK parameters are saved in hbn_spd_model/sktb.json
+DEEPTB INFO    If you want to further train the model, please use `dptb config` command to generate input template.
+</pre></div></div></div></div><p>The above command will create an hbn_spd_model folder and save the sktb.json model file in it.</p><div class="cell docutils container"><div class="cell_input docutils container"><div class="highlight-ipython3 notranslate"><div class=highlight><pre><span></span><span class=o>!</span>cat<span class=w> </span>hbn_spd_model/sktb.json
+</pre></div></div></div><div class="cell_output docutils container"><div class="output stream highlight-myst-ansi notranslate"><div class=highlight><pre><span></span>{
+    "version": 2,
+    "unit": "eV",
+    "model_options": {
+        "nnsk": {
+            "onsite": {
+                "method": "uniform_noref"
+            },
+            "hopping": {
+                "method": "poly4pow",
+                "rs": {
+                    "B-B": 4.22,
+                    "B-N": 4.04,
+                    "N-B": 4.04,
+                    "N-N": 3.85
+                },
+                "w": 0.2
+            },
+            "soc": {},
+            "freeze": false,
+            "push": false,
+            "std": 0.01,
+            "atomic_radius": "cov"
+        }
+    },
+    "common_options": {
+        "basis": {
+            "B": [
+                "s",
+                "p",
+                "d"
+            ],
+            "N": [
+                "s",
+                "p",
+                "d"
+            ]
+        },
+        "dtype": "float32",
+        "device": "cuda",
+        "overlap": true
+    },
+    "model_params": {
+        "onsite": {
+            "B-s-0": [
+                -9.436724662780762
+            ],
+            "B-p-0": [
+                -3.6036229133605957
+            ],
+            "B-d-0": [
+                0.0
+            ],
+            "N-s-0": [
+                -18.575620651245117
+            ],
+            "N-p-0": [
+                -7.092767238616943
+            ],
+            "N-d-0": [
+                0.0
+            ]
+        },
+        "hopping": {
+            "B-B-s-s-0": [
+                -4.163856506347656,
+                3.1430838108062744,
+                3.5406551361083984,
+                -13.840292930603027,
+                4.28679084777832,
+                0.0003413402009755373
+            ],
+            "B-B-s-p-0": [
+                -4.2632155418396,
+                1.855499505996704,
+                5.719208240509033,
+                -12.824378967285156,
+                2.3826582431793213,
+                0.00027443747967481613
+            ],
+            "B-B-s-d-0": [
+                0.00014130362251307815,
+                -0.00012631429126486182,
+                0.0001882282958831638,
+                -0.0005035149515606463,
+                0.00022772896045353264,
+                -0.40316706895828247
+            ],
+            "B-B-p-p-0": [
+                4.029307842254639,
+                -0.4571390151977539,
+                -5.698226451873779,
+                5.24634313583374,
+                1.8383373022079468,
+                0.00098962162155658
+            ],
+            "B-B-p-p-1": [
+                -1.7277371883392334,
+                1.7380834817886353,
+                0.2498142123222351,
+                -4.095367431640625,
+                1.5244688987731934,
+                0.6229994893074036
+            ],
+            "B-B-p-d-0": [
+                -3.374056541360915e-05,
+                0.00013169155863579363,
+                -0.00022330175852403045,
+                -8.510611951351166e-05,
+                -6.722987745888531e-05,
+                -0.3973250985145569
+            ],
+            "B-B-p-d-1": [
+                -7.808039663359523e-05,
+                3.817861215793528e-05,
+                -5.0371396355330944e-05,
+                -0.000102539241197519,
+                -1.8067279597744346e-05,
+                -0.3949469327926636
+            ],
+            "B-B-d-d-0": [
+                -6.081238097976893e-05,
+                9.681181109044701e-05,
+                -9.043539466802031e-05,
+                5.160560249350965e-05,
+                -0.0002392987225903198,
+                0.3956696689128876
+            ],
+            "B-B-d-d-1": [
+                0.00015222658112179488,
+                6.237948400666937e-05,
+                0.0002462207048665732,
+                -0.0003655400942079723,
+                0.0004969655419699848,
+                -0.39649420976638794
+            ],
+            "B-B-d-d-2": [
+                -6.792173371650279e-05,
+                0.00012900785077363253,
+                1.0697433026507497e-05,
+                -0.00010661676060408354,
+                -9.13233234314248e-05,
+                -0.3952234387397766
+            ],
+            "N-B-s-s-0": [
+                -5.198118686676025,
+                4.442707061767578,
+                4.672472953796387,
+                -22.44223403930664,
+                8.299448013305664,
+                -0.27995532751083374
+            ],
+            "N-B-s-p-0": [
+                -6.1210198402404785,
+                4.5004191398620605,
+                6.178765296936035,
+                -23.72483253479004,
+                7.701132774353027,
+                -0.17325514554977417
+            ],
+            "N-B-p-s-0": [
+                -4.536301136016846,
+                2.089078426361084,
+                7.104267597198486,
+                -18.932785034179688,
+                5.050920486450195,
+                -0.08721348643302917
+            ],
+            "N-B-s-d-0": [
+                -7.312803063541651e-05,
+                0.00010872803977690637,
+                0.00023205213074106723,
+                -0.0005027204751968384,
+                0.0001486523833591491,
+                -0.43798455595970154
+            ],
+            "N-B-d-s-0": [
+                0.00018420522974338382,
+                -0.00017437210772186518,
+                -0.00016033451538532972,
+                0.0007334152469411492,
+                -8.776571485213935e-05,
+                0.4466051459312439
+            ],
+            "N-B-p-p-0": [
+                4.69775390625,
+                -0.6529765129089355,
+                -6.943027973175049,
+                8.185653686523438,
+                1.3665649890899658,
+                -0.2770684063434601
+            ],
+            "N-B-p-p-1": [
+                -1.963960886001587,
+                1.9514763355255127,
+                0.5242166519165039,
+                -5.668179988861084,
+                2.2336957454681396,
+                -0.8325421810150146
+            ],
+            "N-B-p-d-0": [
+                -6.0136051615700126e-05,
+                8.034883649088442e-05,
+                -0.0002142499142792076,
+                0.00013417207810562104,
+                3.860515425913036e-05,
+                -0.44638267159461975
+            ],
+            "N-B-d-p-0": [
+                -0.00015385006554424763,
+                9.536759898765013e-05,
+                -0.00010434392606839538,
+                2.4020744604058564e-05,
+                -0.00022013107081875205,
+                0.44291141629219055
+            ],
+            "N-B-p-d-1": [
+                -4.726650513475761e-05,
+                8.19785927888006e-05,
+                0.00011910804460057989,
+                -0.0003437807899899781,
+                0.00014456789358519018,
+                0.4415556490421295
+            ],
+            "N-B-d-p-1": [
+                9.281534585170448e-05,
+                -0.000124435915495269,
+                0.00014234631089493632,
+                -0.0006778020178899169,
+                0.00030078168492764235,
+                -0.4489174485206604
+            ],
+            "N-B-d-d-0": [
+                -0.0001388048694934696,
+                0.00010272378858644515,
+                -0.00019081367645412683,
+                3.532186383381486e-07,
+                -0.00017708863015286624,
+                0.45609885454177856
+            ],
+            "N-B-d-d-1": [
+                -0.0001369681558571756,
+                0.0001792228576960042,
+                -0.00011874250776600093,
+                -0.00022725776943843812,
+                -5.964709271211177e-05,
+                -0.45647943019866943
+            ],
+            "N-B-d-d-2": [
+                0.00014195215771906078,
+                -7.780492160236463e-05,
+                8.625858754385263e-05,
+                0.0001418764004483819,
+                3.1707189918961376e-05,
+                -0.45413458347320557
+            ],
+            "N-N-s-s-0": [
+                -6.06509256362915,
+                4.933748245239258,
+                7.251394271850586,
+                -31.393178939819336,
+                11.564867973327637,
+                0.6752002239227295
+            ],
+            "N-N-s-p-0": [
+                -6.407330513000488,
+                4.119426727294922,
+                8.804641723632812,
+                -30.208786010742188,
+                9.762639999389648,
+                0.4003536105155945
+            ],
+            "N-N-s-d-0": [
+                0.00011224352056160569,
+                0.00017669328371994197,
+                2.3582368157804012e-05,
+                -0.0004224574367981404,
+                0.000269725191174075,
+                0.5320302248001099
+            ],
+            "N-N-p-p-0": [
+                5.50653076171875,
+                -1.4403566122055054,
+                -8.006013870239258,
+                13.777935981750488,
+                -0.6363162994384766,
+                0.36886876821517944
+            ],
+            "N-N-p-p-1": [
+                -2.2638466358184814,
+                2.1415014266967773,
+                1.0750678777694702,
+                -7.8354573249816895,
+                3.0920794010162354,
+                -1.063719391822815
+            ],
+            "N-N-p-d-0": [
+                7.20867101335898e-05,
+                0.00036340532824397087,
+                0.00024355569621548057,
+                -0.0004975462798029184,
+                0.0004125885898247361,
+                0.5261558294296265
+            ],
+            "N-N-p-d-1": [
+                0.00015687875566072762,
+                4.641729174181819e-05,
+                1.3238663086667657e-05,
+                0.00046566742821596563,
+                -0.00020128212054260075,
+                -0.533370852470398
+            ],
+            "N-N-d-d-0": [
+                8.857469947542995e-05,
+                0.00029952620388939977,
+                0.00024031809880398214,
+                -0.00025129984715022147,
+                0.0003825896419584751,
+                0.5308742523193359
+            ],
+            "N-N-d-d-1": [
+                3.192495569237508e-05,
+                -0.0001347306970274076,
+                -0.00010394358105259016,
+                -0.00015763661940582097,
+                -0.0002910229086410254,
+                0.527771532535553
+            ],
+            "N-N-d-d-2": [
+                4.771947715198621e-05,
+                7.819013262633234e-05,
+                0.00018762303807307035,
+                0.00027266336837783456,
+                0.0002987241605296731,
+                -0.5279330611228943
+            ]
+        },
+        "overlap": {
+            "B-B-s-s-0": [
+                0.20907151699066162,
+                -0.23900975286960602,
+                -0.06029646843671799,
+                0.805722713470459,
+                -0.34798508882522583,
+                -0.07375287264585495
+            ],
+            "B-B-s-p-0": [
+                0.25513431429862976,
+                -0.22145505249500275,
+                -0.26228660345077515,
+                1.159956932067871,
+                -0.4085614085197449,
+                -0.0003635674365796149
+            ],
+            "B-B-s-d-0": [
+                -0.00010135513730347157,
+                0.00012300396338105202,
+                -0.00016775091353338212,
+                1.0182542609982193e-05,
+                -0.0003550578549038619,
+                -0.3522164523601532
+            ],
+            "B-B-p-p-0": [
+                -0.2968706786632538,
+                0.1348806917667389,
+                0.5835362076759338,
+                -1.4401586055755615,
+                0.34514784812927246,
+                0.00011754724982893094
+            ],
+            "B-B-p-p-1": [
+                0.0973825603723526,
+                -0.14244243502616882,
+                0.023147646337747574,
+                0.47471076250076294,
+                -0.2704032361507416,
+                -0.667027473449707
+            ],
+            "B-B-p-d-0": [
+                -0.00011588518100325018,
+                0.00018029639613814652,
+                -9.216874605044723e-05,
+                -0.00048209051601588726,
+                4.212089697830379e-05,
+                0.3581341505050659
+            ],
+            "B-B-p-d-1": [
+                -0.00011588512279558927,
+                0.00018029661441687495,
+                -9.216976468451321e-05,
+                -0.000482094066683203,
+                4.2125670006498694e-05,
+                0.35813406109809875
+            ],
+            "B-B-d-d-0": [
+                -0.0001013551518553868,
+                0.0001230038469657302,
+                -0.00016775041876826435,
+                1.018380862660706e-05,
+                -0.0003550600085873157,
+                -0.3522164225578308
+            ],
+            "B-B-d-d-1": [
+                0.00010135525371879339,
+                -0.0001230034977197647,
+                0.0001677492109593004,
+                -1.018853799905628e-05,
+                0.0003550658584572375,
+                -0.35221636295318604
+            ],
+            "B-B-d-d-2": [
+                9.815972589422017e-05,
+                -0.00016340948059223592,
+                0.0001705800968920812,
+                0.0002916558878496289,
+                -6.5286149038001895e-06,
+                -0.3533816933631897
+            ],
+            "N-B-s-s-0": [
+                0.1997109055519104,
+                -0.2244972437620163,
+                -0.11343343555927277,
+                0.9763136506080627,
+                -0.4251488149166107,
+                -0.2723999619483948
+            ],
+            "N-B-s-p-0": [
+                0.2620687186717987,
+                -0.2704774737358093,
+                -0.23450201749801636,
+                1.4295225143432617,
+                -0.593266487121582,
+                -0.0280486810952425
+            ],
+            "N-B-p-s-0": [
+                0.2336491048336029,
+                -0.18477198481559753,
+                -0.32471197843551636,
+                1.258323073387146,
+                -0.4374508261680603,
+                -3.666881821118295e-05
+            ],
+            "N-B-s-d-0": [
+                -2.9759947210550308e-05,
+                9.752172627486289e-05,
+                -0.0001534644834464416,
+                0.00047143836854957044,
+                1.3361132005229592e-05,
+                0.40016892552375793
+            ],
+            "N-B-d-s-0": [
+                -0.00019644841086119413,
+                0.0001292879751417786,
+                -0.00011083389108534902,
+                -0.00012051903468091041,
+                -0.00022029990213923156,
+                -0.4031250476837158
+            ],
+            "N-B-p-p-0": [
+                -0.280412495136261,
+                0.11416203528642654,
+                0.6316858530044556,
+                -1.5773518085479736,
+                0.4028981328010559,
+                -0.00018129641830455512
+            ],
+            "N-B-p-p-1": [
+                0.09812135994434357,
+                -0.14181673526763916,
+                0.005639200564473867,
+                0.5506149530410767,
+                -0.3099479675292969,
+                0.6836565732955933
+            ],
+            "N-B-p-d-0": [
+                8.620692824479192e-05,
+                7.003633072599769e-05,
+                0.00014002059469930828,
+                1.5960773453116417e-05,
+                0.0003343636344652623,
+                0.39526382088661194
+            ],
+            "N-B-d-p-0": [
+                -0.00017928905435837805,
+                0.00014779999037273228,
+                -6.557474262081087e-05,
+                0.00033531803637742996,
+                -1.5598576283082366e-05,
+                -0.4068489074707031
+            ],
+            "N-B-p-d-1": [
+                3.969529643654823e-05,
+                -0.0001192440977320075,
+                0.00016035677981562912,
+                -0.0005162757006473839,
+                -1.6432837583124638e-05,
+                -0.3948792815208435
+            ],
+            "N-B-d-p-1": [
+                0.0002542896254453808,
+                -4.0774408262223005e-05,
+                0.00016710262570995837,
+                0.0006886226474307477,
+                7.42142292438075e-05,
+                0.4113677740097046
+            ],
+            "N-B-d-d-0": [
+                -0.0001716944680083543,
+                2.248838427476585e-05,
+                -0.00012059728032909334,
+                0.0001464982924517244,
+                -6.761669646948576e-05,
+                -0.4281955659389496
+            ],
+            "N-B-d-d-1": [
+                -0.0001716944680083543,
+                2.248838427476585e-05,
+                -0.00012059728032909334,
+                0.0001464982924517244,
+                -6.761669646948576e-05,
+                0.4281955659389496
+            ],
+            "N-B-d-d-2": [
+                -9.511156531516463e-05,
+                0.0001717804989311844,
+                -1.6953305021161214e-05,
+                0.0001179392565973103,
+                9.918229625327513e-05,
+                0.4204893112182617
+            ],
+            "N-N-s-s-0": [
+                0.1918010711669922,
+                -0.2127472460269928,
+                -0.1606387048959732,
+                1.155442476272583,
+                -0.5151748657226562,
+                0.48609858751296997
+            ],
+            "N-N-s-p-0": [
+                0.24681918323040009,
+                -0.23861254751682281,
+                -0.31103551387786865,
+                1.6039279699325562,
+                -0.660601019859314,
+                -0.07287845760583878
+            ],
+            "N-N-s-d-0": [
+                -6.115203723311424e-05,
+                -0.0002562953741289675,
+                -0.00012758496450260282,
+                0.0004416516749188304,
+                -0.00025469131651334465,
+                0.488688588142395
+            ],
+            "N-N-p-p-0": [
+                -0.2732810080051422,
+                0.10842154920101166,
+                0.699445903301239,
+                -1.881728172302246,
+                0.5495500564575195,
+                0.00020055289496667683
+            ],
+            "N-N-p-p-1": [
+                0.10150457173585892,
+                -0.1420295238494873,
+                -0.021784797310829163,
+                0.6614340543746948,
+                -0.36609184741973877,
+                -0.7560092806816101
+            ],
+            "N-N-p-d-0": [
+                -1.3360753655433655e-05,
+                -0.00014160110731609166,
+                0.00010747101623564959,
+                -0.00040430951048620045,
+                0.0002254340797662735,
+                -0.4823491871356964
+            ],
+            "N-N-p-d-1": [
+                5.713030986953527e-05,
+                0.00020219954603817314,
+                -1.679777051322162e-05,
+                -0.00015270523726940155,
+                0.0001418725005351007,
+                -0.4920305609703064
+            ],
+            "N-N-d-d-0": [
+                2.117294025083538e-05,
+                -0.00019494653679430485,
+                9.384578152094036e-05,
+                -0.00038998579839244485,
+                -7.752966484986246e-05,
+                0.487053245306015
+            ],
+            "N-N-d-d-1": [
+                -3.1081654014997184e-06,
+                -0.00021633837604895234,
+                3.2148207537829876e-05,
+                -3.418952110223472e-05,
+                -0.00027515843976289034,
+                0.4870029091835022
+            ],
+            "N-N-d-d-2": [
+                -8.452979091089219e-05,
+                -0.00021817802917212248,
+                -5.2256466005928814e-05,
+                -0.0005801816005259752,
+                -6.465519254561514e-05,
+                -0.4823436141014099
+            ]
+        }
+    }
+}
+</pre></div></div></div></div><p>We can also load the generated sktb.json model file to plot the band structure:</p><div class="cell docutils container"><div class="cell_input docutils container"><div class="highlight-ipython3 notranslate"><div class=highlight><pre><span></span><span class=o>!</span>dptb<span class=w> </span>run<span class=w> </span>band<span class=w> </span>-i<span class=w> </span>./hbn_spd_model/sktb.json<span class=w> </span>-stu<span class=w> </span>../structures/hBN.vasp<span class=w> </span>-o<span class=w> </span>band_hBN
+
+<span class=c1># display the band plot:</span>
+<span class=kn>from</span><span class=w> </span><span class=nn>IPython.display</span><span class=w> </span><span class=kn>import</span> <span class=n>Image</span><span class=p>,</span> <span class=n>display</span>
+<span class=kn>import</span><span class=w> </span><span class=nn>os</span>
+<span class=n>image_path</span> <span class=o>=</span> <span class=sa>f</span><span class=s1>'./band_hBN/results/band.png'</span>
+<span class=n>display</span><span class=p>(</span><span class=n>Image</span><span class=p>(</span><span class=n>filename</span><span class=o>=</span><span class=n>image_path</span><span class=p>))</span>
+</pre></div></div></div><div class="cell_output docutils container"><div class="output stream highlight-myst-ansi notranslate"><div class=highlight><pre><span></span>TBPLaS is not installed. Thus the TBPLaS is not available, Please install it first.
+ 
+ 
+#################################################################################
+#                                                                               #
+#                                                                               #
+#      ██████████                     ███████████  ███████████ ███████████      #
+#     ░░███░░░░███                   ░░███░░░░░███░█░░░███░░░█░░███░░░░░███     #
+#      ░███   ░░███  ██████   ██████  ░███    ░███░   ░███  ░  ░███    ░███     #
+#      ░███    ░███ ███░░███ ███░░███ ░██████████     ░███     ░██████████      #
+#      ░███    ░███░███████ ░███████  ░███░░░░░░      ░███     ░███░░░░░███     #
+#      ░███    ███ ░███░░░  ░███░░░   ░███            ░███     ░███    ░███     #
+#      ██████████  ░░██████ ░░██████  █████           █████    ███████████      #
+#     ░░░░░░░░░░    ░░░░░░   ░░░░░░  ░░░░░           ░░░░░    ░░░░░░░░░░░       #
+#                                                                               #
+#                         Version: 2.1.2.dev50+d4f488d                          #
+#                                                                               #
+#################################################################################
+ 
+ 
+DEEPTB INFO    The structure space group is: P-6m2 (No. 187)
+DEEPTB WARNING CUDA is not available. The model will be loaded on CPU.
+/Users/aisiqg/Software/venv/pydptb/lib/python3.9/site-packages/torch/nested/__init__.py:58: UserWarning: The PyTorch API of nested tensors is in prototype stage and will change in the near future. (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/aten/src/ATen/NestedTensorImpl.cpp:180.)
+  return torch._nested_tensor_from_tensor_list(tensor_list, dtype, None, device, None)
+DEEPTB INFO    No Fermi energy available, setting to 0.0 eV
+DEEPTB INFO    band calculation successfully completed.
+</pre></div></div><img alt=../../_images/d11f65becfb0c4b86ad5045826f47fed25aae233c55db2911efb77fc51a40f6a.png src=../../_images/d11f65becfb0c4b86ad5045826f47fed25aae233c55db2911efb77fc51a40f6a.png></div></div><p>We can see that the band structure is the same as before.</p><p>Here we can choose different basis settings, e.g. <code class="docutils literal notranslate"><span class=pre>hbn_sp.json</span></code> as the input config:</p><div class="highlight-json notranslate"><div class=highlight><pre><span></span><span class=p>{</span>
+<span class=w>    </span><span class=nt>"common_options"</span><span class=p>:</span><span class=w> </span><span class=p>{</span>
+<span class=w>        </span><span class=nt>"basis"</span><span class=p>:</span><span class=w> </span><span class=p>{</span>
+<span class=w>            </span><span class=nt>"B"</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=s2>"s"</span><span class=p>,</span><span class=s2>"p"</span><span class=p>],</span>
+<span class=w>            </span><span class=nt>"N"</span><span class=p>:</span><span class=w> </span><span class=p>[</span><span class=s2>"s"</span><span class=p>,</span><span class=s2>"p"</span><span class=p>]</span>
+<span class=w>        </span><span class=p>}</span>
+<span class=w>    </span><span class=p>}</span>
+<span class=p>}</span>
+</pre></div></div><div class="cell docutils container"><div class="cell_input docutils container"><div class="highlight-ipython3 notranslate"><div class=highlight><pre><span></span><span class=o>!</span>dptb<span class=w> </span>esk<span class=w> </span>hbn_sp.json<span class=w> </span>-m<span class=w> </span>poly4<span class=w> </span>-o<span class=w> </span>hbn_sp_model
+</pre></div></div></div><div class="cell_output docutils container"><div class="output stream highlight-myst-ansi notranslate"><div class=highlight><pre><span></span>TBPLaS is not installed. Thus the TBPLaS is not available, Please install it first.
+ 
+ 
+#################################################################################
+#                                                                               #
+#                                                                               #
+#      ██████████                     ███████████  ███████████ ███████████      #
+#     ░░███░░░░███                   ░░███░░░░░███░█░░░███░░░█░░███░░░░░███     #
+#      ░███   ░░███  ██████   ██████  ░███    ░███░   ░███  ░  ░███    ░███     #
+#      ░███    ░███ ███░░███ ███░░███ ░██████████     ░███     ░██████████      #
+#      ░███    ░███░███████ ░███████  ░███░░░░░░      ░███     ░███░░░░░███     #
+#      ░███    ███ ░███░░░  ░███░░░   ░███            ░███     ░███    ░███     #
+#      ██████████  ░░██████ ░░██████  █████           █████    ███████████      #
+#     ░░░░░░░░░░    ░░░░░░   ░░░░░░  ░░░░░           ░░░░░    ░░░░░░░░░░░       #
+#                                                                               #
+#                         Version: 2.0.4.dev87+5ed8d35                          #
+#                                                                               #
+#################################################################################
+ 
+ 
+DEEPTB INFO    Extracting empirical SK parameters for BN
+DEEPTB INFO    dtype is not provided in the input json, set to the value torch.float32 in model ckpt.
+DEEPTB INFO    device is not provided in the input json, set to the value cpu in model ckpt.
+DEEPTB INFO    overlap is not provided in the input json, set to the value True in model ckpt.
+DEEPTB INFO    Empirical SK parameters are saved in hbn_sp_model/sktb.json
+DEEPTB INFO    If you want to further train the model, please use `dptb config` command to generate input template.
+</pre></div></div></div></div><div class="cell docutils container"><div class="cell_input docutils container"><div class="highlight-ipython3 notranslate"><div class=highlight><pre><span></span><span class=o>!</span>dptb<span class=w> </span>run<span class=w> </span>band<span class=w> </span>-i<span class=w> </span>./hbn_sp_model/sktb.json<span class=w> </span>-stu<span class=w> </span>../structures/hBN.vasp<span class=w> </span>-o<span class=w> </span>band_hBN
+
+<span class=c1># display the band plot:</span>
+<span class=kn>from</span><span class=w> </span><span class=nn>IPython.display</span><span class=w> </span><span class=kn>import</span> <span class=n>Image</span><span class=p>,</span> <span class=n>display</span>
+<span class=kn>import</span><span class=w> </span><span class=nn>os</span>
+<span class=n>image_path</span> <span class=o>=</span> <span class=sa>f</span><span class=s1>'./band_hBN/results/band.png'</span>
+<span class=n>display</span><span class=p>(</span><span class=n>Image</span><span class=p>(</span><span class=n>filename</span><span class=o>=</span><span class=n>image_path</span><span class=p>))</span>
+</pre></div></div></div><div class="cell_output docutils container"><div class="output stream highlight-myst-ansi notranslate"><div class=highlight><pre><span></span>TBPLaS is not installed. Thus the TBPLaS is not available, Please install it first.
+ 
+ 
+#################################################################################
+#                                                                               #
+#                                                                               #
+#      ██████████                     ███████████  ███████████ ███████████      #
+#     ░░███░░░░███                   ░░███░░░░░███░█░░░███░░░█░░███░░░░░███     #
+#      ░███   ░░███  ██████   ██████  ░███    ░███░   ░███  ░  ░███    ░███     #
+#      ░███    ░███ ███░░███ ███░░███ ░██████████     ░███     ░██████████      #
+#      ░███    ░███░███████ ░███████  ░███░░░░░░      ░███     ░███░░░░░███     #
+#      ░███    ███ ░███░░░  ░███░░░   ░███            ░███     ░███    ░███     #
+#      ██████████  ░░██████ ░░██████  █████           █████    ███████████      #
+#     ░░░░░░░░░░    ░░░░░░   ░░░░░░  ░░░░░           ░░░░░    ░░░░░░░░░░░       #
+#                                                                               #
+#                         Version: 2.0.4.dev87+5ed8d35                          #
+#                                                                               #
+#################################################################################
+ 
+ 
+/root/dptb_venv/lib/python3.10/site-packages/seekpath/hpkot/__init__.py:172: DeprecationWarning: dict interface is deprecated. Use attribute interface instead
+  conv_lattice = dataset["std_lattice"]
+DEEPTB INFO    The structure space group is: P-6m2 (No. 187)
+/root/dptb_venv/lib/python3.10/site-packages/torch/nested/__init__.py:107: UserWarning: The PyTorch API of nested tensors is in prototype stage and will change in the near future. (Triggered internally at ../aten/src/ATen/NestedTensorImpl.cpp:178.)
+  return torch._nested_tensor_from_tensor_list(ts, dtype, None, device, None)
+DEEPTB INFO    No Fermi energy available, setting to 0.0 eV
+Figure(640x560)
+DEEPTB INFO    band calculation successfully completed.
+</pre></div></div><img alt=../../_images/7ecde1121000ba4822bc8e0dcb8e6f4cf235700fd643e77dea70ab8c979bdec4.png src=../../_images/7ecde1121000ba4822bc8e0dcb8e6f4cf235700fd643e77dea70ab8c979bdec4.png></div></div><p>It can be clearly seen that the bands near 0 eV are missing. This is because for the hBN system, our built-in empirical model parameters only include sp orbitals. The d orbital parameters are all set to 0 just to maintain a consistent format.</p><p>Similarly, we can obtain the corresponding model parameters for individual Si and GaAs systems. Readers are invited to explore this themselves.</p><div style="color:#000;background-color:#fff3e9;border:1px solid #ffe0c3;border-radius:10px;margin-bottom:1rem"><p style=margin:1rem;padding-left:1rem;line-height:2.5>Author: <a href=mailto:guqq@ustc.edu.cn style=font-weight:400>Gu, Qiangqiang : guqq@ustc.edu.cn</a></p><p style=margin:1rem;padding-left:1rem;line-height:2.5>Thank you for reading!</p></div></section></section></article><footer class="prev-next-footer d-print-none"><div class=prev-next-area><a title="previous page"class=left-prev href=e3tb_hands_on.html> <i class="fa-solid fa-angle-left"></i> <div class=prev-next-info><p class=prev-next-subtitle>previous</p><p class=prev-next-title>DeePTB-E3: Bulk Silicon</p></div> </a><a title="next page"class=right-next href=../basic_api.html> <div class=prev-next-info><p class=prev-next-subtitle>next</p><p class=prev-next-title>Basic API</p></div> <i class="fa-solid fa-angle-right"></i> </a></div></footer></div><div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner"><div class=sidebar-secondary-item><div class="page-toc tocsection onthispage"><i class="fa-solid fa-list"></i> Contents</div><nav class="bd-toc-nav page-toc"><ul class="visible nav section-nav flex-column"><li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link"href=#introduction>Introduction</a><ul class="nav section-nav flex-column"><li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link"href=#version-features>Version Features</a></li><li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link"href=#learning-objectives>Learning Objectives</a></li></ul></li><li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link"href=#calculating-band-structure-for-a-given-structure>1. Calculating Band Structure for a Given Structure</a></li><li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link"href=#extracting-sk-parameter-files-for-a-given-system>2. Extracting SK Parameter Files for a Given System</a></li></ul></nav></div></div></div></div><footer class=bd-footer-content><div class="bd-footer-content__inner container"><div class=footer-item><p class=component-author>By DeePTB</p></div><div class=footer-item><p class=copyright>© Copyright 2023, DeePTB. <br></p></div><div class=footer-item></div><div class=footer-item><div class=extra_footer><p><a href=https://beian.miit.gov.cn target=_blank>京ICP备20010051号-8</a></p></div></div></div></footer></main></div></div><script src=../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b></script><script src=../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b></script><footer class=bd-footer></footer></body></html>
