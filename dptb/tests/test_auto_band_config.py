@@ -7,6 +7,10 @@ from dptb.utils.auto_band_config import auto_band_config
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data")
 
 def test_auto_band_config():
+    try:
+        import seekpath
+    except:
+        pytest.skip("Seekpath is not installed in the current image, will skip this test.")
     structure = f'{rootdir}/mos2/struct.vasp'
     
     bandjdata, common_options = auto_band_config(structure=structure, kpathtype='vasp')
