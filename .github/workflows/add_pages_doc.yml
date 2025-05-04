@@ -1,54 +1,33 @@
-# This is a basic workflow to help you get started with Actions
+name: Build and Deploy Docs
 
-name: Build and Deploy Github Pages
-
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
-    branches: [ "main" ]
+    branches: [ main ]  # 或者您的默认分支名
   pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build_and_deploy:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
+  build:
+    runs-on: ubuntu-22.04
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # Runs a single command using the runners shell
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11' # 使用 .readthedocs.yaml 中指定的 Python 版本
-          
-      - name: Build Sphinx Documentation
-        run: make html
-        working-directory: docs # 确保在 docs/ 目录中执行 make 命令
-
-      - name: Prepare Pages Artifact
-        # 将构建好的 HTML 目录移动到一个标准名称，方便 upload-pages-artifact 使用
-        run: |
-          mv docs/_build/html _site
-
-      - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site # 上一步准备好的 Artifact 目录
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install sphinx sphinx_book_theme myst-parser
+        # 安装deepmodeling_sphinx
+        if [ -f docs/requirements.txt ]; then pip install -r docs/requirements.txt; fi
+    - name: Build docs
+      run: |
+        cd docs
+        sphinx-build -b html . _build/html
+    - name: Deploy
+      uses: peaceiris/actions-gh-pages@v3
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs/_build/html
