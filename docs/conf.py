@@ -33,6 +33,7 @@ author = 'DeePTB'
 extensions = [
         'myst_parser',
         'deepmodeling_sphinx',
+        'myst_nb',
 ]
 myst_enable_extensions = [
     "amsmath",
