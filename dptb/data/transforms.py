@@ -489,7 +489,9 @@ class OrbitalMapper(BondMapper):
             
             for ko in orbtype_count.keys():
                 orbtype_count[ko] = max(orbtype_count[ko])
- 
+        else:
+            raise ValueError(f"Invalid basis {self.basis} found. now only support string or list basis.")
+            
         self.orbtype_count = orbtype_count
         full_basis_norb = 0
         for ko in orbtype_count.keys():
