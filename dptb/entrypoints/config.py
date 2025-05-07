@@ -2,15 +2,13 @@ from typing import Dict, List, Optional, Any
 import json
 from pathlib import Path
 import os
-from dptb.utils.config_sk import TrainFullConfigSK, TestFullConfigSK
-from dptb.utils.config_skenv import TrainFullConfigSKEnv, TestFullConfigSKEnv
-from dptb.utils.config_e3 import TrainFullConfigE3, TestFullConfigE3
 import logging
+from dptb.utils.gen_inputs import gen_inputs
 
 __all__ = ["get_full_config", "config"]
 log = logging.getLogger(__name__)
 
-def get_full_config(train, test, e3tb, sktb, sktbenv):
+def get_full_config(model, train, test, e3tb, sktb, sktbenv):
     """
     This function determines the appropriate full config based on the provided parameters.
 
@@ -31,16 +29,17 @@ def get_full_config(train, test, e3tb, sktb, sktbenv):
     name = ''
     if train:
         name += 'train'
+        
         # Use train configs based on e3tb, sktb, sktbenv
         if e3tb:
             name += '_E3'
-            full_config = TrainFullConfigE3
+            full_config = gen_inputs(mode='e3', task='train', model=model)
         elif sktb:
             name += '_SK'
-            full_config = TrainFullConfigSK
+            full_config = gen_inputs(mode='sk', task='train', model=model)
         elif sktbenv:
             name += '_SKEnv'
-            full_config = TrainFullConfigSKEnv
+            full_config = gen_inputs(mode='skenv', task='train', model=model)
         else:
             logging.error("Unknown config type in training mode")
             raise ValueError("Unknown config type in training mode")
@@ -49,13 +48,13 @@ def get_full_config(train, test, e3tb, sktb, sktbenv):
         name += 'test'
         if e3tb:
             name += '_E3'
-            full_config = TestFullConfigE3
+            full_config = gen_inputs(mode='e3', task='test', model=model)
         elif sktb:
             name += '_SK'
-            full_config = TestFullConfigSK
+            full_config = gen_inputs(mode='sk', task='test', model=model)
         elif sktbenv:
             name += '_SKEnv'
-            full_config = TestFullConfigSKEnv
+            full_config = gen_inputs(mode='skenv', task='test', model=model)
         else:
             logging.error("Unknown config type in testing mode")
             raise ValueError("Unknown config type in testing mode")
@@ -72,6 +71,7 @@ def config(
         e3tb: bool = False,
         sktb: bool = False,
         sktbenv: bool = False,
+        model: str = None,
         log_level: int = logging.INFO,
         log_path: Optional[str] = None,
         **kwargs
@@ -115,7 +115,7 @@ def config(
         train = True
 
     # Error handling and logic moved to get_full_config
-    name, full_config = get_full_config(train, test, e3tb, sktb, sktbenv)
+    name, full_config = get_full_config(model, train, test, e3tb, sktb, sktbenv)
     # Ensure PATH ends with .json
     if not PATH.endswith(".json"):
         PATH = os.path.join(PATH, "input_templete.json")

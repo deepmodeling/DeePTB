@@ -1,0 +1,7 @@
+{
+    "common_options": {
+        "basis": {
+            "Si": ["s","p","d"]
+        }
+    }
+}
