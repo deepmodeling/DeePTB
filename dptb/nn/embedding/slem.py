@@ -583,11 +583,12 @@ class UpdateNode(torch.nn.Module):
             torch.as_tensor(avg_num_neighbors).rsqrt(),
         )
         
-
-        self._env_weighter = E3ElementLinear(
-            irreps_in=irreps_out,
-            dtype=dtype,
-            device=device,
+        self._env_weighter = torch.jit.script(
+            E3ElementLinear(
+                irreps_in=irreps_out,
+                dtype=dtype,
+                device=device,
+            )
         )
 
         # self.sln_n = SeperableLayerNorm(
@@ -642,12 +643,14 @@ class UpdateNode(torch.nn.Module):
             irreps_gated  # gated tensors
         )
 
-        self.tp = SO2_Linear(
+        self.tp = torch.jit.script(
+        SO2_Linear(
             irreps_in=self.irreps_in+self.irreps_hidden,
             irreps_out=self.activation.irreps_in,
             latent_dim=latent_dim,
             radial_emb=radial_emb,
             radial_channels=radial_channels,
+        )
         )
 
         self.lin_post = Linear(
@@ -703,8 +706,7 @@ class UpdateNode(torch.nn.Module):
         new_node_features = self.sln(node_features)
         message = self.tp(
             torch.cat(
-                [new_node_features[edge_center[active_edges]], hidden_features]
-                , dim=-1), edge_vector[active_edges], latents[active_edges]) # full_out_irreps
+                [new_node_features[edge_center[active_edges]], hidden_features], dim=-1), edge_vector[active_edges], latents[active_edges]) # full_out_irreps
         
         message = self.activation(message)
         message = self.lin_post(message)
@@ -760,12 +762,14 @@ class UpdateEdge(torch.nn.Module):
         self.dtype = dtype
         self.device = device
         self.res_update = res_update
-        
-        self._edge_weighter = E3ElementLinear(
+
+        self._edge_weighter = torch.jit.script(
+            E3ElementLinear(
                 irreps_in=irreps_out,
                 dtype=dtype,
                 device=device,
             )
+        )
 
         self.edge_embed_mlps = ScalarMLPFunction(
                 mlp_input_dimension=latent_dim,
@@ -805,12 +809,15 @@ class UpdateEdge(torch.nn.Module):
         #     device=self.device
         # )
 
-        self.tp = SO2_Linear(
+        self.tp_irreps_out = (o3.Irreps(f"0x0e") + self.activation.irreps_in).simplify()
+        self.tp = torch.jit.script(
+        SO2_Linear(
             irreps_in=self.irreps_in+self.irreps_hidden+self.irreps_in,
             irreps_out=self.activation.irreps_in,
             latent_dim=latent_dim,
             radial_emb=radial_emb,
             radial_channels=radial_channels,
+        )
         )
 
         self.lin_post = Linear(
@@ -872,7 +879,7 @@ class UpdateEdge(torch.nn.Module):
                     ]
                 , dim=-1), edge_vector[active_edges], latents[active_edges]) # full_out_irreps
         
-        scalars = new_edge_features[:, :self.tp.irreps_out[0].dim]
+        scalars = new_edge_features[:, :self.tp_irreps_out[0].dim]
         assert len(scalars.shape) == 2
         new_edge_features = self.activation(new_edge_features)
         new_edge_features = self.lin_post(new_edge_features)
@@ -941,16 +948,21 @@ class UpdateHidden(torch.nn.Module):
             device=self.device
         )
 
-        self.tp = SO2_Linear(
+        self.tp_irreps_out = (o3.Irreps(f"0x0e") + self.activation.irreps_in).simplify()
+
+        self.tp = torch.jit.script(
+        SO2_Linear(
             irreps_in=self.irreps_fea+self.irreps_hidden_in,
             irreps_out=self.activation.irreps_in,
             latent_dim=latent_dim,
             radial_emb=radial_emb,
             radial_channels=radial_channels,
         )
+        )
 
-        all_tp_scalar = o3.Irreps([(mul, ir) for mul, ir in self.tp.irreps_out if ir.l == 0]).simplify()
-        assert all_tp_scalar.dim == self.tp.irreps_out[0].dim
+        all_tp_scalar = o3.Irreps([(mul, ir) for mul, ir in self.tp_irreps_out if ir.l == 0]).simplify()
+
+        assert all_tp_scalar.dim == self.tp_irreps_out[0].dim
 
         self.lin_post = Linear(
             self.activation.irreps_out,
@@ -977,10 +989,12 @@ class UpdateHidden(torch.nn.Module):
             mlp_initialization="uniform",
         )
 
-        self._hid_weighter = E3ElementLinear(
-                irreps_in=irreps_hidden_out,
-                dtype=dtype,
-                device=device,
+        self._hid_weighter = torch.jit.script(
+                E3ElementLinear(
+                    irreps_in=irreps_hidden_out,
+                    dtype=dtype,
+                    device=device,
+                )
             )
 
         self.hid_embed_mlps = ScalarMLPFunction(
