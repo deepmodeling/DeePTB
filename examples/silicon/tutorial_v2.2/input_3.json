@@ -1,0 +1,93 @@
+{
+    "common_options": {
+        "basis": {
+            "Si": [
+                "3s",
+                "3p",
+                "d*"
+            ]
+        },
+        "device": "cuda",
+        "dtype": "float32",
+        "overlap": true,
+        "seed": 3982377700
+    },
+    "train_options": {
+        "num_epoch": 20,
+        "batch_size": 1,
+        "optimizer": {
+            "lr": 1e-3,
+            "type": "Adam"
+        },
+        "lr_scheduler": {
+            "type": "exp",
+            "gamma": 0.999
+        },
+        "loss_options": {
+            "train": {
+                "method": "eigvals",
+                "diff_on": false,
+                "eout_weight": 0.001,
+                "diff_weight": 0.01
+            },
+            "reference": {
+                "method": "eigvals",
+                "diff_on": false,
+                "eout_weight": 0.001,
+                "diff_weight": 0.01
+            }
+        },
+        "save_freq": 1,
+        "validation_freq": 10,
+        "display_freq": 1,
+        "ref_batch_size": 1,
+        "val_batch_size": 1,
+        "max_ckpt": 4
+    },
+    "model_options": {
+        "embedding":{
+            "method": "se2",
+            "rs": 2.5,
+            "rc": 5.0,
+            "radial_net": {
+                "neurons": [10,20,30]
+            }
+        },
+        "prediction":{
+            "method": "sktb",
+            "neurons": [16,16,16]
+        },
+        "nnsk": {
+            "onsite": {
+                "method": "uniform"
+            },
+            "hopping": {
+                "method": "poly4pow",
+                "rs": {
+                    "Si-Si": 5.64
+                },
+                "w": 0.2
+            },
+            "soc": {},
+            "freeze": true,
+            "push": false,
+            "std": 0.01,
+            "atomic_radius": "cov"
+        }
+    },
+    "data_options": {
+        "train": {
+            "root": "../data/",
+            "prefix": "kpathmd100",
+            "get_eigenvalues": true,
+            "get_Hamiltonian": false
+        },
+        "reference": {
+            "root": "../data/",
+            "prefix": "kpath_spk",
+            "type": "DefaultDataset",
+            "get_eigenvalues": true,
+            "get_Hamiltonian": false
+        }
+    }
+}

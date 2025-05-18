@@ -15,6 +15,19 @@
 #     'Cs', 'Ba',       'Hf', 'Ta', 'W',  'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg', 'Tl', 'Pb', 'Bi',             'Rn'
 #     ]
 
+def show_onsites(basis):
+    """
+    Prints the onsite energies for the given basis set
+    basis = {'atom':['ns', 'np', 'nd', 'nf', 's*', 'p*', 'd*', 'f*']}
+    
+    Args:
+        basis: The basis set to show the onsite energies for
+    """
+    for atom, orbs in basis.items():
+        print(atom)
+        for orb in onsite_energy_database[atom]:
+            print(f"\t{orb}: {onsite_energy_database[atom][orb]:.4f}")
+
 onsite_energy_database = \
 {
     "H": {
