@@ -451,16 +451,14 @@ def test_data_options():
 
 def embedding():
     doc_method = "The parameters to define the embedding model."
+    doc_init2b = "Whether to train the model with 2b interaction as a model initialization."
 
     return Variant("method", [
             Argument("se2", dict, se2()),
-            Argument("baseline", dict, baseline()),
             Argument("deeph-e3", dict, deephe3()),
-            Argument("e3baseline_5", dict, e3baselinev5()),
-            Argument("e3baseline_6", dict, e3baselinev5()),
             Argument("slem", dict, slem()),
             Argument("lem", dict, slem()),
-            Argument("e3baseline_nonlocal", dict, e3baselinev5()),
+            Argument("trinity", dict, slem()+[Argument("init2b", bool, optional=True, default=False, doc=doc_init2b)],),
         ],optional=True, default_tag="se2", doc=doc_method)
 
 def se2():
@@ -1596,7 +1594,7 @@ def get_cutoffs_from_model_options(model_options):
         embedding = model_options.get("embedding")
         if embedding["method"] == "se2":
             er_max = embedding["rc"]
-        elif embedding["method"] in ["slem", "lem"]:
+        elif embedding["method"] in ["slem", "lem", "trinity"]:
             r_max = embedding["r_max"]
         else:
             log.error("The method of embedding have not been defined in get cutoff functions")

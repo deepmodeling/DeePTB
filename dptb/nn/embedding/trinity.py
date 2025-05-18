@@ -24,16 +24,16 @@ from dptb.data.transforms import OrbitalMapper
 from ..type_encode.one_hot import OneHotAtomEncoding
 from dptb.nn.norm import SeperableLayerNorm
 from dptb.data.AtomicDataDict import with_edge_vectors, with_batch
-
 from math import ceil
 
-@Embedding.register("lem")
-class Lem(torch.nn.Module):
+@Embedding.register("trinity")
+class Trinity(torch.nn.Module):
     def __init__(
             self,
             basis: Dict[str, Union[str, list]]=None,
             idp: Union[OrbitalMapper, None]=None,
             # required params
+            init2b: bool=False,
             n_layers: int=3,
             n_radial_basis: int=10,
             r_max: float=5.0,
@@ -61,7 +61,7 @@ class Lem(torch.nn.Module):
             **kwargs,
             ):
         
-        super(Lem, self).__init__()
+        super(Trinity, self).__init__()
 
         irreps_hidden = o3.Irreps(irreps_hidden)
         lmax = irreps_hidden.lmax
@@ -88,6 +88,7 @@ class Lem(torch.nn.Module):
                 "mlp_initialization": "uniform"
             },
         self.latent_dim = latent_dim
+        self.init2b = init2b
             
         self.basis = self.idp.basis
         self.idp.get_irreps(no_parity=False)
@@ -130,6 +131,23 @@ class Lem(torch.nn.Module):
             device=device,
             dtype=dtype,
         )
+
+        self.two_ness = Twoness(
+            idp=self.idp,
+            num_types=self.n_atom,
+            r_max=r_max,
+            n_radial_basis=n_radial_basis,
+            # MLP parameters:
+            two_body_latent_channels=latent_channels,
+            latent_dim=latent_dim,
+            # cutoffs
+            device=device,
+            dtype=dtype,
+        )
+
+        if not self.init2b:
+            for param in self.two_ness.parameters():
+                param.requires_grad = False
 
         self.layers = torch.nn.ModuleList()
         # actually, we can derive the least required irreps_in and out from the idp's node and pair irreps
@@ -191,25 +209,32 @@ class Lem(torch.nn.Module):
         atom_type = data[_keys.ATOM_TYPE_KEY].flatten()
         bond_type = data[_keys.EDGE_TYPE_KEY].flatten()
         latents, node_features, edge_features, cutoff_coeffs, active_edges = self.init_layer(edge_index, atom_type, bond_type, edge_sh, edge_length, node_one_hot)
+
+        # get the twobody part of the param.
+        node_twoness, edge_twoness = self.two_ness(edge_index, atom_type, cutoff_coeffs, edge_length, node_one_hot)
         data[_keys.EDGE_OVERLAP_KEY] = latents
-
-        for layer in self.layers:
-            latents, node_features, edge_features = \
-                layer(
-                    latents, 
-                    node_features,
-                    edge_features, 
-                    node_one_hot, 
-                    edge_index, 
-                    edge_vector, 
-                    atom_type, 
-                    cutoff_coeffs, 
-                    active_edges
-                )
-
-        data[_keys.NODE_FEATURES_KEY] = self.out_node(node_features)
+        data[_keys.NODE_ATTRS_KEY] = node_twoness
+        data[_keys.EDGE_ATTRS_KEY] = edge_twoness
         data[_keys.EDGE_FEATURES_KEY] = torch.zeros(edge_index.shape[1], self.idp.orbpair_irreps.dim, dtype=self.dtype, device=self.device)
-        data[_keys.EDGE_FEATURES_KEY] = torch.index_copy(data[_keys.EDGE_FEATURES_KEY], 0, active_edges, self.out_edge(edge_features))
+        data[_keys.NODE_FEATURES_KEY] = torch.zeros(atom_type.shape[0], self.idp.orbpair_irreps.dim, dtype=self.dtype, device=self.device)
+        if not self.init2b:
+            for layer in self.layers:
+                latents, node_features, edge_features = \
+                    layer(
+                        latents, 
+                        node_features,
+                        edge_features, 
+                        node_one_hot, 
+                        edge_index, 
+                        edge_vector, 
+                        atom_type, 
+                        cutoff_coeffs, 
+                        active_edges
+                    )
+                
+
+            data[_keys.NODE_FEATURES_KEY] = self.out_node(node_features)
+            data[_keys.EDGE_FEATURES_KEY] = torch.index_copy(data[_keys.EDGE_FEATURES_KEY], 0, active_edges, self.out_edge(edge_features))
 
         return data
     
@@ -324,6 +349,94 @@ class ScalarMLPFunction(CodeGenMixin, torch.nn.Module):
     def forward(self, x):
         return self._forward(x)
 
+class Twoness(torch.nn.Module):
+    def __init__(
+            self,
+            # required params
+            idp,
+            r_max: Union[float, int, dict],
+            num_types: int,
+            n_radial_basis: int,
+            # MLP parameters:
+            two_body_latent_channels: list=[128, 128],
+            latent_dim: int=128,
+            # cutoffs
+            device: Union[str, torch.device] = torch.device("cpu"),
+            dtype: Union[str, torch.dtype] = torch.float32,
+    ):
+        super(Twoness, self).__init__()
+        self.num_types = num_types
+        if isinstance(r_max, float) or isinstance(r_max, int):
+            self.r_max = torch.tensor(r_max, device=device, dtype=dtype)
+            self.r_max_dict = None
+        elif isinstance(r_max, dict):
+            c_set = set(list(r_max.values()))
+            self.r_max = torch.tensor(max(list(r_max.values())), device=device, dtype=dtype)
+            if len(r_max) == 1 or len(c_set) == 1:
+                self.r_max_dict = None
+            else:
+                self.r_max_dict = {}
+                for k,v in r_max.items():
+                    self.r_max_dict[k] = torch.tensor(v, device=device, dtype=dtype)
+        else:
+            raise TypeError("r_max should be either float, int or dict")
+                  
+        self.idp = idp
+        self.device = device
+        self.dtype = dtype
+
+        self.idp_sk = OrbitalMapper(self.idp.basis, method="sktb", device=self.device)
+        self.idp_sk.get_skonsite_maps()
+        onsite_param = torch.ones([len(self.idp_sk.type_names), self.idp_sk.n_onsite_Es, 1], dtype=self.dtype, device=self.device)
+        self.onsite_param = torch.nn.Parameter(onsite_param)
+
+        # Node invariants for center and neighbor (chemistry)
+        # Plus edge invariants for the edge (radius).
+        self.two_body_latent = ScalarMLPFunction(
+                        mlp_input_dimension=(2 * num_types + n_radial_basis),
+                        mlp_output_dimension=latent_dim,
+                        mlp_latent_dimensions=two_body_latent_channels,
+                        mlp_nonlinearity="silu",
+                        mlp_initialization="uniform",
+                    )
+        
+        self.bessel = BesselBasis(r_max=self.r_max, num_basis=n_radial_basis, trainable=True)
+
+
+    def forward(self, edge_index, atom_type, cutoff_coeffs, edge_length, node_one_hot):
+        edge_center = edge_index[0]
+        edge_neighbor = edge_index[1]
+
+        edge_invariants = self.bessel(edge_length)
+        node_invariants = node_one_hot
+
+        # Determine which edges are still in play
+        prev_mask = cutoff_coeffs > 0
+        active_edges = (cutoff_coeffs > 0).nonzero().squeeze(-1)
+
+        # Compute latents
+        edge_twoness = torch.zeros(
+            (edge_index.shape[1], self.two_body_latent.out_features),
+            dtype=self.dtype,
+            device=self.device,
+        )
+        
+        new_latents = self.two_body_latent(torch.cat([
+            node_invariants[edge_center],
+            node_invariants[edge_neighbor],
+            edge_invariants,
+        ], dim=-1)[prev_mask])
+
+        # Apply cutoff, which propagates through to everything else
+        edge_twoness = torch.index_copy(
+            edge_twoness, 0, active_edges, 
+            cutoff_coeffs[active_edges].unsqueeze(-1) * new_latents
+            )
+
+        node_twoness = self.onsite_param[atom_type.flatten()]
+
+        return node_twoness, edge_twoness # the radial embedding x and the sperical hidden V
+
 class InitLayer(torch.nn.Module):
     def __init__(
             self,
@@ -331,7 +444,7 @@ class InitLayer(torch.nn.Module):
             idp,
             num_types: int,
             n_radial_basis: int,
-            r_max: float,
+            r_max: Union[float, int, dict],
             avg_num_neighbors: Optional[float] = None,
             irreps_sh: o3.Irreps=None,
             env_embed_multiplicity: int = 32,
