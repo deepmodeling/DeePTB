@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.nn import Linear
 import os
-
+from collections import defaultdict
 
 
 _Jd = torch.load(os.path.join(os.path.dirname(__file__), "Jd.pt"), weights_only=False)
@@ -111,13 +111,36 @@ class SO2_Linear(torch.nn.Module):
         if self.radial_emb:
             weights = self.radial_emb(latents)
         
+        
+        ###################################################################### 
+        ###### 改进，对角量子数进分组处理 ######################################   
         x_ = torch.zeros(n, self.irreps_in.dim, dtype=x.dtype, device=x.device)
-        for (mul, (l,p)), slice in zip(self.irreps_in, self.irreps_in.slices()):
-            if l > 0:
-                angle = xyz_to_angles(R[:,[1,2,0]]) # (tensor(N), tensor(N))
-                # The roataion matrix is SO3 rotation, therefore Irreps(l,1), is used here.
-                rot_mat_L = wigner_D(l, angle[0], angle[1], torch.zeros_like(angle[0]))
-                x_[:, slice] = torch.einsum('nji,nmj->nmi', rot_mat_L, x[:, slice].reshape(n,mul,-1)).reshape(n,-1)
+        
+        R_transformed = R[:, [1, 2, 0]] 
+        alpha, beta = xyz_to_angles(R_transformed)
+        gamma = torch.zeros_like(alpha)
+
+        # 按角量子数l分组处理不可约表示
+        groups = defaultdict(list)
+        for (mul, (l, p)), slice_info in zip(self.irreps_in, self.irreps_in.slices()):
+            groups[l].append((mul, slice_info))
+
+        # 处理每个l的分组
+        for l, group in groups.items():
+            if l == 0 or not group:
+                continue
+            
+            muls, slices = zip(*group) 
+            x_parts = [x[:, sl].reshape(n, mul, 2*l+1) for mul, sl in group]
+            x_combined = torch.cat(x_parts, dim=1)  # [n, total_mul, 2l+1]
+            
+            rot_mat = wigner_D(l, alpha, beta, gamma)  # [n, 2l+1, 2l+1]
+            transformed = torch.bmm(x_combined, rot_mat)  # [n, total_mul, 2l+1]
+            
+            for part, slice_info in zip(transformed.split(muls, dim=1), slices):
+                x_[:, slice_info] = part.reshape(n, -1)
+        ###################################################################### 
+
 
         out = torch.zeros(n, self.irreps_out.dim, dtype=x.dtype, device=x.device)
         for m in range(self.irreps_out.lmax+1):
@@ -139,12 +162,27 @@ class SO2_Linear(torch.nn.Module):
                     
         out.contiguous()
 
-        for (mul, (l,p)), slice in zip(self.irreps_out, self.irreps_out.slices()):
-            if l > 0:
-                angle = xyz_to_angles(R[:,[1,2,0]]) # (tensor(N), tensor(N))
-                # The roataion matrix is SO3 rotation, therefore Irreps(l,1), is used here.
-                rot_mat_L = wigner_D(l, angle[0], angle[1], torch.zeros_like(angle[0]))
-                out[:, slice] = torch.einsum('nij,nmj->nmi', rot_mat_L, out[:, slice].reshape(n,mul,-1)).reshape(n,-1)
+
+        ###################################################################### 
+        ###### 改进，对角量子数进分组处理 ######################################  
+        out_groups = defaultdict(list)
+        for (mul, (l, p)), slice_info in zip(self.irreps_out, self.irreps_out.slices()):
+            out_groups[l].append((mul, slice_info)) 
+
+        for l, group in out_groups.items():
+            if l == 0 or not group:
+                continue
+            
+            muls, slices = zip(*group) 
+            out_parts = [out[:, sl].reshape(n, mul, 2*l+1) for mul, sl in group]
+            out_combined = torch.cat(out_parts, dim=1)
+            
+            rot_mat = wigner_D(l, alpha, beta, gamma)
+            transformed = torch.bmm(rot_mat, out_combined.transpose(1,2)).transpose(1,2)  # [n, total_mul, 2l+1]
+            
+            for part, slice_info in zip(transformed.split(muls, dim=1), slices):
+                out[:, slice_info] = part.reshape(n, -1)
+        ###################################################################### 
 
         return out
 
