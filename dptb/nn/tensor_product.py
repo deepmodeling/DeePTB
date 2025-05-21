@@ -110,22 +110,22 @@ class SO2_Linear(torch.nn.Module):
 
         if self.radial_emb:
             weights = self.radial_emb(latents)
-        
-        
-        ###################################################################### 
-        ###### 改进，对角量子数进分组处理 ######################################   
+
+        # ======================================================================
+        # ====== Improved: group input irreps by angular quantum number ========
+        # ======================================================================
         x_ = torch.zeros(n, self.irreps_in.dim, dtype=x.dtype, device=x.device)
         
         R_transformed = R[:, [1, 2, 0]] 
         alpha, beta = xyz_to_angles(R_transformed)
         gamma = torch.zeros_like(alpha)
 
-        # 按角量子数l分组处理不可约表示
+        # Group irreducible representations by angular quantum number
         groups = defaultdict(list)
         for (mul, (l, p)), slice_info in zip(self.irreps_in, self.irreps_in.slices()):
             groups[l].append((mul, slice_info))
 
-        # 处理每个l的分组
+        # Process each l group
         for l, group in groups.items():
             if l == 0 or not group:
                 continue
@@ -139,8 +139,7 @@ class SO2_Linear(torch.nn.Module):
             
             for part, slice_info in zip(transformed.split(muls, dim=1), slices):
                 x_[:, slice_info] = part.reshape(n, -1)
-        ###################################################################### 
-
+        # ======================================================================
 
         out = torch.zeros(n, self.irreps_out.dim, dtype=x.dtype, device=x.device)
         for m in range(self.irreps_out.lmax+1):
@@ -162,9 +161,9 @@ class SO2_Linear(torch.nn.Module):
                     
         out.contiguous()
 
-
-        ###################################################################### 
-        ###### 改进，对角量子数进分组处理 ######################################  
+        # ======================================================================
+        # ====== Improved: group input irreps by angular quantum number ========
+        # ======================================================================
         out_groups = defaultdict(list)
         for (mul, (l, p)), slice_info in zip(self.irreps_out, self.irreps_out.slices()):
             out_groups[l].append((mul, slice_info)) 
@@ -182,7 +181,6 @@ class SO2_Linear(torch.nn.Module):
             
             for part, slice_info in zip(transformed.split(muls, dim=1), slices):
                 out[:, slice_info] = part.reshape(n, -1)
-        ###################################################################### 
 
         return out
 
