@@ -6,6 +6,7 @@ from dptb.utils.tools import download_url, extract_zip
 
 import os
 import os.path as osp
+import glob
 from dptb.data import (
     AtomicData,
     AtomicDataDict,
@@ -40,10 +41,9 @@ class LMDBDataset(AtomicDataset):
         self.url = getattr(type(self), "URL", url)
         self.include_frames = include_frames
         self.info_files = info_files # there should be one info file for one LMDB Dataset
-            
+        # print(self.info_files)
 
         self.data = None
-
         # !!! don't delete this block.
         # otherwise the inherent children class
         # will ignore the download function here
@@ -63,12 +63,12 @@ class LMDBDataset(AtomicDataset):
         self.orthogonal = orthogonal
         assert not get_Hamiltonian * get_DM, "Hamiltonian and Density Matrix can only loaded one at a time, for which will occupy the same attribute in the AtomicData."
 
-
         self.num_graphs = 0
         self.file_map = []
         self.index_map = []
         for file in self.info_files.keys():
-            db_env = lmdb.open(os.path.join(self.root, file), readonly=True, lock=False)
+            lmdb_path = self.simple_get_lmdb_path(file)
+            db_env = lmdb.open(lmdb_path, readonly=True, lock=False)
             with db_env.begin() as txn:
                 self.num_graphs += txn.stat()['entries']
                 self.file_map += [file] * txn.stat()['entries']
@@ -77,6 +77,18 @@ class LMDBDataset(AtomicDataset):
 
     def len(self):
         return self.num_graphs
+
+    def simple_get_lmdb_path(self, folder_name: str):
+        lmdb_folder_path = os.path.join(self.root, folder_name)
+        # expand any wildcard and make sure exactly one match exists
+        matches = glob.glob(lmdb_folder_path)
+        if len(matches) == 0:
+            raise FileNotFoundError(f"No LMDB file matches '{lmdb_folder_path}'")
+        if len(matches) > 1:
+            raise RuntimeError(f"Ambiguous LMDB paths for pattern '{lmdb_folder_path}': {matches}")
+        # get the single, absolute path
+        lmdb_path = os.path.abspath(matches[0])
+        return lmdb_path
     
     @property
     def raw_file_names(self):
@@ -98,7 +110,8 @@ class LMDBDataset(AtomicDataset):
                 extract_zip(download_path, self.raw_dir)
 
     def get(self, idx):
-        db_env = lmdb.open(os.path.join(self.root, self.file_map[idx]), readonly=True, lock=False)
+        lmdb_path = self.simple_get_lmdb_path(self.file_map[idx])
+        db_env = lmdb.open(lmdb_path, readonly=True, lock=False)
         with db_env.begin() as txn:
             data_dict = txn.get(self.index_map[int(idx)].to_bytes(length=4, byteorder='big'))
             data_dict = pickle.loads(data_dict)
@@ -108,7 +121,6 @@ class LMDBDataset(AtomicDataset):
                 data_dict[AtomicDataDict.ATOMIC_NUMBERS_KEY]
             
             pbc = data_dict[AtomicDataDict.PBC_KEY]
-
             
             if self.get_Hamiltonian:
                 blocks = data_dict["hamiltonian"]
