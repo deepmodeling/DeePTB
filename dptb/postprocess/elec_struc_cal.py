@@ -1,5 +1,4 @@
 import os
-
 import h5py
 import numpy as np
 from ase.io import read
@@ -139,32 +138,34 @@ class ElecStruCal(object):
             data = data
         else:
             raise ValueError('data should be either a string, ase.Atoms, or AtomicData')
-        
-        if device is None:
-            device = self.device
-        data = AtomicData.to_AtomicDataDict(data.to(device))
-        data = self.model.idp(data)
 
         if isinstance(override_overlap, str):
             assert os.path.exists(override_overlap), "Overlap file not found."
             overlap_blocks = h5py.File(override_overlap, "r")
             if len(overlap_blocks) != 1:
                 log.info('Overlap file contains more than one overlap matrix, only first will be used.')
-            data[AtomicDataDict.NODE_OVERLAP_KEY] = None
-            data[AtomicDataDict.EDGE_OVERLAP_KEY] = None
+            if self.overlap:
+                log.warning('override_overlap is enabled while model contains overlap, override_overlap will be used.')
             if "0" in overlap_blocks:
                 overlaps = overlap_blocks["0"]
             else:
                 overlaps = overlap_blocks["1"]
-            block_to_feature(data, self.model.idp, False, overlaps)
-            self.eigv = Eigenvalues(
-                idp=self.model.idp,
-                device=self.device,
-                s_edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
-                s_node_field=AtomicDataDict.NODE_OVERLAP_KEY,
-                s_out_field=AtomicDataDict.OVERLAP_KEY,
-                dtype=self.model.dtype,
-            )
+            block_to_feature(data, self.model.idp, blocks=False, overlap_blocks=overlaps)
+            if not self.overlap:
+                self.eigv = Eigenvalues(
+                    idp=self.model.idp,
+                    device=self.device,
+                    s_edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
+                    s_node_field=AtomicDataDict.NODE_OVERLAP_KEY,
+                    s_out_field=AtomicDataDict.OVERLAP_KEY,
+                    dtype=self.model.dtype,
+                )
+            overlap_blocks.close()
+
+        if device is None:
+            device = self.device
+        data = AtomicData.to_AtomicDataDict(data.to(device))
+        data = self.model.idp(data)
 
         return data
 
@@ -199,8 +200,14 @@ class ElecStruCal(object):
         # set the kpoint of the AtomicData
         data[AtomicDataDict.KPOINT_KEY] = \
             torch.nested.as_nested_tensor([torch.as_tensor(klist, dtype=self.model.dtype, device=self.device)])
+        if isinstance(override_overlap, str):
+            override_overlap_edge = data[AtomicDataDict.EDGE_OVERLAP_KEY]
+            override_overlap_node = data[AtomicDataDict.NODE_OVERLAP_KEY]
         # get the eigenvalues
         data = self.model(data)
+        if isinstance(override_overlap, str):
+            data[AtomicDataDict.EDGE_OVERLAP_KEY] = override_overlap_edge
+            data[AtomicDataDict.NODE_OVERLAP_KEY] = override_overlap_node
         if self.overlap or isinstance(override_overlap, str):
             assert data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is not None
         data = self.eigv(data)
