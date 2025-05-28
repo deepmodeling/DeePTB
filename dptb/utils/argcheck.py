@@ -1250,6 +1250,7 @@ def band():
     doc_nel_atom = "the valence electron number of each type of atom."
     doc_high_sym_kpoints = "the high symmetry kpoints dict, e.g. {'G':[0,0,0],'K':[0.5,0.5,0]}, only used for kline_type is vasp"
     doc_num_in_line = "the number of kpoints in each line path, only used for kline_type is vasp."
+    doc_override_overlap = "overlap file path to be input to override overlap matrix."
     return [
         Argument("kline_type", str, optional=False, doc=doc_kline_type),
         Argument("kpath", [str,list], optional=False, doc=doc_kpath),
@@ -1261,7 +1262,8 @@ def band():
         Argument("emax", [float, int, None], optional=True, doc=doc_emax, default=None),
         Argument("nkpoints", int, optional=True, doc=doc_emax, default=0),
         Argument("ref_band", [str, None], optional=True, default=None, doc=doc_ref_band),
-        Argument("nel_atom", [dict,None], optional=True, default=None, doc=doc_nel_atom)
+        Argument("nel_atom", [dict,None], optional=True, default=None, doc=doc_nel_atom),
+        Argument("override_overlap", [str, None], optional=True, default=None, doc=doc_override_overlap)
     ]
 
 
