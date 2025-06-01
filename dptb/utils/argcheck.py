@@ -462,14 +462,14 @@ def test_data_options():
 
 def embedding():
     doc_method = "The parameters to define the embedding model."
-    doc_init2b = "Whether to train the model with 2b interaction as a model initialization."
+    doc_only2b = "Whether to train the model with 2b interaction as a model initialization."
 
     return Variant("method", [
             Argument("se2", dict, se2()),
             Argument("deeph-e3", dict, deephe3()),
             Argument("slem", dict, slem()),
             Argument("lem", dict, slem()),
-            Argument("trinity", dict, slem()+[Argument("init2b", bool, optional=True, default=False, doc=doc_init2b)],),
+            Argument("trinity", dict, slem()+[Argument("only2b", bool, optional=True, default=False, doc=doc_only2b)],),
         ],optional=True, default_tag="se2", doc=doc_method)
 
 def se2():
