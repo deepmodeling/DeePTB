@@ -6,7 +6,10 @@ from torch import Tensor
 from dptb.utils.constants import dtype_dict
 from dptb.utils.tools import _get_activation_fn
 from e3nn.util.codegen import CodeGenMixin
+from e3nn.math import normalize2mom
 import torch.nn.functional as F
+import math
+from torch import fx
 import torch.nn as nn
 
 class AtomicLinear(torch.nn.Module):
@@ -575,3 +578,7 @@ class ScalarMLPFunction(CodeGenMixin, torch.nn.Module):
 
     def forward(self, x):
         return self._forward(x)
+
+@torch.jit.script
+def ShiftedSoftPlus(x: torch.Tensor):
+    return torch.nn.functional.softplus(x) - math.log(2.0)

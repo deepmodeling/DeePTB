@@ -352,18 +352,24 @@ class EigHamLoss(nn.Module):
         if self.onsite_shift:
             batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
             # assert batch.max() == 0, "The onsite shift is only supported for batchsize=1."
-            mu = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
-                  ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            # mu = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+            #       ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            mu = (data[AtomicDataDict.NODE_FEATURES_KEY] - ref_data[AtomicDataDict.NODE_FEATURES_KEY]) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+            mu = mu.sum(dim=-1) # [natoms]
             if batch.max() == 0: # when batchsize is zero
-                mu = mu.mean().detach()
+                mu = mu / (ref_data[AtomicDataDict.NODE_OVERLAP_KEY] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1).mean()
+                mu = mu.mean().detach() # still taking mean across atom dimension to avoid overflow
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
                 ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
             elif batch.max() >= 1:
                 slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
                 slices = [0] + slices
-                ndiag_batch = torch.stack([i.sum() for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.stack([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
                 ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
                 mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
+                ss = (ref_data[AtomicDataDict.NODE_OVERLAP_KEY].sum(dim=-1) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1)
+                ss = torch.stack([ss[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
+                mu = mu / ss
                 mu = mu.detach()
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu[batch, None] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
                 edge_mu_index = torch.zeros(data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], dtype=torch.long, device=self.device)
@@ -438,18 +444,24 @@ class HamilLossAbs(nn.Module):
         if self.onsite_shift:
             batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
             # assert batch.max() == 0, "The onsite shift is only supported for batchsize=1."
-            mu = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
-                  ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            # mu = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+            #       ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            mu = (data[AtomicDataDict.NODE_FEATURES_KEY] - ref_data[AtomicDataDict.NODE_FEATURES_KEY]) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+            mu = mu.sum(dim=-1) # [natoms]
             if batch.max() == 0: # when batchsize is zero
-                mu = mu.mean().detach()
+                mu = mu / (ref_data[AtomicDataDict.NODE_OVERLAP_KEY] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1).mean()
+                mu = mu.mean().detach() # still taking mean across atom dimension to avoid overflow
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
                 ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
             elif batch.max() >= 1:
                 slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
                 slices = [0] + slices
-                ndiag_batch = torch.stack([i.sum() for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.stack([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
                 ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
                 mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
+                ss = (ref_data[AtomicDataDict.NODE_OVERLAP_KEY].sum(dim=-1) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1)
+                ss = torch.stack([ss[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
+                mu = mu / ss
                 mu = mu.detach()
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu[batch, None] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
                 edge_mu_index = torch.zeros(data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], dtype=torch.long, device=self.device)
@@ -512,18 +524,24 @@ class HamilLossBlas(nn.Module):
         if self.onsite_shift:
             batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
             # assert batch.max() == 0, "The onsite shift is only supported for batchsize=1."
-            mu = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
-                  ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            # mu = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+            #       ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            mu = (data[AtomicDataDict.NODE_FEATURES_KEY] - ref_data[AtomicDataDict.NODE_FEATURES_KEY]) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+            mu = mu.sum(dim=-1) # [natoms]
             if batch.max() == 0: # when batchsize is zero
-                mu = mu.mean().detach()
+                mu = mu / (ref_data[AtomicDataDict.NODE_OVERLAP_KEY] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1).mean()
+                mu = mu.mean().detach() # still taking mean across atom dimension to avoid overflow
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
                 ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
             elif batch.max() >= 1:
                 slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
                 slices = [0] + slices
-                ndiag_batch = torch.stack([i.sum() for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.stack([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
                 ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
                 mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
+                ss = (ref_data[AtomicDataDict.NODE_OVERLAP_KEY].sum(dim=-1) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1)
+                ss = torch.stack([ss[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
+                mu = mu / ss
                 mu = mu.detach()
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu[batch, None] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
                 edge_mu_index = torch.zeros(data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], dtype=torch.long, device=self.device)
@@ -652,18 +670,24 @@ class HamilLossWT(nn.Module):
         if self.onsite_shift:
             batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
             # assert batch.max() == 0, "The onsite shift is only supported for batchsize=1."
-            mu = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
-                  ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            # mu = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+            #       ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            mu = (data[AtomicDataDict.NODE_FEATURES_KEY] - ref_data[AtomicDataDict.NODE_FEATURES_KEY]) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+            mu = mu.sum(dim=-1) # [natoms]
             if batch.max() == 0: # when batchsize is zero
-                mu = mu.mean().detach()
+                mu = mu / (ref_data[AtomicDataDict.NODE_OVERLAP_KEY] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1).mean()
+                mu = mu.mean().detach() # still taking mean across atom dimension to avoid overflow
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
                 ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
             elif batch.max() >= 1:
                 slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
                 slices = [0] + slices
-                ndiag_batch = torch.stack([i.sum() for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.stack([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
                 ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
                 mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
+                ss = (ref_data[AtomicDataDict.NODE_OVERLAP_KEY].sum(dim=-1) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1)
+                ss = torch.stack([ss[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
+                mu = mu / ss
                 mu = mu.detach()
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu[batch, None] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
                 edge_mu_index = torch.zeros(data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], dtype=torch.long, device=self.device)
@@ -775,18 +799,24 @@ class HamilLossAnalysis(object):
         if self.onsite_shift:
             batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
             # assert batch.max() == 0, "The onsite shift is only supported for batchsize=1."
-            mu = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
-                  ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            # mu = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+            #       ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            mu = (data[AtomicDataDict.NODE_FEATURES_KEY] - ref_data[AtomicDataDict.NODE_FEATURES_KEY]) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+            mu = mu.sum(dim=-1) # [natoms]
             if batch.max() == 0: # when batchsize is zero
-                mu = mu.mean().detach()
+                mu = mu / (ref_data[AtomicDataDict.NODE_OVERLAP_KEY] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1).mean()
+                mu = mu.mean().detach() # still taking mean across atom dimension to avoid overflow
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
                 ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
             elif batch.max() >= 1:
                 slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
                 slices = [0] + slices
-                ndiag_batch = torch.stack([i.sum() for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.stack([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
                 ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
                 mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
+                ss = (ref_data[AtomicDataDict.NODE_OVERLAP_KEY].sum(dim=-1) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1)
+                ss = torch.stack([ss[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
+                mu = mu / ss
                 mu = mu.detach()
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu[batch, None] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
                 edge_mu_index = torch.zeros(data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], dtype=torch.long, device=self.device)

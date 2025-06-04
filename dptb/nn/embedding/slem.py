@@ -8,7 +8,6 @@ from e3nn import o3
 from e3nn.nn import Gate
 from torch_scatter import scatter_mean
 from e3nn.o3 import Linear, SphericalHarmonics
-from e3nn.math import normalize2mom
 from e3nn.util.jit import compile_mode
 from dptb.data import AtomicDataDict
 from dptb.nn.embedding.emb import Embedding
