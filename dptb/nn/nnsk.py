@@ -1021,6 +1021,8 @@ class NNSK(torch.nn.Module):
             rev_line = self.idp_sk.transform_bond(jan, ian)
             for orbpair, slices in self.idp_sk.orbpair_maps.items():
                 fiorb, fjorb = orbpair.split("-")
+                if fiorb not in self.idp_sk.full_basis_to_basis[iasym] or fjorb not in self.idp_sk.full_basis_to_basis[jasym]:
+                    continue
                 iorb = self.idp_sk.full_basis_to_basis[iasym].get(fiorb)
                 jorb = self.idp_sk.full_basis_to_basis[jasym].get(fjorb)
                 if to_uniform:
@@ -1060,6 +1062,8 @@ class NNSK(torch.nn.Module):
                 rev_line = self.idp_sk.transform_bond(jan, ian)
                 for orbpair, slices in self.idp_sk.orbpair_maps.items():
                     fiorb, fjorb = orbpair.split("-")
+                    if fiorb not in self.idp_sk.full_basis_to_basis[iasym] or fjorb not in self.idp_sk.full_basis_to_basis[jasym]:
+                        continue
                     iorb = self.idp_sk.full_basis_to_basis[iasym].get(fiorb)
                     jorb = self.idp_sk.full_basis_to_basis[jasym].get(fjorb)
                     if to_uniform:
@@ -1093,6 +1097,8 @@ class NNSK(torch.nn.Module):
                 for asym in self.idp_sk.type_names:
                     for orbpair, slices in self.idp_sk.skonsite_maps.items():
                         fiorb, fjorb = orbpair.split("-")
+                        if fiorb not in self.idp_sk.full_basis_to_basis[asym] or fjorb not in self.idp_sk.full_basis_to_basis[asym]:
+                            continue
                         if fiorb != fjorb:
                             iorb = self.idp_sk.full_basis_to_basis[asym][fiorb]
                             jorb = self.idp_sk.full_basis_to_basis[asym][fjorb]
@@ -1112,6 +1118,8 @@ class NNSK(torch.nn.Module):
                 ian, jan = torch.tensor(atomic_num_dict[iasym]), torch.tensor(atomic_num_dict[jasym])
                 for orbpair, slices in self.idp_sk.orbpair_maps.items():
                     fiorb, fjorb = orbpair.split("-")
+                    if fiorb not in self.idp_sk.full_basis_to_basis[iasym] or fjorb not in self.idp_sk.full_basis_to_basis[jasym]:
+                        continue
                     iorb = self.idp_sk.full_basis_to_basis[iasym].get(fiorb)
                     jorb = self.idp_sk.full_basis_to_basis[jasym].get(fjorb)
                     if to_uniform:
@@ -1128,6 +1136,8 @@ class NNSK(torch.nn.Module):
             for asym in self.idp_sk.type_names:
                 for orbpair, slices in self.idp_sk.skonsite_maps.items():
                     fiorb, fjorb = orbpair.split("-")
+                    if fiorb not in self.idp_sk.full_basis_to_basis[asym] or fjorb not in self.idp_sk.full_basis_to_basis[asym]:
+                        continue
                     iorb = self.idp_sk.full_basis_to_basis[asym][fiorb]
                     jorb = self.idp_sk.full_basis_to_basis[asym][fjorb]
                     if to_uniform:
@@ -1153,6 +1163,8 @@ class NNSK(torch.nn.Module):
             soc_param = {}
             for asym in self.idp_sk.type_names:
                 for fiorb, slices in self.idp_sk.sksoc_maps.items():
+                    if fiorb not in self.idp_sk.full_basis_to_basis[asym]:
+                        continue
                     iorb = self.idp_sk.full_basis_to_basis[asym][fiorb]
                     if to_uniform:
                         iorb = basisref[asym][iorb]
