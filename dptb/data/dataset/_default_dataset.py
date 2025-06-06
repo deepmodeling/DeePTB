@@ -401,6 +401,10 @@ class DefaultDataset(AtomicInMemoryDataset):
 
         if self.data[AtomicDataDict.EDGE_FEATURES_KEY].abs().sum() < 1e-7:
             return None
+    
+        if model is not None:
+            if not isinstance(model.node_prediction_h, torch.nn.Module):
+                return None
         
         typed_dataset = idp(self.data.clone().to_dict())
         e3h = E3Hamiltonian(basis=idp.basis, decompose=True)

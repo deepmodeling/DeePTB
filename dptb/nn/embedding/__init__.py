@@ -6,6 +6,7 @@ from .deephe3 import E3DeePH
 from .e3baseline_local6 import E3BaseLineModel6
 from .slem import Slem
 from .lem import Lem
+from .trinity import Trinity
 from .e3baseline_nonlocal import E3BaseLineModelNonLocal
 
 __all__ = [
@@ -15,6 +16,7 @@ __all__ = [
     "E3DeePH",
     "Lem",
     "Slem",
+    "Trinity",
     "E3BaseLineModel6",
     "E3BaseLineModelNonLocal",
 ]

@@ -169,33 +169,54 @@ class NNENV(nn.Module):
                     self.overlaponsite_param = overlaponsite_param
 
         elif prediction_copy.get("method") == "e3tb":
-            self.node_prediction_h = E3PerSpeciesScaleShift(
-                field=AtomicDataDict.NODE_FEATURES_KEY,
-                num_types=n_species,
-                irreps_in=self.embedding.out_node_irreps,
-                out_field = AtomicDataDict.NODE_FEATURES_KEY,
-                shifts=0.,
-                scales=1.,
-                dtype=self.dtype,
-                device=self.device,
-                **prediction_copy,
-            )
-            
-            self.edge_prediction_h = E3PerEdgeSpeciesScaleShift(
-                field=AtomicDataDict.EDGE_FEATURES_KEY,
-                num_types=n_species,
-                irreps_in=self.embedding.out_edge_irreps,
-                out_field = AtomicDataDict.EDGE_FEATURES_KEY,
-                shifts=0.,
-                scales=1.,
-                dtype=self.dtype,
-                device=self.device,
-                **prediction_copy,
-            )
+            if embedding.get("method") == "trinity":
+                # hack to pass the dataset operation
+                self.node_prediction_h = lambda x: x
+                self.edge_prediction_h = lambda x: x
+                self.node_prediction_h.set_scale_shift = lambda scales, shifts: 0
+                self.edge_prediction_h.set_scale_shift = lambda scales, shifts: 0
+            else:
+                self.node_prediction_h = E3PerSpeciesScaleShift(
+                    field=AtomicDataDict.NODE_FEATURES_KEY,
+                    num_types=n_species,
+                    irreps_in=self.embedding.out_node_irreps,
+                    out_field = AtomicDataDict.NODE_FEATURES_KEY,
+                    shifts=0.,
+                    scales=1.,
+                    dtype=self.dtype,
+                    device=self.device,
+                    **prediction_copy,
+                )
+                
+                self.edge_prediction_h = E3PerEdgeSpeciesScaleShift(
+                    field=AtomicDataDict.EDGE_FEATURES_KEY,
+                    num_types=n_species,
+                    irreps_in=self.embedding.out_edge_irreps,
+                    out_field = AtomicDataDict.EDGE_FEATURES_KEY,
+                    shifts=0.,
+                    scales=1.,
+                    dtype=self.dtype,
+                    device=self.device,
+                    **prediction_copy,
+                )
+
+            if embedding.get("method") == "trinity":
+                self.idp_sk = OrbitalMapper(self.idp.basis, method="sktb", device=self.device)
+                prediction_copy = prediction_copy.copy()
+                prediction_copy["neurons"] = [self.embedding.latent_dim] + prediction_copy["neurons"] + [self.idp_sk.reduced_matrix_element]
+                prediction_copy["config"] = get_neuron_config(prediction_copy["neurons"])
+                self.edge_prediction_h2 = AtomicResNet(
+                    **prediction_copy,
+                    in_field=AtomicDataDict.EDGE_ATTRS_KEY,
+                    out_field=AtomicDataDict.EDGE_ATTRS_KEY,
+                    device=device,
+                    dtype=dtype
+                )
 
             if overlap:
                 self.idp_sk = OrbitalMapper(self.idp.basis, method="sktb", device=self.device)
                 self.idp_sk.get_skonsite_maps()
+                prediction_copy = prediction.copy()
                 prediction_copy["neurons"] = [self.embedding.latent_dim] + prediction_copy["neurons"] + [self.idp_sk.reduced_matrix_element]
                 prediction_copy["config"] = get_neuron_config(prediction_copy["neurons"])
                 self.edge_prediction_s = AtomicResNet(
@@ -257,6 +278,17 @@ class NNENV(nn.Module):
                     dtype=self.dtype, 
                     device=self.device,
                     )
+            if hasattr(self, "edge_prediction_h2"):
+                self.h2miltonian = SKHamiltonian(
+                    idp_sk=self.idp_sk, 
+                    edge_field=AtomicDataDict.EDGE_ATTRS_KEY,
+                    node_field=AtomicDataDict.NODE_ATTRS_KEY,
+                    onsite=True,
+                    strain=False,
+                    soc=False,
+                    dtype=self.dtype, 
+                    device=self.device,
+                    )
 
 
     def forward(self, data: AtomicDataDict.Type):
@@ -274,10 +306,18 @@ class NNENV(nn.Module):
             data[AtomicDataDict.NODE_OVERLAP_KEY] = self.overlaponsite_param[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
             data[AtomicDataDict.NODE_OVERLAP_KEY][:,self.idp_sk.mask_diag] = 1.
         
+        # prediction for two-body part of e3tb
+        if hasattr(self, "edge_prediction_h2"):
+            data = self.edge_prediction_h2(data)
+        
         if self.transform:
             data = self.hamiltonian(data)
             if hasattr(self, "overlap"):
                 data = self.overlap(data)
+            if hasattr(self, "edge_prediction_h2"):
+                data = self.h2miltonian(data)
+                data[AtomicDataDict.NODE_FEATURES_KEY] += data[AtomicDataDict.NODE_ATTRS_KEY]
+                data[AtomicDataDict.EDGE_FEATURES_KEY] += data[AtomicDataDict.EDGE_ATTRS_KEY]
 
         return data
     
