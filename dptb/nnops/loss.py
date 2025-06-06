@@ -364,7 +364,7 @@ class EigHamLoss(nn.Module):
             elif batch.max() >= 1:
                 slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
                 slices = [0] + slices
-                ndiag_batch = torch.stack([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.IntTensor([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)], device=self.device)
                 ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
                 mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
                 ss = (ref_data[AtomicDataDict.NODE_OVERLAP_KEY].sum(dim=-1) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1)
@@ -456,7 +456,7 @@ class HamilLossAbs(nn.Module):
             elif batch.max() >= 1:
                 slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
                 slices = [0] + slices
-                ndiag_batch = torch.stack([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.IntTensor([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)], device=self.device)
                 ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
                 mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
                 ss = (ref_data[AtomicDataDict.NODE_OVERLAP_KEY].sum(dim=-1) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1)
@@ -536,7 +536,7 @@ class HamilLossBlas(nn.Module):
             elif batch.max() >= 1:
                 slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
                 slices = [0] + slices
-                ndiag_batch = torch.stack([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.IntTensor([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)], device=self.device)
                 ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
                 mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
                 ss = (ref_data[AtomicDataDict.NODE_OVERLAP_KEY].sum(dim=-1) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1)
@@ -682,7 +682,7 @@ class HamilLossWT(nn.Module):
             elif batch.max() >= 1:
                 slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
                 slices = [0] + slices
-                ndiag_batch = torch.stack([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.IntTensor([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)], device=self.device)
                 ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
                 mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
                 ss = (ref_data[AtomicDataDict.NODE_OVERLAP_KEY].sum(dim=-1) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1)
@@ -811,7 +811,7 @@ class HamilLossAnalysis(object):
             elif batch.max() >= 1:
                 slices = [data["__slices__"]["pos"][i]-data["__slices__"]["pos"][i-1] for i in range(1,len(data["__slices__"]["pos"]))]
                 slices = [0] + slices
-                ndiag_batch = torch.stack([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)])
+                ndiag_batch = torch.IntTensor([i.shape[0] for i in self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)], device=self.device)
                 ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
                 mu = torch.stack([mu[ndiag_batch[i]:ndiag_batch[i+1]].mean() for i in range(len(ndiag_batch)-1)])
                 ss = (ref_data[AtomicDataDict.NODE_OVERLAP_KEY].sum(dim=-1) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1)
