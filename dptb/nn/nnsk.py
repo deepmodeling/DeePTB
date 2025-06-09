@@ -962,7 +962,6 @@ class NNSK(torch.nn.Module):
         """
         basisref= {'Atom':{"s":"2s", "p":"2p", "d":"3d", "f":"4f"}}
         """
-        print(basisref)
         to_uniform = False
         new_basis = self.basis.copy()
         if basisref is not None:
