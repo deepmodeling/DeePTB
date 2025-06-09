@@ -962,7 +962,6 @@ class NNSK(torch.nn.Module):
         """
         basisref= {'Atom':{"s":"2s", "p":"2p", "d":"3d", "f":"4f"}}
         """
-        
         to_uniform = False
         new_basis = self.basis.copy()
         if basisref is not None:
@@ -1021,29 +1020,30 @@ class NNSK(torch.nn.Module):
             rev_line = self.idp_sk.transform_bond(jan, ian)
             for orbpair, slices in self.idp_sk.orbpair_maps.items():
                 fiorb, fjorb = orbpair.split("-")
-                if fiorb not in self.idp_sk.full_basis_to_basis[iasym] or fjorb not in self.idp_sk.full_basis_to_basis[jasym]:
-                    continue
                 iorb = self.idp_sk.full_basis_to_basis[iasym].get(fiorb)
                 jorb = self.idp_sk.full_basis_to_basis[jasym].get(fjorb)
-                if to_uniform:
-                    iorb = basisref[iasym][iorb]
-                    jorb = basisref[jasym][jorb]
                 if iorb != None and jorb != None:
+                    if to_uniform:
+                        iorb = basisref[iasym][iorb]
+                        jorb = basisref[jasym][jorb]
                     # iasym-jasym-iorb-jorb
                     for i in range(slices.stop-slices.start):
                         if ian < jan:
-                            continue
+                            if fiorb == fjorb:
+                                hopping_param[f"{jasym}-{iasym}-{jorb}-{iorb}-{i}"] = ((hopping[pos_line, slices][i] + hopping[rev_line, slices][i])*0.5).tolist()
+                            else:
+                                hopping_param[f"{jasym}-{iasym}-{jorb}-{iorb}-{i}"] = hopping[pos_line, slices][i].tolist() 
                         elif ian > jan:
                             if fiorb == fjorb: # this might have problems
                                 hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = ((hopping[pos_line, slices][i] + hopping[rev_line, slices][i])*0.5).tolist()
                             else:
                                 hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = hopping[pos_line, slices][i].tolist()
-                                iiorb = self.idp_sk.full_basis_to_basis[iasym].get(fjorb)
-                                jjorb = self.idp_sk.full_basis_to_basis[jasym].get(fiorb)
-                                if to_uniform:
-                                    iiorb = basisref[iasym][iiorb]
-                                    jjorb = basisref[jasym][jjorb]
-                                hopping_param[f"{iasym}-{jasym}-{iiorb}-{jjorb}-{i}"] = hopping[rev_line, slices][i].tolist()
+                                #iiorb = self.idp_sk.full_basis_to_basis[iasym].get(fjorb)
+                                #jjorb = self.idp_sk.full_basis_to_basis[jasym].get(fiorb)
+                                #if to_uniform:
+                                #    iiorb = basisref[iasym][iiorb]
+                                #    jjorb = basisref[jasym][jjorb]
+                                # hopping_param[f"{iasym}-{jasym}-{iiorb}-{jjorb}-{i}"] = hopping[rev_line, slices][i].tolist()
                         elif ian == jan:
                             if self.idp_sk.full_basis.index(fiorb) <= self.idp_sk.full_basis.index(fjorb):
                                 hopping_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = hopping[pos_line, slices][i].tolist()
@@ -1062,29 +1062,30 @@ class NNSK(torch.nn.Module):
                 rev_line = self.idp_sk.transform_bond(jan, ian)
                 for orbpair, slices in self.idp_sk.orbpair_maps.items():
                     fiorb, fjorb = orbpair.split("-")
-                    if fiorb not in self.idp_sk.full_basis_to_basis[iasym] or fjorb not in self.idp_sk.full_basis_to_basis[jasym]:
-                        continue
                     iorb = self.idp_sk.full_basis_to_basis[iasym].get(fiorb)
                     jorb = self.idp_sk.full_basis_to_basis[jasym].get(fjorb)
-                    if to_uniform:
-                        iorb = basisref[iasym][iorb]
-                        jorb = basisref[jasym][jorb]
                     if iorb != None and jorb != None:
+                        if to_uniform:
+                            iorb = basisref[iasym][iorb]
+                            jorb = basisref[jasym][jorb]
                         # iasym-jasym-iorb-jorb
                         for i in range(slices.stop-slices.start):
                             if ian < jan:
-                                continue
+                                if fiorb == fjorb: # this might have problems
+                                    overlap_param[f"{jasym}-{iasym}-{jorb}-{iorb}-{i}"] = ((overlap[pos_line, slices][i] + overlap[rev_line, slices][i])*0.5).tolist()
+                                else:
+                                    overlap_param[f"{jasym}-{iasym}-{jorb}-{iorb}-{i}"] = overlap[pos_line, slices][i].tolist()
                             elif ian > jan:
                                 if fiorb == fjorb: # this might have problems
                                     overlap_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = ((overlap[pos_line, slices][i] + overlap[rev_line, slices][i])*0.5).tolist()
                                 else:
                                     overlap_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = overlap[pos_line, slices][i].tolist()
-                                    iiorb = self.idp_sk.full_basis_to_basis[iasym].get(fjorb)
-                                    jjorb = self.idp_sk.full_basis_to_basis[jasym].get(fiorb)
-                                    if to_uniform:
-                                        iiorb = basisref[iasym][iiorb]
-                                        jjorb = basisref[jasym][jjorb]
-                                    overlap_param[f"{iasym}-{jasym}-{iiorb}-{jjorb}-{i}"] = overlap[rev_line, slices][i].tolist()
+                                    # iiorb = self.idp_sk.full_basis_to_basis[iasym].get(fjorb)
+                                    # jjorb = self.idp_sk.full_basis_to_basis[jasym].get(fiorb)
+                                    # if to_uniform:
+                                    #    iiorb = basisref[iasym][iiorb]
+                                    #    jjorb = basisref[jasym][jjorb]
+                                    # overlap_param[f"{iasym}-{jasym}-{iiorb}-{jjorb}-{i}"] = overlap[rev_line, slices][i].tolist()
                             elif ian == jan:
                                 if self.idp_sk.full_basis.index(fiorb) <= self.idp_sk.full_basis.index(fjorb):
                                     overlap_param[f"{iasym}-{jasym}-{iorb}-{jorb}-{i}"] = overlap[pos_line, slices][i].tolist()
@@ -1166,6 +1167,8 @@ class NNSK(torch.nn.Module):
                     if fiorb not in self.idp_sk.full_basis_to_basis[asym]:
                         continue
                     iorb = self.idp_sk.full_basis_to_basis[asym][fiorb]
+                    if fiorb not in self.idp_sk.full_basis_to_basis[asym]:
+                        continue
                     if to_uniform:
                         iorb = basisref[asym][iorb]
                     for i in range(slices.start, slices.stop): 
