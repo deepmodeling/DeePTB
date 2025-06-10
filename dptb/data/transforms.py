@@ -644,7 +644,12 @@ class OrbitalMapper(BondMapper):
                         indices += sli.start
                         assert indices.max() < sli.stop
                         self.mask_to_ndiag[self.chemical_symbol_to_type[ib]][indices] = True
-
+            
+            self.full_mask_to_diag = torch.zeros(self.reduced_matrix_element, dtype=torch.bool, device=self.device)
+            for orbs, islice in self.orbpair_maps.items():
+                fio, fjo = orbs.split('-')
+                if fio == fjo:
+                    self.full_mask_to_diag[islice] = True
 
     def get_orbpairtype_maps(self):
         """
