@@ -1,0 +1,8 @@
+{
+    "common_options": {
+        "basis": {
+            "Ga": ["s","p","d"],
+            "As": ["s","p","d"]
+        }
+    }
+}

@@ -1,0 +1,178 @@
+ 
+:: WARNING: setvars.sh has already been run. Skipping re-execution.
+   To force a re-execution of setvars.sh, use the '--force' option.
+   Using '--force' can result in excessive use of your environment variables.
+  
+usage: source setvars.sh [--force] [--config=file] [--help] [...]
+  --force        Force setvars.sh to re-run, doing so may overload environment.
+  --config=file  Customize env vars using a setvars.sh configuration file.
+  --help         Display this help message and exit.
+  ...            Additional args are passed to individual env/vars.sh scripts
+                 and should follow this script's arguments.
+  
+  Some POSIX shells do not accept command-line options. In that case, you can pass
+  command-line options via the SETVARS_ARGS environment variable. For example:
+  
+  $ SETVARS_ARGS="ia32 --config=config.txt" ; export SETVARS_ARGS
+  $ . path/to/setvars.sh
+  
+  The SETVARS_ARGS environment variable is cleared on exiting setvars.sh.
+  
+                                                                                     
+                              ABACUS v3.3.4
+
+               Atomic-orbital Based Ab-initio Computation at UStc                    
+
+                     Website: http://abacus.ustc.edu.cn/                             
+               Documentation: https://abacus.deepmodeling.com/                       
+                  Repository: https://github.com/abacusmodeling/abacus-develop       
+                              https://github.com/deepmodeling/abacus-develop         
+                      Commit: 069c11ec7 (Fri Sep 22 10:47:18 2023 +0800)
+
+ Wed Nov  1 18:22:34 2023
+ MAKE THE DIR         : OUT.ABACUS/
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ Warning: the number of valence electrons in pseudopotential > 3 for Ga: [Ar] 3d10 4s2 4p1
+ Pseudopotentials with additional electrons can yield (more) accurate outcomes, but may be less efficient.
+ If you're confident that your chosen pseudopotential is appropriate, you can safely ignore this warning.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+ UNIFORM GRID DIM     : 50 * 50 * 50
+ UNIFORM GRID DIM(BIG): 10 * 10 * 10
+ DONE(0.108585   SEC) : SETUP UNITCELL
+ DONE(0.143655   SEC) : INIT K-POINTS
+ ---------------------------------------------------------
+ Self-consistent calculations for electrons
+ ---------------------------------------------------------
+ SPIN    KPOINTS         PROCESSORS  NBASE       
+ 1       1099            16          38          
+ ---------------------------------------------------------
+ Use Systematically Improvable Atomic bases
+ ---------------------------------------------------------
+ ELEMENT ORBITALS        NBASE       NATOM       XC          
+ Ga      2s2p2d1f-8au    25          1           
+ As      2s2p1d-7au      13          1           
+ ---------------------------------------------------------
+ Initial plane wave basis and FFT box
+ ---------------------------------------------------------
+ DONE(0.177266   SEC) : INIT PLANEWAVE
+ -------------------------------------------
+ SELF-CONSISTENT : 
+ -------------------------------------------
+ START CHARGE      : atomic
+ DONE(0.528732   SEC) : INIT SCF
+ ITER   ETOT(eV)       EDIFF(eV)      DRHO       TIME(s)    
+ GE1    -2.253111e+03  0.000000e+00   5.576e-02  4.435e+00  
+ GE2    -2.253203e+03  -9.219175e-02  2.066e-02  4.267e+00  
+ GE3    -2.253230e+03  -2.620886e-02  7.053e-03  4.262e+00  
+ GE4    -2.253231e+03  -1.731931e-03  3.432e-04  4.260e+00  
+ GE5    -2.253231e+03  -2.819728e-06  5.566e-05  4.270e+00  
+ GE6    -2.253231e+03  -9.132782e-08  1.366e-05  4.272e+00  
+ GE7    -2.253231e+03  -2.612526e-09  8.485e-07  4.304e+00  
+ GE8    -2.253231e+03  5.893265e-10   1.323e-07  4.275e+00  
+ GE9    -2.253231e+03  3.000770e-10   1.660e-09  4.350e+00  
+TIME STATISTICS
+------------------------------------------------------------------------------
+     CLASS_NAME              NAME         TIME(Sec)  CALLS   AVG(Sec) PER(%)
+------------------------------------------------------------------------------
+                     total                 42.29           9   4.70   100.00
+Driver               driver_line           42.26           1  42.26    99.95
+Ions                 opt_ions              38.91           1  38.91    92.02
+ESolver_KS_LCAO      Run                   38.91           1  38.91    92.02
+ESolver_KS_LCAO      beforescf              0.12           1   0.12     0.29
+Grid_Driver          Find_atom              0.31       39618   0.00     0.74
+HSolverLCAO          solve                 38.53           9   4.28    91.11
+HamiltLCAO           updateHk              13.72        9891   0.00    32.45
+OperatorLCAO         init                   4.58       19782   0.00    10.83
+Veff                 contributeHk           4.52        9891   0.00    10.70
+Gint_interface       cal_gint               1.38          18   0.08     3.25
+Gint_interface       cal_gint_vlocal        0.85           9   0.09     2.00
+Gint_Tools           cal_psir_ylm           0.33        1800   0.00     0.78
+Gint_k               folding_vl_k           3.66        9891   0.00     8.66
+Gint_k               Distri                 2.07        9891   0.00     4.90
+OperatorLCAO         folding_fixed          9.05        9891   0.00    21.39
+LCAO_nnr             folding_fixedH         9.02        9891   0.00    21.33
+HSolverLCAO          hamiltSolvePsiK       18.65        9891   0.00    44.10
+DiagoElpa            elpa_solve            15.90        9891   0.00    37.60
+ElecStateLCAO        psiToRho               6.14           9   0.68    14.52
+elecstate            cal_dm                 0.93           9   0.10     2.19
+psiMulPsiMpi         pdgemm                 0.91        9891   0.00     2.16
+ Local_Orbital_wfc   wfc_2d_to_grid         0.85       10990   0.00     2.01
+LCAO_Charge          cal_dk_k               3.84           9   0.43     9.08
+Gint_interface       cal_gint_rho           0.53           9   0.06     1.25
+ModuleIO             nscf_band              2.90           1   2.90     6.87
+------------------------------------------------------------------------------
+
+ START  Time  : Wed Nov  1 18:22:34 2023
+ FINISH Time  : Wed Nov  1 18:23:16 2023
+ TOTAL  Time  : 42
+ SEE INFORMATION IN : OUT.ABACUS/
+                                                                                     
+                              ABACUS v3.3.4
+
+               Atomic-orbital Based Ab-initio Computation at UStc                    
+
+                     Website: http://abacus.ustc.edu.cn/                             
+               Documentation: https://abacus.deepmodeling.com/                       
+                  Repository: https://github.com/abacusmodeling/abacus-develop       
+                              https://github.com/deepmodeling/abacus-develop         
+                      Commit: 069c11ec7 (Fri Sep 22 10:47:18 2023 +0800)
+
+ Wed Nov  1 18:23:18 2023
+ MAKE THE DIR         : OUT.ABACUS/
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ Warning: the number of valence electrons in pseudopotential > 3 for Ga: [Ar] 3d10 4s2 4p1
+ Pseudopotentials with additional electrons can yield (more) accurate outcomes, but may be less efficient.
+ If you're confident that your chosen pseudopotential is appropriate, you can safely ignore this warning.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+ UNIFORM GRID DIM     : 50 * 50 * 50
+ UNIFORM GRID DIM(BIG): 10 * 10 * 10
+ DONE(0.100949   SEC) : SETUP UNITCELL
+ DONE(0.107422   SEC) : INIT K-POINTS
+ ---------------------------------------------------------
+ ---------------------------------------------------------
+ SPIN    KPOINTS         PROCESSORS  NBASE       
+ 1       182             16          38          
+ ---------------------------------------------------------
+ Use Systematically Improvable Atomic bases
+ ---------------------------------------------------------
+ ELEMENT ORBITALS        NBASE       NATOM       XC          
+ Ga      2s2p2d1f-8au    25          1           
+ As      2s2p1d-7au      13          1           
+ ---------------------------------------------------------
+ Initial plane wave basis and FFT box
+ ---------------------------------------------------------
+ DONE(0.114165   SEC) : INIT PLANEWAVE
+ -------------------------------------------
+ NONSELF-CONSISTENT : 
+ -------------------------------------------
+ START CHARGE      : file
+ NON-SELF CONSISTENT CALCULATIONS
+TIME STATISTICS
+------------------------------------------------------------------------------
+     CLASS_NAME              NAME         TIME(Sec)  CALLS   AVG(Sec) PER(%)
+------------------------------------------------------------------------------
+                     total                  1.77           7   0.25   100.00
+Driver               driver_line            1.75           1   1.75    98.91
+Ions                 opt_ions               0.97           1   0.97    54.72
+ESolver_KS_LCAO      othercalculation       0.97           1   0.97    54.72
+HSolverLCAO          solve                  0.83           1   0.83    46.53
+HamiltLCAO           updateHk               0.45         182   0.00    25.61
+OperatorLCAO         init                   0.21         364   0.00    12.11
+Veff                 contributeHk           0.21         182   0.00    12.05
+Gint_interface       cal_gint               0.14           1   0.14     8.17
+Gint_interface       cal_gint_vlocal        0.14           1   0.14     8.17
+OperatorLCAO         folding_fixed          0.17         182   0.00     9.57
+LCAO_nnr             folding_fixedH         0.17         182   0.00     9.55
+HSolverLCAO          hamiltSolvePsiK        0.37         182   0.00    20.90
+DiagoElpa            elpa_solve             0.31         182   0.00    17.51
+ModuleIO             nscf_band              0.46           1   0.46    25.89
+------------------------------------------------------------------------------
+
+ START  Time  : Wed Nov  1 18:23:18 2023
+ FINISH Time  : Wed Nov  1 18:23:20 2023
+ TOTAL  Time  : 2
+ SEE INFORMATION IN : OUT.ABACUS/

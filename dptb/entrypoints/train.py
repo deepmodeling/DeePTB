@@ -3,7 +3,7 @@ from dptb.nn.build import build_model
 from dptb.data.build import build_dataset
 from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor
 from dptb.plugins.train_logger import Logger
-from dptb.utils.argcheck import normalize, collect_cutoffs
+from dptb.utils.argcheck import normalize, collect_cutoffs, chk_avg_per_iter
 from dptb.plugins.saver import Saver
 from typing import Dict, List, Optional, Any
 from dptb.utils.tools import j_loader, setup_seed, j_must_have
@@ -137,13 +137,13 @@ def train(
                             log.warning(f"{obj} in config file is not consistent with the checkpoint, using the one in checkpoint")
                             jdata["train_options"][obj] = f["config"]["train_options"][obj]
                 else:
-                    jdata["train_options"] = f["config"]["train_options"]
+                    jdata["train_options"] = f["config"]["train_options"] # restart can be preceeded without train_options
     
                 if jdata.get("model_options", None) is None or jdata["model_options"] != f["config"]["model_options"]:
                     log.warning("model_options in config file is not consistent with the checkpoint, using the one in checkpoint")
                     jdata["model_options"] = f["config"]["model_options"] # restart does not allow to change model options
             else:
-                # init model mode, allow model_options change
+                # init model mode, allow model_options change (Would it cause some error later if the param mismatch?)
                 if jdata.get("train_options", None) is None:
                     jdata["train_options"] = f["config"]["train_options"]
                 if jdata.get("model_options") is None:
@@ -207,7 +207,9 @@ def train(
     if validation_datasets:
         trainer.register_plugin(Validationer())
         log_field.append("validation_loss")
-    trainer.register_plugin(TrainLossMonitor())
+    avg_per_iter = chk_avg_per_iter(jdata)
+    trainer.register_plugin(TrainLossMonitor(sliding_win_size=jdata["train_options"]["sliding_win_size"],
+                                             avg_per_iter=avg_per_iter)) # by default, avg_per_iter is false, will not be activated.
     trainer.register_plugin(LearningRateMonitor())
     if jdata["train_options"]["use_tensorboard"]:
         trainer.register_plugin(TensorBoardMonitor(interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))

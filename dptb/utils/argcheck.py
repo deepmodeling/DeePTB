@@ -12,6 +12,14 @@ dptb_model_config_checklist = ['dptb-if_batch_normalized', 'dptb-hopping_net_typ
                         'dptb-hopping_net_neuron', 'dptb-env_net_neuron', 'dptb-soc_net_neuron', 'dptb-onsite_net_neuron', 'dptb-axis_neuron', 'skfunction-skformula', 'sknetwork-sk_onsite_nhidden',
                         'sknetwork-sk_hop_nhidden']
 
+# set default values in case of rop & update lr per step
+def chk_avg_per_iter(jdata):
+    if jdata["train_options"]["lr_scheduler"]["type"] == 'rop' and jdata["train_options"]["update_lr_per_iter"]:
+        avg_per_iter = True
+    else:
+        avg_per_iter = False
+
+    return avg_per_iter
 
 def gen_doc_train(*, make_anchor=True, make_link=True, **kwargs):
     if make_link:
@@ -102,7 +110,9 @@ def train_options():
                           "There are tree types of error will be recorded. `train_loss_iter` is iteration loss, `train_loss_last` is the error of the last iteration in an epoch, `train_loss_mean` is the mean error of all iterations in an epoch." \
                           "Learning rates are tracked as well. A folder named `tensorboard_logs` will be created in the working directory. Use `tensorboard --logdir=tensorboard_logs` to view the logs." \
                           "Default: `False`"
-    update_lr_per_step_flag = "Set true to update learning rate per-step. By default, it's false."
+
+    doc_update_lr_per_iter = "Set true to update learning rate per-step. Default: false."
+    doc_sliding_win_size = "Sliding window size for the average of the latest iterations' loss. Used for the reduce on plateau learning rate scheduler in case of the pairing of large dataset and small batch size. Default: `50`"
 
     doc_optimizer = "\
         The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `SGD` and `LBFGS` \n\n\
@@ -128,7 +138,9 @@ def train_options():
         Argument("validation_freq", int, optional=True, default=10, doc=doc_validation_freq),
         Argument("display_freq", int, optional=True, default=1, doc=doc_display_freq),
         Argument("use_tensorboard", bool, optional=True, default=False, doc=doc_use_tensorboard),
-        Argument("update_lr_per_step_flag", bool, optional=True, default=False, doc=update_lr_per_step_flag),
+
+        Argument("update_lr_per_iter", bool, optional=True, default=False, doc=doc_update_lr_per_iter),
+        Argument("sliding_win_size", int, optional=True, default=50, doc=doc_sliding_win_size),
         Argument("max_ckpt", int, optional=True, default=4, doc=doc_max_ckpt),
         loss_options()
     ]
@@ -236,8 +248,7 @@ def ExponentialLR():
 def LinearLR():
     doc_start_factor = "The number we multiply learning rate in the first epoch. \
         The multiplication factor changes towards end_factor in the following epochs. Default: 1./3."
-    doc_end_factor = "The number we multiply learning rate in the first epoch. \
-    The multiplication factor changes towards end_factor in the following epochs. Default: 1./3."
+    doc_end_factor = "The multiplication factor changes towards end_factor in the following epochs. Default: 1./3."
     doc_total_iters = "The number of iterations that multiplicative factor reaches to 1. Default: 5."
 
     return [
@@ -426,9 +437,9 @@ def test_data_sub():
 
 def data_options():
     args = [
-            Argument("r_max", [float,int], optional=True, default="5.0", doc="r_max"),
-            Argument("oer_max", [float,int], optional=True, default="5.0", doc="oer_max"),
-            Argument("er_max", [float,int], optional=True, default="5.0", doc="er_max"),
+            Argument("r_max", [float,int,None], optional=True, default=None, doc="r_max"),
+            Argument("oer_max", [float,int,None], optional=True, default=None, doc="oer_max"),
+            Argument("er_max", [float,int,None], optional=True, default=None, doc="er_max"),
             train_data_sub(),
             validation_data_sub(),
             reference_data_sub()
@@ -604,6 +615,7 @@ def slem():
     doc_r_max = ""
     doc_n_layers = ""
     doc_env_embed_multiplicity = ""
+    doc_universal = "Set true to activate universal model related features. Currently, this will create a broader onehot embedding for the transfer learning into unseen elements. Other features are on the way. Default: `False`"
 
     return [
             Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
@@ -622,7 +634,8 @@ def slem():
             Argument("res_update", bool, optional=True, default=True, doc="Whether to use residual update."),
             Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
             Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
-        ]
+            Argument("universal", bool, optional=True, default=False, doc=doc_universal),
+    ]
 
 
 def prediction():
@@ -703,6 +716,7 @@ def nnsk():
                      - 'hopping','onsite','overlap' and 'soc' to freeze the corresponding parameters.
                      - list of the strings e.g. ['overlap','soc'] to freeze both overlap and soc parameters."""
     doc_std = "The std value to initialize the nnsk parameters. Default: 0.01"
+    doc_atomic_radius = "The atomic radius to use for the nnsk model. Default: v1, can be v1 or cov"
 
     # overlap = Argument("overlap", bool, optional=True, default=False, doc="The parameters to define the overlap correction of nnsk model.")
 
@@ -712,6 +726,7 @@ def nnsk():
             Argument("soc", dict, optional=True, default={}, doc=doc_soc),
             Argument("freeze", [bool,str,list], optional=True, default=False, doc=doc_freeze),
             Argument("std", float, optional=True, default=0.01, doc=doc_std),
+            Argument("atomic_radius", str, optional=True, default='v1', doc=doc_atomic_radius),
             push(),
         ], sub_variants=[], optional=True, doc=doc_nnsk)
 
@@ -758,6 +773,7 @@ def onsite():
     return Variant("method", [
                     Argument("strain", dict, strain),
                     Argument("uniform", dict, []),
+                    Argument("uniform_noref", dict, []),
                     Argument("NRL", dict, NRL),
                     Argument("none", dict, []),
                 ],optional=False, doc=doc_method)
@@ -774,15 +790,15 @@ def hopping():
     doc_rs_hard = "The cut-off for smooth function fc, fc(rs) = 0."
 
     powerlaw = [
-        Argument("rs", float, optional=True, default=6.0, doc=doc_rs_soft),
+        Argument("rs", [float,dict], optional=True, default=6.0, doc=doc_rs_soft),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
     varTang96 = [
-        Argument("rs", float, optional=True, default=6.0, doc=doc_rs_soft),
+        Argument("rs",  [float,dict], optional=True, default=6.0, doc=doc_rs_soft),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
     common_params = [
-        Argument("rs", float, optional=True, default=6.0, doc=doc_rs_hard),
+        Argument("rs",  [float,dict], optional=True, default=6.0, doc=doc_rs_hard),
         Argument("w", float, optional=True, default=0.1, doc=doc_w),
     ]
 
@@ -831,7 +847,7 @@ def loss_options():
 
     eigvals = [
         Argument("diff_on", bool, optional=True, default=False, doc="Whether to use random differences in loss function. Default: False"),
-        Argument("eout_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue out of range. Default: 0.01"),
+        Argument("eout_weight", float, optional=True, default=0.001, doc="The weight of eigenvalue out of range. Default: 0.01"),
         Argument("diff_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue difference. Default: 0.01"),
         Argument("diff_valence", [dict,None], optional=True, default=None, doc="set the difference of the number of valence electrons in DFT and TB. eg {'A':6,'B':7}, Default: None, which means no difference"),
         Argument("spin_deg", int, optional=True, default=2, doc="The spin degeneracy of band structure. Default: 2"),
@@ -1234,6 +1250,8 @@ def band():
     doc_nel_atom = "the valence electron number of each type of atom."
     doc_high_sym_kpoints = "the high symmetry kpoints dict, e.g. {'G':[0,0,0],'K':[0.5,0.5,0]}, only used for kline_type is vasp"
     doc_num_in_line = "the number of kpoints in each line path, only used for kline_type is vasp."
+    doc_override_overlap = "overlap file path to be input to override overlap matrix."
+
     return [
         Argument("kline_type", str, optional=False, doc=doc_kline_type),
         Argument("kpath", [str,list], optional=False, doc=doc_kpath),
@@ -1245,7 +1263,8 @@ def band():
         Argument("emax", [float, int, None], optional=True, doc=doc_emax, default=None),
         Argument("nkpoints", int, optional=True, doc=doc_emax, default=0),
         Argument("ref_band", [str, None], optional=True, default=None, doc=doc_ref_band),
-        Argument("nel_atom", [dict,None], optional=True, default=None, doc=doc_nel_atom)
+        Argument("nel_atom", [dict,None], optional=True, default=None, doc=doc_nel_atom),
+        Argument("override_overlap", [str, None], optional=True, default=None, doc=doc_override_overlap)
     ]
 
 
@@ -1623,7 +1642,7 @@ def get_cutoffs_from_model_options(model_options):
                 oer_max = format_cuts(model_options["nnsk"]["onsite"]["rs"], model_options["nnsk"]["onsite"]["w"], 3)
 
     elif model_options.get("dftbsk", None) is not None:
-        assert r_max is None, "r_max should not be provided in outside the dftbsk for training dftbsk model."
+        assert r_max is None, "r_max should not be provided other than the dftbsk param section for training dftbsk model."
         r_max = model_options["dftbsk"].get("r_max")
 
     else:

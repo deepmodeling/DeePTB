@@ -1,0 +1,11 @@
+INPUT_PARAMETERS
+# Created by Atomic Simulation Enviroment
+ntype                                   2
+ecutwfc                                 100
+basis_type                              lcao
+symmetry                                0
+calculation                             nscf
+out_band                                1
+init_chg                                file
+lspinorb                                0
+dft_functional                          pbe

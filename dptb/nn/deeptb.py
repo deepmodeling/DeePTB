@@ -351,7 +351,8 @@ class MIX(nn.Module):
         self.dtype = dtype
         self.device = device
         self.transform = transform
-
+        self.basis = basis
+        
         self.nnenv = NNENV(
             embedding=embedding, 
             prediction=prediction, 

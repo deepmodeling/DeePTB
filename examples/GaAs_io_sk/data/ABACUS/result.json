@@ -1,0 +1,11 @@
+{
+    ".": {
+        "band_gap": 0.12232999999999983,
+        "converge": true,
+        "energy": -2253.231375749579,
+        "normal_end": true,
+        "scf_steps": 9,
+        "total_time": 1.77395,
+        "version": "v3.3.4(069c11ec7 (Fri Sep 22 10:47:18 2023 +0800))"
+    }
+}
