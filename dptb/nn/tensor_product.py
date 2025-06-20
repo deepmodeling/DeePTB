@@ -70,11 +70,11 @@ def batch_wigner_D(l_max, alpha, beta, gamma, _Jd):
 
     # Precompute block structure information
     dims = [2*l + 1 for l in range(l_max + 1)]
-    offsets = torch.cumsum(torch.tensor([0] + dims[:-1], device='cuda'), 0)
+    # offsets = torch.cumsum(torch.tensor([0] + dims[:-1], device=device), 0)
     D_total = sum(dims)
 
     # Construct block-diagonal J matrix
-    J_full_small = torch.zeros(D_total, D_total, device='cuda')
+    J_full_small = torch.zeros(D_total, D_total, device=device)
     for l in range(l_max + 1):
         start = offsets[l]
         J_full_small[start:start+2*l+1, start:start+2*l+1] = _Jd[l]
