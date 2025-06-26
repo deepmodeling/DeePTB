@@ -205,13 +205,14 @@ def train(
     # register the plugin in trainer, to tract training info
     log_field = ["train_loss", "lr"]
     if validation_datasets:
-        trainer.register_plugin(Validationer())
+        trainer.register_plugin(Validationer(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')]))
         log_field.append("validation_loss")
     avg_per_iter = chk_avg_per_iter(jdata)
     trainer.register_plugin(TrainLossMonitor(sliding_win_size=jdata["train_options"]["sliding_win_size"],
                                              avg_per_iter=avg_per_iter)) # by default, avg_per_iter is false, will not be activated.
     trainer.register_plugin(LearningRateMonitor())
     if jdata["train_options"]["use_tensorboard"]:
+        assert jdata["train_options"]["display_freq"] >= jdata["train_options"]["validation_freq"], 'The display frequency must be greater than the validation frequency.'
         trainer.register_plugin(TensorBoardMonitor(interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
     trainer.register_plugin(Logger(log_field,
         interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
