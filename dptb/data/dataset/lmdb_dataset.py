@@ -67,35 +67,69 @@ class LMDBDataset(AtomicDataset):
         self.file_map = []
         self.index_map = []
         for file in self.info_files.keys():
-            lmdb_path = self.simple_get_lmdb_path(file)
-            db_env = lmdb.open(lmdb_path, readonly=True, lock=False)
-            with db_env.begin() as txn:
-                self.num_graphs += txn.stat()['entries']
-                self.file_map += [file] * txn.stat()['entries']
-                self.index_map += list(range(txn.stat()['entries']))
-            db_env.close()
+            lmdb_paths = self.simple_get_lmdb_path(file)
+            for lmdb_path in lmdb_paths:
+                db_env = lmdb.open(lmdb_path, readonly=True, lock=False)
+                with db_env.begin() as txn:
+                    self.num_graphs += txn.stat()['entries']
+                    self.file_map += [file] * txn.stat()['entries']
+                    self.index_map += list(range(txn.stat()['entries']))
+                db_env.close()
 
     def len(self):
         return self.num_graphs
 
     def simple_get_lmdb_path(self, folder_name: str):
-        lmdb_folder_path = os.path.join(self.root, folder_name)
-        # expand any wildcard and make sure exactly one match exists
-        matches = glob.glob(lmdb_folder_path)
-        if len(matches) == 0:
-            raise FileNotFoundError(f"No LMDB file matches '{lmdb_folder_path}'")
-        if len(matches) > 1:
-            raise RuntimeError(f"Ambiguous LMDB paths for pattern '{lmdb_folder_path}': {matches}")
-        # get the single, absolute path
-        lmdb_path = os.path.abspath(matches[0])
-        return lmdb_path
-    
+        """
+        获取LMDB路径，支持通配符匹配多条路径
+
+        Args:
+            folder_name: 文件夹名称
+
+        Returns:
+            str: LMDB文件夹的完整路径
+
+        Raises:
+            FileNotFoundError: 当没有找到匹配的LMDB文件时
+        """
+        folder_name = os.path.split(folder_name)[-1]
+
+        # 如果 self.root 是字符串，转换为列表
+        if isinstance(self.root, str):
+            root_paths = [self.root]
+        else:
+            root_paths = self.root
+
+        # 收集所有可能的路径
+        candidate_paths = []
+
+        for root_path in root_paths:
+            # 处理绝对路径
+            root_path = os.path.abspath(root_path)
+
+            # 如果路径包含通配符，使用glob展开
+            if '*' in root_path or '?' in root_path or '[' in root_path:
+                expanded_paths = glob.glob(root_path)
+                for expanded_path in expanded_paths:
+                    if os.path.isdir(expanded_path):
+                        lmdb_folder_path = os.path.join(expanded_path, folder_name)
+                        candidate_paths.append(lmdb_folder_path)
+            else:
+                # 普通路径处理
+                lmdb_folder_path = os.path.join(root_path, folder_name)
+                candidate_paths.append(lmdb_folder_path)
+
+        # 查找存在的路径
+        existing_paths = [path for path in candidate_paths if os.path.exists(path)]
+
+        return existing_paths
+
     @property
     def raw_file_names(self):
         # TODO: this is not implemented.
         # need to give a valid path so the download would not be triggered
         return ["data.mdb", "lock.mdb"]
-    
+
     @property
     def raw_dir(self):
         return self.root
@@ -110,48 +144,49 @@ class LMDBDataset(AtomicDataset):
                 extract_zip(download_path, self.raw_dir)
 
     def get(self, idx):
-        lmdb_path = self.simple_get_lmdb_path(self.file_map[idx])
-        db_env = lmdb.open(lmdb_path, readonly=True, lock=False)
-        with db_env.begin() as txn:
-            data_dict = txn.get(self.index_map[int(idx)].to_bytes(length=4, byteorder='big'))
-            data_dict = pickle.loads(data_dict)
-            cell, pos, atomic_numbers = \
-                data_dict[AtomicDataDict.CELL_KEY], \
-                data_dict[AtomicDataDict.POSITIONS_KEY], \
-                data_dict[AtomicDataDict.ATOMIC_NUMBERS_KEY]
-            
-            pbc = data_dict[AtomicDataDict.PBC_KEY]
-            
-            if self.get_Hamiltonian:
-                blocks = data_dict["hamiltonian"]
-                # kk, vv = blocks.keys(), blocks.values()
-                # vv = map(lambda x: np.frombuffer(x, np.float32).reshape, vv)
-                # blocks = dict(zip(kk, vv))
-                # del kk
-                # del vv
+        lmdb_paths = self.simple_get_lmdb_path(self.file_map[idx])
+        for lmdb_path in lmdb_paths:
+            db_env = lmdb.open(lmdb_path, readonly=True, lock=False)
+            with db_env.begin() as txn:
+                data_dict = txn.get(self.index_map[int(idx)].to_bytes(length=4, byteorder='big'))
+                data_dict = pickle.loads(data_dict)
+                cell, pos, atomic_numbers = \
+                    data_dict[AtomicDataDict.CELL_KEY], \
+                        data_dict[AtomicDataDict.POSITIONS_KEY], \
+                        data_dict[AtomicDataDict.ATOMIC_NUMBERS_KEY]
 
-            if self.get_overlap:
-                overlap = data_dict["overlap"]
-                # kk, vv = overlap.keys(), overlap.values()
-                # vv = map(lambda x: np.frombuffer(x, np.float32), vv)
-                # overlap = dict(zip(kk, vv))
-                # del kk
-                # del vv
-            else:
-                overlap = False
+                pbc = data_dict[AtomicDataDict.PBC_KEY]
 
-            if self.get_DM:
-                blocks = data_dict["density_matrix"]
-                # kk, vv = blocks.keys(), blocks.values()
-                # vv = map(lambda x: np.frombuffer(x, np.float32), vv)
-                # blocks = dict(zip(kk, vv))
-                # del kk
-                # del vv
+                if self.get_Hamiltonian:
+                    blocks = data_dict["hamiltonian"]
+                    # kk, vv = blocks.keys(), blocks.values()
+                    # vv = map(lambda x: np.frombuffer(x, np.float32).reshape, vv)
+                    # blocks = dict(zip(kk, vv))
+                    # del kk
+                    # del vv
 
-            if not (self.get_Hamiltonian or self.get_DM):
-                blocks = False
-        
-        db_env.close()
+                if self.get_overlap:
+                    overlap = data_dict["overlap"]
+                    # kk, vv = overlap.keys(), overlap.values()
+                    # vv = map(lambda x: np.frombuffer(x, np.float32), vv)
+                    # overlap = dict(zip(kk, vv))
+                    # del kk
+                    # del vv
+                else:
+                    overlap = False
+
+                if self.get_DM:
+                    blocks = data_dict["density_matrix"]
+                    # kk, vv = blocks.keys(), blocks.values()
+                    # vv = map(lambda x: np.frombuffer(x, np.float32), vv)
+                    # blocks = dict(zip(kk, vv))
+                    # del kk
+                    # del vv
+
+                if not (self.get_Hamiltonian or self.get_DM):
+                    blocks = False
+            db_env.close()
+
         atomicdata = AtomicData.from_points(
             pos=pos.reshape(-1,3),
             cell=cell.reshape(3,3),
@@ -163,17 +198,17 @@ class LMDBDataset(AtomicDataset):
         # transform blocks to atomicdata features
         if self.get_Hamiltonian or self.get_DM or self.get_overlap:
             block_to_feature(atomicdata, self.type_mapper, blocks, overlap, self.orthogonal)
-        
+
         return atomicdata
-    
+
     def E3statistics(self, model: torch.nn.Module=None):
 
         if not self.get_Hamiltonian and not self.get_DM:
             return None
-        
+
         assert self.transform is not None
         idp = self.transform
-        
+
         e3h = E3Hamiltonian(basis=idp.basis, decompose=True)
         idp.get_irreps()
         sorted_irreps = idp.orbpair_irreps.sort()[0].simplify()
@@ -223,7 +258,7 @@ class LMDBDataset(AtomicDataset):
                     count_scalar = 0
                     at_mask = onsite_mask[atomicdata[AtomicDataDict.ATOM_TYPE_KEY].flatten().eq(tp)]
                     n_at = at_mask.shape[0]
-                    
+
                     if n_at > 0:
                         at_onsite = atomicdata[AtomicDataDict.NODE_FEATURES_KEY][atomicdata[AtomicDataDict.ATOM_TYPE_KEY].flatten().eq(tp)]
                         for ir, s in enumerate(idp.orbpair_irreps.slices()):
@@ -245,12 +280,12 @@ class LMDBDataset(AtomicDataset):
                                 node_scalar_square_ave[tp][count_scalar-1] = (node_scalar_square_ave[tp][count_scalar-1] * count_at[tp] + (sub_tensor**2).sum()) / (count_at[tp] + n_at)
                                 if count_at[tp] + n_at > 1:
                                     node_scalar_std[tp][count_scalar-1] = torch.nan_to_num(torch.sqrt((count_at[tp] + n_at) / (count_at[tp] + n_at - 1) * (node_scalar_square_ave[tp][count_scalar-1] - node_scalar_ave[tp][count_scalar-1]**2)), nan=0.0)
-                                else:    
+                                else:
                                     node_scalar_std[tp][count_scalar-1] = 1.0
                         subcount_at[tp] = n_at
                         count_at[tp] += n_at
                 assert sum(subcount_at.values()) == atomicdata[AtomicDataDict.POSITIONS_KEY].shape[0]
-                
+
                 # edge statistics
                 hopping_mask = idp.mask_to_erme[atomicdata[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
                 for bt, tp in idp.bond_to_type.items():
@@ -281,11 +316,11 @@ class LMDBDataset(AtomicDataset):
                                     edge_scalar_std[tp][count_scalar-1] = torch.nan_to_num(torch.sqrt((count_bt[tp] + n_bt) / (count_bt[tp] + n_bt - 1) * (edge_scalar_square_ave[tp][count_scalar-1] - edge_scalar_ave[tp][count_scalar-1]**2)), nan=0.0)
                                 else:
                                     edge_scalar_std[tp][count_scalar-1] = 1.0
-                                    
+
                         subcount_bt[tp] = n_bt
                         count_bt[tp] += n_bt
                 assert sum(subcount_bt.values()) == atomicdata[AtomicDataDict.EDGE_INDEX_KEY].shape[1]
-                    
+
         stats = {}
         stats["node"] = {
             "norm_ave": node_norm_ave,
