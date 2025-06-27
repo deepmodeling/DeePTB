@@ -142,6 +142,8 @@ def train_options():
         Argument("update_lr_per_iter", bool, optional=True, default=False, doc=doc_update_lr_per_iter),
         Argument("sliding_win_size", int, optional=True, default=50, doc=doc_sliding_win_size),
         Argument("max_ckpt", int, optional=True, default=4, doc=doc_max_ckpt),
+        Argument("valid_fast", bool, optional=True, default=True, doc="Set True to valid on the first batch of validation dataset, set False to valid the whole dataset. Default: True"),
+
         loss_options()
     ]
 
@@ -1248,6 +1250,7 @@ def band():
     doc_nel_atom = "the valence electron number of each type of atom."
     doc_high_sym_kpoints = "the high symmetry kpoints dict, e.g. {'G':[0,0,0],'K':[0.5,0.5,0]}, only used for kline_type is vasp"
     doc_num_in_line = "the number of kpoints in each line path, only used for kline_type is vasp."
+    doc_override_overlap = "overlap file path to be input to override overlap matrix."
     return [
         Argument("kline_type", str, optional=False, doc=doc_kline_type),
         Argument("kpath", [str,list], optional=False, doc=doc_kpath),
@@ -1259,7 +1262,8 @@ def band():
         Argument("emax", [float, int, None], optional=True, doc=doc_emax, default=None),
         Argument("nkpoints", int, optional=True, doc=doc_emax, default=0),
         Argument("ref_band", [str, None], optional=True, default=None, doc=doc_ref_band),
-        Argument("nel_atom", [dict,None], optional=True, default=None, doc=doc_nel_atom)
+        Argument("nel_atom", [dict,None], optional=True, default=None, doc=doc_nel_atom),
+        Argument("override_overlap", [str, None], optional=True, default=None, doc=doc_override_overlap)
     ]
 
 
