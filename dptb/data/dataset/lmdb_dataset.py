@@ -81,49 +81,41 @@ class LMDBDataset(AtomicDataset):
 
     def simple_get_lmdb_path(self, folder_name: str):
         """
-        获取LMDB路径，支持通配符匹配多条路径
+        Finds LMDB directory paths matching the given folder name under root path(s).
+        Supports wildcards in root paths and returns all existing matches.
 
         Args:
-            folder_name: 文件夹名称
+            folder_name: Folder name (or path). Only the base name is used for matching.
 
         Returns:
-            str: LMDB文件夹的完整路径
+            list[str]: List of existing LMDB paths. Empty list if none found.
 
-        Raises:
-            FileNotFoundError: 当没有找到匹配的LMDB文件时
+        Notes:
+            - Uses only the base name of `folder_name` (e.g., "data" from "/path/to/data")
+            - Processes wildcards (*, ?, []) in root paths via `glob`
+            - Handles both single root (str) and multiple roots (list)
         """
-        folder_name = os.path.split(folder_name)[-1]
+        folder_name = os.path.split(folder_name)[-1]  # Keep only base name
 
-        # 如果 self.root 是字符串，转换为列表
-        if isinstance(self.root, str):
-            root_paths = [self.root]
-        else:
-            root_paths = self.root
-
-        # 收集所有可能的路径
+        # Normalize root paths to list for consistent processing
+        root_paths = [self.root] if isinstance(self.root, str) else self.root
         candidate_paths = []
 
         for root_path in root_paths:
-            # 处理绝对路径
-            root_path = os.path.abspath(root_path)
+            abs_path = os.path.abspath(root_path)
 
-            # 如果路径包含通配符，使用glob展开
-            if '*' in root_path or '?' in root_path or '[' in root_path:
-                expanded_paths = glob.glob(root_path)
-                for expanded_path in expanded_paths:
+            # Handle wildcard-containing roots
+            if any(char in abs_path for char in ['*', '?', '[']):
+                for expanded_path in glob.glob(abs_path):
                     if os.path.isdir(expanded_path):
-                        lmdb_folder_path = os.path.join(expanded_path, folder_name)
-                        candidate_paths.append(lmdb_folder_path)
+                        candidate_paths.append(os.path.join(expanded_path, folder_name))
+            # Standard path processing
             else:
-                # 普通路径处理
-                lmdb_folder_path = os.path.join(root_path, folder_name)
-                candidate_paths.append(lmdb_folder_path)
+                candidate_paths.append(os.path.join(abs_path, folder_name))
 
-        # 查找存在的路径
-        existing_paths = [path for path in candidate_paths if os.path.exists(path)]
-
-        return existing_paths
-
+        # Return all existing paths
+        return [path for path in candidate_paths if os.path.exists(path)]
+    
     @property
     def raw_file_names(self):
         # TODO: this is not implemented.
