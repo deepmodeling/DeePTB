@@ -300,17 +300,27 @@ class EigLoss(nn.Module):
 def shift_mu(data: AtomicDataDict, ref_data: AtomicDataDict,idp:OrbitalMapper):
     mu_n = (data[AtomicDataDict.NODE_FEATURES_KEY] - ref_data[AtomicDataDict.NODE_FEATURES_KEY]) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
     mu_n = mu_n.sum(dim=-1) # [natoms]
+    mu_n_diag = (data[AtomicDataDict.NODE_FEATURES_KEY][:,idp.full_mask_to_diag] - 
+                    ref_data[AtomicDataDict.NODE_FEATURES_KEY][:,idp.full_mask_to_diag]) * ref_data[AtomicDataDict.NODE_OVERLAP_KEY][:,idp.full_mask_to_diag]
+    mu_n_diag = mu_n_diag.sum(dim=-1) # [natoms]
+    mu_n_all = mu_n * 2 - mu_n_diag
+
     mu_e = (data[AtomicDataDict.EDGE_FEATURES_KEY] - ref_data[AtomicDataDict.EDGE_FEATURES_KEY]) * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
     mu_e = mu_e.sum(dim=-1) # [edges]
     mu_e_diag = (data[AtomicDataDict.EDGE_FEATURES_KEY][:,idp.full_mask_to_diag] - 
                     ref_data[AtomicDataDict.EDGE_FEATURES_KEY][:,idp.full_mask_to_diag])  * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY][:,idp.full_mask_to_diag] 
     mu_e_diag = mu_e_diag.sum(dim=-1) # [edges]
-    
+    mu_e_all = mu_e*2 - mu_e_diag
+
     norm_ss_n =  (ref_data[AtomicDataDict.NODE_OVERLAP_KEY] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]).sum(dim=-1)
+    norm_ss_n_diag = (ref_data[AtomicDataDict.NODE_OVERLAP_KEY][:,idp.full_mask_to_diag] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY][:,idp.full_mask_to_diag]).sum(dim=-1)
+    norm_ss_n_all = norm_ss_n * 2 - norm_ss_n_diag
+    
     norm_ss_e =  (ref_data[AtomicDataDict.EDGE_OVERLAP_KEY] * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]).sum(dim=-1)
     norm_ss_e_diag = (ref_data[AtomicDataDict.EDGE_OVERLAP_KEY][:,idp.full_mask_to_diag] * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY][:,idp.full_mask_to_diag]).sum(dim=-1)
-    
-    return mu_n, mu_e, mu_e_diag, norm_ss_n, norm_ss_e, norm_ss_e_diag
+    norm_ss_e_all = norm_ss_e * 2 - norm_ss_e_diag
+
+    return mu_n_all, mu_e_all, norm_ss_n_all, norm_ss_e_all
 
 @Loss.register("eig_ham")
 class EigHamLoss(nn.Module):
@@ -366,11 +376,11 @@ class EigHamLoss(nn.Module):
 
         if self.onsite_shift:
             batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
-            mu_n, mu_e, mu_e_diag, norm_ss_n, norm_ss_e, norm_ss_e_diag = shift_mu(data=data, ref_data=ref_data,idp=self.idp)
+            mu_n, mu_e, norm_ss_n, norm_ss_e = shift_mu(data=data, ref_data=ref_data,idp=self.idp)
             
             if batch.max() == 0: # when batchsize is zero
-                diffhs = mu_n.sum() + mu_e.sum()*2 - mu_e_diag.sum()
-                ss = norm_ss_n.sum() + norm_ss_e.sum()*2 - norm_ss_e_diag.sum()
+                diffhs = mu_n.sum() + mu_e.sum()
+                ss = norm_ss_n.sum() + norm_ss_e.sum()
                 mu = diffhs / ss
                 mu = mu.detach()
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
@@ -382,14 +392,12 @@ class EigHamLoss(nn.Module):
 
                 mu_n = torch.stack([mu_n[slices[i]:slices[i+1]].sum() for i in range(len(slices)-1)])
                 mu_e = torch.stack([mu_e[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
-                mu_e_diag  = torch.stack([mu_e_diag[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
 
                 norm_ss_n = torch.stack([norm_ss_n[slices[i]:slices[i+1]].sum() for i in range(len(slices)-1)])
                 norm_ss_e = torch.stack([norm_ss_e[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
-                norm_ss_e_diag = torch.stack([norm_ss_e_diag[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
 
-                mu = mu_n + 2 * mu_e - mu_e_diag
-                ss = norm_ss_n + 2 * norm_ss_e - norm_ss_e_diag
+                mu = mu_n + mu_e 
+                ss = norm_ss_n + norm_ss_e 
                 mu = mu / ss
                 mu = mu.detach()
 
@@ -461,11 +469,11 @@ class HamilLossAbs(nn.Module):
         # mask the data
         if self.onsite_shift:
             batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
-            mu_n, mu_e, mu_e_diag, norm_ss_n, norm_ss_e, norm_ss_e_diag = shift_mu(data=data, ref_data=ref_data,idp=self.idp)
+            mu_n, mu_e, norm_ss_n, norm_ss_e = shift_mu(data=data, ref_data=ref_data,idp=self.idp)
 
             if batch.max() == 0: # when batchsize is zero
-                diffhs = mu_n.sum() + mu_e.sum() * 2 - mu_e_diag.sum()
-                ss = norm_ss_n.sum() + norm_ss_e.sum() * 2 - norm_ss_e_diag.sum()
+                diffhs = mu_n.sum() + mu_e.sum()
+                ss = norm_ss_n.sum() + norm_ss_e.sum()
                 mu = diffhs / ss
                 mu = mu.detach()
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
@@ -475,14 +483,12 @@ class HamilLossAbs(nn.Module):
                 slices_e = data["__slices__"]["edge_index"]
                 mu_n = torch.stack([mu_n[slices[i]:slices[i+1]].sum() for i in range(len(slices)-1)])
                 mu_e = torch.stack([mu_e[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
-                mu_e_diag  = torch.stack([mu_e_diag[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
 
                 norm_ss_n = torch.stack([norm_ss_n[slices[i]:slices[i+1]].sum() for i in range(len(slices)-1)])
                 norm_ss_e = torch.stack([norm_ss_e[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
-                norm_ss_e_diag = torch.stack([norm_ss_e_diag[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
                
-                mu = mu_n + 2 * mu_e - mu_e_diag
-                ss = norm_ss_n + 2 * norm_ss_e - norm_ss_e_diag
+                mu = mu_n + mu_e 
+                ss = norm_ss_n + norm_ss_e 
                 mu = mu / ss
                 mu = mu.detach()
 
@@ -543,11 +549,11 @@ class HamilLossBlas(nn.Module):
         # mask the data
         if self.onsite_shift:
             batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
-            mu_n, mu_e, mu_e_diag, norm_ss_n, norm_ss_e, norm_ss_e_diag = shift_mu(data=data, ref_data=ref_data,idp=self.idp)
+            mu_n, mu_e, norm_ss_n, norm_ss_e = shift_mu(data=data, ref_data=ref_data,idp=self.idp)
             
             if batch.max() == 0: # when batchsize is zero
-                diffhs = mu_n.sum() + mu_e.sum()*2 - mu_e_diag.sum()
-                ss = norm_ss_n.sum() + norm_ss_e.sum()*2 - norm_ss_e_diag.sum()
+                diffhs = mu_n.sum() + mu_e.sum()
+                ss = norm_ss_n.sum() + norm_ss_e.sum()
                 mu = diffhs / ss
                 mu = mu.detach()
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
@@ -558,14 +564,12 @@ class HamilLossBlas(nn.Module):
 
                 mu_n = torch.stack([mu_n[slices[i]:slices[i+1]].sum() for i in range(len(slices)-1)])
                 mu_e = torch.stack([mu_e[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
-                mu_e_diag  = torch.stack([mu_e_diag[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
 
                 norm_ss_n = torch.stack([norm_ss_n[slices[i]:slices[i+1]].sum() for i in range(len(slices)-1)])
                 norm_ss_e = torch.stack([norm_ss_e[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
-                norm_ss_e_diag = torch.stack([norm_ss_e_diag[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
 
-                mu = mu_n + 2 * mu_e - mu_e_diag
-                ss = norm_ss_n + 2 * norm_ss_e - norm_ss_e_diag
+                mu = mu_n +  mu_e 
+                ss = norm_ss_n + norm_ss_e
                 mu = mu / ss
                 mu = mu.detach()
 
@@ -693,11 +697,11 @@ class HamilLossWT(nn.Module):
 
         if self.onsite_shift:
             batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
-            mu_n, mu_e, mu_e_diag, norm_ss_n, norm_ss_e, norm_ss_e_diag = shift_mu(data=data, ref_data=ref_data,idp=self.idp)
+            mu_n, mu_e, norm_ss_n, norm_ss_e = shift_mu(data=data, ref_data=ref_data,idp=self.idp)
 
             if batch.max() == 0: # when batchsize is zero
-                diffhs = mu_n.sum() + mu_e.sum()*2 - mu_e_diag.sum()
-                ss = norm_ss_n.sum() + norm_ss_e.sum()*2 - norm_ss_e_diag.sum()
+                diffhs = mu_n.sum() + mu_e.sum()
+                ss = norm_ss_n.sum() + norm_ss_e.sum()
                 mu = diffhs / ss
                 mu = mu.detach()
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
@@ -708,14 +712,12 @@ class HamilLossWT(nn.Module):
                 
                 mu_n = torch.stack([mu_n[slices[i]:slices[i+1]].sum() for i in range(len(slices)-1)])
                 mu_e = torch.stack([mu_e[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
-                mu_e_diag  = torch.stack([mu_e_diag[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
 
                 norm_ss_n = torch.stack([norm_ss_n[slices[i]:slices[i+1]].sum() for i in range(len(slices)-1)])
                 norm_ss_e = torch.stack([norm_ss_e[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
-                norm_ss_e_diag = torch.stack([norm_ss_e_diag[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
 
-                mu = mu_n + 2 * mu_e - mu_e_diag
-                ss = norm_ss_n + 2 * norm_ss_e - norm_ss_e_diag
+                mu = mu_n + mu_e
+                ss = norm_ss_n + norm_ss_e
                 mu = mu / ss
                 mu = mu.detach()
 
@@ -828,11 +830,11 @@ class HamilLossAnalysis(object):
 
         if self.onsite_shift:
             batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
-            mu_n, mu_e, mu_e_diag, norm_ss_n, norm_ss_e, norm_ss_e_diag = shift_mu(data=data, ref_data=ref_data,idp=self.idp)
+            mu_n, mu_e, norm_ss_n, norm_ss_e = shift_mu(data=data, ref_data=ref_data,idp=self.idp)
 
             if batch.max() == 0: # when batchsize is zero
-                diffhs = mu_n.sum() + mu_e.sum()*2 - mu_e_diag.sum()
-                ss = norm_ss_n.sum() + norm_ss_e.sum()*2 - norm_ss_e_diag.sum()
+                diffhs = mu_n.sum() + mu_e.sum()
+                ss = norm_ss_n.sum() + norm_ss_e.sum()
                 mu = diffhs / ss
                 mu = mu.detach()
                 ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
@@ -843,14 +845,12 @@ class HamilLossAnalysis(object):
 
                 mu_n = torch.stack([mu_n[slices[i]:slices[i+1]].sum() for i in range(len(slices)-1)])
                 mu_e = torch.stack([mu_e[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
-                mu_e_diag  = torch.stack([mu_e_diag[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
 
                 norm_ss_n = torch.stack([norm_ss_n[slices[i]:slices[i+1]].sum() for i in range(len(slices)-1)])
                 norm_ss_e = torch.stack([norm_ss_e[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
-                norm_ss_e_diag = torch.stack([norm_ss_e_diag[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
 
-                mu = mu_n + 2 * mu_e - mu_e_diag
-                ss = norm_ss_n + 2 * norm_ss_e - norm_ss_e_diag
+                mu = mu_n + mu_e
+                ss = norm_ss_n + norm_ss_e
                 mu = mu / ss
                 mu = mu.detach()
 
