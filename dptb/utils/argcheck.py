@@ -142,6 +142,8 @@ def train_options():
         Argument("update_lr_per_iter", bool, optional=True, default=False, doc=doc_update_lr_per_iter),
         Argument("sliding_win_size", int, optional=True, default=50, doc=doc_sliding_win_size),
         Argument("max_ckpt", int, optional=True, default=4, doc=doc_max_ckpt),
+        Argument("valid_fast", bool, optional=True, default=True, doc="Set True to valid on the first batch of validation dataset, set False to valid the whole dataset. Default: True"),
+
         loss_options()
     ]
 

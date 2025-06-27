@@ -139,11 +139,12 @@ class LearningRateMonitor(Monitor):
 
 class Validationer(Monitor):
     stat_name = 'validation_loss'
-    def __init__(self, interval):
+    def __init__(self, interval, fast_mode=True):
         super(Validationer, self).__init__(
             precision=8,
         )
         self.trigger_interval = interval
+        self.fast_mode = fast_mode
 
     def _get_value(self, **kwargs):
         if kwargs.get('field') == "iteration":
@@ -151,7 +152,7 @@ class Validationer(Monitor):
 
     def epoch(self, **kwargs):
         stats = self.trainer.stats.setdefault(self.stat_name, {})
-        stats['epoch_mean'] = self.trainer.validation(fast=False)
+        stats['epoch_mean'] = self.trainer.validation(fast=self.fast_mode)
 
 class TensorBoardMonitor(Plugin):
     def __init__(self, interval):
@@ -166,6 +167,7 @@ class TensorBoardMonitor(Plugin):
         self.writer.add_scalar(f'lr/epoch', self.trainer.stats['lr']['last'], epoch)
         self.writer.add_scalar(f'train_loss_mean/epoch', self.trainer.stats['train_loss']['epoch_mean'], epoch)
         self.writer.add_scalar(f'validation_loss_mean/epoch', self.trainer.stats['validation_loss']['epoch_mean'], epoch)
+
 
     def iteration(self, **kwargs):
         iteration = self.trainer.iter
