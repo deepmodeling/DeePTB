@@ -198,6 +198,10 @@ class LMDBDataset(AtomicDataset):
         if not self.get_Hamiltonian and not self.get_DM:
             return None
 
+        if model is not None:
+            if not isinstance(model.node_prediction_h, torch.nn.Module):
+                return None
+        
         assert self.transform is not None
         idp = self.transform
 
