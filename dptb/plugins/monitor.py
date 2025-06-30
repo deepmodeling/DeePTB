@@ -166,8 +166,8 @@ class TensorBoardMonitor(Plugin):
         epoch = self.trainer.ep
         self.writer.add_scalar(f'lr/epoch', self.trainer.stats['lr']['last'], epoch)
         self.writer.add_scalar(f'train_loss_mean/epoch', self.trainer.stats['train_loss']['epoch_mean'], epoch)
-        self.writer.add_scalar(f'validation_loss_mean/epoch', self.trainer.stats['validation_loss']['epoch_mean'], epoch)
-
+        if 'validation_loss' in self.trainer.stats.keys():
+            self.writer.add_scalar(f'validation_loss_mean/epoch', self.trainer.stats['validation_loss']['epoch_mean'], epoch)
 
     def iteration(self, **kwargs):
         iteration = self.trainer.iter
@@ -175,6 +175,7 @@ class TensorBoardMonitor(Plugin):
         self.writer.add_scalar(f'train_loss_iter/iteration', self.trainer.stats['train_loss']['last'], iteration)
         if 'latest_avg_iter_loss' in self.trainer.stats['train_loss'].keys():
             self.writer.add_scalar(f'latest_avg_loss/iteration', self.trainer.stats['train_loss']['latest_avg_iter_loss'], iteration)
-        self.writer.add_scalar(f'validation_loss_iter/iteration', self.trainer.stats['validation_loss']['last'], iteration)
+        if 'validation_loss' in self.trainer.stats.keys():
+            self.writer.add_scalar(f'validation_loss_iter/iteration', self.trainer.stats['validation_loss']['last'], iteration)
 
 
