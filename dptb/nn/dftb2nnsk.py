@@ -10,6 +10,7 @@ from dptb.utils.constants import atomic_num_dict
 import matplotlib.pyplot as plt
 from torch.optim import Adam, LBFGS, RMSprop, SGD
 from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingLR
+from functorch import vmap
 from dptb.nn.nnsk import NNSK
 from dptb.nn.sktb.onsite import onsite_energy_database
 from dptb.data.AtomicData import get_r_map, get_r_map_bondwise

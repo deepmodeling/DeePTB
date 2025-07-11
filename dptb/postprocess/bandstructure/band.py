@@ -212,7 +212,13 @@ class Band(ElecStruCal):
         if kpath_kwargs.get("override_overlap", None):
             override_overlap = kpath_kwargs["override_overlap"]
         
-        data, eigenvalues = self.get_eigs(data=data, klist=klist, pbc=pbc, AtomicData_options=AtomicData_options, override_overlap=override_overlap)
+        eig_solver = None
+        if kpath_kwargs.get("eig_solver", None):
+            eig_solver = kpath_kwargs["eig_solver"]
+        
+        data, eigenvalues = self.get_eigs(data=data, klist=klist, pbc=pbc, 
+                                          AtomicData_options=AtomicData_options, 
+                                          override_overlap=override_overlap, eig_solver=eig_solver)
         
 
         # get the E_fermi from data
@@ -232,8 +238,9 @@ class Band(ElecStruCal):
         # else:
         #     estimated_E_fermi = None
         if nel_atom is not None:
-            data,estimated_E_fermi = self.get_fermi_level(data=data, nel_atom=nel_atom, \
-                        klist = klist, pbc=pbc, AtomicData_options=AtomicData_options)
+            data,estimated_E_fermi = self.get_fermi_level(  data=data, nel_atom=nel_atom,
+                                                            klist = klist, pbc=pbc, 
+                                                            AtomicData_options=AtomicData_options)
         else:
             estimated_E_fermi = None
 
