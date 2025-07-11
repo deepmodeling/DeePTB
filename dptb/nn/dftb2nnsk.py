@@ -10,7 +10,6 @@ from dptb.utils.constants import atomic_num_dict
 import matplotlib.pyplot as plt
 from torch.optim import Adam, LBFGS, RMSprop, SGD
 from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingLR
-from functorch import vmap
 from dptb.nn.nnsk import NNSK
 from dptb.nn.sktb.onsite import onsite_energy_database
 from dptb.data.AtomicData import get_r_map, get_r_map_bondwise
@@ -393,7 +392,7 @@ class DFTB2NNSK(nn.Module):
 
             r = torch.linspace(0, 1, steps=100).reshape(1,-1).repeat(len(self.curr_bond_indices),1) * (r_max_ - r_min_) + r_min_
 
-            hops = vmap(self.step,in_dims=1)(r)
+            hops = torch.func.vmap(self.step,in_dims=1)(r)
  
             dftb_hopping = self.dftb(r, bond_indices = self.curr_bond_indices, mode="hopping").permute(1,0,2)
             dftb_overlap = self.dftb(r, bond_indices = self.curr_bond_indices, mode="overlap").permute(1,0,2)

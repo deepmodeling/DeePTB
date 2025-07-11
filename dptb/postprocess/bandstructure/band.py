@@ -208,13 +208,10 @@ class Band(ElecStruCal):
             log.error('Error, now, kline_type only support ase_kpath, abacus, or vasp.')
             raise ValueError
 
-        override_overlap = None
-        if kpath_kwargs.get("override_overlap", None):
-            override_overlap = kpath_kwargs["override_overlap"]
-        
-        eig_solver = None
-        if kpath_kwargs.get("eig_solver", None):
-            eig_solver = kpath_kwargs["eig_solver"]
+
+        override_overlap = kpath_kwargs.get("override_overlap", None)       
+
+        eig_solver = kpath_kwargs.get("eig_solver", None)
         
         data, eigenvalues = self.get_eigs(data=data, klist=klist, pbc=pbc, 
                                           AtomicData_options=AtomicData_options, 
