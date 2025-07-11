@@ -116,14 +116,14 @@ def test_normal_band():
         1.722770500183105469e+01, 1.725421524047851562e+01, 1.729618835449218750e+01, 1.736883163452148438e+01,
         1.810172653198242188e+01, 1.811395263671875000e+01, 1.814074897766113281e+01, 1.816400146484375000e+01],
         dtype=np.float32)
-    # torch diagnalization test
+    # torch diagonalization test
     assert np.allclose(eigenstatus["eigenvalues"][0], expected_value_k1, atol=1e-4)
     
     
     jdata["task_options"]["eig_solver"] = 'numpy'
     eigenstatus = bcal.get_bands(data=dataset[0],
                                  kpath_kwargs=jdata["task_options"])
-    # numpy diagnalization test
+    # numpy diagonalization test
     assert np.allclose(eigenstatus["eigenvalues"][0], expected_value_k1, atol=1e-4)
 
 def test_band_false_overlap():
