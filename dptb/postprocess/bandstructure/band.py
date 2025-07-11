@@ -208,11 +208,14 @@ class Band(ElecStruCal):
             log.error('Error, now, kline_type only support ase_kpath, abacus, or vasp.')
             raise ValueError
 
-        override_overlap = None
-        if kpath_kwargs.get("override_overlap", None):
-            override_overlap = kpath_kwargs["override_overlap"]
+
+        override_overlap = kpath_kwargs.get("override_overlap", None)       
+
+        eig_solver = kpath_kwargs.get("eig_solver", None)
         
-        data, eigenvalues = self.get_eigs(data=data, klist=klist, pbc=pbc, AtomicData_options=AtomicData_options, override_overlap=override_overlap)
+        data, eigenvalues = self.get_eigs(data=data, klist=klist, pbc=pbc, 
+                                          AtomicData_options=AtomicData_options, 
+                                          override_overlap=override_overlap, eig_solver=eig_solver)
         
 
         # get the E_fermi from data
@@ -232,8 +235,9 @@ class Band(ElecStruCal):
         # else:
         #     estimated_E_fermi = None
         if nel_atom is not None:
-            data,estimated_E_fermi = self.get_fermi_level(data=data, nel_atom=nel_atom, \
-                        klist = klist, pbc=pbc, AtomicData_options=AtomicData_options)
+            data,estimated_E_fermi = self.get_fermi_level(  data=data, nel_atom=nel_atom,
+                                                            klist = klist, pbc=pbc, 
+                                                            AtomicData_options=AtomicData_options)
         else:
             estimated_E_fermi = None
 

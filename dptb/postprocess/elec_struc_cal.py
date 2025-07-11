@@ -175,7 +175,8 @@ class ElecStruCal(object):
                  klist: np.ndarray,
                  pbc:Union[bool,list]=None,
                  AtomicData_options:dict=None,
-                 override_overlap:Optional[str]=None):
+                 override_overlap:Optional[str]=None,
+                 eig_solver:Optional[str]=None):
         '''This function calculates eigenvalues for Hk at specified k-points.
         
         Parameters
@@ -210,13 +211,14 @@ class ElecStruCal(object):
             data[AtomicDataDict.NODE_OVERLAP_KEY] = override_overlap_node
         if self.overlap or isinstance(override_overlap, str):
             assert data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is not None
-        data = self.eigv(data)
+        data = self.eigv(data, eig_solver=eig_solver)
 
         return data, data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy()
 
     def get_fermi_level(self, data: Union[AtomicData, ase.Atoms, str], nel_atom: dict, \
-                        meshgrid: list = None, klist: np.ndarray=None, pbc:Union[bool,list]=None,AtomicData_options:dict=None,
-                        q_tol:float=1e-10,smearing_method:str='FD',temp:float=300):
+                        meshgrid: list = None, klist: np.ndarray=None, pbc:Union[bool,list]=None,
+                        AtomicData_options:dict=None, q_tol:float=1e-10, smearing_method:str='FD', 
+                        temp:float=300,eig_solver:Optional[str]='torch'):
         '''This function calculates the Fermi level based on provided data with iteration method, electron counts per atom, and
         optional parameters like specific k-points and eigenvalues.
         
@@ -277,7 +279,9 @@ class ElecStruCal(object):
 
         # eigenvalues would be used if provided, otherwise the eigenvalues would be calculated from the model on the specified k-points
         if not AtomicDataDict.ENERGY_EIGENVALUE_KEY in data:
-            data, eigs = self.get_eigs(data=data, klist=klist, pbc=pbc, AtomicData_options=AtomicData_options) 
+            data, eigs = self.get_eigs(data=data, klist=klist, pbc=pbc, 
+                                       AtomicData_options=AtomicData_options,
+                                       eig_solver=eig_solver) 
             log.info('Getting eigenvalues from the model.')
         else:
             log.info('The eigenvalues are already in data. will use them.')
