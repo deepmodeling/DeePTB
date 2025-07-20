@@ -828,8 +828,8 @@ class HamilLossAnalysis(object):
     
     def __call__(self, data: AtomicDataDict, ref_data: AtomicDataDict, running_avg: bool=False):
 
+        batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
         if self.onsite_shift:
-            batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
             mu_n, mu_e, norm_ss_n, norm_ss_e = shift_mu(data=data, ref_data=ref_data,idp=self.idp)
 
             if batch.max() == 0: # when batchsize is zero
@@ -859,7 +859,11 @@ class HamilLossAnalysis(object):
                 for i in range(1, batch.max().item()+1):
                     edge_mu_index[data["__slices__"]["edge_index"][i]:data["__slices__"]["edge_index"][i+1]] += i
                 ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu[edge_mu_index, None] * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
-                
+        
+        for key in ["__slices__", "__cumsum__", "__cat_dims__", "__num_nodes_list__", "__data_class__"]:
+            data.pop(key, None)
+            ref_data.pop(key, None)
+
         if self.decompose:
             data = self.e3h(data)
             ref_data = self.e3h(ref_data)
