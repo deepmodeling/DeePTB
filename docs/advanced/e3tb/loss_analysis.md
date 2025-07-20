@@ -39,7 +39,7 @@ loader = DataLoader(dataset, batch_size=10, shuffle=False, num_workers=0)
 for data in tqdm(loader, desc="doing error analysis"):
     with torch.no_grad():
         data = data.to("cuda")
-        batch_info = data.get_batch_info()
+        batch_info = data.get_batchinfo()
         ref_data = AtomicData.to_AtomicDataDict(data)
         data = model(ref_data)
         data.update(batch_info)
