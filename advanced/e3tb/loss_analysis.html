@@ -41,7 +41,7 @@
 <span class=k>for</span> <span class=n>data</span> <span class=ow>in</span> <span class=n>tqdm</span><span class=p>(</span><span class=n>loader</span><span class=p>,</span> <span class=n>desc</span><span class=o>=</span><span class=s2>"doing error analysis"</span><span class=p>):</span>
     <span class=k>with</span> <span class=n>torch</span><span class=o>.</span><span class=n>no_grad</span><span class=p>():</span>
         <span class=n>data</span> <span class=o>=</span> <span class=n>data</span><span class=o>.</span><span class=n>to</span><span class=p>(</span><span class=s2>"cuda"</span><span class=p>)</span>
-        <span class=n>batch_info</span> <span class=o>=</span> <span class=n>data</span><span class=o>.</span><span class=n>get_batch_info</span><span class=p>()</span>
+        <span class=n>batch_info</span> <span class=o>=</span> <span class=n>data</span><span class=o>.</span><span class=n>get_batchinfo</span><span class=p>()</span>
         <span class=n>ref_data</span> <span class=o>=</span> <span class=n>AtomicData</span><span class=o>.</span><span class=n>to_AtomicDataDict</span><span class=p>(</span><span class=n>data</span><span class=p>)</span>
         <span class=n>data</span> <span class=o>=</span> <span class=n>model</span><span class=p>(</span><span class=n>ref_data</span><span class=p>)</span>
         <span class=n>data</span><span class=o>.</span><span class=n>update</span><span class=p>(</span><span class=n>batch_info</span><span class=p>)</span>
