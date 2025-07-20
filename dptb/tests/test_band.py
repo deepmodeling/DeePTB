@@ -46,6 +46,7 @@ def test_normal_band():
                 results_path="./",
                 device=model.device)
 
+    jdata["task_options"]["eig_solver"] = 'torch'
     eigenstatus = bcal.get_bands(data=dataset[0],
                                  kpath_kwargs=jdata["task_options"])
 
@@ -115,19 +116,28 @@ def test_normal_band():
         1.722770500183105469e+01, 1.725421524047851562e+01, 1.729618835449218750e+01, 1.736883163452148438e+01,
         1.810172653198242188e+01, 1.811395263671875000e+01, 1.814074897766113281e+01, 1.816400146484375000e+01],
         dtype=np.float32)
-
+    # torch diagonalization test
+    assert np.allclose(eigenstatus["eigenvalues"][0], expected_value_k1, atol=1e-4)
+    
+    
+    jdata["task_options"]["eig_solver"] = 'numpy'
+    eigenstatus = bcal.get_bands(data=dataset[0],
+                                 kpath_kwargs=jdata["task_options"])
+    # numpy diagonalization test
     assert np.allclose(eigenstatus["eigenvalues"][0], expected_value_k1, atol=1e-4)
 
-
 def test_band_false_overlap():
+
     jdata = normal_jdata
+
+    # torch diagnalization test
+    jdata["task_options"]["eig_solver"] = 'torch'
     jdata["task_options"]["override_overlap"] = f"{rootdir}/e3_band/false_overlaps.h5"
 
     bcal = Band(model=model,
                 use_gui=False,
                 results_path="./",
                 device=model.device)
-
     try:
         bcal.get_bands(data=dataset[0],
                        kpath_kwargs=jdata["task_options"])
@@ -136,8 +146,23 @@ def test_band_false_overlap():
     else:
         raise RuntimeError("false_overlap function normally.")
 
+    # numpy diagnalization test
+    jdata["task_options"]["eig_solver"] = 'numpy'
+    jdata["task_options"]["override_overlap"] = f"{rootdir}/e3_band/false_overlaps.h5"
+
+    try:
+        bcal.get_bands(data=dataset[0],
+                       kpath_kwargs=jdata["task_options"])
+    except np.linalg.LinAlgError as e:
+        pass
+    else:
+        raise RuntimeError("false_overlap function normally.")
+
+
+
 def test_band_override_overlap():
     jdata = normal_jdata
+    jdata["task_options"]["eig_solver"] = 'torch'
     jdata["task_options"]["override_overlap"] = f"{rootdir}/e3_band/data/Si64.0/overlaps.h5"
 
     bcal = Band(model=model,
@@ -216,3 +241,11 @@ def test_band_override_overlap():
         dtype=np.float32)
 
     assert np.allclose(eigenstatus["eigenvalues"][0], expected_value_k1, atol=1e-4)
+
+    jdata["task_options"]["eig_solver"] = 'numpy'
+    eigenstatus = bcal.get_bands(data=dataset[0],
+                                 kpath_kwargs=jdata["task_options"])
+    assert np.allclose(eigenstatus["eigenvalues"][0], expected_value_k1, atol=1e-4)
+
+
+
