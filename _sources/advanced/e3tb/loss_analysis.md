@@ -38,8 +38,12 @@ loader = DataLoader(dataset, batch_size=10, shuffle=False, num_workers=0)
 
 for data in tqdm(loader, desc="doing error analysis"):
     with torch.no_grad():
-        ref_data = AtomicData.to_AtomicDataDict(data.to("cuda"))
+        data = data.to("cuda")
+        batch_info = data.get_batch_info()
+        ref_data = AtomicData.to_AtomicDataDict(data)
         data = model(ref_data)
+        data.update(batch_info)
+        ref_data.update(batch_info)
         ana(data, ref_data, running_avg=True)
 ```
 The analysis results are stored in `ana.stats`, which is a dictionary of statistics. The user can check the value directly, or display the results by:
