@@ -112,12 +112,14 @@ class SO2_Linear(torch.nn.Module):
             weights = self.radial_emb(latents)
         
         x_ = torch.zeros(n, self.irreps_in.dim, dtype=x.dtype, device=x.device)
+        angle = xyz_to_angles(R[:,[1,2,0]]) # (tensor(N), tensor(N))
         for (mul, (l,p)), slice in zip(self.irreps_in, self.irreps_in.slices()):
             if l > 0:
-                angle = xyz_to_angles(R[:,[1,2,0]]) # (tensor(N), tensor(N))
                 # The roataion matrix is SO3 rotation, therefore Irreps(l,1), is used here.
                 rot_mat_L = wigner_D(l, angle[0], angle[1], torch.zeros_like(angle[0]))
                 x_[:, slice] = torch.einsum('nji,nmj->nmi', rot_mat_L, x[:, slice].reshape(n,mul,-1)).reshape(n,-1)
+            else:
+                x_[:, slice] = x[:, slice]
 
         out = torch.zeros(n, self.irreps_out.dim, dtype=x.dtype, device=x.device)
         for m in range(self.irreps_out.lmax+1):
@@ -131,20 +133,19 @@ class SO2_Linear(torch.nn.Module):
                     out[:, self.m_out_mask[m]] += self.fc_m0(x_[:, self.m_in_mask[m]])
             else:
                 if self.front and self.radial_emb:
-                    out[:, self.m_out_mask[m]] += self.m_linear[m-1](x_[:, self.m_in_mask[m]].reshape(n, 2, -1)*radial_weight).reshape(n, -1)
+                    out[:, self.m_out_mask[m]] += self.m_linear[m-1](x_[:, self.m_in_mask[m]].reshape(n, -1, 2).transpose(1,2)*radial_weight).transpose(1,2).reshape(n, -1)
                 elif self.radial_emb:
-                    out[:, self.m_out_mask[m]] += (self.m_linear[m-1](x_[:, self.m_in_mask[m]].reshape(n, 2, -1))*radial_weight).reshape(n, -1)
+                    out[:, self.m_out_mask[m]] += (self.m_linear[m-1](x_[:, self.m_in_mask[m]].reshape(n, -1, 2).transpose(1,2))*radial_weight).transpose(1,2).reshape(n, -1)
                 else:
-                    out[:, self.m_out_mask[m]] += self.m_linear[m-1](x_[:, self.m_in_mask[m]].reshape(n, 2, -1)).reshape(n, -1)
-                    
-        out.contiguous()
+                    out[:, self.m_out_mask[m]] += self.m_linear[m-1](x_[:, self.m_in_mask[m]].reshape(n, -1, 2).transpose(1,2)).transpose(1,2).reshape(n, -1)
 
         for (mul, (l,p)), slice in zip(self.irreps_out, self.irreps_out.slices()):
             if l > 0:
-                angle = xyz_to_angles(R[:,[1,2,0]]) # (tensor(N), tensor(N))
                 # The roataion matrix is SO3 rotation, therefore Irreps(l,1), is used here.
                 rot_mat_L = wigner_D(l, angle[0], angle[1], torch.zeros_like(angle[0]))
                 out[:, slice] = torch.einsum('nij,nmj->nmi', rot_mat_L, out[:, slice].reshape(n,mul,-1)).reshape(n,-1)
+
+        out.contiguous()
 
         return out
 
@@ -192,8 +193,8 @@ class SO2_m_Linear(torch.nn.Module):
     def forward(self, x_m):
         # x_m ~ [N, 2, n_irreps_m]
         x_m = self.fc(x_m)
-        x_r = x_m.narrow(2, 0, self.fc.out_features // 2)
-        x_i = x_m.narrow(2, self.fc.out_features // 2, self.fc.out_features // 2)
+        x_r = x_m.narrow(2, 0, self.fc.out_features // 2) #[wmfm, wmf-m]
+        x_i = x_m.narrow(2, self.fc.out_features // 2, self.fc.out_features // 2) #[w-mfm, w-mf-m]
         x_m_r = x_r.narrow(1, 0, 1) - x_i.narrow(1, 1, 1) #x_r[:, 0] - x_i[:, 1]
         x_m_i = x_r.narrow(1, 1, 1) + x_i.narrow(1, 0, 1) #x_r[:, 1] + x_i[:, 0]
         x_out = torch.cat((x_m_r, x_m_i), dim=1)
