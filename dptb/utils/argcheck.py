@@ -1679,7 +1679,10 @@ def collect_cutoffs(jdata):
     r_max, er_max, oer_max = get_cutoffs_from_model_options(model_options)
 
     if model_options.get("nnsk", None) is not None:
-        if model_options["nnsk"]["push"]:
+        if model_options["nnsk"]["push"] and \
+            abs(model_options["nnsk"]["push"]['rs_thr']) + \
+            abs(model_options["nnsk"]["push"]['rc_thr']) + \
+            abs(model_options["nnsk"]["push"]['w_thr']) > 1e-8:
             assert jdata.get("data_options",None) is not None, "data_options should be provided in jdata for nnsk push"
             assert jdata['data_options'].get("r_max") is not None, "r_max should be provided in data_options for nnsk push"
             log.info('YOU ARE USING NNSK PUSH MODEL, r_max will be used from data_options. Be careful! check the value in data options and model options. r_max or rs/rc !')
