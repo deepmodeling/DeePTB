@@ -406,7 +406,7 @@ class InitLayer(torch.nn.Module):
 
         self.sln_n = SeperableLayerNorm(
             irreps=self.irreps_out,
-            eps=1e-5, 
+            eps=5e-3, 
             affine=True, 
             normalization='component', 
             std_balance_degrees=True,
@@ -416,7 +416,7 @@ class InitLayer(torch.nn.Module):
 
         self.sln_e = SeperableLayerNorm(
             irreps=self.irreps_out,
-            eps=1e-5, 
+            eps=5e-3, 
             affine=True, 
             normalization='component', 
             std_balance_degrees=True,
@@ -586,7 +586,7 @@ class UpdateNode(torch.nn.Module):
 
         self.sln = SeperableLayerNorm(
             irreps=self.irreps_in,
-            eps=1e-5, 
+            eps=5e-3, 
             affine=True, 
             normalization='component', 
             std_balance_degrees=True,
@@ -596,7 +596,7 @@ class UpdateNode(torch.nn.Module):
 
         self.sln_e = SeperableLayerNorm(
             irreps=self.edge_irreps_in,
-            eps=1e-5, 
+            eps=5e-3, 
             affine=True, 
             normalization='component', 
             std_balance_degrees=True,
@@ -791,7 +791,7 @@ class UpdateEdge(torch.nn.Module):
 
         self.sln_e = SeperableLayerNorm(
             irreps=self.irreps_in,
-            eps=1e-5, 
+            eps=5e-3, 
             affine=True, 
             normalization='component', 
             std_balance_degrees=True,
@@ -801,7 +801,7 @@ class UpdateEdge(torch.nn.Module):
 
         self.sln_n = SeperableLayerNorm(
             irreps=self.irreps_in,
-            eps=1e-5, 
+            eps=5e-3, 
             affine=True, 
             normalization='component', 
             std_balance_degrees=True,
