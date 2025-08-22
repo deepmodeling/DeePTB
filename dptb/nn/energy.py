@@ -175,12 +175,17 @@ class Eigh(nn.Module):
                 data = self.s2k(data)
                 chklowt = torch.linalg.cholesky(data[self.s_out_field])
                 chklowtinv = torch.linalg.inv(chklowt)
-                data[self.h_out_field] = (chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj())
-            else:
-                data[self.h_out_field] = data[self.h_out_field]
-            
+                data[self.h_out_field] = (
+                    chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj()
+                )
+
             eigval, eigvec = torch.linalg.eigh(data[self.h_out_field])
-            eigvecs.append(torch.transpose(torch.transpose(chklowtinv,dim0=1,dim1=2).conj() @ eigvec,dim0=1,dim1=2))
+            if self.overlap:
+                eigvec = torch.transpose(
+                    torch.transpose(chklowtinv,dim0=1,dim1=2).conj() @ eigvec,
+                    dim0=1,dim1=2)
+
+            eigvecs.append(eigvec)
             eigvals.append(eigval)
 
         data[self.eigval_field] = torch.nested.as_nested_tensor([torch.cat(eigvals, dim=0)])
