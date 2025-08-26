@@ -132,6 +132,7 @@ class NNSK(torch.nn.Module):
                 soc_param = torch.empty([len(self.idp_sk.type_names), self.idp_sk.n_onsite_socLs, self.soc_fn.num_paras], dtype=self.dtype, device=self.device)
                 nn.init.normal_(soc_param, mean=0.0, std=std)
                 self.soc_param = torch.nn.Parameter(soc_param)
+                print(self.soc_param)
             else:
                 raise NotImplementedError(f"The soc method {self.soc_options['method']} is not implemented.")
 
@@ -979,6 +980,22 @@ class NNSK(torch.nn.Module):
                 to_uniform = True
             else:
                 print("The basisref is not used. since the onsite method is not uniform_noref.")
+        # add the support for soc uniform_noref when use ['s', 'p', 'd', 'f'] in soc case 
+        if basisref is not None:
+            if  self.model_options['nnsk']['soc']['method'] in ['uniform_noref']:
+                for atom, orb in self.basis.items():
+                    new_basis[atom] = []
+                    if atom not in basisref:
+                        raise ValueError("The atom in the model basis should be in the basisref.")
+                    for o in orb:
+                        if o not in ['s', 'p', 'd', 'f']:
+                            raise ValueError("For uniform_noref mode, the orb in the model basis should be in ['s', 'p', 'd', 'f'].")
+                        if o not in list(basisref[atom].keys()):
+                            raise ValueError("The orb in the model basis should be in the basisref.")
+                        new_basis[atom].append(basisref[atom][o]) 
+            else:
+                print("The basisref is not used. since the soc method is not uniform_noref.")
+
 
         ckpt = {}
         # load hopping params

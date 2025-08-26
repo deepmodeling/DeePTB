@@ -203,12 +203,6 @@ def main_parser() -> argparse.ArgumentParser:
         help="The pth ckpt to be transfered to json.",
     )
     parser_pth2json.add_argument(
-        "-dels", 
-        "--deleteoverlap",
-        help="Transfer to no overlap version.",
-        action="store_true"
-    )
-    parser_pth2json.add_argument(
         "-o",
         "--outdir",
         type=str,
@@ -434,6 +428,14 @@ def main_parser() -> argparse.ArgumentParser:
         type=str,
         default="poly2",
         help="The base model type can be poly2 or poly4."
+    )
+    parser_esk.add_argument(
+        "--soc",
+        "--soc_onsite",
+        nargs="?", 
+        const=0.2, 
+        type=float,
+        help="Enable SOC, default 0.2 if no value is given. Example: --soc or --soc=0.5"
     )
     return parser
 

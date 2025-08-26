@@ -45,6 +45,9 @@ class HR2HK(torch.nn.Module):
         self.node_field = node_field
         self.out_field = out_field
 
+
+
+
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
 
         # construct bond wise hamiltonian block from obital pair wise node/edge features
@@ -65,12 +68,13 @@ class HR2HK(torch.nn.Module):
         if isinstance(soc, torch.Tensor):
             soc = soc.all()
         if soc:
-            if self.overlap:
-                raise NotImplementedError("Overlap is not implemented for SOC.")
-            
+            # if self.overlap:
+                # print("Overlap for SOC is realized by kronecker product.")
+
             orbpair_soc = data[AtomicDataDict.NODE_SOC_KEY]
             soc_upup_block = torch.zeros((len(data[AtomicDataDict.ATOM_TYPE_KEY]), self.idp.full_basis_norb, self.idp.full_basis_norb), dtype=self.ctype, device=self.device)
             soc_updn_block = torch.zeros((len(data[AtomicDataDict.ATOM_TYPE_KEY]), self.idp.full_basis_norb, self.idp.full_basis_norb), dtype=self.ctype, device=self.device)
+
 
         ist = 0
         for i,iorb in enumerate(self.idp.full_basis):
@@ -96,6 +100,12 @@ class HR2HK(torch.nn.Module):
                     #     onsite_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = factor * torch.eye(2*li+1, dtype=self.dtype, device=self.device).reshape(1, 2*li+1, 2*lj+1).repeat(onsite_block.shape[0], 1, 1)
                     if i <= j:
                         onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
+
+                    if soc and i == j:
+                        soc_updn_tmp = orbpair_soc[:, self.idp.orbpair_soc_maps[orbpair]].reshape(-1, 2*li+1, 2*(2*lj+1))
+                        # j==i -> 2*lj+1 == 2*li+1
+                        soc_upup_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = soc_updn_tmp[:, :2*li+1, :2*lj+1]
+                        soc_updn_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = soc_updn_tmp[:, :2*li+1, 2*lj+1:]
                 else:
                     if i <= j:
                         onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
@@ -110,6 +120,7 @@ class HR2HK(torch.nn.Module):
         self.onsite_block = onsite_block
         self.bondwise_hopping = bondwise_hopping
         if soc:
+            # 先保存已有的
             self.soc_upup_block = soc_upup_block
             self.soc_updn_block = soc_updn_block
 
@@ -159,30 +170,42 @@ class HR2HK(torch.nn.Module):
         block = block.contiguous()
         
         if soc:
-            HK_SOC = torch.zeros(kpoints.shape[0], 2*all_norb, 2*all_norb, dtype=self.ctype, device=self.device)
-            #HK_SOC[:,:all_norb,:all_norb] = block + block_uu
-            #HK_SOC[:,:all_norb,all_norb:] = block_ud
-            #HK_SOC[:,all_norb:,:all_norb] = block_ud.conj()
-            #HK_SOC[:,all_norb:,all_norb:] = block + block_uu.conj()
-            ist = 0
-            assert len(soc_upup_block) == len(soc_updn_block)
-            for i in range(len(soc_upup_block)):
-                assert soc_upup_block[i].shape == soc_updn_block[i].shape
-                mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
-                masked_soc_upup_block = soc_upup_block[i][mask][:,mask]
-                masked_soc_updn_block = soc_updn_block[i][mask][:,mask]
-                HK_SOC[:,ist:ist+masked_soc_upup_block.shape[0],ist:ist+masked_soc_upup_block.shape[1]] = masked_soc_upup_block.squeeze(0)
-                HK_SOC[:,ist:ist+masked_soc_updn_block.shape[0],ist+all_norb:ist+all_norb+masked_soc_updn_block.shape[1]] = masked_soc_updn_block.squeeze(0)
-                assert masked_soc_upup_block.shape[0] == masked_soc_upup_block.shape[1]
-                assert masked_soc_upup_block.shape[0] == masked_soc_updn_block.shape[0]
-                
-                ist += masked_soc_upup_block.shape[0]
+            if self.overlap:
+                print("Overlap for SOC is realized by kronecker product.")
+                # ========== S_soc = S ⊗ I₂ : N×N S(k) to 2N×2N kronecker product ==========
+                S_soc = torch.zeros(kpoints.shape[0], 2*all_norb, 2*all_norb, dtype=self.ctype, device=self.device)
+                S_soc[:, :all_norb, :all_norb] = block
+                S_soc[:, all_norb:, all_norb:] = block
+                # Enforce strict Hermitian form to avoid non-positive-definite errors during training by torch._C._LinAlgError: linalg.cholesky.
+                # This issue only occurs when SOC+overlap is active and "overlap" is not frozen. It can be avoided by setting "freeze": ["overlap"].
+                S_soc = 0.5 * (S_soc + S_soc.transpose(1, 2).conj())
 
-            HK_SOC[:,all_norb:,:all_norb] = HK_SOC[:,:all_norb,all_norb:].conj()   
-            HK_SOC[:,all_norb:,all_norb:] = HK_SOC[:,:all_norb,:all_norb].conj()  + block
-            HK_SOC[:,:all_norb,:all_norb] = HK_SOC[:,:all_norb,:all_norb] + block  
+                data[self.out_field] = S_soc
+            else:
+                HK_SOC = torch.zeros(kpoints.shape[0], 2*all_norb, 2*all_norb, dtype=self.ctype, device=self.device)
+                #HK_SOC[:,:all_norb,:all_norb] = block + block_uu
+                #HK_SOC[:,:all_norb,all_norb:] = block_ud
+                #HK_SOC[:,all_norb:,:all_norb] = block_ud.conj()
+                #HK_SOC[:,all_norb:,all_norb:] = block + block_uu.conj()
+                ist = 0
+                assert len(soc_upup_block) == len(soc_updn_block)
+                for i in range(len(soc_upup_block)):
+                    assert soc_upup_block[i].shape == soc_updn_block[i].shape
+                    mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
+                    masked_soc_upup_block = soc_upup_block[i][mask][:,mask]
+                    masked_soc_updn_block = soc_updn_block[i][mask][:,mask]
+                    HK_SOC[:,ist:ist+masked_soc_upup_block.shape[0],ist:ist+masked_soc_upup_block.shape[1]] = masked_soc_upup_block.squeeze(0)
+                    HK_SOC[:,ist:ist+masked_soc_updn_block.shape[0],ist+all_norb:ist+all_norb+masked_soc_updn_block.shape[1]] = masked_soc_updn_block.squeeze(0)
+                    assert masked_soc_upup_block.shape[0] == masked_soc_upup_block.shape[1]
+                    assert masked_soc_upup_block.shape[0] == masked_soc_updn_block.shape[0]
+                    
+                    ist += masked_soc_upup_block.shape[0]
 
-            data[self.out_field] = HK_SOC
+                HK_SOC[:,all_norb:,:all_norb] = HK_SOC[:,:all_norb,all_norb:].conj()   
+                HK_SOC[:,all_norb:,all_norb:] = HK_SOC[:,:all_norb,:all_norb].conj()  + block
+                HK_SOC[:,:all_norb,:all_norb] = HK_SOC[:,:all_norb,:all_norb] + block  
+
+                data[self.out_field] = HK_SOC
         else:
             data[self.out_field] = block
 
