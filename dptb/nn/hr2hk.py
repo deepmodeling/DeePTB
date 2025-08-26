@@ -171,7 +171,6 @@ class HR2HK(torch.nn.Module):
         
         if soc:
             if self.overlap:
-                print("Overlap for SOC is realized by kronecker product.")
                 # ========== S_soc = S ⊗ I₂ : N×N S(k) to 2N×2N kronecker product ==========
                 S_soc = torch.zeros(kpoints.shape[0], 2*all_norb, 2*all_norb, dtype=self.ctype, device=self.device)
                 S_soc[:, :all_norb, :all_norb] = block
