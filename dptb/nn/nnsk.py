@@ -132,7 +132,6 @@ class NNSK(torch.nn.Module):
                 soc_param = torch.empty([len(self.idp_sk.type_names), self.idp_sk.n_onsite_socLs, self.soc_fn.num_paras], dtype=self.dtype, device=self.device)
                 nn.init.normal_(soc_param, mean=0.0, std=std)
                 self.soc_param = torch.nn.Parameter(soc_param)
-                print(self.soc_param)
             else:
                 raise NotImplementedError(f"The soc method {self.soc_options['method']} is not implemented.")
 
