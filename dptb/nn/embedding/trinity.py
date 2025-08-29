@@ -672,7 +672,7 @@ class UpdateNode(torch.nn.Module):
             res_update_params.clamp_(-6.0, 6.0)
         
         if res_update_ratios_learnable:
-            self._latent_resnet_update_params = torch.nn.Parameter(
+            self._res_update_params = torch.nn.Parameter(
                 res_update_params
             )
         else:
@@ -847,7 +847,7 @@ class UpdateEdge(torch.nn.Module):
             res_update_params.clamp_(-6.0, 6.0)
         
         if res_update_ratios_learnable:
-            self._latent_resnet_update_params = torch.nn.Parameter(
+            self._res_update_params = torch.nn.Parameter(
                 res_update_params
             )
         else:
