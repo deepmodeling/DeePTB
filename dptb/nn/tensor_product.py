@@ -207,6 +207,8 @@ class SO2_Linear(torch.nn.Module):
         groups = defaultdict(list)
         for (mul, (l, p)), slice_info in zip(self.irreps_in, self.irreps_in.slices()):
             groups[l].append((mul, slice_info))
+            if l == 0:
+                x_[:, slice_info] = x[:, slice_info]
 
         # 2. Batch process all mul for each l
         for l, group in groups.items():
