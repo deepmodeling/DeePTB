@@ -232,5 +232,6 @@ class Trainer(BaseTrainer):
 
                 if fast:
                     break
-
+        if not fast:
+            loss = loss / len(self.validation_loader)
         return loss

@@ -203,6 +203,12 @@ def main_parser() -> argparse.ArgumentParser:
         help="The pth ckpt to be transfered to json.",
     )
     parser_pth2json.add_argument(
+        "-dels", 
+        "--deleteoverlap",
+        help="Transfer to no overlap version.",
+        action="store_true"
+    )
+    parser_pth2json.add_argument(
         "-o",
         "--outdir",
         type=str,

@@ -228,7 +228,6 @@ class SO2_Linear(torch.nn.Module):
             for part, slice_info, mul in zip(transformed.split(muls, dim=1), slices, muls):
                 x_[:, slice_info] = part.reshape(n, -1)
 
-
         out = torch.zeros(n, self.irreps_out.dim, dtype=x.dtype, device=x.device)
         for m in range(self.irreps_out.lmax+1):
             radial_weight = weights[:, self.m_in_index[m]:self.m_in_index[m+1]].unsqueeze(1) if self.radial_emb else 1.
@@ -240,14 +239,26 @@ class SO2_Linear(torch.nn.Module):
                 else:
                     out[:, self.m_out_mask[m]] += self.fc_m0(x_[:, self.m_in_mask[m]])
             else:
+                # 1. Prepare input data. .contiguous() is for in-place ops and performance.
+                #    Shape becomes (n, 2, C_in_m / 2)
+                x_m_in = x_[:, self.m_in_mask[m]].reshape(n, -1, 2).transpose(1, 2).contiguous()
+
                 if self.front and self.radial_emb:
-                    out[:, self.m_out_mask[m]] += self.m_linear[m-1](x_[:, self.m_in_mask[m]].reshape(n, 2, -1)*radial_weight).reshape(n, -1)
+                    # Apply weight before linear layer. Use in-place mul_ to save memory.
+                    x_m_in.mul_(radial_weight)
+                    linear_output = self.m_linear[m - 1](x_m_in)
                 elif self.radial_emb:
-                    out[:, self.m_out_mask[m]] += (self.m_linear[m-1](x_[:, self.m_in_mask[m]].reshape(n, 2, -1))*radial_weight).reshape(n, -1)
+                    # Apply weight after linear layer. Use in-place mul_ to save memory.
+                    linear_output = self.m_linear[m - 1](x_m_in)
+                    linear_output.mul_(radial_weight)
                 else:
-                    out[:, self.m_out_mask[m]] += self.m_linear[m-1](x_[:, self.m_in_mask[m]].reshape(n, 2, -1)).reshape(n, -1)
-                    
-        out.contiguous()
+                    # No radial embedding, just pass through the linear layer.
+                    linear_output = self.m_linear[m - 1](x_m_in)
+
+                # 2. Reshape output and add to the result tensor.
+                #    .contiguous() is necessary before .reshape() after a .transpose().
+                final_addition = linear_output.transpose(1, 2).contiguous().reshape(n, -1)
+                out[:, self.m_out_mask[m]] += final_addition
 
 
         for (mul, (l, p)), slice_in in zip(self.irreps_out, self.irreps_out.slices()):
@@ -257,6 +268,8 @@ class SO2_Linear(torch.nn.Module):
                 x_slice = out[:, slice_in].reshape(n, mul, -1)
                 rotated = torch.einsum('nij,nmj->nmi', rot_mat, x_slice)
                 out[:, slice_in] = rotated.reshape(n, -1)
+
+        out.contiguous()
 
         return out
 
@@ -304,8 +317,8 @@ class SO2_m_Linear(torch.nn.Module):
     def forward(self, x_m):
         # x_m ~ [N, 2, n_irreps_m]
         x_m = self.fc(x_m)
-        x_r = x_m.narrow(2, 0, self.fc.out_features // 2)
-        x_i = x_m.narrow(2, self.fc.out_features // 2, self.fc.out_features // 2)
+        x_r = x_m.narrow(2, 0, self.fc.out_features // 2) #[wmfm, wmf-m]
+        x_i = x_m.narrow(2, self.fc.out_features // 2, self.fc.out_features // 2) #[w-mfm, w-mf-m]
         x_m_r = x_r.narrow(1, 0, 1) - x_i.narrow(1, 1, 1) #x_r[:, 0] - x_i[:, 1]
         x_m_i = x_r.narrow(1, 1, 1) + x_i.narrow(1, 0, 1) #x_r[:, 1] + x_i[:, 0]
         x_out = torch.cat((x_m_r, x_m_i), dim=1)

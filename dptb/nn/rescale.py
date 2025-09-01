@@ -301,11 +301,14 @@ class E3PerEdgeSpeciesScaleShift(torch.nn.Module):
 
         edge_center = data[AtomicDataDict.EDGE_INDEX_KEY][0]
 
-        species_idx = data[AtomicDataDict.EDGE_TYPE_KEY].flatten()
-        in_field = data[self.field]
+        mask = data[self.field][:,0] != 0 # strictly zero valued point must come from masked edges
+        in_field = data[self.field][mask]
+        species_idx = data[AtomicDataDict.EDGE_TYPE_KEY].flatten()[mask]
+
+        
 
         assert len(in_field) == len(
-            edge_center
+            edge_center[mask]
         ), "in_field doesnt seem to have correct per-edge shape"
 
         if self.has_scales:
@@ -314,7 +317,7 @@ class E3PerEdgeSpeciesScaleShift(torch.nn.Module):
             shifts = self.shifts[species_idx][:,self.shift_index[self.shift_index>=0]].view(-1, self.num_scalar)
             in_field[:, self.shift_index>=0] = shifts + in_field[:, self.shift_index>=0]
         
-        data[self.out_field] = in_field
+        data[self.out_field][mask] = in_field
 
         return data
 

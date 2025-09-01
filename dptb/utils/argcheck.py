@@ -142,6 +142,8 @@ def train_options():
         Argument("update_lr_per_iter", bool, optional=True, default=False, doc=doc_update_lr_per_iter),
         Argument("sliding_win_size", int, optional=True, default=50, doc=doc_sliding_win_size),
         Argument("max_ckpt", int, optional=True, default=4, doc=doc_max_ckpt),
+        Argument("valid_fast", bool, optional=True, default=True, doc="Set True to valid on the first batch of validation dataset, set False to valid the whole dataset. Default: True"),
+
         loss_options()
     ]
 
@@ -462,16 +464,14 @@ def test_data_options():
 
 def embedding():
     doc_method = "The parameters to define the embedding model."
+    doc_only2b = "Whether to train the model with 2b interaction as a model initialization."
 
     return Variant("method", [
             Argument("se2", dict, se2()),
-            Argument("baseline", dict, baseline()),
             Argument("deeph-e3", dict, deephe3()),
-            Argument("e3baseline_5", dict, e3baselinev5()),
-            Argument("e3baseline_6", dict, e3baselinev5()),
             Argument("slem", dict, slem()),
             Argument("lem", dict, slem()),
-            Argument("e3baseline_nonlocal", dict, e3baselinev5()),
+            Argument("trinity", dict, slem()+[Argument("only2b", bool, optional=True, default=False, doc=doc_only2b)],),
         ],optional=True, default_tag="se2", doc=doc_method)
 
 def se2():
@@ -1250,6 +1250,8 @@ def band():
     doc_nel_atom = "the valence electron number of each type of atom."
     doc_high_sym_kpoints = "the high symmetry kpoints dict, e.g. {'G':[0,0,0],'K':[0.5,0.5,0]}, only used for kline_type is vasp"
     doc_num_in_line = "the number of kpoints in each line path, only used for kline_type is vasp."
+    doc_override_overlap = "overlap file path to be input to override overlap matrix."
+    doc_eig_solver = "the eigenvalue solver to be used."
     return [
         Argument("kline_type", str, optional=False, doc=doc_kline_type),
         Argument("kpath", [str,list], optional=False, doc=doc_kpath),
@@ -1261,7 +1263,9 @@ def band():
         Argument("emax", [float, int, None], optional=True, doc=doc_emax, default=None),
         Argument("nkpoints", int, optional=True, doc=doc_emax, default=0),
         Argument("ref_band", [str, None], optional=True, default=None, doc=doc_ref_band),
-        Argument("nel_atom", [dict,None], optional=True, default=None, doc=doc_nel_atom)
+        Argument("nel_atom", [dict,None], optional=True, default=None, doc=doc_nel_atom),
+        Argument("override_overlap", [str, None], optional=True, default=None, doc=doc_override_overlap),
+        Argument("eig_solver", [str, None], optional=True, default=None, doc=doc_eig_solver)
     ]
 
 
@@ -1612,7 +1616,7 @@ def get_cutoffs_from_model_options(model_options):
         embedding = model_options.get("embedding")
         if embedding["method"] == "se2":
             er_max = embedding["rc"]
-        elif embedding["method"] in ["slem", "lem"]:
+        elif embedding["method"] in ["slem", "lem", "trinity"]:
             r_max = embedding["r_max"]
         else:
             log.error("The method of embedding have not been defined in get cutoff functions")
@@ -1639,7 +1643,7 @@ def get_cutoffs_from_model_options(model_options):
                 oer_max = format_cuts(model_options["nnsk"]["onsite"]["rs"], model_options["nnsk"]["onsite"]["w"], 3)
 
     elif model_options.get("dftbsk", None) is not None:
-        assert r_max is None, "r_max should not be provided other than the dftbsk param section for training dftbsk model."
+        assert r_max is None, "r_max should not be provided orther than the dftbsk param section for training dftbsk model."
         r_max = model_options["dftbsk"].get("r_max")
 
     else:
@@ -1675,7 +1679,10 @@ def collect_cutoffs(jdata):
     r_max, er_max, oer_max = get_cutoffs_from_model_options(model_options)
 
     if model_options.get("nnsk", None) is not None:
-        if model_options["nnsk"]["push"]:
+        if model_options["nnsk"]["push"] and \
+            abs(model_options["nnsk"]["push"]['rs_thr']) + \
+            abs(model_options["nnsk"]["push"]['rc_thr']) + \
+            abs(model_options["nnsk"]["push"]['w_thr']) > 1e-8:
             assert jdata.get("data_options",None) is not None, "data_options should be provided in jdata for nnsk push"
             assert jdata['data_options'].get("r_max") is not None, "r_max should be provided in data_options for nnsk push"
             log.info('YOU ARE USING NNSK PUSH MODEL, r_max will be used from data_options. Be careful! check the value in data options and model options. r_max or rs/rc !')

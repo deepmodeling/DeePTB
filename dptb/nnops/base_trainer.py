@@ -55,7 +55,10 @@ class BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
 
             if not self.update_lr_per_iter:
                 if isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                    self.lr_scheduler.step(self.stats["train_loss"]["epoch_mean"])
+                    if 'validation_loss' in self.stats and 'epoch_mean' in self.stats['validation_loss']:
+                        self.lr_scheduler.step(self.stats['validation_loss']['epoch_mean'])  # 使用验证损失
+                    else:
+                        self.lr_scheduler.step(self.stats["train_loss"]["epoch_mean"])
                 else:
                     self.lr_scheduler.step()  # modify the lr at each epoch (should we add it to pluggins so we could record the lr scheduler process? update 0927, this has been done in tensorboard monitor.)
 

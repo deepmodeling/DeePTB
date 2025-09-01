@@ -10,6 +10,8 @@ from dptb.nn.hr2hk import HR2HK
 from typing import Union, Optional, Dict, List
 from dptb.data.transforms import OrbitalMapper
 from dptb.data import AtomicDataDict
+import logging
+log = logging.getLogger(__name__)
 
 class Eigenvalues(nn.Module):
     def __init__(
@@ -55,7 +57,18 @@ class Eigenvalues(nn.Module):
         self.s_out_field = s_out_field
 
 
-    def forward(self, data: AtomicDataDict.Type, nk: Optional[int]=None) -> AtomicDataDict.Type:
+    def forward(self, 
+                data: AtomicDataDict.Type, 
+                nk: Optional[int]=None,
+                eig_solver: str='torch') -> AtomicDataDict.Type:
+
+        if eig_solver is None:
+            eig_solver = 'torch'
+            log.warning("eig_solver is not set, using default 'torch'.")
+        if eig_solver not in ['torch', 'numpy']:
+            log.error(f"eig_solver should be 'torch' or 'numpy', but got {eig_solver}.")
+            raise ValueError        
+
         kpoints = data[AtomicDataDict.KPOINT_KEY]
         if kpoints.is_nested:
             nested = True
@@ -72,13 +85,22 @@ class Eigenvalues(nn.Module):
             data = self.h2k(data)
             if self.overlap:
                 data = self.s2k(data)
-                chklowt = torch.linalg.cholesky(data[self.s_out_field])
-                chklowtinv = torch.linalg.inv(chklowt)
-                data[self.h_out_field] = (chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj())
+                if eig_solver == 'torch':
+                    chklowt = torch.linalg.cholesky(data[self.s_out_field])
+                    chklowtinv = torch.linalg.inv(chklowt)
+                    data[self.h_out_field] = (chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj())
+                elif eig_solver == 'numpy':
+                    chklowt = np.linalg.cholesky(data[self.s_out_field].detach().numpy())
+                    chklowtinv = np.linalg.inv(chklowt)
+                    data[self.h_out_field] = (chklowtinv @ data[self.h_out_field].detach().numpy() @ np.transpose(chklowtinv,(0,2,1)).conj())
             else:
                 data[self.h_out_field] = data[self.h_out_field]
             
-            eigvals.append(torch.linalg.eigvalsh(data[self.h_out_field]))
+            if eig_solver == 'torch':
+                eigvals.append(torch.linalg.eigvalsh(data[self.h_out_field]))
+            elif eig_solver == 'numpy':
+                eigvals.append(torch.from_numpy(np.linalg.eigvalsh(a=data[self.h_out_field])))
+
         data[self.out_field] = torch.nested.as_nested_tensor([torch.cat(eigvals, dim=0)])
         if nested:
             data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([kpoints])
@@ -153,12 +175,17 @@ class Eigh(nn.Module):
                 data = self.s2k(data)
                 chklowt = torch.linalg.cholesky(data[self.s_out_field])
                 chklowtinv = torch.linalg.inv(chklowt)
-                data[self.h_out_field] = (chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj())
-            else:
-                data[self.h_out_field] = data[self.h_out_field]
-            
+                data[self.h_out_field] = (
+                    chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj()
+                )
+
             eigval, eigvec = torch.linalg.eigh(data[self.h_out_field])
-            eigvecs.append(torch.transpose(torch.transpose(chklowtinv,dim0=1,dim1=2).conj() @ eigvec,dim0=1,dim1=2))
+            if self.overlap:
+                eigvec = torch.transpose(
+                    torch.transpose(chklowtinv,dim0=1,dim1=2).conj() @ eigvec,
+                    dim0=1,dim1=2)
+
+            eigvecs.append(eigvec)
             eigvals.append(eigval)
 
         data[self.eigval_field] = torch.nested.as_nested_tensor([torch.cat(eigvals, dim=0)])

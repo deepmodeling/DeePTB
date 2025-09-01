@@ -66,7 +66,7 @@ def train(
         raise RuntimeError(
             "--init-model and --restart should not be set at the same time"
         )
-    
+
     # setup output path
     if output:
         Path(output).parent.mkdir(exist_ok=True, parents=True)
@@ -87,28 +87,28 @@ def train(
 
     set_log_handles(log_level, Path(log_path) if log_path else None)
     # parse the config. Since if use init, config file may not equals to current
-    
+
     jdata = j_loader(INPUT)
     jdata = normalize(jdata)
     # update basis if init_model or restart
     # update jdata
     # this is not necessary, because if we init model from checkpoint, the build_model will load the model_options from checkpoints if not provided
     # since here we want to output jdata as a config file to inform the user what model options are used, we need to update the jdata
-    
+
     torch.set_default_dtype(getattr(torch, jdata["common_options"]["dtype"]))
-    
+
     if restart or init_model:
-        
+
         f = restart if restart else init_model
-        
+
         if f.split(".")[-1] == "json":
             assert not restart, "json model can not be used as restart! should be a checkpoint file"
         else:
             f = torch.load(f, map_location="cpu", weights_only=False)
-    
+
             if jdata.get("model_options", None) is None:
                 jdata["model_options"] = f["config"]["model_options"]
-    
+
             # update basis
             basis = f["config"]["common_options"]["basis"]
             # nnsk
@@ -125,12 +125,12 @@ def train(
                 for asym, orb in jdata["common_options"]["basis"].items():
                     assert asym in basis.keys(), f"Atom {asym} not found in model's basis"
                     assert orb == basis[asym], f"Orbital {orb} of Atom {asym} not consistent with the model's basis, which is only allowed in nnsk training"
-    
+
                 jdata["common_options"]["basis"] = basis
-        
+
             # update model options and train_options
             if restart:
-                # 
+                #
                 if jdata.get("train_options", None) is not None:
                     for obj in Trainer.object_keys:
                         if jdata["train_options"].get(obj) != f["config"]["train_options"].get(obj):
@@ -138,7 +138,7 @@ def train(
                             jdata["train_options"][obj] = f["config"]["train_options"][obj]
                 else:
                     jdata["train_options"] = f["config"]["train_options"] # restart can be preceeded without train_options
-    
+
                 if jdata.get("model_options", None) is None or jdata["model_options"] != f["config"]["model_options"]:
                     log.warning("model_options in config file is not consistent with the checkpoint, using the one in checkpoint")
                     jdata["model_options"] = f["config"]["model_options"] # restart does not allow to change model options
@@ -148,7 +148,7 @@ def train(
                     jdata["train_options"] = f["config"]["train_options"]
                 if jdata.get("model_options") is None:
                     jdata["model_options"] = f["config"]["model_options"]
-                
+
                 ## add some warning !
                 for k, v in jdata["model_options"].items():
                     if k not in f["config"]["model_options"]:
@@ -201,21 +201,22 @@ def train(
             validation_datasets=validation_datasets,
             reference_datasets=reference_datasets,
         )
-    
+
     # register the plugin in trainer, to tract training info
     log_field = ["train_loss", "lr"]
     if validation_datasets:
-        trainer.register_plugin(Validationer())
+        trainer.register_plugin(Validationer(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')], fast_mode=jdata["train_options"]["valid_fast"]))
+
         log_field.append("validation_loss")
     avg_per_iter = chk_avg_per_iter(jdata)
-    trainer.register_plugin(TrainLossMonitor(sliding_win_size=jdata["train_options"]["sliding_win_size"],
-                                             avg_per_iter=avg_per_iter)) # by default, avg_per_iter is false, will not be activated.
+    trainer.register_plugin(TrainLossMonitor(sliding_win_size=jdata["train_options"]["sliding_win_size"], avg_per_iter=avg_per_iter)) # by default, avg_per_iter is false, will not be activated.
     trainer.register_plugin(LearningRateMonitor())
     if jdata["train_options"]["use_tensorboard"]:
+        assert jdata["train_options"]["display_freq"] >= jdata["train_options"]["validation_freq"], 'The display frequency must be greater than the validation frequency.'
         trainer.register_plugin(TensorBoardMonitor(interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
     trainer.register_plugin(Logger(log_field,
         interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
-    
+
     for q in trainer.plugin_queues.values():
         heapq.heapify(q)
 
@@ -225,11 +226,20 @@ def train(
             json.dump(jdata, fp, indent=4)
 
         trainer.register_plugin(Saver(
-            #interval=[(jdata["train_options"].get("save_freq"), 'epoch'), (1, 'iteration')] if jdata["train_options"].get(
+            # interval=[(jdata["train_options"].get("save_freq"), 'epoch'), (1, 'iteration')] if jdata["train_options"].get(
             #    "save_freq") else None))
             interval=[(jdata["train_options"].get("save_freq"), 'iteration'),  (1, 'epoch')] if jdata["train_options"].get(
                 "save_freq") else None), checkpoint_path=checkpoint_path)
         # add a plugin to save the training parameters of the model, with model_output as given path
+
+    total_params = sum(p.numel() for p in trainer.model.parameters() if p.requires_grad)
+    log.info(
+        f"Model parameters: {total_params:,},  |    "
+                f"(About {total_params / 1e3:.2f}K)  |    "
+                f"(About {total_params / 1e6:.3f}M)  |    "
+                f"(About {total_params / 1e9:.4f}B)"
+    )
+    # =======================================================
 
     start_time = time.time()
 
@@ -243,7 +253,7 @@ def train(
 def deep_dict_difference(base_key, expected_value, model_options):
     """
     递归地记录嵌套字典中的选项差异。
-    
+
     :param base_key: 基础键名，用于构建警告消息的前缀。
     :param expected_value: 期望的值，可能是字典或非字典类型。
     :param model_options: 用于比较的模型选项字典。
@@ -251,10 +261,10 @@ def deep_dict_difference(base_key, expected_value, model_options):
     target_dict= copy.deepcopy(model_options) # 防止修改原始字典
     if isinstance(expected_value, dict):
         for subk, subv in expected_value.items():
-            
+
             if  not isinstance(target_dict.get(base_key, {}),dict):
                 log.warning(f"The model option {subk} in {base_key} is not defined in  checkpoint, set to {subv}.")
-            
+
             elif subk not in target_dict.get(base_key, {}):
                 log.warning(f"The model option {subk} in {base_key} is not defined in  checkpoint, set to {subv}.")
             else:

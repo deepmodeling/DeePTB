@@ -66,11 +66,6 @@ class Saver(Plugin):
         if len(self.latest_quene) > max_ckpt:
             delete_name = self.latest_quene.pop(0)
             delete_path = os.path.join(self.checkpoint_path, delete_name+".pth")
-            os.remove(delete_path)
-
-        if len(self.latest_quene) > max_ckpt:
-            delete_name = self.latest_quene.pop(0)
-            delete_path = os.path.join(self.checkpoint_path, delete_name+".pth")
             try:        
                 os.remove(delete_path)
             except:
