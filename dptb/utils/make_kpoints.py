@@ -212,7 +212,64 @@ def time_symmetry_reduce(meshgrid=[1,1,1], is_gamma_center=True):
 
     return k_points_with_tr, kweight
 
+def time_symmetry_reduce_correct(k_points):
+    """
+    Applies time-reversal symmetry to a list of k-points and returns
+    the irreducible k-points along with their corresponding weights.
 
+    Args:
+        k_points (np.ndarray): A numpy array of k-points, with shape (N, 3).
+                               It's assumed k-points are in fractional coordinates
+                               and folded into the range (-0.5, 0.5].
+
+    Returns:
+        np.ndarray: A numpy array of shape (N_ir, 4), where N_ir is the
+                    number of irreducible k-points. The first 3 columns
+                    are the k-point coordinates, and the 4th column is
+                    the integer weight of the k-point (1 or 2).
+    """
+    # A set to store the canonical representation of k-points that have been seen
+    seen_kpoints_hash = set()
+    
+    # Lists to store the irreducible k-points and their weights
+    ir_k_points = []
+    ir_weights = []
+
+    for k_point in k_points:
+        # Convert the k-point to a tuple for hashing and comparison
+        k_tuple = tuple(k_point)
+        # Calculate the time-reversal partner
+        minus_k_tuple = tuple(-k_point)
+
+        # Normalize the k-points to handle the Brillouin zone boundary.
+        # This helps in identifying TRIM points correctly.
+        k_norm = tuple(0.5 if np.isclose(x, -0.5) else x for x in k_tuple)
+        minus_k_norm = tuple(0.5 if np.isclose(x, -0.5) else x for x in minus_k_tuple)
+        
+        # The canonical representation is the lexicographically smaller tuple
+        canonical_rep = min(k_norm, minus_k_norm)
+        # If we haven't seen this canonical representation before...
+        if canonical_rep not in seen_kpoints_hash:
+            # Add the representation to our set of seen hashes
+            seen_kpoints_hash.add(canonical_rep)
+            
+            # Add the k-point to our irreducible list
+            ir_k_points.append(k_point)
+
+            # Check if it's a Time-Reversal Invariant Momenta (TRIM) point
+            # A k-point is a TRIM if its normalized form is identical to its partner's
+            if k_norm == minus_k_norm:
+                # TRIM points have a weight of 1
+                ir_weights.append(1)
+            else:
+                # Regular points represent a pair (k, -k) and have a weight of 2
+                ir_weights.append(2)
+
+    # Combine k-points and weights into a single (N_ir, 4) array
+    ir_k_points_arr = np.array(ir_k_points)
+    ir_weights_arr = np.array(ir_weights).reshape(-1, 1)
+    ir_weights_arr = ir_weights_arr/np.sum(ir_weights_arr)
+    return ir_k_points_arr, ir_weights_arr
 
 
 def kgrid_spacing(structase,kspacing:float,sampling='MP'):
