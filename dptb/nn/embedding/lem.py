@@ -39,6 +39,7 @@ class Lem(torch.nn.Module):
             avg_num_neighbors: Optional[float] = None,
             # cutoffs
             r_start_cos_ratio: float = 0.8,
+            norm_eps: float = 1e-8,
             PolynomialCutoff_p: float = 6,
             cutoff_type: str = "polynomial",
             # general hyperparameters:
@@ -131,6 +132,7 @@ class Lem(torch.nn.Module):
             cutoff_type=cutoff_type,
             device=device,
             dtype=dtype,
+            norm_eps=norm_eps
         )
 
         self.layers = torch.nn.ModuleList()
@@ -235,6 +237,7 @@ class InitLayer(torch.nn.Module):
             latent_dim: int=128,
             # cutoffs
             r_start_cos_ratio: float = 0.8,
+            norm_eps: float = 1e-8,
             PolynomialCutoff_p: float = 6,
             cutoff_type: str = "polynomial",
             device: Union[str, torch.device] = torch.device("cpu"),
@@ -290,7 +293,7 @@ class InitLayer(torch.nn.Module):
 
         self.sln_n = SeperableLayerNorm(
             irreps=self.irreps_out,
-            eps=1e-5, 
+            eps=norm_eps,
             affine=True, 
             normalization='component', 
             std_balance_degrees=True,
@@ -300,7 +303,7 @@ class InitLayer(torch.nn.Module):
 
         self.sln_e = SeperableLayerNorm(
             irreps=self.irreps_out,
-            eps=1e-5, 
+            eps=norm_eps,
             affine=True, 
             normalization='component', 
             std_balance_degrees=True,
@@ -438,6 +441,7 @@ class UpdateNode(torch.nn.Module):
         irreps_in: o3.Irreps,
         irreps_out: o3.Irreps,
         latent_dim: int,
+            norm_eps: float = 1e-8,
         radial_emb: bool=False,
         radial_channels: list=[128, 128],
         res_update: bool = True,
@@ -470,7 +474,7 @@ class UpdateNode(torch.nn.Module):
 
         self.sln = SeperableLayerNorm(
             irreps=self.irreps_in,
-            eps=1e-5, 
+            eps=norm_eps,
             affine=True, 
             normalization='component', 
             std_balance_degrees=True,
@@ -480,7 +484,7 @@ class UpdateNode(torch.nn.Module):
 
         self.sln_e = SeperableLayerNorm(
             irreps=self.edge_irreps_in,
-            eps=1e-5, 
+            eps=norm_eps,
             affine=True, 
             normalization='component', 
             std_balance_degrees=True,
@@ -614,6 +618,7 @@ class UpdateEdge(torch.nn.Module):
         irreps_in: o3.Irreps,
         irreps_out: o3.Irreps,
         latent_dim: int,
+        norm_eps: float = 1e-8,
         latent_channels: list=[128, 128],
         radial_emb: bool=False,
         radial_channels: list=[128, 128],
@@ -675,7 +680,7 @@ class UpdateEdge(torch.nn.Module):
 
         self.sln_e = SeperableLayerNorm(
             irreps=self.irreps_in,
-            eps=1e-5, 
+            eps=norm_eps,
             affine=True, 
             normalization='component', 
             std_balance_degrees=True,
@@ -685,7 +690,7 @@ class UpdateEdge(torch.nn.Module):
 
         self.sln_n = SeperableLayerNorm(
             irreps=self.irreps_in,
-            eps=1e-5, 
+            eps=norm_eps,
             affine=True, 
             normalization='component', 
             std_balance_degrees=True,
@@ -806,6 +811,7 @@ class Layer(torch.nn.Module):
         tp_radial_emb: bool=False,
         tp_radial_channels: list=[128, 128],
         # MLP parameters:
+        norm_eps: float = 1e-8,
         latent_channels: list=[128, 128],
         latent_dim: int=128,
         res_update: bool = True,
@@ -842,6 +848,7 @@ class Layer(torch.nn.Module):
             res_update_ratios_learnable=res_update_ratios_learnable,
             dtype=dtype,
             device=device,
+            norm_eps=norm_eps
         )
 
         self.node_update = UpdateNode(
@@ -857,6 +864,7 @@ class Layer(torch.nn.Module):
             avg_num_neighbors=avg_num_neighbors,
             dtype=dtype,
             device=device,
+            norm_eps=norm_eps
         )
 
     def forward(self, latents, node_features, edge_features, node_onehot, edge_index, edge_vector, atom_type, cutoff_coeffs, active_edges):

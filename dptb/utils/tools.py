@@ -125,8 +125,6 @@ def update_dict_with_warning(dict_input, update_list, update_value):
     return reconstruct_dict(flatten_input_dict)
 
 
-
-
 def setup_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -138,6 +136,8 @@ def setup_seed(seed):
 def get_optimizer(type: str, model_param, lr: float, **options: dict):
     if type == 'Adam':
         optimizer = optim.Adam(params=model_param, lr=lr, **options)
+    elif type == 'AdamW':
+        optimizer = optim.AdamW(params=model_param, lr=lr, **options)
     elif type == 'SGD':
         optimizer = optim.SGD(params=model_param, lr=lr, **options)
     elif type == 'RMSprop':
@@ -145,7 +145,7 @@ def get_optimizer(type: str, model_param, lr: float, **options: dict):
     elif type == 'LBFGS':
         optimizer = optim.LBFGS(params=model_param, lr=lr, **options)
     else:
-        raise RuntimeError("Optimizer should be Adam/SGD/RMSprop, not {}".format(type))
+        raise RuntimeError("Optimizer should be Adam/AdamW/SGD/RMSprop, not {}".format(type))
     return optimizer
 
 def get_lr_scheduler(type: str, optimizer: optim.Optimizer, **sch_options):

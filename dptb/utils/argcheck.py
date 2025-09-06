@@ -115,9 +115,10 @@ def train_options():
     doc_sliding_win_size = "Sliding window size for the average of the latest iterations' loss. Used for the reduce on plateau learning rate scheduler in case of the pairing of large dataset and small batch size. Default: `50`"
 
     doc_optimizer = "\
-        The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `SGD` and `LBFGS` \n\n\
+        The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `AdamW`, `SGD` and `LBFGS` \n\n\
         For more information about these optmization algorithm, we refer to:\n\n\
         - `Adam`: [Adam: A Method for Stochastic Optimization.](https://arxiv.org/abs/1412.6980)\n\n\
+        - `AdamW`: [AdamW: Decoupled Weight Decay Regularization.](https://arxiv.org/abs/1711.05101)\n\n\
         - `SGD`: [Stochastic Gradient Descent.](https://pytorch.org/docs/stable/generated/torch.optim.SGD.html)\n\n\
         - `LBFGS`: [On the limited memory BFGS method for large scale optimization.](http://users.iems.northwestern.edu/~nocedal/PDFfiles/limited-memory.pdf) \n\n\
     "
@@ -231,10 +232,11 @@ def LBFGS():
     ]
 
 def optimizer():
-    doc_type = "select type of optimizer, support type includes: `Adam`, `SGD` and `LBFGS`. Default: `Adam`"
+    doc_type = "select type of optimizer, support type includes: `Adam`, `AdamW`, `SGD` and `LBFGS`. Default: `Adam`"
 
     return Variant("type", [
             Argument("Adam", dict, Adam()),
+            Argument("AdamW", dict, Adam()),
             Argument("SGD", dict, SGD()),
             Argument("RMSprop", dict, RMSprop()),
             Argument("LBFGS", dict, LBFGS()),
@@ -635,6 +637,7 @@ def slem():
             Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
             Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
             Argument("universal", bool, optional=True, default=False, doc=doc_universal),
+            Argument("norm_eps", float, optional=True, default=1e-8, doc="eps in SeperableLayerNorm."),
     ]
 
 
@@ -667,12 +670,14 @@ def e3tb_prediction():
     doc_neurons = "neurons in the neural network."
     doc_activation = "activation function."
     doc_if_batch_normalized = "if to turn on batch normalization"
+    doc_scale_type = "Which scale method to use. Can be no_scale, scale_wo_back_grad, scale_w_back_grad"
 
     nn = [
         Argument("scales_trainable", bool, optional=True, default=False, doc=doc_scales_trainable),
         Argument("shifts_trainable", bool, optional=True, default=False, doc=doc_shifts_trainable),
         Argument("neurons", list, optional=True, default=None, doc=doc_neurons),
         Argument("activation", str, optional=True, default="tanh", doc=doc_activation),
+        Argument("scale_type", str, optional=True, default="no_scale", doc=doc_scale_type),
         Argument("if_batch_normalized", bool, optional=True, default=False, doc=doc_if_batch_normalized),
     ]
 
@@ -1756,9 +1761,10 @@ def normalize_skf2nnsk(data):
 
     doc_lr_scheduler = "The learning rate scheduler tools settings, the lr scheduler is used to scales down the learning rate during the training process. Proper setting can make the training more stable and efficient. The supported lr schedular includes: `Exponential Decaying (exp)`, `Linear multiplication (linear)`"
     doc_optimizer = "\
-        The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `SGD` and `LBFGS` \n\n\
+        The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `AdamW`, `SGD` and `LBFGS` \n\n\
         For more information about these optmization algorithm, we refer to:\n\n\
         - `Adam`: [Adam: A Method for Stochastic Optimization.](https://arxiv.org/abs/1412.6980)\n\n\
+        - `AdamW`: [AdamW: Decoupled Weight Decay Regularization.](https://arxiv.org/abs/1711.05101)\n\n\
         - `SGD`: [Stochastic Gradient Descent.](https://pytorch.org/docs/stable/generated/torch.optim.SGD.html)\n\n\
         - `LBFGS`: [On the limited memory BFGS method for large scale optimization.](http://users.iems.northwestern.edu/~nocedal/PDFfiles/limited-memory.pdf) \n\n\
     "
