@@ -15,6 +15,9 @@ import ase
 from ase.calculators.singlepoint import SinglePointCalculator, SinglePointDFTCalculator
 from ase.calculators.calculator import all_properties as ase_all_properties
 from ase.stress import voigt_6_to_full_3x3_stress, full_3x3_to_voigt_6_stress
+from ase.neighborlist import NewPrimitiveNeighborList
+from ase.data import chemical_symbols
+import itertools
 
 import torch
 import e3nn.o3
@@ -971,17 +974,40 @@ def neighbor_list_and_relative_vec(
 
     # ASE dependent part
     temp_cell = ase.geometry.complete_cell(temp_cell)
+##################################################################################
+###################################### 新代码 ########################################
+    elements = np.unique(atomic_numbers).tolist()
+    pair_cutoffs = {}
+    for elem1, elem2 in itertools.combinations_with_replacement(elements, 2):
+        pair_cutoffs[(elem1, elem2)] = max(r_max[chemical_symbols[elem1]], r_max[chemical_symbols[elem2]])
 
-    first_idex, second_idex, shifts = ase.neighborlist.primitive_neighbor_list(
-        "ijS",
-        pbc,
-        temp_cell,
-        temp_pos,
-        cutoff=float(_r_max),
-        self_interaction=self_interaction,  # we want edges from atom to itself in different periodic images!
-        use_scaled_positions=False,
+    nl = NewPrimitiveNeighborList(
+        cutoffs=10,
+        skin=0.0,
+        self_interaction=self_interaction,
+        bothways=True,
+        use_scaled_positions=False
     )
+    nl.cutoffs = pair_cutoffs
+    nl.update(pbc, temp_cell, temp_pos, atomic_numbers)
+    first_idex, second_idex, shifts = nl.pair_first, nl.pair_second, nl.offset_vec
+    mask_r = False
+    _r_max = max(pair_cutoffs.values())
 
+    ##################################################################################
+    ##################################### 老代码 #########################################
+    # first_idex, second_idex, shifts = ase.neighborlist.primitive_neighbor_list(
+    #     "ijS",
+    #     pbc,
+    #     temp_cell,
+    #     temp_pos,
+    #     cutoff=float(_r_max),
+    #     self_interaction=self_interaction,  # we want edges from atom to itself in different periodic images!
+    #     use_scaled_positions=False,
+    # )
+
+    ##################################################################################
+    ##################################################################################
     # Eliminate true self-edges that don't cross periodic boundaries
     # if not self_interaction:
     #     bad_edge = first_idex == second_idex
