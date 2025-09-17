@@ -665,19 +665,21 @@ def sktb_prediction():
 
 
 def e3tb_prediction():
-    doc_scales_trainable = "whether to scale the trianing target."
-    doc_shifts_trainable = "whether to shift the training target."
+    doc_scales_trainable = "The scale parameter is from the statistics. Whether to train this parameter."
+    doc_shifts_trainable = "The scale parameter is from the statistics. Whether to train this parameter."
     doc_neurons = "neurons in the neural network."
     doc_activation = "activation function."
     doc_if_batch_normalized = "if to turn on batch normalization"
-    doc_scale_type = "Which scale method to use. Can be no_scale, scale_wo_back_grad, scale_w_back_grad"
+    doc_scale_type = ("Which scale method to use. Can be no_scale, "
+                      "scale_wo_back_grad (the scale parameter will not engage the back grad computation graph), "
+                      "scale_w_back_grad (the scale parameter will engage the back grad computation graph)")
 
     nn = [
         Argument("scales_trainable", bool, optional=True, default=False, doc=doc_scales_trainable),
         Argument("shifts_trainable", bool, optional=True, default=False, doc=doc_shifts_trainable),
         Argument("neurons", list, optional=True, default=None, doc=doc_neurons),
         Argument("activation", str, optional=True, default="tanh", doc=doc_activation),
-        Argument("scale_type", str, optional=True, default="no_scale", doc=doc_scale_type),
+        Argument("scale_type", str, optional=True, default="scale_w_back_grad", doc=doc_scale_type),
         Argument("if_batch_normalized", bool, optional=True, default=False, doc=doc_if_batch_normalized),
     ]
 
