@@ -325,7 +325,7 @@ class Band(ElecStruCal):
             # nkplot = (len(np.unique(self.eigenstatus["high_sym_kpoints"]))-1) * 5
             # nintp = len(self.eigenstatus["xlist"]) // nkplot 
             # if nintp == 0:
-            nintp = self.eigenstatus["xlist"].shape[0] // 25
+            nintp = max(1 , self.eigenstatus["xlist"].shape[0] // 25)
             band_ref = ax.plot(self.eigenstatus["xlist"][::nintp], ref_band[::nintp] - E_fermi, 'o', ms=2, color=band_color, alpha=0.95, label="Ref")
             band_pre = ax.plot(self.eigenstatus["xlist"], self.eigenstatus["eigenvalues"] - E_fermi, color="tab:red", lw=0.5, alpha=0.95, label="DeePTB")
 
