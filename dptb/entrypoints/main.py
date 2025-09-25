@@ -435,6 +435,14 @@ def main_parser() -> argparse.ArgumentParser:
         default="poly2",
         help="The base model type can be poly2 or poly4."
     )
+    parser_esk.add_argument(
+        "--soc",
+        "--soc_onsite",
+        nargs="?", 
+        const=0.2, 
+        type=float,
+        help="Enable SOC, default 0.2 if no value is given. Example: --soc or --soc=0.5"
+    )
     return parser
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
