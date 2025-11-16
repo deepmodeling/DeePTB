@@ -178,8 +178,8 @@ def write_blocks_to_abacus_csr(atomic_numbers, basis_dict, blocks_dict, matrix_s
 
 # demo main
 if __name__ == "__main__":
-    LMDB_PATH = r'E:\deeptb\large_DeepTB\0909\0910_lmdb\train\data.28400.lmdb'
-    ORBITAL_PATH = r'E:\deeptb\basis_set_test\production_use_dzp\orb_upf\public'
+    LMDB_PATH = r'data.28400.lmdb'
+    ORBITAL_PATH = r"/share/mp_20_abacus_production/dzp_public_v2/public"
 
     from dprep.dptb_dpdispatcher import parse_orbital_files
     _, basis_dict = parse_orbital_files(ORBITAL_PATH)

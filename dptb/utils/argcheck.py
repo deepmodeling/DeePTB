@@ -618,6 +618,7 @@ def slem():
     doc_n_layers = ""
     doc_env_embed_multiplicity = ""
     doc_universal = "Set true to activate universal model related features. Currently, this will create a broader onehot embedding for the transfer learning into unseen elements. Other features are on the way. Default: `False`"
+    doc_use_interpolation_out = "Set true to activate SO2 interpolation layer in the final output layer. Default: `False`"
 
     return [
             Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
@@ -633,9 +634,13 @@ def slem():
             Argument("tp_radial_channels", list, optional=True, default=[32], doc="The number of channels in tensor product radial embedding."),
             Argument("latent_channels", list, optional=True, default=[32], doc="The number of channels in latent embedding."),
             Argument("latent_dim", int, optional=True, default=64, doc="The dimension of latent embedding."),
+            Argument("edge_one_hot_dim", int, optional=True, default=128, doc="The dimension of edge_one_hot."),
+            Argument("use_out_onehot_tp", bool, optional=True, default=True, doc="Whether to use out_onehot_tp."),
+            Argument("use_layer_onehot_tp", bool, optional=True, default=True, doc="Whether to use layer_onehot_tp."),
             Argument("res_update", bool, optional=True, default=True, doc="Whether to use residual update."),
             Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
             Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
+            Argument("use_interpolation_out", bool, optional=True, default=False, doc=doc_use_interpolation_out),
             Argument("universal", bool, optional=True, default=False, doc=doc_universal),
             Argument("norm_eps", float, optional=True, default=1e-8, doc="eps in SeperableLayerNorm."),
     ]

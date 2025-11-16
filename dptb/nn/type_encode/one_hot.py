@@ -44,3 +44,63 @@ class OneHotAtomEncoding(torch.nn.Module):
         if self.set_features:
             data[AtomicDataDict.NODE_FEATURES_KEY] = one_hot
         return data
+
+
+class OneHotEdgeEmbedding(torch.nn.Module):
+    """Alternative implementation using nn.Embedding for edge encoding.
+
+    This version uses an embedding layer instead of one-hot encoding,
+    which can be more memory efficient for large numbers of edge types.
+
+    Args:
+        num_types: Number of distinct atom types in the system
+        d_emb: Dimension of the embedding vector
+        universal: If ``True``, use universal atomic numbers (up to 95) instead of local type indices
+        idp: Optional OrbitalMapper for transforming between local and universal atom types
+    """
+
+    def __init__(
+            self,
+            num_types: int,
+            d_emb: int,
+            universal: Optional[bool] = False,
+            idp: Optional[OrbitalMapper] = None,
+    ):
+        super().__init__()
+        self.num_types = num_types
+        self.d_emb = d_emb
+        self.idp = idp
+        self.universal = universal
+
+        # Create embedding layer
+        if self.universal:
+            num_edge_types = 95 * 95
+            self.num_types_for_encoding = 95
+        else:
+            num_edge_types = num_types * num_types
+            self.num_types_for_encoding = num_types
+
+        self.embedding = torch.nn.Embedding(num_edge_types, d_emb)
+
+    def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
+        # Get edge indices (shape: [2, num_edges])
+        edge_index = data[AtomicDataDict.EDGE_INDEX_KEY]
+
+        # Get atom types for all nodes
+        type_numbers = data[AtomicDataDict.ATOM_TYPE_KEY].squeeze(-1)
+
+        if self.universal:
+            # Convert to universal atomic numbers if needed
+            atomic_numbers = self.idp.untransform_atom(type_numbers)
+            # Get types for source and target nodes of each edge
+            Zi = atomic_numbers[edge_index[0]]
+            Zj = atomic_numbers[edge_index[1]]
+        else:
+            # Get types for source and target nodes of each edge
+            Zi = type_numbers[edge_index[0]]
+            Zj = type_numbers[edge_index[1]]
+
+        # Compute edge embedding using: num_species * Zi + Zj
+        edge_emb = self.embedding(self.num_types_for_encoding * Zi + Zj)
+
+        return edge_emb

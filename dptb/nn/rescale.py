@@ -415,6 +415,11 @@ class E3PerSpeciesScaleShift(torch.nn.Module):
             else:
                 self.register_buffer("shifts", shifts)
 
+        self.has_scales = False
+        if scales is not None:
+            if scale_type != 'no_scale':
+                self.has_scales = True
+
         self.has_scales = scales is not None
         if scales is not None:
             scales = torch.as_tensor(scales, dtype=torch.get_default_dtype())
@@ -446,7 +451,6 @@ class E3PerSpeciesScaleShift(torch.nn.Module):
 
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
-
         if not (self.has_scales or self.has_shifts):
             return data
 
@@ -465,7 +469,9 @@ class E3PerSpeciesScaleShift(torch.nn.Module):
                 else:
                     in_field = in_field + (in_field * (scales - 1.0)).detach()
             else:
-                raise NotImplementedError
+                raise NotImplementedError("scale_type Can be no_scale, "
+                                          "scale_wo_back_grad: the scale parameter will not engage the back grad computation graph, "
+                                          "scale_w_back_grad: the scale parameter will engage the back grad computation graph")
         if self.has_shifts:
             shifts = self.shifts[species_idx][:,self.shift_index[self.shift_index>=0]].view(-1, self.num_scalar)
             in_field[:, self.shift_index>=0] = shifts + in_field[:, self.shift_index>=0]

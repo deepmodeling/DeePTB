@@ -187,4 +187,176 @@ class HR2HK(torch.nn.Module):
             data[self.out_field] = block
 
         return data
-    
+
+
+class HR2HK_Gamma_Only(torch.nn.Module):
+    def __init__(
+            self,
+            basis: Dict[str, Union[str, list]] = None,
+            idp: Union[OrbitalMapper, None] = None,
+            edge_field: str = AtomicDataDict.EDGE_FEATURES_KEY,
+            node_field: str = AtomicDataDict.NODE_FEATURES_KEY,
+            out_field: str = AtomicDataDict.HAMILTONIAN_KEY,
+            overlap: bool = False,
+            dtype: Union[str, torch.dtype] = torch.float32,
+            device: Union[str, torch.device] = torch.device("cpu"),
+    ):
+        super(HR2HK_Gamma_Only, self).__init__()
+
+        if isinstance(dtype, str):
+            dtype = getattr(torch, dtype)
+        self.dtype = dtype
+        self.device = device
+        self.overlap = overlap
+
+        if basis is not None:
+            self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
+            if idp is not None:
+                assert idp == self.idp, "The basis of idp and basis should be the same."
+        else:
+            assert idp is not None, "Either basis or idp should be provided."
+            assert idp.method == "e3tb", "The method of idp should be e3tb."
+            self.idp = idp
+
+        self.basis = self.idp.basis
+        self.idp.get_orbpair_maps()
+        self.idp.get_orbpair_soc_maps()
+
+        self.edge_field = edge_field
+        self.node_field = node_field
+        self.out_field = out_field
+
+    def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
+        """Gamma-point only version for isolated systems."""
+
+        # Build orbital pair Hamiltonian blocks
+        orbpair_hopping = data[self.edge_field]
+        orbpair_onsite = data.get(self.node_field)
+        bondwise_hopping = torch.zeros(
+            (len(orbpair_hopping), self.idp.full_basis_norb, self.idp.full_basis_norb),
+            dtype=self.dtype, device=self.device
+        )
+        onsite_block = torch.zeros(
+            (len(data[AtomicDataDict.ATOM_TYPE_KEY]), self.idp.full_basis_norb, self.idp.full_basis_norb),
+            dtype=self.dtype, device=self.device
+        )
+
+        ist = 0
+        for i, iorb in enumerate(self.idp.full_basis):
+            jst = 0
+            li = anglrMId[re.findall(r"[a-zA-Z]+", iorb)[0]]
+            for j, jorb in enumerate(self.idp.full_basis):
+                orbpair = iorb + "-" + jorb
+                lj = anglrMId[re.findall(r"[a-zA-Z]+", jorb)[0]]
+
+                if iorb == jorb:
+                    factor = 0.5
+                else:
+                    factor = 1.0
+
+                if i <= j:
+                    bondwise_hopping[:, ist:ist + 2 * li + 1, jst:jst + 2 * lj + 1] = factor * orbpair_hopping[:,
+                                                                                               self.idp.orbpair_maps[
+                                                                                                   orbpair]].reshape(-1,
+                                                                                                                     2 * li + 1,
+                                                                                                                     2 * lj + 1)
+
+                if i <= j and orbpair_onsite is not None:
+                    onsite_block[:, ist:ist + 2 * li + 1, jst:jst + 2 * lj + 1] = factor * orbpair_onsite[:,
+                                                                                           self.idp.orbpair_maps[
+                                                                                               orbpair]].reshape(-1,
+                                                                                                                 2 * li + 1,
+                                                                                                                 2 * lj + 1)
+
+                jst += 2 * lj + 1
+            ist += 2 * li + 1
+
+        # Gamma-point processing: use real matrix
+        all_norb = int(self.idp.atom_norb[data[AtomicDataDict.ATOM_TYPE_KEY]].sum().item())
+        block = torch.zeros(1, all_norb, all_norb, dtype=self.dtype, device=self.device)
+
+        atom_types_flat = data[AtomicDataDict.ATOM_TYPE_KEY].flatten()
+
+        # Pre-compute atomic orbital slices and masks
+        atom_slices = [0]
+        atom_masks = []
+        atom_types_int = []
+
+        for i in range(atom_types_flat.shape[0]):
+            atype = int(atom_types_flat[i].item()) if isinstance(atom_types_flat[i], torch.Tensor) else int(
+                atom_types_flat[i])
+            atom_types_int.append(atype)
+            mask = self.idp.mask_to_basis[atype]
+            atom_masks.append(mask)
+            norb_this_atom = int(mask.sum().item())
+            atom_slices.append(atom_slices[-1] + norb_this_atom)
+
+        # Group atoms by type for batch processing - onsite part
+        type_to_atoms = {}
+        for i, atype in enumerate(atom_types_int):
+            if atype not in type_to_atoms:
+                type_to_atoms[atype] = []
+            type_to_atoms[atype].append(i)
+
+        for atype, atom_indices in type_to_atoms.items():
+            mask = atom_masks[atom_indices[0]]
+            for atom_idx in atom_indices:
+                start_orb = atom_slices[atom_idx]
+                end_orb = atom_slices[atom_idx + 1]
+                norb = end_orb - start_orb
+
+                if norb > 0:
+                    oblock = onsite_block[atom_idx]
+                    masked_oblock = oblock[mask][:, mask]
+                    block[0, start_orb:end_orb, start_orb:end_orb] = masked_oblock
+
+        # Create atomic index mapping
+        atom_id_to_indices = {}
+        for i in range(len(atom_slices) - 1):
+            atom_id_to_indices[i] = slice(atom_slices[i], atom_slices[i + 1])
+
+        # Process hopping terms: Gamma-point optimized version (no phase factors)
+        edge_idx0 = data[AtomicDataDict.EDGE_INDEX_KEY][0]
+        edge_idx1 = data[AtomicDataDict.EDGE_INDEX_KEY][1]
+
+        # Group edges by atomic type pairs for batch processing
+        edge_atom_types = []
+        for i in range(len(edge_idx0)):
+            iatom = int(edge_idx0[i].item()) if isinstance(edge_idx0[i], torch.Tensor) else int(edge_idx0[i])
+            jatom = int(edge_idx1[i].item()) if isinstance(edge_idx1[i], torch.Tensor) else int(edge_idx1[i])
+            edge_atom_types.append((iatom, jatom, atom_types_int[iatom], atom_types_int[jatom]))
+
+        type_pair_to_edges = {}
+        for edge_idx, (iatom, jatom, itype, jtype) in enumerate(edge_atom_types):
+            type_pair = (itype, jtype)
+            if type_pair not in type_pair_to_edges:
+                type_pair_to_edges[type_pair] = []
+            type_pair_to_edges[type_pair].append((edge_idx, iatom, jatom))
+
+        # Process each type pair batch
+        block2d = block[0]  # (all_norb, all_norb), 实数类型
+
+        for (itype, jtype), edges_info in type_pair_to_edges.items():
+            imask = self.idp.mask_to_basis[itype]
+            jmask = self.idp.mask_to_basis[jtype]
+
+            edge_indices = [e[0] for e in edges_info]
+            iatoms = [e[1] for e in edges_info]
+            jatoms = [e[2] for e in edges_info]
+
+            # Batch extract masked hopping blocks
+            hblocks = bondwise_hopping[edge_indices]
+            masked_hblocks = hblocks[:, imask][:, :, jmask]
+
+            # Write all blocks of this type pair at once
+            for idx, (iatom, jatom) in enumerate(zip(iatoms, jatoms)):
+                i_slice = atom_id_to_indices[iatom]
+                j_slice = atom_id_to_indices[jatom]
+                block2d[i_slice, j_slice] += masked_hblocks[idx]
+
+        # Hermitianize
+        block = block + block.transpose(1, 2)
+        block = block.contiguous()
+
+        data[self.out_field] = block[0]
+        return data

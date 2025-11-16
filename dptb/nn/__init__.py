@@ -3,7 +3,7 @@ from .deeptb import NNENV, MIX
 from .nnsk import NNSK
 from .dftbsk import DFTBSK
 from .hamiltonian import E3Hamiltonian, SKHamiltonian
-from .hr2hk import HR2HK
+from .hr2hk import HR2HK, HR2HK_Gamma_Only
 from .energy import Eigenvalues, Eigh
 
 __all__ = [
@@ -17,6 +17,7 @@ __all__ = [
     NNSK,
     MIX,
     DFTBSK,
+    HR2HK_Gamma_Only
 ]
 """
 

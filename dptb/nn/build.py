@@ -12,7 +12,8 @@ def build_model(
         checkpoint: str=None,
         model_options: dict={}, 
         common_options: dict={},
-        no_check: bool=False
+        no_check: bool=False,
+        device: str=None,
         ):
     """
     The build model method should composed of the following steps:
@@ -136,6 +137,8 @@ def build_model(
 
 
         # check if the model is deeptb or nnsk
+    if device:
+        common_options.update({"device": device})
 
     # init deeptb
     if from_scratch:
@@ -168,7 +171,9 @@ def build_model(
                 log.warning(f"The model options {k} is not defined in input model_options, set to {v}.")
             else:
                 deep_dict_difference(k, v, model_options)
+
     model.to(model.device)
+
     return model
 
 

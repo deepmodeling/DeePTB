@@ -104,14 +104,14 @@ class NNENV(nn.Module):
         self.device = device
         self.model_options = {"embedding": embedding.copy(), "prediction": prediction.copy()}
         self.transform = transform
-        self.scale_type = scale_type
-        
+
         self.method = prediction.get("method", "e3tb")
         # self.soc = prediction.get("soc", False)
         self.prediction = prediction
 
         prediction_copy = prediction.copy()
-
+        scale_type = prediction_copy.get("scale_type")
+        self.scale_type = scale_type
         if basis is not None:
             self.idp = OrbitalMapper(basis, method=self.method, device=self.device)
             if idp is not None:

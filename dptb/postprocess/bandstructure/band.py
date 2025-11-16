@@ -210,12 +210,13 @@ class Band(ElecStruCal):
 
 
         override_overlap = kpath_kwargs.get("override_overlap", None)       
+        add_h0 = kpath_kwargs.get("add_h0", None)
 
         eig_solver = kpath_kwargs.get("eig_solver", None)
         
         data, eigenvalues = self.get_eigs(data=data, klist=klist, pbc=pbc, 
                                           AtomicData_options=AtomicData_options, 
-                                          override_overlap=override_overlap, eig_solver=eig_solver)
+                                          override_overlap=override_overlap, add_h0=add_h0, eig_solver=eig_solver)
         
 
         # get the E_fermi from data

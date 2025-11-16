@@ -22,6 +22,11 @@ from dptb.data.transforms import OrbitalMapper
 from ..type_encode.one_hot import OneHotAtomEncoding, OneHotEdgeEmbedding
 from dptb.nn.norm import SeperableLayerNorm
 from dptb.data.AtomicDataDict import with_edge_vectors, with_batch
+from .edge_angle_tools.edge_angle_utils import compute_cos_angle
+from .edge_angle_tools.transformer import ComformerConv_edge
+from .edge_angle_tools.utils import RBFExpansion
+
+torch.set_default_dtype(torch.float32)
 
 from math import ceil
 
@@ -62,14 +67,15 @@ class Lem(torch.nn.Module):
             device: Union[str, torch.device] = torch.device("cpu"),
             universal: Optional[bool] = False,
             use_interpolation_out: Optional[bool] = True,
+            use_angle: Optional[bool] = False,
             **kwargs,
             ):
-
+        
         super(Lem, self).__init__()
 
         irreps_hidden = o3.Irreps(irreps_hidden)
         lmax = irreps_hidden.lmax
-
+        
 
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype)
@@ -77,7 +83,7 @@ class Lem(torch.nn.Module):
         if isinstance(device, str):
             device = torch.device(device)
         self.device = device
-
+        
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb")
             if idp is not None:
@@ -92,7 +98,7 @@ class Lem(torch.nn.Module):
                 "mlp_initialization": "uniform"
             },
         self.latent_dim = latent_dim
-
+            
         self.basis = self.idp.basis
         self.idp.get_irreps(no_parity=False)
         if universal:
@@ -111,7 +117,7 @@ class Lem(torch.nn.Module):
         irreps_out = o3.Irreps(irreps_out).sort()[0].simplify()
 
         assert all(ir in irreps_out for _, ir in orbpair_irreps), "hidden irreps should at least cover all the reqired irreps in the hamiltonian data {}".format(orbpair_irreps)
-
+        
         # TODO: check if the tp in first layer can produce the required irreps for hidden states
 
         self.sh = SphericalHarmonics(
@@ -137,6 +143,7 @@ class Lem(torch.nn.Module):
             cutoff_type=cutoff_type,
             device=device,
             dtype=dtype,
+            use_angle=use_angle,
             edge_one_hot_dim=edge_one_hot_dim,
             norm_eps=norm_eps
         )
@@ -149,7 +156,7 @@ class Lem(torch.nn.Module):
                 irreps_in = self.init_layer.irreps_out
             else:
                 irreps_in = irreps_hidden
-
+            
             if i == n_layers - 1:
                 irreps_out = orbpair_irreps.sort()[0].simplify()
                 if use_interpolation_out:
@@ -226,7 +233,10 @@ class Lem(torch.nn.Module):
         # 获取总节点数，用于后续兜底
         num_nodes_total = node_one_hot.shape[0]
 
-        latents, node_features, edge_features, cutoff_coeffs, active_edges = self.init_layer(edge_index, atom_type, bond_type, edge_sh, edge_length, edge_one_hot)
+        latents, node_features, edge_features, asym_latents, asym_node_features, asym_edge_features, cutoff_coeffs, active_edges, lat_vec_len_feature, cos_angles_feature = self.init_layer(edge_index, atom_type, bond_type, edge_sh, edge_length, edge_one_hot, data)
+
+        # print('Use asym_latents')
+        latents = asym_latents
 
         n_active_nodes = node_features.shape[0]
         if n_active_nodes < num_nodes_total:
@@ -249,7 +259,9 @@ class Lem(torch.nn.Module):
                     atom_type,
                     cutoff_coeffs,
                     active_edges,
-                    edge_one_hot
+                    edge_one_hot,
+                    lat_vec_len_feature,
+                    cos_angles_feature
                 )
 
         #     if idx in [0, 1]:
@@ -311,6 +323,7 @@ class InitLayer(torch.nn.Module):
             edge_one_hot_dim: int = 128,
             device: Union[str, torch.device] = torch.device("cpu"),
             dtype: Union[str, torch.dtype] = torch.float32,
+            use_angle: Optional[bool] = True,
     ):
         super(InitLayer, self).__init__()
         SCALAR = o3.Irrep("0e")
@@ -329,7 +342,7 @@ class InitLayer(torch.nn.Module):
                     self.r_max_dict[k] = torch.tensor(v, device=device, dtype=dtype)
         else:
             raise TypeError("r_max should be either float, int or dict")
-
+                  
         self.idp = idp
         self.r_start_cos_ratio = r_start_cos_ratio
         self.polynomial_cutoff_p = PolynomialCutoff_p
@@ -363,8 +376,8 @@ class InitLayer(torch.nn.Module):
         self.sln_n = SeperableLayerNorm(
             irreps=self.irreps_out,
             eps=norm_eps,
-            affine=True,
-            normalization='component',
+            affine=True, 
+            normalization='component', 
             std_balance_degrees=True,
             dtype=self.dtype,
             device=self.device
@@ -373,8 +386,8 @@ class InitLayer(torch.nn.Module):
         self.sln_e = SeperableLayerNorm(
             irreps=self.irreps_out,
             eps=norm_eps,
-            affine=True,
-            normalization='component',
+            affine=True, 
+            normalization='component', 
             std_balance_degrees=True,
             dtype=self.dtype,
             device=self.device
@@ -385,7 +398,7 @@ class InitLayer(torch.nn.Module):
             irreps_out=self.irreps_out,
             internal_weights=False,
             shared_weights=False,
-            path_normalization = "element", # if path normalization is element and input irreps has 1 mul, it should not have effect !
+            path_normalization = "element", # if path normalization is element and input irreps has 1 mul, it should not have effect ! 
         )
 
         self.env_embed_mlp = ScalarMLPFunction(
@@ -395,12 +408,41 @@ class InitLayer(torch.nn.Module):
                         mlp_nonlinearity=None,
                         mlp_initialization="uniform",
                     )
-
+        
         self.bessel = BesselBasis(r_max=self.r_max, num_basis=n_radial_basis, trainable=True)
 
+        self.use_angle = use_angle
+        if self.use_angle:
+            self.rbf = torch.nn.Sequential(
+                RBFExpansion(
+                    vmin=-4.0,
+                    vmax=0.0,
+                    bins=latent_dim,
+                ),
+                torch.nn.Linear(latent_dim, latent_dim),
+                torch.nn.Softplus(),
+            )
 
-    def forward(self, edge_index, atom_type, bond_type, edge_sh, edge_length, edge_one_hot):
+            self.rbf_angle = torch.nn.Sequential(
+                RBFExpansion(
+                    vmin=-1.0,
+                    vmax=1.0,
+                    bins=latent_dim,
+                ),
+                torch.nn.Linear(latent_dim, latent_dim),
+                torch.nn.Softplus(),
+            )
+
+            self.update_latents = ComformerConv_edge(
+                in_channels=latent_dim,
+                out_channels=latent_dim,
+                heads=1,
+                edge_dim=latent_dim,
+            )
+
+    def forward(self, edge_index, atom_type, bond_type, edge_sh, edge_length, edge_one_hot, data):
         edge_center = edge_index[0]
+        edge_neighbor = edge_index[1]
 
         edge_invariants = self.bessel(edge_length)
 
@@ -465,18 +507,29 @@ class InitLayer(torch.nn.Module):
             dtype=edge_sh.dtype,
             device=edge_sh.device,
         )
-
+        
         new_latents = self.two_body_latent(torch.cat([
             edge_one_hot[active_edges],
             edge_invariants[active_edges],
         ], dim=-1))
 
+        if not self.use_angle:
+            raise RuntimeError('USE angle!')
+
+        cos_angles, lattice_vectors = compute_cos_angle(data)
+        lattice_vectors_len = -0.75 / torch.norm(lattice_vectors, dim=-1)
+        lat_vec_len_feature = self.rbf(lattice_vectors_len.reshape(-1)).reshape(cos_angles.shape[0], 3, -1)
+        cos_angles_feature = self.rbf_angle(cos_angles.reshape(-1)).reshape(cos_angles.shape[0], 3, -1)
+        asym_latents = self.update_latents(
+            new_latents, lat_vec_len_feature[prev_mask], cos_angles_feature[prev_mask]
+        )
+
         # Apply cutoff, which propagates through to everything else
         latents = torch.index_copy(
-            latents, 0, active_edges,
+            latents, 0, active_edges, 
             cutoff_coeffs[active_edges].unsqueeze(-1) * new_latents
             )
-
+        
         weights_e = self.env_embed_mlp(latents[prev_mask])
         # features = self.bn(features)
 
@@ -489,16 +542,46 @@ class InitLayer(torch.nn.Module):
             edge_center[active_edges],
             dim=0,
         )
+        ######################################
+        # Compute latents
+        latents = torch.zeros(
+            (edge_sh.shape[0], self.two_body_latent.out_features),
+            dtype=edge_sh.dtype,
+            device=edge_sh.device,
+        )
+        # Apply cutoff, which propagates through to everything else
+        asym_latents = torch.index_copy(
+            latents, 0, active_edges,
+            cutoff_coeffs[active_edges].unsqueeze(-1) * asym_latents
+            )
 
+        weights_e = self.env_embed_mlp(asym_latents[prev_mask])
+        # features = self.bn(features)
+
+        asym_edge_features = self._env_weighter(
+            edge_sh[prev_mask], weights_e
+        )
+
+        asym_node_features = scatter(
+            asym_edge_features,
+            edge_center[active_edges],
+            dim=0,
+        )
+############################################################################################
+############################################################################################
         if self.env_sum_normalizations.ndim < 1:
             norm_const = self.env_sum_normalizations
         else:
             norm_const = self.env_sum_normalizations[atom_type.flatten()].unsqueeze(-1)
-
+        
         node_features = node_features * norm_const
         node_features = self.sln_n(node_features)
-
-        return latents, node_features, edge_features, cutoff_coeffs, active_edges # the radial embedding x and the sperical hidden V
+        ############################################################################################
+        ############################################################################################
+        asym_node_features = asym_node_features * norm_const
+        asym_node_features = self.sln_n(asym_node_features)
+        # the radial embedding x and the sperical hidden V
+        return latents, node_features, edge_features,  asym_latents, asym_node_features, asym_edge_features, cutoff_coeffs, active_edges, lat_vec_len_feature[prev_mask], cos_angles_feature[prev_mask]
 
 class UpdateNode(torch.nn.Module):
     def __init__(
@@ -532,7 +615,7 @@ class UpdateNode(torch.nn.Module):
             # dividing by sqrt(N)
             torch.as_tensor(avg_num_neighbors).rsqrt(),
         )
-
+        
 
         self._env_weighter = E3ElementLinear(
             irreps_in=irreps_out,
@@ -543,8 +626,8 @@ class UpdateNode(torch.nn.Module):
         self.sln = SeperableLayerNorm(
             irreps=self.irreps_in,
             eps=norm_eps,
-            affine=True,
-            normalization='component',
+            affine=True, 
+            normalization='component', 
             std_balance_degrees=True,
             dtype=self.dtype,
             device=self.device
@@ -553,8 +636,8 @@ class UpdateNode(torch.nn.Module):
         self.sln_e = SeperableLayerNorm(
             irreps=self.edge_irreps_in,
             eps=norm_eps,
-            affine=True,
-            normalization='component',
+            affine=True, 
+            normalization='component', 
             std_balance_degrees=True,
             dtype=self.dtype,
             device=self.device
@@ -569,7 +652,7 @@ class UpdateNode(torch.nn.Module):
                 mlp_latent_dimensions=[],
                 mlp_output_dimension=self._env_weighter.weight_numel,
             )
-
+        
         irreps_scalar = o3.Irreps([(mul, ir) for mul, ir in self.irreps_out if ir.l == 0]).simplify()
         irreps_gated = o3.Irreps([(mul, ir) for mul, ir in self.irreps_out if ir.l > 0]).simplify()
         irreps_gates = o3.Irreps([(mul, (0,1)) for mul, _ in irreps_gated]).simplify()
@@ -594,7 +677,7 @@ class UpdateNode(torch.nn.Module):
         self.lin_post = Linear(
             self.activation.irreps_out,
             self.irreps_out,
-            shared_weights=True,
+            shared_weights=True, 
             internal_weights=True,
             biases=True,
         )
@@ -603,7 +686,7 @@ class UpdateNode(torch.nn.Module):
             self.linear_res = Linear(
                 self.irreps_in,
                 self.irreps_out,
-                shared_weights=True,
+                shared_weights=True, 
                 internal_weights=True,
                 biases=True,
             )
@@ -627,7 +710,7 @@ class UpdateNode(torch.nn.Module):
             )
             # The sigmoid is mostly saturated at ±6, keep it in a reasonable range
             res_update_params.clamp_(-6.0, 6.0)
-
+        
         if res_update_ratios_learnable:
             self._res_update_params = torch.nn.Parameter(
                 res_update_params
@@ -657,7 +740,7 @@ class UpdateNode(torch.nn.Module):
             torch.cat(
                 [new_node_features[edge_center[active_edges]], self.sln_e(edge_features)]
                 , dim=-1), edge_vector[active_edges], latents[active_edges]) # full_out_irreps
-
+        
         message = self.activation(message)
         message = self.lin_post(message)
         scalars = message[:, :self.irreps_out[0].dim]
@@ -693,7 +776,7 @@ class UpdateNode(torch.nn.Module):
             node_features = node_features + onehot_tune_node_feat
 
         return node_features
-
+    
 class UpdateEdge(torch.nn.Module):
     def __init__(
         self,
@@ -722,7 +805,7 @@ class UpdateEdge(torch.nn.Module):
         self.dtype = dtype
         self.device = device
         self.res_update = res_update
-
+        
         self._edge_weighter = E3ElementLinear(
                 irreps_in=irreps_out,
                 dtype=dtype,
@@ -735,8 +818,8 @@ class UpdateEdge(torch.nn.Module):
                 mlp_output_dimension=self._edge_weighter.weight_numel,
             )
 
-        self.ln = torch.nn.LayerNorm(latent_dim)
-
+        self.ln = torch.nn.LayerNorm(latent_dim, eps=norm_eps)
+        
         irreps_scalar = o3.Irreps([(mul, ir) for mul, ir in self.irreps_out if ir.l == 0]).simplify()
         irreps_gated = o3.Irreps([(mul, ir) for mul, ir in self.irreps_out if ir.l > 0]).simplify()
         irreps_gates = o3.Irreps([(mul, (0,1)) for mul, _ in irreps_gated]).simplify()
@@ -777,8 +860,8 @@ class UpdateEdge(torch.nn.Module):
         self.sln_e = SeperableLayerNorm(
             irreps=self.irreps_in,
             eps=norm_eps,
-            affine=True,
-            normalization='component',
+            affine=True, 
+            normalization='component', 
             std_balance_degrees=True,
             dtype=self.dtype,
             device=self.device
@@ -787,8 +870,8 @@ class UpdateEdge(torch.nn.Module):
         self.sln_n = SeperableLayerNorm(
             irreps=self.irreps_in,
             eps=norm_eps,
-            affine=True,
-            normalization='component',
+            affine=True, 
+            normalization='component', 
             std_balance_degrees=True,
             dtype=self.dtype,
             device=self.device
@@ -797,7 +880,7 @@ class UpdateEdge(torch.nn.Module):
         self.lin_post = Linear(
             self.activation.irreps_out,
             self.irreps_out,
-            shared_weights=True,
+            shared_weights=True, 
             internal_weights=True,
             biases=True,
         )
@@ -806,7 +889,7 @@ class UpdateEdge(torch.nn.Module):
             self.linear_res = Linear(
                 self.irreps_in,
                 self.irreps_out,
-                shared_weights=True,
+                shared_weights=True, 
                 internal_weights=True,
                 biases=True,
             )
@@ -830,7 +913,7 @@ class UpdateEdge(torch.nn.Module):
             )
             # The sigmoid is mostly saturated at ±6, keep it in a reasonable range
             res_update_params.clamp_(-6.0, 6.0)
-
+        
         if res_update_ratios_learnable:
             self._res_update_params = torch.nn.Parameter(
                 res_update_params
@@ -839,7 +922,12 @@ class UpdateEdge(torch.nn.Module):
             self.register_buffer(
                 "_res_update_params", res_update_params
             )
-
+        self.update_latents = ComformerConv_edge(
+            in_channels=latent_dim,
+            out_channels=latent_dim,
+            heads=1,
+            edge_dim=latent_dim,
+        )
         self.use_layer_onehot_tp = use_layer_onehot_tp
         if use_layer_onehot_tp:
             instructions = []
@@ -852,7 +940,7 @@ class UpdateEdge(torch.nn.Module):
                 instructions=instructions
             )
 
-    def forward(self, latents, node_features, node_onehot, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges, edge_one_hot):
+    def forward(self, latents, node_features, node_onehot, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges, edge_one_hot, lat_vec_len_feature, cos_angles_feature):
         edge_center = edge_index[0]
         edge_neighbor = edge_index[1]
 
@@ -865,9 +953,7 @@ class UpdateEdge(torch.nn.Module):
                     new_node_features[edge_neighbor[active_edges]]
                     ]
                 , dim=-1), edge_vector[active_edges], latents[active_edges]) # full_out_irreps
-
-        scalars = new_edge_features[:, :self.tp.irreps_out[0].dim]
-        assert len(scalars.shape) == 2
+        
         new_edge_features = self.activation(new_edge_features)
         new_edge_features = self.lin_post(new_edge_features)
 
@@ -892,6 +978,9 @@ class UpdateEdge(torch.nn.Module):
             ], dim=-1))
 
         new_latents = cutoff_coeffs[active_edges].unsqueeze(-1) * new_latents
+        new_latents = self.update_latents(
+            new_latents, lat_vec_len_feature, cos_angles_feature
+        )
 
         if self.res_update:
             update_coefficients = self._res_update_params.sigmoid()
@@ -900,21 +989,22 @@ class UpdateEdge(torch.nn.Module):
             edge_features = coefficient_new * new_edge_features + coefficient_old * self.linear_res(edge_features)
 
             latents = torch.index_copy(
-                latents, 0, active_edges,
+                latents, 0, active_edges, 
                 coefficient_new * new_latents + coefficient_old * latents[active_edges]
             )
         else:
             edge_features = new_edge_features
             latents = torch.index_copy(
-                latents, 0, active_edges,
+                latents, 0, active_edges, 
                 new_latents
             )
+
         if self.use_layer_onehot_tp:
             onehot_tune_edge_feat = self.edge_onehot_tp(edge_features, edge_one_hot)
             edge_features = edge_features + onehot_tune_edge_feat
 
         return edge_features, latents
-
+    
 
 class Layer(torch.nn.Module):
     def __init__(
@@ -991,9 +1081,9 @@ class Layer(torch.nn.Module):
             norm_eps=norm_eps
         )
 
-    def forward(self, latents, node_features, edge_features, node_onehot, edge_index, edge_vector, atom_type, cutoff_coeffs, active_edges, edge_one_hot):
-
-        edge_features, latents = self.edge_update(latents, node_features, node_onehot, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges, edge_one_hot)
+    def forward(self, latents, node_features, edge_features, node_onehot, edge_index, edge_vector, atom_type, cutoff_coeffs, active_edges, edge_one_hot, lat_vec_len_feature, cos_angles_feature):
+        
+        edge_features, latents = self.edge_update(latents, node_features, node_onehot, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges, edge_one_hot, lat_vec_len_feature, cos_angles_feature)
         node_features = self.node_update(latents, node_features, edge_features, atom_type, node_onehot, edge_index, edge_vector, active_edges)
 
         return latents, node_features, edge_features
