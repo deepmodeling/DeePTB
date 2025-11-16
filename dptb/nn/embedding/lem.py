@@ -237,8 +237,9 @@ class Lem(torch.nn.Module):
         edge_one_hot = edge_one_hot[active_edges]
 
         data[_keys.EDGE_OVERLAP_KEY] = latents
+        wigner_D_all = None
         for idx, layer in enumerate(self.layers):
-            latents, node_features, edge_features = \
+            latents, node_features, edge_features, wigner_D_all = \
                 layer(
                     latents,
                     node_features,
@@ -249,7 +250,8 @@ class Lem(torch.nn.Module):
                     atom_type,
                     cutoff_coeffs,
                     active_edges,
-                    edge_one_hot
+                    edge_one_hot,
+                    wigner_D_all
                 )
 
         #     if idx in [0, 1]:
@@ -648,15 +650,15 @@ class UpdateNode(torch.nn.Module):
                 instructions=instructions
             )
 
-    def forward(self, latents, node_features, edge_features, atom_type, node_onehot, edge_index, edge_vector, active_edges):
+    def forward(self, latents, node_features, edge_features, atom_type, node_onehot, edge_index, edge_vector, active_edges, wigner_D_all):
         edge_center = edge_index[0]
         edge_neighbor = edge_index[1]
 
         new_node_features = self.sln(node_features)
-        message = self.tp(
+        message, _ = self.tp(
             torch.cat(
                 [new_node_features[edge_center[active_edges]], self.sln_e(edge_features)]
-                , dim=-1), edge_vector[active_edges], latents[active_edges]) # full_out_irreps
+                , dim=-1), edge_vector[active_edges], latents[active_edges], wigner_D_all) # full_out_irreps
 
         message = self.activation(message)
         message = self.lin_post(message)
@@ -852,22 +854,20 @@ class UpdateEdge(torch.nn.Module):
                 instructions=instructions
             )
 
-    def forward(self, latents, node_features, node_onehot, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges, edge_one_hot):
+    def forward(self, latents, node_features, node_onehot, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges, edge_one_hot, wigner_D_all):
         edge_center = edge_index[0]
         edge_neighbor = edge_index[1]
 
         new_node_features = self.sln_n(node_features)
-        new_edge_features = self.tp(
+        new_edge_features, wigner_D_all = self.tp(
             torch.cat(
                 [
                     new_node_features[edge_center[active_edges]],
                     self.sln_e(edge_features),
                     new_node_features[edge_neighbor[active_edges]]
                     ]
-                , dim=-1), edge_vector[active_edges], latents[active_edges]) # full_out_irreps
+                , dim=-1), edge_vector[active_edges], latents[active_edges], wigner_D_all) # full_out_irreps
 
-        scalars = new_edge_features[:, :self.tp.irreps_out[0].dim]
-        assert len(scalars.shape) == 2
         new_edge_features = self.activation(new_edge_features)
         new_edge_features = self.lin_post(new_edge_features)
 
@@ -913,7 +913,7 @@ class UpdateEdge(torch.nn.Module):
             onehot_tune_edge_feat = self.edge_onehot_tp(edge_features, edge_one_hot)
             edge_features = edge_features + onehot_tune_edge_feat
 
-        return edge_features, latents
+        return edge_features, latents, wigner_D_all
 
 
 class Layer(torch.nn.Module):
@@ -991,9 +991,9 @@ class Layer(torch.nn.Module):
             norm_eps=norm_eps
         )
 
-    def forward(self, latents, node_features, edge_features, node_onehot, edge_index, edge_vector, atom_type, cutoff_coeffs, active_edges, edge_one_hot):
+    def forward(self, latents, node_features, edge_features, node_onehot, edge_index, edge_vector, atom_type, cutoff_coeffs, active_edges, edge_one_hot, wigner_D_all):
 
-        edge_features, latents = self.edge_update(latents, node_features, node_onehot, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges, edge_one_hot)
-        node_features = self.node_update(latents, node_features, edge_features, atom_type, node_onehot, edge_index, edge_vector, active_edges)
+        edge_features, latents, wigner_D_all = self.edge_update(latents, node_features, node_onehot, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges, edge_one_hot, wigner_D_all)
+        node_features = self.node_update(latents, node_features, edge_features, atom_type, node_onehot, edge_index, edge_vector, active_edges, wigner_D_all)
 
-        return latents, node_features, edge_features
+        return latents, node_features, edge_features, wigner_D_all

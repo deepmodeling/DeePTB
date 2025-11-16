@@ -207,14 +207,15 @@ class SO2_Linear(torch.nn.Module):
             self.offsets[l] = offset
             offset += self.dims[l]
 
-    def forward(self, x, R, latents=None):
+    def forward(self, x, R, latents=None, wigner_D_all=None):
         n, _ = x.shape
         if self.radial_emb:
             weights = self.radial_emb(latents)
         x_ = torch.zeros_like(x)
-        if self.l_max > 0:
-            angle = xyz_to_angles(R[:, [1, 2, 0]])
-            wigner_D_all = batch_wigner_D(self.l_max, angle[0], angle[1], torch.zeros_like(angle[0]), _Jd)
+        if wigner_D_all is None:
+            if self.l_max > 0:
+                angle = xyz_to_angles(R[:, [1, 2, 0]])
+                wigner_D_all = batch_wigner_D(self.l_max, angle[0], angle[1], torch.zeros_like(angle[0]), _Jd)
         groups = defaultdict(list)
         for (mul, (l, p)), slice_info in zip(self.irreps_in, self.irreps_in.slices()):
             groups[l].append((mul, slice_info))
@@ -253,6 +254,7 @@ class SO2_Linear(torch.nn.Module):
                     linear_output = self.m_linear[m - 1](x_m_in)
                 final_addition = linear_output.transpose(1, 2).contiguous().reshape(n, -1)
                 out[:, self.m_out_mask[m]] += final_addition
+        a = 1
         for (mul, (l, p)), slice_in in zip(self.irreps_out, self.irreps_out.slices()):
             if l > 0:
                 start = self.offsets[l]
@@ -260,7 +262,7 @@ class SO2_Linear(torch.nn.Module):
                 x_slice = out[:, slice_in].reshape(n, mul, -1)
                 rotated = torch.einsum('nij,nmj->nmi', rot_mat, x_slice)
                 out[:, slice_in] = rotated.reshape(n, -1)
-        return out.contiguous()
+        return out.contiguous(), wigner_D_all
 
 
 class SO2_m_Linear(torch.nn.Module):
