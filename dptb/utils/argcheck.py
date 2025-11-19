@@ -473,6 +473,11 @@ def embedding():
             Argument("deeph-e3", dict, deephe3()),
             Argument("slem", dict, slem()),
             Argument("lem", dict, slem()),
+            Argument("lem_so2", dict, slem()),
+            Argument("lem_so2_local", dict, slem()),
+            Argument("lem_local", dict, slem()),
+            Argument("lem_global", dict, slem()),
+            Argument("lem_so2_global", dict, slem()),
             Argument("trinity", dict, slem()+[Argument("only2b", bool, optional=True, default=False, doc=doc_only2b)],),
         ],optional=True, default_tag="se2", doc=doc_method)
 
@@ -619,6 +624,7 @@ def slem():
     doc_env_embed_multiplicity = ""
     doc_universal = "Set true to activate universal model related features. Currently, this will create a broader onehot embedding for the transfer learning into unseen elements. Other features are on the way. Default: `False`"
     doc_use_interpolation_out = "Set true to activate SO2 interpolation layer in the final output layer. Default: `False`"
+    doc_so2_attn_aggressive = "Set true to activate SO2 attention radical mode. Default: `False`"
 
     return [
             Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
@@ -641,7 +647,9 @@ def slem():
             Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
             Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
             Argument("use_interpolation_out", bool, optional=True, default=False, doc=doc_use_interpolation_out),
+            Argument("so2_attn_aggressive", bool, optional=True, default=False, doc=doc_so2_attn_aggressive),
             Argument("universal", bool, optional=True, default=False, doc=doc_universal),
+            Argument("use_angle", bool, optional=True, default=False, doc="Whether to use angle."),
             Argument("norm_eps", float, optional=True, default=1e-8, doc="eps in SeperableLayerNorm."),
     ]
 
@@ -1628,7 +1636,7 @@ def get_cutoffs_from_model_options(model_options):
         embedding = model_options.get("embedding")
         if embedding["method"] == "se2":
             er_max = embedding["rc"]
-        elif embedding["method"] in ["slem", "lem", "trinity"]:
+        elif embedding["method"] in ["slem", "lem", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
             r_max = embedding["r_max"]
         else:
             log.error("The method of embedding have not been defined in get cutoff functions")
