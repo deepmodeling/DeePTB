@@ -887,6 +887,7 @@ def loss_options():
         Argument("eigvals", dict, sub_fields=eigvals),
         Argument("skints", dict, sub_fields=skints),
         Argument("hamil_abs", dict, sub_fields=hamil),
+        Argument("hamil_abs_mae", dict, sub_fields=hamil),
         Argument("hamil_blas", dict, sub_fields=hamil),
         Argument("hamil_wt", dict, sub_fields=hamil+wt),
         Argument("eig_ham", dict, sub_fields=hamil+eigvals+eig_ham),
