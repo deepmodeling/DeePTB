@@ -2,7 +2,6 @@ from e3nn.o3 import xyz_to_angles, Irreps
 import math
 import torch
 import torch.nn as nn
-from e3nn.o3 import Linear as e3nn_Linear
 from torch.nn import Linear
 import os
 import torch.nn.functional as F
@@ -115,7 +114,6 @@ class InterpolationBlock(nn.Module):
     """
     A small MLP with two hidden layers for smooth feature transformation.
     """
-
     def __init__(self, in_features, out_features, bias=False):
         super().__init__()
         self.out_features = out_features
@@ -128,133 +126,14 @@ class InterpolationBlock(nn.Module):
             nn.SiLU(),
             nn.Linear(hidden_features2, out_features, bias=bias)
         )
-
     def forward(self, x):
         return self.net(x)
-
-
-class SO2_Attention(torch.nn.Module):
-    def __init__(self, node_irreps, latent_dim: int, use_so2_att_proj: bool = True):
-        super().__init__()
-        self.irreps_in = node_irreps.simplify()
-        self.l_max = max((l for (_, (l, _)), _ in zip(self.irreps_in, self.irreps_in.slices()) if l > 0), default=0)
-        self.dims = {l: 2 * l + 1 for l in range(self.l_max + 1)}
-        self.offsets = {}
-        offset = 0
-        for l in range(self.l_max + 1):
-            self.offsets[l] = offset
-            offset += self.dims[l]
-
-        self.lin_center = e3nn_Linear(node_irreps, node_irreps, shared_weights=True, internal_weights=True, biases=True)
-        self.lin_neighbor = e3nn_Linear(node_irreps, node_irreps, shared_weights=True, internal_weights=True,
-                                        biases=True)
-
-        groups = defaultdict(list)
-        for (mul, (l, p)), slice_info in zip(self.irreps_in, self.irreps_in.slices()):
-            groups[l].append((mul, slice_info))
-        self.groups = groups
-
-        # --- 修改：为每个 l 建立输入维为 (total_mul * (2l+1)) 的线性映射
-        self.sim_linears = nn.ModuleDict()
-        for l, g in groups.items():
-            total_mul = sum(m for m, _ in g)
-            in_dim = total_mul * self.dims[l]  # m * d
-            self.sim_linears[f"l{l}"] = nn.Sequential(
-                nn.Linear(in_dim, latent_dim),
-                nn.SiLU(),
-            )
-
-        # --- 修改：用一个 final_mlp 替代简单求和（把所有 l 的 latent_dim 串联后再做一次融合）
-        num_l = len(groups)
-        # final_mlp: (num_l * latent_dim) -> latent_dim
-        self.final_mlp = nn.Sequential(
-            nn.Linear(num_l * latent_dim, 2 * latent_dim),
-            nn.SiLU(),  # 平滑非线性（比 ReLU 更稳定）
-            nn.Linear(2 * latent_dim, latent_dim)
-        )
-
-    def forward(self, node_features, active_edge_vector, active_edge_index, wigner_D_all=None):
-        n, _ = node_features.shape
-        # keep node features as-is (no per-edge rotation here)
-        rot_n_feat_ = node_features.new_zeros(node_features.shape)
-
-        if wigner_D_all is None and self.l_max > 0:
-            angle = xyz_to_angles(active_edge_vector[:, [1, 2, 0]])
-            wigner_D_all = batch_wigner_D(self.l_max, angle[0], angle[1], torch.zeros_like(angle[0]), _Jd)
-
-        # keep scalar parts unchanged
-        for (mul, (l, p)), slice_info in zip(self.irreps_in, self.irreps_in.slices()):
-            if l == 0:
-                rot_n_feat_[:, slice_info] = node_features[:, slice_info]
-
-        # keep the raw (unrotated) node parts in rot_n_feat_ so linear layers can be applied
-        for l, group in self.groups.items():
-            if l == 0 or not group:
-                continue
-            for mul, sl in group:
-                rot_n_feat_[:, sl] = node_features[:, sl]
-
-        # apply linear maps (these are node-wise)
-        rot_center_node_feat = self.lin_center(rot_n_feat_)
-        rot_center_node_feat = rot_center_node_feat[active_edge_index[0]]  # shape: (n_edges, dim)
-
-        rot_neighbor_node_feat = self.lin_neighbor(rot_n_feat_)
-        rot_neighbor_node_feat = rot_neighbor_node_feat[active_edge_index[1]]  # shape: (n_edges, dim)
-
-        latent_list = []
-        # Now for each l, build per-edge (n_edges, total_mul, 2l+1) and apply per-edge rotation
-        for l, group in self.groups.items():
-            muls, slices = zip(*group)
-            total_mul = sum(m for m, _ in group)
-            # center/neighbor parts now have batch = n_edges
-            # each part reshape -> (n_edges, mul, 2l+1)
-            center_node_parts = [rot_center_node_feat[:, sl].reshape(-1, mul, self.dims[l]) for mul, sl in group]
-            center_node_combined = torch.cat(center_node_parts, dim=1)  # (n_edges, total_mul, d)
-
-            neighbor_node_parts = [rot_neighbor_node_feat[:, sl].reshape(-1, mul, self.dims[l]) for mul, sl in group]
-            neighbor_node_combined = torch.cat(neighbor_node_parts, dim=1)  # (n_edges, total_mul, d)
-
-            if l == 0:
-                # l=0: dims[l] == 1, no rotation needed; keep consistent flow
-                # center_node_combined, neighbor_node_combined have shape (e, total_mul, 1)
-                center_rot = center_node_combined
-                neighbor_rot = neighbor_node_combined
-            else:
-                # get per-edge rotation matrices: shape (n_edges, 2l+1, 2l+1)
-                start = self.offsets[l]
-                rot_mat = wigner_D_all[:, start:start + self.dims[l], start:start + self.dims[l]]
-
-                # rotate center & neighbor per-edge:
-                # center_combined: (e, m, d), rot_mat: (e, d, d) -> rotated_center: (e, m, d)
-                center_rot = torch.einsum('emd,edq->emq', center_node_combined, rot_mat)
-                neighbor_rot = torch.einsum('emd,edq->emq', neighbor_node_combined, rot_mat)
-
-            # --- 修改：不对 d 求和，而是保留 (e, m, d)，做 elementwise 相乘后展平为 (e, m*d)
-            # elementwise product as similarity per-component
-            sim_tensor = center_rot * neighbor_rot  # (e, m, d)
-            e = sim_tensor.shape[0]
-            sim_flat = sim_tensor.reshape(e, -1)  # (e, m * d)
-
-            # map flattened similarity (m*d) to latent_dim
-            sim_mapped = self.sim_linears[f"l{l}"](sim_flat)  # (e, latent_dim)
-            latent_list.append(sim_mapped)
-
-        # latent_list: list of (e, latent_dim), one per l
-        # stack along new l-dim -> (e, num_l, latent_dim)
-        latent_stack = torch.stack(latent_list, dim=1)
-        # flatten (e, num_l * latent_dim) and fuse via final_mlp
-        e = latent_stack.shape[0]
-        fused = latent_stack.reshape(e, -1)
-        latent = self.final_mlp(fused)  # (e, latent_dim)
-
-        return latent
 
 
 class SO2_Linear(torch.nn.Module):
     """
     SO(2) Convolutional layer.
     """
-
     def __init__(
             self,
             irreps_in,
@@ -355,8 +234,7 @@ class SO2_Linear(torch.nn.Module):
                 x_[:, slice_info] = part.reshape(n, -1)
         out = torch.zeros(n, self.irreps_out.dim, dtype=x.dtype, device=x.device)
         for m in range(self.irreps_out.lmax + 1):
-            radial_weight = weights[:, self.m_in_index[m]:self.m_in_index[m + 1]].unsqueeze(
-                1) if self.radial_emb else 1.
+            radial_weight = weights[:, self.m_in_index[m]:self.m_in_index[m + 1]].unsqueeze(1) if self.radial_emb else 1.
             if m == 0:
                 if self.front and self.radial_emb:
                     out[:, self.m_out_mask[m]] += self.fc_m0(x_[:, self.m_in_mask[m]] * radial_weight.squeeze(1))
@@ -391,7 +269,6 @@ class SO2_m_Linear(torch.nn.Module):
     """
     SO(2) Convolution for a specific order m > 0.
     """
-
     def __init__(
             self,
             m,
@@ -426,7 +303,6 @@ class RadialFunction(nn.Module):
     '''
     A simple MLP for radial basis functions.
     '''
-
     def __init__(self, channels_list):
         super().__init__()
         modules = []
