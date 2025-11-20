@@ -35,7 +35,8 @@ fi
 
 # Sync dependencies with the specified find-links
 echo "Installing DeePTB with torch_scatter ($VARIANT version)..."
-uv sync --find-links "$FIND_LINKS_URL"
+echo "Using Python: $(which python)"
+uv sync --python $(which python) --find-links "$FIND_LINKS_URL"
 
 echo ""
 echo "✅ Installation complete!"
