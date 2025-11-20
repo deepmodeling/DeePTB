@@ -1,3 +1,7 @@
+# NOTE: This script is no longer needed when using UV package manager.
+# UV will automatically install torch_scatter from the configured index in pyproject.toml.
+# This script is kept for reference and for users not using UV.
+
 import subprocess
 
 try:

@@ -53,72 +53,138 @@ For more details, see our papers:
 
 ## 🛠️ Installation
 
-Installing **DeePTB** is straightforward. We recommend using a virtual environment for dependency management.
+Installing **DeePTB** is straightforward with UV, a fast Python package manager.
 
 - **Requirements**
   - Git
-  - Python 3.9 to 3.12.
-  - Torch 2.0.0 to 2.5.1 ([PyTorch Installation](https://pytorch.org/get-started/locally)).
-  - ifermi (optional, for 3D fermi-surface plotting).
-  - TBPLaS (optional).
+  - Python 3.9 to 3.12 (UV can auto-install if needed)
+  - PyTorch 2.0.0 to 2.5.1 (auto-installed by UV)
 
-- **From Source** 
+- **From Source** (Recommended)
   
-    Highly recommended to install DeePTB from source to get the latest features and bug fixes.
-  1. **Setup Python environment**:
-        Using conda (recommended, python >=3.9, <=3.12 ), e.g.,
-        ```bash
-        conda create -n dptb_venv python=3.10
-        conda activate dptb_venv
-        ```
-        or using venv (make sure python >=3.9,<=3.12)
-    
-        ```bash
-        python -m venv dptb_venv
-        source dptb_venv/bin/activate
-        ```
+  1. **Install UV** (if not already installed):
+     ```bash
+     # On macOS and Linux
+     curl -LsSf https://astral.sh/uv/install.sh | sh
+     
+     # Or using pip
+     pip install uv
+     
+     # On Windows (PowerShell)
+     powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+     ```
 
-  2. **Clone DeePTB and  Navigate to the root directory**:
-        ```bash
-        git clone https://github.com/deepmodeling/DeePTB.git
-        cd DeePTB
-        ```
+  2. **Clone DeePTB**:
+     ```bash
+     git clone https://github.com/deepmodeling/DeePTB.git
+     cd DeePTB
+     ```
 
-  3. **Install `torch`**:
-        ```bash
-        pip install "torch>=2.0.0,<=2.5.0"
-        ```
-  4. **Install `torch-scatter`** (two ways):
-        - **Recommended**: Install torch and torch-scatter using the following commands:
-            ```bash
-            python docs/auto_install_torch_scatter.py
-            ```
-        - **Manual**: Install torch and torch-scatter manually:
-            ```bash
-            pip install torch-scatter -f https://data.pyg.org/whl/torch-${version}+${CUDA}.html
-            ```
-            where `${version}` is the version of torch, e.g., 2.5.0, and `${CUDA}` is the CUDA version, e.g., cpu, cu118, cu121, cu124. See [torch_scatter doc](https://github.com/rusty1s/pytorch_scatter) for more details.   
+  3. **Install DeePTB with all dependencies**:
+     
+     **CPU version (default)**:
+     ```bash
+     uv sync
+     # Or use the convenience script
+     ./install.sh
+     ```
+     
+     **GPU version** (specify CUDA version via command line, no file editing needed):
+     ```bash
+     # Check your CUDA version first
+     nvidia-smi  # Look for CUDA Version
+     
+     # Install with your CUDA version (examples):
+     uv sync --find-links https://data.pyg.org/whl/torch-2.5.0+cu118.html  # CUDA 11.8
+     uv sync --find-links https://data.pyg.org/whl/torch-2.5.0+cu121.html  # CUDA 12.1
+     uv sync --find-links https://data.pyg.org/whl/torch-2.5.0+cu124.html  # CUDA 12.4
+     
+     # Or use the convenience script
+     ./install.sh cu121  # for CUDA 12.1
+     ```
+     
+     This single command will:
+     - Automatically create a virtual environment (`.venv`)
+     - Install PyTorch (>=2.0.0, <=2.5.1) with the specified variant (CPU/GPU)
+     - Install torch_scatter from PyTorch Geometric index
+     - Install all other dependencies
+     
+  4. **Install optional dependencies** (if needed):
+     ```bash
+     # For 3D Fermi surface plotting
+     uv sync --extra 3Dfermi
+     
+     # For TBtrans initialization
+     uv sync --extra tbtrans_init
+     
+     # For pybinding support
+     uv sync --extra pybinding
+     
+     # Install all optional dependencies
+     uv sync --all-extras
+     ```
 
-  5. **Install DeePTB**:
-        ```bash
-        pip install .
-        ```
+  5. **Run DeePTB**:
+     ```bash
+     # UV automatically activates the environment when using 'uv run'
+     uv run dptb --help
+     
+     # Or activate the environment manually
+     source .venv/bin/activate  # On Unix/macOS
+     .venv\Scripts\activate     # On Windows
+     dptb --help
+     ```
 
-- **Easy Installation**
+- **GPU Support** (Optional)
   
-  note: not fully tested, please use the source installation for a stable version.
-  1. Using PyPi
-  2. Ensure you have Python 3.9 to 3.12 and Torch installed.
-  3. Install DeePTB with pip:
-        ```bash
-        pip install dptb
-        ```
+  GPU installation is now built into the main installation step above! Simply use:
+  ```bash
+  # Check CUDA version
+  nvidia-smi
+  
+  # Install with command line (recommended - no file editing!)
+  uv sync --find-links https://data.pyg.org/whl/torch-2.5.0+cu121.html
+  
+  # Or use convenience script
+  ./install.sh cu121
+  ```
+  
+  See step 3 above for all available CUDA versions.
+
+- **Easy Installation** (PyPI)
+  
+  > [!WARNING]
+  > PyPI installation requires manual torch_scatter installation first, as torch_scatter is not available on PyPI.
+  
+  **For CPU**:
+  ```bash
+  # 1. Install torch_scatter first
+  pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.0+cpu.html
+  
+  # 2. Install DeePTB
+  pip install dptb
+  ```
+  
+  **For GPU** (example with CUDA 12.1):
+  ```bash
+  # 1. Install torch with CUDA support
+  pip install torch --index-url https://download.pytorch.org/whl/cu121
+  
+  # 2. Install torch_scatter matching your CUDA version
+  pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.0+cu121.html
+  
+  # 3. Install DeePTB
+  pip install dptb
+  ```
+  
+  > [!TIP]
+  > For easier installation with automatic GPU/CPU detection, use the **From Source** method above instead.
 
 ## Test code 
 
 To ensure the code is correctly installed, please run the unit tests first:
 ```bash
-pytest ./dptb/tests/
+uv run pytest ./dptb/tests/
 ```
 Be careful if not all tests pass!
 
