@@ -44,6 +44,7 @@ dependencies = [
     "pyfiglet==1.0.2",
     "tensorboard",
     "seekpath",
+    "rich>=13.0.0",
 ]
 
 [project.optional-dependencies]
@@ -75,3 +76,10 @@ fallback_version = "0.0.0-dev"  # Fallback for non-git installs (e.g. zip downlo
 #   uv sync --find-links https://data.pyg.org/whl/torch-2.5.0+cu121.html
 #   OR use the helper script: ./install.sh cu121
 find-links = ["https://data.pyg.org/whl/torch-2.5.0+cpu.html"]
+
+[dependency-groups]
+dev = [
+    "ipykernel",
+    "jupyter",
+    "notebook",
+]

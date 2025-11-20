@@ -7,26 +7,31 @@ logging.basicConfig(level=logging.INFO, format='%(message)s')
 log = logging.getLogger(__name__)
 
 def print_logo():
-    f = pyfiglet.Figlet(font='dos_rebel')  # 您可以选择您喜欢的字体
-    logo = f.renderText("DeePTB")
-    log.info(" ")
-    log.info(" ")
-    log.info("#"*81)
-    log.info("#" + " "*79 + "#")
-    log.info("#" + " "*79 + "#")
-    for line in logo.split('\n'):
-        if line.strip():  # 避免记录空行
-            log.info('#     '+line+ '     #')
-    log.info("#" + " "*79 + "#")
-    version_info = f"Version: {__version__}"
-    padding = (79 - len(version_info)) // 2
-    nspace = 79-padding
-    format_str = "#" + "{}"+"{:<"+f"{nspace}" + "}"+ "#"         
-    log.info(format_str.format(" "*padding, version_info))
-    log.info("#" + " "*79 + "#")
-    log.info("#"*81)
-    log.info(" ")
-    log.info(" ")
+    try:
+        from rich.console import Console, Group
+        from rich.panel import Panel
+        from rich.align import Align
+        from rich.text import Text
+        # Create Figlet with classic dos_rebel font
+        f = pyfiglet.Figlet(font='dos_rebel')
+        logo_text = f.renderText("DeePTB")
+        # Build Rich components with centered version
+        logo = Align.center(Text(logo_text, style="bold cyan"))
+        version = Align.center(Text(f"Version: {__version__}", style="bold white"))
+        panel = Panel(
+            Group(logo, version),
+            border_style="blue",
+            padding=(1, 2),
+            title="Deep Learning Tight-Binding",
+            subtitle="https://github.com/deepmodeling/DeePTB"
+        )
+        console = Console()
+        console.print(panel)
+    except ImportError:
+        # Fallback if rich is not installed (though it should be)
+        f = pyfiglet.Figlet(font='dos_rebel')
+        print(f.renderText("DeePTB"))
+        print(f"Version: {__version__}")
 def main() -> None:
     """
     The main entry point for the dptb package.
