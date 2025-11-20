@@ -1,98 +1,77 @@
-[tool.poetry]
+[project]
 name = "dptb"
-version = "2.0.1"
-license = "LGPL-3.0"
+dynamic = ["version"]
 description = "A unified deep learning package for electronic structure models including tight-binding, KS Hamiltonian and density matrix models"
 readme = "README.md"
-repository = "https://github.com/deepmodeling/DeePTB"
+license = {text = "LGPL-3.0"}
+requires-python = ">=3.9,<=3.12.9"
+authors = [
+    {name = "DeePTB Team"}
+]
+keywords = ["deep learning", "tight-binding", "electronic structure", "physics"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.9, <=3.12.9"
-pytest = ">=7.2.0"
-pytest-order = "1.2.0"
-numpy = "*"
-scipy = ">=1.11.*,<=1.12.*"
-spglib = "*"
-matplotlib = "*"
-torch = ">=2.0.0,<=2.5.1"
-ase = "*"
-pyyaml = "*"
-future = "*"
-dargs = "0.4.4"
-xitorch = "0.3.0"
-e3nn = ">=0.5.1"
-torch-runstats = "0.2.0"
-torch_scatter = "2.1.2"
-torch_geometric = ">=2.4.0"
-opt-einsum = "3.3.0"
-h5py = ">=3.7.0,<=3.11.0,!=3.10.0"
-lmdb = "1.4.1"
-pyfiglet = "1.0.2"
-tensorboard = "*"
-seekpath = "*"
+dependencies = [
+    "pytest>=7.2.0",
+    "pytest-order==1.2.0",
+    "numpy",
+    "scipy>=1.11,<1.13",
+    "spglib",
+    "matplotlib",
+    "torch>=2.0.0,<=2.5.1",
+    "ase",
+    "pyyaml",
+    "future",
+    "dargs==0.4.4",
+    "xitorch==0.3.0",
+    "e3nn>=0.5.1",
+    "torch-runstats==0.2.0",
+    "torch_scatter==2.1.2",
+    "torch_geometric>=2.4.0",
+    "opt-einsum==3.3.0",
+    "h5py>=3.7.0,<3.12,!=3.10.0",
+    "lmdb==1.4.1",
+    "pyfiglet==1.0.2",
+    "tensorboard",
+    "seekpath",
+]
 
-[tool.poetry.group.dev.dependencies]
-pytest = ">=7.2.0"
-pytest-order = "1.2.0"
-numpy = "*"
-scipy = ">=1.11.*,<=1.12.*"
-spglib = "*"
-matplotlib = "*"
-torch = ">=2.0.0,<=2.5.1"
-ase = "*"
-pyyaml = "*"
-future = "*"
-dargs = "0.4.4"
-xitorch = "0.3.0"
-e3nn = ">=0.5.1"
-torch-runstats = "0.2.0"
-torch_scatter = "2.1.2"
-torch_geometric = ">=2.4.0"
-opt-einsum = "3.3.0"
-h5py = ">=3.7.0,<=3.11.0,!=3.10.0"
-lmdb = "1.4.1"
-pyfiglet = "1.0.2"
-tensorboard = "*"
-seekpath = "*"
+[project.optional-dependencies]
+3Dfermi = ["ifermi", "pymatgen"]
+tbtrans_init = ["sisl"]
+pybinding = ["pybinding"]
 
-[tool.poetry.group.3Dfermi]
-optional = true
+[project.scripts]
+dptb = "dptb.__main__:main"
+dptb-qm9 = "dptb.data.interfaces.pyscf:main"
 
-[tool.poetry.group.3Dfermi.dependencies]
-ifermi = "*"
-pymatgen = "*"
-
-[tool.poetry.group.tbtrans_init]
-optional = true
-
-[tool.poetry.group.tbtrans_init.dependencies]
-sisl = "*"
-
-[tool.poetry.group.pybinding]
-optional = true
-
-[tool.poetry.group.pybinding.dependencies]
-pybinding = "*"
-
-[tool.poetry.scripts]
-dptb = 'dptb.__main__:main'
-dptb-qm9 = 'dptb.data.interfaces.pyscf:main'
+[project.urls]
+Repository = "https://github.com/deepmodeling/DeePTB"
+Documentation = "https://deeptb.readthedocs.io"
 
 [build-system]
-requires = ["poetry-core", "poetry-dynamic-versioning"]
-build-backend = "poetry_dynamic_versioning.backend"
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
 
+[tool.setuptools_scm]
+# Automatically generate version from git tags
+write_to = "dptb/_version.py"
+fallback_version = "0.0.0-dev"  # Fallback for non-git installs (e.g. zip download)
 
-[tool.poetry-dynamic-versioning]
-enable = true
-vcs = "git"
-strict = true
-format-jinja = """
-    {%- if distance == 0 -%}
-        {{ serialize_pep440(base, stage, revision) }}
-    {%- elif revision is not none -%}
-        {{ serialize_pep440(base, stage, revision + 1, dev=distance, metadata=[commit]) }}
-    {%- else -%}
-        {{ serialize_pep440(bump_version(base), stage, revision, dev=distance, metadata=[commit]) }}
-    {%- endif -%}
-"""
+# UV-specific configuration
+[tool.uv]
+# PyTorch Geometric uses find-links for torch_scatter distribution
+# DEFAULT: CPU version. For GPU, use:
+#   uv sync --find-links https://data.pyg.org/whl/torch-2.5.0+cu121.html
+#   OR use the helper script: ./install.sh cu121
+find-links = ["https://data.pyg.org/whl/torch-2.5.0+cpu.html"]

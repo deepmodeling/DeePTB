@@ -171,4 +171,11 @@ dmypy.json
 .pyre/
 _date.py
 _version.py
-/.idea/
+dptb/_version.py
+
+# Poetry (migrated to uv)
+poetry.lock
+poetry.toml
+
+# JetBrains
+.idea/
