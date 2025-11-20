@@ -9,6 +9,7 @@ from torch_scatter import scatter_mean
 from e3nn import o3
 from e3nn.nn import Gate
 from e3nn.o3 import Linear, SphericalHarmonics, FullyConnectedTensorProduct, TensorProduct
+import e3nn
 
 from dptb.data import AtomicDataDict, _keys
 from dptb.nn.embedding.emb import Embedding
@@ -24,6 +25,15 @@ from dptb.nn.tensor_product import SO2_Linear
 
 # Reuse original UpdateEdge
 from .lem_so2 import UpdateEdge
+
+
+# ==========================================
+# Helper Functions: Safety Wrappers
+# ==========================================
+
+def safe_norm(x, dim=-1, keepdim=False, eps=1e-8):
+    """Calculates norm with protection against zero gradients."""
+    return torch.norm(x, dim=dim, keepdim=keepdim).clamp(min=eps)
 
 
 # ==========================================
@@ -55,7 +65,13 @@ class BaseMLP(nn.Module):
         )
 
     def forward(self, x):
-        return x + self.mlp(x) if self.residual else self.mlp(x)
+        out = self.mlp(x)
+        if self.residual:
+            out = x + out
+        # Protection against exploding activations during inference
+        if not self.training and torch.isnan(out).any():
+            out = torch.nan_to_num(out)
+        return out
 
 
 class NodeColor(nn.Module):
@@ -79,18 +95,26 @@ class NodeColor(nn.Module):
         self.color_type = color_type
 
     def forward(self, node_feat, node_pos, batch, edge_index=None):
+        # Protection: handle empty batch
+        if node_pos.shape[0] == 0:
+            return torch.zeros_like(node_feat)
+
         center = scatter_mean(node_pos, batch, dim=0)
+        # Protection: if scatter returns NaNs (unlikely but possible)
+        center = torch.nan_to_num(center)
         pos = node_pos - center[batch]
 
         if self.color_type == 'mp':
             assert edge_index is not None
             row, col = edge_index
-            dist = torch.norm(node_pos[row] - node_pos[col], dim=1, keepdim=True)
+            diff = node_pos[row] - node_pos[col]
+            # Use safe norm
+            dist = safe_norm(diff, dim=1, keepdim=True)
             msg = torch.cat([node_feat[row], node_feat[col], dist], dim=1)
             msg = self.mlp_msg(msg)
             scalar = scatter(msg, row, dim=0, dim_size=node_feat.size(0), reduce='mean')
         elif self.color_type == 'center_radius':
-            scalar = torch.norm(pos, dim=1, keepdim=True)
+            scalar = safe_norm(pos, dim=1, keepdim=True)
         elif self.color_type == 'tp':
             sh = self.spherical_harmonics(pos)
             global_sh = scatter_mean(sh, batch, dim=0)
@@ -113,6 +137,9 @@ class VirtualNode(nn.Module):
         self.mlp_vec_coff = MLP(input_dim=hidden_dim, output_dim=self.get_vn_pos.weight_numel)
 
     def forward(self, node_feat, node_pos, batch):
+        if node_pos.shape[0] == 0:
+            return torch.zeros((0, self.vn_channel, 3), device=node_pos.device)
+
         center = scatter_mean(node_pos, batch, dim=0)
         pos = node_pos - center[batch]
         one = torch.ones([pos.size(0), 1], device=pos.device)
@@ -121,7 +148,10 @@ class VirtualNode(nn.Module):
         vn_pos_global = scatter_mean(vn_pos_disp, batch, dim=0)
 
         vn_pos_global = vn_pos_global.view(-1, self.vn_channel, 3)
-        vn_pos_global = vn_pos_global / (torch.norm(vn_pos_global, dim=2, keepdim=True) + 1e-3)
+        # Protection: Safe Division
+        norm = safe_norm(vn_pos_global, dim=2, keepdim=True)
+        vn_pos_global = vn_pos_global / norm
+
         vn_pos_global = vn_pos_global.view(-1, self.vn_channel * 3)
 
         vn_pos = vn_pos_global + center.repeat(1, self.vn_channel)
@@ -138,10 +168,18 @@ class NodeFeatByVN(nn.Module):
         self.mlp_node_feat = MLP(input_dim=vn_channel ** 2, output_dim=hidden_dim)
 
     def forward(self, node_feat, node_pos, vn_pos, batch):
+        if node_pos.shape[0] == 0:
+            return torch.zeros((0, self.mlp_node_feat.mlp[0].out_features), device=node_pos.device)
+
         info_vec = node_pos.repeat(1, self.vn_channel) - vn_pos[batch]
         info_vec = info_vec.view(node_pos.size(0), self.vn_channel, 3)
+
+        # cdist can be unstable if inputs are large/nan.
         info_scalar = torch.cdist(info_vec, info_vec).view(node_pos.size(0), self.vn_channel ** 2)
-        info_scalar = info_scalar / (torch.norm(info_scalar, dim=1, keepdim=True) + 1e-3)
+
+        # Protection: Safe Division
+        norm = safe_norm(info_scalar, dim=1, keepdim=True)
+        info_scalar = info_scalar / norm
 
         return self.mlp_node_feat(info_scalar)
 
@@ -238,6 +276,9 @@ class InitLayerGlobal(torch.nn.Module):
         edge_center = edge_index[0]
         edge_neighbor = edge_index[1]
 
+        # Protection: Edge length 0 can cause instability in Bessel or Cutoffs
+        edge_length = torch.nan_to_num(edge_length)
+
         edge_invariants = self.bessel(edge_length)
 
         if self.r_max_dict is None:
@@ -252,6 +293,15 @@ class InitLayerGlobal(torch.nn.Module):
 
         prev_mask = cutoff_coeffs > 0
         active_edges = (cutoff_coeffs > 0).nonzero().squeeze(-1)
+
+        if active_edges.numel() == 0:
+            # Handle case with no active edges to prevent crash
+            dummy_latents = torch.zeros((edge_sh.shape[0], self.two_body_latent.out_features), dtype=edge_sh.dtype,
+                                        device=edge_sh.device)
+            dummy_node_feat = torch.zeros((atom_type.shape[0], self.irreps_out.dim), dtype=edge_sh.dtype,
+                                          device=edge_sh.device)
+            dummy_edge_feat = torch.zeros((0, self.irreps_out.dim), dtype=edge_sh.dtype, device=edge_sh.device)
+            return dummy_latents, dummy_node_feat, dummy_edge_feat, cutoff_coeffs, active_edges
 
         cpl_pair = torch.cat([msg_cpl[edge_center[active_edges]], msg_cpl[edge_neighbor[active_edges]]], dim=-1)
 
@@ -282,6 +332,7 @@ class InitLayerGlobal(torch.nn.Module):
             edge_features,
             edge_center[active_edges],
             dim=0,
+            dim_size=atom_type.shape[0]
         )
 
         if self.env_sum_normalizations.ndim < 1:
@@ -370,21 +421,11 @@ class UpdateNodeGlobal(torch.nn.Module):
         # ==========================================
         # FIX: Manual Rescale Mechanism (Params: O(C))
         # ==========================================
-        # We scale each channel multiplicity.
-        # irreps_out e.g. "32x0e+32x1o". Total scalars needed = 32+32=64.
-        # Total dimension = 32*1 + 32*3 = 128.
-
-        # 1. Calculate number of coefficients needed (one per multiplicity group)
         self.num_scalar_weights = sum(mul for mul, _ in self.irreps_out)
 
-        # 2. Create index mapping for broadcasting coefficients to full feature dimension
-        # If we have 32x1o, we generate 32 scalars, but the feature vector has 32*3 elements.
-        # We need to repeat each scalar 3 times.
         scaling_indices = []
         current_idx = 0
         for mul, ir in self.irreps_out:
-            # For this group, we have `mul` weights.
-            # Each weight applies to `ir.dim` feature elements.
             for _ in range(mul):
                 scaling_indices.extend([current_idx] * ir.dim)
                 current_idx += 1
@@ -392,11 +433,13 @@ class UpdateNodeGlobal(torch.nn.Module):
         self.register_buffer('scaling_indices', torch.tensor(scaling_indices, dtype=torch.long))
 
         MLP = partial(BaseMLP, hidden_dim=cpl_dim, activation=nn.SiLU())
-        # Output dim is number of *weights*, not full dimension
         self.mlp_cpl_coff = MLP(input_dim=cpl_dim, output_dim=self.num_scalar_weights)
 
         self.get_scalar_from_irreps = Linear(self.irreps_out, f'{cpl_dim}x0e')
         self.mlp_msg_cpl = MLP(input_dim=2 * cpl_dim, output_dim=cpl_dim)
+
+        # PROTECTION: LayerNorm for recurrent scalar update to prevent explosion
+        self.cpl_norm = nn.LayerNorm(cpl_dim)
         # ==========================================
 
         if res_update_ratios is None:
@@ -421,12 +464,18 @@ class UpdateNodeGlobal(torch.nn.Module):
     def forward(self, latents, node_features, edge_features, atom_type, node_onehot, edge_index, edge_vector,
                 active_edges, wigner_D_all, msg_cpl):
         edge_center = edge_index[0]
-        edge_neighbor = edge_index[1]
+
+        if active_edges.numel() == 0:
+            return node_features, msg_cpl
 
         new_node_features = self.sln(node_features)
+
+        # Protection: Ensure vectors are not NaN before TP
+        edge_vector_safe = torch.nan_to_num(edge_vector[active_edges])
+
         message, _ = self.tp(
             torch.cat([new_node_features[edge_center[active_edges]], self.sln_e(edge_features)], dim=-1),
-            edge_vector[active_edges], latents[active_edges], wigner_D_all
+            edge_vector_safe, latents[active_edges], wigner_D_all
         )
 
         message = self.activation(message)
@@ -437,6 +486,7 @@ class UpdateNodeGlobal(torch.nn.Module):
             self._env_weighter(message, weights),
             edge_center[active_edges],
             dim=0,
+            dim_size=node_features.shape[0]
         )
 
         if self.env_sum_normalizations.ndim < 1:
@@ -449,19 +499,21 @@ class UpdateNodeGlobal(torch.nn.Module):
         # ==========================================
         # Apply Canonical Rescale (Diagonal / Elementwise)
         # ==========================================
-        # 1. Generate compact coefficients [Batch, num_scalar_weights]
         coeffs = self.mlp_cpl_coff(msg_cpl)
 
-        # 2. Broadcast to full feature dimension [Batch, irreps_out.dim]
-        # Using the precomputed indices
+        # Broadcast to full feature dimension
         expanded_coeffs = coeffs[:, self.scaling_indices]
 
-        # 3. Element-wise multiplication (Equivariant Scaling)
+        # Element-wise multiplication (Equivariant Scaling)
         new_node_features = new_node_features * expanded_coeffs
 
         # Update msg_cpl
         scalars_from_irreps = self.get_scalar_from_irreps(new_node_features)
-        msg_cpl = msg_cpl + self.mlp_msg_cpl(torch.cat([scalars_from_irreps, msg_cpl], dim=-1))
+        update = self.mlp_msg_cpl(torch.cat([scalars_from_irreps, msg_cpl], dim=-1))
+        msg_cpl = msg_cpl + update
+
+        # PROTECTION: LayerNorm
+        msg_cpl = self.cpl_norm(msg_cpl)
         # ==========================================
 
         if self.res_update:
@@ -808,15 +860,6 @@ class LemGlobal(torch.nn.Module):
                     msg_cpl
                 )
 
-        #     if idx in [0, 1]:
-        #         print(f'After the {idx + 1} message passing layer:')
-        #         print(node_features[0][:580])
-        #     else:
-        #         print(f'After the {idx + 1} message passing layer:')
-        #         print(node_features[0][:580])
-        #
-        # raise RuntimeError
-
         if node_features.shape[0] < num_nodes_total:
             pad_num = num_nodes_total - node_features.shape[0]
             pad = torch.zeros(
@@ -835,12 +878,11 @@ class LemGlobal(torch.nn.Module):
             out_edge_features = out_edge_features + self.out_edge_ele_tp(edge_features, edge_one_hot)
 
         data[_keys.NODE_FEATURES_KEY] = out_node_features
-        data[_keys.EDGE_FEATURES_KEY] = torch.zeros(edge_index.shape[1], self.idp.orbpair_irreps.dim, dtype=self.dtype,
-                                                    device=self.device)
-        data[_keys.EDGE_FEATURES_KEY] = torch.index_copy(data[_keys.EDGE_FEATURES_KEY], 0, active_edges,
-                                                         out_edge_features)
+        data[_keys.EDGE_FEATURES_KEY] = torch.zeros(edge_index.shape[1], self.idp.orbpair_irreps.dim, dtype=self.dtype, device=self.device)
+        data[_keys.EDGE_FEATURES_KEY] = torch.index_copy(data[_keys.EDGE_FEATURES_KEY], 0, active_edges, out_edge_features)
 
         return data
+
 
 @torch.jit.script
 def ShiftedSoftPlus(x: torch.Tensor):

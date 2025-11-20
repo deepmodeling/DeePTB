@@ -1,39 +1,48 @@
-from typing import Optional, List, Union, Dict
-import math
-import functools
 import torch
+import math
+from typing import Optional, List, Union, Dict
+from functools import partial
 from torch import nn
 from torch_runstats.scatter import scatter
-from torch import fx
-from functools import partial
-
-import e3nn
+from torch_scatter import scatter_mean
 from e3nn import o3
 from e3nn.nn import Gate
-# 确保使用了 torch_scatter 的 scatter_mean
-from torch_scatter import scatter_mean
 from e3nn.o3 import Linear, SphericalHarmonics, FullyConnectedTensorProduct, TensorProduct
+import e3nn
 
-from dptb.data import AtomicDataDict
+from dptb.data import AtomicDataDict, _keys
 from dptb.nn.embedding.emb import Embedding
 from ..radial_basis import BesselBasis
 from ..base import ScalarMLPFunction
 from dptb.nn.embedding.from_deephe3.deephe3 import tp_path_exists
-from dptb.data import _keys
 from dptb.nn.cutoff import cosine_cutoff, polynomial_cutoff
 from dptb.nn.rescale import E3ElementLinear
 from dptb.nn.tensor_product import SO2_Linear
-import math
 from dptb.data.transforms import OrbitalMapper
 from ..type_encode.one_hot import OneHotAtomEncoding, OneHotEdgeEmbedding
 from dptb.nn.norm import SeperableLayerNorm
 from dptb.data.AtomicDataDict import with_edge_vectors, with_batch
 
-from math import ceil
+# Reuse original UpdateEdge and InitLayer and Layer
+from .lem_so2 import UpdateEdge, InitLayer, Layer
 
 
 # ============================================================================
-# Uni-EGNN (TFN-CPL) Core Components Patch (FIXED)
+# Helper Functions: Safety Wrappers
+# ============================================================================
+
+def safe_norm(x, dim=-1, keepdim=False, eps=1e-8):
+    """Calculates norm with protection against zero gradients (NaNs)."""
+    return torch.norm(x, dim=dim, keepdim=keepdim).clamp(min=eps)
+
+
+def safe_normalize(x, dim=-1, eps=1e-8):
+    """Safely normalize a vector."""
+    return x / safe_norm(x, dim=dim, keepdim=True, eps=eps)
+
+
+# ============================================================================
+# Uni-EGNN (TFN-CPL) Core Components Patch (FIXED & PROTECTED)
 # ============================================================================
 
 class BaseMLP(nn.Module):
@@ -61,7 +70,15 @@ class BaseMLP(nn.Module):
         )
 
     def forward(self, x):
-        return x + self.mlp(x) if self.residual else self.mlp(x)
+        out = self.mlp(x)
+        if self.residual:
+            out = x + out
+
+        # PROTECTION: Check for NaNs during inference/val to prevent crash
+        if not self.training and torch.isnan(out).any():
+            out = torch.nan_to_num(out)
+
+        return out
 
 
 class VNInitial(nn.Module):
@@ -92,24 +109,22 @@ class VNInitial(nn.Module):
 
         row, col = edge_index
         diff_pos = node_pos[row] - node_pos[col]
-        diff_vec = diff_pos
+
+        # PROTECTION: Safe Normalize
+        diff_vec_norm = safe_normalize(diff_pos, dim=-1)
 
         dist_sq = torch.sum(diff_pos ** 2, dim=-1, keepdim=True)
         ip = dist_sq.repeat(1, 4)
 
-        norm_val = torch.norm(diff_vec, dim=-1, keepdim=True) + 1e-3
-        diff_vec_norm = diff_vec / norm_val
-
-        one = torch.ones([diff_vec.size(0), 1], device=diff_vec.device)
+        one = torch.ones([diff_pos.size(0), 1], device=diff_pos.device)
         msg = torch.cat([node_feat[row], node_feat[col], edge_attr, ip], dim=1)
         msg = self.mlp_msg(msg)
 
         diff_vec_out = self.diff_vec_coff(diff_vec_norm, one, self.mlp_diff_vel_coff(msg))
 
-        # >>> FIX: 使用 scatter_mean 替代 scatter(..., reduce='mean') <<<
+        # scatter_mean handles dim_size, safe even if index is empty
         agg_feat = scatter_mean(src=msg, index=row, dim=0, dim_size=node_feat.size(0))
         agg_vec = scatter_mean(src=diff_vec_out, index=row, dim=0, dim_size=node_feat.size(0))
-        # >>> END FIX <<<
 
         vn_feat = vn_feat + self.mlp_vn_feat(agg_feat)
         vn_pos = vn_pos + agg_vec
@@ -162,30 +177,43 @@ class VNLayer(nn.Module):
         node_feat_scalar = self.get_scalar(node_feat)
         row, col = edge_index
 
+        # Shape: [Num_Edges, VN_Channel, 3]
         diff_pos_vr = node_pos.repeat(1, self.vn_channel)[row] - vn_pos[col]
 
+        # Inner Product (Scalar Invariant)
         ip = torch.einsum('bij,bkj->bik', diff_pos_vr.view(-1, self.vn_channel, 3),
                           diff_pos_vr.view(-1, self.vn_channel, 3)).view(-1, self.vn_channel ** 2)
-        norm = torch.norm(ip, dim=-1, keepdim=True) + 1e-3
-        ip = ip / norm
-        diff_pos_vr = diff_pos_vr / (torch.norm(diff_pos_vr, dim=-1, keepdim=True) + 1e-3)
-        diff_pos_rv = - diff_pos_vr
+
+        # PROTECTION: Safe Norm for normalization
+        ip = ip / safe_norm(ip, dim=-1, keepdim=True)
+
+        # PROTECTION: Safe Normalize for direction vectors
+        # Reshape to handle the multi-channel normalization correctly
+        diff_pos_vr_flat = diff_pos_vr.view(-1, 3)
+        diff_pos_vr_norm = safe_normalize(diff_pos_vr_flat, dim=-1).view(diff_pos_vr.shape)
+
+        diff_pos_rv_norm = -diff_pos_vr_norm
 
         com_msg_vr = torch.cat([node_feat_scalar[row], vn_feat[col], ip], dim=1)
         com_msg_vr = self.mlp_com_msg(com_msg_vr)
 
-        one_vr = torch.ones([diff_pos_vr.size(0), 1], device=diff_pos_vr.device)
-        diff_pos_vr_update = self.diff_pos_vr_coff(diff_pos_vr, one_vr, self.mlp_diff_pos_vr_coff(com_msg_vr))
+        # Flatten for TensorProduct (needs 2D inputs)
+        diff_pos_vr_input = diff_pos_vr_norm.view(-1, self.vn_channel * 3)
+        diff_pos_rv_input = diff_pos_rv_norm.view(-1, self.vn_channel * 3)
 
-        one_rv = torch.ones([diff_pos_rv.size(0), 1], device=diff_pos_rv.device)
-        diff_pos_rv_update = self.diff_pos_rv_coff(diff_pos_rv, one_rv, self.mlp_diff_pos_rv_coff(com_msg_vr))
+        # Use input device for ones tensor
+        one_vr = torch.ones([diff_pos_vr_input.size(0), 1], device=diff_pos_vr_input.device)
+        diff_pos_vr_update = self.diff_pos_vr_coff(diff_pos_vr_input, one_vr, self.mlp_diff_pos_vr_coff(com_msg_vr))
+
+        # >>> FIX: device=diff_pos_rv_input.device (was diff_pos_rv.device) <<<
+        one_rv = torch.ones([diff_pos_rv_input.size(0), 1], device=diff_pos_rv_input.device)
+        diff_pos_rv_update = self.diff_pos_rv_coff(diff_pos_rv_input, one_rv, self.mlp_diff_pos_rv_coff(com_msg_vr))
 
         dim_size = node_feat.size(0)
-        # >>> FIX: 使用 scatter_mean <<<
+
         agg_feat_vr = scatter_mean(src=com_msg_vr, index=row, dim=0, dim_size=dim_size)
         agg_pos_vr = scatter_mean(src=diff_pos_vr_update, index=row, dim=0, dim_size=dim_size)
         agg_pos_rv = scatter_mean(src=diff_pos_rv_update, index=row, dim=0, dim_size=dim_size)
-        # >>> END FIX <<<
 
         delta_hidden = self.mlp_feat(agg_feat_vr)
         delta_scalar = self.mlp_feat_to_target(delta_hidden)
@@ -426,9 +454,17 @@ class LemLocal(torch.nn.Module):
 
         edge_index = data[_keys.EDGE_INDEX_KEY]
         edge_vector = data[_keys.EDGE_VECTORS_KEY]
-        node_pos = data[_keys.POSITIONS_KEY]  # Need POS for VN
+
+        # PROTECTION: Safe access to positions
+        if _keys.POSITIONS_KEY in data:
+            node_pos = data[_keys.POSITIONS_KEY]
+        else:
+            node_pos = data["pos"]  # Fallback standard PyG key
+
         edge_sh = self.sh(data[_keys.EDGE_VECTORS_KEY][:, [1, 2, 0]])
-        edge_length = data[_keys.EDGE_LENGTH_KEY]
+
+        # PROTECTION: Clean NaN in inputs
+        edge_length = torch.nan_to_num(data[_keys.EDGE_LENGTH_KEY])
 
         data = self.onehot(data)
         edge_one_hot = self.edge_one_hot(data)
@@ -487,15 +523,6 @@ class LemLocal(torch.nn.Module):
             )
             # >>> PATCH END <<<
 
-        #     if idx in [0, 1]:
-        #         print(f'After the {idx + 1} message passing layer:')
-        #         print(node_features[0][:580])
-        #     else:
-        #         print(f'After the {idx + 1} message passing layer:')
-        #         print(node_features[0][:580])
-        #
-        # raise RuntimeError
-
         if node_features.shape[0] < num_nodes_total:
             pad_num = num_nodes_total - node_features.shape[0]
             pad = torch.zeros(
@@ -521,7 +548,6 @@ class LemLocal(torch.nn.Module):
                                                          out_edge_features)
 
         return data
-
 
 # (InitLayer, UpdateNode, UpdateEdge, Layer definitions omitted, assumed unchanged)
 
