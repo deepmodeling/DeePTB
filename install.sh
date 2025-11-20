@@ -13,6 +13,17 @@ set -e  # Exit on error
 # Default to CPU
 VARIANT="${1:-cpu}"
 
+# Validate variant
+case "$VARIANT" in
+    cpu|cu118|cu121|cu124)
+        ;;
+    *)
+        echo "❌ Invalid variant: $VARIANT"
+        echo "Allowed variants: cpu, cu118, cu121, cu124"
+        exit 1
+        ;;
+esac
+
 # Detect torch version from pyproject.toml (use 2.5.0 as default)
 TORCH_VERSION="2.5.0"
 
