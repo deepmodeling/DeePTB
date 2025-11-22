@@ -74,6 +74,7 @@ class LemMoE(torch.nn.Module):
         irreps_hidden = o3.Irreps(irreps_hidden)
         lmax = irreps_hidden.lmax
         self.num_experts = num_experts
+        print(f'num_experts: {self.num_experts}')
 
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype)

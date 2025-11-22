@@ -634,6 +634,7 @@ def slem():
             Argument("n_layers", int, optional=False, doc=doc_n_layers),
 
             Argument("n_radial_basis", int, optional=True, default=10, doc=doc_n_radial_basis),
+            Argument("num_experts", int, optional=True, default=8, doc="The number of experts for MoE. Default: 8"),
             Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
             Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
             Argument("color_mode", str, optional=True, default="tp", doc="The type of color mode. Default: tp"),
