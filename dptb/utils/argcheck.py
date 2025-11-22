@@ -636,6 +636,7 @@ def slem():
             Argument("n_radial_basis", int, optional=True, default=10, doc=doc_n_radial_basis),
             Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
             Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
+            Argument("color_mode", str, optional=True, default="tp", doc="The type of color mode. Default: tp"),
             Argument("env_embed_multiplicity", int, optional=True, default=10, doc=doc_env_embed_multiplicity),
             Argument("tp_radial_emb", bool, optional=True, default=False, doc="Whether to use tensor product radial embedding."),
             Argument("tp_radial_channels", list, optional=True, default=[32], doc="The number of channels in tensor product radial embedding."),

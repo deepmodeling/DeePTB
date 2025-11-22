@@ -24,7 +24,7 @@ from dptb.nn.rescale import E3ElementLinear
 from dptb.nn.tensor_product import SO2_Linear
 
 # Reuse original UpdateEdge
-from .lem_so2 import UpdateEdge
+# from .lem_so2 import UpdateEdge
 
 
 # ==========================================
@@ -93,6 +93,7 @@ class NodeColor(nn.Module):
             self.mlp_sh_coff = MLP(input_dim=hidden_dim, output_dim=self.tp.weight_numel)
             self.mlp_node_feat = MLP(input_dim=max_ell + 1, output_dim=hidden_dim)
         self.color_type = color_type
+        print(f'self.color_type: {self.color_type}')
 
     def forward(self, node_feat, node_pos, batch, edge_index=None):
         # Protection: handle empty batch
@@ -112,7 +113,7 @@ class NodeColor(nn.Module):
             dist = safe_norm(diff, dim=1, keepdim=True)
             msg = torch.cat([node_feat[row], node_feat[col], dist], dim=1)
             msg = self.mlp_msg(msg)
-            scalar = scatter(msg, row, dim=0, dim_size=node_feat.size(0), reduce='mean')
+            scalar = scatter_mean(msg, row, dim=0, dim_size=node_feat.size(0))
         elif self.color_type == 'center_radius':
             scalar = safe_norm(pos, dim=1, keepdim=True)
         elif self.color_type == 'tp':
@@ -410,6 +411,13 @@ class UpdateNodeGlobal(torch.nn.Module):
             radial_channels=radial_channels,
             use_interpolation=use_interpolation_tp
         )
+        # print('update node:')
+        # print(f'irreps_in {self.tp.irreps_in}')
+        # print(f'irreps_out {self.tp.irreps_out}')
+        # print(f'latent dim {latent_dim}')
+        # print(f'radial_emb {radial_emb}')
+        # print(f'radial_channels {radial_channels}')
+        # print(f'use_interpolation_tp {use_interpolation_tp}')
 
         self.lin_post = Linear(self.activation.irreps_out, self.irreps_out, shared_weights=True, internal_weights=True,
                                biases=True)
@@ -651,8 +659,9 @@ class LemGlobal(torch.nn.Module):
             # ========================
             # New Virtual Node Params
             # ========================
-            vn_channel: int = 4,
+            vn_channel: int = 6,
             cpl_dim: int = 128,
+            color_mode: str = 'tp',
             **kwargs,
     ):
 
@@ -709,7 +718,7 @@ class LemGlobal(torch.nn.Module):
         # Virtual Node Modules
         # ========================
         self.init_embed = nn.Linear(1, cpl_dim)
-        self.node_color = NodeColor(hidden_dim=cpl_dim)
+        self.node_color = NodeColor(hidden_dim=cpl_dim, color_type=color_mode)
         self.vn = VirtualNode(vn_channel=vn_channel, hidden_dim=cpl_dim)
         self.node_feat_by_vn = NodeFeatByVN(vn_channel=vn_channel, hidden_dim=cpl_dim)
         # ========================
@@ -769,8 +778,9 @@ class LemGlobal(torch.nn.Module):
                 dtype=dtype,
                 device=device,
                 use_interpolation_tp=use_interpolation_tp
-            )
-            )
+            ))
+            if use_interpolation_tp:
+                print(f'Use interpolation SO2 layer in layer {i}')
 
         self.use_out_onehot_tp = use_out_onehot_tp
         if self.use_out_onehot_tp:
@@ -1189,6 +1199,7 @@ class UpdateNode(torch.nn.Module):
             radial_channels=radial_channels,
             use_interpolation=use_interpolation_tp
         )
+
 
         self.lin_post = Linear(
             self.activation.irreps_out,

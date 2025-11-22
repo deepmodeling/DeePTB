@@ -593,6 +593,14 @@ class UpdateNode(torch.nn.Module):
             use_interpolation=use_interpolation_tp
         )
 
+        # print('update node:')
+        # print(f'irreps_in {self.tp.irreps_in}')
+        # print(f'irreps_out {self.tp.irreps_out}')
+        # print(f'latent dim {latent_dim}')
+        # print(f'radial_emb {radial_emb}')
+        # print(f'radial_channels {radial_channels}')
+        # print(f'use_interpolation_tp {use_interpolation_tp}')
+
         self.lin_post = Linear(
             self.activation.irreps_out,
             self.irreps_out,
