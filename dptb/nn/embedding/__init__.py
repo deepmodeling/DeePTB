@@ -14,6 +14,7 @@ from .lem_so2_local import LemSO2Local
 from .lem_so2_global import LemSO2Global
 from .trinity import Trinity
 from .e3baseline_nonlocal import E3BaseLineModelNonLocal
+from .lem_frame import LemFrame
 
 __all__ = [
     "Descriptor",
@@ -21,6 +22,7 @@ __all__ = [
     "Identity",
     "E3DeePH",
     "Lem",
+    "LemFrame",
     "LemMoE",
     "LemSO2Global",
     "LemGlobal",
