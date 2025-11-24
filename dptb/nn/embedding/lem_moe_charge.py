@@ -150,6 +150,9 @@ class LemMoECharge(LemMoE):
         # ============================================================
         total_charge = data.get("charge") if "charge" in data else data.get("Q")
 
+        # print(data.keys())
+        # print(total_charge)
+
         # Dummy Charge Logic
         if total_charge is None:
             # Generate random charges [-1, 0, 1, 2]

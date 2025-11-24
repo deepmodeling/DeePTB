@@ -227,9 +227,15 @@ class DatasetBuilder:
             # We will sort the info_files here.
             # The order itself is not important, but must be consistant for the same list.
             info_files = {key: info_files[key] for key in sorted(info_files)}
-        
+            train_dip_flag = kwargs.get('train_dip', False)
+            train_w_charge_flag = kwargs.get('train_w_charge', False)
+            wave_align_flag = kwargs.get('wave_align', False)
+            train_polar_flag = kwargs.get('train_polar', False)
             for ikey in info_files:
-                info_files[ikey].update({'r_max': r_max, 'er_max': er_max, 'oer_max': oer_max})
+                info_files[ikey].update({'r_max': r_max, 'er_max': er_max, 'oer_max': oer_max,
+                                         'wave_align': wave_align_flag, 'train_w_charge': train_w_charge_flag,
+                                         'train_dip': train_dip_flag,
+                                         'train_polar': train_polar_flag})
 
             if dataset_type == "DeePHDataset":
                 dataset = DeePHE3Dataset(

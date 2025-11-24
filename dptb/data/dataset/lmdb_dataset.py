@@ -177,6 +177,26 @@ class LMDBDataset(AtomicDataset):
 
                 if not (self.get_Hamiltonian or self.get_DM):
                     blocks = False
+
+                if self.info_files[self.file_map[idx]]['train_dip'] == True:
+                    self.info_files[self.file_map[idx]].update({'dip': data_dict['dipole_moment']})
+
+                if self.info_files[self.file_map[idx]]['train_w_charge'] == True:
+                    self.info_files[self.file_map[idx]].update({'charge': np.array(data_dict['charge'])})
+
+                if self.info_files[self.file_map[idx]]['train_polar'] == True:
+                    self.info_files[self.file_map[idx]].update({'polar': data_dict['polarizability']})
+
+                if self.info_files[self.file_map[idx]]['wave_align'] == True:
+                    orbital_energies = data_dict.get('orbital_energies', 0)
+                    orbital_coefficients = data_dict.get('orbital_coefficients', 0)
+                    self.info_files[self.file_map[idx]].update(
+                        {'orbital_energies': orbital_energies, 'orbital_coefficients': orbital_coefficients})
+
+                cache_info = {}
+                for key in ['train_polar', 'train_dip', 'wave_align', 'train_w_charge']:
+                    cache_info.update({key: self.info_files[self.file_map[idx]][key]})
+                    del self.info_files[self.file_map[idx]][key]
             db_env.close()
 
         atomicdata = AtomicData.from_points(
@@ -186,6 +206,7 @@ class LMDBDataset(AtomicDataset):
             pbc=pbc,
             **self.info_files[self.file_map[idx]]
         )
+        self.info_files[self.file_map[idx]].update(cache_info)
 
         # transform blocks to atomicdata features
         if self.get_Hamiltonian or self.get_DM or self.get_overlap:

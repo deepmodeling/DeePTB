@@ -87,10 +87,18 @@ def common_options():
     doc_seed = "The random seed used to initialize the parameters and determine the shuffling order of datasets. Default: `3982377700`"
     doc_basis = "The atomic orbitals used to construct the basis. e.p. {'A':['2s','2p','s*'],'B':'[3s','3p']}"
     doc_overlap = "Whether to calculate the overlap matrix. Default: False"
+    doc_train_w_charge = "Whether to train with charge info. Default: False"
+    doc_train_dip = "Whether to train the dipole moment tensor. Default: False"
+    doc_train_polar = "Whether to train the polarizaty tensor. Default: False"
+    doc_wave_align = "Whether to align the wavefunctions. Default: False"
 
     args = [
         Argument("basis", dict, optional=False, doc=doc_basis),
         Argument("overlap", bool, optional=True, default=False, doc=doc_overlap),
+        Argument("train_polar", bool, optional=True, default=False, doc=doc_train_polar),
+        Argument("wave_align", bool, optional=True, default=False, doc=doc_wave_align),
+        Argument("train_dip", bool, optional=True, default=False, doc=doc_train_dip),
+        Argument("train_w_charge", bool, optional=True, default=False, doc=doc_train_w_charge),
         Argument("device", str, optional = True, default="cpu", doc = doc_device),
         Argument("dtype", str, optional = True, default="float32", doc = doc_dtype),
         Argument("seed", int, optional=True, default=3982377700, doc=doc_seed),
@@ -861,9 +869,30 @@ def loss_options():
     doc_train = "Loss options for training."
     doc_validation = "Loss options for validation."
     doc_reference = "Loss options for reference data in training."
+    doc_model_basis_name = "The basis used by the model for the calculation of fock matrix. Default: def2svp"
+    doc_on_the_fly_ovp_flag = "Calculate overlap matrices on the fly. Default: True"
+    doc_on_the_fly_solve_eigen = "Get eigen values on the fly. Default: True"
+    doc_add_ham_flag = "Add huber loss of hamiltonian element to the waloss. Default: True"
+    doc_use_energy_weighting = "Use gaussian smearing for energy weighting. Default: True"
+    doc_dataset_basis_name = "The basis used in the dataset. Default: def2svp"
+
 
     hamil = [
         Argument("onsite_shift", bool, optional=True, default=False, doc="Whether to use onsite shift in loss function. Default: False"),
+    ]
+
+    property_aux = [
+        Argument("model_basis_name", str, optional=True, default='def2svp', doc=doc_model_basis_name),
+        Argument("on_the_fly_ovp_flag", bool, optional=True, default=True, doc=doc_on_the_fly_ovp_flag),
+        Argument("dataset_basis_name", str, optional=True, default='def2svp', doc=doc_dataset_basis_name)
+    ]
+
+    wa_loss_aux = [
+        Argument("model_basis_name", str, optional=True, default='def2svp', doc=doc_model_basis_name),
+        Argument("use_energy_weighting", bool, optional=True, default=True, doc=doc_use_energy_weighting),
+        Argument("add_ham_flag", bool, optional=True, default=True, doc=doc_add_ham_flag),
+        Argument("on_the_fly_solve_eigen", bool, optional=True, default=True, doc=doc_on_the_fly_solve_eigen),
+        Argument("dataset_basis_name", str, optional=True, default='def2svp', doc=doc_dataset_basis_name)
     ]
 
     wt = [
@@ -894,6 +923,9 @@ def loss_options():
         Argument("skints", dict, sub_fields=skints),
         Argument("hamil_abs", dict, sub_fields=hamil),
         Argument("hamil_abs_mae", dict, sub_fields=hamil),
+        Argument("wa_loss", dict, sub_fields=wa_loss_aux),
+        Argument("dip_loss", dict, sub_fields=property_aux),
+        Argument("dip_loss_mae", dict, sub_fields=property_aux),
         Argument("hamil_blas", dict, sub_fields=hamil),
         Argument("hamil_wt", dict, sub_fields=hamil+wt),
         Argument("eig_ham", dict, sub_fields=hamil+eigvals+eig_ham),

@@ -189,6 +189,8 @@ class LemCharge(Lem):
         # 尝试从 data 中获取真实 charge
         # 假设 key 为 "charge" 或 "Q"
         total_charge = data.get("charge") if "charge" in data else data.get("Q")
+        # print(data.keys())
+        # print(total_charge)
 
         if total_charge is None:
             # ---> Dummy Charge 生成逻辑 <---
