@@ -1014,7 +1014,7 @@ def neighbor_list_and_relative_vec(
     mask[first_idex == second_idex] = False
     # get index bool type ~mask  for i == j.
     # Convert mask to numpy for consistent indexing behavior
-    mask_np = mask.numpy()
+    mask_np = mask.cpu().numpy()
     o_first_idex = first_idex[~mask_np]
     o_second_idex = second_idex[~mask_np]
     o_shift = shifts[~mask_np]
@@ -1050,7 +1050,7 @@ def neighbor_list_and_relative_vec(
     del o_mask
 
     # Convert mask to numpy for indexing numpy arrays (avoids torch/numpy compatibility issues)
-    mask_np = mask.numpy()
+    mask_np = mask.cpu().numpy()
     first_idex = torch.as_tensor(first_idex[mask_np], dtype=torch.long, device=out_device)
     second_idex = torch.as_tensor(second_idex[mask_np], dtype=torch.long, device=out_device)
     shifts = torch.as_tensor(shifts[mask_np], dtype=out_dtype, device=out_device)
