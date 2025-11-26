@@ -1023,7 +1023,7 @@ def neighbor_list_and_relative_vec(
     # Ensure arrays are proper numpy arrays (not scalars) for isolated systems
     o_first_idex = np.atleast_1d(o_first_idex)
     o_second_idex = np.atleast_1d(o_second_idex)
-    o_shift = np.atleast_1d(o_shift)
+    o_shift = np.atleast_2d(o_shift)
 
     # using the dict key to remove the duplicate bonds, because it is O(1) to check if a key is in the dict.
     rev_dict = {}
