@@ -90,19 +90,18 @@ class Eigenvalues(nn.Module):
                     chklowtinv = torch.linalg.inv(chklowt)
                     data[self.h_out_field] = (chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj())
                 elif eig_solver == 'numpy':
-                    chklowt = np.linalg.cholesky(data[self.s_out_field].detach().cpu().numpy())
+                    s_np = data[self.s_out_field].detach().cpu().numpy()
+                    h_np = data[self.h_out_field].detach().cpu().numpy()
+                    chklowt = np.linalg.cholesky(s_np)
                     chklowtinv = np.linalg.inv(chklowt)
-                    data[self.h_out_field] = (chklowtinv @ data[self.h_out_field].detach().cpu().numpy() @ np.transpose(chklowtinv,(0,2,1)).conj())
-            elif eig_solver == 'numpy':
-                # Convert to numpy when using numpy solver without overlap
-                data[self.h_out_field] = data[self.h_out_field].detach().cpu().numpy()
+                    h_transformed_np = chklowtinv @ h_np @ np.transpose(chklowtinv,(0,2,1)).conj()
 
             if eig_solver == 'torch':
                 eigvals.append(torch.linalg.eigvalsh(data[self.h_out_field]))
             elif eig_solver == 'numpy':
-                eigvals_np = np.linalg.eigvalsh(a=data[self.h_out_field])
+                eigvals_np = np.linalg.eigvalsh(a=h_transformed_np)
                 # Preserve dtype by converting to the Hamiltonian's original dtype
-                eigvals.append(torch.from_numpy(eigvals_np).to(dtype=self.h2k.dtype))
+                eigvals.append(torch.from_numpy(eigvals_np).to(dtype=self.h2k.dtype, device=self.h2k.device))
 
         data[self.out_field] = torch.nested.as_nested_tensor([torch.cat(eigvals, dim=0)])
         if nested:
