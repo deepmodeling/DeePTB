@@ -1,7 +1,7 @@
 from dptb.nnops.trainer import Trainer
 from dptb.nn.build import build_model
 from dptb.data.build import build_dataset
-from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor
+from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor, DeepDoctorMonitor, SO2ModuleMonitor, PreTPBlockMonitor
 from dptb.plugins.train_logger import Logger
 from dptb.utils.argcheck import normalize, collect_cutoffs, chk_avg_per_iter
 from dptb.plugins.saver import Saver
@@ -537,6 +537,21 @@ def train(
     avg_per_iter = chk_avg_per_iter(jdata)
     trainer.register_plugin(TrainLossMonitor(sliding_win_size=jdata["train_options"]["sliding_win_size"], avg_per_iter=avg_per_iter)) # by default, avg_per_iter is false, will not be activated.
     trainer.register_plugin(LearningRateMonitor())
+
+
+    current_bs = jdata["train_options"]["batch_size"]
+    grad_log_file = os.path.join(output, f"grad_trace_bs{current_bs}.csv")
+
+    # # 注册 Monitor
+    # # verbose_freq 控制打印频率，但 CSV 是实时记录的
+    # doctor = DeepDoctorMonitor(output, verbose_freq=10)
+    # trainer.register_plugin(doctor)
+    # so2_monitor = SO2ModuleMonitor(output)
+    # trainer.register_plugin(so2_monitor)
+    # pre_so2_monitor = PreTPBlockMonitor(output)
+    # trainer.register_plugin(pre_so2_monitor)
+
+
     if jdata["train_options"]["use_tensorboard"]:
         assert jdata["train_options"]["display_freq"] >= jdata["train_options"]["validation_freq"], 'The display frequency must be greater than the validation frequency.'
         trainer.register_plugin(TensorBoardMonitor(interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))

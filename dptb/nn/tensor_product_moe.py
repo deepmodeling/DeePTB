@@ -7,6 +7,7 @@ from torch.nn import Linear
 import os
 import torch.nn.functional as F
 from collections import defaultdict
+from .tensor_product import InterpolationBlock, RadialFunction
 
 # Load helpers (Keep original logic)
 try:
@@ -215,28 +216,6 @@ class MOLELinear(nn.Module):
 
 
 # ------------------------------------------------------------------------------
-
-class InterpolationBlock(nn.Module):
-    """
-    A small MLP with two hidden layers for smooth feature transformation.
-    """
-
-    def __init__(self, in_features, out_features, bias=False):
-        super().__init__()
-        self.out_features = out_features
-        hidden_features1 = max(1, int(in_features * 2 / 3 + out_features * 1 / 3))
-        hidden_features2 = max(1, int(in_features * 1 / 3 + out_features * 2 / 3))
-        self.net = nn.Sequential(
-            nn.Linear(in_features, hidden_features1, bias=True),
-            nn.SiLU(),
-            nn.Linear(hidden_features1, hidden_features2, bias=True),
-            nn.SiLU(),
-            nn.Linear(hidden_features2, out_features, bias=bias)
-        )
-
-    def forward(self, x):
-        return self.net(x)
-
 
 class SO2_Attention(torch.nn.Module):
     def __init__(self, node_irreps, latent_dim: int, use_so2_att_proj: bool = True):
@@ -538,23 +517,3 @@ class SO2_m_Linear(torch.nn.Module):
         x_m_i = x_r.narrow(1, 1, 1) + x_i.narrow(1, 0, 1)
         return torch.cat((x_m_r, x_m_i), dim=1)
 
-
-class RadialFunction(nn.Module):
-    '''
-    A simple MLP for radial basis functions.
-    '''
-
-    def __init__(self, channels_list):
-        super().__init__()
-        modules = []
-        input_channels = channels_list[0]
-        for i in range(1, len(channels_list)):
-            modules.append(nn.Linear(input_channels, channels_list[i], bias=True))
-            input_channels = channels_list[i]
-            if i < len(channels_list) - 1:
-                modules.append(nn.LayerNorm(channels_list[i]))
-                modules.append(nn.SiLU())
-        self.net = nn.Sequential(*modules)
-
-    def forward(self, inputs):
-        return self.net(inputs)

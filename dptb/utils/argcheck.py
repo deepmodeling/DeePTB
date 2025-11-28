@@ -139,6 +139,7 @@ def train_options():
     args = [
         Argument("num_epoch", int, optional=False, doc=doc_num_epoch),
         Argument("batch_size", int, optional=True, default=1, doc=doc_batch_size),
+        Argument("clip_grad", float, optional=True, default=10, doc='Gradient clip'),
         Argument("ref_batch_size", int, optional=True, default=1, doc=doc_ref_batch_size),
         Argument("val_batch_size", int, optional=True, default=1, doc=doc_val_batch_size),
         Argument("optimizer", dict, sub_fields=[], optional=True, default={}, sub_variants=[optimizer()], doc = doc_optimizer),
@@ -480,6 +481,7 @@ def embedding():
             Argument("se2", dict, se2()),
             Argument("deeph-e3", dict, deephe3()),
             Argument("slem", dict, slem()),
+            Argument("lem_high_order", dict, slem()),
             Argument("lem", dict, slem()),
             Argument("lem_frame", dict, slem()),
             Argument("lem_charge", dict, slem()),
@@ -1675,7 +1677,7 @@ def get_cutoffs_from_model_options(model_options):
         embedding = model_options.get("embedding")
         if embedding["method"] == "se2":
             er_max = embedding["rc"]
-        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_charge", "lem_moe_charge", "lem_frame", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
+        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_charge", "lem_moe_charge", "lem_frame", "lem_high_order", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
             r_max = embedding["r_max"]
         else:
             log.error("The method of embedding have not been defined in get cutoff functions")

@@ -245,16 +245,6 @@ class InitLayerGlobal(torch.nn.Module):
             mlp_initialization="uniform",
         )
 
-        self.sln_n = SeperableLayerNorm(
-            irreps=self.irreps_out,
-            eps=norm_eps,
-            affine=True,
-            normalization='component',
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
-        )
-
         self._env_weighter = Linear(
             irreps_in=irreps_sh,
             irreps_out=self.irreps_out,
@@ -342,7 +332,6 @@ class InitLayerGlobal(torch.nn.Module):
             norm_const = self.env_sum_normalizations[atom_type.flatten()].unsqueeze(-1)
 
         node_features = node_features * norm_const
-        node_features = self.sln_n(node_features)
 
         return latents, node_features, edge_features, cutoff_coeffs, active_edges
 
@@ -378,12 +367,6 @@ class UpdateNodeGlobal(torch.nn.Module):
         self.register_buffer("env_sum_normalizations", torch.as_tensor(avg_num_neighbors).rsqrt())
 
         self._env_weighter = E3ElementLinear(irreps_in=irreps_out, dtype=dtype, device=device)
-
-        self.sln = SeperableLayerNorm(irreps=self.irreps_in, eps=norm_eps, affine=True, normalization='component',
-                                      std_balance_degrees=True, dtype=self.dtype, device=self.device)
-        self.sln_e = SeperableLayerNorm(irreps=self.edge_irreps_in, eps=norm_eps, affine=True,
-                                        normalization='component', std_balance_degrees=True, dtype=self.dtype,
-                                        device=self.device)
 
         self.env_embed_mlps = ScalarMLPFunction(
             mlp_input_dimension=latent_dim,
@@ -476,13 +459,13 @@ class UpdateNodeGlobal(torch.nn.Module):
         if active_edges.numel() == 0:
             return node_features, msg_cpl
 
-        new_node_features = self.sln(node_features)
+        new_node_features = node_features
 
         # Protection: Ensure vectors are not NaN before TP
         edge_vector_safe = torch.nan_to_num(edge_vector[active_edges])
 
         message, _ = self.tp(
-            torch.cat([new_node_features[edge_center[active_edges]], self.sln_e(edge_features)], dim=-1),
+            torch.cat([new_node_features[edge_center[active_edges]], edge_features], dim=-1),
             edge_vector_safe, latents[active_edges], wigner_D_all
         )
 
@@ -969,26 +952,6 @@ class InitLayer(torch.nn.Module):
                         mlp_initialization="uniform",
                     )
 
-        self.sln_n = SeperableLayerNorm(
-            irreps=self.irreps_out,
-            eps=norm_eps,
-            affine=True,
-            normalization='component',
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
-        )
-
-        self.sln_e = SeperableLayerNorm(
-            irreps=self.irreps_out,
-            eps=norm_eps,
-            affine=True,
-            normalization='component',
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
-        )
-
         self._env_weighter = Linear(
             irreps_in=irreps_sh,
             irreps_out=self.irreps_out,
@@ -1105,204 +1068,8 @@ class InitLayer(torch.nn.Module):
             norm_const = self.env_sum_normalizations[atom_type.flatten()].unsqueeze(-1)
 
         node_features = node_features * norm_const
-        node_features = self.sln_n(node_features)
 
         return latents, node_features, edge_features, cutoff_coeffs, active_edges # the radial embedding x and the sperical hidden V
-
-class UpdateNode(torch.nn.Module):
-    def __init__(
-        self,
-        edge_irreps_in: o3.Irreps,
-        irreps_in: o3.Irreps,
-        irreps_out: o3.Irreps,
-        latent_dim: int,
-        norm_eps: float = 1e-8,
-        radial_emb: bool=False,
-        radial_channels: list=[128, 128],
-        res_update: bool = True,
-        use_layer_onehot_tp: bool = True,
-        use_interpolation_tp: bool = False,
-        res_update_ratios: Optional[List[float]] = None,
-        res_update_ratios_learnable: bool = False,
-        avg_num_neighbors: Optional[float] = None,
-        dtype: Union[str, torch.dtype] = torch.float32,
-        device: Union[str, torch.device] = torch.device("cpu"),
-    ):
-        super(UpdateNode, self).__init__()
-        self.irreps_in = irreps_in
-        self.irreps_out = irreps_out
-        self.edge_irreps_in = edge_irreps_in
-        self.dtype = dtype
-        self.device = device
-        self.res_update = res_update
-
-        self.register_buffer(
-            "env_sum_normalizations",
-            # dividing by sqrt(N)
-            torch.as_tensor(avg_num_neighbors).rsqrt(),
-        )
-
-
-        self._env_weighter = E3ElementLinear(
-            irreps_in=irreps_out,
-            dtype=dtype,
-            device=device,
-        )
-
-        self.sln = SeperableLayerNorm(
-            irreps=self.irreps_in,
-            eps=norm_eps,
-            affine=True,
-            normalization='component',
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
-        )
-
-        self.sln_e = SeperableLayerNorm(
-            irreps=self.edge_irreps_in,
-            eps=norm_eps,
-            affine=True,
-            normalization='component',
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
-        )
-
-        assert irreps_out[0].ir.l == 0
-
-        # here we adopt the graph attention's idea to generate the weights as the attention scores
-        # self.latent_act = torch.nn.LeakyReLU()
-        self.env_embed_mlps = ScalarMLPFunction(
-                mlp_input_dimension=latent_dim,
-                mlp_latent_dimensions=[],
-                mlp_output_dimension=self._env_weighter.weight_numel,
-            )
-
-        irreps_scalar = o3.Irreps([(mul, ir) for mul, ir in self.irreps_out if ir.l == 0]).simplify()
-        irreps_gated = o3.Irreps([(mul, ir) for mul, ir in self.irreps_out if ir.l > 0]).simplify()
-        irreps_gates = o3.Irreps([(mul, (0,1)) for mul, _ in irreps_gated]).simplify()
-        act={1: torch.nn.functional.silu, -1: torch.tanh}
-        act_gates={1: torch.sigmoid, -1: torch.tanh}
-
-        self.activation = Gate(
-            irreps_scalar, [act[ir.p] for _, ir in irreps_scalar],  # scalar
-            irreps_gates, [act_gates[ir.p] for _, ir in irreps_gates],  # gates (scalars)
-            irreps_gated  # gated tensors
-        )
-
-        self.tp = SO2_Linear(
-            irreps_in=self.irreps_in+self.edge_irreps_in,
-            irreps_out=self.activation.irreps_in,
-            latent_dim=latent_dim,
-            radial_emb=radial_emb,
-            radial_channels=radial_channels,
-            use_interpolation=use_interpolation_tp
-        )
-
-
-        self.lin_post = Linear(
-            self.activation.irreps_out,
-            self.irreps_out,
-            shared_weights=True,
-            internal_weights=True,
-            biases=True,
-        )
-
-        if res_update:
-            self.linear_res = Linear(
-                self.irreps_in,
-                self.irreps_out,
-                shared_weights=True,
-                internal_weights=True,
-                biases=True,
-            )
-
-        # - layer resnet update weights -
-        if res_update_ratios is None:
-            # We initialize to zeros, which under the sigmoid() become 0.5
-            # so 1/2 * layer_1 + 1/4 * layer_2 + ...
-            # note that the sigmoid of these are the factor _between_ layers
-            # so the first entry is the ratio for the latent resnet of the first and second layers, etc.
-            # e.g. if there are 3 layers, there are 2 ratios: l1:l2, l2:l3
-            res_update_params = torch.zeros(1)
-        else:
-            res_update_ratios = torch.as_tensor(
-                res_update_ratios, dtype=torch.get_default_dtype()
-            )
-            assert res_update_ratios > 0.0
-            assert res_update_ratios < 1.0
-            res_update_params = torch.special.logit(
-                res_update_ratios
-            )
-            # The sigmoid is mostly saturated at ±6, keep it in a reasonable range
-            res_update_params.clamp_(-6.0, 6.0)
-
-        if res_update_ratios_learnable:
-            self._res_update_params = torch.nn.Parameter(
-                res_update_params
-            )
-        else:
-            self.register_buffer(
-                "_res_update_params", res_update_params
-            )
-        self.use_layer_onehot_tp = use_layer_onehot_tp
-        if use_layer_onehot_tp:
-            instructions = []
-            for i, (mul, ir) in enumerate(self.irreps_out):
-                instructions.append((i, 0, i, 'uvu', True))
-            self.node_onehot_tp = TensorProduct(
-                irreps_in1=self.irreps_out,
-                irreps_in2=f'95x0e',
-                irreps_out=self.irreps_out,
-                instructions=instructions
-            )
-
-    def forward(self, latents, node_features, edge_features, atom_type, node_onehot, edge_index, edge_vector, active_edges, wigner_D_all):
-        edge_center = edge_index[0]
-        edge_neighbor = edge_index[1]
-
-        new_node_features = self.sln(node_features)
-        message, _ = self.tp(
-            torch.cat(
-                [new_node_features[edge_center[active_edges]], self.sln_e(edge_features)]
-                , dim=-1), edge_vector[active_edges], latents[active_edges], wigner_D_all) # full_out_irreps
-
-        message = self.activation(message)
-        message = self.lin_post(message)
-        scalars = message[:, :self.irreps_out[0].dim]
-
-        # get the attention scores
-        # weights = self.env_embed_mlps(self.latent_act(latents[active_edges]))
-        # weights = torch_geometric.utils.softmax(weights, edge_center[active_edges], num_nodes=node_features.shape[0])
-        weights = self.env_embed_mlps(latents[active_edges])
-        new_node_features = scatter(
-            self._env_weighter(message, weights),
-            edge_center[active_edges],
-            dim=0,
-        )
-
-        if self.env_sum_normalizations.ndim < 1:
-            norm_const = self.env_sum_normalizations
-        else:
-            norm_const = self.env_sum_normalizations[atom_type.flatten()].unsqueeze(-1)
-        assert len(scalars.shape) == 2
-
-        new_node_features = new_node_features * norm_const
-
-        if self.res_update:
-            update_coefficients = self._res_update_params.sigmoid()
-            coefficient_old = torch.rsqrt(update_coefficients.square() + 1)
-            coefficient_new = update_coefficients * coefficient_old
-            node_features = coefficient_new * new_node_features + coefficient_old * self.linear_res(node_features)
-        else:
-            node_features = new_node_features
-
-        if self.use_layer_onehot_tp:
-            onehot_tune_node_feat = self.node_onehot_tp(node_features, node_onehot)
-            node_features = node_features + onehot_tune_node_feat
-
-        return node_features
 
 
 class UpdateEdge(torch.nn.Module):
@@ -1385,26 +1152,6 @@ class UpdateEdge(torch.nn.Module):
             mlp_initialization="uniform",
         )
 
-        self.sln_e = SeperableLayerNorm(
-            irreps=self.irreps_in,
-            eps=norm_eps,
-            affine=True,
-            normalization='component',
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
-        )
-
-        self.sln_n = SeperableLayerNorm(
-            irreps=self.irreps_in,
-            eps=norm_eps,
-            affine=True,
-            normalization='component',
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
-        )
-
         self.lin_post = Linear(
             self.activation.irreps_out,
             self.irreps_out,
@@ -1467,12 +1214,12 @@ class UpdateEdge(torch.nn.Module):
     def forward(self, latents, node_features, node_onehot, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges, edge_one_hot, wigner_D_all):
         active_edge_index = edge_index[:, active_edges]
 
-        new_node_features = self.sln_n(node_features)
+        new_node_features = node_features
         new_edge_features, wigner_D_all = self.tp(
             torch.cat(
                 [
                     new_node_features[active_edge_index[0]],
-                    self.sln_e(edge_features),
+                    edge_features,
                     new_node_features[active_edge_index[1]]
                     ]
                 , dim=-1), edge_vector[active_edges], latents[active_edges], wigner_D_all) # full_out_irreps
@@ -1523,86 +1270,3 @@ class UpdateEdge(torch.nn.Module):
             edge_features = edge_features + onehot_tune_edge_feat
 
         return edge_features, latents, wigner_D_all
-
-
-class Layer(torch.nn.Module):
-    def __init__(
-        self,
-        num_types: int,
-        # required params
-        avg_num_neighbors: Optional[float] = None,
-        irreps_in: o3.Irreps=None,
-        irreps_out: o3.Irreps=None,
-        tp_radial_emb: bool=False,
-        tp_radial_channels: list=[128, 128],
-        # MLP parameters:
-        norm_eps: float = 1e-8,
-        latent_channels: list=[128, 128],
-        latent_dim: int=128,
-        res_update: bool = True,
-        use_layer_onehot_tp: bool = True,
-        use_interpolation_tp: bool = False,
-        edge_one_hot_dim: int = 128,
-        res_update_ratios: Optional[List[float]] = None,
-        res_update_ratios_learnable: bool = False,
-        dtype: Union[str, torch.dtype] = torch.float32,
-        device: Union[str, torch.device] = torch.device("cpu"),
-    ):
-        super(Layer, self).__init__()
-
-        self.res_update = res_update
-        self.avg_num_neighbors = avg_num_neighbors
-        self.irreps_in = irreps_in
-        self.irreps_out = irreps_out
-        self.dtype = dtype
-        self.device = device
-        self.num_types = num_types
-
-        # 1. update hidden
-        # 2. update edge
-        # 3. update node
-
-        self.edge_update = UpdateEdge(
-            node_irreps_in=self.irreps_in,
-            num_types=num_types,
-            irreps_in=self.irreps_in,
-            irreps_out=self.irreps_out,
-            latent_dim=latent_dim,
-            latent_channels=latent_channels,
-            radial_emb=tp_radial_emb,
-            radial_channels=tp_radial_channels,
-            use_layer_onehot_tp=use_layer_onehot_tp,
-            edge_one_hot_dim=edge_one_hot_dim,
-            res_update=res_update,
-            res_update_ratios=res_update_ratios,
-            res_update_ratios_learnable=res_update_ratios_learnable,
-            dtype=dtype,
-            device=device,
-            use_interpolation_tp=use_interpolation_tp,
-            norm_eps=norm_eps
-        )
-
-        self.node_update = UpdateNode(
-            edge_irreps_in=self.edge_update.irreps_out,
-            irreps_in=self.irreps_in,
-            irreps_out=self.irreps_out,
-            latent_dim=latent_dim,
-            radial_emb=tp_radial_emb,
-            use_layer_onehot_tp=use_layer_onehot_tp,
-            radial_channels=tp_radial_channels,
-            res_update=res_update,
-            res_update_ratios=res_update_ratios,
-            res_update_ratios_learnable=res_update_ratios_learnable,
-            avg_num_neighbors=avg_num_neighbors,
-            dtype=dtype,
-            device=device,
-            use_interpolation_tp=use_interpolation_tp,
-            norm_eps=norm_eps
-        )
-
-    def forward(self, latents, node_features, edge_features, node_onehot, edge_index, edge_vector, atom_type, cutoff_coeffs, active_edges, edge_one_hot, wigner_D_all):
-
-        edge_features, latents, wigner_D_all = self.edge_update(latents, node_features, node_onehot, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges, edge_one_hot, wigner_D_all)
-        node_features = self.node_update(latents, node_features, edge_features, atom_type, node_onehot, edge_index, edge_vector, active_edges, wigner_D_all)
-
-        return latents, node_features, edge_features, wigner_D_all

@@ -17,6 +17,7 @@ from .e3baseline_nonlocal import E3BaseLineModelNonLocal
 from .lem_frame import LemFrame
 from .lem_charge import LemCharge
 from .lem_moe_charge import LemMoECharge
+from .lem_high_order import LemHighOrder
 
 __all__ = [
     "Descriptor",
@@ -24,6 +25,7 @@ __all__ = [
     "Identity",
     "E3DeePH",
     "Lem",
+    "LemHighOrder",
     "LemMoECharge",
     "LemCharge",
     "LemFrame",

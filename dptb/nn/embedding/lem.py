@@ -362,26 +362,6 @@ class InitLayer(torch.nn.Module):
                         mlp_initialization="uniform",
                     )
 
-        self.sln_n = SeperableLayerNorm(
-            irreps=self.irreps_out,
-            eps=norm_eps,
-            affine=True,
-            normalization='component',
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
-        )
-
-        self.sln_e = SeperableLayerNorm(
-            irreps=self.irreps_out,
-            eps=norm_eps,
-            affine=True,
-            normalization='component',
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
-        )
-
         self._env_weighter = Linear(
             irreps_in=irreps_sh,
             irreps_out=self.irreps_out,
@@ -498,7 +478,6 @@ class InitLayer(torch.nn.Module):
             norm_const = self.env_sum_normalizations[atom_type.flatten()].unsqueeze(-1)
 
         node_features = node_features * norm_const
-        node_features = self.sln_n(node_features)
 
         return latents, node_features, edge_features, cutoff_coeffs, active_edges # the radial embedding x and the sperical hidden V
 
@@ -540,26 +519,6 @@ class UpdateNode(torch.nn.Module):
             irreps_in=irreps_out,
             dtype=dtype,
             device=device,
-        )
-
-        self.sln = SeperableLayerNorm(
-            irreps=self.irreps_in,
-            eps=norm_eps,
-            affine=True,
-            normalization='component',
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
-        )
-
-        self.sln_e = SeperableLayerNorm(
-            irreps=self.edge_irreps_in,
-            eps=norm_eps,
-            affine=True,
-            normalization='component',
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
         )
 
         assert irreps_out[0].ir.l == 0
@@ -609,14 +568,6 @@ class UpdateNode(torch.nn.Module):
             biases=True,
         )
 
-        if res_update:
-            self.linear_res = Linear(
-                self.irreps_in,
-                self.irreps_out,
-                shared_weights=True,
-                internal_weights=True,
-                biases=True,
-            )
 
         # - layer resnet update weights -
         if res_update_ratios is None:
@@ -657,15 +608,26 @@ class UpdateNode(torch.nn.Module):
                 irreps_out=self.irreps_out,
                 instructions=instructions
             )
+        self.use_identity_res = (self.irreps_in == self.irreps_out) and res_update
+        if not self.use_identity_res:
+            if res_update:
+                self.linear_res = Linear(
+                    self.irreps_in,
+                    self.irreps_out,
+                    shared_weights=True,
+                    internal_weights=True,
+                    biases=True,
+                )
 
     def forward(self, latents, node_features, edge_features, atom_type, node_onehot, edge_index, edge_vector, active_edges, wigner_D_all):
         edge_center = edge_index[0]
         edge_neighbor = edge_index[1]
 
-        new_node_features = self.sln(node_features)
+        new_node_features = node_features
+
         message, _ = self.tp(
             torch.cat(
-                [new_node_features[edge_center[active_edges]], self.sln_e(edge_features)]
+                [new_node_features[edge_center[active_edges]], edge_features]
                 , dim=-1), edge_vector[active_edges], latents[active_edges], wigner_D_all) # full_out_irreps
 
         message = self.activation(message)
@@ -694,7 +656,13 @@ class UpdateNode(torch.nn.Module):
             update_coefficients = self._res_update_params.sigmoid()
             coefficient_old = torch.rsqrt(update_coefficients.square() + 1)
             coefficient_new = update_coefficients * coefficient_old
-            node_features = coefficient_new * new_node_features + coefficient_old * self.linear_res(node_features)
+
+            if self.use_identity_res:
+                node_features = coefficient_old * node_features + coefficient_new * new_node_features
+            else:
+                # 维度不同，必须经过 linear_res
+                node_features = coefficient_old * self.linear_res(node_features) + coefficient_new * new_node_features
+
         else:
             node_features = new_node_features
 
@@ -784,26 +752,6 @@ class UpdateEdge(torch.nn.Module):
             mlp_initialization="uniform",
         )
 
-        self.sln_e = SeperableLayerNorm(
-            irreps=self.irreps_in,
-            eps=norm_eps,
-            affine=True,
-            normalization='component',
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
-        )
-
-        self.sln_n = SeperableLayerNorm(
-            irreps=self.irreps_in,
-            eps=norm_eps,
-            affine=True,
-            normalization='component',
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
-        )
-
         self.lin_post = Linear(
             self.activation.irreps_out,
             self.irreps_out,
@@ -811,15 +759,6 @@ class UpdateEdge(torch.nn.Module):
             internal_weights=True,
             biases=True,
         )
-
-        if res_update:
-            self.linear_res = Linear(
-                self.irreps_in,
-                self.irreps_out,
-                shared_weights=True,
-                internal_weights=True,
-                biases=True,
-            )
 
         # - layer resnet update weights -
         if res_update_ratios is None:
@@ -862,16 +801,28 @@ class UpdateEdge(torch.nn.Module):
                 instructions=instructions
             )
 
+        self.use_identity_res = (self.irreps_in == self.irreps_out) and res_update
+        if not self.use_identity_res:
+            if res_update:
+                self.linear_res = Linear(
+                    self.irreps_in,
+                    self.irreps_out,
+                    shared_weights=True,
+                    internal_weights=True,
+                    biases=True,
+                )
+
     def forward(self, latents, node_features, node_onehot, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges, edge_one_hot, wigner_D_all):
         edge_center = edge_index[0]
         edge_neighbor = edge_index[1]
 
-        new_node_features = self.sln_n(node_features)
+        new_node_features = node_features
+
         new_edge_features, wigner_D_all = self.tp(
             torch.cat(
                 [
                     new_node_features[edge_center[active_edges]],
-                    self.sln_e(edge_features),
+                    edge_features,
                     new_node_features[edge_neighbor[active_edges]]
                     ]
                 , dim=-1), edge_vector[active_edges], latents[active_edges], wigner_D_all) # full_out_irreps
@@ -905,7 +856,14 @@ class UpdateEdge(torch.nn.Module):
             update_coefficients = self._res_update_params.sigmoid()
             coefficient_old = torch.rsqrt(update_coefficients.square() + 1)
             coefficient_new = update_coefficients * coefficient_old
-            edge_features = coefficient_new * new_edge_features + coefficient_old * self.linear_res(edge_features)
+
+            if self.use_identity_res:
+                edge_features = coefficient_old * edge_features + coefficient_new * new_edge_features
+            else:
+                # 维度不同，必须经过 linear_res
+                edge_features = coefficient_old * self.linear_res(edge_features) + coefficient_new * new_edge_features
+
+            # edge_features = coefficient_new * new_edge_features + coefficient_old * self.linear_res(edge_features)
 
             latents = torch.index_copy(
                 latents, 0, active_edges,
