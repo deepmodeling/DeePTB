@@ -83,6 +83,7 @@ class Eigenvalues(nn.Module):
         for i in range(int(np.ceil(num_k / nk))):
             data[AtomicDataDict.KPOINT_KEY] = kpoints[i*nk:(i+1)*nk]
             data = self.h2k(data)
+            h_transformed_np = None
             if self.overlap:
                 data = self.s2k(data)
                 if eig_solver == 'torch':
@@ -99,6 +100,8 @@ class Eigenvalues(nn.Module):
             if eig_solver == 'torch':
                 eigvals.append(torch.linalg.eigvalsh(data[self.h_out_field]))
             elif eig_solver == 'numpy':
+                if h_transformed_np is None:
+                    h_transformed_np = data[self.h_out_field].detach().cpu().numpy()
                 eigvals_np = np.linalg.eigvalsh(a=h_transformed_np)
                 # Preserve dtype by converting to the Hamiltonian's original dtype
                 eigvals.append(torch.from_numpy(eigvals_np).to(dtype=self.h2k.dtype, device=self.h2k.device))
