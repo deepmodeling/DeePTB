@@ -167,11 +167,11 @@ class _TrajData(object):
     @classmethod
     def from_ase_traj(cls,
                       root: str, 
-                      get_Hamiltonian = False,
-                      get_overlap = False,
-                      get_DM = False,
-                      get_eigenvalues = False,
-                      info: dict = None):
+                      get_Hamiltonian: bool = False,
+                      get_overlap: bool = False,
+                      get_DM: bool = False,
+                      get_eigenvalues: bool = False,
+                      info: Optional[Dict] = None):
         '''
         Build the _TrajData instance by reading the data from the single data directory 
         that organized in the way compatible with the ASE.
@@ -189,7 +189,7 @@ class _TrajData(object):
         get_eigenvalues: bool
             Whether to load the eigenvalues.
         info: dict
-            The description of the data, may be inconsistant with the real data, in this case,
+            The description of the data, may be inconsistent with the real data, in this case,
             the info will be updated.
         '''
         assert not get_Hamiltonian * get_DM, \
@@ -205,7 +205,7 @@ class _TrajData(object):
         with Trajectory(traj_file[0], 'r') as traj:
             # there are some dimensions of importance: nframe, natom, ...
             nframes = len(traj)
-            assert nframes > 0, print("trajectory file is empty.")
+            assert nframes > 0, "trajectory file is empty."
             # if there is discrepancy between nframes in info and traj, then update the info.
             if nframes != info.get("nframes", None):
                 info['nframes'] = nframes   
