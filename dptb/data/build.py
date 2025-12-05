@@ -1,25 +1,29 @@
-import inspect
+# in-built packages
 import os
-from copy import deepcopy
 import glob
-from importlib import import_module
+import logging
+import inspect
 from typing import Union
+from copy import deepcopy
+from importlib import import_module
+from pathlib import Path
+
+# third-party packages
+import torch
+
+# local packages
+from dptb import data
+from dptb.data import AtomicDataset, register_fields
 from dptb.data.dataset import DefaultDataset
 from dptb.data.dataset._deeph_dataset import DeePHE3Dataset
 from dptb.data.dataset._hdf5_dataset import HDF5Dataset
 from dptb.data.dataset.lmdb_dataset import LMDBDataset
-from dptb import data
 from dptb.data.transforms import TypeMapper, OrbitalMapper
-from dptb.data import AtomicDataset, register_fields
 from dptb.utils import instantiate, get_w_prefix
 from dptb.utils.tools import j_loader
 from dptb.utils.argcheck import normalize_setinfo, normalize_lmdbsetinfo
 from dptb.utils.argcheck import collect_cutoffs 
 from dptb.utils.argcheck import get_cutoffs_from_model_options
-import logging
-import torch
-import copy
-
 
 log = logging.getLogger(__name__)
 
@@ -159,125 +163,121 @@ class DatasetBuilder:
             ValueError: If the dataset type is not supported.
             Exception: If the info.json file is not properly provided for a trajectory folder.
         """
-        self.r_max = r_max
-        self.er_max = er_max
-        self.oer_max = oer_max
+        # set cutoff radius
+        self.r_max   = r_max   # default cutoff
+        self.er_max  = er_max  # env cutoff
+        self.oer_max = oer_max 
 
+        # seems this warning will always show?
         self.if_check_cutoffs = False
+        log.warning("The cutoffs in data and model are not checked. be careful!")
 
+        # set and check the dataset type
         dataset_type = type
+        assert dataset_type in ["DefaultDataset", "DeePHDataset", "HDF5Dataset", "LMDBDataset"], \
+            f"The dataset type {dataset_type} is not supported. Please check the type."
+
         # See if we can get a OrbitalMapper.
-        if basis is not None:
-            idp = OrbitalMapper(basis=basis)
-        else:
-            idp = None
+        idp = None if basis is None else OrbitalMapper(basis=basis)
 
-        if dataset_type in ["DefaultDataset", "DeePHDataset", "HDF5Dataset", "LMDBDataset"]:
-            assert prefix is not None, "The prefix is not provided. Please provide the prefix to select the trajectory folders."
-            prefix_folders = glob.glob(f"{root}/{prefix}{separator}*")
-            include_folders=[]
-            for idir in prefix_folders:
-                if os.path.isdir(idir):
-                    if not glob.glob(os.path.join(idir, '*.dat')) \
-                        and not glob.glob(os.path.join(idir, '*.traj')) \
-                            and not glob.glob(os.path.join(idir, '*.h5')) \
-                                and not glob.glob(os.path.join(idir, '*.mdb')):
-                        raise Exception(f"{idir} does not have the proper traj data files. Please check the data files.")
-                    include_folders.append(idir.split('/')[-1])
+        # filter to get the valid folders
+        assert prefix is not None, \
+            "The prefix is not provided. Please provide the prefix to select the trajectory folders."
+        valid_folders, delim = [], separator
+        for folder in Path(root).glob(f"{prefix}{delim}*"):
+            if folder.is_dir():
+                assert any(folder.glob(f'*.{ext}') for ext in ['dat', 'traj', 'h5', 'mdb']), \
+                    f'{folder} does not have the proper traj data files. Please check the data files.'
+                valid_folders.append(folder.name)
+        assert isinstance(valid_folders, list) and len(valid_folders) > 0, \
+            "No trajectory folders are found. Please check the prefix."
 
-            assert isinstance(include_folders, list) and len(include_folders) > 0, "No trajectory folders are found. Please check the prefix."                
+        # We need to check the `info.json` very carefully here.
+        # Different `info` points to different dataset, 
+        # even if the data files in `root` are basically the same.
+        info_files, public_info = {}, None
+        # the info_files is a dict that maps the folder name to the info in dict format.
 
-            # We need to check the `info.json` very carefully here.
-            # Different `info` points to different dataset, 
-            # even if the data files in `root` are basically the same.
-            info_files = {}
-
-            # See if a public info is provided.
-            #if "info.json" in os.listdir(root):
-            if os.path.exists(f"{root}/info.json"):
-                public_info = j_loader(os.path.join(root, "info.json"))
-                if dataset_type == "LMDBDataset":
-                    public_info = {}
-                    log.info("A public `info.json` file is provided, but will not be used  anymore for LMDBDataset.")
-                else:
-                    public_info = normalize_setinfo(public_info)
-                    log.info("A public `info.json` file is provided, and will be used by the subfolders who do not have their own `info.json` file.")
+        # setting on the public (default) info that will be the default for subfolders without its
+        # own info.json file.
+        finfo = Path(root) / "info.json"
+        if finfo.exists():
+            public_info = j_loader(finfo)
+            if dataset_type == "LMDBDataset":
+                public_info = {}
+                log.info("A public `info.json` file is provided, "
+                         "but will not be used anymore for LMDBDataset.")
             else:
-                public_info = None
+                public_info = normalize_setinfo(public_info)
+                log.info("A public `info.json` file is provided, "
+                         "and will be used by the subfolders who do not have their own `info.json` file.")
 
-            # Load info in each trajectory folders seperately.
-            for file in include_folders:
-                #if "info.json" in os.listdir(os.path.join(root, file)):
+        # Load info in each trajectory folders seperately...
+        for folder in valid_folders:
+            # for LMDBDataset, the information is not set here
+            if dataset_type == "LMDBDataset":
+                info_files[folder] = {}
+                continue
+            
+            # otherwise, at least the public info would be the default
+            finfo = Path(root) / folder / "info.json"
+            if not finfo.exists() and public_info is None: # no info in subfolder and no public info. then raise error.
+                log.error(f"for {dataset_type} type, the info.json is not properly provided for `{folder}`")
+                raise ValueError(f"for {dataset_type} type, the info.json is not properly provided for `{folder}`")
+            
+            # the case that info is individually provided
+            if finfo.exists():
+                info_files[folder] = normalize_setinfo(j_loader(finfo))
+            else:
+                # use public info instead
+                assert public_info is not None
+                # yaml will not dump correctly if this is not a deepcopy.
+                info_files[folder] = deepcopy(public_info)
 
-                if dataset_type == "LMDBDataset":
-                    info_files[file] = {}
-                elif os.path.exists(f"{root}/{file}/info.json"):
-                    # use info provided in this trajectory.
-                    info = j_loader(f"{root}/{file}/info.json")
-                    info = normalize_setinfo(info)
-                    info_files[file] = info
-                elif public_info is not None:  # not lmbd and no info in subfolder, then must use public info.
-                    # use public info instead
-                    # yaml will not dump correctly if this is not a deepcopy.
-                    info_files[file] = deepcopy(public_info)
-                else:  # not lmdb no info in subfolder and no public info. then raise error.
-                    log.error(f"for {dataset_type} type, the info.json is not properly provided for `{file}`")
-                    raise ValueError(f"for {dataset_type} type, the info.json is not properly provided for `{file}`")
 
-            # We will sort the info_files here.
-            # The order itself is not important, but must be consistant for the same list.
-            info_files = {key: info_files[key] for key in sorted(info_files)}
-        
-            for ikey in info_files:
-                info_files[ikey].update({'r_max': r_max, 'er_max': er_max, 'oer_max': oer_max})
+        # finally, we sort the info_files here.
+        # The order itself is not important, but must be consistant for the same list.
+        info_files = {key: info_files[key] for key in sorted(info_files)}
+    
+        # add the cutoff radius information for each valid folder (contains all the data files)
+        for folder in info_files:
+            info_files[folder].update({'r_max'  : r_max, 
+                                       'er_max' : er_max, 
+                                       'oer_max': oer_max})
 
-            if dataset_type == "DeePHDataset":
-                dataset = DeePHE3Dataset(
-                    root=root,
-                    type_mapper=idp,
-                    get_Hamiltonian=get_Hamiltonian,
-                    get_eigenvalues=get_eigenvalues,
-                    info_files = info_files
-                )
-            elif dataset_type == "DefaultDataset":
-                dataset = DefaultDataset(
-                    root=root,
-                    type_mapper=idp,
-                    get_Hamiltonian=get_Hamiltonian,
-                    get_overlap=get_overlap,
-                    get_DM=get_DM,
-                    get_eigenvalues=get_eigenvalues,
-                    info_files = info_files
-                )
-            elif dataset_type == "HDF5Dataset":
-                dataset = HDF5Dataset(
-                    root=root,
-                    type_mapper=idp,
-                    get_Hamiltonian=get_Hamiltonian,
-                    get_overlap=get_overlap,
-                    get_DM=get_DM,
-                    get_eigenvalues=get_eigenvalues,
-                    info_files = info_files
-                )
-            elif dataset_type == "LMDBDataset":
-                dataset = LMDBDataset(
-                root=root,
-                type_mapper=idp,
-                orthogonal=orthogonal,
-                get_Hamiltonian=get_Hamiltonian,
-                get_overlap=get_overlap,
-                get_DM=get_DM,
-                get_eigenvalues=get_eigenvalues,
-                info_files = info_files
-            )
-
+        # after preprocessing, we can build the dataset
+        if dataset_type == "DeePHDataset":
+            return DeePHE3Dataset(root=root,
+                                  type_mapper=idp,
+                                  get_Hamiltonian=get_Hamiltonian,
+                                  get_eigenvalues=get_eigenvalues,
+                                  info_files=info_files)
+        elif dataset_type == "DefaultDataset":
+            return DefaultDataset(root=root,
+                                  type_mapper=idp,
+                                  get_Hamiltonian=get_Hamiltonian,
+                                  get_overlap=get_overlap,
+                                  get_DM=get_DM,
+                                  get_eigenvalues=get_eigenvalues,
+                                  info_files=info_files)
+        elif dataset_type == "HDF5Dataset":
+            return HDF5Dataset(root=root,
+                               type_mapper=idp,
+                               get_Hamiltonian=get_Hamiltonian,
+                               get_overlap=get_overlap,
+                               get_DM=get_DM,
+                               get_eigenvalues=get_eigenvalues,
+                               info_files=info_files)
         else:
-            raise ValueError(f"Not support dataset type: {type}.")
-        
-        if not self.if_check_cutoffs:
-            log.warning("The cutoffs in data and model are not checked. be careful!")
-
-        return dataset
+            assert dataset_type == "LMDBDataset"
+            return LMDBDataset(root=root,
+                               type_mapper=idp,
+                               orthogonal=orthogonal,
+                               get_Hamiltonian=get_Hamiltonian,
+                               get_overlap=get_overlap,
+                               get_DM=get_DM,
+                               get_eigenvalues=get_eigenvalues,
+                               info_files=info_files)
     
     def from_model(self, 
                model, 
