@@ -250,7 +250,7 @@ class _TrajData(object):
                 # there is also the case that the invalidity of cell is reflected
                 # by the cell being all zeros.
                 cell_read = atoms.get_cell()
-                cell.append(None if np.allclose(cell_read, np.zeros(3), atol=1e-6) else cell_read)
+                cell.append(None if np.allclose(cell_read, np.zeros((3, 3)), atol=1e-6) else cell_read)
 
         # the trajectory reading must be successful and not empty
         assert positions
