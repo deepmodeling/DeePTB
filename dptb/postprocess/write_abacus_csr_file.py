@@ -90,7 +90,7 @@ def write_blocks_to_abacus_csr(atomic_numbers, basis_dict, blocks_dict, matrix_s
       atomic_numbers: per-site Z array-like
       basis_dict: parse_orbital_files result
       blocks_dict: mapping 'i_j_Rx_Ry_Rz' -> small block (DFTIO ordering)
-      matrix_symbol: 'H'/'S'/'D'
+      matrix_symbol: 'H'/'S'/'DM'
     """
     atomic_numbers = np.asarray(atomic_numbers, dtype=int)
     if atomic_numbers.size == 0:

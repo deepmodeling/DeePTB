@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import logging  # [修改 1] 导入 logging
 from typing import Optional, Dict, Union, List
 
 from dptb.data import AtomicDataDict, _keys
@@ -9,16 +10,13 @@ from dptb.nn.embedding.emb import Embedding
 # 复用 lem.py 中的组件
 from .lem import Lem
 
+# [修改 2] 初始化 logger
+log = logging.getLogger(__name__)
 
-# ==========================================
-# 1. SpookyNet 组件 (仅保留 Charge 相关)
+
 # ==========================================
 
 class ResidualMLP(nn.Module):
-    """
-    SpookyNet 的残差块实现
-    """
-
     def __init__(self, num_features, num_residual, activation="swish", bias=True, zero_init=True):
         super().__init__()
         self.layers = nn.ModuleList()
@@ -52,10 +50,6 @@ class ResidualMLP(nn.Module):
 
 
 class ElectronicEmbedding(nn.Module):
-    """
-    SpookyNet 的电荷嵌入模块 (无 Spin)
-    """
-
     def __init__(
             self,
             num_features: int,
@@ -157,6 +151,8 @@ class LemCharge(Lem):
             activation=charge_activation,
         )
 
+        self._logged_charge_info = False
+
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         # 1. 基础预处理 (同 Lem)
         from dptb.data.AtomicDataDict import with_edge_vectors, with_batch
@@ -181,28 +177,26 @@ class LemCharge(Lem):
             num_batch = 1
             batch_seg = torch.zeros(node_one_hot.shape[0], dtype=torch.long, device=self.device)
 
-        # print(batch_seg)
         # ============================================================
         # [NEW] Charge Embedding 逻辑 (含 Dummy Charge)
         # ============================================================
 
-        # 尝试从 data 中获取真实 charge
-        # 假设 key 为 "charge" 或 "Q"
         total_charge = data.get("charge") if "charge" in data else data.get("Q")
-        # print(data.keys())
-        # print(total_charge)
+
+        if not self._logged_charge_info:
+            if total_charge is not None:
+                log.info(f"✅ [LemCharge] Dataset contains charge info (found in batch).")
+            else:
+                log.warning(f"⚠️ [LemCharge] Dataset DOES NOT contain charge info. Using random dummy charges.")
+            self._logged_charge_info = True
 
         if total_charge is None:
             # ---> Dummy Charge 生成逻辑 <---
             # 如果数据里没写 charge，为了跑通前向，随机生成 [-1, 0, 1, 2]
-            # randint(0, 4) -> [0, 1, 2, 3] -> minus 1 -> [-1, 0, 1, 2]
             total_charge = torch.randint(
                 low=0, high=4, size=(num_batch,),
                 device=self.device, dtype=self.dtype
             ) - 1.0
-
-            # (Optional) 打印一次 warning 或者 debug info，确认 dummy 生效
-            # print(f"[DEBUG] Using Dummy Charge: {total_charge[:5]}")
 
         # 计算 Embedding
         q_emb = self.elec_emb(node_one_hot, total_charge, num_batch, batch_seg)
@@ -215,9 +209,6 @@ class LemCharge(Lem):
         data[_keys.NODE_ATTRS_KEY] = node_one_hot
 
         # ============================================================
-        # 后续逻辑与 Lem 原版保持一致
-        # ============================================================
-
         edge_one_hot = self.edge_one_hot(data)
         atom_type = data[_keys.ATOM_TYPE_KEY].flatten()
         bond_type = data[_keys.EDGE_TYPE_KEY].flatten()

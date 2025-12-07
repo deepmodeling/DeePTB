@@ -1,6 +1,7 @@
 from typing import Optional, List, Union, Dict
 import math
 import torch
+import logging  # [修改 1] 导入 logging
 from torch_runstats.scatter import scatter
 from torch_scatter import scatter_mean
 from e3nn import o3
@@ -9,11 +10,9 @@ from dptb.nn.embedding.emb import Embedding
 from dptb.data.AtomicDataDict import with_edge_vectors, with_batch
 from dptb.data.transforms import OrbitalMapper
 
-# 复用 lem_moe.py 的组件
 from .lem_moe import LemMoE, InitLayer, Layer
+log = logging.getLogger(__name__)
 
-# 复用 lem_charge.py 中的 Embedding 组件（假设你已经保存了该文件，或者我们在这里重新定义精简版）
-# 为了保证独立运行，这里内联了精简版的 ElectronicEmbedding
 
 # ==========================================
 # 1. Charge Embedding Module (Inline)
@@ -41,6 +40,7 @@ class ResidualMLP(torch.nn.Module):
         for act, layer in zip(self.activations, self.layers):
             x = x + layer(act(x))
         return x
+
 
 class ElectronicEmbedding(torch.nn.Module):
     def __init__(self, num_features: int, num_residual: int = 1, activation: str = "swish"):
@@ -71,12 +71,13 @@ class ElectronicEmbedding(torch.nn.Module):
         out = self.resblock((a / (anorm[batch_seg] + eps)).unsqueeze(-1) * v)
         return out
 
+
 # ==========================================
 # 2. LemMoECharge
 # ==========================================
 
-# 重新导入 Router，因为我们要修改它的初始化维度
 from dptb.nn.tensor_product_moe import MOLERouter, MOLEGlobals
+
 
 @Embedding.register("lem_moe_charge")
 class LemMoECharge(LemMoE):
@@ -85,45 +86,22 @@ class LemMoECharge(LemMoE):
             # Charge Params
             num_charge_residual: int = 1,
             charge_activation: str = "swish",
-            charge_embedding_dim: int = 32, # Charge Embedding 的维度
+            charge_embedding_dim: int = 32,
             # LemMoE Params
             **kwargs,
     ):
-        # 1. 初始化父类 (LemMoE)
         super().__init__(**kwargs)
-        
-        # 2. 初始化 Charge Embedding 模块
-        # 注意：SpookyNet 逻辑中，z (atom embedding) 用作 Query。
-        # 在这里我们直接用 node_one_hot (dim=n_atom) 作为 Query。
-        # 输出维度设定为 charge_embedding_dim
+
         self.charge_embedding_dim = charge_embedding_dim
         self.elec_emb = ElectronicEmbedding(
-            num_features=self.n_atom, # 输入维度 (用于 Query)
+            num_features=self.n_atom,
             num_residual=num_charge_residual,
             activation=charge_activation,
         )
-        # 还需要一个投影层把 elec_emb 输出的 dim (n_atom) 压缩到 charge_embedding_dim
-        # 或者直接让 elec_emb 输出 n_atom 维，然后在 Router 前拼接
-        # 为了灵活性，这里让 elec_emb 保持 n_atom 维度，但在混入 Router 时可能需要降维或直接拼接
-        
-        # 3. [关键修改] 覆盖父类的 Router
-        # 父类 Router 输入是 n_atom
-        # 新 Router 输入是 n_atom (Global Atomic Feat) + n_atom (Pooled Charge Feat) 
-        # 或者更简单的：我们将 Charge Embedding 加到 Node OneHot 上之后再池化
-        
-        # 策略选择：
-        # 方案 A: node_feat = node_feat + charge_emb. (需维度一致)
-        # 方案 B: global_feat = cat(mean(node_feat), mean(charge_emb)).
-        
-        # 这里采用方案 A (SpookyNet 原教旨主义)，因为这样 Charge 信息也会进入 InitLayer 和 Layer 的 TensorProduct
-        # 这意味着 node_one_hot 会变。
-        
-        # 但是！Router 的输入维度是否需要改变？
-        # 如果我们只是相加，node_one_hot 维度不变，Router 输入维度不变 (self.n_atom)。
-        # 这样的好处是：Charge 信息不仅影响了 Router (通过 global pooling 传递)，也影响了所有层的原子特征。
-        
+
+        self._logged_charge_info = False
+
         print(f"[LemMoECharge] Charge Injection Strategy: Additive (x = z + q)")
-        # 不需要重新定义 Router，因为输入维度没变。
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         data = with_edge_vectors(data, with_lengths=True)
@@ -135,9 +113,8 @@ class LemMoECharge(LemMoE):
         edge_length = data[_keys.EDGE_LENGTH_KEY]
 
         data = self.onehot(data)
-        # 获取原始 Node One-Hot
         node_one_hot = data[_keys.NODE_ATTRS_KEY]
-        
+
         batch_seg = data[_keys.BATCH_KEY]
         if batch_seg.numel() > 0:
             num_batch = batch_seg.max().item() + 1
@@ -150,27 +127,26 @@ class LemMoECharge(LemMoE):
         # ============================================================
         total_charge = data.get("charge") if "charge" in data else data.get("Q")
 
-        # print(data.keys())
-        # print(total_charge)
+        if not self._logged_charge_info:
+            if total_charge is not None:
+                log.info(f"✅ [LemMoECharge] Dataset contains charge info (found in batch).")
+            else:
+                log.warning(f"⚠️ [LemMoECharge] Dataset DOES NOT contain charge info. Using random dummy charges.")
+            self._logged_charge_info = True
 
         # Dummy Charge Logic
         if total_charge is None:
-            # Generate random charges [-1, 0, 1, 2]
             total_charge = torch.randint(
-                low=0, high=4, size=(num_batch,), 
+                low=0, high=4, size=(num_batch,),
                 device=self.device, dtype=self.dtype
             ) - 1.0
-            # print(f"[DEBUG] Dummy Charge Generated: {total_charge}")
 
         # 1. Compute Charge Embedding [N, n_atom]
         q_emb = self.elec_emb(node_one_hot, total_charge, num_batch, batch_seg)
-        
+
         # 2. Inject into Node Features [N, n_atom]
-        # SpookyNet Logic: x = z + q
-        # 这使得 node_one_hot 携带了电荷信息
         node_one_hot = node_one_hot + q_emb
-        
-        # 更新 data，确保后续模块（如 EdgeOneHot）如果再次调用 data 能拿到更新后的值
+
         data[_keys.NODE_ATTRS_KEY] = node_one_hot
 
         edge_one_hot = self.edge_one_hot(data)
@@ -178,19 +154,9 @@ class LemMoECharge(LemMoE):
         bond_type = data[_keys.EDGE_TYPE_KEY].flatten()
         batch = data[_keys.BATCH_KEY]
 
-        # ============================================================
-        # MOE Routing Logic (Now affected by Charge)
-        # ============================================================
-        
-        # 1. Global Feature: Mean of (Node + Charge)
-        # 由于 node_one_hot 已经加上了 q_emb，这里的 mean 包含了系统整体的电荷特征
-        global_feat = scatter_mean(node_one_hot, batch, dim=0)  # [Batch, n_atom]
+        global_feat = scatter_mean(node_one_hot, batch, dim=0)
+        coeffs = self.router(global_feat)
 
-        # 2. Compute Routing Coefficients
-        # Router 根据 (结构成分 + 电荷状态) 决定 Expert 权重
-        coeffs = self.router(global_feat)  # [Batch, num_experts]
-
-        # 3. Prepare MOLEGlobals (Unchanged)
         num_nodes_total = node_one_hot.shape[0]
         latents, node_features, edge_features, cutoff_coeffs, active_edges = self.init_layer(
             edge_index, atom_type, bond_type, edge_sh, edge_length, edge_one_hot
@@ -210,10 +176,6 @@ class LemMoECharge(LemMoE):
 
         mole_globals = MOLEGlobals(coefficients=coeffs, sizes=edge_sizes)
 
-        # ============================================================
-        # Layers
-        # ============================================================
-
         data[_keys.EDGE_OVERLAP_KEY] = latents
         wigner_D_all = None
         for idx, layer in enumerate(self.layers):
@@ -222,7 +184,7 @@ class LemMoECharge(LemMoE):
                     latents,
                     node_features,
                     edge_features,
-                    safe_node_one_hot, # Charge info passed here
+                    safe_node_one_hot,
                     edge_index,
                     edge_vector,
                     atom_type,
@@ -242,12 +204,11 @@ class LemMoECharge(LemMoE):
                 dtype=node_features.dtype,
             )
             node_features = torch.cat([node_features, pad], dim=0)
-            
+
         out_node_features = self.out_node(node_features)
         out_edge_features = self.out_edge(edge_features)
 
         if self.use_out_onehot_tp:
-            # Final projection also conditioned on Charge
             out_node_features = out_node_features + self.out_node_ele_tp(node_features, node_one_hot)
             out_edge_features = out_edge_features + self.out_edge_ele_tp(edge_features, edge_one_hot)
 

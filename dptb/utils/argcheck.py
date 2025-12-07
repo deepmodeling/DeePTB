@@ -98,7 +98,7 @@ def common_options():
         Argument("train_polar", bool, optional=True, default=False, doc=doc_train_polar),
         Argument("wave_align", bool, optional=True, default=False, doc=doc_wave_align),
         Argument("train_dip", bool, optional=True, default=False, doc=doc_train_dip),
-        Argument("train_w_charge", bool, optional=True, default=False, doc=doc_train_w_charge),
+        Argument("train_w_charge", bool, optional=True, default=True, doc=doc_train_w_charge),
         Argument("device", str, optional = True, default="cpu", doc = doc_device),
         Argument("dtype", str, optional = True, default="float32", doc = doc_dtype),
         Argument("seed", int, optional=True, default=3982377700, doc=doc_seed),
