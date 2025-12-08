@@ -285,6 +285,15 @@ class Lem(torch.nn.Module):
                     edge_one_hot,
                     wigner_D_all
                 )
+        #     if idx in [0, 1]:
+        #         print(f'After the {idx + 1} message passing layer:')
+        #         print(node_features[0][388:580])
+        #         # a = 1
+        #     else:
+        #         print(f'After the {idx + 1} message passing layer:')
+        #         print(node_features[0][:580])
+        #
+        # raise RuntimeError
 
         if node_features.shape[0] < num_nodes_total:
             pad_num = num_nodes_total - node_features.shape[0]

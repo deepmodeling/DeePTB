@@ -98,7 +98,7 @@ def common_options():
         Argument("train_polar", bool, optional=True, default=False, doc=doc_train_polar),
         Argument("wave_align", bool, optional=True, default=False, doc=doc_wave_align),
         Argument("train_dip", bool, optional=True, default=False, doc=doc_train_dip),
-        Argument("train_w_charge", bool, optional=True, default=True, doc=doc_train_w_charge),
+        Argument("train_w_charge", bool, optional=True, default=False, doc=doc_train_w_charge),
         Argument("device", str, optional = True, default="cpu", doc = doc_device),
         Argument("dtype", str, optional = True, default="float32", doc = doc_dtype),
         Argument("seed", int, optional=True, default=3982377700, doc=doc_seed),
@@ -484,7 +484,10 @@ def embedding():
             Argument("lem_high_order", dict, slem()),
             Argument("lem", dict, slem()),
             Argument("lem_frame", dict, slem()),
+            Argument("lem_light", dict, slem()),
+            Argument("lem_light_v2", dict, slem()),
             Argument("lem_charge", dict, slem()),
+            Argument("lem_in_frame", dict, slem()),
             Argument("lem_moe_charge", dict, slem()),
             Argument("lem_moe", dict, slem()),
             Argument("lem_so2", dict, slem()),
@@ -1677,7 +1680,7 @@ def get_cutoffs_from_model_options(model_options):
         embedding = model_options.get("embedding")
         if embedding["method"] == "se2":
             er_max = embedding["rc"]
-        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_charge", "lem_moe_charge", "lem_frame", "lem_high_order", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
+        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_charge", "lem_in_frame", "lem_light_v2", "lem_light", "lem_moe_charge", "lem_frame", "lem_high_order", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
             r_max = embedding["r_max"]
         else:
             log.error("The method of embedding have not been defined in get cutoff functions")

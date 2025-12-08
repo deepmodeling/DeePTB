@@ -542,15 +542,14 @@ def train(
     current_bs = jdata["train_options"]["batch_size"]
     grad_log_file = os.path.join(output, f"grad_trace_bs{current_bs}.csv")
 
-    # # 注册 Monitor
-    # # verbose_freq 控制打印频率，但 CSV 是实时记录的
+    # # # 注册 Monitor
+    # # # verbose_freq 控制打印频率，但 CSV 是实时记录的
     # doctor = DeepDoctorMonitor(output, verbose_freq=10)
     # trainer.register_plugin(doctor)
     # so2_monitor = SO2ModuleMonitor(output)
     # trainer.register_plugin(so2_monitor)
     # pre_so2_monitor = PreTPBlockMonitor(output)
     # trainer.register_plugin(pre_so2_monitor)
-
 
     if jdata["train_options"]["use_tensorboard"]:
         assert jdata["train_options"]["display_freq"] >= jdata["train_options"]["validation_freq"], 'The display frequency must be greater than the validation frequency.'

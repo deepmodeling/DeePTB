@@ -15,7 +15,10 @@ from .lem_so2_global import LemSO2Global
 from .trinity import Trinity
 from .e3baseline_nonlocal import E3BaseLineModelNonLocal
 from .lem_frame import LemFrame
+from .lem_light import LemLight
+from .lem_light_v2 import LemLightV2
 from .lem_charge import LemCharge
+from .lem_in_frame import LemInFrame
 from .lem_moe_charge import LemMoECharge
 from .lem_high_order import LemHighOrder
 
@@ -25,10 +28,13 @@ __all__ = [
     "Identity",
     "E3DeePH",
     "Lem",
+    "lem_light",
+    "lem_light_v2",
     "LemHighOrder",
     "LemMoECharge",
     "LemCharge",
     "LemFrame",
+    "LemInFrame",
     "LemMoE",
     "LemSO2Global",
     "LemGlobal",

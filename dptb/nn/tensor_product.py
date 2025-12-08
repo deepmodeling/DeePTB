@@ -8,129 +8,9 @@ import os
 import torch.nn.functional as F
 from collections import defaultdict
 
+# 你可能已有的静态数据加载（保持不变）
 _Jd = torch.load(os.path.join(os.path.dirname(__file__), "Jd.pt"), weights_only=False)
 _idx_data = torch.load(os.path.join(os.path.dirname(__file__), "z_rot_indices_lmax12.pt"), weights_only=False)
-
-
-def build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes):
-    """
-    angle_stack: (3*N, )    # Input with alpha, beta, gamma stacked together
-    l_max: int
-
-    Returns: (Xa, Xb, Xc) # Each is of shape (N, D_total, D_total)
-    """
-    N_all = angle_stack.shape[0]
-    N = N_all // 3
-
-    D_total = sizes.sum().item()
-
-    # Step 1: Vectorized computation of sine and cosine values
-    angle_expand = angle_stack[None, :, None]  # (1, 3N, 1)
-    freq_expand = freq[:, None, :]  # (L, 1, Mmax)
-    sin_val = torch.sin(freq_expand * angle_expand)  # (L, 3N, Mmax)
-    cos_val = torch.cos(freq_expand * angle_expand)  # (L, 3N, Mmax)
-
-    # Step 2: Construct the block-diagonal matrix
-    M_total = angle_stack.new_zeros((N_all, D_total, D_total))
-    idx_l, idx_row = torch.where(mask)  # (K,), (K,)
-    idx_col_diag = idx_row
-    idx_col_anti = reversed_inds[idx_l, idx_row]
-    global_row = offsets[idx_l] + idx_row  # (K,)
-    global_col_diag = offsets[idx_l] + idx_col_diag
-    global_col_anti = offsets[idx_l] + idx_col_anti
-
-    # Assign values to the diagonal
-    M_total[:, global_row, global_col_diag] = cos_val[idx_l, :, idx_row].transpose(0, 1)
-    # Assign values to non-overlapping anti-diagonals
-    overlap_mask = (global_row == global_col_anti)
-    M_total[:, global_row[~overlap_mask], global_col_anti[~overlap_mask]] = sin_val[idx_l[~overlap_mask], :,
-                                                                            idx_row[~overlap_mask]].transpose(0, 1)
-
-    # Step 3: Split into three components corresponding to alpha, beta, gamma
-    Xa = M_total[:N]
-    Xb = M_total[N:2 * N]
-    Xc = M_total[2 * N:]
-
-    return Xa, Xb, Xc
-
-
-def batch_wigner_D(l_max, alpha, beta, gamma, _Jd):
-    """
-    Compute Wigner D matrices for all L (from 0 to l_max) in a single batch.
-    Returns a tensor of shape [N, D, D], where D = sum(2l+1 for l in 0..l_max).
-    """
-    device = alpha.device
-    N = alpha.shape[0]
-    idx_data = {k: (v.to(device) if isinstance(v, torch.Tensor) else v) for k, v in _idx_data.items()}
-
-    # Load static data
-    sizes = idx_data["sizes"][:l_max + 1]
-    offsets = idx_data["offsets"][:l_max + 1]
-    mask = idx_data["mask"][:l_max + 1]
-    freq = idx_data["freq"][:l_max + 1]
-    reversed_inds = idx_data["reversed_inds"][:l_max + 1]
-
-    # Precompute block structure information
-    dims = [2 * l + 1 for l in range(l_max + 1)]
-    D_total = sum(dims)
-
-    # Construct block-diagonal J matrix
-    J_full_small = torch.zeros(D_total, D_total, device=device)
-    for l in range(l_max + 1):
-        start = offsets[l]
-        J_full_small[start:start + 2 * l + 1, start:start + 2 * l + 1] = _Jd[l]
-
-    J_full = J_full_small.unsqueeze(0).expand(N, -1, -1)
-    angle_stack = torch.cat([alpha, beta, gamma], dim=0)
-    Xa, Xb, Xc = build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes)
-
-    return Xa @ J_full @ Xb @ J_full @ Xc
-
-
-def wigner_D(l, alpha, beta, gamma):
-    if not l < len(_Jd):
-        raise NotImplementedError(
-            f"wigner D maximum l implemented is {len(_Jd) - 1}, send us an email to ask for more"
-        )
-    alpha, beta, gamma = torch.broadcast_tensors(alpha, beta, gamma)
-    J = _Jd[l].to(dtype=alpha.dtype, device=alpha.device)
-    Xa = _z_rot_mat(alpha, l)
-    Xb = _z_rot_mat(beta, l)
-    Xc = _z_rot_mat(gamma, l)
-    return Xa @ J @ Xb @ J @ Xc
-
-
-def _z_rot_mat(angle, l):
-    shape, device, dtype = angle.shape, angle.device, angle.dtype
-    M = angle.new_zeros((*shape, 2 * l + 1, 2 * l + 1))
-    inds = torch.arange(0, 2 * l + 1, 1, device=device)
-    reversed_inds = torch.arange(2 * l, -1, -1, device=device)
-    frequencies = torch.arange(l, -l - 1, -1, dtype=dtype, device=device)
-    M[..., inds, reversed_inds] = torch.sin(frequencies * angle[..., None])
-    M[..., inds, inds] = torch.cos(frequencies * angle[..., None])
-    return M
-
-
-class InterpolationBlock(nn.Module):
-    """
-    A small MLP with two hidden layers for smooth feature transformation.
-    """
-
-    def __init__(self, in_features, out_features, bias=False):
-        super().__init__()
-        self.out_features = out_features
-        hidden_features1 = max(1, int(in_features * 2 / 3 + out_features * 1 / 3))
-        hidden_features2 = max(1, int(in_features * 1 / 3 + out_features * 2 / 3))
-        self.net = nn.Sequential(
-            nn.Linear(in_features, hidden_features1, bias=True),
-            nn.SiLU(),
-            nn.Linear(hidden_features1, hidden_features2, bias=True),
-            nn.SiLU(),
-            nn.Linear(hidden_features2, out_features, bias=bias)
-        )
-
-    def forward(self, x):
-        return self.net(x)
 
 
 class SO2_Attention(torch.nn.Module):
@@ -250,6 +130,165 @@ class SO2_Attention(torch.nn.Module):
         return latent
 
 
+# --- 若文件中已有 build_z_rot_multi / batch_wigner_D / wigner_D / _z_rot_mat，保留不变 ---
+# 这里假设上面的函数在原文件中已有实现（和你贴出的片段一致）
+# 为了简洁，这里不重复这些辅助函数的实现（如果你的文件中没有，请把原实现拷回）
+
+def wigner_D(l, alpha, beta, gamma):
+    if not l < len(_Jd):
+        raise NotImplementedError(
+            f"wigner D maximum l implemented is {len(_Jd) - 1}, send us an email to ask for more"
+        )
+    alpha, beta, gamma = torch.broadcast_tensors(alpha, beta, gamma)
+    J = _Jd[l].to(dtype=alpha.dtype, device=alpha.device)
+    Xa = _z_rot_mat(alpha, l)
+    Xb = _z_rot_mat(beta, l)
+    Xc = _z_rot_mat(gamma, l)
+    return Xa @ J @ Xb @ J @ Xc
+
+def build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes):
+    """
+    angle_stack: (3*N, )    # Input with alpha, beta, gamma stacked together
+    Returns: (Xa, Xb, Xc) # Each is of shape (N, D_total, D_total)
+    """
+    N_all = angle_stack.shape[0]
+    N = N_all // 3
+
+    D_total = sizes.sum().item()
+
+    # Step 1: Vectorized computation of sine and cosine values
+    angle_expand = angle_stack[None, :, None]  # (1, 3N, 1)
+    freq_expand = freq[:, None, :]  # (L, 1, Mmax)
+    sin_val = torch.sin(freq_expand * angle_expand)  # (L, 3N, Mmax)
+    cos_val = torch.cos(freq_expand * angle_expand)  # (L, 3N, Mmax)
+
+    # Step 2: Construct the block-diagonal matrix
+    M_total = angle_stack.new_zeros((N_all, D_total, D_total))
+    idx_l, idx_row = torch.where(mask)  # (K,), (K,)
+    idx_col_diag = idx_row
+    idx_col_anti = reversed_inds[idx_l, idx_row]
+    global_row = offsets[idx_l] + idx_row  # (K,)
+    global_col_diag = offsets[idx_l] + idx_col_diag
+    global_col_anti = offsets[idx_l] + idx_col_anti
+
+    # Assign values to the diagonal
+    M_total[:, global_row, global_col_diag] = cos_val[idx_l, :, idx_row].transpose(0, 1)
+    # Assign values to non-overlapping anti-diagonals
+    overlap_mask = (global_row == global_col_anti)
+    M_total[:, global_row[~overlap_mask], global_col_anti[~overlap_mask]] = sin_val[idx_l[~overlap_mask], :,
+                                                                            idx_row[~overlap_mask]].transpose(0, 1)
+
+    # Step 3: Split into three components corresponding to alpha, beta, gamma
+    Xa = M_total[:N]
+    Xb = M_total[N:2 * N]
+    Xc = M_total[2 * N:]
+
+    return Xa, Xb, Xc
+
+
+def batch_wigner_D(l_max, alpha, beta, gamma, _Jd):
+    """
+    Compute Wigner D matrices for all L (from 0 to l_max) in a single batch.
+    Returns a tensor of shape [N, D, D], where D = sum(2l+1 for l in 0..l_max).
+    """
+    device = alpha.device
+    N = alpha.shape[0]
+    idx_data = {k: (v.to(device) if isinstance(v, torch.Tensor) else v) for k, v in _idx_data.items()}
+
+    # Load static data
+    sizes = idx_data["sizes"][:l_max + 1]
+    offsets = idx_data["offsets"][:l_max + 1]
+    mask = idx_data["mask"][:l_max + 1]
+    freq = idx_data["freq"][:l_max + 1]
+    reversed_inds = idx_data["reversed_inds"][:l_max + 1]
+
+    # Precompute block structure information
+    dims = [2 * l + 1 for l in range(l_max + 1)]
+    D_total = sum(dims)
+
+    # Construct block-diagonal J matrix
+    J_full_small = torch.zeros(D_total, D_total, device=device)
+    for l in range(l_max + 1):
+        start = offsets[l]
+        J_full_small[start:start + 2 * l + 1, start:start + 2 * l + 1] = _Jd[l]
+
+    J_full = J_full_small.unsqueeze(0).expand(N, -1, -1)
+    angle_stack = torch.cat([alpha, beta, gamma], dim=0)
+    Xa, Xb, Xc = build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes)
+
+    return Xa @ J_full @ Xb @ J_full @ Xc
+
+
+def rotate_vector(x, irreps, wigner_D_all, back=False):
+    """
+    辅助函数：手动旋转向量。
+    back=False: Global -> Local (x @ R)
+    back=True:  Local -> Global (x @ R.T)
+    """
+    n, _ = x.shape
+    x_out = torch.zeros_like(x)
+    irreps = Irreps(irreps).simplify()
+
+    # 预计算 offset
+    l_max = max((l for (_, (l, _)), _ in zip(irreps, irreps.slices()) if l > 0), default=0)
+    dims = {l: 2 * l + 1 for l in range(l_max + 1)}
+    offsets = {}
+    offset = 0
+    for l in range(l_max + 1):
+        offsets[l] = offset
+        offset += dims[l]
+
+    groups = defaultdict(list)
+    for (mul, (l, p)), slice_info in zip(irreps, irreps.slices()):
+        groups[l].append((mul, slice_info))
+
+    # 复制 scalar
+    for (mul, (l, p)), slice_info in zip(irreps, irreps.slices()):
+        if l == 0:
+            x_out[:, slice_info] = x[:, slice_info]
+
+    # 旋转 vector
+    for l, group in groups.items():
+        if l == 0 or not group:
+            continue
+        muls, slices = zip(*group)
+        x_parts = [x[:, sl].reshape(n, mul, 2 * l + 1) for mul, sl in group]
+        x_combined = torch.cat(x_parts, dim=1)  # (N, total_mul, 2l+1)
+
+        start = offsets[l]
+        rot_mat = wigner_D_all[:, start:start + dims[l], start:start + dims[l]]
+
+        if not back:
+            # Global -> Local
+            transformed = torch.bmm(x_combined, rot_mat)
+        else:
+            # Local -> Global (multiply by transpose)
+            transformed = torch.bmm(x_combined, rot_mat.transpose(1, 2))
+
+        for part, slice_info in zip(transformed.split(muls, dim=1), slices):
+            x_out[:, slice_info] = part.reshape(n, -1)
+
+    return x_out
+
+
+class InterpolationBlock(nn.Module):
+    def __init__(self, in_features, out_features, bias=False):
+        super().__init__()
+        self.out_features = out_features
+        hidden_features1 = max(1, int(in_features * 2 / 3 + out_features * 1 / 3))
+        hidden_features2 = max(1, int(in_features * 1 / 3 + out_features * 2 / 3))
+        self.net = nn.Sequential(
+            nn.Linear(in_features, hidden_features1, bias=True),
+            nn.SiLU(),
+            nn.Linear(hidden_features1, hidden_features2, bias=True),
+            nn.SiLU(),
+            nn.Linear(hidden_features2, out_features, bias=bias)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
 class SO2_Linear(torch.nn.Module):
     """
     SO(2) Convolutional layer.
@@ -263,32 +302,31 @@ class SO2_Linear(torch.nn.Module):
             latent_dim: int = None,
             radial_channels: list = None,
             extra_m0_outsize: int = 0,
-            # MODIFICATION: Add a single flag to control behavior.
             use_interpolation: bool = False,
+            # === 新增参数 ===
+            rotate_in: bool = True,
+            rotate_out: bool = True,
     ):
         super(SO2_Linear, self).__init__()
 
-        self.irreps_in = irreps_in.simplify()
-        self.irreps_out = (Irreps(f"{extra_m0_outsize}x0e") + irreps_out).simplify()
+        self.irreps_in = Irreps(irreps_in).simplify()
+        self.irreps_out = (Irreps(f"{extra_m0_outsize}x0e") + Irreps(irreps_out)).simplify()
         self.radial_emb = radial_emb
         self.latent_dim = latent_dim
         self.m_linear = nn.ModuleList()
 
-        # MODIFICATION: Simplified logic based solely on the `use_interpolation` flag.
+        # 保存 flag
+        self.rotate_in = rotate_in
+        self.rotate_out = rotate_out
+
         num_in_m0 = self.irreps_in.num_irreps
         num_out_m0 = self.irreps_out.num_irreps
-
-        # if use_interpolation:
-        #     self.fc_m0 = InterpolationBlock(num_in_m0, num_out_m0, bias=True)
-        # else:
-        #     self.fc_m0 = Linear(num_in_m0, num_out_m0, bias=True)
 
         self.fc_m0 = Linear(num_in_m0, num_out_m0, bias=True)
 
         for m in range(1, self.irreps_out.lmax + 1):
             self.m_linear.append(SO2_m_Linear(m, self.irreps_in, self.irreps_out, use_interpolation=use_interpolation))
 
-        # --- The rest of the __init__ method is unchanged ---
         self.m_in_mask = torch.zeros(self.irreps_in.lmax + 1, self.irreps_in.dim, dtype=torch.bool)
         self.m_out_mask = torch.zeros(self.irreps_in.lmax + 1, self.irreps_out.dim, dtype=torch.bool)
         if self.irreps_in.dim <= self.irreps_out.dim:
@@ -333,19 +371,32 @@ class SO2_Linear(torch.nn.Module):
         if self.radial_emb:
             weights = self.radial_emb(latents)
         x_ = torch.zeros_like(x)
+
+        # 旋转逻辑：需要旋转才计算 Wigner D (或者如果外部传进来了就用)
         if wigner_D_all is None:
-            if self.l_max > 0:
+            # 只有当需要 rotate_in 或者 rotate_out 时才必须计算 D
+            if (self.rotate_in or self.rotate_out) and self.l_max > 0:
                 angle = xyz_to_angles(R[:, [1, 2, 0]])
                 wigner_D_all = batch_wigner_D(self.l_max, angle[0], angle[1], torch.zeros_like(angle[0]), _Jd)
+
         groups = defaultdict(list)
         for (mul, (l, p)), slice_info in zip(self.irreps_in, self.irreps_in.slices()):
             groups[l].append((mul, slice_info))
             if l == 0:
                 x_[:, slice_info] = x[:, slice_info]
+
         for l, group in groups.items():
             if l == 0 or not group:
                 continue
             muls, slices = zip(*group)
+
+            # === 如果 rotate_in 为 False，直接复制不旋转 ===
+            if not self.rotate_in:
+                for mul, sl in group:
+                    x_[:, sl] = x[:, sl]
+                continue
+            # ============================================
+
             x_parts = [x[:, sl].reshape(n, mul, 2 * l + 1) for mul, sl in group]
             x_combined = torch.cat(x_parts, dim=1)
             start = self.offsets[l]
@@ -353,6 +404,7 @@ class SO2_Linear(torch.nn.Module):
             transformed = torch.bmm(x_combined, rot_mat)
             for part, slice_info, mul in zip(transformed.split(muls, dim=1), slices, muls):
                 x_[:, slice_info] = part.reshape(n, -1)
+
         out = torch.zeros(n, self.irreps_out.dim, dtype=x.dtype, device=x.device)
         for m in range(self.irreps_out.lmax + 1):
             radial_weight = weights[:, self.m_in_index[m]:self.m_in_index[m + 1]].unsqueeze(
@@ -376,7 +428,12 @@ class SO2_Linear(torch.nn.Module):
                     linear_output = self.m_linear[m - 1](x_m_in)
                 final_addition = linear_output.transpose(1, 2).contiguous().reshape(n, -1)
                 out[:, self.m_out_mask[m]] += final_addition
-        a = 1
+
+        # === 如果 rotate_out 为 False，直接返回 out，不旋转回 global ===
+        if not self.rotate_out:
+            return out.contiguous(), wigner_D_all
+        # =========================================================
+
         for (mul, (l, p)), slice_in in zip(self.irreps_out, self.irreps_out.slices()):
             if l > 0:
                 start = self.offsets[l]
@@ -388,16 +445,11 @@ class SO2_Linear(torch.nn.Module):
 
 
 class SO2_m_Linear(torch.nn.Module):
-    """
-    SO(2) Convolution for a specific order m > 0.
-    """
-
     def __init__(
             self,
             m,
             irreps_in,
             irreps_out,
-            # MODIFICATION: Accept the flag from the parent module.
             use_interpolation: bool = False,
     ):
         super(SO2_m_Linear, self).__init__()
@@ -405,7 +457,6 @@ class SO2_m_Linear(torch.nn.Module):
         self.num_in_channel = sum(mul for mul, (l, p) in irreps_in if l >= m)
         self.num_out_channel = sum(mul for mul, (l, p) in irreps_out if l >= m)
 
-        # MODIFICATION: Simplified logic based solely on the `use_interpolation` flag.
         if use_interpolation:
             self.fc = InterpolationBlock(self.num_in_channel, 2 * self.num_out_channel, bias=False)
         else:
@@ -423,10 +474,6 @@ class SO2_m_Linear(torch.nn.Module):
 
 
 class RadialFunction(nn.Module):
-    '''
-    A simple MLP for radial basis functions.
-    '''
-
     def __init__(self, channels_list):
         super().__init__()
         modules = []
