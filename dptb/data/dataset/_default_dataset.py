@@ -226,7 +226,7 @@ class _TrajData(object):
             if pbc is None:
                 # read from the trajectory...however, the same issue also exists here, the pbc may
                 # change along the trajectory, so we need to check it (only allow one pbc setting)
-                pbc = np.unique([atoms.pbc.tolist() for atoms in traj], axis=0)
+                pbc = np.unique([atoms.pbc.tolist() for atoms in traj], axis=0).tolist()
                 assert len(pbc) == 1, "PBC setting in trajectory file is not consistent."
                 pbc = pbc[0]
                 assert isinstance(pbc, list) and len(pbc) == 3, \
