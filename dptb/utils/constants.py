@@ -82,11 +82,26 @@ ABACUS2DeePTB[3][[0, 6, 2, 4]] *= -1
 ABACUS2DeePTB[4][[1, 7, 3, 5]] *= -1
 ABACUS2DeePTB[5][[0, 10, 8, 2, 6, 4]] *= -1
 
-OPENMX2DeePTB = {
+
+OPENMX_orbital_number_m = {
+    "s": [0],
+    "p": [1, -1, 0],
+    "d": [0, 2, -2, 1, -1],
+    "f": [0, 1, -1, 2, -2, 3, -3]
+}
+
+OPENMX2DeePTB_bak = {
             "s": torch.eye(1).double(),
             "p": torch.eye(3)[[1, 2, 0]].double(),
             "d": torch.eye(5)[[2, 4, 0, 3, 1]].double(),
             "f": torch.eye(7)[[6, 4, 2, 0, 1, 3, 5]].double()
+        }
+
+OPENMX2DeePTB = {
+            0: np.eye(1, dtype=np.float32),
+            1: np.eye(3, dtype=np.float32)[[1, 2, 0]],
+            2: np.eye(5, dtype=np.float32)[[2, 4, 0, 3, 1]],
+            3: np.eye(7, dtype=np.float32)[[6, 4, 2, 0, 1, 3, 5]]
         }
 
 PYSCF_orbital_number_m = {
