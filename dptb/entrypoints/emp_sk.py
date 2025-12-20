@@ -54,12 +54,10 @@ class EmpSK(object):
         # 判断是否存在输出目录
         if not os.path.exists(outdir):
             os.makedirs(outdir, exist_ok=True)
-        json_dict = self.model.to_json(basisref=self.basisref)\
-        
+        json_dict = self.model.to_json(basisref=self.basisref)
         if soc is not None:
             mp = json_dict.setdefault("model_params", {})
             onsite = mp.get("onsite", {})
-
             # build soc block based on onsite
             soc_block = {}
             for key, val in onsite.items():
@@ -68,7 +66,8 @@ class EmpSK(object):
                     continue
                 elem, orb = parts[0], parts[1]
                 # s and * orbitals -> 0, others -> soc value
-                if orb.lower() == "s" or "*" in orb:
+                # * 辅助轨道，不一定是s*, 如果是 d*. soc value should not be  zero.
+                if 's' in orb.lower():
                     v = 0.0
                 else:
                     v = float(soc)
@@ -91,7 +90,8 @@ class EmpSK(object):
             mo = json_dict.setdefault("model_options", {})
             nnsk = mo.setdefault("nnsk", {})
             soc_opt = nnsk.setdefault("soc", {})
-            soc_opt["method"] = "uniform_noref"
+            soc_opt["method"] = json_dict['model_options']['nnsk']['onsite'].get('method')
+            assert soc_opt["method"] is not None and soc_opt["method"] in ['uniform','uniform_noref']
 
         # write final file
         with open(os.path.join(outdir, 'sktb.json'), 'w') as f:

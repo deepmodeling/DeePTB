@@ -1,5 +1,4 @@
 {   
-    "structure":"./data/soc/Sn.vasp",
     "task_options": {
         "task": "band",
         "kline_type":"abacus",
@@ -13,10 +12,10 @@
                  [0.5000000000,   0.0000000000,   0.5000000000,   1 ]
                  ],
         "klabels":["G","X","U","K","G","L","W","X"],
-        "E_fermi":-8.317,
-        "emin":-12,
-        "emax":8,
-        "ref_band": "./data/soc/set.0/eigenvalues.npy"
-    },
-    "AtomicData_options" : {"r_max": 6.0, "oer_max":3.0, "pbc": true}
+        "nel_atom":{"Sn":4},
+        "E_fermi":-4.722,
+        "emin":-15,
+        "emax":10,
+        "ref_band": "./data/non_soc/set.0/eigenvalues.npy"
+    }
 }

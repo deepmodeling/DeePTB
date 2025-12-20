@@ -43,7 +43,9 @@ __pycache__/
 .vscode
 # C extensions
 *.so
-
+dptb/tests/data/esk_orb/sktb.json
+dptb/tests/data/esk_orb/sktb.json
+examples/Sn_soc/sktb.json
 # Distribution / packaging
 .Python
 build/
