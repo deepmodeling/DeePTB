@@ -2,9 +2,9 @@
     "common_options": {
         "basis": {
             "Sn": [
-                "s",
-                "p",
-                "d"
+                "5s",
+                "5p",
+                "d*"
             ]
         },
         "device": "cpu",
@@ -13,10 +13,10 @@
         "seed": 3982377700
     },
     "train_options": {
-        "num_epoch":  500,
+        "num_epoch": 1,
         "batch_size": 1,
         "optimizer": {
-            "lr": 0.01,
+            "lr": 0.000001,
             "type": "Adam"
         },
         "lr_scheduler": {
@@ -41,7 +41,7 @@
     "model_options": {
         "nnsk": {
             "onsite": {
-                "method": "uniform_noref"
+                "method": "uniform"
             },
             "hopping": {
                 "method": "poly2pow",
@@ -50,11 +50,9 @@
                 },
                 "w": 0.2
             },
-            "soc": {
-                "method": "uniform_noref"
-            },
+            "soc": {},
             "freeze": [
-             "overlap"
+                "overlap"
             ],
             "push": false,
             "std": 0.01,
@@ -63,7 +61,7 @@
     },
     "data_options": {
         "train": {
-            "root": "./data/soc",
+            "root": "./data/non_soc",
             "prefix": "set",
             "get_eigenvalues": true,
             "type": "DefaultDataset",
