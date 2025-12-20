@@ -68,7 +68,7 @@ exclude_patterns = []
 # a list of builtin themes.
 #
 html_theme = 'sphinx_book_theme'
-html_logo = 'deeptb-logo.svg'
+html_logo = 'deeptb-logo.png'
 
 
 # Changes for compatibility with Read the Docs
