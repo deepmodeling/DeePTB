@@ -86,28 +86,8 @@ def load_data_for_model(
         block_to_feature(data_obj, model.idp, blocks=False, overlap_blocks=overlaps)
         overlap_blocks.close()
         
-    # 8. Transfer to Device and Process
-    # 8. Transfer to Device and Process
-    # DEBUG: Check if cell exists before conversion
-    print(f"DEBUG: load_data_for_model: data_obj type: {type(data_obj)}")
-    if hasattr(data_obj, 'cell'):
-        print(f"DEBUG: load_data_for_model: data_obj has cell. Shape: {data_obj.cell.shape}")
-    else:
-        print("DEBUG: load_data_for_model: data_obj MISSING cell attribute")
-        
-    try:
-        keys_list = data_obj.keys
-        # Check if keys is callable or property
-        if callable(keys_list):
-             keys_list = keys_list()
-        print(f"DEBUG: load_data_for_model: data_obj keys: {keys_list}")
-    except Exception as e:
-        print(f"DEBUG: load_data_for_model: Failed to get keys: {e}")
-
     data_obj = AtomicData.to_AtomicDataDict(data_obj.to(device))
-    print(f"DEBUG: load_data_for_model: resulting dict keys: {data_obj.keys()}")
     data_obj = model.idp(data_obj)
-    
     # Note: Some functions like get_data in ElecStruCal usually return idp(data) NOT model(data).
     # model(data) is typically called later to get eigenvalues.
     # HOWEVER, interfaces.py needs model(data) to be called to get H blocks!
@@ -117,5 +97,4 @@ def load_data_for_model(
     
     # Actually, ElecStruCal.get_data does NOT run self.model(data). It runs self.model.idp(data).
     # self.get_eigs runs self.model(data).
-    
     return data_obj
