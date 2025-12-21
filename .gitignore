@@ -1,4 +1,6 @@
 test*.ipynb
+examples/**/*centres.xyz
+examples/**/*.win
 **/processed*/*
 dptb/tests/**/*.yaml
 dptb/tests/**/pre_*.pt
