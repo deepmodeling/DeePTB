@@ -40,54 +40,22 @@ class ToWannier90(object):
             device=self.device,
             AtomicData_options=AtomicData_options
         )
-        
-        # Determine structase for other methods (write_win etc uses it for cell info)
-        # load_data_for_model returns AtomicDataDict (because it calls AtomicData.to_AtomicDataDict)
-        # AtomicDataDict is a dictionary of tensors.
-        # We need to recover structase. 
-        # But AtomicDataDict lost the ASE object reference.
-        # However, it contains 'pos', 'cell', 'atom_types'.
-        # We can reconstruct a temporary AtomicData or use the tensors directly to build ASE atoms.
-        
-        # Option 1: Reconstruct ASE Atoms from AtomicDataDict
-        # We need to map atom types back to symbols.
-        type_names = self.model.idp.type_names
-        atom_types = data[AtomicDataDict.ATOM_TYPE_KEY].flatten().cpu().numpy()
-        symbols = [type_names[t] for t in atom_types]
-        positions = data['pos'].cpu().numpy()
-        # load_data_for_model returns data['cell'] which might be (3,3) if batch=1 and flattened?
-        # dptb.data.AtomicDataDict usually stores cell as (batch, 3, 3).
-        # Let's check shape first.
-        cell_tensor = data['cell'] # Could be (3,3) or (N,3,3)
-        if cell_tensor.dim() == 3:
-            cell = cell_tensor[0].cpu().numpy()
-        elif cell_tensor.dim() == 2:
-            cell = cell_tensor.cpu().numpy()
-        else:
-             cell = None 
-
-        if cell is not None:
-            print(f"DEBUG: ToWannier90 loaded cell:\n{cell}")
-        pbc = data['pbc'][0].cpu().numpy() if 'pbc' in data else [True, True, True]
-        
-        structase = ase.Atoms(symbols=symbols, positions=positions, cell=cell, pbc=pbc)
-
-        # Run model to get Hamiltonian
-        # load_data_for_model returns data after model.idp(data)
-        # We just need to run model(data)
+        self.positions = data[AtomicDataDict.POSITIONS_KEY].numpy()
+        self.scaled_pos = data[AtomicDataDict.POSITIONS_KEY] @  data[AtomicDataDict.CELL_KEY].inverse()
+        self.scaled_pos = self.scaled_pos.numpy()
+        self.atom_types = data[AtomicDataDict.ATOM_TYPE_KEY].flatten().cpu().numpy()
+        self.symbols = [self.model.idp.type_names[t] for t in self.atom_types]
+        self.cell = data[AtomicDataDict.CELL_KEY].numpy()
         data = self.model(data)
         
         blocks = feature_to_block(data, idp=self.model.idp)
-        return data, blocks, structase
+        return data, blocks
 
     def write_hr(self, data: Union[AtomicData, ase.Atoms, str], filename: str = "wannier90_hr.dat", AtomicData_options: dict = {}, e_fermi: float = 0.0):
         """
         Write the Hamiltonian to Wannier90 _hr.dat format.
         """
-        data_dict, blocks, _ = self._get_data_and_blocks(data, AtomicData_options, e_fermi)
-        
-        # Parse blocks to get num_wann and hopping list
-        # We need to map orbital indices to a global index 1..num_wann
+        data_dict, blocks = self._get_data_and_blocks(data, AtomicData_options, e_fermi)
         
         # 1. Count orbitals and build map
         atom_types = data_dict[AtomicDataDict.ATOM_TYPE_KEY].flatten().cpu().numpy()
@@ -95,7 +63,6 @@ class ToWannier90(object):
         
         # Build orbital map: (atom_idx, orb_name) -> global_idx (0-based)
         # Assuming order is by atom index, then by orbital definition in model.idp
-        
         # Reconstruct orbital list per atom to ensure consistent ordering
         # Using similar logic to totbplas.py to determine orbital count/order
         orbs_per_type = {}
@@ -109,34 +76,20 @@ class ToWannier90(object):
 
         global_idx = 0
         atom_orb_start = [] # Starting global index for each atom
-        
         for i in range(num_atoms):
             itype = atom_types[i]
             isymbol = self.model.idp.type_names[itype]
             atom_orb_start.append(global_idx)
             global_idx += len(orbs_per_type[isymbol])
-            
         num_wann = global_idx
         
         # 2. Collect hoppings
         # blocks keys are "i_j_Rx_Ry_Rz"
         # We need to restructure this into (Rx, Ry, Rz) -> Matrix[num_wann, num_wann]
-        
         # To handle arbitrary R vectors efficiently, we can use a dictionary
         # R_dict[(rx, ry, rz)] = np.zeros((num_wann, num_wann), dtype=complex)
-        
         from collections import defaultdict
         R_dict = defaultdict(lambda: np.zeros((num_wann, num_wann), dtype=complex))
-        
-        # Also need Wigner-Seitz weights if possible, but _hr.dat typical usage assumes weight 1 for unique R
-        # _hr.dat format:
-        # Header line
-        # num_wann
-        # nrpts (number of Wigner-Seitz points)
-        # list of degeneracy of each point (usually 1 for simple models or if not using ws_distance)
-        # Hamiltonian elements...
-        
-        positions = data_dict['pos'].cpu().numpy()
         
         # Process blocks
         for bond_key, block_tensor in blocks.items():
@@ -145,33 +98,14 @@ class ToWannier90(object):
             i_atom = int(parts[0])
             j_atom = int(parts[1])
             R = tuple(map(int, parts[2:])) # (Rx, Ry, Rz)
-            
             block_np = block_tensor.detach().cpu().numpy()
-            
             # Subtract Fermi energy from onsite terms (R=0, i=j)
             if R == (0,0,0) and i_atom == j_atom:
-                print(block_np)
-                block_np = block_np - e_fermi * np.eye(block_np.shape[0]) * 0
-
-            # Place block into global matrix
-            # block_np is shape (n_orb_i, n_orb_j)
-            
+                block_np = block_np - e_fermi * np.eye(block_np.shape[0]) * 0            
             start_i = atom_orb_start[i_atom]
             start_j = atom_orb_start[j_atom]
-            
-            # Add to R_dict
-            # Note: feature_to_block sums contributions from i->j (R) and j->i (-R) into a single canonical block.
-            # Effectively block ~ H(R) + H(-R)^dag.
-            # To get specific H(R), we divide by 2 (assuming statistical averaging for non-Hermitian outputs, or just taking half the energy for the pair).
-            # Then we MUST explicitly construct H(-R) = H(R)^dag to ensure the full set of R vectors is present for tools like PythTB.
-            
-            # 1. Scale
-            #block_np = block_np
-            
-            # 2. Add H(R)
             end_i = start_i + block_np.shape[0]
             end_j = start_j + block_np.shape[1]
-            #R_dict[R][start_i:end_i, start_j:end_j] += block_np
             
             # 3. Add H(-R) = H(R)^dag
             # Check if we are handling onsite or hopping
@@ -181,25 +115,16 @@ class ToWannier90(object):
             # If we divided by 2, we need to add transpose?
             # Wait, onsite terms (R=0, i=j) are self-conjugate.
             # Let's handle R=0 i=j separately to be safe from double counting if logic differs.
-            
-            if R == (0,0,0) and i_atom == j_atom:
-                # For onsite diagonal blocks, feature_to_block usually gives the correct full value (no pair to sum with).
-                # So we should NOT have divided by 2 above?
-                # Let's revert division for this specific case if so.
-                # Actually, check ToPythTB logic: "if R==(0,0,0)..." it didn't divide.
-                # So, undo division for self-block
-                # block_np = block_np
-                
+            # 1. onsite block
+            if R == (0,0,0) and i_atom == j_atom:                
                 R_dict[R][start_i:end_i, start_j:end_j] += block_np
-
                 # No -R to add, R=-R=0
+            # Hopping blocks (including 0,0,0, i \neq j)
             else:
-                # Hopping term
-                # R_dict[R] is already updated with 0.5 * block
-                
+                # i,j,+R
                 R_dict[R][start_i:end_i, start_j:end_j] += block_np
-                
-                # Update H(-R) with (0.5 * block)^dag
+                # j,i,-R
+                # import!!! tuple(-x for x in [0,0,0]) = (0,0,0) ! no -0 This is important!! 
                 neg_R = tuple(-x for x in R)
                 # Swap indices for conjugate block: H(-R) maps j -> i
                 # H(-R) shape should be (n_orb_j, n_orb_i)
@@ -209,7 +134,6 @@ class ToWannier90(object):
                 start_j_rev = atom_orb_start[i_atom]
                 end_i_rev = start_i_rev + block_np.shape[1]
                 end_j_rev = start_j_rev + block_np.shape[0]
-                
                 R_dict[neg_R][start_i_rev:end_i_rev, start_j_rev:end_j_rev] += block_np.conj().T
             
         # 3. Write file
@@ -237,7 +161,6 @@ class ToWannier90(object):
             #   for n in range(num_wann):
             #     for m in range(num_wann):
             #       ...
-            
             for R in sorted_keys:
                 H_R = R_dict[R]
                 rx, ry, rz = R
@@ -251,12 +174,9 @@ class ToWannier90(object):
     def write_win(self, data: Union[AtomicData, ase.Atoms, str], filename: str = "wannier90.win", e_fermi: float = 0.0):
         """
         Write a minimal .win file for TB2J/WannierBerri compatibility.
-        """
-        data_dict, _, structase = self._get_data_and_blocks(data)
-        
+        """        
         # Calculate num_wann
         # Reusing logic from write_hr, maybe refactor if strict modularity needed
-        atom_types = data_dict[AtomicDataDict.ATOM_TYPE_KEY].flatten().cpu().numpy()
         orbs_per_type = {}
         for atomtype, orb_dict in self.model.idp.basis.items():
             count = 0
@@ -267,12 +187,10 @@ class ToWannier90(object):
             orbs_per_type[atomtype] = count
             
         num_wann = 0
-        for itype in atom_types:
+        for itype in self.atom_types:
             isymbol = self.model.idp.type_names[itype]
             num_wann += orbs_per_type[isymbol]
-            
-        cell = structase.cell
-        atoms = structase
+    
         
         with open(filename, 'w') as f:
             f.write("! Win file generated by DeePTB\n\n")
@@ -282,14 +200,12 @@ class ToWannier90(object):
             f.write("begin unit_cell_cart\n")
             # f.write("Ang\n") # PythTB might NOT support unit specifier line, usually defaults to Angstrom or reads raw numbers.
             # Removing unit line to test compatibility.
-            for vec in cell:
+            for vec in self.cell:
                 f.write(f" {vec[0]:12.8f} {vec[1]:12.8f} {vec[2]:12.8f}\n")
             f.write("end unit_cell_cart\n\n")
             
             f.write("begin atoms_frac\n")
-            scaled_pos = atoms.get_scaled_positions()
-            symbols = atoms.get_chemical_symbols()
-            for s, p in zip(symbols, scaled_pos):
+            for s, p in zip(self.symbols, self.scaled_pos):
                 f.write(f"{s}  {p[0]:12.8f} {p[1]:12.8f} {p[2]:12.8f}\n")
             f.write("end atoms_frac\n")
             
@@ -300,19 +216,12 @@ class ToWannier90(object):
         Write centres file (often approximated as atom positions for atomic orbitals).
         Format: atom_symbol X Y Z (Cartesian Angstrom)
         TB2J often expects this for reading positions.
-        """
-        data_dict, _, structase = self._get_data_and_blocks(data)
-        
+        """        
         # In LCAO/TB, "Wannier centers" are usually just the atomic positions + orbital offsets
         # For simplicity, we write atomic positions repeated for each orbital, or just atomic positions?
         # Wannier90 *_centres.xyz usually lists ALL Wannier centers (num_wann lines).
-        
-        atom_types = data_dict[AtomicDataDict.ATOM_TYPE_KEY].flatten().cpu().numpy()
-        positions = data_dict['pos'].cpu().numpy() # Cartesian
-        
         # Need to iterate atoms and their orbitals
         centres = []
-        
         orbs_per_type_list = {}
         for atomtype, orb_dict in self.model.idp.basis.items():
             orb_list = []
@@ -322,10 +231,10 @@ class ToWannier90(object):
                 elif "d" in o: orb_list.extend([o+"_xy", o+"_yz", o+"_z2", o+"_xz", o+"_x2-y2"])
             orbs_per_type_list[atomtype] = orb_list
             
-        for i in range(len(atom_types)):
-            itype = atom_types[i]
+        for i in range(len(self.atom_types)):
+            itype = self.atom_types[i]
             isymbol = self.model.idp.type_names[itype]
-            pos = positions[i]
+            pos = self.positions[i]
             
             # For each orbital on this atom, add a centre
             # Ideally accurate centers (e.g. p-orbitals are centered on atom), so this is fine.
