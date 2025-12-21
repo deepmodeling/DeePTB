@@ -55,7 +55,19 @@ class ToWannier90(object):
         atom_types = data[AtomicDataDict.ATOM_TYPE_KEY].flatten().cpu().numpy()
         symbols = [type_names[t] for t in atom_types]
         positions = data['pos'].cpu().numpy()
-        cell = data['cell'][0].cpu().numpy() if 'cell' in data else None
+        # load_data_for_model returns data['cell'] which might be (3,3) if batch=1 and flattened?
+        # dptb.data.AtomicDataDict usually stores cell as (batch, 3, 3).
+        # Let's check shape first.
+        cell_tensor = data['cell'] # Could be (3,3) or (N,3,3)
+        if cell_tensor.dim() == 3:
+            cell = cell_tensor[0].cpu().numpy()
+        elif cell_tensor.dim() == 2:
+            cell = cell_tensor.cpu().numpy()
+        else:
+             cell = None 
+
+        if cell is not None:
+            print(f"DEBUG: ToWannier90 loaded cell:\n{cell}")
         pbc = data['pbc'][0].cpu().numpy() if 'pbc' in data else [True, True, True]
         
         structase = ase.Atoms(symbols=symbols, positions=positions, cell=cell, pbc=pbc)
@@ -138,7 +150,8 @@ class ToWannier90(object):
             
             # Subtract Fermi energy from onsite terms (R=0, i=j)
             if R == (0,0,0) and i_atom == j_atom:
-                block_np = block_np - e_fermi * np.eye(block_np.shape[0])
+                print(block_np)
+                block_np = block_np - e_fermi * np.eye(block_np.shape[0]) * 0
 
             # Place block into global matrix
             # block_np is shape (n_orb_i, n_orb_j)
@@ -147,14 +160,57 @@ class ToWannier90(object):
             start_j = atom_orb_start[j_atom]
             
             # Add to R_dict
-            # Note: _hr.dat stores H(R)_{mn} = <0m|H|Rn> ?
-            # Standard convention: H(k) = sum_R e^{ikR} H(R)
-            # block[i,j,R] usually means interaction between i in cell 0 and j in cell R
+            # Note: feature_to_block sums contributions from i->j (R) and j->i (-R) into a single canonical block.
+            # Effectively block ~ H(R) + H(-R)^dag.
+            # To get specific H(R), we divide by 2 (assuming statistical averaging for non-Hermitian outputs, or just taking half the energy for the pair).
+            # Then we MUST explicitly construct H(-R) = H(R)^dag to ensure the full set of R vectors is present for tools like PythTB.
             
+            # 1. Scale
+            #block_np = block_np
+            
+            # 2. Add H(R)
             end_i = start_i + block_np.shape[0]
             end_j = start_j + block_np.shape[1]
+            #R_dict[R][start_i:end_i, start_j:end_j] += block_np
             
-            R_dict[R][start_i:end_i, start_j:end_j] = block_np
+            # 3. Add H(-R) = H(R)^dag
+            # Check if we are handling onsite or hopping
+            # If onsite (R=0, i=j), H(0) must be Hermitian. H(0)^dag = H(0).
+            # But feature_to_block for onsite might not double count? 
+            # Actually for onsite, i=j, R=0. feature_to_block just accumulates.
+            # If we divided by 2, we need to add transpose?
+            # Wait, onsite terms (R=0, i=j) are self-conjugate.
+            # Let's handle R=0 i=j separately to be safe from double counting if logic differs.
+            
+            if R == (0,0,0) and i_atom == j_atom:
+                # For onsite diagonal blocks, feature_to_block usually gives the correct full value (no pair to sum with).
+                # So we should NOT have divided by 2 above?
+                # Let's revert division for this specific case if so.
+                # Actually, check ToPythTB logic: "if R==(0,0,0)..." it didn't divide.
+                # So, undo division for self-block
+                # block_np = block_np
+                
+                R_dict[R][start_i:end_i, start_j:end_j] += block_np
+
+                # No -R to add, R=-R=0
+            else:
+                # Hopping term
+                # R_dict[R] is already updated with 0.5 * block
+                
+                R_dict[R][start_i:end_i, start_j:end_j] += block_np
+                
+                # Update H(-R) with (0.5 * block)^dag
+                neg_R = tuple(-x for x in R)
+                # Swap indices for conjugate block: H(-R) maps j -> i
+                # H(-R) shape should be (n_orb_j, n_orb_i)
+                # block_np^dag shape is (cols, rows) -> (n_orb_j, n_orb_i). Correct.
+                
+                start_i_rev = atom_orb_start[j_atom]
+                start_j_rev = atom_orb_start[i_atom]
+                end_i_rev = start_i_rev + block_np.shape[1]
+                end_j_rev = start_j_rev + block_np.shape[0]
+                
+                R_dict[neg_R][start_i_rev:end_i_rev, start_j_rev:end_j_rev] += block_np.conj().T
             
         # 3. Write file
         # Sort R vectors to ensure deterministic output (and usually 0 0 0 first)
@@ -224,7 +280,8 @@ class ToWannier90(object):
             f.write(f"num_wann = {num_wann}\n\n")
             
             f.write("begin unit_cell_cart\n")
-            f.write("Ang\n")
+            # f.write("Ang\n") # PythTB might NOT support unit specifier line, usually defaults to Angstrom or reads raw numbers.
+            # Removing unit line to test compatibility.
             for vec in cell:
                 f.write(f" {vec[0]:12.8f} {vec[1]:12.8f} {vec[2]:12.8f}\n")
             f.write("end unit_cell_cart\n\n")
@@ -274,9 +331,12 @@ class ToWannier90(object):
             # Ideally accurate centers (e.g. p-orbitals are centered on atom), so this is fine.
             num_orbs = len(orbs_per_type_list[isymbol])
             for _ in range(num_orbs):
-                # Using 'X' as generic element for center, or the atom symbol?
+            # Using 'X' as generic element for center, or the atom symbol?
                 # Wannier90 output usually has "X" or element symbol.
-                centres.append((isymbol, pos))
+                # WARNING: PythTB's w90 reader STRICTLY expects the symbol to be "X".
+                # If it finds "Si" or anything else, it raises "Inconsistency in the centres file."
+                # To maintain compatibility with PythTB, we force "X".
+                centres.append(("X", pos))
                 
         with open(filename, 'w') as f:
             f.write(f"{len(centres)}\n")
