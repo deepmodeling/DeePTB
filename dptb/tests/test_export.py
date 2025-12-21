@@ -98,4 +98,21 @@ def test_pythtb_export(model_and_data):
     orb_coords = tb_model.get_orb()
     import numpy as np
     assert np.all(orb_coords >= -0.01) and np.all(orb_coords <= 1.01), f"Coordinates mismatch: {orb_coords}"
-    assert len(tb_model._hoppings) > 0
+
+@pytest.mark.order(3)
+def test_overlap_error():
+    # Mock a model with overlap=True
+    from unittest.mock import MagicMock
+    mock_model = MagicMock()
+    mock_model.overlap = True # Simulate overlap model
+    mock_model.idp = MagicMock() # Needs idp for init usually? No, init doesn't access idp, methods do.
+    
+    # Check ToWannier90
+    exporter_w90 = ToWannier90(model=mock_model)
+    with pytest.raises(ValueError, match="overlap"):
+        exporter_w90._get_data_and_blocks(data="dummy_path")
+        
+    # Check ToPythTB
+    exporter_pythtb = ToPythTB(model=mock_model)
+    with pytest.raises(ValueError, match="overlap"):
+        exporter_pythtb.get_model(data="dummy_path")

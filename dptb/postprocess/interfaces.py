@@ -29,6 +29,10 @@ class ToWannier90(object):
         self.model.eval()
 
     def _get_data_and_blocks(self, data: Union[AtomicData, ase.Atoms, str], AtomicData_options: dict = {}, e_fermi: float = 0.0):
+        # Check for overlap
+        if getattr(self.model, "overlap", False):
+            raise ValueError("Export to Wannier90 format does not support models with non-orthogonal bases (overlap). Please use an orthogonal model.")
+
         # Use centralized data loading
         data = load_data_for_model(
             data=data,
@@ -307,6 +311,10 @@ class ToPythTB(object):
     def get_model(self, data: Union[AtomicData, ase.Atoms, str], AtomicData_options: dict = {}, e_fermi: float = 0.0):
         from pythtb import tb_model
         
+        # Check for overlap
+        if getattr(self.model, "overlap", False):
+            raise ValueError("Export to PythTB does not support models with non-orthogonal bases (overlap). Please use an orthogonal model.")
+
         # Use centralized data loading
         data = load_data_for_model(
             data=data,

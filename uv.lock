@@ -957,7 +957,7 @@ requires-dist = [
     { name = "pymatgen", marker = "extra == '3dfermi'" },
     { name = "pytest", specifier = ">=7.2.0" },
     { name = "pytest-order", specifier = "==1.2.0" },
-    { name = "pythtb", marker = "extra == 'pythtb'", specifier = ">=1.8.0" },
+    { name = "pythtb", marker = "extra == 'pythtb'" },
     { name = "pyyaml" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "scipy", specifier = ">=1.11,<1.13" },
