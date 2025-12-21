@@ -5,3 +5,4 @@ A quick Example
 .. toctree::
    basic_api
    pythtb_api
+   wan90_api
