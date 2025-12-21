@@ -14,6 +14,7 @@ from dptb.nn.energy import Eigenvalues
 from dptb.utils.argcheck import get_cutoffs_from_model_options
 from copy import deepcopy
 from dptb.utils.constants import Boltzmann,eV2J
+from dptb.postprocess.common import load_data_for_model
 
 # This class `ElecStruCal`  is designed to calculate electronic structure properties such as
 # eigenvalues and Fermi energy based on provided input data and model. 
@@ -95,79 +96,14 @@ class ElecStruCal(object):
             the loaded AtomicData object.
         
         '''
-        atomic_options = deepcopy(self.cutoffs)
-        if pbc is not None:
-            # 这一句要结合后面AtomicData.from_ase(structase, **atomic_options) 看。在from_ase中
-            # pbc = kwargs.pop("pbc", atoms.pbc), 所以当默认 调用get_dat 传入 pbc = None 时，
-            # atomic_options 中并没有 pbc 这个key，所以在from_ase中，pbc = atoms.pbc 默认采用atoms的pbc
-            # 当传入pbc 非None时，atomic_options中会有pbc这个key，所以from_ase中的pbc 将不会采用atoms的pbc。 
-            # 逻辑线埋的比较深，需要注意。
-            atomic_options.update({'pbc': pbc})
-
-        if AtomicData_options is not None:
-            if AtomicData_options.get('r_max', None) is not None:
-                if atomic_options['r_max'] != AtomicData_options.get('r_max'):
-                    atomic_options['r_max'] = AtomicData_options.get('r_max')
-                    log.warning(f'Overwrite the r_max setting in the model with the r_max setting in the AtomicData_options: {AtomicData_options.get("r_max")}')
-                    log.warning(f'This is very dangerous, please make sure you know what you are doing.')
-            if AtomicData_options.get('er_max', None) is not None:
-                if atomic_options['er_max'] != AtomicData_options.get('er_max'):
-                    atomic_options['er_max'] = AtomicData_options.get('er_max')
-                    log.warning(f'Overwrite the er_max setting in the model with the er_max setting in the AtomicData_options: {AtomicData_options.get("er_max")}')
-                    log.warning(f'This is very dangerous, please make sure you know what you are doing.')
-            if AtomicData_options.get('oer_max', None) is not None:
-                if atomic_options['oer_max'] != AtomicData_options.get('oer_max'):
-                    atomic_options['oer_max'] = AtomicData_options.get('oer_max')
-                    log.warning(f'Overwrite the oer_max setting in the model with the oer_max setting in the AtomicData_options: {AtomicData_options.get("oer_max")}')
-                    log.warning(f'This is very dangerous, please make sure you know what you are doing.')
-        
-        else:
-            if atomic_options['r_max'] is None:
-                log.error('The r_max is not provided in model_options, please provide it in AtomicData_options.')
-                raise RuntimeError('The r_max is not provided in model_options, please provide it in AtomicData_options.')
-            
-        if isinstance(data, str):
-            structase = read(data)
-            data = AtomicData.from_ase(structase, **atomic_options)
-        elif isinstance(data, ase.Atoms):
-            structase = data
-            data = AtomicData.from_ase(structase, **atomic_options)
-        elif isinstance(data, AtomicData):
-            # structase = data.to("cpu").to_ase()
-            log.info('The data is already an instance of AtomicData. Then the data is used directly.')
-            data = data
-        else:
-            raise ValueError('data should be either a string, ase.Atoms, or AtomicData')
-
-        if isinstance(override_overlap, str):
-            assert os.path.exists(override_overlap), "Overlap file not found."
-            overlap_blocks = h5py.File(override_overlap, "r")
-            if len(overlap_blocks) != 1:
-                log.info('Overlap file contains more than one overlap matrix, only first will be used.')
-            if self.overlap:
-                log.warning('override_overlap is enabled while model contains overlap, override_overlap will be used.')
-            if "0" in overlap_blocks:
-                overlaps = overlap_blocks["0"]
-            else:
-                overlaps = overlap_blocks["1"]
-            block_to_feature(data, self.model.idp, blocks=False, overlap_blocks=overlaps)
-            if not self.overlap:
-                self.eigv = Eigenvalues(
-                    idp=self.model.idp,
-                    device=self.device,
-                    s_edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
-                    s_node_field=AtomicDataDict.NODE_OVERLAP_KEY,
-                    s_out_field=AtomicDataDict.OVERLAP_KEY,
-                    dtype=self.model.dtype,
-                )
-            overlap_blocks.close()
-
-        if device is None:
-            device = self.device
-        data = AtomicData.to_AtomicDataDict(data.to(device))
-        data = self.model.idp(data)
-
-        return data
+        return load_data_for_model(
+            data=data,
+            model=self.model,
+            device=device if device else self.device,
+            pbc=pbc,
+            AtomicData_options=AtomicData_options,
+            override_overlap=override_overlap
+        )
 
 
     def get_eigs(self,
