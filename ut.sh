@@ -9,5 +9,8 @@
 # This ensures consistent installation logic between user and CI
 bash install.sh cpu
 
+# Install optional dependencies for testing
+uv sync --extra pythtb
+
 # Run tests
 uv run pytest ./dptb/tests/

@@ -51,10 +51,10 @@ dependencies = [
 3Dfermi = ["ifermi", "pymatgen"]
 tbtrans_init = ["sisl"]
 pybinding = ["pybinding"]
+pythtb = ["pythtb"]
 
 [project.scripts]
 dptb = "dptb.__main__:main"
-dptb-qm9 = "dptb.data.interfaces.pyscf:main"
 
 [project.urls]
 Repository = "https://github.com/deepmodeling/DeePTB"

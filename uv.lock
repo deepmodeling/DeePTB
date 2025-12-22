@@ -925,6 +925,9 @@ dependencies = [
 pybinding = [
     { name = "pybinding" },
 ]
+pythtb = [
+    { name = "pythtb" },
+]
 tbtrans-init = [
     { name = "sisl" },
 ]
@@ -954,6 +957,7 @@ requires-dist = [
     { name = "pymatgen", marker = "extra == '3dfermi'" },
     { name = "pytest", specifier = ">=7.2.0" },
     { name = "pytest-order", specifier = "==1.2.0" },
+    { name = "pythtb", marker = "extra == 'pythtb'" },
     { name = "pyyaml" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "scipy", specifier = ">=1.11,<1.13" },
@@ -967,7 +971,7 @@ requires-dist = [
     { name = "torch-scatter", specifier = "==2.1.2" },
     { name = "xitorch", specifier = "==0.3.0" },
 ]
-provides-extras = ["3dfermi", "tbtrans-init", "pybinding"]
+provides-extras = ["3dfermi", "tbtrans-init", "pybinding", "pythtb"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -3748,6 +3752,17 @@ wheels = [
 ]
 
 [[package]]
+name = "pythtb"
+version = "1.8.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib", version = "3.9.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "matplotlib", version = "3.10.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/13/d0/99a48eebd0950195a2dfef6c6b55268f107f36b390fc90470c57c9aede0a/pythtb-1.8.0.tar.gz", hash = "sha256:1881996ebfd12c6ff0d30f0e30e3af3310aea3e50355d8f29e81695e4e5968d8", size = 83865, upload-time = "2022-09-21T00:32:02.186Z" }
+
+[[package]]
 name = "pytz"
 version = "2025.2"
 source = { registry = "https://pypi.org/simple" }
@@ -4787,12 +4802,8 @@ resolution-markers = [
 ]
 wheels = [
     { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2-cp39-cp39-macosx_10_9_universal2.whl" },
-    { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2-cp39-cp39-macosx_10_9_universal2.whl" },
-    { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2-cp310-cp310-macosx_10_9_universal2.whl" },
     { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2-cp310-cp310-macosx_10_9_universal2.whl" },
     { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2-cp311-cp311-macosx_10_9_universal2.whl" },
-    { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2-cp311-cp311-macosx_10_9_universal2.whl" },
-    { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2-cp312-cp312-macosx_10_13_universal2.whl" },
     { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2-cp312-cp312-macosx_10_13_universal2.whl" },
 ]
 
@@ -4810,20 +4821,12 @@ resolution-markers = [
 ]
 wheels = [
     { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp39-cp39-linux_x86_64.whl" },
-    { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp39-cp39-linux_x86_64.whl" },
-    { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp39-cp39-win_amd64.whl" },
     { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp39-cp39-win_amd64.whl" },
     { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp310-cp310-linux_x86_64.whl" },
-    { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp310-cp310-linux_x86_64.whl" },
-    { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp310-cp310-win_amd64.whl" },
     { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp310-cp310-win_amd64.whl" },
     { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp311-cp311-linux_x86_64.whl" },
-    { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp311-cp311-linux_x86_64.whl" },
-    { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp311-cp311-win_amd64.whl" },
     { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp311-cp311-win_amd64.whl" },
     { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp312-cp312-linux_x86_64.whl" },
-    { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp312-cp312-linux_x86_64.whl" },
-    { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp312-cp312-win_amd64.whl" },
     { url = "https://data.pyg.org/whl/torch-2.5.0%2Bcpu/torch_scatter-2.1.2%2Bpt25cpu-cp312-cp312-win_amd64.whl" },
 ]
 
