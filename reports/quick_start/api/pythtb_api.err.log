@@ -19,7 +19,6 @@ Traceback (most recent call last):
 nbclient.exceptions.CellExecutionError: An error occurred while executing the following cell:
 ------------------
 import os
-import torch
 from dptb.nn import build_model
 from dptb.data import AtomicData
 from ase.io import read
@@ -35,9 +34,9 @@ from dptb.postprocess.bandstructure.band import Band
 [31mModuleNotFoundError[39m                       Traceback (most recent call last)
 [36mCell[39m[36m [39m[32mIn[1][39m[32m, line 2[39m
 [32m      1[39m [38;5;28;01mimport[39;00m[38;5;250m [39m[34;01mos[39;00m
-[32m----> [39m[32m2[39m [38;5;28;01mimport[39;00m[38;5;250m [39m[34;01mtorch[39;00m
-[32m      3[39m [38;5;28;01mfrom[39;00m[38;5;250m [39m[34;01mdptb[39;00m[34;01m.[39;00m[34;01mnn[39;00m[38;5;250m [39m[38;5;28;01mimport[39;00m build_model
-[32m      4[39m [38;5;28;01mfrom[39;00m[38;5;250m [39m[34;01mdptb[39;00m[34;01m.[39;00m[34;01mdata[39;00m[38;5;250m [39m[38;5;28;01mimport[39;00m AtomicData
+[32m----> [39m[32m2[39m [38;5;28;01mfrom[39;00m[38;5;250m [39m[34;01mdptb[39;00m[34;01m.[39;00m[34;01mnn[39;00m[38;5;250m [39m[38;5;28;01mimport[39;00m build_model
+[32m      3[39m [38;5;28;01mfrom[39;00m[38;5;250m [39m[34;01mdptb[39;00m[34;01m.[39;00m[34;01mdata[39;00m[38;5;250m [39m[38;5;28;01mimport[39;00m AtomicData
+[32m      4[39m [38;5;28;01mfrom[39;00m[38;5;250m [39m[34;01mase[39;00m[34;01m.[39;00m[34;01mio[39;00m[38;5;250m [39m[38;5;28;01mimport[39;00m read
 
-[31mModuleNotFoundError[39m: No module named 'torch'
+[31mModuleNotFoundError[39m: No module named 'dptb'
 
