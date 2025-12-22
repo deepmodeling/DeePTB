@@ -61,8 +61,8 @@ def test_wannier90_export(model_and_data, tmp_path):
     # This verifies load_data_for_model handles string input correctly
     # and extracts r_max from model options automatically.
     exporter.write_hr(struc_file, str(hr_file), e_fermi=-7.72)
-    exporter.write_win(struc_file, str(win_file), e_fermi=-7.72)
-    exporter.write_centres(struc_file, str(cen_file))
+    exporter.write_win(str(win_file))
+    exporter.write_centres(str(cen_file))
     
     # Verify files exist and have content
     assert hr_file.exists()
