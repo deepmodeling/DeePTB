@@ -172,7 +172,7 @@ class ToWannier90(object):
                         
         log.info(f"Wrote Wannier90 Hamiltonian to {filename}")
 
-    def write_win(self, data: Union[AtomicData, ase.Atoms, str], filename: str = "wannier90.win", e_fermi: float = 0.0):
+    def write_win(self, filename: str = "wannier90.win"):
         """
         Write a minimal .win file for TB2J/WannierBerri compatibility.
         """        
@@ -212,7 +212,7 @@ class ToWannier90(object):
             
         log.info(f"Wrote minimal Wannier90 win file to {filename}")
 
-    def write_centres(self, data: Union[AtomicData, ase.Atoms, str], filename: str = "wannier90_centres.xyz"):
+    def write_centres(self, filename: str = "wannier90_centres.xyz"):
         """
         Write centres file (often approximated as atom positions for atomic orbitals).
         Format: atom_symbol X Y Z (Cartesian Angstrom)
@@ -264,8 +264,10 @@ class ToPythTB(object):
     def __init__(
             self,
             model: torch.nn.Module,
-            device: Union[str, torch.device] = torch.device('cpu')
+            device: Optional[Union[str, torch.device]] = None 
     ):
+        if device is None:  
+            device = torch.device('cpu')  
         if isinstance(device, str):
             device = torch.device(device)
         self.device = device

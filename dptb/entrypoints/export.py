@@ -82,8 +82,8 @@ def export(INPUT: str, init_model: str = None, structure: str = None, output: st
         
         try:
             exporter.write_hr(struct_path, filename=hr_file, AtomicData_options=ad_options, e_fermi=e_fermi)
-            exporter.write_win(struct_path, filename=win_file, e_fermi=e_fermi)
-            exporter.write_centres(struct_path, filename=cen_file)
+            exporter.write_win(filename=win_file)
+            exporter.write_centres(filename=cen_file)
         except Exception as e:
             log.error(f"Error during export: {e}")
         
