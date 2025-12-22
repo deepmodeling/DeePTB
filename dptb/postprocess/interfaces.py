@@ -8,7 +8,7 @@ import ase
 from dptb.data import AtomicData, AtomicDataDict
 from dptb.data.interfaces.ham_to_feature import feature_to_block
 from dptb.utils.constants import atomic_num_dict_r, anglrMId
-from dptb.postprocess.common import load_data_for_model
+from dptb.postprocess.common import load_data_for_model, get_orbitals_for_type
 
 log = logging.getLogger(__name__)
 
@@ -67,11 +67,12 @@ class ToWannier90(object):
         # Using similar logic to totbplas.py to determine orbital count/order
         orbs_per_type = {}
         for atomtype, orb_dict in self.model.idp.basis.items():
-            orb_list = []
-            for o in orb_dict:
-                if "s" in o: orb_list.append(o)
-                elif "p" in o: orb_list.extend([o+"_y", o+"_z", o+"_x"]) # Standard Wannier90 p-order usually z,x,y or similar? keeping dptb order
-                elif "d" in o: orb_list.extend([o+"_xy", o+"_yz", o+"_z2", o+"_xz", o+"_x2-y2"])
+            orb_list = get_orbitals_for_type(orb_dict)
+            #orb_list = []
+            #for o in orb_dict:
+            #    if "s" in o: orb_list.append(o)
+            #    elif "p" in o: orb_list.extend([o+"_y", o+"_z", o+"_x"]) # Standard Wannier90 p-order usually z,x,y or similar? keeping dptb order
+            #    elif "d" in o: orb_list.extend([o+"_xy", o+"_yz", o+"_z2", o+"_xz", o+"_x2-y2"])
             orbs_per_type[atomtype] = orb_list
 
         global_idx = 0
@@ -274,7 +275,7 @@ class ToPythTB(object):
         try:
             from pythtb import tb_model
         except ImportError:
-            log.error("PythTB not installed. Run `pip install pythtb`")
+            log.exception("PythTB not installed. Run `pip install pythtb`")
             raise
 
     def get_model(self, data: Union[AtomicData, ase.Atoms, str], AtomicData_options: dict = {}, e_fermi: float = 0.0):
@@ -304,11 +305,12 @@ class ToPythTB(object):
         # Prepare orbitals
         orbs_per_type_list = {}
         for atomtype, orb_dict in self.model.idp.basis.items():
-            orb_list = []
-            for o in orb_dict:
-                if "s" in o: orb_list.append(o)
-                elif "p" in o: orb_list.extend([o+"_y", o+"_z", o+"_x"]) 
-                elif "d" in o: orb_list.extend([o+"_xy", o+"_yz", o+"_z2", o+"_xz", o+"_x2-y2"])
+            orb_list = get_orbitals_for_type(orb_dict)
+            #orb_list = []
+            #for o in orb_dict:
+            #    if "s" in o: orb_list.append(o)
+            #    elif "p" in o: orb_list.extend([o+"_y", o+"_z", o+"_x"]) 
+            #    elif "d" in o: orb_list.extend([o+"_xy", o+"_yz", o+"_z2", o+"_xz", o+"_x2-y2"])
             orbs_per_type_list[atomtype] = orb_list
             
         orb_coords = []
@@ -360,7 +362,6 @@ class ToPythTB(object):
             if R == (0,0,0) and i_atom == j_atom:
                 # Onsite
                 block_np = block_np - e_fermi * np.eye(block_np.shape[0])
-                block_np = block_np
                 # Set onsite energies for PythTB
                 start_i = atom_orb_start[i_atom]
                 start_j = atom_orb_start[j_atom]

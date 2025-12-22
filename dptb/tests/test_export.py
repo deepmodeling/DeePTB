@@ -96,7 +96,6 @@ def test_pythtb_export(model_and_data):
     # Verify coordinates are fractional (should be within roughly [0, 1] for this unit cell)
     # Silicon positions are 0.0 and 0.25. If Cartesian, they would be > 1.0 (lattice const ~5.43, 0.25*5.43 > 1.3)
     orb_coords = tb_model.get_orb()
-    import numpy as np
     assert np.all(orb_coords >= -0.01) and np.all(orb_coords <= 1.01), f"Coordinates mismatch: {orb_coords}"
 
 @pytest.mark.order(3)

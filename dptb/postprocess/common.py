@@ -12,14 +12,27 @@ from dptb.utils.argcheck import get_cutoffs_from_model_options
 
 log = logging.getLogger(__name__)
 
+def get_orbitals_for_type(orb_dict):
+    """Build expanded orbital list from basis dictionary entry."""
+    orb_list = []
+    for o in orb_dict:
+        if "s" in o:
+            orb_list.append(o)
+        elif "p" in o:
+            orb_list.extend([o+"_y", o+"_z", o+"_x"])
+        elif "d" in o:
+            orb_list.extend([o+"_xy", o+"_yz", o+"_z2", o+"_xz", o+"_x2-y2"])
+    return orb_list
+
+
 def load_data_for_model(
-    data: Union[AtomicData, ase.Atoms, str],
-    model: torch.nn.Module,
-    device: Union[str, torch.device] = None,
-    pbc: Union[bool, list] = None,
-    AtomicData_options: dict = None,
-    override_overlap: Optional[str] = None
-) -> AtomicData:
+     data: Union[AtomicData, ase.Atoms, str],
+     model: torch.nn.Module,
+     device: Optional[Union[str, torch.device]] = None,
+     pbc: Optional[Union[bool, list]] = None,
+     AtomicData_options: Optional[dict] = None,
+     override_overlap: Optional[str] = None
+ ) -> AtomicData:
     """
     Standardized helper to load and process data for post-processing with a DeePTB model.
     Handles defaults from model options (r_max), user overrides, and device transfer.
@@ -72,19 +85,18 @@ def load_data_for_model(
     
     if isinstance(override_overlap, str):
         assert os.path.exists(override_overlap), "Overlap file not found."
-        overlap_blocks = h5py.File(override_overlap, "r")
-        if len(overlap_blocks) != 1:
-            log.info('Overlap file contains more than one overlap matrix, only first will be used.')
-        if overlap_flag:
-            log.warning('override_overlap is enabled while model contains overlap, override_overlap will be used.')
-            
-        if "0" in overlap_blocks:
-            overlaps = overlap_blocks["0"]
-        else:
-            overlaps = overlap_blocks["1"]
-            
-        block_to_feature(data_obj, model.idp, blocks=False, overlap_blocks=overlaps)
-        overlap_blocks.close()
+        with h5py.File(override_overlap, "r") as overlap_blocks:
+            if len(overlap_blocks) != 1:
+                log.info('Overlap file contains more than one overlap matrix, only first will be used.')
+            if overlap_flag:
+                log.warning('override_overlap is enabled while model contains overlap, override_overlap will be used.')
+                
+            if "0" in overlap_blocks:
+                overlaps = overlap_blocks["0"]
+            else:
+                overlaps = overlap_blocks["1"]
+                
+            block_to_feature(data_obj, model.idp, blocks=False, overlap_blocks=overlaps)
         
     data_obj = AtomicData.to_AtomicDataDict(data_obj.to(device))
     data_obj = model.idp(data_obj)
