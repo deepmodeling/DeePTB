@@ -101,7 +101,7 @@ class ToWannier90(object):
             block_np = block_tensor.detach().cpu().numpy()
             # Subtract Fermi energy from onsite terms (R=0, i=j)
             if R == (0,0,0) and i_atom == j_atom:
-                block_np = block_np - e_fermi * np.eye(block_np.shape[0]) * 0            
+                block_np = block_np - e_fermi * np.eye(block_np.shape[0])        
             start_i = atom_orb_start[i_atom]
             start_j = atom_orb_start[j_atom]
             end_i = start_i + block_np.shape[0]
