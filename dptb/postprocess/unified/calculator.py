@@ -30,7 +30,7 @@ class HamiltonianCalculator(ABC):
         pass
 
     @abstractmethod
-    def get_hamiltonian_blocks(self, atomic_data: dict) -> Tuple[Any, Any]:
+    def get_hr(self, atomic_data: dict) -> Tuple[Any, Any]:
         """
         Get the Hamiltonian (and Overlap) blocks from the atomic data.
         
@@ -55,6 +55,20 @@ class HamiltonianCalculator(ABC):
         """
         pass
     
+    @abstractmethod
+    def get_hk(self, atomic_data: dict, k_points: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """
+        Calculate H(k) and S(k).
+        
+        Args:
+            atomic_data: The input atomic data.
+            k_points: Optional k-points to evaluate at. If provided, they override any k-points in atomic_data.
+            
+        Returns:
+            Tuple of (H(k), S(k)). S(k) is None if no overlap.
+        """
+        pass
+
     @abstractmethod
     def get_orbital_info(self) -> dict:
         """Return information about the orbitals/basis set."""
@@ -115,7 +129,7 @@ class DeePTBAdapter(HamiltonianCalculator):
                 atomic_data[AtomicDataDict.NODE_OVERLAP_KEY] = override_node          
         return atomic_data
 
-    def get_hamiltonian_blocks(self, atomic_data):
+    def get_hr(self, atomic_data):
         atomic_data = self.model_forward(atomic_data)
         Hblocks = feature_to_block(atomic_data, idp=self.model.idp)
         if self.overlap:
@@ -142,6 +156,43 @@ class DeePTBAdapter(HamiltonianCalculator):
         
         eigs = atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0] # atomic_data is usually batched, take 0
         return atomic_data, eigs
+    
+    def get_hk(self, atomic_data: dict, k_points: Optional[Union[torch.Tensor, np.ndarray, list]] = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        if k_points is not None:
+             # Create lightweight copy and inject k_points
+             atomic_data = atomic_data.copy()
+             
+             # Convert to tensor if needed
+             if not isinstance(k_points, torch.Tensor):
+                  k_points = torch.as_tensor(k_points, dtype=self.dtype, device=self.device)
+             else:
+                  k_points = k_points.to(device=self.device, dtype=self.dtype)
+             
+             # Create NestedTensor: [1, Nk, 3] assuming single structure
+             if k_points.dim() == 2:
+                  k_nested = torch.nested.as_nested_tensor([k_points])
+                  atomic_data[AtomicDataDict.KPOINT_KEY] = k_nested
+             else:
+                  # If already nested or batched, trust usage
+                  atomic_data[AtomicDataDict.KPOINT_KEY] = k_points
+        else:
+            assert atomic_data.get(AtomicDataDict.KPOINT_KEY) is not None, "No kpoints found in atomic_data. pls provide kpoints."
+
+        # 1. Forward pass
+        atomic_data = self.model_forward(atomic_data)
+        
+        # 2. H(R) -> H(k)
+        atomic_data = self.eigv_solver.h2k(atomic_data)
+        hk = atomic_data[self.eigv_solver.h_out_field]
+        
+        # 3. S(R) -> S(k)
+        if self.overlap:
+            atomic_data = self.eigv_solver.s2k(atomic_data)
+            sk = atomic_data[self.eigv_solver.s_out_field]
+        else:
+            sk = None
+        
+        return hk, sk
 
     def get_orbital_info(self) -> dict:
         return {

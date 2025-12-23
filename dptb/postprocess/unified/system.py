@@ -65,6 +65,11 @@ class TBSystem:
         return self._calculator.model
 
     @property
+    def data(self) -> AtomicDataDict:
+        """Access the atomic data."""
+        return self._atomic_data
+    
+    @property
     def atoms(self) -> ase.Atoms:
         """Return the ASE Atoms object representing the system."""
         return self._atoms

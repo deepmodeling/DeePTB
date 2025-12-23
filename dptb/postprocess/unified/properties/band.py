@@ -264,10 +264,3 @@ class BandAccessor:
         """Save the computed band structure."""
         return self.band_data.export(path)
 
-    def get_hamiltonian_at_k(self, k_points):
-        """Get H(k) and S(k) at specific k-points."""
-        data = self._system._atomic_data[np.asarray(k_points)]
-        data = self._system._calculator.model_forward(data)
-        # Depending on implementation, might need to extract H/S from datadict
-        # Left for Phase 3
-        return data
