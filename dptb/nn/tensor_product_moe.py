@@ -131,10 +131,11 @@ class MOLEGlobals:
 
 
 class MOLERouter(nn.Module):
-    """Computes routing coefficients from global features."""
+    """Computes routing coefficients from global features with Top-K support."""
 
-    def __init__(self, in_features, num_experts=8):
+    def __init__(self, in_features, num_experts=8, top_k=1):
         super().__init__()
+        self.top_k = top_k
         self.net = nn.Sequential(
             nn.Linear(in_features, 128),
             nn.SiLU(),
@@ -144,7 +145,28 @@ class MOLERouter(nn.Module):
     def forward(self, global_features):
         # global_features: [Batch, Dim]
         logits = self.net(global_features)
-        return F.softmax(logits, dim=-1) + 0.005
+
+        # [修改] Top-K 激活逻辑
+        if self.top_k is not None and 0 < self.top_k < logits.shape[-1]:
+            # 1. 找出 Top-K 的值和索引
+            topk_logits, topk_indices = torch.topk(logits, k=self.top_k, dim=-1)
+
+            # 2. 创建一个全负无穷的 mask (这样 softmax 后为 0)
+            # 或者创建一个全 0 的输出容器
+            zeros = torch.full_like(logits, float('-inf'))
+
+            # 3. 将 Top-K logit 填回去
+            zeros.scatter_(1, topk_indices, topk_logits)
+
+            # 4. 对结果做 Softmax (非 Top-K 的位置通过 -inf 变为 0)
+            coeffs = F.softmax(zeros, dim=-1)
+
+            # 5. 保持原有的一点点噪声扰动机制(如果需要)，或者直接返回
+            # 这里为了保持纯净 Top-K，通常直接返回归一化后的权重
+            return coeffs
+        else:
+            # 原始全激活逻辑 (Softmax)
+            return F.softmax(logits, dim=-1) + 0.005
 
 
 class MOLELinear(nn.Module):
@@ -204,6 +226,7 @@ class MOLELinear(nn.Module):
             mixed_bias = torch.einsum("be, eo -> bo", mole_globals.coefficients, self.bias_experts)
 
         # Split input based on system sizes (dim 0 is always items/edges in this model)
+        # Note: If x is [Total_Nodes, In], mole_globals.sizes must reflect node counts per batch
         x_split = torch.split(x, mole_globals.sizes.tolist(), dim=0)
 
         out_parts = []
@@ -213,8 +236,6 @@ class MOLELinear(nn.Module):
             out_parts.append(F.linear(x_sys, w, b))
 
         return torch.cat(out_parts, dim=0)
-
-
 # ------------------------------------------------------------------------------
 
 class SO2_Attention(torch.nn.Module):
@@ -336,7 +357,7 @@ class SO2_Attention(torch.nn.Module):
 
 class SO2_Linear(torch.nn.Module):
     """
-    SO(2) Convolutional layer.
+    SO(2) Convolutional layer with MoE and Rotate Control.
     """
 
     def __init__(
@@ -348,14 +369,24 @@ class SO2_Linear(torch.nn.Module):
             radial_channels: list = None,
             extra_m0_outsize: int = 0,
             use_interpolation: bool = False,
-            num_experts: int = 8,  # Added
+            # === MoE 参数 ===
+            num_experts: int = 8,
+            # === Rotation 控制参数 (Keep-in-Frame) ===
+            rotate_in: bool = True,
+            rotate_out: bool = True,
     ):
         super(SO2_Linear, self).__init__()
 
-        self.irreps_in = irreps_in.simplify()
-        self.irreps_out = (Irreps(f"{extra_m0_outsize}x0e") + irreps_out).simplify()
+        self.irreps_in = Irreps(irreps_in).simplify()
+        self.irreps_out = (Irreps(f"{extra_m0_outsize}x0e") + Irreps(irreps_out)).simplify()
         self.radial_emb = radial_emb
         self.latent_dim = latent_dim
+
+        # 保存 flag
+        self.rotate_in = rotate_in
+        self.rotate_out = rotate_out
+        self.num_experts = num_experts
+
         self.m_linear = nn.ModuleList()
 
         num_in_m0 = self.irreps_in.num_irreps
@@ -365,6 +396,7 @@ class SO2_Linear(torch.nn.Module):
         self.fc_m0 = MOLELinear(num_in_m0, num_out_m0, num_experts=num_experts, bias=True)
 
         for m in range(1, self.irreps_out.lmax + 1):
+            # 假设 SO2_m_Linear 已经支持 num_experts 参数
             self.m_linear.append(SO2_m_Linear(
                 m,
                 self.irreps_in,
@@ -373,7 +405,7 @@ class SO2_Linear(torch.nn.Module):
                 num_experts=num_experts
             ))
 
-        # --- The rest of the __init__ method is unchanged ---
+        # --- Mask 和 Index 构建逻辑 (保持不变) ---
         self.m_in_mask = torch.zeros(self.irreps_in.lmax + 1, self.irreps_in.dim, dtype=torch.bool)
         self.m_out_mask = torch.zeros(self.irreps_in.lmax + 1, self.irreps_out.dim, dtype=torch.bool)
         if self.irreps_in.dim <= self.irreps_out.dim:
@@ -413,24 +445,46 @@ class SO2_Linear(torch.nn.Module):
             self.offsets[l] = offset
             offset += self.dims[l]
 
-    def forward(self, x, R, mole_globals: MOLEGlobals, latents=None, wigner_D_all=None):  # Added mole_globals
+    def forward(self, x, R, mole_globals: MOLEGlobals, latents=None, wigner_D_all=None):
+        """
+        Args:
+            x: Input features
+            R: Edge vectors (for rotation)
+            mole_globals: MoE routing info
+            latents: Latent features for radial embedding
+            wigner_D_all: Precomputed Wigner D matrices (optional)
+        """
         n, _ = x.shape
         if self.radial_emb:
             weights = self.radial_emb(latents)
         x_ = torch.zeros_like(x)
+
+        # === 1. 旋转矩阵准备 (Rotate Control) ===
         if wigner_D_all is None:
-            if self.l_max > 0:
+            # 只有当需要 rotate_in 或者 rotate_out 时才必须计算 D
+            if (self.rotate_in or self.rotate_out) and self.l_max > 0:
                 angle = xyz_to_angles(R[:, [1, 2, 0]])
                 wigner_D_all = batch_wigner_D(self.l_max, angle[0], angle[1], torch.zeros_like(angle[0]), _Jd)
+
+        # === 2. Rotate In (Global -> Local) ===
         groups = defaultdict(list)
         for (mul, (l, p)), slice_info in zip(self.irreps_in, self.irreps_in.slices()):
             groups[l].append((mul, slice_info))
             if l == 0:
                 x_[:, slice_info] = x[:, slice_info]
+
         for l, group in groups.items():
             if l == 0 or not group:
                 continue
             muls, slices = zip(*group)
+
+            # --- Flag Check: 如果 rotate_in 为 False，直接复制不旋转 ---
+            if not self.rotate_in:
+                for mul, sl in group:
+                    x_[:, sl] = x[:, sl]
+                continue
+            # ----------------------------------------------------
+
             x_parts = [x[:, sl].reshape(n, mul, 2 * l + 1) for mul, sl in group]
             x_combined = torch.cat(x_parts, dim=1)
             start = self.offsets[l]
@@ -439,33 +493,45 @@ class SO2_Linear(torch.nn.Module):
             for part, slice_info, mul in zip(transformed.split(muls, dim=1), slices, muls):
                 x_[:, slice_info] = part.reshape(n, -1)
 
+        # === 3. Convolution (Linear / MoE) ===
         out = torch.zeros(n, self.irreps_out.dim, dtype=x.dtype, device=x.device)
         for m in range(self.irreps_out.lmax + 1):
             radial_weight = weights[:, self.m_in_index[m]:self.m_in_index[m + 1]].unsqueeze(
                 1) if self.radial_emb else 1.
+
             if m == 0:
-                # MODIFICATION: Pass mole_globals
+                # MoE Logic for m=0
                 inp = x_[:, self.m_in_mask[m]]
                 if self.front and self.radial_emb:
+                    # mole_globals passed here
                     out[:, self.m_out_mask[m]] += self.fc_m0(inp * radial_weight.squeeze(1), mole_globals)
                 elif self.radial_emb:
                     out[:, self.m_out_mask[m]] += self.fc_m0(inp, mole_globals) * radial_weight.squeeze(1)
                 else:
                     out[:, self.m_out_mask[m]] += self.fc_m0(inp, mole_globals)
             else:
+                # MoE Logic for m>0
                 x_m_in = x_[:, self.m_in_mask[m]].reshape(n, -1, 2).transpose(1, 2).contiguous()
-                # MODIFICATION: Pass mole_globals
+
                 if self.front and self.radial_emb:
                     x_m_in.mul_(radial_weight)
+                    # mole_globals passed here
                     linear_output = self.m_linear[m - 1](x_m_in, mole_globals)
                 elif self.radial_emb:
                     linear_output = self.m_linear[m - 1](x_m_in, mole_globals)
                     linear_output.mul_(radial_weight)
                 else:
                     linear_output = self.m_linear[m - 1](x_m_in, mole_globals)
+
                 final_addition = linear_output.transpose(1, 2).contiguous().reshape(n, -1)
                 out[:, self.m_out_mask[m]] += final_addition
-        a = 1
+
+        # === 4. Rotate Out (Local -> Global) ===
+        # --- Flag Check: 如果 rotate_out 为 False，直接返回 ---
+        if not self.rotate_out:
+            return out.contiguous(), wigner_D_all
+        # --------------------------------------------------
+
         for (mul, (l, p)), slice_in in zip(self.irreps_out, self.irreps_out.slices()):
             if l > 0:
                 start = self.offsets[l]
@@ -473,6 +539,7 @@ class SO2_Linear(torch.nn.Module):
                 x_slice = out[:, slice_in].reshape(n, mul, -1)
                 rotated = torch.einsum('nij,nmj->nmi', rot_mat, x_slice)
                 out[:, slice_in] = rotated.reshape(n, -1)
+
         return out.contiguous(), wigner_D_all
 
 

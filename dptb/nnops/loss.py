@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 from dptb.utils.constants import anglrMId
 from dptb.nn.dftbsk import DFTBSK
 import re
+from dptb.nn.hr2hk import HR2HK, HR2HK_Gamma_Only
+from pyscf import gto, dft
 
 """this is the register class for descriptors
 
@@ -731,6 +733,137 @@ class HamilLossAbsMAE(nn.Module):
         total_loss = self.loss1(pre, tgt)
         return total_loss
 
+
+def get_electron_number_from_dm_torch(dm, overlap):
+    """
+    [修复] 使用 PyTorch 操作替代 NumPy，确保:
+    1. 梯度可以回传 (Gradient Flow)
+    2. 数据均在 GPU 上
+    3. 类型匹配
+    """
+    P = dm
+    S = overlap
+
+    # 确保 overlap 类型与 P 一致 (float)
+    if P.dtype != S.dtype:
+        S = S.to(P.dtype)
+
+    # 如果是自旋分辨的 3D DM (spin, nao, nao)，则先对自旋求和
+    if P.ndim == 3:
+        P = torch.sum(P, dim=0)
+
+    # 如果 Overlap 是 3D
+    if S.ndim == 3:
+        S = S[0]
+
+    # [关键修复] 使用 torch.einsum 替代 np.einsum
+    # 计算 Trace(P @ S)
+    return torch.einsum("ij,ji->", P, S)
+
+
+@Loss.register("hamil_w_num_e")
+class HamilNumE(nn.Module):
+    def __init__(
+            self,
+            basis: Dict[str, Union[str, list]] = None,
+            idp: Union[OrbitalMapper, None] = None,
+            overlap: bool = False,
+            on_the_fly_ovp_flag: bool = False,
+            num_e_loss_weight: float = 0.1,
+            dtype: Union[str, torch.dtype] = torch.float32,
+            device: Union[str, torch.device] = torch.device("cpu"),
+            **kwargs,
+    ):
+        super(HamilNumE, self).__init__()
+        self.loss1 = nn.L1Loss()  # 用于 Hamiltonian 和 电子数 Loss
+        self.loss2 = nn.MSELoss()
+        self.overlap = overlap
+        self.device = device
+        self.on_the_fly_ovp_flag = on_the_fly_ovp_flag
+        self.num_e_loss_weight = num_e_loss_weight
+
+        if basis is not None:
+            self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
+            if idp is not None:
+                assert idp == self.idp, "The basis of idp and basis should be the same."
+        else:
+            assert idp is not None, "Either basis or idp should be provided."
+            self.idp = idp
+
+        self.dm_hr2hk = HR2HK_Gamma_Only(
+            idp=self.idp,
+            edge_field=AtomicDataDict.EDGE_FEATURES_KEY,
+            node_field=AtomicDataDict.NODE_FEATURES_KEY,
+            out_field=AtomicDataDict.HAMILTONIAN_KEY,
+            device=device
+        )
+        self.overlap_hr2hk = HR2HK_Gamma_Only(
+            idp=self.idp,
+            edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
+            node_field=AtomicDataDict.NODE_OVERLAP_KEY,
+            out_field=AtomicDataDict.OVERLAP_KEY,
+            device=device
+        )
+        self.kpoint = torch.tensor([[0.0, 0.0, 0.0]], device=device)
+
+
+    def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
+        data['kpoint'] = self.kpoint
+        ref_data['kpoint'] = self.kpoint
+
+        type_numbers = data[AtomicDataDict.ATOM_TYPE_KEY].squeeze(-1)
+        # atomic_numbers 是 int/long 类型
+        atomic_numbers = self.idp.untransform_atom(type_numbers)
+        #######################################################################################
+        #######################################################################################
+
+        # 预测 DM (Float, on CUDA, requires_grad=True)
+        pred_dm_data = self.dm_hr2hk.forward(data)
+        pred_dm = pred_dm_data[AtomicDataDict.HAMILTONIAN_KEY]
+
+        # 真实 Overlap (Float, on CUDA)
+        ref_overlap_data = self.overlap_hr2hk.forward(ref_data)
+        ref_overlap = ref_overlap_data[AtomicDataDict.OVERLAP_KEY]
+
+        # 计算预测电子数 (Float, Tensor)
+        pred_electron_number = get_electron_number_from_dm_torch(pred_dm, ref_overlap)
+
+        # 获取真实电荷 (Int, on CUDA)
+        real_charge = ref_data['charge']
+
+        # 计算目标总电子数 (Int)
+        # sum_of_atomic_numbers (Int) - real_charge (Int) = target_electrons (Int)
+        sum_of_atomic_numbers = atomic_numbers.sum()
+        total_electrons = sum_of_atomic_numbers - real_charge
+
+        electron_number_loss = self.loss1(pred_electron_number, total_electrons.float())
+
+        #######################################################################################
+
+        # onsite loss
+        pre_onsite = data[AtomicDataDict.NODE_FEATURES_KEY][
+            self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+        ]
+        tgt_onsite = ref_data[AtomicDataDict.NODE_FEATURES_KEY][
+            self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+        ]
+        # hopping loss
+        pre_hopping = data[AtomicDataDict.EDGE_FEATURES_KEY][
+            self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
+        ]
+        tgt_hopping = ref_data[AtomicDataDict.EDGE_FEATURES_KEY][
+            self.idp.mask_to_erme[ref_data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
+        ]
+
+        pre = torch.cat([pre_onsite, pre_hopping], dim=0)
+        tgt = torch.cat([tgt_onsite, tgt_hopping], dim=0)
+
+        hamil_loss = self.loss1(pre, tgt)
+
+        # 加权求和
+        final_loss = hamil_loss + self.num_e_loss_weight * electron_number_loss
+
+        return final_loss
 
 @Loss.register("hamil_wt")
 class HamilLossWT(nn.Module):

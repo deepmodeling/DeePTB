@@ -84,14 +84,77 @@ def write_abacus_csr_format(matrix_dict, matrix_symbol, output_path, step=0):
     # print(f"Wrote {num_blocks} blocks to {output_path}")
 
 
-def write_blocks_to_abacus_csr(atomic_numbers, basis_dict, blocks_dict, matrix_symbol, output_path, step=0):
+def write_blocks_to_abacus_csr(atomic_numbers, basis_dict, blocks_dict, matrix_symbol, output_path, step=0,
+                               unfold_symmetry=True):
     """
     Entry function:
       atomic_numbers: per-site Z array-like
       basis_dict: parse_orbital_files result
       blocks_dict: mapping 'i_j_Rx_Ry_Rz' -> small block (DFTIO ordering)
       matrix_symbol: 'H'/'S'/'DM'
+      output_path: path to save the csr file
+      step: MD step or iteration step
+      unfold_symmetry: (bool) If True, automatically adds Hermitian conjugate blocks
+                       if they are missing (e.g. data from AI models).
     """
+
+    # --- Helper Function: Unfold Symmetry ---
+    def _ensure_hermitian_completeness(input_blocks):
+        """
+        Checks if the dictionary contains Hermitian conjugates.
+        If not (e.g. only i<=j stored), adds the missing (j, i, -R) blocks.
+        """
+        # Create a shallow copy to avoid modifying the input dictionary externally
+        # We will standardize keys to string to avoid bytes/str confusion during lookup
+        full_blocks = {}
+
+        # First pass: standardize keys and copy existing data
+        for k, v in input_blocks.items():
+            k_str = k.decode() if isinstance(k, (bytes, bytearray)) else str(k)
+            full_blocks[k_str] = v
+
+        # List of items to iterate (avoid runtime error changing dict size)
+        existing_keys = list(full_blocks.keys())
+
+        for key in existing_keys:
+            m = KEY_RE.match(key)
+            if not m: continue
+
+            i, j = int(m.group(1)), int(m.group(2))
+            Rx, Ry, Rz = int(m.group(3)), int(m.group(4)), int(m.group(5))
+
+            # Construct the symmetric key: j_i_-R
+            rev_key = f"{j}_{i}_{-Rx}_{-Ry}_{-Rz}"
+
+            # Check if reverse key exists.
+            # If i==j and R==0, rev_key == key, so it exists.
+            # If data is from AI model, rev_key usually doesn't exist for i!=j.
+            if rev_key not in full_blocks:
+                block = full_blocks[key]
+
+                # Compute conjugate transpose based on type
+                if hasattr(block, "is_cuda") and block.is_cuda:  # Torch Tensor (CUDA)
+                    rev_block = block.detach().transpose(-1, -2)
+                elif hasattr(block, "detach"):  # Torch Tensor (CPU)
+                    rev_block = block.detach().transpose(-1, -2)
+                elif hasattr(block, "toarray"):  # Sparse Matrix
+                    rev_block = block.transpose().conj()  # Scipy sparse .T is just transpose, need .conj() if complex
+                else:  # Numpy array
+                    rev_block = np.swapaxes(block, -1, -2)  # Safe for ndarray
+                    # Note: For real numbers (Density Matrix), transpose is enough.
+                    # If complex, technically needs .conj(). Assuming real for DM/H in typical localized basis if not specified.
+
+                full_blocks[rev_key] = rev_block
+
+        return full_blocks
+
+    # --- Pre-processing: Handle Symmetry ---
+    if unfold_symmetry:
+        # This automatically handles the 8MB vs 16MB issue
+        # It's O(N) but N is small (number of blocks), so it's fast.
+        blocks_dict = _ensure_hermitian_completeness(blocks_dict)
+
+    # --- Original Logic Starts Here ---
     atomic_numbers = np.asarray(atomic_numbers, dtype=int)
     if atomic_numbers.size == 0:
         raise ValueError("empty atomic_numbers")
@@ -102,6 +165,7 @@ def write_blocks_to_abacus_csr(atomic_numbers, basis_dict, blocks_dict, matrix_s
     # element -> l-list
     element_l_lists = {}
     for Z in np.unique(atomic_numbers):
+        # Assuming find_basis_for_Z_or_symbol and parse_basis_to_l_list are available
         basis_str = find_basis_for_Z_or_symbol(basis_dict, int(Z))
         if basis_str is None:
             element_l_lists[int(Z)] = [0]
@@ -123,8 +187,11 @@ def write_blocks_to_abacus_csr(atomic_numbers, basis_dict, blocks_dict, matrix_s
         if not m:
             # skip unparseable keys
             continue
-        i_site = int(m.group(1)); j_site = int(m.group(2))
-        Rx = int(m.group(3)); Ry = int(m.group(4)); Rz = int(m.group(5))
+        i_site = int(m.group(1));
+        j_site = int(m.group(2))
+        Rx = int(m.group(3));
+        Ry = int(m.group(4));
+        Rz = int(m.group(5))
         r_str = f"{Rx}_{Ry}_{Rz}"
 
         # l-lists
@@ -145,6 +212,7 @@ def write_blocks_to_abacus_csr(atomic_numbers, basis_dict, blocks_dict, matrix_s
             continue
 
         # transform DFTIO -> ABACUS
+        # Assuming transform_2_ABACUS is defined externally
         transformed = transform_2_ABACUS(block_arr.astype(np.float32), l_lefts, l_rights)
 
         # offsets
@@ -172,6 +240,7 @@ def write_blocks_to_abacus_csr(atomic_numbers, basis_dict, blocks_dict, matrix_s
             full = csr_matrix((data, (rows, cols)), shape=(norbits, norbits))
         reassembled[r_str] = full
 
+    # Assuming write_abacus_csr_format is defined externally
     write_abacus_csr_format(reassembled, matrix_symbol, output_path, step=step)
     return reassembled, norbits
 

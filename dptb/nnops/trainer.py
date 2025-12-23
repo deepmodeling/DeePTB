@@ -167,7 +167,7 @@ class Trainer(BaseTrainer):
             'field': 'iteration',
             "train_loss": loss.detach(),
             "lr": self.optimizer.state_dict()["param_groups"][0]['lr'],
-            # "total_grad_norm": total_norm.item()  # 传递给 Monitor
+            "total_grad_norm": total_norm.item()  # 传递给 Monitor
         }
         self.call_plugins(queue_name='iteration', time=self.iter, **state)
         self.iter += 1

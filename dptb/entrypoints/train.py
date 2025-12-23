@@ -499,6 +499,8 @@ def train(
     else:
         reference_datasets = None
 
+    jdata["common_options"]["overlap"] = False
+
     if restart:
         trainer = Trainer.restart(
             train_options=jdata["train_options"],
@@ -544,12 +546,14 @@ def train(
 
     # # # 注册 Monitor
     # # # verbose_freq 控制打印频率，但 CSV 是实时记录的
-    # doctor = DeepDoctorMonitor(output, verbose_freq=10)
-    # trainer.register_plugin(doctor)
-    # so2_monitor = SO2ModuleMonitor(output)
-    # trainer.register_plugin(so2_monitor)
-    # pre_so2_monitor = PreTPBlockMonitor(output)
-    # trainer.register_plugin(pre_so2_monitor)
+    monitor_flag = jdata["train_options"]["monitor_flag"]
+    if monitor_flag:
+        doctor = DeepDoctorMonitor(output, verbose_freq=1)
+        trainer.register_plugin(doctor)
+        so2_monitor = SO2ModuleMonitor(output)
+        trainer.register_plugin(so2_monitor)
+        pre_so2_monitor = PreTPBlockMonitor(output)
+        trainer.register_plugin(pre_so2_monitor)
 
     if jdata["train_options"]["use_tensorboard"]:
         assert jdata["train_options"]["display_freq"] >= jdata["train_options"]["validation_freq"], 'The display frequency must be greater than the validation frequency.'

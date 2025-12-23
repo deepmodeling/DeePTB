@@ -146,6 +146,17 @@ def wigner_D(l, alpha, beta, gamma):
     Xc = _z_rot_mat(gamma, l)
     return Xa @ J @ Xb @ J @ Xc
 
+def _z_rot_mat(angle, l):
+    shape, device, dtype = angle.shape, angle.device, angle.dtype
+    M = angle.new_zeros((*shape, 2 * l + 1, 2 * l + 1))
+    inds = torch.arange(0, 2 * l + 1, 1, device=device)
+    reversed_inds = torch.arange(2 * l, -1, -1, device=device)
+    frequencies = torch.arange(l, -l - 1, -1, dtype=dtype, device=device)
+    M[..., inds, reversed_inds] = torch.sin(frequencies * angle[..., None])
+    M[..., inds, inds] = torch.cos(frequencies * angle[..., None])
+    return M
+
+
 def build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes):
     """
     angle_stack: (3*N, )    # Input with alpha, beta, gamma stacked together

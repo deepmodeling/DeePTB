@@ -139,7 +139,8 @@ def train_options():
     args = [
         Argument("num_epoch", int, optional=False, doc=doc_num_epoch),
         Argument("batch_size", int, optional=True, default=1, doc=doc_batch_size),
-        Argument("clip_grad", float, optional=True, default=10, doc='Gradient clip'),
+        Argument("monitor_flag", bool, optional=True, default=False, doc='Set true to start monitor.'),
+        Argument("clip_grad", float, optional=True, default=1, doc='Gradient clip'),
         Argument("ref_batch_size", int, optional=True, default=1, doc=doc_ref_batch_size),
         Argument("val_batch_size", int, optional=True, default=1, doc=doc_val_batch_size),
         Argument("optimizer", dict, sub_fields=[], optional=True, default={}, sub_variants=[optimizer()], doc = doc_optimizer),
@@ -483,11 +484,20 @@ def embedding():
             Argument("slem", dict, slem()),
             Argument("lem_high_order", dict, slem()),
             Argument("lem", dict, slem()),
+            Argument("lem_full_tp_oeq", dict, slem()),
             Argument("lem_frame", dict, slem()),
             Argument("lem_light", dict, slem()),
             Argument("lem_light_v2", dict, slem()),
             Argument("lem_charge", dict, slem()),
+            Argument("lem_cutoff", dict, slem()),
+            Argument("lem_moe_openequi", dict, slem()),
+            Argument("lem_in_frame_moe", dict, slem()),
+            Argument("lem_full_tp", dict, slem()),
+            Argument("lem_in_frame_e3nn", dict, slem()),
+            Argument("lem_wo_ln", dict, slem()),
             Argument("lem_in_frame", dict, slem()),
+            Argument("lem_in_frame_openequi", dict, slem()),
+            Argument("lem_in_frame_heavy", dict, slem()),
             Argument("lem_moe_charge", dict, slem()),
             Argument("lem_moe", dict, slem()),
             Argument("lem_so2", dict, slem()),
@@ -499,7 +509,6 @@ def embedding():
         ],optional=True, default_tag="se2", doc=doc_method)
 
 def se2():
-
     doc_rs = "The soft cutoff where the smooth function starts."
     doc_rc = "The hard cutoff where the smooth function value ~0.0"
     doc_n_axis = "the out axis shape of the deepmd-se2 descriptor."
@@ -648,13 +657,20 @@ def slem():
             Argument("avg_num_neighbors", [int, float], optional=False, doc=doc_avg_num_neighbors),
             Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
             Argument("n_layers", int, optional=False, doc=doc_n_layers),
+            Argument("mp_cutoff",[float, int, dict], optional=True),
+            Argument("self_mix_mode", str, optional=True, default="full"),
+            Argument("self_mix_type", str, optional=True, default="all"),
+            Argument("self_mix_flag", bool, optional=True, default=False),
+            Argument("self_mix_iter", int, optional=True, default=2),
 
-            Argument("n_radial_basis", int, optional=True, default=10, doc=doc_n_radial_basis),
+            Argument("n_radial_basis", int, optional=True, default=128, doc=doc_n_radial_basis),
+            Argument("top_k_experts", int, optional=True, default=1, doc="The number of experts to be used in MoE. Default: 1"),
             Argument("num_experts", int, optional=True, default=8, doc="The number of experts for MoE. Default: 8"),
             Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
             Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
             Argument("color_mode", str, optional=True, default="tp", doc="The type of color mode. Default: tp"),
-            Argument("env_embed_multiplicity", int, optional=True, default=10, doc=doc_env_embed_multiplicity),
+            Argument("onehot_mode", str, optional=True, default="FullTP", doc="The type of onehot mode. Default: FullTP"),
+            Argument("env_embed_multiplicity", int, optional=True, default=64, doc=doc_env_embed_multiplicity),
             Argument("tp_radial_emb", bool, optional=True, default=False, doc="Whether to use tensor product radial embedding."),
             Argument("tp_radial_channels", list, optional=True, default=[32], doc="The number of channels in tensor product radial embedding."),
             Argument("latent_channels", list, optional=True, default=[32], doc="The number of channels in latent embedding."),
@@ -668,6 +684,8 @@ def slem():
             Argument("use_interpolation_out", bool, optional=True, default=False, doc=doc_use_interpolation_out),
             Argument("so2_attn_aggressive", bool, optional=True, default=False, doc=doc_so2_attn_aggressive),
             Argument("universal", bool, optional=True, default=False, doc=doc_universal),
+            Argument("in_frame_flag", bool, optional=True, default=True),
+            Argument("ln_flag", bool, optional=True, default=True),
             Argument("use_angle", bool, optional=True, default=False, doc="Whether to use angle."),
             Argument("norm_eps", float, optional=True, default=1e-8, doc="eps in SeperableLayerNorm."),
     ]
@@ -889,7 +907,8 @@ def loss_options():
     property_aux = [
         Argument("model_basis_name", str, optional=True, default='def2svp', doc=doc_model_basis_name),
         Argument("on_the_fly_ovp_flag", bool, optional=True, default=True, doc=doc_on_the_fly_ovp_flag),
-        Argument("dataset_basis_name", str, optional=True, default='def2svp', doc=doc_dataset_basis_name)
+        Argument("dataset_basis_name", str, optional=True, default='def2svp', doc=doc_dataset_basis_name),
+        Argument("num_e_loss_weight", float, optional=True, default=0.01)
     ]
 
     wa_loss_aux = [
@@ -908,7 +927,7 @@ def loss_options():
     eigvals = [
         Argument("diff_on", bool, optional=True, default=False, doc="Whether to use random differences in loss function. Default: False"),
         Argument("eout_weight", float, optional=True, default=0.001, doc="The weight of eigenvalue out of range. Default: 0.01"),
-        Argument("diff_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue difference. Default: 0.01"),
+        Argument("diff_weight", float, optional=True, default=0.1, doc="The weight of eigenvalue difference. Default: 0.01"),
         Argument("diff_valence", [dict,None], optional=True, default=None, doc="set the difference of the number of valence electrons in DFT and TB. eg {'A':6,'B':7}, Default: None, which means no difference"),
         Argument("spin_deg", int, optional=True, default=2, doc="The spin degeneracy of band structure. Default: 2"),
     ]
@@ -928,6 +947,7 @@ def loss_options():
         Argument("skints", dict, sub_fields=skints),
         Argument("hamil_abs", dict, sub_fields=hamil),
         Argument("hamil_abs_mae", dict, sub_fields=hamil),
+        Argument("hamil_w_num_e", dict, sub_fields=property_aux),
         Argument("wa_loss", dict, sub_fields=wa_loss_aux),
         Argument("dip_loss", dict, sub_fields=property_aux),
         Argument("dip_loss_mae", dict, sub_fields=property_aux),
@@ -1680,7 +1700,7 @@ def get_cutoffs_from_model_options(model_options):
         embedding = model_options.get("embedding")
         if embedding["method"] == "se2":
             er_max = embedding["rc"]
-        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_charge", "lem_in_frame", "lem_light_v2", "lem_light", "lem_moe_charge", "lem_frame", "lem_high_order", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
+        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_charge", "lem_cutoff", "lem_full_tp_oeq", "lem_moe_openequi", "lem_in_frame_moe", "lem_full_tp", "lem_in_frame_e3nn", "lem_in_frame_openequi", "lem_wo_ln", "lem_in_frame", "lem_in_frame_heavy", "lem_light_v2", "lem_light", "lem_moe_charge", "lem_frame", "lem_high_order", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
             r_max = embedding["r_max"]
         else:
             log.error("The method of embedding have not been defined in get cutoff functions")

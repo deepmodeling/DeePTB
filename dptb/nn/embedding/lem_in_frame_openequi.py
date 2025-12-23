@@ -46,7 +46,9 @@ from dptb.nn.tensor_product import (
 
 
 # ==============================================================================
-# 1. Base Classes
+# 1. Base Class (Your Original LemInFrame Code)
+#    We will import these directly in the new file. For clarity, I'll paste
+#    the base classes here, but in your project they can be in a separate file.
 # ==============================================================================
 
 def get_l0_indices(irreps: o3.Irreps):
@@ -281,7 +283,7 @@ class UpdateNodeInFrame(torch.nn.Module):
             self_mix_flag: bool = False,
             self_mix_mode: str = "scalar_channelwise",
             self_mix_iter: int = 1,
-            self_mix_type: str = "node",  # "node", "edge", or "all"
+            self_mix_type: str = "node",
     ):
         super(UpdateNodeInFrame, self).__init__()
 
@@ -292,7 +294,6 @@ class UpdateNodeInFrame(torch.nn.Module):
         self.dtype = dtype
         self.device = device
         self.res_update = res_update
-        self.norm_eps = norm_eps
 
         self.tp_rotate_in = tp_rotate_in
         self.tp_rotate_out = tp_rotate_out
@@ -302,7 +303,6 @@ class UpdateNodeInFrame(torch.nn.Module):
         self.self_mix_flag = self_mix_flag
         self.self_mix_mode = self_mix_mode.lower()
         self.self_mix_iter = self_mix_iter
-        self.self_mix_type = self_mix_type.lower()
 
         self.register_buffer(
             "env_sum_normalizations",
@@ -390,81 +390,35 @@ class UpdateNodeInFrame(torch.nn.Module):
                 shared_weights=True, internal_weights=True, biases=True
             )
 
-        # ---- Self-Mix Update (Node or Edge or Both) ----
+        # ---- Self-Mix Update ----
         if self.self_mix_flag:
             l0_indices = get_l0_indices(self.irreps_out)
             self.register_buffer("l0_indices", l0_indices)
-
-            self.node_mixer = None
-            self.edge_mixer = None
-
-            if "node" in self.self_mix_type or "all" in self.self_mix_type:
-                self.node_mixer = self._build_mixer_module()
-
-            if "edge" in self.self_mix_type or "all" in self.self_mix_type:
-                self.edge_mixer = self._build_mixer_module()
-
-        self.use_identity_res = ((self.node_irreps_in == self.irreps_out) and res_update)
-        if not self.use_identity_res and res_update:
-            self.linear_res = Linear(
-                self.node_irreps_in,
-                self.irreps_out,
-                shared_weights=True, internal_weights=True, biases=True,
-            )
-
-    def _build_mixer_module(self):
-        """Builds a single instance of the mixing layers (TPs, Gate, Linear, Norm)"""
-        mixer = torch.nn.ModuleDict()
-
-        # 1. Add Normalization Layer at the entry of mixer
-        mixer["norm"] = SeperableLayerNorm(
-            irreps=self.irreps_out,
-            eps=self.norm_eps,
-            affine=True,
-            normalization="component",
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
-        )
-
-        l0_indices = self.l0_indices  # already registered in buffer
-        scalar_dim = len(l0_indices)
-
-        gate = create_gate(self.irreps_out)
-        mixer["gate"] = gate
-
-        # 2. Use ModuleList for independent Tensor Products
-        tps = nn.ModuleList()
-        pre_gate_linear = None  # Only used if channelwise/etc needs it
-
-        # --- TP Construction ---
-        for _ in range(self.self_mix_iter):
-            tp_layer = None
+            scalar_dim = len(l0_indices)
+            self.self_mix_gate = create_gate(self.irreps_out)
+            self.self_mix_pre_gate_linear = None
 
             if "scalar" in self.self_mix_mode:
                 irreps_in2 = o3.Irreps(f"{scalar_dim}x0e")
 
                 if "full" in self.self_mix_mode:
-                    tp_layer = FullyConnectedTensorProduct(
+                    self.self_mix_tp = FullyConnectedTensorProduct(
                         irreps_in1=self.irreps_out,
                         irreps_in2=irreps_in2,
-                        irreps_out=gate.irreps_in
+                        irreps_out=self.self_mix_gate.irreps_in
                     )
                 elif "channelwise" in self.self_mix_mode:
                     instructions = [(i, 0, i, "uvu", True) for i, _ in enumerate(self.irreps_out)]
-                    tp_layer = TensorProduct(
+                    self.self_mix_tp = TensorProduct(
                         irreps_in1=self.irreps_out,
                         irreps_in2=irreps_in2,
                         irreps_out=self.irreps_out,
                         instructions=instructions
                     )
-                    # For channelwise, we usually project at the end of the chain or before gate
-                    # Here we initialize pre_gate_linear once if needed
-                    if pre_gate_linear is None:
-                        pre_gate_linear = Linear(
-                            self.irreps_out, gate.irreps_in,
-                            internal_weights=True, shared_weights=True
-                        )
+                    self.self_mix_pre_gate_linear = Linear(
+                        self.irreps_out, self.self_mix_gate.irreps_in,
+                        internal_weights=True, shared_weights=True
+                    )
                 else:
                     raise ValueError(f"Unknown scalar mode: {self.self_mix_mode}")
 
@@ -477,18 +431,16 @@ class UpdateNodeInFrame(torch.nn.Module):
                         if ir in (ir * ir):
                             instructions.append((i, i, i, "uvu", True))
 
-                    tp_layer = TensorProduct(
+                    self.self_mix_tp = TensorProduct(
                         irreps_in1=self.irreps_out,
                         irreps_in2=irreps_in2,
                         irreps_out=self.irreps_out,
                         instructions=instructions
                     )
-                    if pre_gate_linear is None:
-                        pre_gate_linear = Linear(
-                            self.irreps_out, gate.irreps_in,
-                            internal_weights=True, shared_weights=True
-                        )
-
+                    self.self_mix_pre_gate_linear = Linear(
+                        self.irreps_out, self.self_mix_gate.irreps_in,
+                        internal_weights=True, shared_weights=True
+                    )
                 elif "uuw" in self.self_mix_mode:
                     instructions = []
                     for i, (_, ir_in) in enumerate(self.irreps_out):
@@ -496,70 +448,34 @@ class UpdateNodeInFrame(torch.nn.Module):
                             if ir_out in (ir_in * ir_in):
                                 instructions.append((i, i, k, "uuw", True))
 
-                    tp_layer = TensorProduct(
+                    self.self_mix_tp = TensorProduct(
                         irreps_in1=self.irreps_out,
                         irreps_in2=irreps_in2,
                         irreps_out=self.irreps_out,
                         instructions=instructions
                     )
-                    if pre_gate_linear is None:
-                        pre_gate_linear = Linear(
-                            self.irreps_out, gate.irreps_in,
-                            internal_weights=True, shared_weights=True
-                        )
+                    self.self_mix_pre_gate_linear = Linear(
+                        self.irreps_out, self.self_mix_gate.irreps_in,
+                        internal_weights=True, shared_weights=True
+                    )
                 else:
                     raise ValueError(f"Unknown full_full mode: {self.self_mix_mode}")
             else:
                 raise ValueError(f"Unknown self_mix_mode: {self.self_mix_mode}")
 
-            tps.append(tp_layer)
+            self.self_mix_post_linear = Linear(
+                self.self_mix_gate.irreps_out,
+                self.irreps_out,
+                internal_weights=True, shared_weights=True
+            )
 
-        mixer["tps"] = tps
-
-        if pre_gate_linear is not None:
-            mixer["pre_gate_linear"] = pre_gate_linear
-
-        mixer["post_linear"] = Linear(
-            gate.irreps_out,
-            self.irreps_out,
-            internal_weights=True, shared_weights=True
-        )
-        return mixer
-
-    def _apply_self_mix(self, mixer, current_features):
-        """Applies the iterative self-mix logic given a mixer module and input features"""
-
-        # 1. Apply Normalization FIRST (Critical for Many-body stability)
-        normed_features = mixer["norm"](current_features)
-
-        # Prepare input2 (condition) based on mode, using Normalized features
-        input2 = None
-        if "scalar" in self.self_mix_mode:
-            input2 = normed_features[:, self.l0_indices]
-        elif "full_full" in self.self_mix_mode:
-            input2 = normed_features
-
-        # Iterative Tensor Product
-        # Many-body expansion: B_v = A x B_{v-1}.
-        # B_0 = normed_features
-        current_tp_feat = normed_features
-
-        # 2. Use independent weights for each iteration
-        for i in range(self.self_mix_iter):
-            tp_layer = mixer["tps"][i]
-            current_tp_feat = tp_layer(current_tp_feat, input2)
-
-        # Projection to Gate
-        if "pre_gate_linear" in mixer:
-            tp_out = mixer["pre_gate_linear"](current_tp_feat)
-        else:
-            tp_out = current_tp_feat
-
-        # Gate and Post Linear
-        gate_out = mixer["gate"](tp_out)
-        mix_out = mixer["post_linear"](gate_out)
-
-        return mix_out
+        self.use_identity_res = ((self.node_irreps_in == self.irreps_out) and res_update)
+        if not self.use_identity_res and res_update:
+            self.linear_res = Linear(
+                self.node_irreps_in,
+                self.irreps_out,
+                shared_weights=True, internal_weights=True, biases=True,
+            )
 
     def forward(
             self,
@@ -603,12 +519,6 @@ class UpdateNodeInFrame(torch.nn.Module):
         edge_messages = self.activation(edge_messages)
         edge_messages = self.lin_post(edge_messages)
 
-        # ---- EDGE SELF-MIX UPDATE ----
-        # Apply high-order expansion to edges BEFORE they are aggregated to nodes or passed to next layer
-        if self.self_mix_flag and self.edge_mixer is not None:
-            edge_mix_out = self._apply_self_mix(self.edge_mixer, edge_messages)
-            edge_messages = edge_messages + edge_mix_out
-
         msg_for_node = edge_messages
         if self.in_frame_flag and (not self.tp_rotate_out):
             msg_for_node = rotate_vector(edge_messages, self.irreps_out, wigner_D_all, back=True)
@@ -623,10 +533,8 @@ class UpdateNodeInFrame(torch.nn.Module):
         else:
             norm_const = self.env_sum_normalizations[atom_type.flatten()].unsqueeze(-1)
 
-        # A (Aggregated messages)
         new_node_features = aggregated_node_messages * norm_const
 
-        # Main Branch Residual Update
         if self.res_update:
             update_coefficients = self._res_update_params.sigmoid()
             coefficient_old = torch.rsqrt(update_coefficients.square() + 1)
@@ -638,12 +546,27 @@ class UpdateNodeInFrame(torch.nn.Module):
         else:
             node_features = new_node_features
 
-        # ---- NODE SELF-MIX UPDATE ----
-        if self.self_mix_flag and self.node_mixer is not None:
-            node_mix_out = self._apply_self_mix(self.node_mixer, node_features)
-            node_features = node_features + node_mix_out
+        if self.self_mix_flag:
+            input2 = None
+            if "scalar" in self.self_mix_mode:
+                input2 = new_node_features[:, self.l0_indices]
+            elif "full_full" in self.self_mix_mode:
+                input2 = new_node_features
 
-        # One-Hot Update
+            current_tp_feat = new_node_features
+
+            for _ in range(self.self_mix_iter):
+                current_tp_feat = self.self_mix_tp(current_tp_feat, input2)
+
+            if self.self_mix_pre_gate_linear is not None:
+                tp_out = self.self_mix_pre_gate_linear(current_tp_feat)
+            else:
+                tp_out = current_tp_feat
+
+            gate_out = self.self_mix_gate(tp_out)
+            mix_out = self.self_mix_post_linear(gate_out)
+            node_features = node_features + mix_out
+
         if self.use_layer_onehot_tp:
             tp_out = self.node_onehot_tp(node_features, node_onehot)
             gate_out = self.node_onehot_gate(tp_out)
@@ -687,14 +610,13 @@ class LemInFrame(torch.nn.Module):
             use_interpolation_out: Optional[bool] = True,
             prune_edges_by_cutoff: bool = True,
             prune_log_path: Optional[str] = None,
-            # ---- new flags ----
             ln_flag: bool = True,
             in_frame_flag: bool = True,
             onehot_mode: str = "FullTP",
             self_mix_flag: bool = False,
             self_mix_mode: str = "scalar_channelwise",
-            self_mix_iter: int = 2,  # Default to 2
-            self_mix_type: str = "node",  # "node", "edge", or "all"
+            self_mix_iter: int = 2,
+            self_mix_type: str = "node",
             **kwargs,
     ):
         super(LemInFrame, self).__init__()
@@ -840,7 +762,6 @@ class LemInFrame(torch.nn.Module):
                     self_mix_flag=self_mix_flag,
                     self_mix_mode=self_mix_mode,
                     self_mix_iter=self_mix_iter,
-                    # ---- pass self_mix_type ----
                     self_mix_type=self_mix_type,
                 )
             )
@@ -969,138 +890,17 @@ class LemInFrame(torch.nn.Module):
 
 
 # ==============================================================================
-# 2. OEQ Extensions
+# 2. OpenEquivariance Version
+#    Inherits from the base classes and replaces TP modules.
 # ==============================================================================
-
-def get_feasible_tp(
-        irreps_in1: o3.Irreps,
-        irreps_in2: o3.Irreps,
-        filter_irreps_out: o3.Irreps,
-        tp_mode: str = "uvw",
-        trainable: bool = True
-):
-    """
-    Generate irreps_out and instructions for OpenEquivariance TP.
-    """
-    assert tp_mode in ["uvw", "uvu", "uvv", "uuw", "uuu", "uvuv"]
-    irreps_mid = []
-    instructions = []
-
-    # 1. Generate path candidates & Determine Multiplicities
-    for i, (mul_1, ir_in1) in enumerate(irreps_in1):
-        for j, (mul_2, ir_in2) in enumerate(irreps_in2):
-            if tp_mode in ["uuw", "uuu"]:
-                if mul_1 != mul_2:
-                    continue
-
-            for ir_out in ir_in1 * ir_in2:
-                if ir_out in filter_irreps_out:
-                    if tp_mode == "uvw":
-                        mul_out = filter_irreps_out.count(ir_out)
-                    elif tp_mode == "uvu":
-                        mul_out = mul_1
-                    elif tp_mode == "uvv":
-                        mul_out = mul_2
-                    elif tp_mode == "uuu":
-                        mul_out = mul_1
-                    elif tp_mode == "uuw":
-                        mul_out = filter_irreps_out.count(ir_out)
-                    elif tp_mode == "uvuv":
-                        mul_out = mul_1 * mul_2
-                    else:
-                        raise NotImplementedError(f"Unsupported TP mode: {tp_mode}")
-
-                    found_k = -1
-                    for k, (m, ir) in enumerate(irreps_mid):
-                        if ir == ir_out and m == mul_out:
-                            found_k = k
-                            break
-
-                    if found_k == -1:
-                        found_k = len(irreps_mid)
-                        irreps_mid.append((mul_out, ir_out))
-
-                    instructions.append((i, j, found_k, tp_mode, trainable))
-
-    irreps_mid_obj = o3.Irreps(irreps_mid)
-
-    final_instructions = []
-    for ins in instructions:
-        i_in1, i_in2, i_out, mode, train = ins
-        alpha = 1.0
-        final_instructions.append((i_in1, i_in2, i_out, mode, train, alpha))
-
-    return irreps_mid_obj, final_instructions
-
-
-class OEQTensorProduct(nn.Module):
-    def __init__(self,
-                 irreps_in1: o3.Irreps,
-                 irreps_in2: o3.Irreps,
-                 irreps_out: o3.Irreps,
-                 tp_mode: str = "uvw",
-                 internal_weights: bool = True,
-                 shared_weights: bool = True):
-        super().__init__()
-
-        if oeq is None:
-            raise ImportError("OpenEquivariance not installed.")
-
-        self.irreps_in1 = o3.Irreps(irreps_in1)
-        self.irreps_in2 = o3.Irreps(irreps_in2)
-        self.irreps_out = o3.Irreps(irreps_out)
-        self.internal_weights_flag = internal_weights
-
-        self.irreps_mid, instructions = get_feasible_tp(
-            self.irreps_in1, self.irreps_in2, self.irreps_out, tp_mode=tp_mode
-        )
-
-        self.problem = oeq.TPProblem(
-            self.irreps_in1,
-            self.irreps_in2,
-            self.irreps_mid,
-            instructions,
-            shared_weights=shared_weights,
-            internal_weights=False
-        )
-
-        self.tp = oeq.TensorProduct(self.problem, torch_op=True)
-
-        self.weight_numel = self.problem.weight_numel
-
-        if self.internal_weights_flag and self.weight_numel > 0:
-            self.weights = nn.Parameter(torch.randn(self.weight_numel))
-            with torch.no_grad():
-                self.weights.div_(self.weight_numel ** 0.5)
-        else:
-            self.register_parameter('weights', None)
-
-        if self.irreps_mid != self.irreps_out:
-            self.post_linear = o3.Linear(self.irreps_mid, self.irreps_out)
-        else:
-            self.post_linear = nn.Identity()
-
-    def forward(self, x: torch.Tensor, y: torch.Tensor, weight: Optional[torch.Tensor] = None):
-        w = self.weights if self.internal_weights_flag else weight
-
-        if self.weight_numel > 0:
-            out = self.tp(x, y, w)
-        else:
-            out = self.tp(x, y)
-
-        out = self.post_linear(out)
-        return out
-
-
 class UpdateNodeInFrameOpenequi(UpdateNodeInFrame):
-    """
-    Inherits everything from UpdateNodeInFrame, but replaces E3NN TP with OEQ TP.
-    """
-
     def __init__(self, **kwargs):
+        # Call parent to set up everything EXCEPT the TP modules we will replace
         super().__init__(**kwargs)
 
-        # --- Swap One-Hot TP ---
+        # Now, overwrite the specific TP modules with OEQ versions
+
+        # 1. Overwrite One-Hot TP
         if self.use_layer_onehot_tp:
             tp_mode_map = {"fulltp": "uvw", "elementtp": "uvu"}
             self.node_onehot_tp = OEQTensorProduct(
@@ -1110,169 +910,59 @@ class UpdateNodeInFrameOpenequi(UpdateNodeInFrame):
                 tp_mode=tp_mode_map.get(self.onehot_mode, "uvw")
             )
 
-    def _build_mixer_module(self):
-        """
-        Overrides the base method to return OEQ-based mixers (node or edge).
-        Use ModuleList for independent weights in iterations.
-        """
-        mixer = torch.nn.ModuleDict()
-
-        # 1. Add Normalization
-        mixer["norm"] = SeperableLayerNorm(
-            irreps=self.irreps_out,
-            eps=self.norm_eps,
-            affine=True,
-            normalization="component",
-            std_balance_degrees=True,
-            dtype=self.dtype,
-            device=self.device
-        )
-
-        l0_indices = self.l0_indices  # available from parent's buffer init
-        scalar_dim = len(l0_indices)
-
-        gate = create_gate(self.irreps_out)
-        mixer["gate"] = gate
-
-        tps = nn.ModuleList()
-        pre_gate_linear = None
-
-        # 2. Iterate for ModuleList
-        for _ in range(self.self_mix_iter):
-            tp_layer = None
+        # 2. Overwrite Self-Mix TP
+        if self.self_mix_flag:
+            scalar_dim = len(self.l0_indices)
 
             if "scalar" in self.self_mix_mode:
                 irreps_in2 = o3.Irreps(f"{scalar_dim}x0e")
+                tp_mode = "uvw" if "full" in self.self_mix_mode else "uvu"
 
-                if "full" in self.self_mix_mode:
-                    tp_mode = "uvw"
-                    tp_layer = OEQTensorProduct(
-                        irreps_in1=self.irreps_out,
-                        irreps_in2=irreps_in2,
-                        irreps_out=gate.irreps_in,
-                        tp_mode=tp_mode
-                    )
-                elif "channelwise" in self.self_mix_mode:
-                    tp_mode = "uvu"
-                    tp_layer = OEQTensorProduct(
-                        irreps_in1=self.irreps_out,
-                        irreps_in2=irreps_in2,
-                        irreps_out=self.irreps_out,
-                        tp_mode=tp_mode
-                    )
-                    if pre_gate_linear is None:
-                        pre_gate_linear = Linear(
-                            self.irreps_out, gate.irreps_in,
-                            internal_weights=True, shared_weights=True
-                        )
-                else:
-                    raise ValueError(f"Unknown scalar mode: {self.self_mix_mode}")
+                self.self_mix_tp = OEQTensorProduct(
+                    irreps_in1=self.irreps_out,
+                    irreps_in2=irreps_in2,
+                    # If uvu, output is same as input, needs pre_gate_linear. If uvw, can target gate irreps directly.
+                    irreps_out=self.self_mix_gate.irreps_in if tp_mode == "uvw" else self.irreps_out,
+                    tp_mode=tp_mode
+                )
 
             elif "full_full" in self.self_mix_mode:
                 irreps_in2 = self.irreps_out
+                # Here we MUST keep the original 'uuw' or 'uvu' logic as per the base class
+                tp_mode = "uvu" if "uvu" in self.self_mix_mode else "uuw"
 
-                if "uvu" in self.self_mix_mode:
-                    tp_mode = "uvu"
-                    tp_layer = OEQTensorProduct(
-                        irreps_in1=self.irreps_out,
-                        irreps_in2=irreps_in2,
-                        irreps_out=self.irreps_out,
-                        tp_mode=tp_mode
-                    )
-                    if pre_gate_linear is None:
-                        pre_gate_linear = Linear(
-                            self.irreps_out, gate.irreps_in,
-                            internal_weights=True, shared_weights=True
-                        )
-                elif "uuw" in self.self_mix_mode:
-                    tp_mode = "uuw"
-                    tp_layer = OEQTensorProduct(
-                        irreps_in1=self.irreps_out,
-                        irreps_in2=irreps_in2,
-                        irreps_out=self.irreps_out,
-                        tp_mode=tp_mode
-                    )
-                    if pre_gate_linear is None:
-                        pre_gate_linear = Linear(
-                            self.irreps_out, gate.irreps_in,
-                            internal_weights=True, shared_weights=True
-                        )
-                else:
-                    raise ValueError(f"Unknown full_full mode: {self.self_mix_mode}")
+                self.self_mix_tp = OEQTensorProduct(
+                    irreps_in1=self.irreps_out,
+                    irreps_in2=irreps_in2,
+                    irreps_out=self.irreps_out,
+                    tp_mode=tp_mode
+                )
             else:
-                raise ValueError(f"Unknown self_mix_mode: {self.self_mix_mode}")
-
-            tps.append(tp_layer)
-
-        mixer["tps"] = tps
-        if pre_gate_linear is not None:
-            mixer["pre_gate_linear"] = pre_gate_linear
-
-        mixer["post_linear"] = Linear(
-            gate.irreps_out,
-            self.irreps_out,
-            internal_weights=True, shared_weights=True
-        )
-        return mixer
+                # This should have been caught by the parent's __init__
+                pass
 
 
 @Embedding.register("lem_in_frame_openequi")
 class LemInFrameOpenequi(LemInFrame):
     def __init__(self, **kwargs):
-        # 1. 显式提取需要的参数，避免 kwargs 污染
-        # 这些是 LemInFrame 需要的，已经在 super().__init__ 里处理过了
-        n_layers = kwargs.get('n_layers', 3)
-        irreps_hidden = kwargs.get('irreps_hidden')
-        use_interpolation_out = kwargs.get('use_interpolation_out', True)
-        edge_one_hot_dim = kwargs.get('edge_one_hot_dim', 128)
-
-        # 初始化父类
+        # Call the parent __init__ but we'll overwrite the layers
         super().__init__(**kwargs)
 
         if oeq is None:
             raise ImportError("OpenEquivariance is not installed.")
 
-        # 2. 重新构建 layers
-        # 我们必须覆盖父类创建的 layers，因为我们需要 Openequi 版本的层
+        # --- Re-build layers using the OEQ-enabled Update class ---
         self.layers = torch.nn.ModuleList()
-
-        irreps_hidden_obj = o3.Irreps(irreps_hidden)
+        n_layers = kwargs.get('n_layers', 3)
+        irreps_hidden = o3.Irreps(kwargs.get('irreps_hidden'))
         orbpair_irreps = self.idp.orbpair_irreps.sort()[0].simplify()
-
-        # 3. 准备传递给 Layer 的特定参数
-        # 从 kwargs 中提取出属于 UpdateNodeInFrame 的参数
-        # 我们可以利用 self.init_layer 或其他已解析的属性来获取正确的值
-
-        # 为了安全起见，我们定义一个白名单，或者只传递 UpdateNodeInFrame 明确需要的参数
-        # 这里最简单的方法是复用父类中传递给 UpdateNodeInFrame 的那些参数逻辑
-
-        # 提取通用参数
-        layer_kwargs = {
-            "latent_dim": kwargs.get('latent_dim', 128),
-            "norm_eps": kwargs.get('norm_eps', 1e-8),
-            "radial_emb": kwargs.get('tp_radial_emb', False),
-            "radial_channels": kwargs.get('tp_radial_channels', [128, 128]),
-            "res_update": kwargs.get('res_update', True),
-            "use_layer_onehot_tp": kwargs.get('use_layer_onehot_tp', True),
-            "res_update_ratios": kwargs.get('res_update_ratios', None),
-            "res_update_ratios_learnable": kwargs.get('res_update_ratios_learnable', False),
-            "avg_num_neighbors": kwargs.get('avg_num_neighbors', None),
-            "dtype": self.dtype,  # Use self.dtype processed by parent
-            "device": self.device,  # Use self.device processed by parent
-            "ln_flag": kwargs.get('ln_flag', True),
-            "in_frame_flag": kwargs.get('in_frame_flag', True),
-            "onehot_mode": kwargs.get('onehot_mode', "FullTP"),
-            "self_mix_flag": kwargs.get('self_mix_flag', False),
-            "self_mix_mode": kwargs.get('self_mix_mode', "scalar_channelwise"),
-            "self_mix_iter": kwargs.get('self_mix_iter', 1),
-            "self_mix_type": kwargs.get('self_mix_type', "node"),
-        }
+        use_interpolation_out = kwargs.get('use_interpolation_out', True)
 
         for i in tqdm(range(n_layers), desc="Compiling OEQ Layers"):
             if i == 0:
                 irreps_in_layer = self.init_layer.irreps_out
             else:
-                irreps_in_layer = irreps_hidden_obj
+                irreps_in_layer = irreps_hidden
 
             if self.in_frame_flag:
                 rotate_in = (i == 0)
@@ -1284,33 +974,30 @@ class LemInFrameOpenequi(LemInFrame):
                 irreps_out_layer = orbpair_irreps
                 use_interpolation_tp = bool(use_interpolation_out)
             else:
-                irreps_out_layer = irreps_hidden_obj
+                irreps_out_layer = irreps_hidden
                 use_interpolation_tp = False
 
+            # Use the NEW UpdateNodeInFrameOpenequi class here
             self.layers.append(
                 UpdateNodeInFrameOpenequi(
                     node_irreps_in=irreps_in_layer,
                     edge_irreps_in=irreps_in_layer,
                     irreps_out=irreps_out_layer,
-                    tp_rotate_in=rotate_in,
-                    tp_rotate_out=rotate_out,
-                    use_interpolation_tp=use_interpolation_tp,
-                    node_one_hot_dim=self.n_atom,
-                    **layer_kwargs  # 使用过滤后的参数字典
+                    **kwargs  # Pass all original kwargs to ensure consistency
                 )
             )
 
-        # 4. Swap Output TPs if needed
+        # --- Overwrite output TP layers ---
         if self.use_out_onehot_tp:
             self.out_node_ele_tp = OEQTensorProduct(
                 irreps_in1=self.node_irreps_out,
                 irreps_in2=o3.Irreps(f"{self.n_atom}x0e"),
                 irreps_out=self.idp.orbpair_irreps,
-                tp_mode="uvw"
+                tp_mode="uvw"  # Fully connected is the equivalent here
             )
             self.out_edge_ele_tp = OEQTensorProduct(
                 irreps_in1=self.edge_irreps_out,
-                irreps_in2=o3.Irreps(f"{edge_one_hot_dim}x0e"),
+                irreps_in2=o3.Irreps(f"{kwargs.get('edge_one_hot_dim', 128)}x0e"),
                 irreps_out=self.idp.orbpair_irreps,
                 tp_mode="uvw"
             )
