@@ -81,23 +81,40 @@ class DeePTBAdapter:
             raise RuntimeError('The r_max is not provided in model_options, please provide it in AtomicData_options.')
         
     def get_hamiltonian(self, atomic_data: AtomicDataDict) -> AtomicDataDict:
-        # Run model forward pass to get H/S blocks
-        return self.model(atomic_data)
+        # Check for override overlap in input
+        # If overlap is present before model run, we treat it as an override to be preserved
+        override_edge = atomic_data.get(AtomicDataDict.EDGE_OVERLAP_KEY)
+        override_node = atomic_data.get(AtomicDataDict.NODE_OVERLAP_KEY)
 
-    def get_eigenvalues(self, atomic_data: AtomicDataDict) -> Tuple[AtomicDataDict, torch.Tensor]:
+        # Run model forward pass to get H/S blocks
+        atomic_data = self.model(atomic_data)
+        
+        # Restore overlap if it was an override
+        # We only need to do this if the model actually has overlap capability (and thus might have overwritten it)
+        if self.overlap and override_edge is not None:
+             atomic_data[AtomicDataDict.EDGE_OVERLAP_KEY] = override_edge
+             if override_node is not None:
+                  atomic_data[AtomicDataDict.NODE_OVERLAP_KEY] = override_node
+                  
+        return atomic_data
+
+    def get_eigenvalues(self, 
+                        atomic_data: AtomicDataDict, 
+                        nk: Optional[int]=None,
+                        solver: Optional[str]=None) -> Tuple[AtomicDataDict, torch.Tensor]:
         # 1. Get Hamiltonian
-        data = self.get_hamiltonian(atomic_data)
+        atomic_data = self.get_hamiltonian(atomic_data)
         
         # 2. Verify Overlap logic
         if self.overlap:
-             if data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is None:
+             if atomic_data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is None:
                  raise RuntimeError("Overlap model but no overlap in output.")
                  
         # 3. Solve Eigenvalues
-        data = self.eigv_solver(data)
+        atomic_data = self.eigv_solver(data=atomic_data,nk=nk, eig_solver=solver)
         
-        eigs = data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0] # atomic_data is usually batched, take 0
-        return data, eigs
+        eigs = atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0] # atomic_data is usually batched, take 0
+        return atomic_data, eigs
 
     def get_orbital_info(self) -> dict:
         return {
