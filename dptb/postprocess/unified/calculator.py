@@ -6,6 +6,7 @@ from dptb.data import AtomicData, AtomicDataDict
 from dptb.utils.argcheck import get_cutoffs_from_model_options
 from dptb.nn.energy import Eigenvalues
 import logging
+from dptb.data.interfaces.ham_to_feature import feature_to_block
 
 log = logging.getLogger(__name__)
 
@@ -16,15 +17,28 @@ class HamiltonianCalculator(ABC):
     dtype: torch.dtype
 
     @abstractmethod
-    def get_hamiltonian(self, atomic_data: dict) -> dict:
+    def model_forward(self, atomic_data: dict) -> dict:
         """
-        Calculate the Hamiltonian and Overlap (if applicable) for the given atomic data.
+        Run the model forward pass to update atomic data with Hamiltonian inputs/features.
         
         Args:
-            atomic_data: The input atomic data dictionary containing structure and k-points.
+            atomic_data: The input atomic data dictionary.
         
         Returns:
-            The atomic data dictionary updated with Hamiltonian/Overlap blocks.
+            The atomic data dictionary updated with Hamiltonian/Overlap blocks/features.
+        """
+        pass
+
+    @abstractmethod
+    def get_hamiltonian_blocks(self, atomic_data: dict) -> Tuple[Any, Any]:
+        """
+        Get the Hamiltonian (and Overlap) blocks from the atomic data.
+        
+        Args:
+             atomic_data: The input atomic data.
+             
+        Returns:
+             Tuple of (H_blocks, S_blocks). S_blocks can be None.
         """
         pass
         
@@ -84,7 +98,7 @@ class DeePTBAdapter(HamiltonianCalculator):
             log.error('The r_max is not provided in model_options, please provide it in AtomicData_options.')
             raise RuntimeError('The r_max is not provided in model_options, please provide it in AtomicData_options.')
         
-    def get_hamiltonian(self, atomic_data: dict) -> dict:
+    def model_forward(self, atomic_data: dict) -> dict:
         # Check for override overlap in input
         # If overlap is present before model run, we treat it as an override to be preserved
         override_edge = atomic_data.get(AtomicDataDict.EDGE_OVERLAP_KEY)
@@ -96,18 +110,27 @@ class DeePTBAdapter(HamiltonianCalculator):
         # Restore overlap if it was an override
         # We only need to do this if the model actually has overlap capability (and thus might have overwritten it)
         if self.overlap and override_edge is not None:
-             atomic_data[AtomicDataDict.EDGE_OVERLAP_KEY] = override_edge
-             if override_node is not None:
-                  atomic_data[AtomicDataDict.NODE_OVERLAP_KEY] = override_node
-                  
+            atomic_data[AtomicDataDict.EDGE_OVERLAP_KEY] = override_edge
+            if override_node is not None:
+                atomic_data[AtomicDataDict.NODE_OVERLAP_KEY] = override_node          
         return atomic_data
 
+    def get_hamiltonian_blocks(self, atomic_data):
+        atomic_data = self.model_forward(atomic_data)
+        Hblocks = feature_to_block(atomic_data, idp=self.model.idp)
+        if self.overlap:
+            Sblocks = feature_to_block(atomic_data, idp=self.model.idp, overlap=True)
+        else:
+            Sblocks = None
+
+        return Hblocks, Sblocks 
+    
     def get_eigenvalues(self, 
                         atomic_data: dict, 
                         nk: Optional[int]=None,
                         solver: Optional[str]=None) -> Tuple[dict, torch.Tensor]:
         # 1. Get Hamiltonian
-        atomic_data = self.get_hamiltonian(atomic_data)
+        atomic_data = self.model_forward(atomic_data)
         
         # 2. Verify Overlap logic
         if self.overlap:

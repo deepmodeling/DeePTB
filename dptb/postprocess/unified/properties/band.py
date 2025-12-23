@@ -4,8 +4,15 @@ from matplotlib.ticker import MultipleLocator
 import logging
 import os
 import sys
-from typing import Optional, Union, List
+import torch
+from dptb.data import AtomicDataDict
+from dptb.utils.make_kpoints import ase_kpath, abacus_kpath, vasp_kpath
+from typing import TYPE_CHECKING, Optional, Union, List
 from dptb.postprocess.common import is_gui_available
+
+if TYPE_CHECKING:
+    from dptb.postprocess.unified.system import TBSystem
+
 log = logging.getLogger(__name__)
 
 class BandStructureData:
@@ -135,3 +142,132 @@ class BandStructureData:
             high_sym_kpoints=self.high_sym_kpoints,
             fermi_level=self.fermi_level
         )
+
+class BandAccessor:
+    """
+    Accessor for Band Structure functionality on a TBSystem.
+    Allows syntax like: system.band.set_kpath(...)
+    """
+    """
+    Accessor for Band Structure functionality on a TBSystem.
+    Allows syntax like: system.band.set_kpath(...)
+    """
+    def __init__(self, system: 'TBSystem'):
+        self._system = system
+        self._k_points = None
+        self._x_list = None
+        self._high_sym_kpoints = None
+        self._k_labels = None
+        
+    @property
+    def klist(self):
+        """Get the list of K-points."""
+        return self._k_points
+    
+    @property
+    def labels(self):
+        """Get the K-point labels."""
+        return self._k_labels
+        
+    @property
+    def xlist(self):
+        """Get the x-axis coordinates for plotting."""
+        return self._x_list
+        
+    def set_kpath(self, method: str, **kwargs):
+        """
+        Configure the K-path for band structure calculations.
+        """
+        self._system._kpath_config = {"method": method, **kwargs}
+        
+        if method == 'ase':
+            pathstr = kwargs.get('pathstr', kwargs.get('kpath', 'GXWLGK'))
+            npoints = kwargs.get('total_nkpoints', kwargs.get('nkpoints', 100))
+            self._k_points, self._x_list, self._high_sym_kpoints, self._k_labels = ase_kpath(
+                self._system.atoms, pathstr, npoints
+            )
+            
+        elif method == 'abacus':
+            kpath_def = kwargs.get('kpath')
+            self._k_labels = kwargs.get('klabels')
+            self._k_points, self._x_list, self._high_sym_kpoints = abacus_kpath(
+                self._system.atoms, kpath_def
+            )
+            
+        elif method == 'vasp':
+            pathstr = kwargs.get('pathstr', kwargs.get('kpath'))
+            hs_dict = kwargs.get('high_sym_kpoints_dict', kwargs.get('high_sym_kpoints'))
+            num_in_line = kwargs.get('number_in_line', 20)
+            self._k_points, self._x_list, self._high_sym_kpoints, self._k_labels = vasp_kpath(
+                self._system.atoms, pathstr, hs_dict, num_in_line
+            )
+            
+        elif method == 'array':
+            self._k_points = kwargs['kpath']
+            self._k_labels = kwargs.get('labels')
+            self._x_list = kwargs.get('xlist')
+            self._high_sym_kpoints = kwargs.get('high_sym_kpoints')
+            
+        else:
+            raise ValueError(f"Unknown kpath method: {method}")
+            
+        log.info(f"K-path configured using {method}. Total k-points: {len(self._k_points)}")
+
+        # Prepare Data with K-points immediately
+        # Shallow copy is enough for dict if we only add a key        
+        # Create NestedTensor for K-points as expected by model (Batched)
+        # Assuming batch size 1 for single structure
+        k_tensor = torch.as_tensor(self._k_points, dtype=self._system._calculator.dtype, device=self._system._calculator.device)
+        self._system._atomic_data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([k_tensor])
+        
+    def compute(self):
+        """
+        Compute the band structure using the configured K-path and store result in system.
+        """
+        if self._k_points is None:
+            raise RuntimeError("K-path not set. Call system.band.set_kpath() first.")
+            
+        # Use system state data
+        data = self._system._atomic_data
+        
+        # Calculate
+        data, eigs = self._system.calculator.get_eigenvalues(data)
+        
+        # Extract results
+        eigenvalues = eigs.detach().cpu().numpy() # [Nk, Nb]
+        
+        # Create Data Object
+        
+        self._band_data = BandStructureData(
+            eigenvalues=eigenvalues,
+            kpoints=self._k_points,
+            xlist=self._x_list,
+            labels=self._k_labels,
+            high_sym_kpoints=self._high_sym_kpoints,
+            fermi_level=0.0 # TODO: Calculate Fermi level via calculator or system
+        )
+        self._system.has_bands = True
+        return self._band_data
+
+    @property
+    def band_data(self):
+        """Get the computed band structure data."""
+        if self._band_data is None:
+             raise RuntimeError("Band structure not computed. Call system.band.compute() first.")
+        return self._band_data
+
+    def plot(self, **kwargs):
+        """Plot the computed band structure."""
+        return self.band_data.plot(**kwargs)
+
+    def save(self, path: str):
+        """Save the computed band structure."""
+        return self.band_data.export(path)
+
+    def get_hamiltonian_at_k(self, k_points):
+        """Get H(k) and S(k) at specific k-points."""
+        data = self._system._atomic_data[np.asarray(k_points)]
+        data = self._system._calculator.model_forward(data)
+        # Depending on implementation, might need to extract H/S from datadict
+        # Left for Phase 3
+        return data
