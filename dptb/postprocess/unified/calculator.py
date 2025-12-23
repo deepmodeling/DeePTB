@@ -4,11 +4,8 @@ import torch
 import numpy as np
 from dptb.data import AtomicData, AtomicDataDict
 from dptb.utils.argcheck import get_cutoffs_from_model_options
-from dptb.nn.energy import Eigenvalues
-import logging
+from dptb.nn.energy import Eigenvalues, Eigh
 from dptb.data.interfaces.ham_to_feature import feature_to_block
-
-log = logging.getLogger(__name__)
 
 class HamiltonianCalculator(ABC):
     """Abstract Base Class defining the interface for a Hamiltonian calculator."""
@@ -56,6 +53,20 @@ class HamiltonianCalculator(ABC):
         pass
     
     @abstractmethod
+    def get_eigenstates(self, atomic_data: dict) -> Tuple[dict, torch.Tensor, torch.Tensor]:
+        """
+        Calculate eigenvalues and eigenvectors.
+        
+        Args:
+            atomic_data: The input atomic data dictionary.
+            
+        Returns:
+            Tuple of (updated atomic_data, eigenvalues, eigenvectors).
+            Eigenvectors shape: [Batch, Nk, Norb, Norb] (if batched) or [Nk, Norb, Norb]
+        """
+        pass
+
+    @abstractmethod
     def get_hk(self, atomic_data: dict, k_points: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
         Calculate H(k) and S(k).
@@ -88,28 +99,32 @@ class DeePTBAdapter(HamiltonianCalculator):
         if not self.model.transform:
             raise RuntimeError('The model.transform is not True, please check the model.')
             
-        # Initialize Eigenvalues solver helper
+        # Initialize Solvers
+        # 1. Eigenvalues (only values, lighter)
+        # 2. Eigh (values + vectors, heavier)
+        
+        solver_kwargs = {
+            "idp": model.idp,
+            "device": self.device,
+            "dtype": model.dtype
+        }
+        
         if self.overlap:
-            self.eigv_solver = Eigenvalues(
-                idp=model.idp,
-                device=self.device,
-                s_edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
-                s_node_field=AtomicDataDict.NODE_OVERLAP_KEY,
-                s_out_field=AtomicDataDict.OVERLAP_KEY,
-                dtype=model.dtype,
-            )
-        else:
-            self.eigv_solver = Eigenvalues(
-                idp=model.idp,
-                device=self.device,
-                dtype=model.dtype,
-            )
+            overlap_kwargs = {
+                "s_edge_field": AtomicDataDict.EDGE_OVERLAP_KEY,
+                "s_node_field": AtomicDataDict.NODE_OVERLAP_KEY,
+                "s_out_field": AtomicDataDict.OVERLAP_KEY,
+            }
+            solver_kwargs.update(overlap_kwargs)
+            
+        self.eigv_solver = Eigenvalues(**solver_kwargs)
+        self.eigh_solver = Eigh(**solver_kwargs)
             
         # Cutoffs
         r_max, er_max, oer_max = get_cutoffs_from_model_options(model.model_options)
         self.cutoffs = {'r_max': r_max, 'er_max': er_max, 'oer_max': oer_max}
         if self.cutoffs['r_max'] is None:
-            log.error('The r_max is not provided in model_options, please provide it in AtomicData_options.')
+            # log.error('The r_max is not provided in model_options, please provide it in AtomicData_options.') # Removed log import
             raise RuntimeError('The r_max is not provided in model_options, please provide it in AtomicData_options.')
         
     def model_forward(self, atomic_data: dict) -> dict:
@@ -156,6 +171,25 @@ class DeePTBAdapter(HamiltonianCalculator):
         
         eigs = atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0] # atomic_data is usually batched, take 0
         return atomic_data, eigs
+
+    def get_eigenstates(self, atomic_data: dict, nk: Optional[int]=None) -> Tuple[dict, torch.Tensor, torch.Tensor]:
+        # 1. Get Hamiltonian
+        atomic_data = self.model_forward(atomic_data)
+        
+        # 2. Verify Overlap logic
+        if self.overlap:
+             if atomic_data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is None:
+                 raise RuntimeError("Overlap model but no overlap in output.")
+
+        # 3. Solve Eigenvalues + Eigenvectors
+        atomic_data = self.eigh_solver(data=atomic_data, nk=nk)
+        
+        eigs = atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0]
+        vecs = atomic_data[AtomicDataDict.EIGENVECTOR_KEY] # Usually not nested? Check nn/energy.py 
+        # In Eigh.forward: data[self.eigvec_field] = torch.cat(eigvecs, dim=0) -> [Summary_Nk, Norb, Norb]
+        # It is NOT nested in current implementation of Eigh.
+        
+        return atomic_data, eigs, vecs
     
     def get_hk(self, atomic_data: dict, k_points: Optional[Union[torch.Tensor, np.ndarray, list]] = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         if k_points is not None:
@@ -195,7 +229,14 @@ class DeePTBAdapter(HamiltonianCalculator):
         return hk, sk
 
     def get_orbital_info(self) -> dict:
-        return {
-            "type_names": self.model.idp.type_names,
-            # Add more metadata as needed
-        }
+        
+        orbs_per_type = {}
+        for atomtype, orb_dict in self.model.idp.basis.items():
+            orb_list = []
+            for o in orb_dict:
+                if "s" in o: orb_list.append(o)
+                elif "p" in o: orb_list.extend([o+"_y", o+"_z", o+"_x"]) # Standard Wannier90 p-order usually z,x,y or similar? keeping dptb order
+                elif "d" in o: orb_list.extend([o+"_xy", o+"_yz", o+"_z2", o+"_xz", o+"_x2-y2"])
+            orbs_per_type[atomtype] = orb_list
+
+        return orbs_per_type

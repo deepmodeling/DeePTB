@@ -13,6 +13,7 @@ from dptb.utils.make_kpoints import ase_kpath, abacus_kpath, vasp_kpath, kmesh_s
 from dptb.nn.build import build_model
 from dptb.postprocess.unified.properties.band import BandAccessor
 from dptb.postprocess.unified.properties.dos import DosAccessor
+from dptb.utils.constants import atomic_num_dict_r
 
 log = logging.getLogger(__name__)
 
@@ -73,7 +74,29 @@ class TBSystem:
     def atoms(self) -> ase.Atoms:
         """Return the ASE Atoms object representing the system."""
         return self._atoms
+    
+    @property
+    def atom_orbs(self):
+        return self._atom_orbs
+    
+    @property
+    def band(self) -> 'BandAccessor':
+        """Access band structure functionality (Lazy initialization)."""
+        if self._bands is None:
+            self._bands = BandAccessor(self)
+        return self._bands
 
+    @property
+    def band_data(self):
+        """Deprecated alias or strictly for result access."""
+        assert self.has_bands, "Bands have not been calculated. Please call get_bands() or use sys.band.compute() first."
+        return self._bands.band_data
+    
+    @property
+    def dos(self):
+        assert self.has_dos, "DOS have not been calculated. Please call get_dos() first."
+        return self._dos
+    
     def set_atoms(self,struct: Optional[Union[AtomicData, ase.Atoms, str]] = None, override_overlap: Optional[str] = None) -> AtomicDataDict:
         """Set the atomic structure."""
         if struct is None:
@@ -116,9 +139,22 @@ class TBSystem:
                 block_to_feature(data_obj, self._calculator.model.idp, blocks=False, overlap_blocks=overlaps)
         
         data_obj = AtomicData.to_AtomicDataDict(data_obj.to(self._calculator.device))
-        self._atomic_data = data_obj
-        return data_obj
+        self._atomic_data = self._calculator.model.idp(data_obj)
+        self._atom_orbs = self.get_atom_orbs()
+        
+        return self._atomic_data
 
+    def get_atom_orbs(self):
+        orbs_per_type = self.calculator.get_orbital_info()
+        atomic_numbers = self.model.idp.untransform(self._atomic_data['atom_types']).numpy().flatten()
+        atomic_symbols = [atomic_num_dict_r[i] for i in atomic_numbers]
+        atom_orbs=[]
+        for i in range(len(atomic_symbols)):
+            iatype=atomic_symbols[i]
+            for iorb in orbs_per_type[iatype]:
+                atom_orbs.append(f"{i}-{iatype}-{iorb}")
+        return atom_orbs
+    
     def get_bands(self, kpath_config: Optional[dict] = None):
         # 计算能带，返回 bands
         # bands 应该是一个类，也有属性。bands.kpoints, bands.eigenvalues, bands.klabels, bands.kticks, 也有函数 bands.plot()
@@ -132,19 +168,6 @@ class TBSystem:
             self.has_bands = True
             return self._bands
 
-
-    @property
-    def band(self) -> 'BandAccessor':
-        """Access band structure functionality (Lazy initialization)."""
-        if self._bands is None:
-            self._bands = BandAccessor(self)
-        return self._bands
-
-    @property
-    def band_data(self):
-        """Deprecated alias or strictly for result access."""
-        assert self.has_bands, "Bands have not been calculated. Please call get_bands() or use sys.band.compute() first."
-        return self._bands.band_data
     
     def get_dos(self, kmesh: Optional[Union[list,np.ndarray]] = None, erange: Optional[Union[list,np.ndarray]] = None, 
                     npts: Optional[int] = None, smearing: Optional[str] = 'gaussian', sigma: Optional[float] = 0.05, **kwargs):
@@ -159,11 +182,6 @@ class TBSystem:
             assert kmesh is not None, "kmesh must be provided."
             self._dos = DosAccessor(self)
             self._dos.set_dos_config(kmesh, erange, npts, smearing, sigma, **kwargs)
-            self._dos.calculate_dos()
+            self._dos.compute()
             self.has_dos = True
             return self._dos
-
-    @property
-    def dos(self):
-        assert self.has_dos, "DOS have not been calculated. Please call get_dos() first."
-        return self._dos
