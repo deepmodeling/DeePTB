@@ -158,6 +158,7 @@ class BandAccessor:
         self._x_list = None
         self._high_sym_kpoints = None
         self._k_labels = None
+        self._band_data = None
         
     @property
     def klist(self):

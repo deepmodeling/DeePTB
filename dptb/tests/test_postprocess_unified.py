@@ -106,7 +106,7 @@ def test_get_hamiltonian_gethk(silicon_system):
     hk, sk = tbsys.calculator.get_hk(tbsys.data, k_points=k_points)
     
     assert hk is not None
-    assert isinstance(hk, torch.Tensor) or isinstance(hk, torch.nested.NestedTensor)
+    assert isinstance(hk, torch.Tensor)
     
     # Check shape: Should be related to number of k-points and number of orbitals
     # Since it might be nested, we check appropriately
