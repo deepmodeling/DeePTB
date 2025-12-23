@@ -137,7 +137,7 @@ class DosAccessor:
     def kpoints(self):
         return self._k_points
 
-    def set_dos(self, erange, npts, efermi=0.0, smearing='gaussian', sigma=0.05, pdos=False, **kwargs):
+    def set_dos_config(self, erange, npts, efermi=0.0, smearing='gaussian', sigma=0.05, pdos=False, **kwargs):
         # Update processing config
         assert smearing in ['gaussian','lorentzian'], "The smearing should be either 'gaussian' or 'lorentzian' !"
         self._config.update({
@@ -155,7 +155,7 @@ class DosAccessor:
         Calculate DOS based on the stored configuration.
         """
         if not self._config:
-            raise RuntimeError("DOS config not set. Call set_dos first.")
+            raise RuntimeError("DOS config not set. Call set_dos_config first.")
         if self._k_points is None:
             raise RuntimeError("The kpoints not set. Call set_kpoints first.")
         

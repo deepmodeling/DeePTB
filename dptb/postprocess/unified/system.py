@@ -4,12 +4,10 @@ import os
 import h5py
 from typing import Union, Optional, List, Dict
 import ase
-from ase import Atoms
 from ase.io import read
 import logging
 from dptb.postprocess.unified.calculator import HamiltonianCalculator, DeePTBAdapter
 from dptb.data import AtomicData, AtomicDataDict, block_to_feature
-from dptb.utils.make_kpoints import ase_kpath, abacus_kpath, vasp_kpath, kmesh_sampling
 from dptb.nn.build import build_model
 from dptb.postprocess.unified.properties.band import BandAccessor
 from dptb.postprocess.unified.properties.dos import DosAccessor
@@ -94,9 +92,16 @@ class TBSystem:
     
     @property
     def dos(self):
-        assert self.has_dos, "DOS have not been calculated. Please call get_dos() first."
+        if self._dos is None:
+        # assert self.has_dos, "DOS have not been calculated. Please call get_dos() first."
+            self._dos = DosAccessor(self)
         return self._dos
     
+    @property
+    def dos_data(self):
+        assert self.has_dos, "DOS have not been calculated. please call get_dos() or use sys.dos.compute() first."
+        return self._dos.dos_data
+
     def set_atoms(self,struct: Optional[Union[AtomicData, ase.Atoms, str]] = None, override_overlap: Optional[str] = None) -> AtomicDataDict:
         """Set the atomic structure."""
         if struct is None:
@@ -155,10 +160,10 @@ class TBSystem:
                 atom_orbs.append(f"{i}-{iatype}-{iorb}")
         return atom_orbs
     
-    def get_bands(self, kpath_config: Optional[dict] = None):
+    def get_bands(self, kpath_config: Optional[dict] = None, reuse: Optional[bool]=True, **kwargs):
         # 计算能带，返回 bands
         # bands 应该是一个类，也有属性。bands.kpoints, bands.eigenvalues, bands.klabels, bands.kticks, 也有函数 bands.plot()
-        if self.has_bands:
+        if self.has_bands and reuse:
             return self._bands
         else:
             assert kpath_config is not None, "kpath_config must be provided if bands not calculated."
@@ -169,19 +174,21 @@ class TBSystem:
             return self._bands
 
     
-    def get_dos(self, kmesh: Optional[Union[list,np.ndarray]] = None, erange: Optional[Union[list,np.ndarray]] = None, 
-                    npts: Optional[int] = None, smearing: Optional[str] = 'gaussian', sigma: Optional[float] = 0.05, **kwargs):
+    def get_dos(self, kmesh: Optional[Union[list,np.ndarray]] = None, is_gamma_center: Optional[bool] = True, erange: Optional[Union[list,np.ndarray]] = None, 
+                    npts: Optional[int] = 100, efermi: Optional[Union[int, float]]=0.0, 
+                    smearing: Optional[str] = 'gaussian', sigma: Optional[float] = 0.05, pdos: Optional[bool]=False, reuse: Optional[bool]=True, **kwargs):
         """
         docstring, to be added!
         """
         # 计算态密度，返回 dos
         # dos 应该是一个类，也有属性。dos.kmesh, dos.eigenvalues, dos.klabels, dos.kticks, 也有函数 dos.plot()
-        if self.has_dos:
+        if self.has_dos and reuse:
             return  self._dos
         else:
             assert kmesh is not None, "kmesh must be provided."
             self._dos = DosAccessor(self)
-            self._dos.set_dos_config(kmesh, erange, npts, smearing, sigma, **kwargs)
+            self._dos.set_kpoints(kmesh=kmesh,is_gamma_center=is_gamma_center)
+            self._dos.set_dos_config(erange=erange, npts=npts, efermi=efermi, smearing=smearing, sigma=sigma, pdos=pdos, **kwargs)
             self._dos.compute()
             self.has_dos = True
             return self._dos
