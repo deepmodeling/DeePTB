@@ -1,15 +1,16 @@
 import numpy as np
 import torch
+import os
+import h5py
 from typing import Union, Optional, List, Dict
 import ase
 from ase import Atoms
 from ase.io import read
 import logging
 from dptb.postprocess.unified.calculator import HamiltonianCalculator, DeePTBAdapter
-from dptb.data import AtomicData, AtomicDataDict
+from dptb.data import AtomicData, AtomicDataDict, block_to_feature
 from dptb.utils.make_kpoints import ase_kpath, abacus_kpath, vasp_kpath, kmesh_sampling
 from dptb.nn.build import build_model
-from dptb.utils.argcheck import get_cutoffs_from_model_options
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +62,11 @@ class TBSystem:
         """Access the model."""
         return self._calculator.model
 
+    @property
+    def atoms(self) -> ase.Atoms:
+        """Return the ASE Atoms object representing the system."""
+        return self._atoms
+
     def set_atoms(self,struct: Optional[Union[AtomicData, ase.Atoms, str]] = None, override_overlap: Optional[str] = None) -> AtomicDataDict:
         """Set the atomic structure."""
         if struct is None:
@@ -72,13 +78,15 @@ class TBSystem:
         
         atomic_options = self._calculator.cutoffs        
         if isinstance(struct, str):
-            structase = read(struct)
-            data_obj = AtomicData.from_ase(structase, **atomic_options)
+            self._atoms = read(struct)
+            data_obj = AtomicData.from_ase(self._atoms, **atomic_options)
         elif isinstance(struct, ase.Atoms):
+            self._atoms = struct
             data_obj = AtomicData.from_ase(struct, **atomic_options)
         elif isinstance(struct, AtomicData):
             log.info('The data is already an instance of AtomicData. Then the data is used directly.')
             data_obj = struct
+            self._atoms = struct.to("cpu").to_ase()
         else:
             raise ValueError('data should be either a string, ase.Atoms, or AtomicData')
         
@@ -126,10 +134,10 @@ class TBSystem:
         return self._bands
 
     @property
-    def bands(self):
+    def band_data(self):
         """Deprecated alias or strictly for result access."""
         assert self.has_bands, "Bands have not been calculated. Please call get_bands() or use sys.band.compute() first."
-        return self._bands
+        return self._bands.band_data
     
     def get_dos(self, kmesh: Optional[Union[list,np.ndarray]] = None, erange: Optional[Union[list,np.ndarray]] = None, 
                     npts: Optional[int] = None, smearing: Optional[str] = 'gaussian', sigma: Optional[float] = 0.05, **kwargs):
@@ -287,6 +295,7 @@ class BandAccessor:
             high_sym_kpoints=self._high_sym_kpoints,
             fermi_level=0.0 # TODO: Calculate Fermi level via calculator or system
         )
+        self._system.has_bands = True
         return self._band_data
 
     @property

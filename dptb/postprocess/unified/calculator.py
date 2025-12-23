@@ -1,4 +1,5 @@
-from typing import Protocol, Union, Tuple, Optional, Any
+from typing import Union, Tuple, Optional, Any
+from abc import ABC, abstractmethod
 import torch
 import numpy as np
 from dptb.data import AtomicData, AtomicDataDict
@@ -8,13 +9,14 @@ import logging
 
 log = logging.getLogger(__name__)
 
-class HamiltonianCalculator(Protocol):
-    """Protocol defining the interface for a Hamiltonian calculator."""
+class HamiltonianCalculator(ABC):
+    """Abstract Base Class defining the interface for a Hamiltonian calculator."""
     
     device: torch.device
     dtype: torch.dtype
 
-    def get_hamiltonian(self, atomic_data: AtomicDataDict) -> dict:
+    @abstractmethod
+    def get_hamiltonian(self, atomic_data: dict) -> dict:
         """
         Calculate the Hamiltonian and Overlap (if applicable) for the given atomic data.
         
@@ -24,9 +26,10 @@ class HamiltonianCalculator(Protocol):
         Returns:
             The atomic data dictionary updated with Hamiltonian/Overlap blocks.
         """
-        ...
+        pass
         
-    def get_eigenvalues(self, atomic_data: AtomicDataDict) -> Tuple[dict, torch.Tensor]:
+    @abstractmethod
+    def get_eigenvalues(self, atomic_data: dict) -> Tuple[dict, torch.Tensor]:
         """
         Calculate eigenvalues for the given atomic data.
         
@@ -36,14 +39,15 @@ class HamiltonianCalculator(Protocol):
         Returns:
             A tuple containing the updated atomic data and the eigenvalues tensor.
         """
-        ...
+        pass
     
+    @abstractmethod
     def get_orbital_info(self) -> dict:
         """Return information about the orbitals/basis set."""
-        ...
+        pass
 
-class DeePTBAdapter:
-    """Adapter for DeePTB PyTorch models to match HamiltonianCalculator protocol."""
+class DeePTBAdapter(HamiltonianCalculator):
+    """Adapter for DeePTB PyTorch models to match HamiltonianCalculator interface."""
     
     def __init__(self, model: torch.nn.Module):
         self.model = model
@@ -80,7 +84,7 @@ class DeePTBAdapter:
             log.error('The r_max is not provided in model_options, please provide it in AtomicData_options.')
             raise RuntimeError('The r_max is not provided in model_options, please provide it in AtomicData_options.')
         
-    def get_hamiltonian(self, atomic_data: AtomicDataDict) -> AtomicDataDict:
+    def get_hamiltonian(self, atomic_data: dict) -> dict:
         # Check for override overlap in input
         # If overlap is present before model run, we treat it as an override to be preserved
         override_edge = atomic_data.get(AtomicDataDict.EDGE_OVERLAP_KEY)
@@ -99,9 +103,9 @@ class DeePTBAdapter:
         return atomic_data
 
     def get_eigenvalues(self, 
-                        atomic_data: AtomicDataDict, 
+                        atomic_data: dict, 
                         nk: Optional[int]=None,
-                        solver: Optional[str]=None) -> Tuple[AtomicDataDict, torch.Tensor]:
+                        solver: Optional[str]=None) -> Tuple[dict, torch.Tensor]:
         # 1. Get Hamiltonian
         atomic_data = self.get_hamiltonian(atomic_data)
         

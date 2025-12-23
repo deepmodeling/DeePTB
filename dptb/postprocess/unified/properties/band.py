@@ -2,8 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 import logging
+import os
+import sys
 from typing import Optional, Union, List
-
+from dptb.postprocess.common import is_gui_available
 log = logging.getLogger(__name__)
 
 class BandStructureData:
@@ -37,14 +39,21 @@ class BandStructureData:
 
     def plot(
         self,
-        filename: Optional[str] = None,
+        filename: Optional[str] = 'band.png',
         emin: Optional[float] = None,
         emax: Optional[float] = None,
-        show: bool = False,
+        show: Optional[bool] = None,
         ref_bands: Optional[Union[str, np.ndarray]] = None
     ):
         """
         Plot the band structure.
+        
+        Args:
+            filename: Output filename for saving the plot. If None, plot won't be saved.
+            emin: Minimum energy for y-axis limits.
+            emax: Maximum energy for y-axis limits.
+            show: Whether to display the plot. If None, automatically detects GUI availability.
+            ref_bands: Reference bands data for comparison.
         """
         import matplotlib
         matplotlib.rcParams['font.size'] = 7
@@ -92,13 +101,26 @@ class BandStructureData:
             
         ax.set_ylabel('E - EF (eV)', fontsize=8)
         
+        ax.tick_params(direction='in')
+        
         plt.tight_layout()
         
         if filename:
             plt.savefig(filename, dpi=300)
             log.info(f"Band structure plot saved to {filename}")
             
-        if show:
+        # Determine whether to show the plot based on GUI availability
+        if show is None:
+            # Auto-detect GUI availability
+            should_show = is_gui_available()
+            if should_show:
+                log.info("GUI detected, displaying plot")
+            else:
+                log.info("No GUI detected, closing plot")
+        else:
+            should_show = show
+            
+        if should_show:
             plt.show()
         else:
             plt.close()
