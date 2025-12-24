@@ -75,7 +75,7 @@ class DosData:
             
         ax.set_ylim(bottom=0)
         plt.tight_layout()
-        
+        ax.tick_params(direction='in')
         if filename:
             plt.savefig(filename, dpi=300)
             log.info(f"DOS plot saved to {filename}")
@@ -137,19 +137,19 @@ class DosAccessor:
     def kpoints(self):
         return self._k_points
 
-    def set_dos_config(self, erange, npts, efermi=0.0, smearing='gaussian', sigma=0.05, pdos=False, **kwargs):
+    def set_dos_config(self, erange, npts, smearing='gaussian', sigma=0.05, pdos=False, **kwargs):
         # Update processing config
         assert smearing in ['gaussian','lorentzian'], "The smearing should be either 'gaussian' or 'lorentzian' !"
         self._config.update({
             "erange": erange,
             "npts": npts,
-            "efermi":efermi,
             "smearing": smearing,
             "sigma": sigma,
             "pdos": pdos,
             **kwargs
         })
-        
+
+
     def compute(self):
         """
         Calculate DOS based on the stored configuration.
@@ -196,10 +196,14 @@ class DosAccessor:
         
         erange = self._config['erange']
         npts = self._config['npts']
-        efermi = self._config['efermi']
         sigma = self._config['sigma']
         smearing = self._config['smearing']
 
+        if self._system._efermi is None:
+            efermi = 0.0
+        else:
+            efermi = self._system._efermi
+    
         # energy range w.r.t E-fermi
         energy_grid = np.linspace(erange[0] + efermi, erange[1] + efermi, npts)
         
@@ -265,7 +269,7 @@ class DosAccessor:
                  # Generic fallback
                  pdos_labels = [f"Orbital {i}" for i in range(pdos.shape[1])]
 
-        self._dos_data = DosData(energy_grid, total_dos, pdos=pdos, pdos_labels=pdos_labels)
+        self._dos_data = DosData(energy_grid=energy_grid, total_dos=total_dos, pdos=pdos, pdos_labels=pdos_labels,fermi_level=efermi)
         self._system.has_dos = True
         return self._dos_data
         

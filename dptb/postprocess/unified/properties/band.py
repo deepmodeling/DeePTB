@@ -237,15 +237,19 @@ class BandAccessor:
         # Extract results
         eigenvalues = eigs.detach().cpu().numpy() # [Nk, Nb]
         
+        if self._system._efermi is None:
+            efermi = 0.0
+            log.info('The efermi is not unknown, set it to 0.0!')
+        else:
+            efermi = self._system._efermi
         # Create Data Object
-        
         self._band_data = BandStructureData(
             eigenvalues=eigenvalues,
             kpoints=self._k_points,
             xlist=self._x_list,
             labels=self._k_labels,
             high_sym_kpoints=self._high_sym_kpoints,
-            fermi_level=0.0 # TODO: Calculate Fermi level via calculator or system
+            fermi_level = efermi
         )
         self._system.has_bands = True
         return self._band_data

@@ -12,6 +12,8 @@ from dptb.nn.build import build_model
 from dptb.postprocess.unified.properties.band import BandAccessor
 from dptb.postprocess.unified.properties.dos import DosAccessor
 from dptb.utils.constants import atomic_num_dict_r
+from dptb.postprocess.unified.utils import calculate_fermi_level
+from dptb.utils.make_kpoints import kmesh_sampling
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +50,8 @@ class TBSystem:
         # Initialize state properties
         self._bands = None
         self._dos = None
+        self._total_electrons = None
+        self._efermi = None
         self.has_bands = False
         self.has_dos = False
         
@@ -78,6 +82,18 @@ class TBSystem:
         return self._atom_orbs
     
     @property
+    def atomic_symbols(self):
+        return self._atomic_symbols
+
+    @property
+    def total_electrons(self):
+        if self._total_electrons is None:
+            print('Please call set_electrons first!')
+        else:
+            return self._total_electrons
+    
+
+    @property
     def band(self) -> 'BandAccessor':
         """Access band structure functionality (Lazy initialization)."""
         if self._bands is None:
@@ -101,6 +117,11 @@ class TBSystem:
     def dos_data(self):
         assert self.has_dos, "DOS have not been calculated. please call get_dos() or use sys.dos.compute() first."
         return self._dos.dos_data
+    
+    @property
+    def efermi(self):
+        assert self._efermi is not None, "The efermi is not set! call get_efermi to calcualted the efermi, or set_efermi to set to a custom value." 
+        return self._efermi
 
     def set_atoms(self,struct: Optional[Union[AtomicData, ase.Atoms, str]] = None, override_overlap: Optional[str] = None) -> AtomicDataDict:
         """Set the atomic structure."""
@@ -145,7 +166,7 @@ class TBSystem:
         
         data_obj = AtomicData.to_AtomicDataDict(data_obj.to(self._calculator.device))
         self._atomic_data = self._calculator.model.idp(data_obj)
-        self._atom_orbs = self.get_atom_orbs()
+        self._atom_orbs, self._atomic_symbols = self.get_atom_orbs()
         
         return self._atomic_data
 
@@ -158,8 +179,103 @@ class TBSystem:
             iatype=atomic_symbols[i]
             for iorb in orbs_per_type[iatype]:
                 atom_orbs.append(f"{i}-{iatype}-{iorb}")
-        return atom_orbs
+        return atom_orbs, atomic_symbols
     
+    def set_electrons(self, nel_atom: Dict[str, int]) -> float:
+        """
+        Calculate the total number of valence electrons in the system.
+
+        Parameters
+        ----------
+        nel_atom : Dict[str, int]
+            Dictionary mapping element symbols to number of valence electrons.
+            Example: {'Si': 4, 'H': 1}
+
+        Returns
+        -------
+        float
+            Total number of valence electrons.
+        """
+        if nel_atom is None:
+             raise ValueError("nel_atom dictionary is required to calculate total electrons.")
+        
+        try:
+            self._total_electrons = np.array([nel_atom[s] for s in self.atomic_symbols]).sum()
+        except KeyError as e:
+            raise KeyError(f"Element {e} found in system but not in nel_atom dictionary: {nel_atom}")
+
+    def set_efermi(self, efermi):
+        log.info(f'efermi is setted to {efermi}')
+        self._efermi = efermi
+
+
+    def get_efermi(self, kmesh: List[int],
+                         is_gamma_center: bool = True,
+                         temperature: float = 300,
+                         smearing_method: str = 'FD',
+                         q_tol: float = 1e-5,
+                         **kwargs):
+        # get efermi from scratch.
+        kpoints = kmesh_sampling(kmesh, is_gamma_center=is_gamma_center)
+        k_tensor = torch.as_tensor(kpoints, 
+                                   dtype=self.calculator.dtype, 
+                                   device=self.calculator.device)
+        data = self._atomic_data.copy()             
+        data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([k_tensor])
+        data, eigs = self.calculator.get_eigenvalues(data)
+
+        calculated_efermi = self.estimate_efermi_e(
+                        eigenvalues=eigs.detach().numpy(),
+                        temperature = temperature,
+                        smearing_method=smearing_method,
+                        q_tol  = q_tol, **kwargs)
+        
+        self.set_efermi(efermi = calculated_efermi)
+
+        return calculated_efermi
+    
+    def estimate_efermi_e(self, eigenvalues,
+                         k_weights=None,
+                         temperature: float = 300,
+                         smearing_method: str = 'FD',
+                         q_tol: float = 1e-5) -> float:
+        """
+        Calculate Fermi level from eigenvalues. 
+        This is give a freedom that parse eigenvlues from outside calculation, such as band and dos calculations
+        
+        Parameters
+        ----------
+        eigenvalues : np.ndarray
+            Eigenvalues array.
+        weights : np.ndarray, optional
+            Weights for K-points.
+        temperature : float
+            Smearing temperature in Kelvin.
+        smearing_method : str
+            'FD' or 'Gaussian'.
+        q_tol : float
+            Charge convergence tolerance.
+
+        Returns
+        -------
+        float
+            Fermi Energy (eV).
+        """      
+                    
+        # SOC detection: if model has 'soc_param', spindeg=1, else 2
+        spindeg = 1 if hasattr(self.model, 'soc_param') else 2
+        
+        return calculate_fermi_level(
+            eigenvalues=eigenvalues,
+            total_electrons=self.total_electrons,
+            spindeg=spindeg,
+            weights=k_weights,
+            temperature=temperature,
+            smearing_method=smearing_method,
+            q_tol=q_tol
+        )    
+        
+
     def get_bands(self, kpath_config: Optional[dict] = None, reuse: Optional[bool]=True, **kwargs):
         # 计算能带，返回 bands
         # bands 应该是一个类，也有属性。bands.kpoints, bands.eigenvalues, bands.klabels, bands.kticks, 也有函数 bands.plot()
@@ -175,8 +291,7 @@ class TBSystem:
 
     
     def get_dos(self, kmesh: Optional[Union[list,np.ndarray]] = None, is_gamma_center: Optional[bool] = True, erange: Optional[Union[list,np.ndarray]] = None, 
-                    npts: Optional[int] = 100, efermi: Optional[Union[int, float]]=0.0, 
-                    smearing: Optional[str] = 'gaussian', sigma: Optional[float] = 0.05, pdos: Optional[bool]=False, reuse: Optional[bool]=True, **kwargs):
+                    npts: Optional[int] = 100, smearing: Optional[str] = 'gaussian', sigma: Optional[float] = 0.05, pdos: Optional[bool]=False, reuse: Optional[bool]=True, **kwargs):
         """
         docstring, to be added!
         """
@@ -188,7 +303,7 @@ class TBSystem:
             assert kmesh is not None, "kmesh must be provided."
             self._dos = DosAccessor(self)
             self._dos.set_kpoints(kmesh=kmesh,is_gamma_center=is_gamma_center)
-            self._dos.set_dos_config(erange=erange, npts=npts, efermi=efermi, smearing=smearing, sigma=sigma, pdos=pdos, **kwargs)
+            self._dos.set_dos_config(erange=erange, npts=npts, smearing=smearing, sigma=sigma, pdos=pdos, **kwargs)
             self._dos.compute()
             self.has_dos = True
             return self._dos
