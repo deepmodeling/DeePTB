@@ -14,6 +14,7 @@ from dptb.postprocess.unified.properties.dos import DosAccessor
 from dptb.utils.constants import atomic_num_dict_r
 from dptb.postprocess.unified.utils import calculate_fermi_level
 from dptb.utils.make_kpoints import kmesh_sampling
+from dptb.postprocess.unified.properties.export import ExportAccessor
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class TBSystem:
         # Initialize state properties
         self._bands = None
         self._dos = None
+        self._export = None
         self._total_electrons = None
         self._efermi = None
         self.has_bands = False
@@ -122,6 +124,14 @@ class TBSystem:
     def efermi(self):
         assert self._efermi is not None, "The efermi is not set! call get_efermi to calcualted the efermi, or set_efermi to set to a custom value." 
         return self._efermi
+
+    @property
+    def export(self) -> 'ExportAccessor':
+        """Access export interfaces (Lazy initialization)."""
+        if self._export is None:
+            self._export = ExportAccessor(self)
+        return self._export
+
 
     def set_atoms(self,struct: Optional[Union[AtomicData, ase.Atoms, str]] = None, override_overlap: Optional[str] = None) -> AtomicDataDict:
         """Set the atomic structure."""
