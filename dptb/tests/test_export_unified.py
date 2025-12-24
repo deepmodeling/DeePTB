@@ -72,8 +72,9 @@ def test_to_pythtb(mock_to_pythtb, mock_system):
     res = mock_system.export.to_pythtb()
     
     assert res == "pythtb_model"
-    mock_to_pythtb.assert_called_with(mock_system.model, device='cpu')
-    mock_exporter.get_model.assert_called_with(mock_system._atomic_data)
+    # Matches implementation: ToPythTB(model=..., device=...)
+    mock_to_pythtb.assert_called_with(model=mock_system.model, device='cpu')
+    mock_exporter.get_model.assert_called_with(data=mock_system._atomic_data)
 
 @patch('dptb.postprocess.unified.properties.export.ToPybinding')
 def test_to_pybinding(mock_to_pybinding, mock_system):
@@ -83,9 +84,10 @@ def test_to_pybinding(mock_to_pybinding, mock_system):
     res = mock_system.export.to_pybinding(results_path="test")
     
     assert res == "pybinding_lattice"
+    # Matches implementation: ToPybinding(model=..., results_path=..., overlap=False, device=...)
     mock_to_pybinding.assert_called_with(
         model=mock_system.model, 
-        results_path="test",
+        results_path="test", 
         overlap=False,
         device='cpu'
     )
@@ -98,10 +100,19 @@ def test_to_tbplas(mock_to_tbplas, mock_system):
     
     # Set Fermi level
     mock_system._efermi = 5.0
+    # Mock overlap
+    mock_system.calculator.overlap = True
     
     res = mock_system.export.to_tbplas(results_path="test")
     
     assert res == ("tbplas_cell", 0.0)
+    # Matches implementation: TBPLaS(model=..., results_path=..., overlap=..., device=...)
+    mock_to_tbplas.assert_called_with(
+        model=mock_system.model,
+        results_path="test",
+        overlap=True,
+        device='cpu'
+    )
     # Check if get_cell was called with correct ef
     mock_exporter.get_cell.assert_called_with(mock_system._atomic_data, e_fermi=5.0)
 
@@ -109,12 +120,17 @@ def test_to_tbplas(mock_to_tbplas, mock_system):
 def test_to_wannier90(mock_to_w90, mock_system):
     mock_exporter = mock_to_w90.return_value
     
+    mock_system._efermi = 5.0
+    
     mock_system.export.to_wannier90(filename_prefix="test_w90")
     
+    # Matches implementation: ToWannier90(model, device=...)
     mock_to_w90.assert_called_with(mock_system.model, device='cpu')
-    mock_exporter.write_hr.assert_called()
-    mock_exporter.write_win.assert_called()
-    mock_exporter.write_centres.assert_called()
     
-    args, kwargs = mock_exporter.write_hr.call_args
-    assert kwargs['filename'] == "test_w90_hr.dat"
+    mock_exporter.write_hr.assert_called_with(
+        mock_system._atomic_data, 
+        filename="test_w90_hr.dat", 
+        e_fermi=5.0
+    )
+    mock_exporter.write_win.assert_called_with(filename="test_w90.win")
+    mock_exporter.write_centres.assert_called_with(filename="test_w90_centres.xyz")
