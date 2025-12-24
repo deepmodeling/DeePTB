@@ -24,8 +24,8 @@ from dptb.data import AtomicData
 atomicdata = AtomicData.from_ase(
     atoms=ase.Atoms[Your ase Atoms structure class],
     r_max=float[some cutoff radius],
-    er_max: Optional[float], # work in sk mode, ignore in e3
-    oer_max: Optional[float] # work in sk mode, ignore in e3
+    er_max=Optional[float], # work in sk mode, ignore in e3
+    oer_max=Optional[float] # work in sk mode, ignore in e3
 )
 
 atomicdata.from_points(
@@ -40,10 +40,10 @@ In addition, we can also get the data from well-structured dataset files, using 
 from dptb.data import build_dataset
 
 dataset = build_dataset(
-    root: str, # your dataset root dir
-    prefix: str, # your prefix of datafile folders
-    get_eigenvalues: bool, # whether to get eigenvalues when build the dataset
-    basis: dict # the basis defined in the common_options
+    root=str, # your dataset root dir
+    prefix=str, # your prefix of datafile folders
+    get_eigenvalues=bool, # whether to get eigenvalues when build the dataset
+    basis=dict # the basis defined in the common_options
 )
 
 # Then, you can get the atomicdata from built dataset as:
@@ -95,7 +95,7 @@ The DeePTB package provide many tools to compute physical quantities from the pr
 from dptb.nn import HR2HK, Eigenvalues
 from dptb.postprocess import Band
 
-HR2HR # converting the atomicdata with HR to Hamiltonian in K space
+HR2HK # converting the atomicdata with HR to Hamiltonian in K space
 Eigenvalues # compute eigenvalues with given kpoint and HR
 Band # compute and ploting band structure with a given deeptb model, structure and k-path information
 ```
