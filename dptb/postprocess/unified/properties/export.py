@@ -26,8 +26,8 @@ class ExportAccessor:
         Returns:
             pythtb.tb_model: The PythTB model object.
         """
-        exporter = ToPythTB(self._system.model, device=self._system.calculator.device)
-        return exporter.get_model(self._system._atomic_data)
+        exporter = ToPythTB(model=self._system.model, device=self._system.calculator.device)
+        return exporter.get_model(data=self._system._atomic_data)
 
     def to_pybinding(self, results_path: Optional[str] = None):
         """
