@@ -1,14 +1,11 @@
-from typing import Optional, List, Union, Dict
-import math
 import os
-import sys
-
+import time
 import torch
-from torch import nn
-from tqdm import tqdm
+from typing import Optional, List, Union, Dict
+from concurrent.futures import ThreadPoolExecutor
 
+from torch import nn
 from torch_runstats.scatter import scatter
-from torch_scatter import scatter_mean
 from e3nn import o3
 from e3nn.nn import Gate
 from e3nn.o3 import (
@@ -19,7 +16,7 @@ from e3nn.o3 import (
     xyz_to_angles,
 )
 
-# Try importing openequivariance
+# Optional import for openequivariance
 try:
     import openequivariance as oeq
 except ImportError:
@@ -36,7 +33,6 @@ from dptb.nn.rescale import E3ElementLinear
 from dptb.nn.norm import SeperableLayerNorm
 from dptb.nn.base import ScalarMLPFunction
 from dptb.nn.type_encode.one_hot import OneHotAtomEncoding, OneHotEdgeEmbedding
-
 from dptb.nn.tensor_product import (
     SO2_Linear,
     batch_wigner_D,
@@ -46,7 +42,7 @@ from dptb.nn.tensor_product import (
 
 
 # ==============================================================================
-# 1. Base Classes
+# 1. Base Classes & Helpers
 # ==============================================================================
 
 def get_l0_indices(irreps: o3.Irreps):
@@ -79,32 +75,34 @@ def create_gate(irreps_out: o3.Irreps) -> Gate:
 
 class InitLayer(torch.nn.Module):
     def __init__(
-            self,
-            idp,
-            num_types: int,
-            n_radial_basis: int,
-            r_max: float,
-            avg_num_neighbors: Optional[float] = None,
-            irreps_sh: o3.Irreps = None,
-            env_embed_multiplicity: int = 32,
-            two_body_latent_channels: list = [128, 128],
-            latent_dim: int = 128,
-            r_start_cos_ratio: float = 0.8,
-            norm_eps: float = 1e-8,
-            PolynomialCutoff_p: float = 6,
-            cutoff_type: str = "polynomial",
-            edge_one_hot_dim: int = 128,
-            device: Union[str, torch.device] = torch.device("cpu"),
-            dtype: Union[str, torch.dtype] = torch.float32,
-            prune_edges_by_cutoff: bool = True,
-            ln_flag: bool = True,
+        self,
+        idp,
+        num_types: int,
+        n_radial_basis: int,
+        r_max: float,
+        avg_num_neighbors: Optional[float] = None,
+        irreps_sh: o3.Irreps = None,
+        env_embed_multiplicity: int = 32,
+        two_body_latent_channels: list = [128, 128],
+        latent_dim: int = 128,
+        r_start_cos_ratio: float = 0.8,
+        norm_eps: float = 1e-8,
+        polynomial_cutoff_p: float = 6,
+        cutoff_type: str = "polynomial",
+        edge_one_hot_dim: int = 128,
+        device: Union[str, torch.device] = torch.device("cpu"),
+        dtype: Union[str, torch.dtype] = torch.float32,
+        prune_edges_by_cutoff: bool = True,
+        ln_flag: bool = True,
     ):
         super(InitLayer, self).__init__()
         self.prune_edges_by_cutoff = prune_edges_by_cutoff
-
-        SCALAR = o3.Irrep("0e")
         self.num_types = num_types
-        if isinstance(r_max, float) or isinstance(r_max, int):
+        self.device = device
+        self.dtype = dtype
+
+        # Handle r_max
+        if isinstance(r_max, (float, int)):
             self.r_max = torch.tensor(r_max, device=device, dtype=dtype)
             self.r_max_dict = None
         elif isinstance(r_max, dict):
@@ -113,22 +111,20 @@ class InitLayer(torch.nn.Module):
             if len(r_max) == 1 or len(c_set) == 1:
                 self.r_max_dict = None
             else:
-                self.r_max_dict = {}
-                for k, v in r_max.items():
-                    self.r_max_dict[k] = torch.tensor(v, device=device, dtype=dtype)
+                self.r_max_dict = {k: torch.tensor(v, device=device, dtype=dtype) for k, v in r_max.items()}
         else:
             raise TypeError("r_max should be either float, int or dict")
 
         self.idp = idp
         self.r_start_cos_ratio = r_start_cos_ratio
-        self.polynomial_cutoff_p = PolynomialCutoff_p
+        self.polynomial_cutoff_p = polynomial_cutoff_p
         self.cutoff_type = cutoff_type
-        self.device = device
-        self.dtype = dtype
+        
+        scalar_irrep = o3.Irrep("0e")
         self.irreps_out = o3.Irreps([(env_embed_multiplicity, ir) for _, ir in irreps_sh])
 
         assert all(mul == 1 for mul, _ in irreps_sh)
-        assert irreps_sh[0].ir == SCALAR, "env_embed_irreps must start with scalars"
+        assert irreps_sh[0].ir == scalar_irrep, "env_embed_irreps must start with scalars"
 
         self.register_buffer(
             "env_sum_normalizations",
@@ -178,6 +174,7 @@ class InitLayer(torch.nn.Module):
         edge_center = edge_index[0]
         edge_invariants = self.bessel(edge_length)
 
+        # Calculate cutoff coefficients
         if self.r_max_dict is None:
             if self.cutoff_type == "cosine":
                 cutoff_coeffs = cosine_cutoff(
@@ -200,20 +197,23 @@ class InitLayer(torch.nn.Module):
                 index = mask.nonzero().squeeze(-1)
                 if mask.any():
                     iatom, jatom = bond.split("-")
+                    r_max_val = 0.5 * (self.r_max_dict[iatom] + self.r_max_dict[jatom])
+                    
                     if self.cutoff_type == "cosine":
                         c_coeff = cosine_cutoff(
                             edge_length[mask],
-                            0.5 * (self.r_max_dict[iatom] + self.r_max_dict[jatom]),
+                            r_max_val,
                             r_start_cos_ratio=self.r_start_cos_ratio,
                         ).flatten()
                     elif self.cutoff_type == "polynomial":
                         c_coeff = polynomial_cutoff(
                             edge_length[mask],
-                            0.5 * (self.r_max_dict[iatom] + self.r_max_dict[jatom]),
+                            r_max_val,
                             p=self.polynomial_cutoff_p,
                         ).flatten()
                     else:
                         assert False, "Invalid cutoff type"
+                    
                     cutoff_coeffs = torch.index_copy(cutoff_coeffs, 0, index, c_coeff)
 
         if self.prune_edges_by_cutoff:
@@ -228,9 +228,11 @@ class InitLayer(torch.nn.Module):
             dtype=edge_sh.dtype,
             device=edge_sh.device,
         )
+        
         new_latents = self.two_body_latent(
             torch.cat([edge_one_hot[active_edges], edge_invariants[active_edges]], dim=-1)
         )
+        
         latents = torch.index_copy(
             latents,
             0,
@@ -256,32 +258,32 @@ class InitLayer(torch.nn.Module):
 
 class UpdateNodeInFrame(torch.nn.Module):
     def __init__(
-            self,
-            node_irreps_in: o3.Irreps,
-            edge_irreps_in: o3.Irreps,
-            irreps_out: o3.Irreps,
-            latent_dim: int,
-            node_one_hot_dim: int,
-            norm_eps: float = 1e-8,
-            radial_emb: bool = False,
-            radial_channels: list = [128, 128],
-            res_update: bool = True,
-            use_layer_onehot_tp: bool = True,
-            use_interpolation_tp: bool = False,
-            res_update_ratios: Optional[List[float]] = None,
-            res_update_ratios_learnable: bool = False,
-            avg_num_neighbors: Optional[float] = None,
-            dtype: Union[str, torch.dtype] = torch.float32,
-            device: Union[str, torch.device] = torch.device("cpu"),
-            tp_rotate_in: bool = True,
-            tp_rotate_out: bool = True,
-            ln_flag: bool = True,
-            in_frame_flag: bool = True,
-            onehot_mode: str = "FullTP",
-            self_mix_flag: bool = False,
-            self_mix_mode: str = "scalar_channelwise",
-            self_mix_iter: int = 1,
-            self_mix_type: str = "node",  # "node", "edge", or "all"
+        self,
+        node_irreps_in: o3.Irreps,
+        edge_irreps_in: o3.Irreps,
+        irreps_out: o3.Irreps,
+        latent_dim: int,
+        node_one_hot_dim: int,
+        norm_eps: float = 1e-8,
+        radial_emb: bool = False,
+        radial_channels: list = [128, 128],
+        res_update: bool = True,
+        use_layer_onehot_tp: bool = True,
+        use_interpolation_tp: bool = False,
+        res_update_ratios: Optional[List[float]] = None,
+        res_update_ratios_learnable: bool = False,
+        avg_num_neighbors: Optional[float] = None,
+        dtype: Union[str, torch.dtype] = torch.float32,
+        device: Union[str, torch.device] = torch.device("cpu"),
+        tp_rotate_in: bool = True,
+        tp_rotate_out: bool = True,
+        ln_flag: bool = True,
+        in_frame_flag: bool = True,
+        onehot_mode: str = "FullTP",
+        self_mix_flag: bool = False,
+        self_mix_mode: str = "scalar_channelwise",
+        self_mix_iter: int = 1,
+        self_mix_type: str = "node",  # "node", "edge", or "all"
     ):
         super(UpdateNodeInFrame, self).__init__()
 
@@ -368,7 +370,7 @@ class UpdateNodeInFrame(torch.nn.Module):
         # ---- One-Hot Update ----
         if self.use_layer_onehot_tp:
             self.node_onehot_gate = create_gate(self.irreps_out)
-
+            
             if self.onehot_mode == "fulltp":
                 self.node_onehot_tp = FullyConnectedTensorProduct(
                     irreps_in1=self.irreps_out,
@@ -416,7 +418,7 @@ class UpdateNodeInFrame(torch.nn.Module):
         """Builds a single instance of the mixing layers (TPs, Gate, Linear, Norm)"""
         mixer = torch.nn.ModuleDict()
 
-        # 1. Add Normalization Layer at the entry of mixer
+        # 1. Add Normalization Layer
         mixer["norm"] = SeperableLayerNorm(
             irreps=self.irreps_out,
             eps=self.norm_eps,
@@ -427,15 +429,14 @@ class UpdateNodeInFrame(torch.nn.Module):
             device=self.device
         )
 
-        l0_indices = self.l0_indices  # already registered in buffer
+        l0_indices = self.l0_indices
         scalar_dim = len(l0_indices)
 
         gate = create_gate(self.irreps_out)
         mixer["gate"] = gate
 
-        # 2. Use ModuleList for independent Tensor Products
         tps = nn.ModuleList()
-        pre_gate_linear = None  # Only used if channelwise/etc needs it
+        pre_gate_linear = None
 
         # --- TP Construction ---
         for _ in range(self.self_mix_iter):
@@ -443,7 +444,6 @@ class UpdateNodeInFrame(torch.nn.Module):
 
             if "scalar" in self.self_mix_mode:
                 irreps_in2 = o3.Irreps(f"{scalar_dim}x0e")
-
                 if "full" in self.self_mix_mode:
                     tp_layer = FullyConnectedTensorProduct(
                         irreps_in1=self.irreps_out,
@@ -458,8 +458,6 @@ class UpdateNodeInFrame(torch.nn.Module):
                         irreps_out=self.irreps_out,
                         instructions=instructions
                     )
-                    # For channelwise, we usually project at the end of the chain or before gate
-                    # Here we initialize pre_gate_linear once if needed
                     if pre_gate_linear is None:
                         pre_gate_linear = Linear(
                             self.irreps_out, gate.irreps_in,
@@ -470,45 +468,37 @@ class UpdateNodeInFrame(torch.nn.Module):
 
             elif "full_full" in self.self_mix_mode:
                 irreps_in2 = self.irreps_out
-
                 if "uvu" in self.self_mix_mode:
                     instructions = []
                     for i, (_, ir) in enumerate(self.irreps_out):
                         if ir in (ir * ir):
                             instructions.append((i, i, i, "uvu", True))
-
                     tp_layer = TensorProduct(
                         irreps_in1=self.irreps_out,
                         irreps_in2=irreps_in2,
                         irreps_out=self.irreps_out,
                         instructions=instructions
                     )
-                    if pre_gate_linear is None:
-                        pre_gate_linear = Linear(
-                            self.irreps_out, gate.irreps_in,
-                            internal_weights=True, shared_weights=True
-                        )
-
                 elif "uuw" in self.self_mix_mode:
                     instructions = []
                     for i, (_, ir_in) in enumerate(self.irreps_out):
                         for k, (_, ir_out) in enumerate(self.irreps_out):
                             if ir_out in (ir_in * ir_in):
                                 instructions.append((i, i, k, "uuw", True))
-
                     tp_layer = TensorProduct(
                         irreps_in1=self.irreps_out,
                         irreps_in2=irreps_in2,
                         irreps_out=self.irreps_out,
                         instructions=instructions
                     )
-                    if pre_gate_linear is None:
-                        pre_gate_linear = Linear(
-                            self.irreps_out, gate.irreps_in,
-                            internal_weights=True, shared_weights=True
-                        )
                 else:
                     raise ValueError(f"Unknown full_full mode: {self.self_mix_mode}")
+
+                if pre_gate_linear is None:
+                    pre_gate_linear = Linear(
+                        self.irreps_out, gate.irreps_in,
+                        internal_weights=True, shared_weights=True
+                    )
             else:
                 raise ValueError(f"Unknown self_mix_mode: {self.self_mix_mode}")
 
@@ -527,51 +517,45 @@ class UpdateNodeInFrame(torch.nn.Module):
         return mixer
 
     def _apply_self_mix(self, mixer, current_features):
-        """Applies the iterative self-mix logic given a mixer module and input features"""
-
-        # 1. Apply Normalization FIRST (Critical for Many-body stability)
+        """Applies the iterative self-mix logic"""
+        # 1. Normalization
         normed_features = mixer["norm"](current_features)
 
-        # Prepare input2 (condition) based on mode, using Normalized features
         input2 = None
         if "scalar" in self.self_mix_mode:
             input2 = normed_features[:, self.l0_indices]
         elif "full_full" in self.self_mix_mode:
             input2 = normed_features
 
-        # Iterative Tensor Product
-        # Many-body expansion: B_v = A x B_{v-1}.
-        # B_0 = normed_features
         current_tp_feat = normed_features
 
-        # 2. Use independent weights for each iteration
+        # 2. Iterative Tensor Product
         for i in range(self.self_mix_iter):
             tp_layer = mixer["tps"][i]
             current_tp_feat = tp_layer(current_tp_feat, input2)
 
-        # Projection to Gate
+        # Projection and Gate
         if "pre_gate_linear" in mixer:
             tp_out = mixer["pre_gate_linear"](current_tp_feat)
         else:
             tp_out = current_tp_feat
 
-        # Gate and Post Linear
         gate_out = mixer["gate"](tp_out)
         mix_out = mixer["post_linear"](gate_out)
 
         return mix_out
 
     def forward(
-            self,
-            latents: torch.Tensor,
-            node_features: torch.Tensor,
-            edge_features: torch.Tensor,
-            atom_type: torch.Tensor,
-            node_onehot: torch.Tensor,
-            edge_index: torch.Tensor,
-            edge_vector: torch.Tensor,
-            active_edges: torch.Tensor,
-            wigner_D_all: Optional[torch.Tensor],
+        self,
+        latents: torch.Tensor,
+        node_features: torch.Tensor,
+        edge_features: torch.Tensor,
+        atom_type: torch.Tensor,
+        node_onehot: torch.Tensor,
+        edge_index: torch.Tensor,
+        edge_vector: torch.Tensor,
+        active_edges: torch.Tensor,
+        wigner_D_all: Optional[torch.Tensor],
     ):
         edge_center = edge_index[0]
         edge_neighbor = edge_index[1]
@@ -604,7 +588,6 @@ class UpdateNodeInFrame(torch.nn.Module):
         edge_messages = self.lin_post(edge_messages)
 
         # ---- EDGE SELF-MIX UPDATE ----
-        # Apply high-order expansion to edges BEFORE they are aggregated to nodes or passed to next layer
         if self.self_mix_flag and self.edge_mixer is not None:
             edge_mix_out = self._apply_self_mix(self.edge_mixer, edge_messages)
             edge_messages = edge_messages + edge_mix_out
@@ -623,7 +606,6 @@ class UpdateNodeInFrame(torch.nn.Module):
         else:
             norm_const = self.env_sum_normalizations[atom_type.flatten()].unsqueeze(-1)
 
-        # A (Aggregated messages)
         new_node_features = aggregated_node_messages * norm_const
 
         # Main Branch Residual Update
@@ -656,46 +638,45 @@ class UpdateNodeInFrame(torch.nn.Module):
 @Embedding.register("lem_in_frame")
 class LemInFrame(torch.nn.Module):
     def __init__(
-            self,
-            basis: Dict[str, Union[str, list]] = None,
-            idp: Union[OrbitalMapper, None] = None,
-            n_layers: int = 3,
-            n_radial_basis: int = 10,
-            r_max: float = 5.0,
-            irreps_hidden: o3.Irreps = None,
-            avg_num_neighbors: Optional[float] = None,
-            r_start_cos_ratio: float = 0.8,
-            norm_eps: float = 1e-8,
-            PolynomialCutoff_p: float = 6,
-            cutoff_type: str = "polynomial",
-            env_embed_multiplicity: int = 32,
-            sh_normalized: bool = True,
-            sh_normalization: str = "component",
-            tp_radial_emb: bool = False,
-            tp_radial_channels: list = [128, 128],
-            latent_channels: list = [128, 128],
-            latent_dim: int = 128,
-            edge_one_hot_dim: int = 128,
-            use_out_onehot_tp: bool = True,
-            use_layer_onehot_tp: bool = True,
-            res_update: bool = True,
-            res_update_ratios: Optional[List[float]] = None,
-            res_update_ratios_learnable: bool = False,
-            dtype: Union[str, torch.dtype] = torch.float32,
-            device: Union[str, torch.device] = torch.device("cpu"),
-            universal: Optional[bool] = False,
-            use_interpolation_out: Optional[bool] = True,
-            prune_edges_by_cutoff: bool = True,
-            prune_log_path: Optional[str] = None,
-            # ---- new flags ----
-            ln_flag: bool = True,
-            in_frame_flag: bool = True,
-            onehot_mode: str = "FullTP",
-            self_mix_flag: bool = False,
-            self_mix_mode: str = "scalar_channelwise",
-            self_mix_iter: int = 2,  # Default to 2
-            self_mix_type: str = "node",  # "node", "edge", or "all"
-            **kwargs,
+        self,
+        basis: Dict[str, Union[str, list]] = None,
+        idp: Union[OrbitalMapper, None] = None,
+        n_layers: int = 3,
+        n_radial_basis: int = 10,
+        r_max: float = 5.0,
+        irreps_hidden: o3.Irreps = None,
+        avg_num_neighbors: Optional[float] = None,
+        r_start_cos_ratio: float = 0.8,
+        norm_eps: float = 1e-8,
+        polynomial_cutoff_p: float = 6,
+        cutoff_type: str = "polynomial",
+        env_embed_multiplicity: int = 32,
+        sh_normalized: bool = True,
+        sh_normalization: str = "component",
+        tp_radial_emb: bool = False,
+        tp_radial_channels: list = [128, 128],
+        latent_channels: list = [128, 128],
+        latent_dim: int = 128,
+        edge_one_hot_dim: int = 128,
+        use_out_onehot_tp: bool = True,
+        use_layer_onehot_tp: bool = True,
+        res_update: bool = True,
+        res_update_ratios: Optional[List[float]] = None,
+        res_update_ratios_learnable: bool = False,
+        dtype: Union[str, torch.dtype] = torch.float32,
+        device: Union[str, torch.device] = torch.device("cpu"),
+        universal: Optional[bool] = False,
+        use_interpolation_out: Optional[bool] = True,
+        prune_edges_by_cutoff: bool = True,
+        prune_log_path: Optional[str] = None,
+        ln_flag: bool = True,
+        in_frame_flag: bool = True,
+        onehot_mode: str = "FullTP",
+        self_mix_flag: bool = False,
+        self_mix_mode: str = "scalar_channelwise",
+        self_mix_iter: int = 2,
+        self_mix_type: str = "node",
+        **kwargs,
     ):
         super(LemInFrame, self).__init__()
 
@@ -703,7 +684,7 @@ class LemInFrame(torch.nn.Module):
         if self.prune_log_path and os.path.exists(self.prune_log_path):
             try:
                 os.remove(self.prune_log_path)
-            except Exception:
+            except OSError:
                 pass
 
         irreps_hidden = o3.Irreps(irreps_hidden)
@@ -723,8 +704,6 @@ class LemInFrame(torch.nn.Module):
         self.self_mix_mode = self_mix_mode
         self.self_mix_iter = self_mix_iter
         self.self_mix_type = self_mix_type
-        print(
-            f'onehot_mode: {onehot_mode}, self_mix_flag: {self_mix_flag}, self_mix_mode: {self_mix_mode}, self_mix_iter: {self_mix_iter}, self_mix_type: {self_mix_type}')
 
         if basis is not None:
             self.idp = OrbitalMapper(basis, method="e3tb")
@@ -774,7 +753,7 @@ class LemInFrame(torch.nn.Module):
             two_body_latent_channels=latent_channels,
             latent_dim=latent_dim,
             r_start_cos_ratio=r_start_cos_ratio,
-            PolynomialCutoff_p=PolynomialCutoff_p,
+            polynomial_cutoff_p=polynomial_cutoff_p,
             cutoff_type=cutoff_type,
             device=device,
             dtype=dtype,
@@ -795,17 +774,12 @@ class LemInFrame(torch.nn.Module):
 
             if self.in_frame_flag:
                 if i == 0:
-                    rotate_in = True
-                    rotate_out = False
+                    rotate_in, rotate_out = True, False
                 else:
                     rotate_in = False
-                    if i == n_layers - 1:
-                        rotate_out = True
-                    else:
-                        rotate_out = False
+                    rotate_out = (i == n_layers - 1)
             else:
-                rotate_in = True
-                rotate_out = True
+                rotate_in, rotate_out = True, True
 
             if i == n_layers - 1:
                 irreps_out_layer = orbpair_irreps.sort()[0].simplify()
@@ -840,14 +814,11 @@ class LemInFrame(torch.nn.Module):
                     self_mix_flag=self_mix_flag,
                     self_mix_mode=self_mix_mode,
                     self_mix_iter=self_mix_iter,
-                    # ---- pass self_mix_type ----
                     self_mix_type=self_mix_type,
                 )
             )
 
             current_irreps = irreps_out_layer
-            if use_interpolation_tp:
-                print(f"Use interpolation SO2 layer in layer {i}")
 
         self.node_irreps_out = current_irreps
         self.edge_irreps_out = current_irreps
@@ -973,25 +944,21 @@ class LemInFrame(torch.nn.Module):
 # ==============================================================================
 
 def get_feasible_tp(
-        irreps_in1: o3.Irreps,
-        irreps_in2: o3.Irreps,
-        filter_irreps_out: o3.Irreps,
-        tp_mode: str = "uvw",
-        trainable: bool = True
+    irreps_in1: o3.Irreps,
+    irreps_in2: o3.Irreps,
+    filter_irreps_out: o3.Irreps,
+    tp_mode: str = "uvw",
+    trainable: bool = True
 ):
-    """
-    Generate irreps_out and instructions for OpenEquivariance TP.
-    """
+    """Generate irreps_out and instructions for OpenEquivariance TP."""
     assert tp_mode in ["uvw", "uvu", "uvv", "uuw", "uuu", "uvuv"]
     irreps_mid = []
     instructions = []
 
-    # 1. Generate path candidates & Determine Multiplicities
     for i, (mul_1, ir_in1) in enumerate(irreps_in1):
         for j, (mul_2, ir_in2) in enumerate(irreps_in2):
-            if tp_mode in ["uuw", "uuu"]:
-                if mul_1 != mul_2:
-                    continue
+            if tp_mode in ["uuw", "uuu"] and mul_1 != mul_2:
+                continue
 
             for ir_out in ir_in1 * ir_in2:
                 if ir_out in filter_irreps_out:
@@ -1034,15 +1001,16 @@ def get_feasible_tp(
 
 
 class OEQTensorProduct(nn.Module):
-    def __init__(self,
-                 irreps_in1: o3.Irreps,
-                 irreps_in2: o3.Irreps,
-                 irreps_out: o3.Irreps,
-                 tp_mode: str = "uvw",
-                 internal_weights: bool = True,
-                 shared_weights: bool = True):
+    def __init__(
+        self,
+        irreps_in1: o3.Irreps,
+        irreps_in2: o3.Irreps,
+        irreps_out: o3.Irreps,
+        tp_mode: str = "uvw",
+        internal_weights: bool = True,
+        shared_weights: bool = True
+    ):
         super().__init__()
-
         if oeq is None:
             raise ImportError("OpenEquivariance not installed.")
 
@@ -1065,7 +1033,6 @@ class OEQTensorProduct(nn.Module):
         )
 
         self.tp = oeq.TensorProduct(self.problem, torch_op=True)
-
         self.weight_numel = self.problem.weight_numel
 
         if self.internal_weights_flag and self.weight_numel > 0:
@@ -1082,25 +1049,21 @@ class OEQTensorProduct(nn.Module):
 
     def forward(self, x: torch.Tensor, y: torch.Tensor, weight: Optional[torch.Tensor] = None):
         w = self.weights if self.internal_weights_flag else weight
-
         if self.weight_numel > 0:
             out = self.tp(x, y, w)
         else:
             out = self.tp(x, y)
-
         out = self.post_linear(out)
         return out
 
 
 class UpdateNodeInFrameOpenequi(UpdateNodeInFrame):
     """
-    Inherits everything from UpdateNodeInFrame, but replaces E3NN TP with OEQ TP.
+    Inherits from UpdateNodeInFrame, replaces E3NN TP with OEQ TP.
     """
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # --- Swap One-Hot TP ---
         if self.use_layer_onehot_tp:
             tp_mode_map = {"fulltp": "uvw", "elementtp": "uvu"}
             self.node_onehot_tp = OEQTensorProduct(
@@ -1111,13 +1074,8 @@ class UpdateNodeInFrameOpenequi(UpdateNodeInFrame):
             )
 
     def _build_mixer_module(self):
-        """
-        Overrides the base method to return OEQ-based mixers (node or edge).
-        Use ModuleList for independent weights in iterations.
-        """
+        """Overrides parent method to use OEQ mixers."""
         mixer = torch.nn.ModuleDict()
-
-        # 1. Add Normalization
         mixer["norm"] = SeperableLayerNorm(
             irreps=self.irreps_out,
             eps=self.norm_eps,
@@ -1128,7 +1086,7 @@ class UpdateNodeInFrameOpenequi(UpdateNodeInFrame):
             device=self.device
         )
 
-        l0_indices = self.l0_indices  # available from parent's buffer init
+        l0_indices = self.l0_indices
         scalar_dim = len(l0_indices)
 
         gate = create_gate(self.irreps_out)
@@ -1137,28 +1095,24 @@ class UpdateNodeInFrameOpenequi(UpdateNodeInFrame):
         tps = nn.ModuleList()
         pre_gate_linear = None
 
-        # 2. Iterate for ModuleList
         for _ in range(self.self_mix_iter):
             tp_layer = None
 
             if "scalar" in self.self_mix_mode:
                 irreps_in2 = o3.Irreps(f"{scalar_dim}x0e")
-
                 if "full" in self.self_mix_mode:
-                    tp_mode = "uvw"
                     tp_layer = OEQTensorProduct(
                         irreps_in1=self.irreps_out,
                         irreps_in2=irreps_in2,
                         irreps_out=gate.irreps_in,
-                        tp_mode=tp_mode
+                        tp_mode="uvw"
                     )
                 elif "channelwise" in self.self_mix_mode:
-                    tp_mode = "uvu"
                     tp_layer = OEQTensorProduct(
                         irreps_in1=self.irreps_out,
                         irreps_in2=irreps_in2,
                         irreps_out=self.irreps_out,
-                        tp_mode=tp_mode
+                        tp_mode="uvu"
                     )
                     if pre_gate_linear is None:
                         pre_gate_linear = Linear(
@@ -1170,14 +1124,12 @@ class UpdateNodeInFrameOpenequi(UpdateNodeInFrame):
 
             elif "full_full" in self.self_mix_mode:
                 irreps_in2 = self.irreps_out
-
                 if "uvu" in self.self_mix_mode:
-                    tp_mode = "uvu"
                     tp_layer = OEQTensorProduct(
                         irreps_in1=self.irreps_out,
                         irreps_in2=irreps_in2,
                         irreps_out=self.irreps_out,
-                        tp_mode=tp_mode
+                        tp_mode="uvu"
                     )
                     if pre_gate_linear is None:
                         pre_gate_linear = Linear(
@@ -1185,12 +1137,11 @@ class UpdateNodeInFrameOpenequi(UpdateNodeInFrame):
                             internal_weights=True, shared_weights=True
                         )
                 elif "uuw" in self.self_mix_mode:
-                    tp_mode = "uuw"
                     tp_layer = OEQTensorProduct(
                         irreps_in1=self.irreps_out,
                         irreps_in2=irreps_in2,
                         irreps_out=self.irreps_out,
-                        tp_mode=tp_mode
+                        tp_mode="uuw"
                     )
                     if pre_gate_linear is None:
                         pre_gate_linear = Linear(
@@ -1216,38 +1167,47 @@ class UpdateNodeInFrameOpenequi(UpdateNodeInFrame):
         return mixer
 
 
+# ==============================================================================
+# Helper Functions for Threading
+# ==============================================================================
+
+def _create_layer_worker(args):
+    """Worker to instantiate layer in separate thread for parallel compilation."""
+    idx, layer_kwargs = args
+    t_start = time.time()
+    layer = UpdateNodeInFrameOpenequi(**layer_kwargs)
+    duration = time.time() - t_start
+    return idx, layer, duration
+
+
+def _create_tp_worker(args):
+    """Worker to instantiate TensorProduct in separate thread."""
+    name, tp_kwargs = args
+    t_start = time.time()
+    tp = OEQTensorProduct(**tp_kwargs)
+    duration = time.time() - t_start
+    return name, tp, duration
+
+
 @Embedding.register("lem_in_frame_openequi")
 class LemInFrameOpenequi(LemInFrame):
     def __init__(self, **kwargs):
-        # 1. 显式提取需要的参数，避免 kwargs 污染
-        # 这些是 LemInFrame 需要的，已经在 super().__init__ 里处理过了
         n_layers = kwargs.get('n_layers', 3)
         irreps_hidden = kwargs.get('irreps_hidden')
         use_interpolation_out = kwargs.get('use_interpolation_out', True)
         edge_one_hot_dim = kwargs.get('edge_one_hot_dim', 128)
 
-        # 初始化父类
         super().__init__(**kwargs)
 
         if oeq is None:
             raise ImportError("OpenEquivariance is not installed.")
 
-        # 2. 重新构建 layers
-        # 我们必须覆盖父类创建的 layers，因为我们需要 Openequi 版本的层
-        self.layers = torch.nn.ModuleList()
-
+        # Parallel compilation preparation
+        self.layers = torch.nn.ModuleList([None] * n_layers)
         irreps_hidden_obj = o3.Irreps(irreps_hidden)
         orbpair_irreps = self.idp.orbpair_irreps.sort()[0].simplify()
 
-        # 3. 准备传递给 Layer 的特定参数
-        # 从 kwargs 中提取出属于 UpdateNodeInFrame 的参数
-        # 我们可以利用 self.init_layer 或其他已解析的属性来获取正确的值
-
-        # 为了安全起见，我们定义一个白名单，或者只传递 UpdateNodeInFrame 明确需要的参数
-        # 这里最简单的方法是复用父类中传递给 UpdateNodeInFrame 的那些参数逻辑
-
-        # 提取通用参数
-        layer_kwargs = {
+        base_layer_kwargs = {
             "latent_dim": kwargs.get('latent_dim', 128),
             "norm_eps": kwargs.get('norm_eps', 1e-8),
             "radial_emb": kwargs.get('tp_radial_emb', False),
@@ -1257,8 +1217,8 @@ class LemInFrameOpenequi(LemInFrame):
             "res_update_ratios": kwargs.get('res_update_ratios', None),
             "res_update_ratios_learnable": kwargs.get('res_update_ratios_learnable', False),
             "avg_num_neighbors": kwargs.get('avg_num_neighbors', None),
-            "dtype": self.dtype,  # Use self.dtype processed by parent
-            "device": self.device,  # Use self.device processed by parent
+            "dtype": self.dtype,
+            "device": self.device,
             "ln_flag": kwargs.get('ln_flag', True),
             "in_frame_flag": kwargs.get('in_frame_flag', True),
             "onehot_mode": kwargs.get('onehot_mode', "FullTP"),
@@ -1268,7 +1228,8 @@ class LemInFrameOpenequi(LemInFrame):
             "self_mix_type": kwargs.get('self_mix_type', "node"),
         }
 
-        for i in tqdm(range(n_layers), desc="Compiling OEQ Layers"):
+        tasks = []
+        for i in range(n_layers):
             if i == 0:
                 irreps_in_layer = self.init_layer.irreps_out
             else:
@@ -1287,30 +1248,47 @@ class LemInFrameOpenequi(LemInFrame):
                 irreps_out_layer = irreps_hidden_obj
                 use_interpolation_tp = False
 
-            self.layers.append(
-                UpdateNodeInFrameOpenequi(
-                    node_irreps_in=irreps_in_layer,
-                    edge_irreps_in=irreps_in_layer,
-                    irreps_out=irreps_out_layer,
-                    tp_rotate_in=rotate_in,
-                    tp_rotate_out=rotate_out,
-                    use_interpolation_tp=use_interpolation_tp,
-                    node_one_hot_dim=self.n_atom,
-                    **layer_kwargs  # 使用过滤后的参数字典
-                )
-            )
+            current_kwargs = base_layer_kwargs.copy()
+            current_kwargs.update({
+                "node_irreps_in": irreps_in_layer,
+                "edge_irreps_in": irreps_in_layer,
+                "irreps_out": irreps_out_layer,
+                "tp_rotate_in": rotate_in,
+                "tp_rotate_out": rotate_out,
+                "use_interpolation_tp": use_interpolation_tp,
+                "node_one_hot_dim": self.n_atom,
+            })
+            tasks.append((i, current_kwargs))
 
-        # 4. Swap Output TPs if needed
-        if self.use_out_onehot_tp:
-            self.out_node_ele_tp = OEQTensorProduct(
-                irreps_in1=self.node_irreps_out,
-                irreps_in2=o3.Irreps(f"{self.n_atom}x0e"),
-                irreps_out=self.idp.orbpair_irreps,
-                tp_mode="uvw"
-            )
-            self.out_edge_ele_tp = OEQTensorProduct(
-                irreps_in1=self.edge_irreps_out,
-                irreps_in2=o3.Irreps(f"{edge_one_hot_dim}x0e"),
-                irreps_out=self.idp.orbpair_irreps,
-                tp_mode="uvw"
-            )
+        print(f"Starting parallel compilation for {n_layers} layers...")
+        t_start_all = time.time()
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            layer_futures = [executor.submit(_create_layer_worker, task) for task in tasks]
+            
+            tp_futures = []
+            if self.use_out_onehot_tp:
+                tp1_kwargs = {
+                    "irreps_in1": self.node_irreps_out,
+                    "irreps_in2": o3.Irreps(f"{self.n_atom}x0e"),
+                    "irreps_out": self.idp.orbpair_irreps,
+                    "tp_mode": "uvw"
+                }
+                tp2_kwargs = {
+                    "irreps_in1": self.edge_irreps_out,
+                    "irreps_in2": o3.Irreps(f"{edge_one_hot_dim}x0e"),
+                    "irreps_out": self.idp.orbpair_irreps,
+                    "tp_mode": "uvw"
+                }
+                tp_futures.append(executor.submit(_create_tp_worker, ("out_node_ele_tp", tp1_kwargs)))
+                tp_futures.append(executor.submit(_create_tp_worker, ("out_edge_ele_tp", tp2_kwargs)))
+
+            for future in layer_futures:
+                idx, layer, duration = future.result()
+                self.layers[idx] = layer
+
+            for future in tp_futures:
+                name, tp_module, duration = future.result()
+                setattr(self, name, tp_module)
+
+        print(f"Compilation finished in {time.time() - t_start_all:.2f}s")
