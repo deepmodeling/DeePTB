@@ -1,4 +1,6 @@
 test*.ipynb
+*_bands.png
+*_dos.png
 examples/**/*centres.xyz
 examples/**/*.win
 **/processed*/*

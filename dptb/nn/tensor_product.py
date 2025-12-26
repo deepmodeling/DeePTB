@@ -74,10 +74,10 @@ def batch_wigner_D(l_max, alpha, beta, gamma, _Jd):
     D_total = sum(dims)
 
     # Construct block-diagonal J matrix
-    J_full_small = torch.zeros(D_total, D_total, device=device)
+    J_full_small = torch.zeros(D_total, D_total, device=device, dtype=alpha.dtype)
     for l in range(l_max + 1):
         start = offsets[l]
-        J_full_small[start:start+2*l+1, start:start+2*l+1] = _Jd[l]
+        J_full_small[start:start+2*l+1, start:start+2*l+1] = _Jd[l].to(dtype=alpha.dtype)
     
     J_full = J_full_small.unsqueeze(0).expand(N, -1, -1)
     angle_stack = torch.cat([alpha, beta, gamma], dim=0) 
