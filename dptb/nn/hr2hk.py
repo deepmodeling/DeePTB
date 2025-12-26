@@ -8,6 +8,8 @@ from dptb.utils.tools import float2comlex
 
 
 class HR2HK(torch.nn.Module):
+    # this is actually a general FFT from real space hamiltonian/overlap to kspace hamiltonian/overlap
+    # the more correct name should be HSR2HSK. But to keep consistent with previous naming convention, we still use HR2HK here.
     def __init__(
             self, 
             basis: Dict[str, Union[str, list]]=None,
@@ -45,9 +47,6 @@ class HR2HK(torch.nn.Module):
         self.node_field = node_field
         self.out_field = out_field
 
-
-
-
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
 
         # construct bond wise hamiltonian block from obital pair wise node/edge features
@@ -67,14 +66,11 @@ class HR2HK(torch.nn.Module):
         soc = data.get(AtomicDataDict.NODE_SOC_SWITCH_KEY, False)
         if isinstance(soc, torch.Tensor):
             soc = soc.all()
-        if soc:
-            # if self.overlap:
-                # print("Overlap for SOC is realized by kronecker product.")
-
+        if soc: 
+            # this soc only support sktb.
             orbpair_soc = data[AtomicDataDict.NODE_SOC_KEY]
             soc_upup_block = torch.zeros((len(data[AtomicDataDict.ATOM_TYPE_KEY]), self.idp.full_basis_norb, self.idp.full_basis_norb), dtype=self.ctype, device=self.device)
             soc_updn_block = torch.zeros((len(data[AtomicDataDict.ATOM_TYPE_KEY]), self.idp.full_basis_norb, self.idp.full_basis_norb), dtype=self.ctype, device=self.device)
-
 
         ist = 0
         for i,iorb in enumerate(self.idp.full_basis):
@@ -92,45 +88,48 @@ class HR2HK(torch.nn.Module):
 
                 if i <= j:
                     bondwise_hopping[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_hopping[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
+                    onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
 
-
-                # constructing onsite blocks
-                if self.overlap:
-                    # if iorb == jorb:
-                    #     onsite_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = factor * torch.eye(2*li+1, dtype=self.dtype, device=self.device).reshape(1, 2*li+1, 2*lj+1).repeat(onsite_block.shape[0], 1, 1)
-                    if i <= j:
-                        onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
-
-                    if soc and i == j:
-                        soc_updn_tmp = orbpair_soc[:, self.idp.orbpair_soc_maps[orbpair]].reshape(-1, 2*li+1, 2*(2*lj+1))
-                        # j==i -> 2*lj+1 == 2*li+1
-                        soc_upup_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = soc_updn_tmp[:, :2*li+1, :2*lj+1]
-                        soc_updn_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = soc_updn_tmp[:, :2*li+1, 2*lj+1:]
-                else:
-                    if i <= j:
-                        onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
-                    
-                    if soc and i==j:
+                if soc and i==j and not self.overlap:
+                        # For now, The SOC part is only added to Hamiltonian, not overlap matrix.
+                        # For now, The SOC only has onsite contribution.
                         soc_updn_tmp = orbpair_soc[:,self.idp.orbpair_soc_maps[orbpair]].reshape(-1, 2*li+1, 2*(2*lj+1))
                         soc_upup_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = soc_updn_tmp[:, :2*li+1,:2*lj+1]
                         soc_updn_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = soc_updn_tmp[:, :2*li+1,2*lj+1:]
+
+                # constructing onsite blocks
+                #if self.overlap:
+                #    # if iorb == jorb:
+                #    #     onsite_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = factor * torch.eye(2*li+1, dtype=self.dtype, device=self.device).reshape(1, 2*li+1, 2*lj+1).repeat(onsite_block.shape[0], 1, 1)
+                #    if i <= j:
+                #        onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
+                #    if soc and i == j:
+                #        soc_updn_tmp = orbpair_soc[:, self.idp.orbpair_soc_maps[orbpair]].reshape(-1, 2*li+1, 2*(2*lj+1))
+                #        # j==i -> 2*lj+1 == 2*li+1
+                #        soc_upup_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = soc_updn_tmp[:, :2*li+1, :2*lj+1]
+                #        soc_updn_block[:, ist:ist+2*li+1, jst:jst+2*lj+1] = soc_updn_tmp[:, :2*li+1, 2*lj+1:]
+                #else:
+                #    if i <= j:
+                #        onsite_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = factor * orbpair_onsite[:,self.idp.orbpair_maps[orbpair]].reshape(-1, 2*li+1, 2*lj+1)
+                #    
+                #    if soc and i==j:
+                #        soc_updn_tmp = orbpair_soc[:,self.idp.orbpair_soc_maps[orbpair]].reshape(-1, 2*li+1, 2*(2*lj+1))
+                #        soc_upup_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = soc_updn_tmp[:, :2*li+1,:2*lj+1]
+                #        soc_updn_block[:,ist:ist+2*li+1,jst:jst+2*lj+1] = soc_updn_tmp[:, :2*li+1,2*lj+1:]
                 
                 jst += 2*lj+1
             ist += 2*li+1
         self.onsite_block = onsite_block
         self.bondwise_hopping = bondwise_hopping
-        if soc:
-            # 先保存已有的
+        if soc and not self.overlap:
+            # store for later use
+            # for now, soc only contribute to Hamiltonain, thus for overlap not store soc parts.
             self.soc_upup_block = soc_upup_block
             self.soc_updn_block = soc_updn_block
 
         # R2K procedure can be done for all kpoint at once.
         all_norb = self.idp.atom_norb[data[AtomicDataDict.ATOM_TYPE_KEY]].sum()
         block = torch.zeros(kpoints.shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
-        # block = torch.complex(block, torch.zeros_like(block))
-        # if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
-        #     block_uu = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
-        #     block_ud = torch.zeros(data[AtomicDataDict.KPOINT_KEY].shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
         atom_id_to_indices = {}
         ist = 0
         for i, oblock in enumerate(onsite_block):
@@ -139,21 +138,7 @@ class HR2HK(torch.nn.Module):
             block[:,ist:ist+masked_oblock.shape[0],ist:ist+masked_oblock.shape[1]] = masked_oblock.squeeze(0)
             atom_id_to_indices[i] = slice(ist, ist+masked_oblock.shape[0])
             ist += masked_oblock.shape[0]
-        
-        # if data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all():
-        #     ist = 0
-        #     for i, soc_block in enumerate(soc_upup_block):
-        #         mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
-        #         masked_soc_block = soc_block[mask][:,mask]
-        #         block_uu[:,ist:ist+masked_soc_block.shape[0],ist:ist+masked_soc_block.shape[1]] = masked_soc_block.squeeze(0)
-        #         ist += masked_soc_block.shape[0]
-        #     ist = 0
-        #     for i, soc_block in enumerate(soc_updn_block):
-        #         mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
-        #         masked_soc_block = soc_block[mask][:,mask]
-        #         block_ud[:,ist:ist+masked_soc_block.shape[0],ist:ist+masked_soc_block.shape[1]] = masked_soc_block.squeeze(0)
-        #         ist += masked_soc_block.shape[0]
-
+    
         for i, hblock in enumerate(bondwise_hopping):
             iatom = data[AtomicDataDict.EDGE_INDEX_KEY][0][i]
             jatom = data[AtomicDataDict.EDGE_INDEX_KEY][1][i]
@@ -182,10 +167,6 @@ class HR2HK(torch.nn.Module):
                 data[self.out_field] = S_soc
             else:
                 HK_SOC = torch.zeros(kpoints.shape[0], 2*all_norb, 2*all_norb, dtype=self.ctype, device=self.device)
-                #HK_SOC[:,:all_norb,:all_norb] = block + block_uu
-                #HK_SOC[:,:all_norb,all_norb:] = block_ud
-                #HK_SOC[:,all_norb:,:all_norb] = block_ud.conj()
-                #HK_SOC[:,all_norb:,all_norb:] = block + block_uu.conj()
                 ist = 0
                 assert len(soc_upup_block) == len(soc_updn_block)
                 for i in range(len(soc_upup_block)):
