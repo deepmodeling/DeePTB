@@ -20,9 +20,17 @@ class HR2HK(torch.nn.Module):
             overlap: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
+            derivative:bool = False,
+            gauge: bool = True 
             ):
+        # gauge: False -> Tight-binding Convention I:  Wannier90 Gauge 
+        # gauge: True  -> Tight-binding Convention II: "Physical Gauge"/"Periodic Gauge"
         super(HR2HK, self).__init__()
-
+    
+        if derivative:
+            gauge = True
+        self.gauge = gauge
+        self.derivative = derivative
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype)
         self.dtype = dtype
@@ -51,6 +59,10 @@ class HR2HK(torch.nn.Module):
 
         # construct bond wise hamiltonian block from obital pair wise node/edge features
         # we assume the edge feature have the similar format as the node feature, which is reduced from orbitals index oj-oi with j>i
+        
+        # Ensure edge_vectors are computed if using gauge mode
+        if self.gauge:
+            data = AtomicDataDict.with_edge_vectors(data, with_lengths=True)
         
         orbpair_hopping = data[self.edge_field]
         orbpair_onsite = data.get(self.node_field)
@@ -148,8 +160,17 @@ class HR2HK(torch.nn.Module):
             jmask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[jatom]]
             masked_hblock = hblock[imask][:,jmask]
 
-            block[:,iatom_indices,jatom_indices] += masked_hblock.squeeze(0).type_as(block) * \
-                torch.exp(-1j * 2 * torch.pi * (kpoints @ data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i])).reshape(-1,1,1)
+            if self.gauge:
+                # phase factor according to convention II
+                # k and R are in fractional coordinates, need to convert to cartesian
+                phase_factor = torch.exp(-1j * 2 * torch.pi * (
+                    kpoints @ data[AtomicDataDict.CELL_KEY].inverse().T 
+                            @ data[AtomicDataDict.EDGE_VECTORS_KEY][i])).reshape(-1,1,1)
+            else:
+                phase_factor = torch.exp(-1j * 2 * torch.pi * (
+                    kpoints @ data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i])).reshape(-1,1,1)
+                
+            block[:,iatom_indices,jatom_indices] += masked_hblock.squeeze(0).type_as(block) * phase_factor
 
         block = block + block.transpose(1,2).conj()
         block = block.contiguous()
