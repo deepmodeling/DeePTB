@@ -132,34 +132,26 @@ class OpticalAccessor:
             f_mn = f_n - f_m
             
             # Matrix Element Product
-            # M_nm = v_nm * v_mn. 
-            # If v is Hermitian: v_mn = v_nm*. So M_nm = |v_nm|^2 (if alpha=beta).
-            # v_alpha[n,m] * v_beta[m,n]
+            # M_nm = |v_nm|^2 for diagonal direction
             M_nm = v_alpha * v_beta.transpose(1, 2)
             
             # T_nm = (f_n - f_m) / E_mn * M_nm
-            # Handle degenerate safely
             mask_deg = torch.abs(E_mn) < 1e-6
             
-            T_nm = M_nm * f_mn / E_mn
-            T_nm[mask_deg] = 0.0 # Exclude intraband/degenerate from interband
+            # Avoid division by zero
+            E_mn_safe = E_mn.clone()
+            E_mn_safe[mask_deg] = 1.0
             
-            # Broadening
-            def get_delta(diff, w, gamma):
-                if broadening == 'gaussian':
-                    return torch.exp(-0.5 * ((diff - w)/gamma)**2) / (gamma * np.sqrt(2 * np.pi))
-                else: 
-                     return (gamma/np.pi) / ((diff - w)**2 + gamma**2)
+            T_nm = M_nm * f_mn / E_mn_safe
+            T_nm[mask_deg] = 0.0 
             
-            for iw, w_val in enumerate(omegas_t):
-                if w_val < 1e-4: continue
-                delta = get_delta(E_mn, w_val, eta)
-                
-                # Sum over n, m, k
-                # T_nm already contains (f_n - f_m)/E_mn approx (f_n - f_m)/w
-                # So we sum T_nm * delta.
-                term = torch.sum(T_nm * delta * w_batch.reshape(-1, 1, 1), dim=(0, 1, 2))
-                sigma_total[iw] += term
+            # Use JIT accelerated kernel
+            # Flatten for efficiency
+            E_flat = E_mn.flatten()
+            T_weighted_flat = (T_nm * w_batch.reshape(-1, 1, 1)).flatten()
+            
+            term = accumulate_sigma_jit(E_flat, T_weighted_flat, omegas_t, eta, broadening)
+            sigma_total += term
                 
         # Units
         # Theoretical prefactor: pi * (2 * g_s) / V
@@ -172,4 +164,36 @@ class OpticalAccessor:
         spin_factor = 2.0 
         factor = np.pi * spin_factor / volume
         return sigma_total * factor
+
+
+@torch.jit.script
+def accumulate_sigma_jit(E_flat: torch.Tensor, T_flat: torch.Tensor, omegas: torch.Tensor, eta: float, broadening: str) -> torch.Tensor:
+    """
+    JIT-compiled kernel for accumulating conductivity contributions.
+    """
+    sigma_contr = torch.zeros_like(omegas, dtype=torch.complex128)
+    # Constants
+    sqrt_2pi = 2.506628274631
+    pi = 3.14159265359
+    
+    for i in range(len(omegas)):
+        w = omegas[i]
+        if w < 1e-4:
+            continue
+            
+        # Vectorsied over bands/k-points (E_flat)
+        if broadening == 'gaussian':
+            # delta = exp(...) / (eta * sqrt(2pi))
+            arg = (E_flat - w) / eta
+            delta = torch.exp(-0.5 * arg * arg) / (eta * sqrt_2pi)
+        else:
+            # Lorentzian
+            # delta = (eta/pi) / ((E-w)^2 + eta^2)
+            diff = E_flat - w
+            delta = (eta / pi) / (diff * diff + eta * eta)
+            
+        val = torch.sum(T_flat * delta)
+        sigma_contr[i] = val
+        
+    return sigma_contr
 
