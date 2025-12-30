@@ -22,7 +22,8 @@ class OpticalAccessor:
                 broadening: str = 'gaussian', # 'gaussian' or 'lorentzian'
                 temperature: float = 300.0,
                 direction: str = 'xx',
-                return_components: bool = False
+                return_components: bool = False,
+                method: str = 'vectorized'
                 ):
         """
         Compute optical conductivity. (Real part, absorption).
@@ -145,26 +146,71 @@ class OpticalAccessor:
             T_nm = M_nm * f_mn / E_mn_safe
             T_nm[mask_deg] = 0.0 
             
-            # Use JIT accelerated kernel
-            # Flatten for efficiency
+            # Use selected method
+            # Flatten for efficiency (common prep)
             E_flat = E_mn.flatten()
             T_weighted_flat = (T_nm * w_batch.reshape(-1, 1, 1)).flatten()
             
-            term = accumulate_sigma_jit(E_flat, T_weighted_flat, omegas_t, eta, broadening)
+            if method == 'jit':
+                term = accumulate_sigma_jit(E_flat, T_weighted_flat, omegas_t, eta, broadening)
+            elif method == 'vectorized':
+                term = self._accumulate_vectorized(E_flat, T_weighted_flat, omegas_t, eta, broadening)
+            elif method == 'loop':
+                 term = self._accumulate_loop(E_flat, T_weighted_flat, omegas_t, eta, broadening)
+            else:
+                raise ValueError(f"Unknown method: {method}")
+                
             sigma_total += term
                 
         # Units
-        # Theoretical prefactor: pi * (2 * g_s) / V
-        # g_s = 1 for spin-polarized, 2 for non-polarized (usually).
-        # We assume g_s = 1 per band in the model, but usually models are spin-degenerate 
-        # unless specified. Reference uses 2 * g_s.
-        # Let's assume the model is non-spin-polarized closed shell -> factor 2.
-        # And if spin is explicit, it handles it.
-        # Default to factor 2 for consistency with reference which assumes g_s=2.
         spin_factor = 2.0 
         factor = np.pi * spin_factor / volume
         return sigma_total * factor
 
+    def _accumulate_vectorized(self, E_flat, T_flat, omegas, eta, broadening):
+        # Broadcasting: [N_omega, 1] vs [1, N_trans]
+        w = omegas.unsqueeze(1)
+        E = E_flat.unsqueeze(0)
+        
+        # Filter small frequencies (optional, to match loop logic)
+        mask_w = omegas > 1e-4
+        
+        if broadening == 'gaussian':
+            # delta = exp(-0.5*((E-w)/eta)^2) / (eta * sqrt(2pi))
+            arg = (E - w[mask_w]) / eta
+            delta = torch.exp(-0.5 * arg**2) / (eta * np.sqrt(2 * np.pi))
+        else:
+            # Lorentzian
+            diff = E - w[mask_w]
+            delta = (eta / np.pi) / (diff**2 + eta**2)
+            
+        # Sum over transitions
+        # Result: [N_valid_omega]
+        # Use matmul or simple sum. T_flat: [N_trans]
+        # delta: [N_valid_omega, N_trans]
+        # sum = delta @ T_flat
+        res = delta @ T_flat.to(delta.dtype)
+        
+        sigma_out = torch.zeros_like(omegas, dtype=torch.complex128)
+        sigma_out[mask_w] = res.to(torch.complex128)
+        return sigma_out
+
+    def _accumulate_loop(self, E_flat, T_flat, omegas, eta, broadening):
+        sigma_contr = torch.zeros_like(omegas, dtype=torch.complex128)
+        sqrt_2pi = np.sqrt(2 * np.pi)
+        
+        for i, w in enumerate(omegas):
+             if w < 1e-4: continue
+             
+             if broadening == 'gaussian':
+                 arg = (E_flat - w) / eta
+                 delta = torch.exp(-0.5 * arg**2) / (eta * sqrt_2pi)
+             else:
+                 diff = E_flat - w
+                 delta = (eta / np.pi) / (diff**2 + eta**2)
+                 
+             sigma_contr[i] = torch.sum(T_flat * delta)
+        return sigma_contr
 
 @torch.jit.script
 def accumulate_sigma_jit(E_flat: torch.Tensor, T_flat: torch.Tensor, omegas: torch.Tensor, eta: float, broadening: str) -> torch.Tensor:
