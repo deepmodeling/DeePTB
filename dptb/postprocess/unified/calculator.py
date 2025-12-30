@@ -245,17 +245,17 @@ class DeePTBAdapter(HamiltonianCalculator):
         # 2. H(R) -> H(k)
         atomic_data = h2k(atomic_data)
         hk = atomic_data[AtomicDataDict.HAMILTONIAN_KEY]
-        if with_derivative:
-            hk_deriv = atomic_data[AtomicDataDict.HAMILTONIAN_DERIV_KEY]
+        
         # 3. S(R) -> S(k)
+        sk = None
         if self.overlap:
             atomic_data = s2k(atomic_data)
             sk = atomic_data[AtomicDataDict.OVERLAP_KEY]
-            if with_derivative:
-                sk_deriv = atomic_data[AtomicDataDict.OVERLAP_DERIV_KEY]
-        else:
-            sk = None
+        
+        # 4. Return with or without derivatives
         if with_derivative:
+            hk_deriv = atomic_data[AtomicDataDict.HAMILTONIAN_DERIV_KEY]
+            sk_deriv = atomic_data.get(AtomicDataDict.OVERLAP_DERIV_KEY)
             return hk, hk_deriv, sk, sk_deriv
         else:
             return hk, sk
