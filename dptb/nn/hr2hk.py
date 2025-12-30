@@ -21,7 +21,8 @@ class HR2HK(torch.nn.Module):
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu"),
             derivative:bool = False,
-            gauge: bool = True 
+            out_derivative_field: str = AtomicDataDict.HAMILTONIAN_DERIV_KEY,
+            gauge: bool = False 
             ):
         # gauge: False -> Tight-binding Convention I:  Wannier90 Gauge 
         # gauge: True  -> Tight-binding Convention II: "Physical Gauge"/"Periodic Gauge"
@@ -54,6 +55,7 @@ class HR2HK(torch.nn.Module):
         self.edge_field = edge_field
         self.node_field = node_field
         self.out_field = out_field
+        self.out_derivative_field = out_derivative_field
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
 
@@ -142,12 +144,20 @@ class HR2HK(torch.nn.Module):
         # R2K procedure can be done for all kpoint at once.
         all_norb = self.idp.atom_norb[data[AtomicDataDict.ATOM_TYPE_KEY]].sum()
         block = torch.zeros(kpoints.shape[0], all_norb, all_norb, dtype=self.ctype, device=self.device)
+        
+        # Initialize derivative blocks if needed: dH/dk = [dH/dkx, dH/dky, dH/dkz]
+        if self.derivative:
+            dblock = torch.zeros(kpoints.shape[0], all_norb, all_norb, 3, dtype=self.ctype, device=self.device)
+        
         atom_id_to_indices = {}
         ist = 0
         for i, oblock in enumerate(onsite_block):
             mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
             masked_oblock = oblock[mask][:,mask]
             block[:,ist:ist+masked_oblock.shape[0],ist:ist+masked_oblock.shape[1]] = masked_oblock.squeeze(0)
+            #if self.derivative:
+            #    for alpha in range(3):
+            #        dblock[:,ist:ist+masked_oblock.shape[0],ist:ist+masked_oblock.shape[1],alpha] = masked_oblock.squeeze(0)
             atom_id_to_indices[i] = slice(ist, ist+masked_oblock.shape[0])
             ist += masked_oblock.shape[0]
     
@@ -163,17 +173,34 @@ class HR2HK(torch.nn.Module):
             if self.gauge:
                 # phase factor according to convention II
                 # k and R are in fractional coordinates, need to convert to cartesian
+                edge_vec = data[AtomicDataDict.EDGE_VECTORS_KEY][i]  # Cartesian coordinates
                 phase_factor = torch.exp(-1j * 2 * torch.pi * (
-                    kpoints @ data[AtomicDataDict.CELL_KEY].inverse().T 
-                            @ data[AtomicDataDict.EDGE_VECTORS_KEY][i])).reshape(-1,1,1)
+                    kpoints @ data[AtomicDataDict.CELL_KEY].inverse().T @ edge_vec)).reshape(-1,1,1)
+                
+                # Compute derivative: dH/dk_alpha = -i * R_alpha * H_R * exp(-i k·R)
+                # where R is edge_vec in Cartesian coordinates
+                if self.derivative:
+                    # derivative_factor shape: [n_kpoints, 1, 1, 3]
+                    # - i * R * exp(-i k·R) = -i * R * phase_factor
+                    derivative_factor = (-1.0j * edge_vec).reshape(1, 1, 1, 3) * phase_factor.unsqueeze(-1)
             else:
                 phase_factor = torch.exp(-1j * 2 * torch.pi * (
                     kpoints @ data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][i])).reshape(-1,1,1)
                 
             block[:,iatom_indices,jatom_indices] += masked_hblock.squeeze(0).type_as(block) * phase_factor
+            
+            if self.derivative and self.gauge:
+                # Add derivative contribution
+                dblock[:,iatom_indices,jatom_indices,:] += masked_hblock.squeeze(0).type_as(dblock).unsqueeze(-1) * derivative_factor
 
         block = block + block.transpose(1,2).conj()
         block = block.contiguous()
+        
+        # Hermitianize derivative blocks: dH/dk should also be Hermitian
+        if self.derivative:
+            for alpha in range(3):
+                dblock[:,:,:,alpha] = dblock[:,:,:,alpha] + dblock[:,:,:,alpha].transpose(1,2).conj()
+            dblock = dblock.contiguous()
         
         if soc:
             if self.overlap:
@@ -209,6 +236,10 @@ class HR2HK(torch.nn.Module):
                 data[self.out_field] = HK_SOC
         else:
             data[self.out_field] = block
+        
+        # Store derivative if computed
+        if self.derivative:
+            data[self.out_derivative_field] = dblock
 
         return data
     
