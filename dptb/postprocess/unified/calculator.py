@@ -6,6 +6,7 @@ from dptb.data import AtomicData, AtomicDataDict
 from dptb.utils.argcheck import get_cutoffs_from_model_options
 from dptb.nn.energy import Eigenvalues, Eigh
 from dptb.data.interfaces.ham_to_feature import feature_to_block
+from dptb.nn.hr2hk import HR2HK
 
 class HamiltonianCalculator(ABC):
     """Abstract Base Class defining the interface for a Hamiltonian calculator."""
@@ -191,7 +192,33 @@ class DeePTBAdapter(HamiltonianCalculator):
         
         return atomic_data, eigs, vecs
     
-    def get_hk(self, atomic_data: dict, k_points: Optional[Union[torch.Tensor, np.ndarray, list]] = None) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+    def get_hk(self, atomic_data: dict, k_points: Optional[Union[torch.Tensor, np.ndarray, list]] = None, with_derivative: bool = False) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        # init_h2k, s2k
+        h2k = HR2HK(
+            idp=self.model.idp, 
+            edge_field=AtomicDataDict.EDGE_FEATURES_KEY, 
+            node_field=AtomicDataDict.NODE_FEATURES_KEY, 
+            out_field=AtomicDataDict.HAMILTONIAN_KEY, 
+            derivative=with_derivative,
+            out_derivative_field=AtomicDataDict.HAMILTONIAN_DERIV_KEY,
+            dtype=self.model.dtype, 
+            device=self.device,
+            )
+        if self.overlap:
+            s2k = HR2HK(
+                idp=self.model.idp, 
+                overlap=True, 
+                edge_field=AtomicDataDict.EDGE_OVERLAP_KEY, 
+                node_field=AtomicDataDict.NODE_OVERLAP_KEY, 
+                out_field=AtomicDataDict.OVERLAP_KEY, 
+                derivative=with_derivative,
+                out_derivative_field=AtomicDataDict.OVERLAP_DERIV_KEY,
+                dtype=self.model.dtype, 
+                device=self.device,
+                )
+        
+         # Inject k_points if provided
+
         if k_points is not None:
              # Create lightweight copy and inject k_points
              atomic_data = atomic_data.copy()
@@ -216,17 +243,22 @@ class DeePTBAdapter(HamiltonianCalculator):
         atomic_data = self.model_forward(atomic_data)
         
         # 2. H(R) -> H(k)
-        atomic_data = self.eigv_solver.h2k(atomic_data)
-        hk = atomic_data[self.eigv_solver.h_out_field]
-        
+        atomic_data = h2k(atomic_data)
+        hk = atomic_data[AtomicDataDict.HAMILTONIAN_KEY]
+        if with_derivative:
+            hk_deriv = atomic_data[AtomicDataDict.HAMILTONIAN_DERIV_KEY]
         # 3. S(R) -> S(k)
         if self.overlap:
-            atomic_data = self.eigv_solver.s2k(atomic_data)
-            sk = atomic_data[self.eigv_solver.s_out_field]
+            atomic_data = s2k(atomic_data)
+            sk = atomic_data[AtomicDataDict.OVERLAP_KEY]
+            if with_derivative:
+                sk_deriv = atomic_data[AtomicDataDict.OVERLAP_DERIV_KEY]
         else:
             sk = None
-        
-        return hk, sk
+        if with_derivative:
+            return hk, hk_deriv, sk, sk_deriv
+        else:
+            return hk, sk
 
     def get_orbital_info(self) -> dict:
         
