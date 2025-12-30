@@ -11,6 +11,7 @@ from dptb.data import AtomicData, AtomicDataDict, block_to_feature
 from dptb.nn.build import build_model
 from dptb.postprocess.unified.properties.band import BandAccessor
 from dptb.postprocess.unified.properties.dos import DosAccessor
+from dptb.postprocess.unified.properties.optical import OpticalAccessor
 from dptb.utils.constants import atomic_num_dict_r
 from dptb.postprocess.unified.utils import calculate_fermi_level
 from dptb.utils.make_kpoints import kmesh_sampling
@@ -131,6 +132,13 @@ class TBSystem:
         if self._export is None:
             self._export = ExportAccessor(self)
         return self._export
+
+    @property
+    def optical(self) -> 'OpticalAccessor':
+        """Access optical properties (Lazy initialization)."""
+        if not hasattr(self, '_optical') or self._optical is None:
+            self._optical = OpticalAccessor(self)
+        return self._optical
 
 
     def set_atoms(self,struct: Optional[Union[AtomicData, ase.Atoms, str]] = None, override_overlap: Optional[str] = None) -> AtomicDataDict:
