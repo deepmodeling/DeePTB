@@ -8,7 +8,7 @@ from dptb.data import AtomicDataDict
 
 log = logging.getLogger(__name__)
 
-class OpticalAccessor:
+class ACAccessor:
     def __init__(self, system):
         self._system = system
         
