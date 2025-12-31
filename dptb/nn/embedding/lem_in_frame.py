@@ -142,7 +142,11 @@ class InitLayer(torch.nn.Module):
         self.polynomial_cutoff_p = polynomial_cutoff_p
         self.cutoff_type = cutoff_type
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -225,7 +229,11 @@ class InitLayer(torch.nn.Module):
                     iatom, jatom = bond.split("-")
                     r_max_val = 0.5 * (self.r_max_dict[iatom] + self.r_max_dict[jatom])
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                     
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -244,7 +252,11 @@ class InitLayer(torch.nn.Module):
                     else:
                         assert False, "Invalid cutoff type"
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                     
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -263,11 +275,19 @@ class InitLayer(torch.nn.Module):
             device=edge_sh.device,
         )
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         
         new_latents = self.two_body_latent(
             torch.cat([edge_one_hot[active_edges], edge_invariants[active_edges]], dim=-1)
         )
         
+=======
+
+        new_latents = self.two_body_latent(
+            torch.cat([edge_one_hot[active_edges], edge_invariants[active_edges]], dim=-1)
+        )
+
+>>>>>>> Stashed changes
 =======
 
         new_latents = self.two_body_latent(
@@ -1087,6 +1107,7 @@ def get_feasible_tp(
 class OEQTensorProduct(nn.Module):
     def __init__(
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         self,
         irreps_in1: o3.Irreps,
         irreps_in2: o3.Irreps,
@@ -1095,6 +1116,8 @@ class OEQTensorProduct(nn.Module):
         internal_weights: bool = True,
         shared_weights: bool = True
 =======
+=======
+>>>>>>> Stashed changes
             self,
             irreps_in1: o3.Irreps,
             irreps_in2: o3.Irreps,
@@ -1102,6 +1125,9 @@ class OEQTensorProduct(nn.Module):
             tp_mode: str = "uvw",
             internal_weights: bool = True,
             shared_weights: bool = True
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
     ):
         super().__init__()
@@ -1358,9 +1384,15 @@ class LemInFrameOpenequi(LemInFrame):
         t_start_all = time.time()
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         with ThreadPoolExecutor(max_workers=8) as executor:
             layer_futures = [executor.submit(_create_layer_worker, task) for task in tasks]
             
+=======
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            layer_futures = [executor.submit(_create_layer_worker, task) for task in tasks]
+
+>>>>>>> Stashed changes
 =======
         with ThreadPoolExecutor(max_workers=16) as executor:
             layer_futures = [executor.submit(_create_layer_worker, task) for task in tasks]
