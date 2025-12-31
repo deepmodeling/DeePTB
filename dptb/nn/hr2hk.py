@@ -155,9 +155,6 @@ class HR2HK(torch.nn.Module):
             mask = self.idp.mask_to_basis[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()[i]]
             masked_oblock = oblock[mask][:,mask]
             block[:,ist:ist+masked_oblock.shape[0],ist:ist+masked_oblock.shape[1]] = masked_oblock.squeeze(0)
-            #if self.derivative:
-            #    for alpha in range(3):
-            #        dblock[:,ist:ist+masked_oblock.shape[0],ist:ist+masked_oblock.shape[1],alpha] = masked_oblock.squeeze(0)
             atom_id_to_indices[i] = slice(ist, ist+masked_oblock.shape[0])
             ist += masked_oblock.shape[0]
     
@@ -176,7 +173,6 @@ class HR2HK(torch.nn.Module):
                 edge_vec = data[AtomicDataDict.EDGE_VECTORS_KEY][i]  # Cartesian coordinates
                 phase_factor = torch.exp(-1j * 2 * torch.pi * (
                     kpoints @ data[AtomicDataDict.CELL_KEY].inverse().T @ edge_vec)).reshape(-1,1,1)
-                
                 # Compute derivative: dH/dk_alpha = -i * R_alpha * H_R * exp(-i k·R)
                 # where R is edge_vec in Cartesian coordinates
                 if self.derivative:
