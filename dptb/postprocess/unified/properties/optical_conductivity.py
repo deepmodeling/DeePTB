@@ -28,6 +28,22 @@ class ACAccessor:
         """
         Compute optical conductivity. (Real part, absorption).
         Uses Gauge 2 (Intra-cell position gauge).
+        
+        Args:
+            omegas: Frequency grid (eV)
+            kmesh: k-point mesh [nx, ny, nz]
+            eta: Broadening parameter (eV)
+            broadening: 'gaussian' or 'lorentzian'
+            temperature: Temperature (K)
+            direction: Direction string, e.g., 'xx', 'xy', etc.
+            return_components: If True, return additional components
+            method: Calculation method ('vectorized', 'loop', or 'jit')
+        
+        Returns:
+            Complex optical conductivity tensor element.
+            For Lorentzian: both real and imaginary parts are physical.
+            Real part: absorption coefficient
+            Imaginary part: related to refractive index (Kramers-Kronig)
         """
         assert len(direction) == 2
         dir_map = {'x': 0, 'y': 1, 'z': 2}
@@ -133,10 +149,9 @@ class ACAccessor:
             f_mn = f_n - f_m
             
             # Matrix Element Product
-            # M_nm = |v_nm|^2 for diagonal direction
+            # M_nm = v_alpha * v_beta^* for general direction
             M_nm = v_alpha * v_beta.transpose(1, 2)
             
-            # T_nm = (f_n - f_m) / E_mn * M_nm
             mask_deg = torch.abs(E_mn) < 1e-6
             
             # Avoid division by zero
@@ -167,47 +182,28 @@ class ACAccessor:
         factor = np.pi * spin_factor / volume
         return sigma_total * factor
 
-    def _accumulate_vectorized(self, E_flat, T_flat, omegas, eta, broadening):
-        # Broadcasting: [N_omega, 1] vs [1, N_trans]
-        w = omegas.unsqueeze(1)
-        E = E_flat.unsqueeze(0)
-        
-        # Filter small frequencies (optional, to match loop logic)
-        mask_w = omegas > 1e-4
-        
-        if broadening == 'gaussian':
-            # delta = exp(-0.5*((E-w)/eta)^2) / (eta * sqrt(2pi))
-            arg = (E - w[mask_w]) / eta
-            delta = torch.exp(-0.5 * arg**2) / (eta * np.sqrt(2 * np.pi))
-        else:
-            # Lorentzian
-            diff = E - w[mask_w]
-            delta = (eta / np.pi) / (diff**2 + eta**2)
-            
-        # Sum over transitions
-        # Result: [N_valid_omega]
-        # Use matmul or simple sum. T_flat: [N_trans]
-        # delta: [N_valid_omega, N_trans]
-        # sum = delta @ T_flat
-        res = delta @ T_flat.to(delta.dtype)
-        
-        sigma_out = torch.zeros_like(omegas, dtype=torch.complex128)
-        sigma_out[mask_w] = res.to(torch.complex128)
-        return sigma_out
-
     def _accumulate_loop(self, E_flat, T_flat, omegas, eta, broadening):
+        """
+        Loop-based accumulation (often fastest due to memory efficiency).
+        
+        For Lorentzian: uses complex form 1/(E - ω + iη)
+        """
         sigma_contr = torch.zeros_like(omegas, dtype=torch.complex128)
         sqrt_2pi = np.sqrt(2 * np.pi)
+        pi = np.pi
         
         for i, w in enumerate(omegas):
-             if w < 1e-4: continue
+             if w < 1e-4: 
+                 continue
              
              if broadening == 'gaussian':
                  arg = (E_flat - w) / eta
                  delta = torch.exp(-0.5 * arg**2) / (eta * sqrt_2pi)
              else:
+                 # Lorentzian (complex form): 1/(E - w + iη)
                  diff = E_flat - w
-                 delta = (eta / np.pi) / (diff**2 + eta**2)
+                 #delta = (eta / np.pi) / (diff**2 + eta**2)
+                 delta = -1.0j/(diff - 1.0j * eta) / pi
                  
              sigma_contr[i] = torch.sum(T_flat * delta)
         return sigma_contr
@@ -216,6 +212,10 @@ class ACAccessor:
 def accumulate_sigma_jit(E_flat: torch.Tensor, T_flat: torch.Tensor, omegas: torch.Tensor, eta: float, broadening: str) -> torch.Tensor:
     """
     JIT-compiled kernel for accumulating conductivity contributions.
+    
+    For Lorentzian: uses complex form 1/(E - ω + iη) to get both real and imaginary parts.
+    Real part: absorption coefficient
+    Imaginary part: related to refractive index
     """
     sigma_contr = torch.zeros_like(omegas, dtype=torch.complex128)
     # Constants
@@ -227,16 +227,18 @@ def accumulate_sigma_jit(E_flat: torch.Tensor, T_flat: torch.Tensor, omegas: tor
         if w < 1e-4:
             continue
             
-        # Vectorsied over bands/k-points (E_flat)
+        # Vectorized over bands/k-points (E_flat)
         if broadening == 'gaussian':
-            # delta = exp(...) / (eta * sqrt(2pi))
+            # Gaussian: delta = exp(-0.5*((E-w)/eta)^2) / (eta * sqrt(2pi))
             arg = (E_flat - w) / eta
             delta = torch.exp(-0.5 * arg * arg) / (eta * sqrt_2pi)
-        else:
-            # Lorentzian
-            # delta = (eta/pi) / ((E-w)^2 + eta^2)
+        elif broadening == 'lorentzian':
+            # Lorentzian (complex form): 1/(E - w + iη)
+            # = [(E-w) - iη] / [(E-w)² + η²]
             diff = E_flat - w
-            delta = (eta / pi) / (diff * diff + eta * eta)
+            delta = -1.0j/(diff - 1.0j * eta) / pi
+        else:
+            raise ValueError(f"Unknown broadening type {broadening}, should be 'gaussian' or 'lorentzian'")
             
         val = torch.sum(T_flat * delta)
         sigma_contr[i] = val
