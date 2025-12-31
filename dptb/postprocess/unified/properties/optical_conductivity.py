@@ -22,8 +22,9 @@ class ACAccessor:
                 broadening: str = 'gaussian', # 'gaussian' or 'lorentzian'
                 temperature: float = 300.0,
                 direction: str = 'xx',
+                g_s: Union[float,int] = 2.0,
                 return_components: bool = False,
-                method: str = 'vectorized'
+                method: str = 'loop'
                 ):
         """
         Compute optical conductivity. (Real part, absorption).
@@ -178,8 +179,7 @@ class ACAccessor:
             sigma_total += term
                 
         # Units
-        spin_factor = 2.0 
-        factor = np.pi * spin_factor / volume
+        factor = 2 * np.pi * g_s / volume
         return sigma_total * factor
 
     def _accumulate_loop(self, E_flat, T_flat, omegas, eta, broadening):
