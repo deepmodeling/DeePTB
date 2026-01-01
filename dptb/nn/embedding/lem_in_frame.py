@@ -75,27 +75,6 @@ def create_gate(irreps_out: o3.Irreps) -> Gate:
 
 class InitLayer(torch.nn.Module):
     def __init__(
-<<<<<<< Updated upstream
-        self,
-        idp,
-        num_types: int,
-        n_radial_basis: int,
-        r_max: float,
-        avg_num_neighbors: Optional[float] = None,
-        irreps_sh: o3.Irreps = None,
-        env_embed_multiplicity: int = 32,
-        two_body_latent_channels: list = [128, 128],
-        latent_dim: int = 128,
-        r_start_cos_ratio: float = 0.8,
-        norm_eps: float = 1e-8,
-        polynomial_cutoff_p: float = 6,
-        cutoff_type: str = "polynomial",
-        edge_one_hot_dim: int = 128,
-        device: Union[str, torch.device] = torch.device("cpu"),
-        dtype: Union[str, torch.dtype] = torch.float32,
-        prune_edges_by_cutoff: bool = True,
-        ln_flag: bool = True,
-=======
             self,
             idp,
             num_types: int,
@@ -115,7 +94,6 @@ class InitLayer(torch.nn.Module):
             dtype: Union[str, torch.dtype] = torch.float32,
             prune_edges_by_cutoff: bool = True,
             ln_flag: bool = True,
->>>>>>> Stashed changes
     ):
         super(InitLayer, self).__init__()
         self.prune_edges_by_cutoff = prune_edges_by_cutoff
@@ -141,15 +119,7 @@ class InitLayer(torch.nn.Module):
         self.r_start_cos_ratio = r_start_cos_ratio
         self.polynomial_cutoff_p = polynomial_cutoff_p
         self.cutoff_type = cutoff_type
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-        
-=======
 
->>>>>>> Stashed changes
-=======
-
->>>>>>> Stashed changes
         scalar_irrep = o3.Irrep("0e")
         self.irreps_out = o3.Irreps([(env_embed_multiplicity, ir) for _, ir in irreps_sh])
 
@@ -228,15 +198,7 @@ class InitLayer(torch.nn.Module):
                 if mask.any():
                     iatom, jatom = bond.split("-")
                     r_max_val = 0.5 * (self.r_max_dict[iatom] + self.r_max_dict[jatom])
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-                    
-=======
 
->>>>>>> Stashed changes
-=======
-
->>>>>>> Stashed changes
                     if self.cutoff_type == "cosine":
                         c_coeff = cosine_cutoff(
                             edge_length[mask],
@@ -251,15 +213,7 @@ class InitLayer(torch.nn.Module):
                         ).flatten()
                     else:
                         assert False, "Invalid cutoff type"
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-                    
-=======
 
->>>>>>> Stashed changes
-=======
-
->>>>>>> Stashed changes
                     cutoff_coeffs = torch.index_copy(cutoff_coeffs, 0, index, c_coeff)
 
         if self.prune_edges_by_cutoff:
@@ -274,27 +228,11 @@ class InitLayer(torch.nn.Module):
             dtype=edge_sh.dtype,
             device=edge_sh.device,
         )
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-        
-        new_latents = self.two_body_latent(
-            torch.cat([edge_one_hot[active_edges], edge_invariants[active_edges]], dim=-1)
-        )
-        
-=======
 
         new_latents = self.two_body_latent(
             torch.cat([edge_one_hot[active_edges], edge_invariants[active_edges]], dim=-1)
         )
 
->>>>>>> Stashed changes
-=======
-
-        new_latents = self.two_body_latent(
-            torch.cat([edge_one_hot[active_edges], edge_invariants[active_edges]], dim=-1)
-        )
-
->>>>>>> Stashed changes
         latents = torch.index_copy(
             latents,
             0,
@@ -320,32 +258,32 @@ class InitLayer(torch.nn.Module):
 
 class UpdateNodeInFrame(torch.nn.Module):
     def __init__(
-        self,
-        node_irreps_in: o3.Irreps,
-        edge_irreps_in: o3.Irreps,
-        irreps_out: o3.Irreps,
-        latent_dim: int,
-        node_one_hot_dim: int,
-        norm_eps: float = 1e-8,
-        radial_emb: bool = False,
-        radial_channels: list = [128, 128],
-        res_update: bool = True,
-        use_layer_onehot_tp: bool = True,
-        use_interpolation_tp: bool = False,
-        res_update_ratios: Optional[List[float]] = None,
-        res_update_ratios_learnable: bool = False,
-        avg_num_neighbors: Optional[float] = None,
-        dtype: Union[str, torch.dtype] = torch.float32,
-        device: Union[str, torch.device] = torch.device("cpu"),
-        tp_rotate_in: bool = True,
-        tp_rotate_out: bool = True,
-        ln_flag: bool = True,
-        in_frame_flag: bool = True,
-        onehot_mode: str = "FullTP",
-        self_mix_flag: bool = False,
-        self_mix_mode: str = "scalar_channelwise",
-        self_mix_iter: int = 1,
-        self_mix_type: str = "node",  # "node", "edge", or "all"
+            self,
+            node_irreps_in: o3.Irreps,
+            edge_irreps_in: o3.Irreps,
+            irreps_out: o3.Irreps,
+            latent_dim: int,
+            node_one_hot_dim: int,
+            norm_eps: float = 1e-8,
+            radial_emb: bool = False,
+            radial_channels: list = [128, 128],
+            res_update: bool = True,
+            use_layer_onehot_tp: bool = True,
+            use_interpolation_tp: bool = False,
+            res_update_ratios: Optional[List[float]] = None,
+            res_update_ratios_learnable: bool = False,
+            avg_num_neighbors: Optional[float] = None,
+            dtype: Union[str, torch.dtype] = torch.float32,
+            device: Union[str, torch.device] = torch.device("cpu"),
+            tp_rotate_in: bool = True,
+            tp_rotate_out: bool = True,
+            ln_flag: bool = True,
+            in_frame_flag: bool = True,
+            onehot_mode: str = "FullTP",
+            self_mix_flag: bool = False,
+            self_mix_mode: str = "scalar_channelwise",
+            self_mix_iter: int = 1,
+            self_mix_type: str = "node",  # "node", "edge", or "all"
     ):
         super(UpdateNodeInFrame, self).__init__()
 
@@ -432,7 +370,7 @@ class UpdateNodeInFrame(torch.nn.Module):
         # ---- One-Hot Update ----
         if self.use_layer_onehot_tp:
             self.node_onehot_gate = create_gate(self.irreps_out)
-            
+
             if self.onehot_mode == "fulltp":
                 self.node_onehot_tp = FullyConnectedTensorProduct(
                     irreps_in1=self.irreps_out,
@@ -608,16 +546,16 @@ class UpdateNodeInFrame(torch.nn.Module):
         return mix_out
 
     def forward(
-        self,
-        latents: torch.Tensor,
-        node_features: torch.Tensor,
-        edge_features: torch.Tensor,
-        atom_type: torch.Tensor,
-        node_onehot: torch.Tensor,
-        edge_index: torch.Tensor,
-        edge_vector: torch.Tensor,
-        active_edges: torch.Tensor,
-        wigner_D_all: Optional[torch.Tensor],
+            self,
+            latents: torch.Tensor,
+            node_features: torch.Tensor,
+            edge_features: torch.Tensor,
+            atom_type: torch.Tensor,
+            node_onehot: torch.Tensor,
+            edge_index: torch.Tensor,
+            edge_vector: torch.Tensor,
+            active_edges: torch.Tensor,
+            wigner_D_all: Optional[torch.Tensor],
     ):
         edge_center = edge_index[0]
         edge_neighbor = edge_index[1]
@@ -700,47 +638,6 @@ class UpdateNodeInFrame(torch.nn.Module):
 @Embedding.register("lem_in_frame")
 class LemInFrame(torch.nn.Module):
     def __init__(
-<<<<<<< Updated upstream
-        self,
-        basis: Dict[str, Union[str, list]] = None,
-        idp: Union[OrbitalMapper, None] = None,
-        n_layers: int = 3,
-        n_radial_basis: int = 10,
-        r_max: float = 5.0,
-        irreps_hidden: o3.Irreps = None,
-        avg_num_neighbors: Optional[float] = None,
-        r_start_cos_ratio: float = 0.8,
-        norm_eps: float = 1e-8,
-        polynomial_cutoff_p: float = 6,
-        cutoff_type: str = "polynomial",
-        env_embed_multiplicity: int = 32,
-        sh_normalized: bool = True,
-        sh_normalization: str = "component",
-        tp_radial_emb: bool = False,
-        tp_radial_channels: list = [128, 128],
-        latent_channels: list = [128, 128],
-        latent_dim: int = 128,
-        edge_one_hot_dim: int = 128,
-        use_out_onehot_tp: bool = True,
-        use_layer_onehot_tp: bool = True,
-        res_update: bool = True,
-        res_update_ratios: Optional[List[float]] = None,
-        res_update_ratios_learnable: bool = False,
-        dtype: Union[str, torch.dtype] = torch.float32,
-        device: Union[str, torch.device] = torch.device("cpu"),
-        universal: Optional[bool] = False,
-        use_interpolation_out: Optional[bool] = True,
-        prune_edges_by_cutoff: bool = True,
-        prune_log_path: Optional[str] = None,
-        ln_flag: bool = True,
-        in_frame_flag: bool = True,
-        onehot_mode: str = "FullTP",
-        self_mix_flag: bool = False,
-        self_mix_mode: str = "scalar_channelwise",
-        self_mix_iter: int = 2,
-        self_mix_type: str = "node",
-        **kwargs,
-=======
             self,
             basis: Dict[str, Union[str, list]] = None,
             idp: Union[OrbitalMapper, None] = None,
@@ -780,7 +677,6 @@ class LemInFrame(torch.nn.Module):
             self_mix_iter: int = 2,
             self_mix_type: str = "node",
             **kwargs,
->>>>>>> Stashed changes
     ):
         super(LemInFrame, self).__init__()
 
@@ -1048,11 +944,11 @@ class LemInFrame(torch.nn.Module):
 # ==============================================================================
 
 def get_feasible_tp(
-    irreps_in1: o3.Irreps,
-    irreps_in2: o3.Irreps,
-    filter_irreps_out: o3.Irreps,
-    tp_mode: str = "uvw",
-    trainable: bool = True
+        irreps_in1: o3.Irreps,
+        irreps_in2: o3.Irreps,
+        filter_irreps_out: o3.Irreps,
+        tp_mode: str = "uvw",
+        trainable: bool = True
 ):
     """Generate irreps_out and instructions for OpenEquivariance TP."""
     assert tp_mode in ["uvw", "uvu", "uvv", "uuw", "uuu", "uvuv"]
@@ -1106,18 +1002,6 @@ def get_feasible_tp(
 
 class OEQTensorProduct(nn.Module):
     def __init__(
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-        self,
-        irreps_in1: o3.Irreps,
-        irreps_in2: o3.Irreps,
-        irreps_out: o3.Irreps,
-        tp_mode: str = "uvw",
-        internal_weights: bool = True,
-        shared_weights: bool = True
-=======
-=======
->>>>>>> Stashed changes
             self,
             irreps_in1: o3.Irreps,
             irreps_in2: o3.Irreps,
@@ -1125,10 +1009,6 @@ class OEQTensorProduct(nn.Module):
             tp_mode: str = "uvw",
             internal_weights: bool = True,
             shared_weights: bool = True
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
     ):
         super().__init__()
         if oeq is None:
@@ -1181,6 +1061,7 @@ class UpdateNodeInFrameOpenequi(UpdateNodeInFrame):
     """
     Inherits from UpdateNodeInFrame, replaces E3NN TP with OEQ TP.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -1383,21 +1264,9 @@ class LemInFrameOpenequi(LemInFrame):
         print(f"Starting parallel compilation for {n_layers} layers...")
         t_start_all = time.time()
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
         with ThreadPoolExecutor(max_workers=8) as executor:
             layer_futures = [executor.submit(_create_layer_worker, task) for task in tasks]
-            
-=======
-        with ThreadPoolExecutor(max_workers=16) as executor:
-            layer_futures = [executor.submit(_create_layer_worker, task) for task in tasks]
 
->>>>>>> Stashed changes
-=======
-        with ThreadPoolExecutor(max_workers=16) as executor:
-            layer_futures = [executor.submit(_create_layer_worker, task) for task in tasks]
-
->>>>>>> Stashed changes
             tp_futures = []
             if self.use_out_onehot_tp:
                 tp1_kwargs = {
