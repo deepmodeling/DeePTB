@@ -125,7 +125,19 @@ def gamma_center(meshgrid=[1,1,1]):
     return kpoints
 
 
+def kmesh_sampling_weight(meshgrid=[1,1,1], is_gamma_center=True):
+    """ Generate k-points using Monkhorst-Pack method based on given meshgrid. The k-points are centered at Gamma point by default.
+     
+    """
 
+    kpoints = np.indices(meshgrid).transpose((1, 2, 3, 0)).reshape((-1, 3))
+
+    if is_gamma_center:
+        kpoints = gamma_center(meshgrid)
+    else:
+        kpoints = monkhorst_pack(meshgrid)
+    weights = np.ones(kpoints.shape[0])
+    return kpoints, weights 
 
 def kmesh_sampling(meshgrid=[1,1,1], is_gamma_center=True):
     """ Generate k-points using Monkhorst-Pack method based on given meshgrid. The k-points are centered at Gamma point by default.

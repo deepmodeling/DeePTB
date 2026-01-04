@@ -5,7 +5,7 @@ from dptb.nn.dftbsk import DFTBSK
 import torch
 from dptb.utils.tools import j_must_have, j_loader
 import copy
-
+import os
 log = logging.getLogger(__name__)
 
 def build_model(
@@ -43,6 +43,10 @@ def build_model(
 
     # load the model_options and common_options from checkpoint if not provided
     if not from_scratch:
+        if checkpoint in ['poly2', 'poly4']:
+            modelname = f'base_{checkpoint}.pth'
+            checkpoint = os.path.join(os.path.dirname(__file__), 'dftb', modelname)
+            
         if checkpoint.split(".")[-1] == "json":
             ckptconfig = j_loader(checkpoint)
         else:

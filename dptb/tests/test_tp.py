@@ -27,29 +27,29 @@ def test_so2_rotation(ir=Irreps("2x0e+3x1o+4x2e+5x3o+6x4e")):
     so2l = SO2_Linear(
         ir,
         ir
-    )
-    a = torch.randn(2,ir.dim)
+    ).double()
+    a = torch.randn(2,ir.dim, dtype=torch.float64)
     slices = ir.slices()
 
-    R = torch.randn(2,3)
+    R = torch.randn(2,3, dtype=torch.float64)
     R = R / R.norm(dim=1, keepdim=True)
 
-    vec = torch.randn(3)
+    vec = torch.randn(3, dtype=torch.float64)
     vec /= vec.norm()
     alpha, beta = xyz_to_angles(vec[[1,2,0]])
 
     for i, (mul, (l, p)) in enumerate(ir):
-        rot_mat_L = wigner_D(l, alpha, beta, torch.tensor(0.))
+        rot_mat_L = wigner_D(l, alpha, beta, torch.tensor(0., dtype=torch.float64))
         a[1][slices[i]] = (rot_mat_L @ (a[0][slices[i]]).reshape(mul, 2*l+1).T).T.reshape(-1)
 
-    rot_mat_L = wigner_D(1, alpha, beta, torch.tensor(0.))
+    rot_mat_L = wigner_D(1, alpha, beta, torch.tensor(0., dtype=torch.float64))
     R[1] = (rot_mat_L @ R[0][[1,2,0]])[[2,0,1]]
 
     out = so2l(a, R)
 
     R[1] = (R[1][[1,2,0]] @ rot_mat_L)[[2,0,1]]
     for i, (mul, (l, p)) in enumerate(ir):
-        rot_mat_L = wigner_D(l, alpha, beta, torch.tensor(0.))
+        rot_mat_L = wigner_D(l, alpha, beta, torch.tensor(0., dtype=torch.float64))
         out[1][slices[i]] = (out[1][slices[i]].reshape(mul, 2*l+1) @ rot_mat_L).reshape(-1)
 
     assert torch.allclose(out[1], out[0], atol=5e-5), "SO2 rotation test failed"
