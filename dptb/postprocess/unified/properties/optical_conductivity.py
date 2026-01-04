@@ -193,19 +193,21 @@ class ACAccessor:
         pi = np.pi
         
         for i, w in enumerate(omegas):
-             if w < 1e-4: 
-                 continue
+            if w < 1e-4: 
+                continue
              
-             if broadening == 'gaussian':
-                 arg = (E_flat - w) / eta
-                 delta = torch.exp(-0.5 * arg**2) / (eta * sqrt_2pi)
-             else:
-                 # Lorentzian (complex form): 1/(E - w + iη)
-                 diff = E_flat - w
-                 #delta = (eta / np.pi) / (diff**2 + eta**2)
-                 delta = -1.0j/(diff - 1.0j * eta) / pi
-                 
-             sigma_contr[i] = torch.sum(T_flat * delta)
+            if broadening == 'gaussian':
+                arg = (E_flat - w) / eta
+                delta = torch.exp(-0.5 * arg**2) / (eta * sqrt_2pi)
+            elif broadening == 'lorentzian':
+                # Lorentzian (complex form): 1/(E - w + iη)
+                diff = E_flat - w
+                #delta = (eta / np.pi) / (diff**2 + eta**2)
+                delta = -1.0j/(diff - 1.0j * eta) / pi
+            else:
+                raise ValueError(f"Unknown broadening type {broadening}, should be 'gaussian' or 'lorentzian'")
+              
+            sigma_contr[i] = torch.sum(T_flat * delta)
         return sigma_contr
 
 @torch.jit.script
