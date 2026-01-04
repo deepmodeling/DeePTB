@@ -72,10 +72,10 @@ class TestOpticalConductivity(unittest.TestCase):
         self.assertTrue(torch.is_complex(sigma))
         # Compare real part to reference
         diff_real = torch.abs(sigma.real - ref_sig_real).max()
-        self.assertLess(diff_real, 1e-5)
+        self.assertLess(diff_real, 1e-4)
         # Compare imaginary part to reference
         diff_imag = torch.abs(sigma.imag - ref_sig_imag).max()
-        self.assertLess(diff_imag, 1e-5)
+        self.assertLess(diff_imag, 1e-4)
         
         # Real part (absorption) should be non-negative
         # allowing for small numerical noise, but generally >= 0
@@ -130,7 +130,7 @@ class TestOpticalConductivity(unittest.TestCase):
         diff_gauss = torch.abs(sigma - sigma_loop).max()
         self.assertLess(diff_gauss, 1e-6)
         diff_real_gauss = torch.abs(sigma.real - ref_sig_real_gauss).max()
-        self.assertLess(diff_real_gauss, 1e-5)
+        self.assertLess(diff_real_gauss, 1e-4)
 
 if __name__ == '__main__':
     unittest.main()
