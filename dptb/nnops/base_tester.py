@@ -4,7 +4,6 @@ import logging
 from dptb.utils.tools import get_lr_scheduler, j_must_have, get_optimizer
 from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
-from future.utils import with_metaclass
 from typing import Union
 from dptb.utils.constants import dtype_dict
 from dptb.plugins.base_plugin import PluginUser
@@ -13,7 +12,7 @@ from dptb.plugins.base_plugin import PluginUser
 log = logging.getLogger(__name__)
 
 
-class Tester(with_metaclass(ABCMeta, PluginUser)):
+class Tester(PluginUser, metaclass=ABCMeta):
 
     def __init__(self, jdata) -> None:
         super(Tester, self).__init__()
@@ -66,7 +65,7 @@ class Tester(with_metaclass(ABCMeta, PluginUser)):
     def test(self) -> None:
         pass
 
-class BaseTester(with_metaclass(ABCMeta, PluginUser)):
+class BaseTester(PluginUser, metaclass=ABCMeta):
 
     def __init__(
             self, 

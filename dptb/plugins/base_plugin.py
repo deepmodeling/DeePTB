@@ -3,7 +3,6 @@ import logging
 from dptb.utils.tools import get_lr_scheduler, j_must_have, get_optimizer
 from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
-from future.utils import with_metaclass
 from dptb.utils.constants import dtype_dict
 
 class Plugin(object):
