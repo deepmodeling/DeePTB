@@ -89,14 +89,14 @@ class HamiltonianCalculator(ABC):
 class DeePTBAdapter(HamiltonianCalculator):
     """Adapter for DeePTB PyTorch models to match HamiltonianCalculator interface."""
     
-    def __init__(self, model: torch.nn.Module):
+    def __init__(self, model: torch.nn.Module, override_overlap: str = None):
         self.model = model
         self.device = model.device
         self.dtype = model.dtype
         self.model.eval()
         
         # Check model capabilities
-        self.overlap = hasattr(model, 'overlap')
+        self.overlap = hasattr(model, 'overlap') or (override_overlap != None)
         if not self.model.transform:
             raise RuntimeError('The model.transform is not True, please check the model.')
             

@@ -40,9 +40,9 @@ class TBSystem:
             # Load from checkpoint path
             log.info(f"Loading model from checkpoint: {calculator}")
             _model = build_model(checkpoint=calculator, common_options={'device': device})
-            self._calculator = DeePTBAdapter(_model)
+            self._calculator = DeePTBAdapter(_model,override_overlap)
         elif isinstance(calculator, torch.nn.Module):
-            self._calculator = DeePTBAdapter(calculator)
+            self._calculator = DeePTBAdapter(calculator,override_overlap)
         elif isinstance(calculator, HamiltonianCalculator) or hasattr(calculator, 'get_eigenvalues'):
             # Allow objects that look like the protocol
             self._calculator = calculator
@@ -167,7 +167,7 @@ class TBSystem:
         # Handle Overlap Override
         overlap_flag = hasattr(self._calculator.model, 'overlap')
         
-        if overlap_flag and isinstance(override_overlap, str):
+        if overlap_flag or isinstance(override_overlap, str):
             assert os.path.exists(override_overlap), "Overlap file not found."
             with h5py.File(override_overlap, "r") as overlap_blocks:
                 if len(overlap_blocks) != 1:
