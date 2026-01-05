@@ -96,6 +96,16 @@ class ElecStruCal(object):
             the loaded AtomicData object.
         
         '''
+        if override_overlap is not None:
+            if not self.overlap:
+                self.eigv = Eigenvalues(
+                    idp=self.model.idp,
+                    device=self.device,
+                    s_edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
+                    s_node_field=AtomicDataDict.NODE_OVERLAP_KEY,
+                    s_out_field=AtomicDataDict.OVERLAP_KEY,
+                    dtype=self.model.dtype,
+                )
         return load_data_for_model(
             data=data,
             model=self.model,
