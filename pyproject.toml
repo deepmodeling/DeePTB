@@ -31,9 +31,7 @@ dependencies = [
     "torch>=2.0.0,<=2.5.1",
     "ase",
     "pyyaml",
-    "future",
     "dargs==0.4.4",
-    "xitorch==0.3.0",
     "e3nn>=0.5.1",
     "torch-runstats==0.2.0",
     "torch_scatter==2.1.2",
@@ -63,6 +61,10 @@ Documentation = "https://deeptb.readthedocs.io"
 [build-system]
 requires = ["setuptools>=64", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dptb*"]
 
 [tool.setuptools_scm]
 # Automatically generate version from git tags

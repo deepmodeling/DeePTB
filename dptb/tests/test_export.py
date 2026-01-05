@@ -112,6 +112,10 @@ def test_overlap_error():
         exporter_w90._get_data_and_blocks(data="dummy_path")
         
     # Check ToPythTB
-    exporter_pythtb = ToPythTB(model=mock_model)
-    with pytest.raises(ValueError, match="overlap"):
-        exporter_pythtb.get_model(data="dummy_path")
+    try:
+        import pythtb
+        exporter_pythtb = ToPythTB(model=mock_model)
+        with pytest.raises(ValueError, match="overlap"):
+            exporter_pythtb.get_model(data="dummy_path")
+    except ImportError:
+        pass
