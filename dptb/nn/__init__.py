@@ -4,7 +4,7 @@ from .nnsk import NNSK
 from .dftbsk import DFTBSK
 from .hamiltonian import E3Hamiltonian, SKHamiltonian
 from .hr2hk import HR2HK
-from .energy import Eigenvalues, Eigh
+from .energy import Eigenvalues
 
 __all__ = [
     build_model,
@@ -12,7 +12,6 @@ __all__ = [
     SKHamiltonian,
     HR2HK,
     Eigenvalues,
-    Eigh,
     NNENV,
     NNSK,
     MIX,
