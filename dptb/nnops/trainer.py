@@ -38,11 +38,16 @@ class Trainer(BaseTrainer):
         # get the task from train_datasets label
         self.task = None
         if self.train_datasets.get_Hamiltonian:
-            self.task = "hamiltonians"
+            if self.train_datasets.get_eigenvalues:
+                 self.task = "hamil_eigvals"
+            else:
+                self.task = "hamiltonians"
         elif self.train_datasets.get_DM:
             self.task = "DM"
-        else:
+        elif self.train_datasets.get_eigenvalues:
             self.task = "eigenvalues"
+        else:
+            raise RuntimeError("The train data set should have at least one of get_Hamiltonian, get_DM or get_eigenvalues set to True.")    
 
         self.use_reference = False
         if reference_datasets is not None:
