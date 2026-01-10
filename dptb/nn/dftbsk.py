@@ -165,7 +165,7 @@ class DFTBSK(torch.nn.Module):
         }
 
         assert checkpoint.split(".")[-1] == "pth", "The checkpoint should be a pth file." 
-        f = torch.load(checkpoint, map_location=device)
+        f = torch.load(checkpoint, map_location=device, weights_only=False)
 
         for k,v in common_options.items():
             if v is None:

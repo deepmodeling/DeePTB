@@ -30,7 +30,7 @@ class Trainer(BaseTrainer):
         self.model = model.to(self.device)
         self.optimizer = get_optimizer(model_param=self.model.parameters(), **train_options["optimizer"])
         self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **train_options["lr_scheduler"])  # add optmizer
-        self.update_lr_per_step_flag = train_options["update_lr_per_step_flag"]
+        self.update_lr_per_iter = train_options["update_lr_per_iter"]
         self.common_options = common_options
         self.train_options = train_options
         
@@ -135,9 +135,11 @@ class Trainer(BaseTrainer):
         loss.backward()
         #TODO: add clip large gradient
         self.optimizer.step()
-        if self.update_lr_per_step_flag:
+        if self.update_lr_per_iter:
+            # set self.iter > 0 to ensure a valid
             if isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                self.lr_scheduler.step(self.stats["train_loss"]["epoch_mean"])
+                if self.iter > 1:
+                    self.lr_scheduler.step(self.stats["train_loss"]['latest_avg_iter_loss'])
             else:
                 self.lr_scheduler.step()
 
@@ -161,7 +163,7 @@ class Trainer(BaseTrainer):
         ):
         """restart the training from a checkpoint, it does not support model options change."""
 
-        ckpt = torch.load(checkpoint, map_location=common_options["device"])
+        ckpt = torch.load(checkpoint, map_location=common_options["device"], weights_only=False)
         model = build_model(checkpoint, ckpt["config"]["model_options"], ckpt["config"]["common_options"])
         if len(train_options) == 0:
             train_options = ckpt["config"]["train_options"]
@@ -235,5 +237,6 @@ class Trainer(BaseTrainer):
 
                 if fast:
                     break
-
+        if not fast:
+            loss = loss / len(self.validation_loader)
         return loss

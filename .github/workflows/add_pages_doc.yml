@@ -1,0 +1,35 @@
+name: Build and Deploy Docs
+
+on:
+  push:
+    branches: [ main ]  # 或者您的默认分支名
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    if: github.repository == 'deepmodeling/DeePTB'
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v6
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install sphinx sphinx_book_theme linkify-it-py
+        pip install myst-nb jupyter
+        # 安装deepmodeling_sphinx
+        if [ -f docs/requirements.txt ]; then pip install -r docs/requirements.txt; fi
+    - name: Build docs
+      run: |
+        cd docs
+        sphinx-build -b html . _build/html
+    - name: Deploy
+      uses: peaceiris/actions-gh-pages@v4
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs/_build/html

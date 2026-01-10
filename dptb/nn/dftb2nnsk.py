@@ -7,7 +7,6 @@ from dptb.nn.sktb import OnsiteFormula, bond_length_list
 from dptb.nn.sktb.cov_radiiDB import Covalent_radii
 from dptb.nn.sktb.bondlengthDB import atomic_radius_v1
 from dptb.utils.constants import atomic_num_dict
-from functorch import vmap
 import matplotlib.pyplot as plt
 from torch.optim import Adam, LBFGS, RMSprop, SGD
 from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingLR
@@ -189,7 +188,7 @@ class DFTB2NNSK(nn.Module):
         if not os.path.exists(ckpt):
             raise FileNotFoundError(f"No file found at {ckpt}")
 
-        state = torch.load(ckpt)
+        state = torch.load(ckpt, weights_only=False)
         config = state['config']
         model = cls(skdata=skdata, train_options=train_options, output=output, **config)
         model.load_state_dict(state['model_state_dict'])
@@ -232,7 +231,7 @@ class DFTB2NNSK(nn.Module):
 
     def forward(self, r, bond_indices):
         self.curr_bond_indices = bond_indices
-        hopping, overlap = vmap(self.step,in_dims=1)(r)
+        hopping, overlap = torch.func.vmap(self.step,in_dims=1)(r)
 
         dftb_hopping = self.dftb(r, bond_indices = self.curr_bond_indices, mode="hopping").permute(1,0,2)
         dftb_overlap = self.dftb(r, bond_indices = self.curr_bond_indices, mode="overlap").permute(1,0,2)
@@ -393,7 +392,7 @@ class DFTB2NNSK(nn.Module):
 
             r = torch.linspace(0, 1, steps=100).reshape(1,-1).repeat(len(self.curr_bond_indices),1) * (r_max_ - r_min_) + r_min_
 
-            hops = vmap(self.step,in_dims=1)(r)
+            hops = torch.func.vmap(self.step,in_dims=1)(r)
  
             dftb_hopping = self.dftb(r, bond_indices = self.curr_bond_indices, mode="hopping").permute(1,0,2)
             dftb_overlap = self.dftb(r, bond_indices = self.curr_bond_indices, mode="overlap").permute(1,0,2)

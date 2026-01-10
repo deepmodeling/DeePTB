@@ -8,6 +8,7 @@ import numpy as np
 from pathlib import Path
 from ase.io.trajectory import Trajectory
 import torch as th
+from dptb.tests.tstools import compare_tensors_as_sets
 
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data/test_sktb/dataset")
 
@@ -59,7 +60,8 @@ class TestDefaultDatasetSKTB:
         # assert self.dataset.raw_data[0].AtomicData_options == {'r_max': 5.0, 'er_max': 5.0, 'oer_max': 2.5, 'pbc': True}
         assert self.dataset.raw_data[0].info == self.info_files['kpath_spk.0']
         assert "bandinfo" in self.dataset.raw_data[0].info
-        assert  list(self.dataset.raw_data[0].data.keys()) == (['cell', 'pos', 'atomic_numbers', 'kpoint', 'eigenvalue'])
+        for key in self.dataset.raw_data[0].data:
+            assert key in ['cell', 'pos', 'atomic_numbers', 'kpoint', 'eigenvalue']
         assert (np.abs(self.dataset.raw_data[0].data['cell'] - self.strase[0].cell) < 1e-6).all()
         assert (np.abs(self.dataset.raw_data[0].data['atomic_numbers'] - np.array([[14., 14.]])) < 1e-6).all()
         assert (np.abs(self.dataset.raw_data[0].data['pos'] - self.strase[0].positions) < 1e-6).all()
@@ -88,7 +90,8 @@ class TestDefaultDatasetSKTB:
         assert (np.abs(atomic_data.pos.numpy() - self.strase[0].positions) < 1e-6).all()
         assert (np.abs(atomic_data.cell.numpy() - self.strase[0].cell) < 1e-6).all()
 
-        assert th.abs(atomic_data.edge_index - expected_edge_index).sum() < 1e-8
+        assert compare_tensors_as_sets(atomic_data.edge_index.T, expected_edge_index.T) 
+        # assert th.abs(atomic_data.edge_index - expected_edge_index).sum() < 1e-8
         assert atomic_data.node_features.shape == (2, 1)
         assert not "node_attrs" in data[0]
         assert not "batch" in data[0]

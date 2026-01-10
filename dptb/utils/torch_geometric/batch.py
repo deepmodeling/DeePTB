@@ -166,6 +166,17 @@ class Batch(Data):
 
         return batch.contiguous()
 
+    def get_batchinfo(self) -> dict:
+        batch_info = {
+            "__slices__": self.__slices__,
+            "__cumsum__": self.__cumsum__,
+            "__cat_dims__": self.__cat_dims__,
+            "__num_nodes_list__": self.__num_nodes_list__,
+            "__data_class__": self.__data_class__,
+        }
+
+        return batch_info
+
     def get_example(self, idx: int) -> Data:
         r"""Reconstructs the :class:`torch_geometric.data.Data` object at index
         :obj:`idx` from the batch object.

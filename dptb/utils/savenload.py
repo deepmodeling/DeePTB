@@ -271,7 +271,7 @@ def load_file(supported_formats: dict, filename: str, enforced_format: str = Non
     elif format == "torch":
         import torch
 
-        return torch.load(filename)
+        return torch.load(filename, weights_only=False)
     elif format == "pickle":
         import pickle
 

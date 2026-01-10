@@ -220,7 +220,7 @@ class _TBPLaS(object):
         tbplas_cell = tb.PrimitiveCell(lat_vec=lat, unit=tb.ANG)
         
         if os.path.exists(os.path.join(self.results_path, "HR.pth")):
-            f = torch.load(os.path.join(self.results_path, "HR.pth"))
+            f = torch.load(os.path.join(self.results_path, "HR.pth"), weights_only=False)
             self.all_bonds, self.hamil_blocks = f["bonds"], f["HR"]
         else:
             self.all_bonds, self.hamil_blocks, self.overlap_blocks = self.apiH.get_HR()

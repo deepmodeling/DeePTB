@@ -46,6 +46,7 @@ class SeperableLayerNorm(nn.Module):
         count_shift = 0
         self.shift_index = []
         self.scale_index = []
+        self.scalar_weight_index = []
         for mul, ir in self.irreps:
             if str(ir) == "0e":
                 self.num_scalar += mul
@@ -55,15 +56,18 @@ class SeperableLayerNorm(nn.Module):
                 self.shift_index += [-1] * mul * ir.dim
 
             for _ in range(mul):
+                if str(ir) == "0e":
+                    self.scalar_weight_index += [count_scales]
                 self.scale_index += [count_scales] * ir.dim
                 count_scales += 1
         
         self.shift_index = torch.as_tensor(self.shift_index, dtype=torch.int64, device=self.device)
         self.scale_index = torch.as_tensor(self.scale_index, dtype=torch.int64, device=self.device)
+        self.scalar_weight_index = torch.as_tensor(self.scalar_weight_index, dtype=torch.int64, device=self.device)
 
         if self.affine:
-            self.affine_weight = nn.Parameter(torch.ones(self.irreps.num_irreps))
-            self.affine_bias = nn.Parameter(torch.zeros(self.num_scalar))
+            self.affine_weight = nn.Parameter(torch.ones(1,self.irreps.num_irreps))
+            self.affine_bias = nn.Parameter(torch.zeros(1,self.num_scalar))
         else:
             self.register_parameter('affine_weight', None)
 
@@ -88,7 +92,7 @@ class SeperableLayerNorm(nn.Module):
         return f"{self.__class__.__name__}(irreps={self.irreps}, eps={self.eps}, std_balance_degrees={self.std_balance_degrees})"
 
 
-    @torch.cuda.amp.autocast(enabled=False)
+    @torch.amp.autocast(device_type="cuda",enabled=False)
     def forward(self, x):
         '''
             Assume input is of shape [N, sphere_basis, C]
@@ -104,6 +108,8 @@ class SeperableLayerNorm(nn.Module):
         feature_mean = x[:, self.shift_index.ge(0)].mean(dim=1, keepdim=True)
         x = x + 0. # to avoid the inplace operation of x
         x[:, self.shift_index.ge(0)] = x[:, self.shift_index.ge(0)] - feature_mean
+        # compute norm of x0
+        scalar_norm = 1.0 / (x[:, self.shift_index.ge(0)].norm(dim=1, keepdim=True) + self.eps)  # [N, 1]
 
         # 2. compute the norm across all irreps except for 0e
         if self.lmax > 0:
@@ -123,9 +129,14 @@ class SeperableLayerNorm(nn.Module):
                 feature_norm = x[:,self.shift_index.lt(0)].pow(2).mean(1, keepdim=True)
 
         feature_norm = (feature_norm + self.eps).pow(-0.5)
-        weight = self.affine_weight * feature_norm # [1, n_ir] * [N, 1] = [N, n_ir]
+        if self.affine:
+            weight = self.affine_weight * feature_norm # [1, n_ir] * [N, 1] = [N, n_ir]
+            weight[:,self.scalar_weight_index] = self.affine_weight[:, self.scalar_weight_index] * scalar_norm  # [N, n_ir0], only for 0e
+            x = x * weight[:, self.scale_index]
+        else:
+            x[:,self.shift_index.lt(0)] = x[:,self.shift_index.lt(0)] * weight[:, self.scale_index]
+            x[:,self.shift_index.ge(0)] = x[:,self.shift_index.ge(0)] * scalar_norm
 
-        x = x * weight[:, self.scale_index]
         x[:, self.shift_index.ge(0)] = x[:, self.shift_index.ge(0)] + self.affine_bias
 
         return x
@@ -368,7 +379,7 @@ class EquivariantLayerNormArray(nn.Module):
         return f"{self.__class__.__name__}(lmax={self.lmax}, num_channels={self.num_channels}, eps={self.eps})"
 
 
-    @torch.cuda.amp.autocast(enabled=False)
+    @torch.amp.autocast(device_type="cuda",enabled=False)
     def forward(self, node_input):
         '''
             Assume input is of shape [N, sphere_basis, C]
@@ -460,7 +471,7 @@ class EquivariantLayerNormArraySphericalHarmonics(nn.Module):
         return f"{self.__class__.__name__}(lmax={self.lmax}, num_channels={self.num_channels}, eps={self.eps}, std_balance_degrees={self.std_balance_degrees})"
 
 
-    @torch.cuda.amp.autocast(enabled=False)
+    @torch.amp.autocast(device_type="cuda",enabled=False)
     def forward(self, node_input):
         '''
             Assume input is of shape [N, sphere_basis, C]
@@ -535,7 +546,7 @@ class EquivariantRMSNormArraySphericalHarmonics(nn.Module):
         return f"{self.__class__.__name__}(lmax={self.lmax}, num_channels={self.num_channels}, eps={self.eps})"
 
 
-    @torch.cuda.amp.autocast(enabled=False)
+    @torch.amp.autocast(device_type="cuda",enabled=False)
     def forward(self, node_input):
         '''
             Assume input is of shape [N, sphere_basis, C]
@@ -618,7 +629,7 @@ class EquivariantRMSNormArraySphericalHarmonicsV2(nn.Module):
         return f"{self.__class__.__name__}(lmax={self.lmax}, num_channels={self.num_channels}, eps={self.eps}, centering={self.centering}, std_balance_degrees={self.std_balance_degrees})"
 
 
-    @torch.cuda.amp.autocast(enabled=False)
+    @torch.amp.autocast(device_type="cuda",enabled=False)
     def forward(self, node_input):
         '''
             Assume input is of shape [N, sphere_basis, C]

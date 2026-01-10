@@ -274,7 +274,7 @@ class HoppingFormula(BaseHopping):
 
         f_rij = 1/(1+torch.exp((rij-rs+5*w)/w))
 
-        return (alpha1 + alpha2 * (rij-r0) + 0.5 * alpha3 * (rij-r0)**2) * torch.exp(-rij * alpha4) * f_rij
+        return (alpha1 + alpha2 * (rij-r0) + alpha3 * (rij-r0)**2) * torch.exp(-rij * alpha4) * f_rij
 
     def poly3exp(self, rij, paraArray, r0:torch.Tensor, rs:torch.Tensor = torch.tensor(6), w:torch.Tensor = 0.1, **kwargs):
         """> This function calculates SK integrals without the environment dependence of the form of powerlaw

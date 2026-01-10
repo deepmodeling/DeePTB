@@ -1,0 +1,33 @@
+COMMAND: bash run_task.sh > logWARNING: Total thread number on this node mismatches with hardware availability. This may cause poor performance.
+Info: Local MPI proc number: 16,OpenMP thread number: 1,Total thread number: 16,Local thread limit: 32
+WARNING: Total thread number on this node mismatches with hardware availability. This may cause poor performance.
+Info: Local MPI proc number: 16,OpenMP thread number: 1,Total thread number: 16,Local thread limit: 32
+
+
+CPUINFO:
+Architecture:                    x86_64
+CPU op-mode(s):                  32-bit, 64-bit
+Address sizes:                   46 bits physical, 48 bits virtual
+Byte Order:                      Little Endian
+CPU(s):                          32
+On-line CPU(s) list:             0-31
+Vendor ID:                       GenuineIntel
+Model name:                      Intel(R)%Xeon(R)%Platinum
+CPU family:                      6
+Model:                           61
+Thread(s) per core:              2
+Core(s) per socket:              16
+Socket(s):                       1
+Stepping:                        2
+BogoMIPS:                        5000.00
+Flags:                           fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx pdpe1gb rdtscp lm constant_tsc rep_good nopl cpuid tsc_known_freq pni pclmulqdq monitor ssse3 fma cx16 pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch invpcid_single pti fsgsbase bmi1 hle avx2 smep bmi2 erms invpcid rtm mpx avx512f avx512dq rdseed adx smap clwb avx512cd avx512bw avx512vl xsaveopt xsavec xgetbv1 arat
+L1d cache:                       1 MiB (32 instances)
+L1i cache:                       1 MiB (32 instances)
+L2 cache:                        64 MiB (16 instances)
+NUMA node(s):                    1
+NUMA node0 CPU(s):               0-31
+Vulnerability L1tf:              Mitigation; PTE Inversion
+Vulnerability Meltdown:          Mitigation; PTI
+Vulnerability Spec store bypass: Vulnerable
+Vulnerability Spectre v1:        Mitigation; __user pointer sanitization
+Vulnerability Spectre v2:        Mitigation; Full generic retpoline, STIBP disabled, RSB filling

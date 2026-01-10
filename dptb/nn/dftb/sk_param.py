@@ -60,7 +60,7 @@ class SKParam:
         if isinstance(skdata,str):        
             if '.' in skdata and skdata.split('.')[-1] == 'pth':
                 log.info(f'Loading the skdict from the file: {skdata} ......')
-                skdict = torch.load(skdata)
+                skdict = torch.load(skdata, weights_only=False)
                 for ikey in ['Distance', 'Hopping', 'Overlap', 'OnsiteE']:
                     assert ikey in skdict, f"The key: {ikey} is not in the skdict."
                 

@@ -27,6 +27,7 @@ class BaseSOC(ABC):
 class SOCFormula(BaseSOC):
     num_paras_dict = {
         'uniform': 1,
+        'uniform_noref': 1,
         "none": 0,
         "custom": None,
     }
@@ -42,6 +43,8 @@ class SOCFormula(BaseSOC):
             pass
         elif functype == 'uniform':
             assert hasattr(self, 'uniform')
+        elif functype == 'uniform_noref':
+            assert hasattr(self, 'uniform_noref')
         elif functype == 'custom':
             assert hasattr(self, 'custom')
         else:
@@ -64,6 +67,8 @@ class SOCFormula(BaseSOC):
             return self.none(**kwargs)
         elif self.functype == 'uniform':
             return self.uniform(**kwargs)
+        elif self.functype == 'uniform_noref':
+            return self.uniform_noref(**kwargs)
         elif self.functype == 'custom':
             return self.custom(**kwargs)
         else:
@@ -114,4 +119,29 @@ class SOCFormula(BaseSOC):
         idx = self.idp.transform_atom(atomic_numbers)
 
         return nn_soc_paras[idx] + self.none(atomic_numbers=atomic_numbers)
+
+    def uniform_noref(self, atomic_numbers: torch.Tensor, nn_soc_paras: torch.Tensor, **kwargs):
+        """The uniform soc function with no reference , that have the same onsite energies for one specific orbital of a atom type.
+
+        Parameters
+        ----------
+        atomic_numbers : torch.Tensor(N) or torch.Tensor(N,1)
+            The atomic number list.
+        nn_onsite_paras : torch.Tensor(N_atom_type, n_orb)
+            The nn fitted parameters for onsite energies.
+
+        Returns
+        -------
+        torch.Tensor(N, n_orb)
+            the onsite energies by composing results from nn and ones from database.
+        """
+        atomic_numbers = atomic_numbers.reshape(-1)
+        if nn_soc_paras.shape[-1] == 1:
+            nn_soc_paras = nn_soc_paras.squeeze(-1)
+
+        # soc strength should be positive
+        nn_soc_paras = torch.abs(nn_soc_paras)
         
+        idx = self.idp.transform_atom(atomic_numbers)
+
+        return nn_soc_paras[idx]

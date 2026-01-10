@@ -1,4 +1,9 @@
+debug_**
 test*.ipynb
+*_bands.png
+*_dos.png
+examples/**/*centres.xyz
+examples/**/*.win
 **/processed*/*
 dptb/tests/**/*.yaml
 dptb/tests/**/pre_*.pt
@@ -43,7 +48,9 @@ __pycache__/
 .vscode
 # C extensions
 *.so
-
+dptb/tests/data/esk_orb/sktb.json
+dptb/tests/data/esk_orb/sktb.json
+examples/Sn_soc/sktb.json
 # Distribution / packaging
 .Python
 build/
@@ -171,4 +178,11 @@ dmypy.json
 .pyre/
 _date.py
 _version.py
-/.idea/
+dptb/_version.py
+
+# Poetry (migrated to uv)
+poetry.lock
+poetry.toml
+
+# JetBrains
+.idea/

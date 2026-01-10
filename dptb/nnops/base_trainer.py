@@ -4,14 +4,13 @@ import logging
 from dptb.utils.tools import get_lr_scheduler, j_must_have, get_optimizer
 from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
-from future.utils import with_metaclass
 from dptb.utils.constants import dtype_dict
 from dptb.plugins.base_plugin import PluginUser
 
 
 log = logging.getLogger(__name__)
 
-class BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
+class BaseTrainer(PluginUser, metaclass=ABCMeta):
 
     def __init__(
             self, 
@@ -35,7 +34,7 @@ class BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
                 '''
         self.iter = 1
         self.ep = 1
-        self.update_lr_per_step_flag = False
+        self.update_lr_per_iter = False
 
     @abstractmethod
     def restart(self, checkpoint):
@@ -53,9 +52,12 @@ class BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
             # run plugins of epoch events.
             self.call_plugins(queue_name='epoch', time=i)
 
-            if not self.update_lr_per_step_flag:
+            if not self.update_lr_per_iter:
                 if isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                    self.lr_scheduler.step(self.stats["train_loss"]["epoch_mean"])
+                    if 'validation_loss' in self.stats and 'epoch_mean' in self.stats['validation_loss']:
+                        self.lr_scheduler.step(self.stats['validation_loss']['epoch_mean'])  # 使用验证损失
+                    else:
+                        self.lr_scheduler.step(self.stats["train_loss"]["epoch_mean"])
                 else:
                     self.lr_scheduler.step()  # modify the lr at each epoch (should we add it to pluggins so we could record the lr scheduler process? update 0927, this has been done in tensorboard monitor.)
 

@@ -1,0 +1,69 @@
+ In SCAN_BEGIN, can't find: LATTICE_PARAMETERS block.
+ In SCAN_END, can't find: </PP_RELWFC.1> block.
+ In SCAN_END, can't find: </PP_RELWFC.2> block.
+ In SCAN_END, can't find: </PP_RELWFC.3> block.
+ In SCAN_END, can't find: </PP_RELWFC.4> block.
+ In SCAN_END, can't find: </PP_RELWFC.5> block.
+ In SCAN_END, can't find: </PP_RELBETA.1> block.
+ In SCAN_END, can't find: </PP_RELBETA.2> block.
+ In SCAN_END, can't find: </PP_RELBETA.3> block.
+ In SCAN_END, can't find: </PP_RELBETA.4> block.
+ In SCAN_END, can't find: </PP_RELBETA.5> block.
+ In SCAN_END, can't find: </PP_RELBETA.6> block.
+ In SCAN_END, can't find: </PP_RELBETA.7> block.
+ In SCAN_END, can't find: </PP_RELBETA.8> block.
+ In SCAN_END, can't find: </PP_RELBETA.9> block.
+ In SCAN_END, can't find: </PP_RELBETA.10> block.
+ In SCAN_END, can't find: </PP_SPIN_ORB> block.
+ AUTO_SET NBANDS to 0
+ Generate k-points file according to KSPACING: KPT
+ AUTO_SET NBANDS to 19
+ Grid_Technique::init_atoms_on_grid  warning : No atom on this sub-FFT-mesh.
+      Processor           Atom
+              1             26
+              2             26
+              3             26
+              4             26
+              5             24
+              6             23
+              7             23
+              8             23
+              9             24
+             10             26
+             11              0
+             12              0
+             13              0
+             14              0
+             15              0
+             16              0
+                            startmag_type = 2
+                       charge from rho_at = 13
+                         charge should be = 13
+                            startmag_type = 2
+                       charge from rho_at = 4.96805
+                         charge should be = 5
+
+ SETUP ATOMIC RHO FOR SPIN 1
+                 Electron number from rho = 18
+           total electron number from rho = 18
+                                should be = 18
+                 charge before normalized = 18
+                  charge after normalized = 18
+                 charge before normalized = 17.9999988750832
+                  charge after normalized = 17.9999999999999
+                 charge before normalized = 17.9999988376921
+                  charge after normalized = 18
+                 charge before normalized = 17.9999988542372
+                  charge after normalized = 18
+                 charge before normalized = 17.9999988493519
+                  charge after normalized = 18
+                 charge before normalized = 17.9999988493414
+                  charge after normalized = 18
+                 charge before normalized = 17.9999988494147
+                  charge after normalized = 18
+                 charge before normalized = 17.9999988493082
+                  charge after normalized = 18
+                 charge before normalized = 17.9999988494021
+                  charge after normalized = 18
+                 charge before normalized = 17.9999988494454
+                  charge after normalized = 17.9999999999999

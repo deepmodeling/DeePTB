@@ -86,6 +86,9 @@ In [7]: idp.get_irreps_ess()
 Out[7]: 7x0e+6x1o+6x2e+2x3o+1x4e
 ```
 
+Rules for the irreps setting:
+First, we should check the largest angular momentum defined in the DFT LCAO basis, and then double it as our highest order of irreps (since the addition rule of the angular momentum). For example, for `1s1p` basis, the irreps should contain features with angular momentum from 0 to 2, which is 2 times 1, the angular momentum of `p` orbital. If the basis contains `d` orbital, then the irreps should contain angular momentum up to 4. `f` and `g` or even higher orbitals are also supported.
+
 `n_layers`: indicates the number of layers of the networks.
 
 `env_embed_multiplicity`: decide the irreps number when initializing the edge and node features.

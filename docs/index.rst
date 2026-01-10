@@ -40,7 +40,7 @@ For more details, see our papers:
    quick_start/easy_install
    quick_start/input
    quick_start/hands_on/index
-   quick_start/basic_api
+   quick_start/api/index
 
 
 .. toctree::

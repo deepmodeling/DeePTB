@@ -32,8 +32,11 @@ CELL_KEY: Final[str] = "cell"
 KPOINT_KEY = "kpoint"
 
 HAMILTONIAN_KEY = "hamiltonian"
+HAMILTONIAN_DERIV_KEY = "hamiltonian_derivative" # dH(k)/dk
 
 OVERLAP_KEY = "overlap"
+OVERLAP_DERIV_KEY = "overlap_derivative"  # dS(k)/dk
+
 # [n_batch, 3] bool tensor
 PBC_KEY: Final[str] = "pbc"
 # [n_atom, 1] long tensor
@@ -42,6 +45,7 @@ ATOMIC_NUMBERS_KEY: Final[str] = "atomic_numbers"
 ATOM_TYPE_KEY: Final[str] = "atom_types"
 # [n_batch, n_kpoint, n_orb]
 ENERGY_EIGENVALUE_KEY: Final[str] = "eigenvalue"
+EIGENVECTOR_KEY: Final[str] = "eigenvector"
 
 # [n_batch, 2]
 ENERGY_WINDOWS_KEY = "ewindow"

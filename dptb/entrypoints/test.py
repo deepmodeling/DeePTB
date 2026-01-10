@@ -59,7 +59,7 @@ def _test(
     # setup seed
     setup_seed(seed=jdata["common_options"]["seed"])
 
-    f = torch.load(init_model)
+    f = torch.load(init_model, weights_only=False)
     # update basis
     basis = f["config"]["common_options"]["basis"]
     for asym, orb in jdata["common_options"]["basis"].items():
@@ -70,7 +70,7 @@ def _test(
 
     set_log_handles(log_level, Path(log_path) if log_path else None)
 
-    f = torch.load(run_opt["init_model"])
+    f = torch.load(run_opt["init_model"], weights_only=False)
     jdata["model_options"] = f["config"]["model_options"]
     del f
     

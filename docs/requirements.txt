@@ -1,4 +1,8 @@
 urllib3 == 1.26.15
-myst_parser[linkify]
+# myst_parser[linkify]  # 注释掉，因为myst-nb已包含myst_parser功能
+linkify-it-py
+myst-nb[linkify]
 sphinx_rtd_theme
+sphinx-book-theme
 deepmodeling_sphinx >= 0.1.2
+jupyter  # 添加jupyter支持

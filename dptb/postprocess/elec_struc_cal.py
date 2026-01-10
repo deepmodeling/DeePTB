@@ -1,3 +1,5 @@
+import os
+import h5py
 import numpy as np
 from ase.io import read
 import ase
@@ -7,11 +9,12 @@ import torch
 from typing import Optional
 import logging
 log = logging.getLogger(__name__)
-from dptb.data import AtomicData, AtomicDataDict
+from dptb.data import AtomicData, AtomicDataDict, block_to_feature
 from dptb.nn.energy import Eigenvalues
 from dptb.utils.argcheck import get_cutoffs_from_model_options
 from copy import deepcopy
 from dptb.utils.constants import Boltzmann,eV2J
+from dptb.postprocess.common import load_data_for_model
 
 # This class `ElecStruCal`  is designed to calculate electronic structure properties such as
 # eigenvalues and Fermi energy based on provided input data and model. 
@@ -66,7 +69,12 @@ class ElecStruCal(object):
             )
         r_max, er_max, oer_max  = get_cutoffs_from_model_options(model.model_options)
         self.cutoffs = {'r_max': r_max, 'er_max': er_max, 'oer_max': oer_max}
-    def get_data(self,data: Union[AtomicData, ase.Atoms, str],pbc:Union[bool,list]=None, device: Union[str, torch.device]=None, AtomicData_options:dict=None):
+    def get_data(self,
+                 data: Union[AtomicData, ase.Atoms, str],
+                 pbc:Union[bool,list]=None,
+                 device: Union[str, torch.device]=None,
+                 AtomicData_options:dict=None,
+                 override_overlap:Optional[str]=None):
         '''The function `get_data` takes input data in the form of a string, ase.Atoms object, or AtomicData
         object, processes it accordingly, and returns the AtomicData class.
         
@@ -81,65 +89,40 @@ class ElecStruCal(object):
         device : Union[str, torch.device]
             The `device` parameter in the `get_data` function is used to specify the device on which the data
         should be processed. If no device is provided, it defaults to `self.device`.
+        override_overlap : the path for overlap.h5 to use and override overlap matrix from model.
         
         Returns
         -------
             the loaded AtomicData object.
         
         '''
-        atomic_options = deepcopy(self.cutoffs)
-        if pbc is not None:
-            # 这一句要结合后面AtomicData.from_ase(structase, **atomic_options) 看。在from_ase中
-            # pbc = kwargs.pop("pbc", atoms.pbc), 所以当默认 调用get_dat 传入 pbc = None 时，
-            # atomic_options 中并没有 pbc 这个key，所以在from_ase中，pbc = atoms.pbc 默认采用atoms的pbc
-            # 当传入pbc 非None时，atomic_options中会有pbc这个key，所以from_ase中的pbc 将不会采用atoms的pbc。 
-            # 逻辑线埋的比较深，需要注意。
-            atomic_options.update({'pbc': pbc})
-
-        if AtomicData_options is not None:
-            if AtomicData_options.get('r_max', None) is not None:
-                if atomic_options['r_max'] != AtomicData_options.get('r_max'):
-                    atomic_options['r_max'] = AtomicData_options.get('r_max')
-                    log.warning(f'Overwrite the r_max setting in the model with the r_max setting in the AtomicData_options: {AtomicData_options.get("r_max")}')
-                    log.warning(f'This is very dangerous, please make sure you know what you are doing.')
-            if AtomicData_options.get('er_max', None) is not None:
-                if atomic_options['er_max'] != AtomicData_options.get('er_max'):
-                    atomic_options['er_max'] = AtomicData_options.get('er_max')
-                    log.warning(f'Overwrite the er_max setting in the model with the er_max setting in the AtomicData_options: {AtomicData_options.get("er_max")}')
-                    log.warning(f'This is very dangerous, please make sure you know what you are doing.')
-            if AtomicData_options.get('oer_max', None) is not None:
-                if atomic_options['oer_max'] != AtomicData_options.get('oer_max'):
-                    atomic_options['oer_max'] = AtomicData_options.get('oer_max')
-                    log.warning(f'Overwrite the oer_max setting in the model with the oer_max setting in the AtomicData_options: {AtomicData_options.get("oer_max")}')
-                    log.warning(f'This is very dangerous, please make sure you know what you are doing.')
-        
-        else:
-            if atomic_options['r_max'] is None:
-                log.error('The r_max is not provided in model_options, please provide it in AtomicData_options.')
-                raise RuntimeError('The r_max is not provided in model_options, please provide it in AtomicData_options.')
-            
-        if isinstance(data, str):
-            structase = read(data)
-            data = AtomicData.from_ase(structase, **atomic_options)
-        elif isinstance(data, ase.Atoms):
-            structase = data
-            data = AtomicData.from_ase(structase, **atomic_options)
-        elif isinstance(data, AtomicData):
-            # structase = data.to("cpu").to_ase()
-            log.info('The data is already an instance of AtomicData. Then the data is used directly.')
-            data = data
-        else:
-            raise ValueError('data should be either a string, ase.Atoms, or AtomicData')
-        
-        if device is None:
-            device = self.device
-        data = AtomicData.to_AtomicDataDict(data.to(device))
-        data = self.model.idp(data)
-
-        return data
+        if override_overlap is not None:
+            if not self.overlap:
+                self.eigv = Eigenvalues(
+                    idp=self.model.idp,
+                    device=self.device,
+                    s_edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
+                    s_node_field=AtomicDataDict.NODE_OVERLAP_KEY,
+                    s_out_field=AtomicDataDict.OVERLAP_KEY,
+                    dtype=self.model.dtype,
+                )
+        return load_data_for_model(
+            data=data,
+            model=self.model,
+            device=device if device else self.device,
+            pbc=pbc,
+            AtomicData_options=AtomicData_options,
+            override_overlap=override_overlap
+        )
 
 
-    def get_eigs(self, data: Union[AtomicData, ase.Atoms, str], klist: np.ndarray, pbc:Union[bool,list]=None, AtomicData_options:dict=None):
+    def get_eigs(self,
+                 data: Union[AtomicData, ase.Atoms, str],
+                 klist: np.ndarray,
+                 pbc:Union[bool,list]=None,
+                 AtomicData_options:dict=None,
+                 override_overlap:Optional[str]=None,
+                 eig_solver:Optional[str]=None):
         '''This function calculates eigenvalues for Hk at specified k-points.
         
         Parameters
@@ -152,6 +135,7 @@ class ElecStruCal(object):
         AtomicData_options : dict
             The `AtomicData_options` parameter is a dictionary that contains options for configuring the
         `AtomicData` object.
+        override_overlap : the path for overlap.h5 to use and override overlap matrix from model.
         
         Returns
         -------
@@ -159,21 +143,28 @@ class ElecStruCal(object):
         
         '''
             
-        data  = self.get_data(data=data, pbc=pbc, device=self.device,AtomicData_options=AtomicData_options)
+        data  = self.get_data(data=data, pbc=pbc, device=self.device,AtomicData_options=AtomicData_options, override_overlap=override_overlap)
         # set the kpoint of the AtomicData
         data[AtomicDataDict.KPOINT_KEY] = \
             torch.nested.as_nested_tensor([torch.as_tensor(klist, dtype=self.model.dtype, device=self.device)])
+        if isinstance(override_overlap, str):
+            override_overlap_edge = data[AtomicDataDict.EDGE_OVERLAP_KEY]
+            override_overlap_node = data[AtomicDataDict.NODE_OVERLAP_KEY]
         # get the eigenvalues
         data = self.model(data)
-        if self.overlap == True:
+        if isinstance(override_overlap, str):
+            data[AtomicDataDict.EDGE_OVERLAP_KEY] = override_overlap_edge
+            data[AtomicDataDict.NODE_OVERLAP_KEY] = override_overlap_node
+        if self.overlap or isinstance(override_overlap, str):
             assert data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is not None
-        data = self.eigv(data)
+        data = self.eigv(data, eig_solver=eig_solver)
 
         return data, data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy()
 
     def get_fermi_level(self, data: Union[AtomicData, ase.Atoms, str], nel_atom: dict, \
-                        meshgrid: list = None, klist: np.ndarray=None, pbc:Union[bool,list]=None,AtomicData_options:dict=None,
-                        q_tol:float=1e-10,smearing_method:str='FD',temp:float=300):
+                        meshgrid: list = None, klist: np.ndarray=None, pbc:Union[bool,list]=None,
+                        AtomicData_options:dict=None, q_tol:float=1e-10, smearing_method:str='FD', 
+                        temp:float=300,eig_solver:Optional[str]='torch'):
         '''This function calculates the Fermi level based on provided data with iteration method, electron counts per atom, and
         optional parameters like specific k-points and eigenvalues.
         
@@ -234,7 +225,9 @@ class ElecStruCal(object):
 
         # eigenvalues would be used if provided, otherwise the eigenvalues would be calculated from the model on the specified k-points
         if not AtomicDataDict.ENERGY_EIGENVALUE_KEY in data:
-            data, eigs = self.get_eigs(data=data, klist=klist, pbc=pbc, AtomicData_options=AtomicData_options) 
+            data, eigs = self.get_eigs(data=data, klist=klist, pbc=pbc, 
+                                       AtomicData_options=AtomicData_options,
+                                       eig_solver=eig_solver) 
             log.info('Getting eigenvalues from the model.')
         else:
             log.info('The eigenvalues are already in data. will use them.')
@@ -348,10 +341,18 @@ class ElecStruCal(object):
     
     @classmethod
     def fermi_dirac_smearing(cls, E, kT=0.025852, mu=0.0):
-            return 1.0 / (np.expm1((E - mu) / kT) + 2.0)
+        x = (E - mu) / kT
+        mask_min = x < -40.0 # 40 results e16 precision
+        mask_max = x > 40.0
+        mask_in_limit = ~(mask_min | mask_max)
+        out = np.zeros_like(x)
+        out[mask_min] = 1.0
+        out[mask_max] = 0.0
+        out[mask_in_limit] = 1.0 / (np.expm1(x[mask_in_limit]) + 2.0)
+        return out
         
     @classmethod
     def Gaussian_smearing(cls, E, sigma=0.025852, mu=0.0):
-            from scipy.special import erfc
-            x = (mu - E) / sigma
-            return 0.5 * erfc(-1*x)
+        from scipy.special import erfc
+        x = (mu - E) / sigma
+        return 0.5 * erfc(-1*x)

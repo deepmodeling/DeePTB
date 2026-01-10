@@ -1,0 +1,7 @@
+{
+    "common_options": {
+        "basis": {
+            "Sn": ["5s","5p","d*"]
+        }
+    }
+}

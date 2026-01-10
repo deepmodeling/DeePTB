@@ -226,7 +226,7 @@ class ASEDataset(AtomicInMemoryDataset):
                     # map it over the `rank` argument
                     datas = p.map(reader, list(range(n_proc)))
                 # clean up the pool before loading the data
-                datas = [torch.load(d) for d in datas]
+                datas = [torch.load(d, weights_only=False) for d in datas]
                 datas = sum(datas, [])
                 # un-interleave the datas
                 datas = sorted(datas, key=lambda e: e[0])
