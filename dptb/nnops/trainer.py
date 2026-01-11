@@ -47,7 +47,8 @@ class Trainer(BaseTrainer):
         elif self.train_datasets.get_eigenvalues:
             self.task = "eigenvalues"
         else:
-            raise RuntimeError("The train data set should have at least one of get_Hamiltonian, get_DM or get_eigenvalues set to True.")    
+            self.task = "custom"
+            log.warning("The train data set does not have get_Hamiltonian, get_DM or get_eigenvalues set to True. please make sure this is intended.")
 
         self.use_reference = False
         if reference_datasets is not None:
