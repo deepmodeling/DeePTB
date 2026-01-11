@@ -842,9 +842,132 @@ class OrbitalMapper(BondMapper):
                 start_index = end_index
             
             self.orbital_maps[ib] = slices
-        
+
         return self.orbital_maps
-    
+
+    def get_node_feature_to_block_indices(self):
+        """Pre-compute scatter indices for converting node features to block matrices.
+
+        Returns indices for each atom type that map feature vector positions to
+        flattened block matrix positions, enabling vectorized scatter operations.
+        """
+        if hasattr(self, "_node_feature_to_block_indices"):
+            return self._node_feature_to_block_indices
+
+        self.get_orbital_maps()
+        self.get_orbpair_maps()
+
+        self._node_feature_to_block_indices = {}
+
+        for symbol in self.basis.keys():
+            basis_list = self.basis[symbol]
+            norb = self.norbs[symbol]
+
+            src_indices = []  # indices in feature vector
+            dst_indices = []  # indices in flattened block (row * norb + col)
+            dst_indices_T = []  # transposed indices for symmetric part
+            is_diag = []  # whether this is a diagonal block (no transpose needed)
+
+            for index, basis_i in enumerate(basis_list):
+                f_basis_i = self.basis_to_full_basis[symbol].get(basis_i)
+                slice_i = self.orbital_maps[symbol][basis_i]
+                li = anglrMId[re.findall(r"[a-zA-Z]+", basis_i)[0]]
+
+                for basis_j in basis_list[index:]:
+                    f_basis_j = self.basis_to_full_basis[symbol].get(basis_j)
+                    lj = anglrMId[re.findall(r"[a-zA-Z]+", basis_j)[0]]
+                    slice_j = self.orbital_maps[symbol][basis_j]
+                    pair_ij = f_basis_i + "-" + f_basis_j
+                    feature_slice = self.orbpair_maps[pair_ij]
+
+                    # For each element in the (2*li+1, 2*lj+1) block
+                    for mi in range(2*li+1):
+                        for mj in range(2*lj+1):
+                            src_idx = feature_slice.start + mi * (2*lj+1) + mj
+                            row = slice_i.start + mi
+                            col = slice_j.start + mj
+                            dst_idx = row * norb + col
+                            dst_idx_T = col * norb + row
+
+                            src_indices.append(src_idx)
+                            dst_indices.append(dst_idx)
+                            dst_indices_T.append(dst_idx_T)
+                            is_diag.append(slice_i == slice_j)
+
+            self._node_feature_to_block_indices[symbol] = {
+                'src': torch.tensor(src_indices, dtype=torch.long),
+                'dst': torch.tensor(dst_indices, dtype=torch.long),
+                'dst_T': torch.tensor(dst_indices_T, dtype=torch.long),
+                'is_diag': torch.tensor(is_diag, dtype=torch.bool),
+                'norb': norb
+            }
+
+        return self._node_feature_to_block_indices
+
+    def get_edge_feature_to_block_indices(self):
+        """Pre-compute scatter indices for converting edge features to block matrices.
+
+        Returns indices for each bond type that map feature vector positions to
+        flattened block matrix positions, enabling vectorized scatter operations.
+        """
+        if hasattr(self, "_edge_feature_to_block_indices"):
+            return self._edge_feature_to_block_indices
+
+        self.get_orbital_maps()
+        self.get_orbpair_maps()
+
+        self._edge_feature_to_block_indices = {}
+
+        # Iterate over all possible bond types
+        for bond_type in self.bond_types:
+            symbol_i, symbol_j = bond_type.split("-")
+            norb_i = self.norbs[symbol_i]
+            norb_j = self.norbs[symbol_j]
+
+            src_indices = []  # indices in feature vector
+            dst_indices = []  # indices in flattened block (row * norb_j + col)
+            scale_factors = []  # 0.5 for diagonal pairs, 1.0 otherwise
+
+            for index, f_basis_i in enumerate(self.full_basis):
+                basis_i = self.full_basis_to_basis[symbol_i].get(f_basis_i)
+                if basis_i is None:
+                    continue
+                li = anglrMId[re.findall(r"[a-zA-Z]+", basis_i)[0]]
+                slice_i = self.orbital_maps[symbol_i][basis_i]
+
+                for f_basis_j in self.full_basis[index:]:
+                    basis_j = self.full_basis_to_basis[symbol_j].get(f_basis_j)
+                    if basis_j is None:
+                        continue
+                    lj = anglrMId[re.findall(r"[a-zA-Z]+", basis_j)[0]]
+                    slice_j = self.orbital_maps[symbol_j][basis_j]
+                    pair_ij = f_basis_i + "-" + f_basis_j
+                    feature_slice = self.orbpair_maps[pair_ij]
+
+                    is_same_basis = (f_basis_i == f_basis_j)
+
+                    # For each element in the (2*li+1, 2*lj+1) block
+                    for mi in range(2*li+1):
+                        for mj in range(2*lj+1):
+                            src_idx = feature_slice.start + mi * (2*lj+1) + mj
+                            row = slice_i.start + mi
+                            col = slice_j.start + mj
+                            dst_idx = row * norb_j + col
+
+                            src_indices.append(src_idx)
+                            dst_indices.append(dst_idx)
+                            scale_factors.append(0.5 if is_same_basis else 1.0)
+
+            self._edge_feature_to_block_indices[bond_type] = {
+                'src': torch.tensor(src_indices, dtype=torch.long),
+                'dst': torch.tensor(dst_indices, dtype=torch.long),
+                'scale': torch.tensor(scale_factors, dtype=torch.float32),
+                'norb_i': norb_i,
+                'norb_j': norb_j
+            }
+
+        return self._edge_feature_to_block_indices
+
     def get_irreps(self, no_parity=False):
         assert self.method == "e3tb", "Only support e3tb method for now."
 
