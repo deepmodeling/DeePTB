@@ -43,7 +43,7 @@ class _TrajData(object):
     
     def __init__(self, 
                  root: str, 
-                 data ={},
+                 data: Optional[Dict[str, Any]] = None,
                  get_Hamiltonian = False,
                  get_overlap = False,
                  get_DM = False,
@@ -53,7 +53,8 @@ class _TrajData(object):
         assert not get_Hamiltonian * get_DM, "Hamiltonian and Density Matrix can only loaded one at a time, for which will occupy the same attribute in the AtomicData."
         self.root = root
         self.info = info
-        self.data = data
+        assert data is None or isinstance(data, dict)
+        self.data = {} if data is None else data
 
         # load optional data files
         if get_eigenvalues == True:
