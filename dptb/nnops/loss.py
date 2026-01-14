@@ -431,6 +431,7 @@ class DOSLoss(nn.Module):
             if self.WK_ not in dftdata:
                 raise ValueError('The weight of kpoints should be provided by a wk.npy file '
                                  'in each folder where there are info.json, ... etc.')
+            wk = dftdata[self.WK_]
             emin, emax = 0., max(eigvaltb.max().item(), eigvaldft.max().item())
             dostb  = DOSLoss.calc_dos(eigvaltb, wk, emin, emax, 
                                       de=self.de, sigma=self.degauss)
