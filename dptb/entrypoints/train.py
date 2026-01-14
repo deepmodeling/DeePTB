@@ -168,6 +168,9 @@ def train(
     #     json.dump(jdata, fp, indent=4)
 
     # build dataset
+    # changelog:
+    # For DefaultDataset, the optional `wk` read-in is implemented. 
+    # So that the wk can be accessed by train_datasets.data['wk'], kirk0830, 2026-1-14
     train_datasets      = build_dataset(**cutoff_options,
                                         **jdata["data_options"]["train"], 
                                         **jdata["common_options"])

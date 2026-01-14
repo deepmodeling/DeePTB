@@ -50,7 +50,9 @@ class _TrajData(object):
                  get_eigenvalues = False,
                  info = None):
         
-        assert not get_Hamiltonian * get_DM, "Hamiltonian and Density Matrix can only loaded one at a time, for which will occupy the same attribute in the AtomicData."
+        assert not get_Hamiltonian * get_DM, \
+            "Hamiltonian and Density Matrix can only loaded one at a time, " \
+            "for which will occupy the same attribute in the AtomicData."
         self.root = root
         self.info = info
         assert data is None or isinstance(data, dict)
@@ -60,6 +62,8 @@ class _TrajData(object):
         if get_eigenvalues == True:
             if os.path.exists(os.path.join(self.root, "eigenvalues.npy")):
                 assert "bandinfo" in self.info, "`bandinfo` must be provided in `info.json` for loading eigenvalues."
+
+                # read-in the kpoint coordinates
                 assert os.path.exists(os.path.join(self.root, "kpoints.npy"))
                 kpoints = np.load(os.path.join(self.root, "kpoints.npy"))
                 if kpoints.ndim == 2:
@@ -73,13 +77,39 @@ class _TrajData(object):
                     self.data["kpoint"] = kpoints
                 else:
                     raise ValueError("Wrong kpoint dimensions.")
+
+                # if there is the weight of kpoints?
+                if os.path.exists(os.path.join(self.root, "wk.npy")):
+                    # two shape cases: (nk,) or (nframe, nk)
+                    wk = np.load(os.path.join(self.root, "wk.npy"))
+                    if wk.ndim == 1:
+                        # copy it to all frames
+                        wk = np.expand_dims(wk, axis=0)
+                        self.data["wk"] = np.broadcast_to(wk, (self.info["nframes"], wk.shape[1]))
+                    elif wk.ndim == 2 and wk.shape[0] == self.info["nframes"]:
+                        # array of kpoint weights, (nframes, nkpoints)
+                        self.data["wk"] = wk
+                    else:
+                        raise ValueError("Wrong kpoint weight dimensions.")
+                # otherwise, set all weights to 1/nk
+                else:
+                    self.data["wk"] = np.ones((self.info["nframes"], kpoints.shape[1])) / kpoints.shape[1]
+
+                # read-in the eigenvalues, in shape either (nframes, nk, nb) or (nk, nb)
                 eigenvalues = np.load(os.path.join(self.root, "eigenvalues.npy"))
                 # special case: trajectory contains only one frame
                 if eigenvalues.ndim == 2:
                     eigenvalues = np.expand_dims(eigenvalues, axis=0)
-                assert eigenvalues.shape[0] == self.info["nframes"]
-                assert eigenvalues.shape[1] == self.data["kpoint"].shape[1]
+                
+                # cross checks on shape
+                nframe, nk1, _ = eigenvalues.shape
+                assert nframe == self.info["nframes"]
+                _, nk2, _ = self.data["kpoint"].shape
+                assert nk1 == nk2
+
+                # finally
                 self.data["eigenvalue"] = eigenvalues
+
             # if get_eigenvalues is True, then the eigenvalues and kpoints must be provided. if not, raise error.
             else:  
                 raise ValueError("Eigenvalues must be provided when `get_eigenvalues` is True.")
@@ -87,9 +117,11 @@ class _TrajData(object):
         if get_Hamiltonian==True:
             assert os.path.exists(os.path.join(self.root, "hamiltonians.h5")), "Hamiltonian file not found."
             self.data["hamiltonian_blocks"] = h5py.File(os.path.join(self.root, "hamiltonians.h5"), "r")
+
         if get_overlap==True:
             assert os.path.exists(os.path.join(self.root, "overlaps.h5")), "Overlap file not found."
             self.data["overlap_blocks"] = h5py.File(os.path.join(self.root, "overlaps.h5"), "r")
+
         if get_DM==True:
             assert os.path.exists(os.path.join(self.root, "density_matrices.h5")) or os.path.exists(os.path.join(self.root, "DM.h5")), "Density Matrix file not found."
             if os.path.exists(os.path.join(self.root, "density_matrices.h5")):

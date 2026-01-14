@@ -1,19 +1,21 @@
-import torch.nn as nn
+import re
+from typing import Union, Dict, Optional
+
 import torch
+import torch.nn as nn
 from torch.nn.functional import mse_loss
-from dptb.utils.register import Register
+from torch_scatter import scatter_mean
+import matplotlib.pyplot as plt
+from e3nn.o3 import Irreps
+
+from dptb.nn.dftbsk import DFTBSK
 from dptb.nn.energy import Eigenvalues
 from dptb.nn.hamiltonian import E3Hamiltonian
-from typing import Any, Union, Dict
 from dptb.data import AtomicDataDict, AtomicData
 from dptb.data.transforms import OrbitalMapper
-from e3nn.o3 import Irreps
-from torch_scatter import scatter_mean
 from dptb.utils.torch_geometric import Batch
-import matplotlib.pyplot as plt
 from dptb.utils.constants import anglrMId
-from dptb.nn.dftbsk import DFTBSK
-import re
+from dptb.utils.register import Register
 
 """this is the register class for descriptors
 
@@ -242,6 +244,135 @@ class EigLoss(nn.Module):
             total_loss += loss
 
         return total_loss / len(datalist)
+
+@Loss.register("dos")
+class DOSLoss(nn.Module):
+    """
+    Use the linalg.norm of Density-of-states (DOS) difference as the loss.
+    In this case, the weights of kpoints are of need.
+    """
+    # rename some useful keys to shorter names
+    EDGE_          = AtomicDataDict.EDGE_FEATURES_KEY
+    EDGE_OVLP_     = AtomicDataDict.EDGE_OVERLAP_KEY
+    NODE_          = AtomicDataDict.NODE_FEATURES_KEY
+    NODE_OVLP_     = AtomicDataDict.NODE_OVERLAP_KEY
+    HAMILT_        = AtomicDataDict.HAMILTONIAN_KEY
+    OVLP_          = AtomicDataDict.OVERLAP_KEY
+    EIGVAL_        = AtomicDataDict.ENERGY_EIGENVALUE_KEY
+    ENERGY_WINDOW_ = AtomicDataDict.ENERGY_WINDOWS_KEY
+    BAND_WINDOW_   = AtomicDataDict.BAND_WINDOW_KEY
+
+    def calc_dos(self, ekb, wk, de):
+        '''calculate the dos by intergrating over the kpoints'''
+        assert isinstance(ekb, torch.Tensor) and isinstance(wk, torch.Tensor)
+        nk1, nb = ekb.shape
+        nk, = wk.shape
+        assert nk1 == nk # assume a simple correspondence
+        # calculate the dos
+        erange = torch.linspace(ekb.min(), ekb.max(), steps=1000, device=self.device)
+        dos = torch.zeros_like(erange)
+        for i in range(nb):
+            dos += torch.histogram(ekb[:,i], bins=erange, weights=wk)[0]
+        dos = dos / de
+        return dos
+
+    def __init__(self, 
+                 basis: Optional[Dict[str, Union[str, List]]] = None,
+                 idp: Optional[OrbitalMapper] = None,
+                 overlap: bool = False,
+                 diff_on: bool = False,
+                 eout_weight: float = 0.01,
+                 diff_weight: float = 0.01,
+                 diff_valence: Optional[Dict[str, float]] = None,
+                 spin_deg: int = 2,
+                 dtype: Union[str, torch.dtype] = torch.float32,
+                 device: Union[str, torch.device] = torch.device("cpu"),
+                 **kwargs):
+        super().__init__()
+        
+        self.loss = nn.MSELoss()
+        self.device = device
+        self.diff_on = diff_on
+        self.eout_weight = eout_weight
+        self.diff_weight = diff_weight
+        self.diff_valence = diff_valence  
+        self.spin_deg = spin_deg  
+        self.idp = None
+
+        if basis is not None:
+            # E3TB is not supported yet
+            assert idp is not None
+            self.idp = idp
+
+        eigvalk = ['idp', 'dtype', 'device', 'out_field', 
+                   'h_edge_field', 'h_node_field', 'h_out_field', 
+                   's_edge_field', 's_node_field', 's_out_field']
+        eigvalv = [self.idp, dtype, device, self.EIGVAL_,
+                   self.EDGE_, self.NODE_, self.HAMILT_,
+                   None, None, None]
+        options = dict(zip(eigvalk, eigvalv))
+        if overlap:
+            options.update({'s_edge_field': self.EDGE_OVLP_,
+                            's_node_field': self.NODE_OVLP_,
+                            's_out_field': self.OVLP_})
+        self.eigenvalue = Eigenvalues(**options)
+        self.overlap = overlap
+
+    def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
+        loss = 0
+        tbdata_collection  = Batch.from_dict(data).to_data_list()
+        dftdata_collection = Batch.from_dict(ref_data).to_data_list()
+        for tbdata, dftdata in zip(tbdata_collection, dftdata_collection):
+            tbdata  = self.eigenvalue(AtomicData.to_AtomicDataDict(tbdata))
+            dftdata = self.eigenvalue(AtomicData.to_AtomicDataDict(dftdata))
+            if dftdata.get(self.EIGVAL_) is None:
+                dftdata = self.eigenvalue(dftdata)
+
+            emin,  emax  = dftdata.get(self.ENERGY_WINDOW_, (None, None))
+            ibmin, ibmax = dftdata.get(self.BAND_WINDOW_, (0, None))
+
+            eigvaltb  = tbdata[self.EIGVAL_][0]
+            assert len(eigvaltb.shape) == 2
+            eigvaldft = dftdata[self.EIGVAL_][0]
+            assert len(eigvaldft.shape) == 2
+
+            # band range selection
+            # band exclusion
+            nbexcl = 0
+            if self.diff_valence is not None and isinstance(self.diff_valence, dict):
+                nbexcl = sum(
+                    [
+                        self.diff_valence[self.idp.type_to_chemical_symbol[int(ii)]] 
+                        for ii in dftdata['atom_types']
+                    ])
+                assert nbexcl % self.spin_deg == 0
+                nbexcl = nbexcl // self.spin_deg
+            eigvaldft = eigvaldft[:,nbexcl:]
+            # sanity check
+            nktb,  nbtb  = eigvaltb.shape
+            nkdft, nbdft = eigvaldft.shape
+            assert nktb == nkdft
+            # band range selection: sanity check
+            nb = min(nbtb, nbdft)
+            ibmax = nb if ibmax is None else ibmax
+            assert ibmax <= nb
+            ibmin, ibmax = int(ibmin), int(ibmax)
+            assert ibmin < ibmax # not allow the nb==0 case?
+            # slice
+            eigvaltb  = eigvaltb[:,ibmin:ibmax]
+            eigvaldft = eigvaldft[:,ibmin:ibmax]
+            nk, nbslice = eigvaltb.shape
+            # alignment
+            eigvaltb  = eigvaltb  - eigvaltb.reshape(-1).min()
+            eigvaldft = eigvaldft - eigvaldft.reshape(-1).min()
+
+            # integrate to get the DOS
+            wk = dftdata['wk']
+            loss += self.loss(
+                self.calc_dos(eigvaltb,  wk, 0.05),
+                self.calc_dos(eigvaldft, wk, 0.05)
+            )
+        return loss
 
 # @Loss.register("hamil")
 # class HamilLoss(nn.Module):
