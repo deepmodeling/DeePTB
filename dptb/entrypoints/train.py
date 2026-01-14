@@ -168,15 +168,17 @@ def train(
     #     json.dump(jdata, fp, indent=4)
 
     # build dataset
-    train_datasets = build_dataset(**cutoff_options,**jdata["data_options"]["train"], **jdata["common_options"])
-    if jdata["data_options"].get("validation"):
-        validation_datasets = build_dataset(**cutoff_options, **jdata["data_options"]["validation"], **jdata["common_options"])
-    else:
-        validation_datasets = None
-    if jdata["data_options"].get("reference"):
-        reference_datasets = build_dataset(**cutoff_options, **jdata["data_options"]["reference"], **jdata["common_options"])
-    else:
-        reference_datasets = None
+    train_datasets      = build_dataset(**cutoff_options,
+                                        **jdata["data_options"]["train"], 
+                                        **jdata["common_options"])
+    validation_datasets = None if not jdata["data_options"].get("validation") else \
+                          build_dataset(**cutoff_options, 
+                                        **jdata["data_options"]["validation"], 
+                                        **jdata["common_options"])
+    reference_datasets  = None if not jdata["data_options"].get("reference") else \
+                          build_dataset(**cutoff_options, 
+                                        **jdata["data_options"]["reference"], 
+                                        **jdata["common_options"])
 
     if restart:
         trainer = Trainer.restart(

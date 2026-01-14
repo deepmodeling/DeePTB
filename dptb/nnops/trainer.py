@@ -28,8 +28,10 @@ class Trainer(BaseTrainer):
         
         # init the object
         self.model = model.to(self.device)
-        self.optimizer = get_optimizer(model_param=self.model.parameters(), **train_options["optimizer"])
-        self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, **train_options["lr_scheduler"])  # add optmizer
+        self.optimizer = get_optimizer(model_param=self.model.parameters(), 
+                                       **train_options["optimizer"])
+        self.lr_scheduler = get_lr_scheduler(optimizer=self.optimizer, 
+                                             **train_options["lr_scheduler"])  # add optmizer
         self.update_lr_per_iter = train_options["update_lr_per_iter"]
         self.common_options = common_options
         self.train_options = train_options
@@ -48,7 +50,8 @@ class Trainer(BaseTrainer):
             self.task = "eigenvalues"
         else:
             self.task = "custom"
-            log.warning("The train data set does not have get_Hamiltonian, get_DM or get_eigenvalues set to True. please make sure this is intended.")
+            log.warning("The train data set does not have get_Hamiltonian, get_DM or get_eigenvalues "
+                        "set to True. please make sure this is intended.")
 
         self.use_reference = False
         if reference_datasets is not None:
@@ -61,20 +64,32 @@ class Trainer(BaseTrainer):
         else:
             self.use_validation = False
 
-        self.train_loader = DataLoader(dataset=self.train_datasets, batch_size=train_options["batch_size"], shuffle=True)
+        self.train_loader = DataLoader(dataset=self.train_datasets, 
+                                       batch_size=train_options["batch_size"], 
+                                       shuffle=True)
 
         if self.use_reference:
-            self.reference_loader = DataLoader(dataset=self.reference_datesets, batch_size=train_options["ref_batch_size"], shuffle=True)
+            self.reference_loader = DataLoader(dataset=self.reference_datesets, 
+                                               batch_size=train_options["ref_batch_size"], 
+                                               shuffle=True)
 
         if self.use_validation:
-            self.validation_loader = DataLoader(dataset=self.validation_datasets, batch_size=train_options["val_batch_size"], shuffle=True)
+            self.validation_loader = DataLoader(dataset=self.validation_datasets, 
+                                                batch_size=train_options["val_batch_size"], 
+                                                shuffle=True)
 
         # loss function
-        self.train_lossfunc = Loss(**train_options["loss_options"]["train"], **common_options, idp=self.model.hamiltonian.idp)
+        self.train_lossfunc = Loss(**train_options["loss_options"]["train"], 
+                                   **common_options, 
+                                   idp=self.model.hamiltonian.idp)
         if self.use_validation:
-            self.validation_lossfunc = Loss(**train_options["loss_options"]["validation"], **common_options, idp=self.model.hamiltonian.idp)
+            self.validation_lossfunc = Loss(**train_options["loss_options"]["validation"], 
+                                            **common_options, 
+                                            idp=self.model.hamiltonian.idp)
         if self.use_reference:
-            self.reference_lossfunc = Loss(**train_options["loss_options"]["reference"], **common_options, idp=self.model.hamiltonian.idp)
+            self.reference_lossfunc = Loss(**train_options["loss_options"]["reference"], 
+                                           **common_options, 
+                                           idp=self.model.hamiltonian.idp)
 
         if  train_options["loss_options"]["train"]["method"] == "skints":
             assert self.model.name == 'nnsk', "The model should be nnsk for the skints loss function."
