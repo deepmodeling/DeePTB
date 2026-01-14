@@ -1,5 +1,5 @@
 import re
-from typing import Union, Dict, Optional
+from typing import Union, Dict, Optional, List
 
 import torch
 import torch.nn as nn
@@ -261,41 +261,102 @@ class DOSLoss(nn.Module):
     EIGVAL_        = AtomicDataDict.ENERGY_EIGENVALUE_KEY
     ENERGY_WINDOW_ = AtomicDataDict.ENERGY_WINDOWS_KEY
     BAND_WINDOW_   = AtomicDataDict.BAND_WINDOW_KEY
+    WK_            = AtomicDataDict.WEIGHT_KPOINT_KEY
 
-    def calc_dos(self, ekb, wk, de):
-        '''calculate the dos by intergrating over the kpoints'''
-        assert isinstance(ekb, torch.Tensor) and isinstance(wk, torch.Tensor)
+    @staticmethod
+    def calc_dos(ekb, wk, emin, emax, de, sigma=0.1):
+        '''calculate the dos by convolution with a Gaussian pulse
+        
+        Parameters
+        ----------
+        ekb : torch.Tensor
+            Eigenvalues of the kpoints, shape (nk, nb).
+        wk : torch.Tensor
+            Weights of the kpoints, shape (nk,).
+        emin : float
+            Minimum energy for the DOS calculation.
+        emax : float
+            Maximum energy for the DOS calculation.
+        de : float
+            Energy interval for the DOS calculation.
+        
+        Returns
+        -------
+        dos : torch.Tensor
+            Density-of-states, shape (nbin,).
+        '''
+        # the direct implementation of the torch.histogram is not differentiable,
+        # here we use a convolution technique to calculate the dos:
+        # for each eigenvalue, add a pulse peak onto the dos, the peak is also
+        # multiplied by the weight of the kpoint. After transversing all kpoints,
+        # the dos is obtained :)
+        def pulse(x, x0, sigma):
+            '''a standard Gaussian pulse function'''
+            return torch.exp(-(x - x0)**2 / (2 * sigma**2))
+
+        # sanity check
+        assert isinstance(ekb, torch.Tensor)
+        assert isinstance(wk, torch.Tensor)
         nk1, nb = ekb.shape
         nk, = wk.shape
         assert nk1 == nk # assume a simple correspondence
-        # calculate the dos
-        erange = torch.linspace(ekb.min(), ekb.max(), steps=1000, device=self.device)
-        dos = torch.zeros_like(erange)
-        for i in range(nb):
-            dos += torch.histogram(ekb[:,i], bins=erange, weights=wk)[0]
-        dos = dos / de
-        return dos
+        assert ekb.device == wk.device
+
+        assert isinstance(emin, float)
+        assert isinstance(emax, float)
+        assert emin < emax
+
+        assert isinstance(de,   float)
+        assert isinstance(sigma, float)
+
+        # calculate the dos by convolution
+        nbin = int((emax - emin) / de)
+        erange = torch.linspace(emin, emax, nbin, device=ekb.device).view(1, 1, nbin)
+        ekb_ = ekb.view(nk, nb, 1)
+        wk_  = wk.view(nk, 1, 1)
+
+        dos = (wk_ * pulse(erange, ekb_, sigma)).sum(dim=(0, 1))
+        return dos / torch.trapz(dos, erange.squeeze())
 
     def __init__(self, 
                  basis: Optional[Dict[str, Union[str, List]]] = None,
                  idp: Optional[OrbitalMapper] = None,
                  overlap: bool = False,
-                 diff_on: bool = False,
-                 eout_weight: float = 0.01,
-                 diff_weight: float = 0.01,
-                 diff_valence: Optional[Dict[str, float]] = None,
+                 degauss: float = 0.1,
+                 de: float = 0.1,
                  spin_deg: int = 2,
                  dtype: Union[str, torch.dtype] = torch.float32,
                  device: Union[str, torch.device] = torch.device("cpu"),
                  **kwargs):
+        '''
+        Initiatiate a DOS Loss, which measures the difference in the Density-of-States (DOS)
+        between the predicted and the labelled
+
+        Parameters
+        ----------
+        basis: Optional[Dict[str, Union[str, List]]]
+            Basis set for the calculation of DOS.
+        idp: Optional[OrbitalMapper]
+            Orbital mapper for the calculation of DOS.
+        overlap: bool
+            Whether to use overlap matrix for the calculation of DOS.
+        degauss: float
+            Standard deviation of the Gaussian pulse for the calculation of DOS.
+        de: float
+            Energy interval for the calculation of DOS.
+        spin_deg: int
+            Spin degree of freedom.
+        dtype: Union[str, torch.dtype]
+            Data type for the calculation of DOS.
+        device: Union[str, torch.device]
+            Device for the calculation of DOS.
+        '''
         super().__init__()
         
         self.loss = nn.MSELoss()
         self.device = device
-        self.diff_on = diff_on
-        self.eout_weight = eout_weight
-        self.diff_weight = diff_weight
-        self.diff_valence = diff_valence  
+        self.degauss = degauss
+        self.de = de
         self.spin_deg = spin_deg  
         self.idp = None
 
@@ -319,12 +380,21 @@ class DOSLoss(nn.Module):
         self.overlap = overlap
 
     def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
+        '''
+        
+        Development notes
+        -----------------
+        caller: trainer.py:Trainer.iteration() call of self.train_lossfunc
+        caller: trainer.py:Trainer.epoch() calls iteration()
+        
+        '''
         loss = 0
+        # type conversion: Dict -> Batch -> List
         tbdata_collection  = Batch.from_dict(data).to_data_list()
         dftdata_collection = Batch.from_dict(ref_data).to_data_list()
         for tbdata, dftdata in zip(tbdata_collection, dftdata_collection):
             tbdata  = self.eigenvalue(AtomicData.to_AtomicDataDict(tbdata))
-            dftdata = self.eigenvalue(AtomicData.to_AtomicDataDict(dftdata))
+            dftdata = AtomicData.to_AtomicDataDict(dftdata)
             if dftdata.get(self.EIGVAL_) is None:
                 dftdata = self.eigenvalue(dftdata)
 
@@ -337,17 +407,6 @@ class DOSLoss(nn.Module):
             assert len(eigvaldft.shape) == 2
 
             # band range selection
-            # band exclusion
-            nbexcl = 0
-            if self.diff_valence is not None and isinstance(self.diff_valence, dict):
-                nbexcl = sum(
-                    [
-                        self.diff_valence[self.idp.type_to_chemical_symbol[int(ii)]] 
-                        for ii in dftdata['atom_types']
-                    ])
-                assert nbexcl % self.spin_deg == 0
-                nbexcl = nbexcl // self.spin_deg
-            eigvaldft = eigvaldft[:,nbexcl:]
             # sanity check
             nktb,  nbtb  = eigvaltb.shape
             nkdft, nbdft = eigvaldft.shape
@@ -367,12 +426,14 @@ class DOSLoss(nn.Module):
             eigvaldft = eigvaldft - eigvaldft.reshape(-1).min()
 
             # integrate to get the DOS
-            wk = dftdata['wk']
+            wk = dftdata.get(self.WK_, torch.ones(nk, device=self.device))
+            emin, emax = 0., max(eigvaltb.max().item(), eigvaldft.max().item())
+            # the loss is the MSE between two DOS
             loss += self.loss(
-                self.calc_dos(eigvaltb,  wk, 0.05),
-                self.calc_dos(eigvaldft, wk, 0.05)
+                DOSLoss.calc_dos(eigvaltb,  wk, emin, emax, de=self.de, sigma=self.degauss),
+                DOSLoss.calc_dos(eigvaldft, wk, emin, emax, de=self.de, sigma=self.degauss)
             )
-        return loss
+        return loss # it seems do not matter if I normalize the loss with number of batches
 
 # @Loss.register("hamil")
 # class HamilLoss(nn.Module):

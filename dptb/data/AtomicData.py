@@ -341,9 +341,14 @@ class AtomicData(Data):
     """
 
     def __init__(
-        self, irreps: Dict[str, e3nn.o3.Irreps] = {}, _validate: bool = True, **kwargs
+        self, 
+        irreps: Optional[Dict[str, e3nn.o3.Irreps]] = None, 
+        _validate: bool = True, 
+        **kwargs
     ):
-
+        irreps = irreps or {}
+        assert isinstance(irreps, dict)
+        
         # empty init needed by get_example
         if len(kwargs) == 0 and len(irreps) == 0:
             super().__init__()

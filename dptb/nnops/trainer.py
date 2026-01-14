@@ -69,37 +69,54 @@ class Trainer(BaseTrainer):
                                        shuffle=True)
 
         if self.use_reference:
-            self.reference_loader = DataLoader(dataset=self.reference_datesets, 
-                                               batch_size=train_options["ref_batch_size"], 
-                                               shuffle=True)
+            self.reference_loader = DataLoader(
+                dataset=self.reference_datesets, 
+                batch_size=train_options["ref_batch_size"], 
+                shuffle=True)
 
         if self.use_validation:
-            self.validation_loader = DataLoader(dataset=self.validation_datasets, 
-                                                batch_size=train_options["val_batch_size"], 
-                                                shuffle=True)
+            self.validation_loader = DataLoader(
+                dataset=self.validation_datasets, 
+                batch_size=train_options["val_batch_size"], 
+                shuffle=True)
 
         # loss function
         self.train_lossfunc = Loss(**train_options["loss_options"]["train"], 
                                    **common_options, 
                                    idp=self.model.hamiltonian.idp)
         if self.use_validation:
-            self.validation_lossfunc = Loss(**train_options["loss_options"]["validation"], 
-                                            **common_options, 
-                                            idp=self.model.hamiltonian.idp)
+            self.validation_lossfunc = Loss(
+                **train_options["loss_options"]["validation"], 
+                **common_options, 
+                idp=self.model.hamiltonian.idp)
         if self.use_reference:
-            self.reference_lossfunc = Loss(**train_options["loss_options"]["reference"], 
-                                           **common_options, 
-                                           idp=self.model.hamiltonian.idp)
+            self.reference_lossfunc = Loss(
+                **train_options["loss_options"]["reference"], 
+                **common_options, 
+                idp=self.model.hamiltonian.idp)
 
         if  train_options["loss_options"]["train"]["method"] == "skints":
-            assert self.model.name == 'nnsk', "The model should be nnsk for the skints loss function."
-            assert self.model.onsite_fn.functype in ['none', 'uniform'], "The onsite function should be none or uniform for the skints loss function."
-            log.info("The skints loss function is used for training, the model.transform is then set to False.")
+            assert self.model.name == 'nnsk', \
+                "The model should be nnsk for the skints loss function."
+            assert self.model.onsite_fn.functype in ['none', 'uniform'], \
+                "The onsite function should be none or uniform for the skints loss " \
+                "function."
+            log.info("The skints loss function is used for training, "
+                     "the model.transform is then set to False.")
             self.model.transform = False
 
     def iteration(self, batch, ref_batch=None):
         '''
         conduct one step forward computation, used in train, test and validation.
+
+        Parameters
+        ----------
+        batch : Batch
+            see torch_geometric.batch for more information, is a closed-pack
+            data handle that can fetch data from the AtomicData by function
+            AtomicData.to_AtomicDataDict() function
+        ref_batch : Optional[Batch]
+            similar with batch
         '''
         self.model.train()
         self.optimizer.zero_grad(set_to_none=True)
@@ -114,15 +131,19 @@ class Trainer(BaseTrainer):
             "__data_class__": batch.__data_class__,
         }
 
+        # get the data that the batch represents (reference data)
         batch = AtomicData.to_AtomicDataDict(batch)
 
         batch_for_loss = batch.copy() # make a shallow copy in case the model change the batch data
         
+        # predict, returns the format of Batch
         batch = self.model(batch)
 
-        #TODO: this could make the loss function unjitable since t he batchinfo in batch and batch_for_loss does not necessarily 
-        #       match the torch.Tensor requiresment, should be improved further
+        #TODO: this could make the loss function unjitable since t he batchinfo 
+        #      in batch and batch_for_loss does not necessarily 
+        #      match the torch.Tensor requiresment, should be improved further
 
+        # now the batch has the predicted data and batch_for_loss takes the reference data
         batch.update(batch_info)
         batch_for_loss.update(batch_info)
 
@@ -214,9 +235,8 @@ class Trainer(BaseTrainer):
 # 
 
     def epoch(self) -> None:
-
+        ''''forward - backward - update for once'''
         for ibatch in self.train_loader:
-            # iter with different structure
             if self.use_reference:
                 self.iteration(ibatch, next(iter(self.reference_loader)))
             else:

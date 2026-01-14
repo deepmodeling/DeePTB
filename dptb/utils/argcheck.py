@@ -862,6 +862,14 @@ def loss_options():
         Argument("skdata", str, optional=False, doc="The path to the skfile or sk database."),
     ]
 
+    # maybe DOS does not need such attributes...
+    dos = [
+        Argument("degauss", float, optional=True, default=0.1, 
+                 doc="The width of the gaussian function for DOS. Default: 0.1"),
+        Argument("de", float, optional=True, default=0.01, 
+                 doc="The step size for DOS. Default: 0.01"),
+    ]
+
     loss_args = Variant("method", [
         # Argument("hamil", dict, sub_fields=hamil),
         Argument("eigvals", dict, sub_fields=eigvals),
@@ -870,9 +878,8 @@ def loss_options():
         Argument("hamil_blas", dict, sub_fields=hamil),
         Argument("hamil_wt", dict, sub_fields=hamil+wt),
         Argument("eig_ham", dict, sub_fields=hamil+eigvals+eig_ham),
+        Argument("dos", dict, sub_fields=[]),
     ], optional=False, doc=doc_method)
-
-
 
     args = [
         Argument("train", dict, optional=False, sub_fields=[], sub_variants=[loss_args], doc=doc_train),

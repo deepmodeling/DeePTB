@@ -323,14 +323,24 @@ class _TrajData(object):
             if AtomicDataDict.ENERGY_EIGENVALUE_KEY in self.data and AtomicDataDict.KPOINT_KEY in self.data:
                 assert "bandinfo" in self.info, "`bandinfo` must be provided in `info.json` for loading eigenvalues."
                 bandinfo = self.info["bandinfo"]
-                kwargs[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(self.data[AtomicDataDict.KPOINT_KEY][frame], dtype=torch.get_default_dtype())
-                kwargs[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.as_tensor(self.data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][frame], dtype=torch.get_default_dtype())
+                kwargs[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(
+                    self.data[AtomicDataDict.KPOINT_KEY][frame], 
+                    dtype=torch.get_default_dtype())
+                kwargs[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.as_tensor(
+                    self.data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][frame], 
+                    dtype=torch.get_default_dtype())
                 if bandinfo["emin"] is not None and bandinfo["emax"] is not None:
-                    kwargs[AtomicDataDict.ENERGY_WINDOWS_KEY] = torch.as_tensor([bandinfo["emin"], bandinfo["emax"]], 
-                                                                                     dtype=torch.get_default_dtype())
+                    kwargs[AtomicDataDict.ENERGY_WINDOWS_KEY] = torch.as_tensor(
+                        [bandinfo["emin"], bandinfo["emax"]], 
+                        dtype=torch.get_default_dtype())
                 if bandinfo["band_min"] is not None and bandinfo["band_max"] is not None:
-                    kwargs[AtomicDataDict.BAND_WINDOW_KEY] = torch.as_tensor([bandinfo["band_min"], bandinfo["band_max"]], 
-                                                                                  dtype=torch.long)
+                    kwargs[AtomicDataDict.BAND_WINDOW_KEY] = torch.as_tensor(
+                        [bandinfo["band_min"], bandinfo["band_max"]], 
+                        dtype=torch.long)
+                if AtomicDataDict.WEIGHT_KPOINT_KEY in self.data:
+                    kwargs[AtomicDataDict.WEIGHT_KPOINT_KEY] = torch.as_tensor(
+                        self.data[AtomicDataDict.WEIGHT_KPOINT_KEY][frame], 
+                        dtype=torch.get_default_dtype())
 
             atomic_data = AtomicData.from_points(
                   r_max = self.info["r_max"],
@@ -367,20 +377,26 @@ class _TrajData(object):
             
             if not hasattr(atomic_data, AtomicDataDict.EDGE_FEATURES_KEY):
                 # TODO: initialize the edge and node feature tempretely, there should be a better way.
-                atomic_data[AtomicDataDict.EDGE_FEATURES_KEY] = torch.zeros(atomic_data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], 1)
-                atomic_data[AtomicDataDict.NODE_FEATURES_KEY] = torch.zeros(atomic_data[AtomicDataDict.POSITIONS_KEY].shape[0], 1)
+                atomic_data[AtomicDataDict.EDGE_FEATURES_KEY] = torch.zeros(
+                    atomic_data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], 1)
+                atomic_data[AtomicDataDict.NODE_FEATURES_KEY] = torch.zeros(
+                    atomic_data[AtomicDataDict.POSITIONS_KEY].shape[0], 1)
                 # just temporarily initialize the edge and node feature to zeros, to let the batch collate work.
             if not hasattr(atomic_data, AtomicDataDict.EDGE_OVERLAP_KEY):
-                atomic_data[AtomicDataDict.EDGE_OVERLAP_KEY] = torch.zeros(atomic_data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], 1)
+                atomic_data[AtomicDataDict.EDGE_OVERLAP_KEY] = torch.zeros(
+                    atomic_data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], 1)
             
             if not hasattr(atomic_data, AtomicDataDict.NODE_OVERLAP_KEY):
-                atomic_data[AtomicDataDict.NODE_OVERLAP_KEY] = torch.zeros(atomic_data[AtomicDataDict.POSITIONS_KEY].shape[0], 1)
+                atomic_data[AtomicDataDict.NODE_OVERLAP_KEY] = torch.zeros(
+                    atomic_data[AtomicDataDict.POSITIONS_KEY].shape[0], 1)
                 # with torch.no_grad():
                 #     atomic_data = e3(atomic_data.to_dict())
                 # atomic_data = AtomicData.from_dict(atomic_data)
             if not hasattr(atomic_data, AtomicDataDict.NODE_SOC_KEY):
-                atomic_data[AtomicDataDict.NODE_SOC_KEY] = torch.zeros(atomic_data[AtomicDataDict.POSITIONS_KEY].shape[0], 1)
-                atomic_data[AtomicDataDict.NODE_SOC_SWITCH_KEY] = torch.as_tensor([False],dtype=torch.bool)
+                atomic_data[AtomicDataDict.NODE_SOC_KEY] = torch.zeros(
+                    atomic_data[AtomicDataDict.POSITIONS_KEY].shape[0], 1)
+                atomic_data[AtomicDataDict.NODE_SOC_SWITCH_KEY] = torch.as_tensor(
+                    [False],dtype=torch.bool)
                 # torch.as_tensor([False],dtype=torch.bool) # by default, no SOC
                     # atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.as_tensor(self.data["eigenvalues"][frame][:, bandinfo["band_min"]:bandinfo["band_max"]], 
                     #                                                             dtype=torch.get_default_dtype())
@@ -440,14 +456,11 @@ class DefaultDataset(AtomicInMemoryDataset):
         self.get_overlap = get_overlap
         self.get_DM = get_DM
 
-        # load all data files            
+        # load all data files into memory           
         self.raw_data = []
-        for file in self.info_files.keys():
-            # get the info here
-            info = info_files[file]
-            # assert "AtomicData_options" in info
+        # info.json
+        for file, info in self.info_files.items():
             assert all(attr in info for attr in ["r_max", "pbc"])
-            pbc = info["pbc"] # not used?
             self.raw_data.append(
                 build_data(pos_typ=info["pos_type"], 
                            root=os.path.join(self.root, file),
