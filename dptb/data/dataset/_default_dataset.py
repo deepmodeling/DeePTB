@@ -90,10 +90,8 @@ class _TrajData(object):
                         # array of kpoint weights, (nframes, nkpoints)
                         self.data["wk"] = wk
                     else:
-                        raise ValueError("Wrong kpoint weight dimensions.")
-                # otherwise, set all weights to 1/nk
-                else:
-                    self.data["wk"] = np.ones((self.info["nframes"], kpoints.shape[1])) / kpoints.shape[1]
+                        raise ValueError("Wrong kpoint weight dimensions.")                    
+                # otherwise, let the wk is an attribute cannot be found
 
                 # read-in the eigenvalues, in shape either (nframes, nk, nb) or (nk, nb)
                 eigenvalues = np.load(os.path.join(self.root, "eigenvalues.npy"))

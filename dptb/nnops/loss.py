@@ -428,11 +428,14 @@ class DOSLoss(nn.Module):
             eigvaldft = eigvaldft - eigvaldft.reshape(-1).min()
 
             # integrate to get the DOS
+            if self.WK_ not in dftdata:
+                raise ValueError('The weight of kpoints should be provided by a wk.npy file '
+                                 'in each folder where there are info.json, ... etc.')
             emin, emax = 0., max(eigvaltb.max().item(), eigvaldft.max().item())
-            dostb  = DOSLoss.calc_dos(eigvaltb,  dftdata[self.WK_], 
-                                      emin, emax, de=self.de, sigma=self.degauss)
-            dosdft = DOSLoss.calc_dos(eigvaldft, dftdata[self.WK_], 
-                                      emin, emax, de=self.de, sigma=self.degauss)
+            dostb  = DOSLoss.calc_dos(eigvaltb, wk, emin, emax, 
+                                      de=self.de, sigma=self.degauss)
+            dosdft = DOSLoss.calc_dos(eigvaldft, wk, emin, emax, 
+                                      de=self.de, sigma=self.degauss)
             # the loss is the MSE between two DOS
             loss += self.loss(dostb, dosdft)
         return loss # it seems do not matter if I normalize the loss with number of batches
