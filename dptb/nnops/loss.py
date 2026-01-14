@@ -311,11 +311,13 @@ class DOSLoss(nn.Module):
 
         # calculate the dos by convolution
         nbin = int((emax - emin) / de)
-        erange = torch.linspace(emin, emax, nbin, device=ekb.device).view(1, 1, nbin)
-        ekb_ = ekb.view(nk, nb, 1)
-        wk_  = wk.view(nk, 1, 1)
+        erange = torch.linspace(emin, emax, nbin, device=ekb.device)
+        # to benefit from the torch broadcast feature, we reshape
+        erange_ = erange.view(1, 1, nbin)
+        ekb_    = ekb.view(nk, nb, 1)
+        wk_     = wk.view(nk, 1, 1)
 
-        dos = (wk_ * pulse(erange, ekb_, sigma)).sum(dim=(0, 1))
+        dos = (wk_ * pulse(erange_, ekb_, sigma)).sum(dim=(0, 1))
         return dos / torch.trapz(dos, erange.squeeze())
 
     def __init__(self, 
@@ -426,13 +428,13 @@ class DOSLoss(nn.Module):
             eigvaldft = eigvaldft - eigvaldft.reshape(-1).min()
 
             # integrate to get the DOS
-            wk = dftdata.get(self.WK_, torch.ones(nk, device=self.device))
             emin, emax = 0., max(eigvaltb.max().item(), eigvaldft.max().item())
+            dostb  = DOSLoss.calc_dos(eigvaltb,  dftdata[self.WK_], 
+                                      emin, emax, de=self.de, sigma=self.degauss)
+            dosdft = DOSLoss.calc_dos(eigvaldft, dftdata[self.WK_], 
+                                      emin, emax, de=self.de, sigma=self.degauss)
             # the loss is the MSE between two DOS
-            loss += self.loss(
-                DOSLoss.calc_dos(eigvaltb,  wk, emin, emax, de=self.de, sigma=self.degauss),
-                DOSLoss.calc_dos(eigvaldft, wk, emin, emax, de=self.de, sigma=self.degauss)
-            )
+            loss += self.loss(dostb, dosdft)
         return loss # it seems do not matter if I normalize the loss with number of batches
 
 # @Loss.register("hamil")
