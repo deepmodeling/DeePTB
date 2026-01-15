@@ -264,7 +264,7 @@ class DOSLoss(nn.Module):
     WK_            = AtomicDataDict.WEIGHT_KPOINT_KEY
 
     @staticmethod
-    def calc_dos(ekb, wk, emin, emax, de, sigma=0.1):
+    def calc_dos(ekb, wk, emin, emax, de, sigma=0.1, with_derivatives=False):
         '''calculate the dos by convolution with a Gaussian pulse
         
         Parameters
@@ -279,6 +279,10 @@ class DOSLoss(nn.Module):
             Maximum energy for the DOS calculation.
         de : float
             Energy interval for the DOS calculation.
+        sigma : float, optional
+            Standard deviation of the Gaussian pulse, by default 0.1.
+        with_derivatives : bool, optional
+            Whether to return the derivative of the dos with respect to the eigenvalues, by default False.
         
         Returns
         -------
@@ -293,6 +297,14 @@ class DOSLoss(nn.Module):
         def pulse(x, x0, sigma):
             '''a standard Gaussian pulse function'''
             return torch.exp(-(x - x0)**2 / (2 * sigma**2))
+
+        def dpulsede(x, x0, sigma):
+            '''the derivative of the pulse function with respect to x0'''
+            return - (x - x0) / (sigma**2) * pulse(x, x0, sigma)
+
+        def d2pulsede2(x, x0, sigma):
+            '''the second derivative of the pulse function with respect to x0'''
+            return pulse(x, x0, sigma) * ((x - x0)**2 / sigma**2 - 1) / sigma**2
 
         # sanity check
         assert isinstance(ekb, torch.Tensor)
@@ -318,7 +330,19 @@ class DOSLoss(nn.Module):
         wk_     = wk.view(nk, 1, 1)
 
         dos = (wk_ * pulse(erange_, ekb_, sigma)).sum(dim=(0, 1))
-        return dos / torch.trapz(dos, erange.squeeze())
+        dos /= torch.trapz(dos, erange.squeeze())
+        if not with_derivatives:
+            return dos
+
+        # otherwise
+        # first order
+        ddosde = (wk_ * dpulsede(erange_, ekb_, sigma)).sum(dim=(0, 1))
+        ddosde /= torch.trapz(ddosde, erange.squeeze())
+        # second order
+        d2dosde2 = (wk_ * d2pulsede2(erange_, ekb_, sigma)).sum(dim=(0, 1))
+        d2dosde2 /= torch.trapz(d2dosde2, erange.squeeze())
+
+        return dos, ddosde, d2dosde2
 
     def __init__(self, 
                  basis: Optional[Dict[str, Union[str, List]]] = None,
@@ -427,18 +451,22 @@ class DOSLoss(nn.Module):
             eigvaltb  = eigvaltb  - eigvaltb.reshape(-1).min()
             eigvaldft = eigvaldft - eigvaldft.reshape(-1).min()
 
-            # integrate to get the DOS
+            # integrate to get the DOS (and its first and second derivatives)
             if self.WK_ not in dftdata:
                 raise ValueError('The weight of kpoints should be provided by a wk.npy file '
                                  'in each folder where there are info.json, ... etc.')
             wk = dftdata[self.WK_]
             emin, emax = 0., max(eigvaltb.max().item(), eigvaldft.max().item())
-            dostb  = DOSLoss.calc_dos(eigvaltb, wk, emin, emax, 
-                                      de=self.de, sigma=self.degauss)
-            dosdft = DOSLoss.calc_dos(eigvaldft, wk, emin, emax, 
-                                      de=self.de, sigma=self.degauss)
-            # the loss is the MSE between two DOS
-            loss += self.loss(dostb, dosdft)
+            dostb, ddostb, d2dostb = DOSLoss.calc_dos(
+                eigvaltb, wk, emin, emax, 
+                de=self.de, sigma=self.degauss, with_derivatives=True)
+            dosdft, d2dosdft, dd2dosdft = DOSLoss.calc_dos(
+                eigvaldft, wk, emin, emax, 
+                de=self.de, sigma=self.degauss, with_derivatives=True)
+            # the loss is the MSE between two DOS (self-weighted)
+            loss += self.loss(dostb, dosdft)**2 + \
+                    self.loss(ddostb, d2dosdft)**2 + \
+                    self.loss(d2dostb, dd2dosdft)**2
         return loss # it seems do not matter if I normalize the loss with number of batches
 
 # @Loss.register("hamil")
