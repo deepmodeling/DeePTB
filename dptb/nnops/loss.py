@@ -460,13 +460,13 @@ class DOSLoss(nn.Module):
             dostb, ddostb, d2dostb = DOSLoss.calc_dos(
                 eigvaltb, wk, emin, emax, 
                 de=self.de, sigma=self.degauss, with_derivatives=True)
-            dosdft, d2dosdft, dd2dosdft = DOSLoss.calc_dos(
+            dosdft, ddosdft, d2dosdft = DOSLoss.calc_dos(
                 eigvaldft, wk, emin, emax, 
                 de=self.de, sigma=self.degauss, with_derivatives=True)
             # the loss is the MSE between two DOS (self-weighted)
-            loss += self.loss(dostb, dosdft)**2 + \
-                    self.loss(ddostb, d2dosdft)**2 + \
-                    self.loss(d2dostb, dd2dosdft)**2
+            loss += self.loss(dostb,   dosdft  )**2 + \
+                    self.loss(ddostb,  ddosdft )**2 + \
+                    self.loss(d2dostb, d2dosdft)**2
         return loss # it seems do not matter if I normalize the loss with number of batches
 
 # @Loss.register("hamil")
