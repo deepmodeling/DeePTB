@@ -462,10 +462,11 @@ class DOSLoss(nn.Module):
             dosdft, ddosdft, d2dosdft = DOSLoss.calc_dos(
                 eigvaldft, wk, emin, emax, 
                 de=self.de, sigma=self.degauss, with_derivatives=True)
-            # the loss is the MSE between two DOS (self-weighted)
-            loss += self.loss(dostb,   dosdft  )**2 + \
-                    self.loss(ddostb,  ddosdft )**2 + \
-                    self.loss(d2dostb, d2dosdft)**2
+            # the mse loss is equivalent with the L1Loss with self-weighted, so it is good.
+            # loss += |dostb - dosdft|^2 + |ddostb - ddosdft|^2 + |d2dostb - d2dosdft|^2
+            loss += self.loss(dostb,   dosdft  ) + \
+                    self.loss(ddostb,  ddosdft ) + \
+                    self.loss(d2dostb, d2dosdft)
         return loss
 
 # @Loss.register("hamil")
