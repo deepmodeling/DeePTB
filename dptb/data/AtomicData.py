@@ -341,9 +341,14 @@ class AtomicData(Data):
     """
 
     def __init__(
-        self, irreps: Dict[str, e3nn.o3.Irreps] = {}, _validate: bool = True, **kwargs
+        self, 
+        irreps: Optional[Dict[str, e3nn.o3.Irreps]] = None, 
+        _validate: bool = True, 
+        **kwargs
     ):
-
+        irreps = irreps or {}
+        assert isinstance(irreps, dict)
+        
         # empty init needed by get_example
         if len(kwargs) == 0 and len(irreps) == 0:
             super().__init__()
@@ -656,7 +661,8 @@ class AtomicData(Data):
             atomic_nums = type_mapper.untransform(self[AtomicDataDict.ATOM_TYPE_KEY])
         else:
             warnings.warn(
-                "AtomicData.to_ase(): self didn't contain atomic numbers... using atom_type as atomic numbers instead, but this means the chemical symbols in ASE (outputs) will be wrong"
+                "AtomicData.to_ase(): self didn't contain atomic numbers... using atom_type as "
+                "atomic numbers instead, but this means the chemical symbols in ASE (outputs) will be wrong"
             )
             atomic_nums = self[AtomicDataDict.ATOM_TYPE_KEY]
         pbc = getattr(self, AtomicDataDict.PBC_KEY, None)
@@ -688,7 +694,8 @@ class AtomicData(Data):
         ]
         assert (
             len(set(extra_fields).intersection(special_handling_keys)) == 0
-        ), f"Cannot specify keys handled in special ways ({special_handling_keys}) as `extra_fields` for atoms output--- they are output by default"
+        ), f"Cannot specify keys handled in special ways ({special_handling_keys}) " \
+            "as `extra_fields` for atoms output--- they are output by default"
 
         if cell is not None:
             cell = cell.view(-1, 3, 3)

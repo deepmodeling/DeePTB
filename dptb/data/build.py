@@ -253,6 +253,8 @@ class DatasetBuilder:
                                   get_eigenvalues=get_eigenvalues,
                                   info_files=info_files)
         elif dataset_type == "DefaultDataset":
+            # changelog: 
+            # For get_eigenvalues, the optional `wk` read-in is implemented. kirk0830, 2026-1-14
             return DefaultDataset(root=root,
                                   type_mapper=idp,
                                   get_Hamiltonian=get_Hamiltonian,
