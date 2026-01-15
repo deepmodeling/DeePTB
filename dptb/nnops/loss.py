@@ -330,19 +330,18 @@ class DOSLoss(nn.Module):
         wk_     = wk.view(nk, 1, 1)
 
         dos = (wk_ * pulse(erange_, ekb_, sigma)).sum(dim=(0, 1))
-        dos /= torch.trapz(dos, erange.squeeze())
+        area = torch.trapz(dos, erange.squeeze())
         if not with_derivatives:
-            return dos
+            return dos / area
 
         # otherwise
         # first order
         ddosde = (wk_ * dpulsede(erange_, ekb_, sigma)).sum(dim=(0, 1))
-        ddosde /= torch.trapz(ddosde, erange.squeeze())
+
         # second order
         d2dosde2 = (wk_ * d2pulsede2(erange_, ekb_, sigma)).sum(dim=(0, 1))
-        d2dosde2 /= torch.trapz(d2dosde2, erange.squeeze())
 
-        return dos, ddosde, d2dosde2
+        return dos / area, ddosde / area, d2dosde2 / area
 
     def __init__(self, 
                  basis: Optional[Dict[str, Union[str, List]]] = None,
@@ -467,7 +466,7 @@ class DOSLoss(nn.Module):
             loss += self.loss(dostb,   dosdft  )**2 + \
                     self.loss(ddostb,  ddosdft )**2 + \
                     self.loss(d2dostb, d2dosdft)**2
-        return loss # it seems do not matter if I normalize the loss with number of batches
+        return loss
 
 # @Loss.register("hamil")
 # class HamilLoss(nn.Module):
