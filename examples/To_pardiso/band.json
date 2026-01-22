@@ -1,0 +1,38 @@
+{
+    "task_options": {
+        "task": "band",
+        "eig_solver": "numpy",
+        "kline_type": "abacus",
+        "kpath": [
+            [
+                0.0000000000,
+                0.0000000000,
+                0.0000000000,
+                100
+            ],
+            [
+                0.0000000000,
+                0.0000000000,
+                0.5000000000,
+                1
+            ]
+        ],
+        "klabels": [
+            "G",
+            "Z"
+        ],
+        "nel_atom": {
+            "C": 4
+        },
+        "E_fermi": -9.03841,
+        "emin": -2,
+        "emax": 2
+    },
+    "device": "cpu",
+    "out_wfc": "false",
+    "which_k": 0,
+    "max_iter": 400,
+    "num_band": 30,
+    "gamma_only": "false",
+    "isspinful": "false"
+}
