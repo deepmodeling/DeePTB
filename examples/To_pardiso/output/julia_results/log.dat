@@ -1,6 +1,6 @@
 ======================================================================
 Sparse Hamiltonian Calculation Task Summary
-Start Time: 2026-01-22T17:00:54.270
+Start Time: 2026-01-23T15:36:24.859
 Output Dir: /home/vasp/deeptb_fork/local_dptb/DeePTB/examples/To_pardiso/output/julia_results
 ======================================================================
 Sites: 84, Orbitals: 756, Spinful: false
@@ -11,17 +11,16 @@ Sites: 84, Orbitals: 756, Spinful: false
 [Info] Sparse matrices constructed and cached
 [Info] Starting Band Structure Calculation
 [Info] Total K-points: 101, Bands: 30, Fermi: -9.03841 eV
-[Info] Fixed band window determined: indices 157:186
-K-point   10/101 done | Elapsed: 0.05 min
-K-point   20/101 done | Elapsed: 0.08 min
-K-point   30/101 done | Elapsed: 0.12 min
-K-point   40/101 done | Elapsed: 0.15 min
-K-point   50/101 done | Elapsed: 0.19 min
-K-point   60/101 done | Elapsed: 0.23 min
-K-point   70/101 done | Elapsed: 0.26 min
-K-point   80/101 done | Elapsed: 0.30 min
-K-point   90/101 done | Elapsed: 0.33 min
-K-point  100/101 done | Elapsed: 0.37 min
-K-point  101/101 done | Elapsed: 0.37 min
+K-point   10/101 done | Elapsed: 0.10 min
+K-point   20/101 done | Elapsed: 0.15 min
+K-point   30/101 done | Elapsed: 0.20 min
+K-point   40/101 done | Elapsed: 0.25 min
+K-point   50/101 done | Elapsed: 0.31 min
+K-point   60/101 done | Elapsed: 0.38 min
+K-point   70/101 done | Elapsed: 0.45 min
+K-point   80/101 done | Elapsed: 0.52 min
+K-point   90/101 done | Elapsed: 0.58 min
+K-point  100/101 done | Elapsed: 0.65 min
+K-point  101/101 done | Elapsed: 0.66 min
 [Info] Generated bandstructure.npy
-Task completed successfully in 0.54 minutes
+Task completed successfully in 0.83 minutes

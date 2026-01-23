@@ -402,17 +402,6 @@ function load_sparse_hamiltonian(input_dir, site_norbits, norbits, spinful, log_
 end
 
 # ==================== Core Calculation Logic ====================
-function solve_eigen_dense(H_k, S_k)
-    # Dense solver returning ALL eigenvalues/vectors sorted
-    H_dense = Matrix(H_k)
-    S_dense = Matrix(S_k)
-    egval, egvec = eigen(Hermitian(H_dense), Hermitian(S_dense))
-    
-    # eigen returns sorted values usually, but let's ensure sort
-    perm = sortperm(egval)
-    return egval[perm], egvec[:, perm]
-end
-
 function run_band_calculation(config, H_R, S_R, lat, norbits, output_dir, solver_opts, log_path)
     kline_type = get(config, "kline_type", "abacus")
     num_band = get(config, "num_band", 8)
@@ -452,9 +441,6 @@ function run_band_calculation(config, H_R, S_R, lat, norbits, output_dir, solver
 
     all_egvals = Vector{Vector{Float64}}()
     
-    # State for fixed band window
-    band_range = nothing
-    
     start_time = time()
     for (ik, kpt) in enumerate(klist)
         if which_k != 0 && which_k != ik; continue; end
@@ -467,45 +453,8 @@ function run_band_calculation(config, H_R, S_R, lat, norbits, output_dir, solver
         end
         H_k, S_k = (H_k + H_k') / 2, (S_k + S_k') / 2
         
-        # Use dense solver for all bands
-        full_vals, full_vecs = solve_eigen_dense(H_k, S_k)
-        
-        # Determine window on first step
-        if band_range === nothing
-            diff = abs.(full_vals .- fermi_level)
-            perm = sortperm(diff)
-            # Pick num_band closest, but then sort INDICES to get a contiguous block?
-            # Actually, "closest 25" might not be contiguous if they are above and below.
-            # But usually we want the "25 bands around Fermi". 
-            # Ideally this is a contiguous range of indices [start, end].
-            
-            # Let's find the N closest, then take their min and max index.
-            # This ensures we cover the gap.
-            closest_indices = perm[1:min(length(perm), num_band)]
-            min_idx = minimum(closest_indices)
-            
-            # Enforce contiguity: take range [min_idx, min_idx + num_band - 1]
-            # Check bounds
-            start_idx = max(1, min_idx)
-            end_idx = min(length(full_vals), start_idx + num_band - 1)
-            
-            # Adjust start if end hit max
-            if end_idx == length(full_vals)
-                start_idx = max(1, end_idx - num_band + 1)
-            end
-            
-            band_range = start_idx:end_idx
-            tee_info("Fixed band window determined: indices $band_range", log_path)
-        end
-        
-        # Slice
-        egvals = full_vals[band_range]
-        if out_wfc
-            egvecs = full_vecs[:, band_range]
-        else
-            egvecs = zeros(default_dtype, size(H_k,1), 0)
-        end
-        
+        egvals, egvecs, _ = solve_eigen_at_k(H_k, S_k, fermi_level, num_band, max_iter, out_wfc, 
+                                            solver_opts.ill_project, solver_opts.ill_threshold)
         push!(all_egvals, egvals)
         
 
