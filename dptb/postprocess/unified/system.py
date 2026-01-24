@@ -334,10 +334,7 @@ class TBSystem:
         The following files will be generated in the output directory:
         - predicted_hamiltonians.h5: Hamiltonian matrix elements.
         - predicted_overlaps.h5: Overlap matrix elements (if applicable).
-        - atomic_numbers.dat: Atomic numbers of the system.
-        - positions.dat: Atomic positions (Cartesian).
-        - cell.dat: Unit cell vectors.
-        - basis.dat: Basis set information.
+        - structure.json: Atomic structure and basis information.
 
         Parameters
         ----------
@@ -362,7 +359,7 @@ class TBSystem:
         if sr is not None:
             self._save_h5([sr], "predicted_overlaps.h5", output_dir)
             
-        # Save auxiliary files
+        # --- Legacy Export (for sparse_calc_npy_print.jl) ---
         with open(os.path.join(output_dir, "atomic_numbers.dat"), "w") as f:
             for z in self.atoms.get_atomic_numbers():
                 f.write(f"{z}\n")
@@ -377,7 +374,6 @@ class TBSystem:
         
         # basis.dat
         basis_str_dict = {}
-        # Access basis info from model
         basis_info = self.model.idp.basis
         
         for elem, orbitals in basis_info.items():
@@ -397,8 +393,20 @@ class TBSystem:
             
         with open(os.path.join(output_dir, "basis.dat"), "w") as f:
             f.write(str(basis_str_dict))
+
+        # --- New Export (for modular Julia backend) ---
+        from dptb.postprocess.unified.structure import Structure
+        structure = Structure(self.atoms, self.model.idp.basis)
+        
+        struct_data = structure.to_dict()
+        # Add spin information heuristically if not present
+        struct_data['spinful'] = True if hasattr(self.model, 'soc_param') else False
+        
+        import json
+        with open(os.path.join(output_dir, "structure.json"), 'w') as f:
+            json.dump(struct_data, f, indent=2)
             
-        log.info("Successfully saved all Pardiso data.")
+        log.info("Successfully saved all Pardiso data (Legacy + JSON).")
 
     def _save_h5(self, h_dict, fname, output_dir):
         """
@@ -453,3 +461,78 @@ class TBSystem:
                 else:
                     h_dict[rev_key] = block.T.conj()
         return h_dict
+
+    def to_pardiso_new(self, output_dir: Optional[str] = "pardiso_input"):
+        """
+        Export system data for Pardiso/Julia (NEW optimized version with JSON).
+
+        The following files will be generated in the output directory:
+        - predicted_hamiltonians.h5: Hamiltonian matrix elements (DFT-compatible format).
+        - predicted_overlaps.h5: Overlap matrix elements (if applicable).
+        - structure.json: Structure and basis information (pre-computed for Julia).
+
+        The JSON file contains pre-computed data that Julia can directly use:
+        - site_norbits: Number of orbitals per atom (computed from model.idp.atom_norb)
+        - norbits: Total number of orbitals
+        - All structure information in standard format
+
+        This eliminates the need for Julia to:
+        - Parse text files
+        - Convert atomic numbers to symbols
+        - Count orbitals from basis strings
+
+        Parameters
+        ----------
+        output_dir : str, optional
+            Output directory path. Default is "pardiso_input".
+
+        Returns
+        -------
+        None
+        """
+        import json
+
+        os.makedirs(output_dir, exist_ok=True)
+        log.info(f"Exporting Pardiso data (NEW format) to: {os.path.abspath(output_dir)}")
+
+        # Calculate Hr and Sr
+        hr, sr = self.calculator.get_hr(self.data)
+        hr = self._symmetrize_hamiltonian(hr)
+        if sr is not None:
+            sr = self._symmetrize_hamiltonian(sr)
+
+        # Save HDF5 (keep DFT-compatible format)
+        self._save_h5([hr], "predicted_hamiltonians.h5", output_dir)
+        if sr is not None:
+            self._save_h5([sr], "predicted_overlaps.h5", output_dir)
+
+        # Get site_norbits from model.idp (OrbitalMapper already computed this!)
+        atom_types = self.model.idp.untransform(self.data['atom_types']).cpu().numpy().flatten()
+        type_to_norb = self.model.idp.atom_norb.cpu().numpy()  # norb per atom type
+
+        # Map atom types to orbital counts
+        site_norbits = np.array([type_to_norb[self.model.idp.transform(torch.tensor([z], device=self.model.idp.device)).item()]
+                                 for z in atom_types], dtype=int)
+
+        # Save structure information in JSON format
+        structure_data = {
+            'cell': self.atoms.get_cell().array.tolist(),
+            'positions': self.atoms.get_positions().tolist(),
+            'atomic_numbers': self.atoms.get_atomic_numbers().tolist(),
+            'symbols': self.atomic_symbols,
+            'natoms': len(self.atoms),
+            'site_norbits': site_norbits.tolist(),  # Julia directly uses this!
+            'norbits': int(np.sum(site_norbits)),    # Julia directly uses this!
+            'basis': self.model.idp.basis,
+            'spinful': hasattr(self.model, 'soc_param'),  # Detect SOC
+            'pbc': self.atoms.get_pbc().tolist()
+        }
+
+        json_path = os.path.join(output_dir, "structure.json")
+        with open(json_path, 'w') as f:
+            json.dump(structure_data, f, indent=2)
+
+        log.info(f"Successfully saved all Pardiso data (NEW format).")
+        log.info(f"  - Hamiltonian blocks: {len(hr)}")
+        log.info(f"  - Structure: {structure_data['natoms']} atoms, {structure_data['norbits']} orbitals")
+        log.info(f"  - Files: predicted_hamiltonians.h5, predicted_overlaps.h5, structure.json")
