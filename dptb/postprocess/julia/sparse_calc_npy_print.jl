@@ -228,15 +228,8 @@ function parse_kpath_vasp(k_data, lat)
 end
 
 # ==================== Eigensolver Implementation ====================
-"""
-construct_linear_map(H, S)
-
-Construct linear map and Pardiso solver for shift-invert mode.
-(H - E*S)^-1 * S
-"""
-function construct_linear_map(H::AbstractMatrix, S::AbstractMatrix)
-    # Use generic PardisoSolver to allow fallback/auto-detection
-    ps = PardisoSolver()
+function construct_linear_map(H, S)
+    ps = MKLPardisoSolver()
     set_matrixtype!(ps, Pardiso.COMPLEX_HERM_INDEF)
     pardisoinit(ps)
     fix_iparm!(ps, :N)

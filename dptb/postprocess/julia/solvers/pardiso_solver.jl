@@ -29,8 +29,15 @@ Construct a linear map for shift-invert eigenvalue solver.
 The linear map represents (H - σS)^{-1} S for shift-invert method.
 """
 function construct_linear_map(H::AbstractMatrix, S::AbstractMatrix)
-    # Use generic PardisoSolver which attempts to find available backend
-    ps = PardisoSolver()
+    # Architecture check for MKL compatibility
+    if Sys.isapple() && Sys.ARCH == :aarch64
+        @warn "MKL Pardiso is not natively supported on Apple Silicon (M1/M2/etc)."
+        @warn "For local testing on Mac, please set 'eig_solver' to 'numpy' (DenseSolver) in your config."
+        error("MKLPardisoSolver failed: Architecture mismatch (Apple Silicon). Use 'numpy' solver or run on Intel/Linux machine.")
+    end
+
+    # Enforce MKL Pardiso Solver
+    ps = MKLPardisoSolver()
     set_matrixtype!(ps, Pardiso.COMPLEX_HERM_INDEF)
     pardisoinit(ps)
     fix_iparm!(ps, :N)
