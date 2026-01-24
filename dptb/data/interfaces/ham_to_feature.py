@@ -364,16 +364,29 @@ def feature_to_block(data, idp, overlap: bool = False):
             for i in range(len(atom_types))
         ]
 
+        # Cache device-transferred indices per symbol to avoid redundant transfers
+        unique_symbols = set(atom_symbols)
+        node_indices_on_device = {}
+        for symbol in unique_symbols:
+            idx_info = node_indices[symbol]
+            node_indices_on_device[symbol] = {
+                'src': idx_info['src'].to(device),
+                'dst': idx_info['dst'].to(device),
+                'dst_T': idx_info['dst_T'].to(device),
+                'is_diag': idx_info['is_diag'].to(device),
+                'norb': idx_info['norb']
+            }
+
         # Process node blocks using scatter
         for atom, onsite in enumerate(node_features):
             symbol = atom_symbols[atom]
-            idx_info = node_indices[symbol]
+            idx_info = node_indices_on_device[symbol]
 
-            # Move indices to correct device (only on first use per symbol)
-            src_idx = idx_info['src'].to(device)
-            dst_idx = idx_info['dst'].to(device)
-            dst_idx_T = idx_info['dst_T'].to(device)
-            is_diag = idx_info['is_diag'].to(device)
+            # Use cached indices (already on device)
+            src_idx = idx_info['src']
+            dst_idx = idx_info['dst']
+            dst_idx_T = idx_info['dst_T']
+            is_diag = idx_info['is_diag']
             norb = idx_info['norb']
 
             # Create flat block and scatter values
@@ -395,6 +408,21 @@ def feature_to_block(data, idp, overlap: bool = False):
         edge_index = data[_keys.EDGE_INDEX_KEY]
         edge_cell_shift = data[_keys.EDGE_CELL_SHIFT_KEY]
 
+        # Cache device-transferred indices for all possible bond types
+        edge_indices_on_device = {}
+        for sym_i in unique_symbols:
+            for sym_j in unique_symbols:
+                bond_type = f"{sym_i}-{sym_j}"
+                if bond_type in edge_indices:
+                    idx_info = edge_indices[bond_type]
+                    edge_indices_on_device[bond_type] = {
+                        'src': idx_info['src'].to(device),
+                        'dst': idx_info['dst'].to(device),
+                        'scale': idx_info['scale'].to(device=device, dtype=dtype),
+                        'norb_i': idx_info['norb_i'],
+                        'norb_j': idx_info['norb_j']
+                    }
+
         for edge, hopping in enumerate(edge_features):
             atom_i, atom_j = int(edge_index[0][edge]), int(edge_index[1][edge])
             R_shift = edge_cell_shift[edge]
@@ -402,12 +430,22 @@ def feature_to_block(data, idp, overlap: bool = False):
             symbol_j = atom_symbols[atom_j]
             bond_type = f"{symbol_i}-{symbol_j}"
 
-            idx_info = edge_indices[bond_type]
+            if bond_type not in edge_indices_on_device:  
+                available = ", ".join(sorted(map(str, edge_indices.keys())))  
+                msg = (  
+                    f"Missing precomputed edge indices for bond type '{bond_type}'. "  
+                    f"Encountered edge between atoms {atom_i} ({symbol_i}) and "  
+                    f"{atom_j} ({symbol_j}) with cell shift {list(map(int, R_shift))}. "  
+                    f"Available bond types in edge_indices: {available if available else 'none'}."  
+                )  
+                log.error(msg)  
+                raise KeyError(msg) 
+            idx_info = edge_indices_on_device[bond_type]
 
-            # Move indices to correct device
-            src_idx = idx_info['src'].to(device)
-            dst_idx = idx_info['dst'].to(device)
-            scale = idx_info['scale'].to(device=device, dtype=dtype)
+            # Use cached indices (already on device)
+            src_idx = idx_info['src']
+            dst_idx = idx_info['dst']
+            scale = idx_info['scale']
             norb_i = idx_info['norb_i']
             norb_j = idx_info['norb_j']
 
