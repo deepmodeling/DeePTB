@@ -17,10 +17,33 @@ def pdso(
         output_dir: str = "./",
         log_level: int = 20,
         log_path: str = None,
+        ill_project: bool = True,
+        ill_threshold: float = 5e-4,
         **kwargs
         ):
     """
     Run the DeePTB-Pardiso workflow (Export + Julia Backend).
+    
+    Parameters
+    ----------
+    INPUT : str
+        Configuration JSON file path.
+    init_model : str, optional
+        Path to model checkpoint (.pth file).
+    structure : str, optional
+        Path to structure file (.vasp, .cif, etc.).
+    data_dir : str, optional
+        Directory containing pre-exported data (for run-only mode).
+    output_dir : str
+        Output directory for exported data and results.
+    log_level : int
+        Logging level (default: 20 = INFO).
+    log_path : str, optional
+        Path to log file.
+    ill_project : bool
+        Enable ill-conditioned state projection (default: True).
+    ill_threshold : float
+        Threshold for ill-conditioning detection (default: 5e-4).
     
     Modes:
     1. Full Flow: init_model + structure -> Export -> Julia
@@ -84,7 +107,9 @@ def pdso(
         str(julia_script),
         "--input_dir", input_data_dir,
         "--output_dir", results_path,
-        "--config", config_path
+        "--config", config_path,
+        "--ill_project", str(ill_project).lower(),
+        "--ill_threshold", str(ill_threshold)
     ]
 
     log.info(f"Running Julia backend: {' '.join(cmd)}")

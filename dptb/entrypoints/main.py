@@ -540,6 +540,20 @@ def main_parser() -> argparse.ArgumentParser:
         help="Output directory for results."
     )
 
+    parser_pdso.add_argument(
+        "--ill_project",
+        type=lambda x: x.lower() == 'true',
+        default=True,
+        help="Enable ill-conditioned state projection (default: True)."
+    )
+
+    parser_pdso.add_argument(
+        "--ill_threshold",
+        type=float,
+        default=5e-4,
+        help="Threshold for ill-conditioning detection (default: 5e-4)."
+    )
+
     return parser
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:

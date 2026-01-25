@@ -1,20 +1,24 @@
-# DeePTB Julia Backend - Modular Architecture
+# DeePTB Pardiso Backend - Modular Architecture
 
 This directory contains the modular Julia backend for high-performance eigenvalue calculations using Intel MKL Pardiso.
 
 ## Directory Structure
 
 ```
-dptb/postprocess/julia/
+dptb/postprocess/pardiso/
 ├── io/
-│   ├── structure_io.jl      # Load structure from JSON
-│   └── hamiltonian_io.jl    # Load H(R), S(R) from HDF5
+│   └── io.jl                # Unified I/O (structure + Hamiltonian)
 ├── solvers/
-│   └── pardiso_solver.jl    # Pardiso eigenvalue solver
+│   ├── pardiso_solver.jl    # Pardiso eigenvalue solver
+│   └── dense_solver.jl      # Dense LAPACK solver (fallback)
 ├── tasks/
-│   └── band_calculation.jl  # Band structure calculation
+│   ├── band_calculation.jl  # Band structure calculation
+│   └── dos_calculation.jl   # Density of states calculation
+├── utils/
+│   ├── hamiltonian.jl       # H(R) -> H(k) transformation
+│   └── kpoints.jl           # K-point generation utilities
 ├── main.jl                  # Main entry point
-├── sparse_calc_npy_print.jl # Legacy monolithic script (deprecated)
+├── sparse_calc_npy_print.jl # Legacy monolithic script (for reference)
 └── README.md                # This file
 ```
 
@@ -29,6 +33,7 @@ dptb/postprocess/julia/
 - **JSON structure file**: Replaces 4 text files with single JSON
 - **Pre-computed data**: `site_norbits` and `norbits` computed by Python
 - **No parsing needed**: Julia directly uses pre-computed values
+- **Backward compatibility**: Falls back to legacy `.dat` files if `structure.json` is missing
 
 ### 3. Better Maintainability
 - **Clear interfaces**: Each module has well-defined inputs/outputs
@@ -45,11 +50,21 @@ julia main.jl --input_dir ./pardiso_input --output_dir ./results --config ./band
 
 ### Command Line Options
 
+**Julia Backend (`main.jl`):**
 - `--input_dir, -i`: Directory containing exported data (default: `./input_data`)
 - `--output_dir, -o`: Output directory for results (default: `./results`)
 - `--config`: Configuration JSON file (default: `./band.json`)
 - `--ill_project`: Enable ill-conditioned projection (default: `true`)
 - `--ill_threshold`: Threshold for ill-conditioning (default: `5e-4`)
+
+**Python CLI (`dptb pdso`):**
+- `-INPUT`: Configuration JSON file (required)
+- `-i, --init_model`: Model checkpoint path (for export mode)
+- `-stu, --structure`: Structure file path (for export mode)
+- `-d, --data_dir`: Pre-exported data directory (for run-only mode)
+- `-o, --output_dir`: Output directory (default: `./`)
+- `--ill_project`: Enable ill-conditioned projection (default: `True`)
+- `--ill_threshold`: Ill-conditioning threshold (default: `5e-4`)
 
 ### Python Integration
 
@@ -59,42 +74,40 @@ from dptb.postprocess.unified.system import TBSystem
 # Initialize system
 tbsys = TBSystem(data="structure.vasp", calculator="model.pth")
 
-# Export for Julia
-tbsys.to_pardiso_new(output_dir="pardiso_input")
+# Export for Julia (Standard JSON format)
+tbsys.to_pardiso(output_dir="pardiso_input")
 
-# Run Julia calculation
-import subprocess
-subprocess.run([
-    "julia", "dptb/postprocess/julia/main.jl",
-    "--input_dir", "pardiso_input",
-    "--output_dir", "results",
-    "--config", "band.json"
-])
+# Or use CLI integration
+from dptb.entrypoints.pdso import pdso
+pdso(
+    INPUT="band.json",
+    init_model="model.pth",
+    structure="structure.vasp",
+    output_dir="./output"
+)
 
 # Load results
 import numpy as np
-band_data = np.load("results/bandstructure.npy", allow_pickle=True).item()
+band_data = np.load("output/results/bandstructure.npy", allow_pickle=True).item()
 ```
 
 ## Module Documentation
 
-### io/structure_io.jl
+### io/io.jl
 
 **Functions:**
-- `load_structure_json(input_dir)`: Load structure from JSON file
+- `load_structure(input_dir; spinful=false)`: Load structure (JSON or legacy .dat)
+- `load_structure_json(input_dir)`: Load from `structure.json`
+- `load_structure_dat(input_dir, spinful)`: Load from legacy `.dat` files
+- `load_matrix_hdf5(filename)`: Load HDF5 matrix blocks
 
 **Returns:**
 - Dictionary with keys: `cell`, `positions`, `site_norbits`, `norbits`, `symbols`, `natoms`, `spinful`, `basis`
 
-### io/hamiltonian_io.jl
-
-**Functions:**
-- `load_h5_to_dict(filename)`: Load HDF5 file to dictionary
-- `construct_sparse_matrices(input_dir, site_norbits, norbits, spinful)`: Build sparse H(R) and S(R)
-
 **Features:**
-- Automatic caching to `sparse_matrix.jld`
-- Efficient sparse matrix construction
+- **Automatic format detection**: Tries JSON first, falls back to `.dat`
+- **Spin handling**: Correctly accounts for spin degeneracy in orbital counts
+- **Robust parsing**: Handles both modern and legacy data formats
 
 ### solvers/pardiso_solver.jl
 
@@ -179,13 +192,16 @@ Pkg.add(["JSON", "HDF5", "ArgParse", "Pardiso", "Arpack", "LinearMaps", "JLD", "
 ## Troubleshooting
 
 **Issue**: `structure.json not found`
-- **Solution**: Run `tbsys.to_pardiso_new()` first to export data
+- **Solution**: Run `tbsys.to_pardiso()` first to export data, or ensure legacy `.dat` files are present
 
 **Issue**: Eigenvalues don't converge
 - **Solution**: Increase `max_iter` or adjust `E_fermi` closer to actual Fermi level
 
 **Issue**: Ill-conditioned overlap matrix
 - **Solution**: Enable `--ill_project` and adjust `--ill_threshold`
+
+**Issue**: Dimension mismatch for spinful systems
+- **Solution**: Ensure `isspinful` is correctly set in config file
 
 ## License
 
