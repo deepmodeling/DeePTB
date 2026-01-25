@@ -77,7 +77,7 @@ def test_to_pardiso_new():
     print("="*70)
     
     import subprocess
-    julia_script = os.path.abspath(os.path.join(root_dir, "../../dptb/postprocess/julia/main.jl"))
+    julia_script = os.path.abspath(os.path.join(root_dir, "../../dptb/postprocess/pardiso/main.jl"))
     config_path = os.path.join(root_dir, "band.json")
     julia_out_dir = os.path.join(output_dir_new, "results") # New Output Paths
     

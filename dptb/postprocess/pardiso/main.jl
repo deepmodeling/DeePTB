@@ -97,9 +97,12 @@ function main()
     input_dir = args["input_dir"]
     calc_job = get(config, "calc_job", "band")
 
+    # Determine spinful status from config (needed for legacy fallback)
+    spinful = haskey(config, "isspinful") ? (config["isspinful"] in [true, "true"]) : false
+
     # Load structure
     @info "Loading structure from $input_dir"
-    structure = load_structure(input_dir)
+    structure = load_structure(input_dir; spinful=spinful)
     structure["site_norbits"] = Int.(structure["site_norbits"])
 
     # Load/construct sparse matrices

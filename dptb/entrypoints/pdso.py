@@ -72,7 +72,7 @@ def pdso(
     # 4. Julia Backend Execution
     # Locate main.jl
     current_dir = Path(__file__).resolve().parent
-    julia_script = current_dir.parent / "postprocess" / "julia" / "main.jl"
+    julia_script = current_dir.parent / "postprocess" / "pardiso" / "main.jl"
 
     if not julia_script.exists():
         log.error(f"Julia backend script not found at {julia_script}")
