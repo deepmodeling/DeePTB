@@ -2,6 +2,10 @@
 
 This directory contains the modular Julia backend for high-performance eigenvalue calculations using Intel MKL Pardiso.
 
+> **Platform Support**: This backend currently supports **Linux only**.
+> - **macOS**: Not supported due to Intel MKL limitations
+> - **Windows**: Use WSL2 (Windows Subsystem for Linux)
+
 ## Directory Structure
 
 ```
