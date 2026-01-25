@@ -434,33 +434,60 @@ class EigHamLoss(nn.Module):
 
         return self.coeff_ham * ham_loss + (1 - self.coeff_ham) * eigloss
 
-        
 
+import logging
+import inspect
+import torch
 
-    
+# 假设这些类已经在上下文或其他地方定义
+# from somewhere import Loss, OrbitalMapper, AtomicDataDict
+
+log = logging.getLogger(__name__)
+
 
 @Loss.register("hamil_abs")
 class HamilLossAbs(nn.Module):
     def __init__(
-            self, 
-            basis: Dict[str, Union[str, list]]=None,
-            idp: Union[OrbitalMapper, None]=None,
-            overlap: bool=False,
-            onsite_shift: bool=False,
-            dtype: Union[str, torch.dtype] = torch.float32, 
+            self,
+            basis: Dict[str, Union[str, list]] = None,
+            idp: Union[OrbitalMapper, None] = None,
+            overlap: bool = False,
+            onsite_shift: bool = False,
+            dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
+            debug_flag: bool = False,  # <--- 新增 Flag
+            nextham_uureal_mask: bool = False,   # <--- 新增
             **kwargs,
-        ):
-
+    ):
         super(HamilLossAbs, self).__init__()
         self.loss1 = nn.L1Loss()
         self.loss2 = nn.MSELoss()
         self.overlap = overlap
         self.device = device
         self.onsite_shift = onsite_shift
+        self.dtype = dtype
 
+        # Debug 开关与计数器
+        self.debug = debug_flag
+        self._debug_counter = 0
+
+        # 如果开启 Debug，记录调用者信息
+        if self.debug:
+            self._log_caller_info(kwargs)
+
+        # 初始化 OrbitalMapper
         if basis is not None:
-            self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
+            # 注意：这里的 has_soc 获取依然依赖 kwargs，需确保调用方传入
+            has_soc = kwargs.get('has_soc', False)
+
+            self.idp = OrbitalMapper(
+                basis,
+                method="e3tb",
+                device=self.device,
+                has_soc=has_soc,
+                nextham_uureal_mask=nextham_uureal_mask,  # <--- 新增：透传给 OrbitalMapper
+            )
+            log.warning(f'initialize loss rme with nextham_uureal_mask: {nextham_uureal_mask}')
             if idp is not None:
                 assert idp == self.idp, "The basis of idp and basis should be the same."
         else:
@@ -468,58 +495,134 @@ class HamilLossAbs(nn.Module):
             self.idp = idp
 
     def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
-        # mask the data
-        if self.onsite_shift:
-            batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
-            mu_n, mu_e, norm_ss_n, norm_ss_e = shift_mu(data=data, ref_data=ref_data,idp=self.idp)
+        self._debug_counter += 1
+        # 当开启 debug 且 (是前几步 或 每100步) 时打印详细信息
+        verbose_step = self.debug and (self._debug_counter <= 1 or self._debug_counter % 5 == 1)
 
-            if batch.max() == 0: # when batchsize is zero
-                diffhs = mu_n.sum() + mu_e.sum()
-                ss = norm_ss_n.sum() + norm_ss_e.sum()
-                mu = diffhs / ss
-                mu = mu.detach()
-                ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
-                ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
-            elif batch.max() >= 1:
-                slices = data["__slices__"]["pos"]
-                slices_e = data["__slices__"]["edge_index"]
-                mu_n = torch.stack([mu_n[slices[i]:slices[i+1]].sum() for i in range(len(slices)-1)])
-                mu_e = torch.stack([mu_e[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
+        try:
+            # === Onsite Part ===
+            atom_types = data[AtomicDataDict.ATOM_TYPE_KEY].flatten()
+            node_mask = self.idp.mask_to_nrme[atom_types]
 
-                norm_ss_n = torch.stack([norm_ss_n[slices[i]:slices[i+1]].sum() for i in range(len(slices)-1)])
-                norm_ss_e = torch.stack([norm_ss_e[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
-               
-                mu = mu_n + mu_e 
-                ss = norm_ss_n + norm_ss_e 
-                mu = mu / ss
-                mu = mu.detach()
+            raw_pre_node = data[AtomicDataDict.NODE_FEATURES_KEY]
+            raw_tgt_node = ref_data[AtomicDataDict.NODE_FEATURES_KEY]
 
-                ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu[batch, None] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
-                edge_mu_index = torch.zeros(data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], dtype=torch.long, device=self.device)
-                for i in range(1, batch.max().item()+1):
-                    edge_mu_index[data["__slices__"]["edge_index"][i]:data["__slices__"]["edge_index"][i+1]] += i
-                ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu[edge_mu_index, None] * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
-                
-        pre = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
-        tgt = ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
-        onsite_loss = 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
+            pre_node = raw_pre_node[node_mask]
+            tgt_node = raw_tgt_node[node_mask]
 
-        pre = data[AtomicDataDict.EDGE_FEATURES_KEY][self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-        tgt = ref_data[AtomicDataDict.EDGE_FEATURES_KEY][self.idp.mask_to_erme[ref_data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-        hopping_loss = 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
-        
-        if self.overlap:
-            pre = data[AtomicDataDict.EDGE_OVERLAP_KEY][self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-            tgt = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY][self.idp.mask_to_erme[ref_data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-            overlap_loss = 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
+            if pre_node.shape != tgt_node.shape:
+                raise ValueError(f"Onsite Shape Mismatch: Pre {pre_node.shape} vs Tgt {tgt_node.shape}")
 
-            pre = data[AtomicDataDict.NODE_OVERLAP_KEY][self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
-            tgt = ref_data[AtomicDataDict.NODE_OVERLAP_KEY][self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
-            overlap_loss += 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
+            onsite_loss = 0.5 * (self.loss1(pre_node, tgt_node) + torch.sqrt(self.loss2(pre_node, tgt_node)))
 
-            return (1/3) * (hopping_loss + onsite_loss + overlap_loss)
-        else:
+            # === Hopping Part ===
+            edge_types = data[AtomicDataDict.EDGE_TYPE_KEY].flatten()
+            edge_mask = self.idp.mask_to_erme[edge_types]
+
+            raw_pre_edge = data[AtomicDataDict.EDGE_FEATURES_KEY]
+            raw_tgt_edge = ref_data[AtomicDataDict.EDGE_FEATURES_KEY]
+
+            pre_edge = raw_pre_edge[edge_mask]
+            tgt_edge = raw_tgt_edge[edge_mask]
+
+            if pre_edge.shape != tgt_edge.shape:
+                raise ValueError(f"Hopping Shape Mismatch: Pre {pre_edge.shape} vs Tgt {tgt_edge.shape}")
+
+            hopping_loss = 0.5 * (self.loss1(pre_edge, tgt_edge) + torch.sqrt(self.loss2(pre_edge, tgt_edge)))
+
+            # === Debug Print ===
+            if verbose_step:
+                # 将当前局部变量传入辅助函数进行打印
+                self._log_step_info(locals())
+
             return 0.5 * (onsite_loss + hopping_loss)
+
+        except Exception as e:
+            # 如果开启 debug，则打印详细崩溃信息，否则直接抛出
+            if self.debug:
+                self._print_crash_info(e, data, locals())
+            raise e
+
+    # =========================================================================
+    #                               Debug Helpers
+    # =========================================================================
+
+    def _log_caller_info(self, kwargs):
+        """记录初始化调用栈和参数"""
+        log.warning('=' * 44)
+        log.warning('========== HamilLossAbs Initialized ==========')
+        log.warning(f"KWARGS: {kwargs}")
+        log.warning(f"HAS_SOC: {kwargs.get('has_soc', 'Not Provided')}")
+
+        cur_frame = inspect.currentframe()
+        # 获取调用者的 frame (通常是上一级，这里因为封装了一层函数，可能需要调整索引，或者保持 inspect 的逻辑)
+        # 这里为了保持原逻辑效果，回溯到外部调用者
+        try:
+            caller_frame_info = inspect.getouterframes(cur_frame, 2)[1]
+            caller_file = caller_frame_info.filename
+            caller_line = caller_frame_info.lineno
+            caller_func = caller_frame_info.function
+
+            # 尝试获取调用者的类名
+            arg_info = inspect.getargvalues(caller_frame_info.frame)
+            caller_class = ""
+            if 'self' in arg_info.locals:
+                caller_class = arg_info.locals['self'].__class__.__name__ + "."
+
+            log.warning(f"CALLED BY: {caller_class}{caller_func}")
+            log.warning(f"LOCATION : {caller_file}:{caller_line}")
+        except Exception:
+            log.warning("Could not trace caller frame.")
+
+        log.warning('=' * 44)
+
+    def _log_step_info(self, locs):
+        """打印 Forward 过程中的 Tensor 形状信息"""
+        print(f"\n[Loss Debug] Step {self._debug_counter}")
+
+        # Node Info
+        if 'raw_pre_node' in locs and 'raw_tgt_node' in locs:
+            print(f"  Node Raw Shapes -> Pre: {locs['raw_pre_node'].shape}, Tgt: {locs['raw_tgt_node'].shape}")
+        if 'node_mask' in locs:
+            print(
+                f"  Node Mask Shape -> {locs['node_mask'].shape}, Selected Elements: {locs['node_mask'].sum().item()}")
+
+        # Edge Info
+        if 'raw_pre_edge' in locs and 'raw_tgt_edge' in locs:
+            print(f"  Edge Raw Shapes -> Pre: {locs['raw_pre_edge'].shape}, Tgt: {locs['raw_tgt_edge'].shape}")
+        if 'edge_mask' in locs:
+            print(
+                f"  Edge Mask Shape -> {locs['edge_mask'].shape}, Selected Elements: {locs['edge_mask'].sum().item()}")
+
+        # Loss Info
+        if 'onsite_loss' in locs and 'hopping_loss' in locs:
+            print(
+                f"  Loss Values -> Onsite: {locs['onsite_loss'].item():.6f}, Hopping: {locs['hopping_loss'].item():.6f}")
+
+    def _print_crash_info(self, error, data, locs):
+        """打印崩溃时的详细快照"""
+        print(f"\n{'!' * 20} Loss Forward Crash {'!' * 20}")
+        print(f"Error: {str(error)}")
+        print(f"Step: {self._debug_counter}")
+
+        # 尝试打印输入数据的形状
+        try:
+            print(f"Atom Types Shape: {data[AtomicDataDict.ATOM_TYPE_KEY].shape}")
+            print(f"Edge Types Shape: {data[AtomicDataDict.EDGE_TYPE_KEY].shape}")
+        except:
+            print("Could not access input data shapes.")
+
+        # 打印中间变量
+        vars_to_check = ['node_mask', 'edge_mask', 'pre_node', 'tgt_node', 'pre_edge', 'tgt_edge']
+        for var_name in vars_to_check:
+            if var_name in locs:
+                tensor = locs[var_name]
+                # 区分 bool mask 和 feature tensor
+                info = f"Sum: {tensor.sum()}" if tensor.dtype == torch.bool else "Feature Tensor"
+                print(f"{var_name}: Shape {tensor.shape}, {info}")
+
+        print('!' * 60)
+
 
 @Loss.register("hamil_blas")
 class HamilLossBlas(nn.Module):

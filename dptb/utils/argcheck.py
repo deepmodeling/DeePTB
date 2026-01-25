@@ -88,6 +88,7 @@ def common_options():
     doc_basis = "The atomic orbitals used to construct the basis. e.p. {'A':['2s','2p','s*'],'B':'[3s','3p']}"
     doc_overlap = "Whether to calculate the overlap matrix. Default: False"
     doc_train_w_charge = "Whether to train with charge info. Default: False"
+    doc_has_soc = "Whether to train with SOC. Default: False"
     doc_train_dip = "Whether to train the dipole moment tensor. Default: False"
     doc_train_polar = "Whether to train the polarizaty tensor. Default: False"
     doc_wave_align = "Whether to align the wavefunctions. Default: False"
@@ -99,6 +100,7 @@ def common_options():
         Argument("wave_align", bool, optional=True, default=False, doc=doc_wave_align),
         Argument("train_dip", bool, optional=True, default=False, doc=doc_train_dip),
         Argument("train_w_charge", bool, optional=True, default=False, doc=doc_train_w_charge),
+        Argument("has_soc", bool, optional=True, default=False, doc=doc_has_soc),
         Argument("device", str, optional = True, default="cpu", doc = doc_device),
         Argument("dtype", str, optional = True, default="float32", doc = doc_dtype),
         Argument("seed", int, optional=True, default=3982377700, doc=doc_seed),
@@ -486,6 +488,8 @@ def embedding():
             Argument("lem", dict, slem()),
             Argument("lem_full_tp_oeq", dict, slem()),
             Argument("lem_frame", dict, slem()),
+            Argument("emoles", dict, slem()),
+            Argument("emoles_openequi", dict, slem()),
             Argument("lem_light", dict, slem()),
             Argument("lem_light_v2", dict, slem()),
             Argument("lem_charge", dict, slem()),
@@ -661,6 +665,7 @@ def slem():
             Argument("self_mix_mode", str, optional=True, default="full"),
             Argument("self_mix_type", str, optional=True, default="all"),
             Argument("self_mix_flag", bool, optional=True, default=False),
+            Argument("optimized_in_frame", bool, optional=True, default=True),
             Argument("self_mix_iter", int, optional=True, default=2),
 
             Argument("n_radial_basis", int, optional=True, default=128, doc=doc_n_radial_basis),
@@ -902,6 +907,8 @@ def loss_options():
 
     hamil = [
         Argument("onsite_shift", bool, optional=True, default=False, doc="Whether to use onsite shift in loss function. Default: False"),
+        Argument("debug_flag", bool, optional=True, default=False, doc="Whether to show debug info. Default: False"),
+        Argument("nextham_uureal_mask", bool, optional=True, default=False, doc="Whether to use nextham style uureal_mask. Default: False"),
     ]
 
     property_aux = [
@@ -1700,7 +1707,7 @@ def get_cutoffs_from_model_options(model_options):
         embedding = model_options.get("embedding")
         if embedding["method"] == "se2":
             er_max = embedding["rc"]
-        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_charge", "lem_cutoff", "lem_full_tp_oeq", "lem_moe_openequi", "lem_in_frame_moe", "lem_full_tp", "lem_in_frame_e3nn", "lem_in_frame_openequi", "lem_wo_ln", "lem_in_frame", "lem_in_frame_heavy", "lem_light_v2", "lem_light", "lem_moe_charge", "lem_frame", "lem_high_order", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
+        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_charge", "emoles", "emoles_openequi", "lem_cutoff", "lem_full_tp_oeq", "lem_moe_openequi", "lem_in_frame_moe", "lem_full_tp", "lem_in_frame_e3nn", "lem_in_frame_openequi", "lem_wo_ln", "lem_in_frame", "lem_in_frame_heavy", "lem_light_v2", "lem_light", "lem_moe_charge", "lem_frame", "lem_high_order", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
             r_max = embedding["r_max"]
         else:
             log.error("The method of embedding have not been defined in get cutoff functions")

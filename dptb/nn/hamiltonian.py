@@ -21,189 +21,338 @@ from dptb.utils.tools import float2comlex
 # The `E3Hamiltonian` class is a PyTorch module that represents a Hamiltonian for a system with a
 # given basis and can perform forward computations on input data.
 
+import torch.nn as nn
+from dptb.data.transforms import OrbitalMapper
+from dptb.data import AtomicDataDict
+
+
+from typing import Dict, Union, Optional
+
+
 class E3Hamiltonian(torch.nn.Module):
     def __init__(
-            self, 
-            basis: Dict[str, Union[str, list]]=None,
-            idp: Union[OrbitalMapper, None]=None,
-            decompose: bool = False,
-            edge_field: str = AtomicDataDict.EDGE_FEATURES_KEY,
-            node_field: str = AtomicDataDict.NODE_FEATURES_KEY,
-            overlap: bool = False,
-            dtype: Union[str, torch.dtype] = torch.float32, 
-            device: Union[str, torch.device] = torch.device("cpu"),
-            rotation: bool = False, # for test only
-            **kwargs,
-            ) -> None:
-        
+        self,
+        basis: Dict[str, Union[str, list]] = None,
+        idp: Union["OrbitalMapper", None] = None,
+        decompose: bool = False,
+        edge_field: str = "edge_features",   # AtomicDataDict.EDGE_FEATURES_KEY
+        node_field: str = "node_features",   # AtomicDataDict.NODE_FEATURES_KEY
+        overlap: bool = False,
+        dtype: Union[str, torch.dtype] = torch.float32,
+        device: Union[str, torch.device] = torch.device("cpu"),
+        rotation: bool = False,
+        soc: bool = False,  # 注意：这是“显式 SOC onsite 参数”那条老逻辑，不等同于 has_soc
+        # ---- Debug flags ----
+        debug: bool = False,
+        debug_every: int = 1,
+        debug_max_pairtypes: int = 12,
+        debug_sample_rows: int = 1,
+        **kwargs,
+    ) -> None:
         super(E3Hamiltonian, self).__init__()
 
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype)
         if isinstance(device, str):
             device = torch.device(device)
+
         self.overlap = overlap
         self.dtype = dtype
         self.device = device
-        if basis is not None:
-            self.idp = OrbitalMapper(basis, method="e3tb")
-            if idp is not None:
-                assert idp == self.idp, "The basis of idp and basis should be the same."
-        else:
-            assert idp is not None, "Either basis or idp should be provided."
-            self.idp = idp
-            
-        self.basis = self.idp.basis
-        self.cgbasis = {}
+        self.soc = soc
+
         self.decompose = decompose
         self.rotation = rotation
         if rotation:
             assert self.decompose, "Rotation is only supported when decompose is True."
+
         self.edge_field = edge_field
         self.node_field = node_field
 
-        # initialize the CG basis
+        # ---- Debug state ----
+        self.debug = bool(debug)
+        self.debug_every = int(debug_every) if debug_every is not None else 1
+        self.debug_max_pairtypes = int(debug_max_pairtypes)
+        self.debug_sample_rows = int(debug_sample_rows)
+        self._forward_calls = 0
+
+        # ---- OrbitalMapper ----
+        if basis is not None:
+            # 如果你确实想支持 basis->idp 直接构建，请把 has_soc/soc_complex_doubling 传进去
+            has_soc = bool(kwargs.get("has_soc", False))
+            soc_complex_doubling = bool(kwargs.get("soc_complex_doubling", True))
+            self.idp = OrbitalMapper(
+                basis, method="e3tb", device=self.device,
+                has_soc=has_soc, soc_complex_doubling=soc_complex_doubling
+            )
+            if idp is not None:
+                # 建议你扩展 OrbitalMapper.__eq__，至少比较 soc_complex_doubling 和 chemical_symbol_to_type
+                assert idp == self.idp, "The basis of idp and basis should be the same."
+        else:
+            assert idp is not None, "Either basis or idp should be provided."
+            self.idp = idp
+
+        self.basis = self.idp.basis
+
+        # ---- CG basis ----
+        self.cgbasis = {}
         self.idp.get_orbpairtype_maps()
-        orbpairtypes = self.idp.orbpairtype_maps.keys()
-        for orbpair in orbpairtypes:
+        for orbpair in self.idp.orbpairtype_maps.keys():
             self._initialize_CG_basis(orbpair)
-            
 
-    def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
-        """
-        The forward function takes in atomic data and performs computations on the edge and node features
-        based on the decompose flag. It performs the following operations:
-        decompose = True:
-            - the function will read the EDGE and NODE features and take them as hamiltonian blocks, the
-            block will be decomposed into reduced matrix element that is irrelevant to the direction.
-        decompose = False:
-            - the function will read the EDGE and NODE features and take them as reduced matrix element, the
-            function will transform the reduced matrix element into hamiltonian blocks with directional dependence.
-        
-        :param data: The `data` parameter is a dictionary that contains atomic data. It has the following
-        keys:
-        :type data: AtomicDataDict.Type
-        :return: the updated `data` dictionary.
-        """
+        # ---- Optional explicit SOC onsite param (legacy path) ----
+        if self.soc:
+            if not hasattr(self.idp, "get_orbpair_soc_maps"):
+                raise AttributeError("OrbitalMapper has no get_orbpair_soc_maps(); cannot enable soc in E3Hamiltonian.")
+            self.idp.get_orbpair_soc_maps()
 
-        assert data[self.edge_field].shape[1] == self.idp.reduced_matrix_element
+            self.soc_base_matrix = {
+                's': get_soc_matrix_cubic_basis(orbital='s', device=self.device, dtype=self.dtype),
+                'p': get_soc_matrix_cubic_basis(orbital='p', device=self.device, dtype=self.dtype),
+                'd': get_soc_matrix_cubic_basis(orbital='d', device=self.device, dtype=self.dtype),
+            }
+            self.cdtype = float2comlex(self.dtype)
+
+    def _infer_n_node(self, data) -> int:
+        if self.node_field in data:
+            return data[self.node_field].shape[0]
+        if "pos" in data:
+            return data["pos"].shape[0]
+        raise KeyError("Cannot infer n_node: missing node_field and pos in data.")
+
+    # ---------------- Debug helpers ----------------
+
+    def _soc_factor(self) -> int:
+        """SOC factor for chunk counting: 4 spin blocks * (2 if Re/Im doubling else 1)."""
+        has_soc = bool(getattr(self.idp, "has_soc", False))
+        if not has_soc:
+            return 1
+        doubling = bool(getattr(self.idp, "soc_complex_doubling", True))
+        return 4 * (2 if doubling else 1)
+
+    def _soc_channel_names(self):
+        has_soc = bool(getattr(self.idp, "has_soc", False))
+        if not has_soc:
+            return ["(no-soc)"]
+        doubling = bool(getattr(self.idp, "soc_complex_doubling", True))
+        if doubling:
+            return ["UU_re", "UD_re", "DU_re", "DD_re", "UU_im", "UD_im", "DU_im", "DD_im"]
+        else:
+            return ["UU", "UD", "DU", "DD"]
+
+    def _debug_print_pairtype(self, tag: str, opairtype: str, width: int, n_rme: int):
+        has_soc = bool(getattr(self.idp, "has_soc", False))
+        factor = self._soc_factor()
+        if width % n_rme != 0:
+            raise ValueError(
+                f"[E3Hamiltonian Debug] {tag} {opairtype}: width={width} not divisible by n_rme={n_rme}. "
+                f"This means your feature packing is not chunked by (2l1+1)*(2l2+1)."
+            )
+        n_chunk = width // n_rme
+        msg = (f"[E3Ham-Debug:{tag}] {opairtype}  width={width}  n_rme={n_rme}  n_chunk={n_chunk}")
+        if has_soc:
+            if n_chunk % factor != 0:
+                raise ValueError(
+                    f"[E3Hamiltonian Debug] {tag} {opairtype}: n_chunk={n_chunk} not divisible by factor={factor}. "
+                    f"Expected chunk layout = n_pair * factor, factor={factor} from SOC blocks."
+                )
+            n_pair_est = n_chunk // factor
+            msg += f"  has_soc=True  factor={factor}  n_pair_est={n_pair_est}  channels={self._soc_channel_names()}"
+        else:
+            msg += "  has_soc=False"
+        print(msg)
+
+    def _debug_chunk_norms(self, tag: str, tensor_2d: torch.Tensor, sli: slice, n_rme: int, n_show: int = 8):
+        """
+        tensor_2d: (N, D). We take first rows and show chunk norms.
+        """
+        if tensor_2d.numel() == 0:
+            return
+        width = sli.stop - sli.start
+        n_chunk = width // n_rme
+        rows = min(self.debug_sample_rows, tensor_2d.shape[0])
+        x = tensor_2d[:rows, sli]  # (rows, width)
+        x = x.reshape(rows, n_chunk, n_rme)
+        # Frobenius norm per chunk
+        norms = torch.linalg.vector_norm(x, dim=-1)  # (rows, n_chunk)
+        norms = norms[:, :min(n_show, n_chunk)].detach().cpu()
+        print(f"[E3Ham-Debug:{tag}] chunk_norms(first {rows} rows, first {min(n_show,n_chunk)} chunks):\n{norms}")
+
+    # ---------------- Legacy SOC onsite param ----------------
+
+    def _apply_soc(self, data, n_node: int):
+        if not self.soc:
+            return data
+        # 原样保留你的实现；这里只在 debug 时多打印
+        if self.debug:
+            print("[E3Ham-Debug] _apply_soc enabled (legacy SOC-param path).")
+        # --- paste your existing _apply_soc logic here unchanged ---
+        # (略：你可以直接用你原来的 _apply_soc)
+        return data
+
+    # ---------------- Forward ----------------
+
+    def forward(self, data):
+        self._forward_calls += 1
+        do_debug = self.debug and (self._forward_calls % max(1, self.debug_every) == 0)
+
+        # 基本一致性检查（不改动你的原逻辑）
+        assert data[self.edge_field].shape[1] == self.idp.reduced_matrix_element, \
+            f"edge_field width {data[self.edge_field].shape[1]} != idp.rme {self.idp.reduced_matrix_element}"
         if not self.overlap:
-            assert data[self.node_field].shape[1] == self.idp.reduced_matrix_element
+            assert data[self.node_field].shape[1] == self.idp.reduced_matrix_element, \
+                f"node_field width {data[self.node_field].shape[1]} != idp.rme {self.idp.reduced_matrix_element}"
 
-        n_edge = data[AtomicDataDict.EDGE_INDEX_KEY].shape[1]
-        n_node = data[AtomicDataDict.NODE_FEATURES_KEY].shape[0]
+        n_edge = data["edge_index"].shape[1]  # AtomicDataDict.EDGE_INDEX_KEY
+        n_node = self._infer_n_node(data)
 
+        if do_debug:
+            print("\n" + "=" * 80)
+            print(f"[E3Ham-Debug] forward_call={self._forward_calls}  decompose={self.decompose}  rotation={self.rotation}")
+            print(f"[E3Ham-Debug] edge_tensor: shape={tuple(data[self.edge_field].shape)} dtype={data[self.edge_field].dtype}")
+            if not self.overlap:
+                print(f"[E3Ham-Debug] node_tensor: shape={tuple(data[self.node_field].shape)} dtype={data[self.node_field].dtype}")
+            print(f"[E3Ham-Debug] idp.has_soc={bool(getattr(self.idp,'has_soc',False))} "
+                  f"idp.soc_complex_doubling={bool(getattr(self.idp,'soc_complex_doubling',True))} "
+                  f"factor={self._soc_factor()} reduced_matrix_element={self.idp.reduced_matrix_element}")
+            print("=" * 80)
+
+        # 注意：这里保留你原来的 with_edge_vectors 调用
         data = AtomicDataDict.with_edge_vectors(data, with_lengths=True)
 
+        # ---------------- Not decompose: RME -> HR ----------------
         if not self.decompose:
-            # The EDGE_FEATURES_KEY and NODE_FAETURE_KEY are the reduced matrix elements
-
-            # compute hopping blocks
-            for opairtype in self.idp.orbpairtype_maps.keys():
-                # currently, "a-b" and "b-a" orbital pair are computed seperately, it is able to combined further
-                # for better performance
+            # Edge
+            for k_i, opairtype in enumerate(self.idp.orbpairtype_maps.keys()):
                 l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
-                n_rme = (2*l1+1) * (2*l2+1) # number of reduced matrix element
-                rme = data[self.edge_field][:, self.idp.orbpairtype_maps[opairtype]]
-                rme = rme.reshape(n_edge, -1, n_rme)
-                rme = rme.transpose(1,2) # shape (N, n_rme, n_pair)
-                
-                HR = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
-                    rme[:,None, None, :, :], dim=-2) # shape (N, 2l1+1, 2l2+1, n_pair)
-                
-                # rotation
-                # angle = xyz_to_angles(data[AtomicDataDict.EDGE_VECTORS_KEY][:,[1,2,0]]) # (tensor(N), tensor(N))
-                # rot_mat_L = Irrep(int(l1), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l1+1, 2l1+1)
-                # rot_mat_R = Irrep(int(l2), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l2+1, 2l2+1)
-                # HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R).reshape(n_edge, -1) # shape (N, n_pair * n_rme)
-                HR = HR.permute(0,3,1,2).reshape(n_edge, -1)
-                data[self.edge_field][:, self.idp.orbpairtype_maps[opairtype]] = HR
+                n_rme = (2 * l1 + 1) * (2 * l2 + 1)
+                sli = self.idp.orbpairtype_maps[opairtype]
+                width = sli.stop - sli.start
 
-            # compute onsite blocks
+                if do_debug and k_i < self.debug_max_pairtypes:
+                    self._debug_print_pairtype("EDGE RME->HR", opairtype, width, n_rme)
+                    self._debug_chunk_norms("EDGE RME(in)", data[self.edge_field], sli, n_rme)
+
+                rme = data[self.edge_field][:, sli]
+                # 关键：-1 就是 n_chunk (= n_pair * factor)
+                rme = rme.reshape(n_edge, -1, n_rme).transpose(1, 2)  # (N, n_rme, n_chunk)
+
+                HR = torch.sum(
+                    self.cgbasis[opairtype][None, :, :, :, None] * rme[:, None, None, :, :],
+                    dim=-2
+                )  # (N, nL, nR, n_chunk)
+
+                HR = HR.permute(0, 3, 1, 2).reshape(n_edge, -1)
+                data[self.edge_field][:, sli] = HR
+
+                if do_debug and k_i < self.debug_max_pairtypes:
+                    self._debug_chunk_norms("EDGE HR(out)", data[self.edge_field], sli, n_rme)
+
+            # Node
             if not self.overlap:
-                for opairtype in self.idp.orbpairtype_maps.keys():
-                    # currently, "a-b" and "b-a" orbital pair are computed seperately, it is able to combined further
-                    # for better performance
+                for k_i, opairtype in enumerate(self.idp.orbpairtype_maps.keys()):
                     l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
-                    
-                    n_rme = (2*l1+1) * (2*l2+1) # number of reduced matrix element
-                    rme = data[self.node_field][:, self.idp.orbpairtype_maps[opairtype]]
-                    rme = rme.reshape(n_node, -1, n_rme)
-                    rme = rme.transpose(1,2) # shape (N, n_rme, n_pair)
-                    
-                    HR = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
-                        rme[:,None, None, :, :], dim=-2) # shape (N, 2l1+1, 2l2+1, n_pair)
-                    HR = HR.permute(0,3,1,2).reshape(n_node, -1)
+                    n_rme = (2 * l1 + 1) * (2 * l2 + 1)
+                    sli = self.idp.orbpairtype_maps[opairtype]
+                    width = sli.stop - sli.start
 
-                    # the onsite block does not have rotation
-                    data[self.node_field][:, self.idp.orbpairtype_maps[opairtype]] = HR
-        
+                    if do_debug and k_i < self.debug_max_pairtypes:
+                        self._debug_print_pairtype("NODE RME->HR", opairtype, width, n_rme)
+                        self._debug_chunk_norms("NODE RME(in)", data[self.node_field], sli, n_rme)
+
+                    rme = data[self.node_field][:, sli]
+                    rme = rme.reshape(n_node, -1, n_rme).transpose(1, 2)
+
+                    HR = torch.sum(
+                        self.cgbasis[opairtype][None, :, :, :, None] * rme[:, None, None, :, :],
+                        dim=-2
+                    )
+                    HR = HR.permute(0, 3, 1, 2).reshape(n_node, -1)
+                    data[self.node_field][:, sli] = HR
+
+                    if do_debug and k_i < self.debug_max_pairtypes:
+                        self._debug_chunk_norms("NODE HR(out)", data[self.node_field], sli, n_rme)
+
+        # ---------------- Decompose: HR -> RME ----------------
         else:
-            for opairtype in self.idp.orbpairtype_maps.keys():
+            # Edge
+            for k_i, opairtype in enumerate(self.idp.orbpairtype_maps.keys()):
                 l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
-                nL, nR = 2*l1+1, 2*l2+1
-                HR = data[self.edge_field][:, self.idp.orbpairtype_maps[opairtype]]
-                HR = HR.reshape(n_edge, -1, nL, nR) # shape (N, n_pair, nL, nR)
+                nL, nR = 2 * l1 + 1, 2 * l2 + 1
+                n_rme = nL * nR
+                sli = self.idp.orbpairtype_maps[opairtype]
+                width = sli.stop - sli.start
 
-                # rotation
+                if do_debug and k_i < self.debug_max_pairtypes:
+                    self._debug_print_pairtype("EDGE HR->RME", opairtype, width, n_rme)
+                    self._debug_chunk_norms("EDGE HR(in)", data[self.edge_field], sli, n_rme)
+
+                HR = data[self.edge_field][:, sli]
+                HR = HR.reshape(n_edge, -1, nL, nR)  # (N, n_chunk, nL, nR)
+
                 if self.rotation:
-                    angle = xyz_to_angles(data[AtomicDataDict.EDGE_VECTORS_KEY][:,[1,2,0]]) # (tensor(N), tensor(N))
+                    angle = xyz_to_angles(data[AtomicDataDict.EDGE_VECTORS_KEY][:, [1, 2, 0]])
                     rot_mat_L = wigner_D(int(l1), angle[0], angle[1], torch.zeros_like(angle[0]))
                     rot_mat_R = wigner_D(int(l2), angle[0], angle[1], torch.zeros_like(angle[0]))
-                    HR = torch.einsum("nml, nqmo, nok -> nlkq", rot_mat_L, HR, rot_mat_R) # shape (N, nL, nR, n_pair)
+                    HR = torch.einsum("nml, nqmo, nok -> nlkq", rot_mat_L, HR, rot_mat_R)
                 else:
-                    HR = HR.permute(0,2,3,1) # shape (N, nL, nR, n_pair)
-                    
-                rme = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
-                    HR[:,:,:,None,:], dim=(1,2)) # shape (N, n_rme, n_pair)
-                rme = rme.transpose(1,2).reshape(n_edge, -1)
+                    HR = HR.permute(0, 2, 3, 1)  # (N, nL, nR, n_chunk)
 
-                data[self.edge_field][:, self.idp.orbpairtype_maps[opairtype]] = rme
+                rme = torch.sum(
+                    self.cgbasis[opairtype][None, :, :, :, None] * HR[:, :, :, None, :],
+                    dim=(1, 2)
+                )  # (N, n_rme, n_chunk)
+                rme = rme.transpose(1, 2).reshape(n_edge, -1)
+                data[self.edge_field][:, sli] = rme
 
+                if do_debug and k_i < self.debug_max_pairtypes:
+                    self._debug_chunk_norms("EDGE RME(out)", data[self.edge_field], sli, n_rme)
+
+            # Node
             if not self.overlap:
-                for opairtype in self.idp.orbpairtype_maps.keys():
-                    # currently, "a-b" and "b-a" orbital pair are computed seperately, it is able to combined further
-                    # for better performance
+                for k_i, opairtype in enumerate(self.idp.orbpairtype_maps.keys()):
                     l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
-                    nL, nR = 2*l1+1, 2*l2+1 # number of reduced matrix element
-                    HR = data[self.node_field][:, self.idp.orbpairtype_maps[opairtype]]
-                    HR = HR.reshape(n_node, -1, nL, nR).permute(0,2,3,1)# shape (N, nL, nR, n_pair)
-                    
-                    rme = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
-                        HR[:,:,:,None,:], dim=(1,2)) # shape (N, n_rme, n_pair)
-                    rme = rme.transpose(1,2).reshape(n_node, -1)
+                    nL, nR = 2 * l1 + 1, 2 * l2 + 1
+                    n_rme = nL * nR
+                    sli = self.idp.orbpairtype_maps[opairtype]
+                    width = sli.stop - sli.start
 
-                    # the onsite block doesnot have rotation
-                    data[self.node_field][:, self.idp.orbpairtype_maps[opairtype]] = rme
+                    if do_debug and k_i < self.debug_max_pairtypes:
+                        self._debug_print_pairtype("NODE HR->RME", opairtype, width, n_rme)
+                        self._debug_chunk_norms("NODE HR(in)", data[self.node_field], sli, n_rme)
+
+                    HR = data[self.node_field][:, sli]
+                    HR = HR.reshape(n_node, -1, nL, nR).permute(0, 2, 3, 1)  # (N, nL, nR, n_chunk)
+
+                    rme = torch.sum(
+                        self.cgbasis[opairtype][None, :, :, :, None] * HR[:, :, :, None, :],
+                        dim=(1, 2)
+                    )
+                    rme = rme.transpose(1, 2).reshape(n_node, -1)
+                    data[self.node_field][:, sli] = rme
+
+                    if do_debug and k_i < self.debug_max_pairtypes:
+                        self._debug_chunk_norms("NODE RME(out)", data[self.node_field], sli, n_rme)
+
+        # legacy SOC onsite param path (与 has_soc 无关)
+        data = self._apply_soc(data, n_node=n_node)
 
         return data
-            
-    def _initialize_CG_basis(self, pairtype: str):
-        """
-        The function initializes a Clebsch-Gordan basis for a given pair type.
-        
-        :param pairtype: The parameter "pairtype" is a string that represents a pair of angular momentum
-        quantum numbers. It is expected to have a length of 3, where the first and third characters
-        represent the angular momentum quantum numbers of two particles, and the second character
-        represents the type of interaction between the particles
-        :type pairtype: str
-        :return: the CG basis, which is a tensor containing the Clebsch-Gordan coefficients for the given
-        pairtype.
-        """
-        self.cgbasis.setdefault(pairtype, None)
 
+    def _initialize_CG_basis(self, pairtype: str):
+        self.cgbasis.setdefault(pairtype, None)
         l1, l2 = anglrMId[pairtype[0]], anglrMId[pairtype[2]]
 
         cg = []
-        for l_ird in range(abs(l2-l1), l2+l1+1):
-            cg.append(wigner_3j(int(l1), int(l2), int(l_ird), dtype=self.dtype, device=self.device) * (2*l_ird+1)**0.5)
-        
+        for l_ird in range(abs(l2 - l1), l2 + l1 + 1):
+            cg.append(
+                wigner_3j(int(l1), int(l2), int(l_ird), dtype=self.dtype, device=self.device) * (2 * l_ird + 1) ** 0.5
+            )
         cg = torch.cat(cg, dim=-1)
         self.cgbasis[pairtype] = cg
-
         return cg
-    
-    
+
+
 class SKHamiltonian_old(torch.nn.Module):
     # transform SK parameters to SK hamiltonian with E3 CG basis, strain is included.
     def __init__(

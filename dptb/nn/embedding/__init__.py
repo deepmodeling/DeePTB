@@ -25,6 +25,7 @@ from .lem_in_frame_heavy import LemInFrameHeavy
 from .lem_in_frame_moe import LemInFrameMoE
 from .lem_high_order import LemHighOrder
 from .lem_wo_ln import LemWOLN
+from .emoles import EMolES, EMolESOpenequi
 # from .lem_in_frame_openequi import LemInFrameOpenequi
 from .lem_moe_openequi import LemMoEOpenEqui
 from .lem_full_tp import LemFullTP, LemFullTPOpenEqui
@@ -55,6 +56,8 @@ __all__ = [
     "LemSO2",
     "LemFullTPOpenEqui",
     "LemFullTP",
+    "EMolES",
+    "EMolESOpenequi",
     "LemSO2Local",
     "LemLocal",
     "Slem",

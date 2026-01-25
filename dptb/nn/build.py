@@ -154,6 +154,8 @@ def build_model(
             model = None   
     else:
         # load the model from the checkpoint
+
+        print(common_options)
         if init_nnenv:
             model = NNENV.from_reference(checkpoint, **model_options, **common_options)
         elif init_nnsk:

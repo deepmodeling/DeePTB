@@ -55,6 +55,7 @@ def get_neuron_config(nl):
 
     return config
 
+
 class NNENV(nn.Module):
     quantities = ["hamiltonian", "energy"]
     name = "nnenv"
@@ -68,6 +69,7 @@ class NNENV(nn.Module):
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             transform: bool = True,
+            has_soc: bool = False,
             scale_type: str = 'scale_w_back_grad',
             **kwargs,
     ):
@@ -112,8 +114,12 @@ class NNENV(nn.Module):
         prediction_copy = prediction.copy()
         scale_type = prediction_copy.get("scale_type")
         self.scale_type = scale_type
+
+        self.has_soc = has_soc
+        print(f'NNENV soc flag: {self.has_soc}')
+
         if basis is not None:
-            self.idp = OrbitalMapper(basis, method=self.method, device=self.device)
+            self.idp = OrbitalMapper(basis, method=self.method, device=self.device, has_soc=has_soc)
             if idp is not None:
                 assert idp == self.idp, "The basis of idp and basis should be the same."
         else:
@@ -122,6 +128,8 @@ class NNENV(nn.Module):
             
         self.basis = self.idp.basis
         self.idp.get_orbpair_maps()
+
+        embedding.update({'has_soc': has_soc})
 
         n_species = len(self.basis.keys())
         # initialize the embedding layer
@@ -264,10 +272,12 @@ class NNENV(nn.Module):
             self.hamiltonian = E3Hamiltonian(
                 edge_field=AtomicDataDict.EDGE_FEATURES_KEY,
                 node_field=AtomicDataDict.NODE_FEATURES_KEY,
-                idp=self.idp, 
-                dtype=self.dtype, 
+                idp=self.idp,
+                dtype=self.dtype,
                 device=self.device
-                )
+            )
+
+
             if overlap:
                 self.overlap = SKHamiltonian(
                     idp_sk=self.idp_sk, 
@@ -361,13 +371,14 @@ class NNENV(nn.Module):
         for k,v in common_options.items():
             if v is None:
                 common_options[k] = ckpt["config"]["common_options"][k]
-        
+        common_options = ckpt["config"]["common_options"]
         model = cls(**model_options, **common_options, transform=transform)
         model.load_state_dict(ckpt["model_state_dict"])
 
         del ckpt
 
         return model
+
 
 class MIX(nn.Module):
     name = "mix"

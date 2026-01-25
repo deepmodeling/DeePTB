@@ -24,6 +24,25 @@ from dptb.data.AtomicDataDict import with_edge_vectors, with_batch
 
 from math import ceil
 
+import torch
+import e3nn.o3 as o3
+from dptb.data import AtomicData, AtomicDataDict
+from typing import Dict, Optional, Union, List
+import logging
+import sys
+
+# ================= Debug 配置 =================
+# 如果主程序没配 logging，这就强制开启 INFO 级别输出到控制台
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(levelname)s] %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True
+)
+log = logging.getLogger(__name__)
+
+
+# ==============================================
 
 @Embedding.register("lem")
 class Lem(torch.nn.Module):
@@ -57,10 +76,17 @@ class Lem(torch.nn.Module):
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             universal: Optional[bool] = False,
+            has_soc: Optional[bool] = False,  # <--- 关键参数
             **kwargs,
     ):
 
         super(Lem, self).__init__()
+
+        # --- DEBUG: Start ---
+        log.info(f"{'=' * 10} Initializing LEM Embedding {'=' * 10}")
+        log.info(f"Running on Device: {device}, Dtype: {dtype}")
+        log.info(f"SOC Config: has_soc={has_soc}")
+        # --------------------
 
         irreps_hidden = o3.Irreps(irreps_hidden)
         lmax = irreps_hidden.lmax
@@ -74,18 +100,34 @@ class Lem(torch.nn.Module):
 
         # --- idp / basis ---
         if basis is not None:
-            self.idp = OrbitalMapper(basis, method="e3tb")
+            log.info(f"Initializing OrbitalMapper with basis: {basis}")
+
+            # [Debug] 确保 has_soc 被传入 OrbitalMapper
+            self.idp = OrbitalMapper(basis, method="e3tb", has_soc=has_soc)
+
             if idp is not None:
                 assert idp == self.idp, "The basis of idp and basis should be the same."
         else:
             assert idp is not None, "Either basis or idp should be provided."
             self.idp = idp
+            # [Debug] 如果使用外部传入的 idp，检查它的 soc 状态
+            log.info(f"Using external OrbitalMapper. Check its soc state: {getattr(self.idp, 'has_soc', 'Unknown')}")
 
         self.basis = self.idp.basis
+
+        # 这一步触发 OrbitalMapper 计算 Irreps
         self.idp.get_irreps(no_parity=False)
 
-        # 这里不直接把 universal 的 95 作为最终 num_types，
-        # 而是当作一个 hint，真正的维度以后从 OneHotAtomEncoding 里读取
+        # --- DEBUG: 核心维度检查 ---
+        log.info(f"--- OrbitalMapper Check ---")
+        log.info(f"Reduced Matrix Elements (Channels): {self.idp.reduced_matrix_element}")
+        log.info(f"Output Irreps (Total): {self.idp.orbpair_irreps}")
+
+        # 简单检查：如果是 SOC，通道数应该比较大
+        if has_soc:
+            log.info("Note: In SOC mode, expect complex irreps (0e+1o structure) and ~4x channels.")
+        # ---------------------------
+
         if universal:
             num_types_hint = 95
         else:
@@ -111,7 +153,7 @@ class Lem(torch.nn.Module):
             irreps_sh, sh_normalized, sh_normalization
         )
 
-        # One-hot 编码：这里先传入 num_types_hint，实际使用维度从模块里读取
+        # One-hot 编码
         self.onehot = OneHotAtomEncoding(
             num_types=num_types_hint,
             set_features=False,
@@ -119,18 +161,16 @@ class Lem(torch.nn.Module):
             universal=universal,
         )
 
-        # 从 OneHotAtomEncoding 读取真正使用的原子种类数，保证与所有后续 MLP 一致
         if hasattr(self.onehot, "num_types"):
             self.n_atom = int(self.onehot.num_types)
         elif hasattr(self.onehot, "out_features"):
             self.n_atom = int(self.onehot.out_features)
         else:
-            # 兜底：假设编码器使用了我们给的 hint
             self.n_atom = int(num_types_hint)
 
         self.latent_dim = latent_dim
 
-        # 初始化层（边/节点初始特征）
+        # 初始化层
         self.init_layer = InitLayer(
             idp=self.idp,
             num_types=self.n_atom,
@@ -139,10 +179,8 @@ class Lem(torch.nn.Module):
             irreps_sh=irreps_sh,
             avg_num_neighbors=avg_num_neighbors,
             env_embed_multiplicity=env_embed_multiplicity,
-            # MLP parameters:
             two_body_latent_channels=latent_channels,
             latent_dim=latent_dim,
-            # cutoffs
             r_start_cos_ratio=r_start_cos_ratio,
             PolynomialCutoff_p=PolynomialCutoff_p,
             cutoff_type=cutoff_type,
@@ -166,13 +204,11 @@ class Lem(torch.nn.Module):
             self.layers.append(
                 Layer(
                     num_types=self.n_atom,
-                    # required params
                     avg_num_neighbors=avg_num_neighbors,
                     irreps_in=irreps_in,
                     irreps_out=irreps_out_layer,
                     tp_radial_emb=tp_radial_emb,
                     tp_radial_channels=tp_radial_channels,
-                    # MLP parameters:
                     latent_channels=latent_channels,
                     latent_dim=latent_dim,
                     res_update=res_update,
@@ -183,7 +219,13 @@ class Lem(torch.nn.Module):
                 )
             )
 
+        # --- DEBUG: 输出层维度 ---
+        log.info(f"Output Linear Layer Target Irreps: {self.idp.orbpair_irreps}")
+        # ------------------------
+
         # 输出层
+        # 这里实际上就是所谓的 "Adapter" 逻辑发生的地方
+        # 它将最后一层隐层特征投影到了 self.idp.orbpair_irreps (SOC 维度)
         self.out_edge = Linear(
             self.layers[-1].irreps_out,
             self.idp.orbpair_irreps,
@@ -199,6 +241,8 @@ class Lem(torch.nn.Module):
             biases=True,
         )
 
+        log.info(f"{'=' * 10} LEM Initialization Complete {'=' * 10}")
+
     @property
     def out_edge_irreps(self):
         return self.idp.orbpair_irreps
@@ -206,6 +250,7 @@ class Lem(torch.nn.Module):
     @property
     def out_node_irreps(self):
         return self.idp.orbpair_irreps
+
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         data = with_edge_vectors(data, with_lengths=True)
