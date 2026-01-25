@@ -11,30 +11,13 @@ using Printf
 using SparseArrays
 using LinearAlgebra
 using DelimitedFiles
+using Dates
+
+# Import shared modules from parent scope (main.jl)
+using ..Hamiltonian: HR2HK
+using ..KPoints: gen_kmesh
 
 export run_dos_calculation
-
-"""
-    construct_hk(kpt, H_R, S_R, norbits)
-
-Construct H(k) and S(k) from H(R) and S(R) via Fourier transform.
-"""
-function construct_hk(kpt, H_R, S_R, norbits)
-    default_dtype = Complex{Float64}
-    H_k = spzeros(default_dtype, norbits, norbits)
-    S_k = spzeros(default_dtype, norbits, norbits)
-
-    for R in keys(H_R)
-        phase = exp(im * 2π * dot(kpt, R))
-        H_k += H_R[R] * phase
-        S_k += S_R[R] * phase
-    end
-
-    H_k = (H_k + H_k') / 2
-    S_k = (S_k + S_k') / 2
-
-    return H_k, S_k
-end
 
 """
     run_dos_calculation(config, H_R, S_R, structure, output_dir, solver_opts, log_path, solver_func)
@@ -42,24 +25,32 @@ end
 Main function to run DOS calculation.
 """
 function run_dos_calculation(config, H_R, S_R, structure, output_dir, solver_opts, log_path, solver_func)
+    # Helper for logging
+    function log_message(msg)
+        @info msg
+        try
+            open(log_path, "a") do f
+                println(f, "[$(Dates.now())] $msg")
+            end
+        catch e
+            # Ignore file errors to prevent crash
+        end
+    end
+
     # Extract parameters
     nkmesh = Int64.(config["kmesh"])
-    nk_total = prod(nkmesh)
     num_band = get(config, "num_band", 8)
     fermi_level = get(config, "fermi_level", 0.0)
     max_iter = get(config, "max_iter", 300)
     norbits = structure["norbits"]
 
-    @info "Starting Density of States Calculation"
-    @info "K-Grid: $nkmesh (Total: $nk_total), Bands: $num_band, Fermi: $fermi_level eV"
+    log_message("Starting Density of States Calculation")
+    log_message("K-Grid: $nkmesh")
 
     # Generate K-grid
-    ks = zeros(3, nk_total)
-    ik = 1
-    for ix in 1:nkmesh[1], iy in 1:nkmesh[2], iz in 1:nkmesh[3]
-        ks[:,ik] .= [(ix-1)/nkmesh[1], (iy-1)/nkmesh[2], (iz-1)/nkmesh[3]]
-        ik += 1
-    end
+    ks, nk_total = gen_kmesh(nkmesh)
+    
+    log_message("Total K-points: $nk_total, Bands: $num_band, Fermi: $fermi_level eV")
 
     egvals_all = zeros(num_band, nk_total)
     start_time = time()
@@ -67,7 +58,7 @@ function run_dos_calculation(config, H_R, S_R, structure, output_dir, solver_opt
     # Main loop
     for ik in 1:nk_total
         kpt = ks[:,ik]
-        H_k, S_k = construct_hk(kpt, H_R, S_R, norbits)
+        H_k, S_k = HR2HK(kpt, H_R, S_R, norbits)
 
         # Solve eigenvalues
         # Note: DOS usually doesn't need eigenvectors, so out_wfc=false
@@ -78,7 +69,7 @@ function run_dos_calculation(config, H_R, S_R, structure, output_dir, solver_opt
 
         if ik % 50 == 0 || ik == nk_total
             elapsed = (time() - start_time) / 60
-            @info @sprintf("DOS K-point %5d/%d done | Elapsed: %.2f min", ik, nk_total, elapsed)
+            log_message(@sprintf("DOS K-point %5d/%d done | Elapsed: %.2f min", ik, nk_total, elapsed))
         end
     end
 
@@ -105,7 +96,7 @@ function run_dos_calculation(config, H_R, S_R, structure, output_dir, solver_opt
                 @printf(f, "%12.6f  %12.6f\\n", ω - fermi_level, d)
             end
         end
-        @info "Generated dos.dat"
+        log_message("Generated dos.dat")
     end
 end
 

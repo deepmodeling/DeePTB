@@ -10,12 +10,12 @@ module DenseSolver
 using LinearAlgebra
 using SparseArrays
 
-export solve_eigen_dense_at_k
+export solve_eigen_k
 
 const default_dtype = Complex{Float64}
 
 """
-    solve_eigen_dense_at_k(H_k, S_k, fermi_level, num_band, args...)
+    solve_eigen_k(H_k, S_k, fermi_level, num_band, args...)
 
 Solve eigenvalue problem using dense diagonalization (ZHEGV).
 
@@ -30,7 +30,7 @@ Solve eigenvalue problem using dense diagonalization (ZHEGV).
 - `evecs`: Eigenvectors (if requested, currently empty for band calc)
 - `residual`: 0.0
 """
-function solve_eigen_dense_at_k(H_k, S_k, fermi_level, num_band, args...)
+function solve_eigen_k(H_k, S_k, fermi_level, num_band, args...)
     # Convert to dense matrices
     H_dense = Matrix(H_k)
     S_dense = Matrix(S_k)

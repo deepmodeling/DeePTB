@@ -57,8 +57,12 @@ class TBSystem:
         self._efermi = None
         self.has_bands = False
         self.has_dos = False
+        self._atoms: Optional[ase.Atoms] = None
+        self._atomic_data: Optional[AtomicDataDict] = None 
+        self._atom_orbs = None
+        self._atomic_symbols = None
         
-        self._atomic_data = self.set_atoms(data, override_overlap)
+        self.set_atoms(data, override_overlap)
 
     @property
     def calculator(self) -> HamiltonianCalculator:
@@ -80,14 +84,6 @@ class TBSystem:
         """Return the ASE Atoms object representing the system."""
         return self._atoms
     
-    @property
-    def atom_orbs(self):
-        return self._atom_orbs
-    
-    @property
-    def atomic_symbols(self):
-        return self._atomic_symbols
-
     @property
     def total_electrons(self):
         if self._total_electrons is None:
@@ -141,30 +137,35 @@ class TBSystem:
         return self._optical_conductivity
 
 
-    def set_atoms(self,struct: Optional[Union[AtomicData, ase.Atoms, str]] = None, override_overlap: Optional[str] = None) -> AtomicDataDict:
-        """Set the atomic structure."""
-        if struct is None:
+    def set_atoms(self, atoms: Optional[Union[AtomicData, ase.Atoms, str]] = None, override_overlap: Optional[str] = None) -> AtomicDataDict:
+        """
+        Set the atomic structure and generate inputs.
+        """
+        if atoms is None:
             return self._atomic_data
         
-        # Reset state flags
+        # Reset state
         self.has_bands=False
         self.has_dos=False
         
-        atomic_options = self._calculator.cutoffs        
-        if isinstance(struct, str):
-            self._atoms = read(struct)
-            data_obj = AtomicData.from_ase(self._atoms, **atomic_options)
-        elif isinstance(struct, ase.Atoms):
-            self._atoms = struct
-            data_obj = AtomicData.from_ase(struct, **atomic_options)
-        elif isinstance(struct, AtomicData):
-            log.info('The data is already an instance of AtomicData. Then the data is used directly.')
-            data_obj = struct
-            self._atoms = struct.to("cpu").to_ase()
+        # 1. Establish Physical Structure (ASE Atoms)
+        if isinstance(atoms, str):
+            self._atoms = read(atoms)
+        elif isinstance(atoms, ase.Atoms):
+            self._atoms = atoms
+        elif isinstance(atoms, AtomicData):
+            log.info('The data is already an instance of AtomicData. Reconstructing Atoms from it.')
+            self._atoms = atoms.to("cpu").to_ase() 
         else:
             raise ValueError('data should be either a string, ase.Atoms, or AtomicData')
+
+        log.info("Generating AtomicData inputs...")
         
-        # Handle Overlap Override
+        # 2. Generate AtomicData
+        atomic_options = self._calculator.cutoffs
+        data_obj = AtomicData.from_ase(self._atoms, **atomic_options)
+        
+        # 3. Handle Overlap Override
         overlap_flag = hasattr(self._calculator.model, 'overlap')
         
         if isinstance(override_overlap, str):
@@ -182,22 +183,39 @@ class TBSystem:
                     
                 block_to_feature(data_obj, self._calculator.model.idp, blocks=False, overlap_blocks=overlaps)
         
+        # 4. Finalize
         data_obj = AtomicData.to_AtomicDataDict(data_obj.to(self._calculator.device))
         self._atomic_data = self._calculator.model.idp(data_obj)
-        self._atom_orbs, self._atomic_symbols = self.get_atom_orbs()
+        
+        self._atomic_symbols = self._atoms.get_chemical_symbols()
+        self._atom_orbs = self.get_atom_orbs()
         
         return self._atomic_data
 
+    @property
+    def atomic_symbols(self):
+        return self._atomic_symbols
+
+    @property
+    def atom_orbs(self):
+        return self._atom_orbs
+
     def get_atom_orbs(self):
+        """
+        Get flattened list of all orbitals in the system.
+        Delegates orbital expansion rules to the calculator.
+        """
         orbs_per_type = self.calculator.get_orbital_info()
-        atomic_numbers = self.model.idp.untransform(self._atomic_data['atom_types']).numpy().flatten()
-        atomic_symbols = [atomic_num_dict_r[i] for i in atomic_numbers]
-        atom_orbs=[]
-        for i in range(len(atomic_symbols)):
-            iatype=atomic_symbols[i]
-            for iorb in orbs_per_type[iatype]:
-                atom_orbs.append(f"{i}-{iatype}-{iorb}")
-        return atom_orbs, atomic_symbols
+        atom_orbs = []
+        
+        for i, symbol in enumerate(self.atomic_symbols):
+            if symbol in orbs_per_type:
+                for orb in orbs_per_type[symbol]:
+                     atom_orbs.append(f"{symbol}{i+1}_{orb}")
+            else:
+                log.warning(f"Atom {symbol} not found in model basis/orbital info.")
+                
+        return atom_orbs
     
     def set_electrons(self, nel_atom: Dict[str, int]) -> float:
         """
@@ -394,19 +412,7 @@ class TBSystem:
         with open(os.path.join(output_dir, "basis.dat"), "w") as f:
             f.write(str(basis_str_dict))
 
-        # --- New Export (for modular Julia backend) ---
-        from dptb.postprocess.unified.structure import Structure
-        structure = Structure(self.atoms, self.model.idp.basis)
-        
-        struct_data = structure.to_dict()
-        # Add spin information heuristically if not present
-        struct_data['spinful'] = True if hasattr(self.model, 'soc_param') else False
-        
-        import json
-        with open(os.path.join(output_dir, "structure.json"), 'w') as f:
-            json.dump(struct_data, f, indent=2)
-            
-        log.info("Successfully saved all Pardiso data (Legacy + JSON).")
+        log.info("Successfully saved all Pardiso data (Legacy Text Format).")
 
     def _save_h5(self, h_dict, fname, output_dir):
         """
@@ -506,33 +512,110 @@ class TBSystem:
         if sr is not None:
             self._save_h5([sr], "predicted_overlaps.h5", output_dir)
 
-        # Get site_norbits from model.idp (OrbitalMapper already computed this!)
-        atom_types = self.model.idp.untransform(self.data['atom_types']).cpu().numpy().flatten()
-        type_to_norb = self.model.idp.atom_norb.cpu().numpy()  # norb per atom type
-
-        # Map atom types to orbital counts
-        site_norbits = np.array([type_to_norb[self.model.idp.transform(torch.tensor([z], device=self.model.idp.device)).item()]
-                                 for z in atom_types], dtype=int)
-
-        # Save structure information in JSON format
-        structure_data = {
+        # Save structure information in JSON format (DeePTB Schema v1.0)
+        
+        # 1. Structure (Geometry)
+        import dptb
+        symbols = self.atoms.get_chemical_symbols()
+        
+        structure = {
             'cell': self.atoms.get_cell().array.tolist(),
+            'pbc': self.atoms.get_pbc().tolist(),
+            'nsites': len(self.atoms),
+            'chemical_formula': self.atoms.get_chemical_formula(mode='reduce'),
             'positions': self.atoms.get_positions().tolist(),
-            'atomic_numbers': self.atoms.get_atomic_numbers().tolist(),
-            'symbols': self.atomic_symbols,
-            'natoms': len(self.atoms),
-            'site_norbits': site_norbits.tolist(),  # Julia directly uses this!
-            'norbits': int(np.sum(site_norbits)),    # Julia directly uses this!
-            'basis': self.model.idp.basis,
-            'spinful': hasattr(self.model, 'soc_param'),  # Detect SOC
-            'pbc': self.atoms.get_pbc().tolist()
+        }
+        
+        # 2. Basis Info (Model/Physics)
+        basis = self.model.idp.basis
+        l_map = {'s': 1, 'p': 3, 'd': 5, 'f': 7}
+        orbital_counts = {}
+        
+        # Pre-calculate orbitals per element
+        for elem, orbs in basis.items():
+            norb = 0
+            for orb in orbs:
+                orb_type = orb[-1] 
+                for t in l_map:
+                    if t in orb:
+                        norb += l_map[t]
+                        break
+            orbital_counts[elem] = norb
+
+        # Compute total orbitals
+        total_orbitals = 0
+        for s in symbols:
+             if s in orbital_counts:
+                 total_orbitals += orbital_counts[s]
+            
+        basis_info = {
+            'basis': basis,
+            'orbital_counts': orbital_counts,
+            'total_orbitals': total_orbitals,
+            'spinful': hasattr(self.model, 'soc_param'),
+        }
+
+        structure_data = {
+            'basis_info': basis_info,
+            'structure': structure,
+            'meta': {
+                'version': '1.0',
+                'generator': f"DeePTB {dptb.__version__}"
+            }
         }
 
         json_path = os.path.join(output_dir, "structure.json")
-        with open(json_path, 'w') as f:
-            json.dump(structure_data, f, indent=2)
+        self._save_formatted_json(structure_data, json_path)
 
         log.info(f"Successfully saved all Pardiso data (NEW format).")
         log.info(f"  - Hamiltonian blocks: {len(hr)}")
-        log.info(f"  - Structure: {structure_data['natoms']} atoms, {structure_data['norbits']} orbitals")
+        log.info(f"  - Structure: {len(self.atoms)} atoms, {basis_info['total_orbitals']} orbitals")
         log.info(f"  - Files: predicted_hamiltonians.h5, predicted_overlaps.h5, structure.json")
+
+    def _save_formatted_json(self, data, path):
+        """
+        Save JSON with compact formatting for numeric arrays.
+        Collapses innermost lists (like vectors) to single lines.
+        """
+        import json
+        import re
+        
+        text = json.dumps(data, indent=2)
+        
+        # Regex to collapse short lists (innermost lists not containing other lists/dicts)
+        # Collapse lists (arrays)
+        def collapse_list(match):
+            content = match.group(1)
+            tokens = [token.strip() for token in content.split(',') if token.strip()]
+            
+            # Try to format as aligned floats
+            try:
+                if not tokens: return "[]"
+                # Check if numbers
+                floats = [float(t) for t in tokens]
+                # Use fixed width for alignment (e.g. positions matrix)
+                # {:>18.12f} aligns decimal points
+                formatted = [f"{x:>18.12f}" for x in floats]
+                compact = "[" + ", ".join(formatted) + "]"
+                return compact
+            except ValueError:
+                # Fallback for non-numbers (e.g. strings)
+                compact = "[" + ", ".join(tokens) + "]"
+                return compact
+
+        text = re.sub(r'\[([^\[\]\{\}]*)\]', collapse_list, text)
+
+        # Collapse simple dictionaries (like orbital_counts)
+        # Matches { ... } where ... contains no { } [ ]
+        def collapse_dict(match):
+             content = match.group(1)
+             # Basic token cleaning
+             items = [token.strip() for token in content.split(',') if token.strip()]
+             compact = "{" + ", ".join(items) + "}"
+             return compact
+             
+        text = re.sub(r'\{([^{}\[\]]*)\}', collapse_dict, text)
+        
+        with open(path, 'w') as f:
+            f.write(text)
+

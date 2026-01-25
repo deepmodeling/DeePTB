@@ -127,7 +127,7 @@ class DeePTBAdapter(HamiltonianCalculator):
         if self.cutoffs['r_max'] is None:
             # log.error('The r_max is not provided in model_options, please provide it in AtomicData_options.') # Removed log import
             raise RuntimeError('The r_max is not provided in model_options, please provide it in AtomicData_options.')
-        
+            
     def model_forward(self, atomic_data: dict) -> dict:
         # Check for override overlap in input
         # If overlap is present before model run, we treat it as an override to be preserved

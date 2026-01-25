@@ -38,8 +38,8 @@ def test_to_pardiso_new():
     print("="*70)
     print("Exporting with to_pardiso (JSON + legacy format)...")
     print("="*70)
-    # Using the standard method which now exports both
-    tbsys.to_pardiso(output_dir=output_dir_new)
+    # Using the new method explicitely
+    tbsys.to_pardiso_new(output_dir=output_dir_new)
     print()
 
     # Verify JSON structure
@@ -52,12 +52,11 @@ def test_to_pardiso_new():
         data = json.load(f)
 
     print(f"JSON keys: {list(data.keys())}")
-    print(f"  - natoms: {data['natoms']}")
-    print(f"  - norbits: {data['norbits']}")
-    print(f"  - spinful: {data.get('spinful', 'Not found')}")
-    print(f"  - site_norbits (first 5): {data['site_norbits'][:5]}")
-    print(f"  - symbols (unique): {set(data['symbols'])}")
-    print(f"  - basis: {data['basis']}")
+    print(f"  - natoms: {data['structure']['nsites']}")
+    print(f"  - norbits: {data['basis_info']['total_orbitals']}")
+    print(f"  - spinful: {data['basis_info'].get('spinful', 'Not found')}")
+    print(f"  - Formula: {data['structure']['chemical_formula']}")
+    print(f"  - basis: {data['basis_info']['basis']}")
     print()
 
     # Compare file sizes
@@ -80,12 +79,13 @@ def test_to_pardiso_new():
     import subprocess
     julia_script = os.path.abspath(os.path.join(root_dir, "../../dptb/postprocess/julia/main.jl"))
     config_path = os.path.join(root_dir, "band.json")
+    julia_out_dir = os.path.join(output_dir_new, "results") # New Output Paths
     
     cmd = [
         "julia",
         julia_script,
         "--input_dir", output_dir_new,
-        "--output_dir", os.path.join(output_dir_new, "julia_results"),
+        "--output_dir", julia_out_dir,
         "--config", config_path
     ]
     

@@ -13,22 +13,11 @@ using LinearAlgebra
 const default_dtype = Complex{Float64}
 
 """
-    construct_linear_map(H::AbstractMatrix, S::AbstractMatrix)
+    make_shift_invert_map(H::AbstractMatrix, S::AbstractMatrix)
 
 Construct a linear map for shift-invert eigenvalue solver.
-
-# Arguments
-- `H::AbstractMatrix`: Hamiltonian matrix
-- `S::AbstractMatrix`: Overlap matrix
-
-# Returns
-- `lm::LinearMap`: Linear map for Arpack
-- `ps::MKLPardisoSolver`: Pardiso solver instance
-
-# Note
-The linear map represents (H - σS)^{-1} S for shift-invert method.
 """
-function construct_linear_map(H::AbstractMatrix, S::AbstractMatrix)
+function make_shift_invert_map(H::AbstractMatrix, S::AbstractMatrix)
     # Architecture check for MKL compatibility
     if Sys.isapple() && Sys.ARCH == :aarch64
         @warn "MKL Pardiso is not natively supported on Apple Silicon (M1/M2/etc)."
@@ -63,33 +52,13 @@ function construct_linear_map(H::AbstractMatrix, S::AbstractMatrix)
 end
 
 """
-    solve_eigen_at_k(H_k, S_k, fermi_level, num_band, max_iter, out_wfc, ill_project, ill_threshold)
+    solve_eigen_k(H_k, S_k, fermi_level, num_band, max_iter, out_wfc, ill_project, ill_threshold)
 
-Solve generalized eigenvalue problem H|ψ⟩ = E S|ψ⟩ at a single k-point.
-
-# Arguments
-- `H_k::AbstractMatrix`: Hamiltonian at k-point
-- `S_k::AbstractMatrix`: Overlap matrix at k-point
-- `fermi_level::Float64`: Fermi energy for shift-invert
-- `num_band::Int`: Number of bands to compute
-- `max_iter::Int`: Maximum iterations for Arpack
-- `out_wfc::Bool`: Whether to output wavefunctions
-- `ill_project::Bool`: Whether to project out ill-conditioned states
-- `ill_threshold::Float64`: Threshold for ill-conditioning
-
-# Returns
-- `egval_sorted::Vector{Float64}`: Sorted eigenvalues
-- `egvec_sorted::Matrix{ComplexF64}`: Sorted eigenvectors (if out_wfc=true)
-- `0.0`: Placeholder for compatibility
-
-# Example
-```julia
-evals, evecs, _ = solve_eigen_at_k(H_k, S_k, -9.0, 30, 400, false, true, 5e-4)
-```
+Solve generalized eigenvalue problem H|ψ⟩ = E S|ψ⟩ at a single k-point using Pardiso shift-invert.
 """
-function solve_eigen_at_k(H_k, S_k, fermi_level, num_band, max_iter, out_wfc, ill_project, ill_threshold)
+function solve_eigen_k(H_k, S_k, fermi_level, num_band, max_iter, out_wfc, ill_project, ill_threshold)
     if ill_project
-        lm, ps = construct_linear_map(Hermitian(H_k) - fermi_level * Hermitian(S_k), Hermitian(S_k))
+        lm, ps = make_shift_invert_map(Hermitian(H_k) - fermi_level * Hermitian(S_k), Hermitian(S_k))
 
         if out_wfc
             egval_inv, egvec_sub = eigs(lm, nev=num_band, which=:LM, ritzvec=true, maxiter=max_iter)
@@ -129,7 +98,7 @@ function solve_eigen_at_k(H_k, S_k, fermi_level, num_band, max_iter, out_wfc, il
             egvec = zeros(default_dtype, size(H_k, 1), 0)
         end
     else
-        lm, ps = construct_linear_map(Hermitian(H_k) - fermi_level * Hermitian(S_k), Hermitian(S_k))
+        lm, ps = make_shift_invert_map(Hermitian(H_k) - fermi_level * Hermitian(S_k), Hermitian(S_k))
 
         if out_wfc
             egval_inv, egvec = eigs(lm, nev=num_band, which=:LM, ritzvec=true, maxiter=max_iter)
@@ -155,4 +124,4 @@ function solve_eigen_at_k(H_k, S_k, fermi_level, num_band, max_iter, out_wfc, il
     end
 end
 
-export construct_linear_map, solve_eigen_at_k
+export make_shift_invert_map, solve_eigen_k

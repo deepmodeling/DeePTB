@@ -15,10 +15,10 @@ using JSON
 using Dates
 
 # Include modules
-include("io/structure_io.jl")
-using .StructureIO
-include("io/hamiltonian_io.jl")
-using .HamiltonianIO
+include("utils/hamiltonian.jl")
+include("utils/kpoints.jl")
+include("io/io.jl")
+using .DataIO
 include("solvers/pardiso_solver.jl")
 include("solvers/dense_solver.jl")
 using .DenseSolver
@@ -26,8 +26,8 @@ include("tasks/band_calculation.jl")
 include("tasks/dos_calculation.jl")
 
 # Import functions
-using .StructureIO: load_structure_json
-using .HamiltonianIO: construct_sparse_matrices
+using .DataIO: load_structure, load_matrix_hdf5
+using .Hamiltonian: get_HR_SR_sparse
 using .BandCalculation: run_band_calculation
 using .DosCalculation: run_dos_calculation
 
@@ -78,7 +78,7 @@ function main()
     # Initialize logging
     output_dir = args["output_dir"]
     mkpath(output_dir)
-    log_path = joinpath(output_dir, "log.dat")
+    log_path = joinpath(output_dir, "pardiso.log")
 
     open(log_path, "w") do io
         println(io, "="^70)
@@ -99,13 +99,12 @@ function main()
 
     # Load structure
     @info "Loading structure from $input_dir"
-    structure = load_structure_json(input_dir)
+    structure = load_structure(input_dir)
     structure["site_norbits"] = Int.(structure["site_norbits"])
 
     # Load/construct sparse matrices
-    # Load/construct sparse matrices
     @info "Constructing sparse Hamiltonian matrices"
-    H_R, S_R = get_hamiltonian_and_overlap(input_dir, structure)
+    H_R, S_R = get_HR_SR_sparse(input_dir, structure, load_matrix_hdf5)
 
     # Solver options
     solver_opts = (
@@ -119,12 +118,12 @@ function main()
     
     if eig_solver == "numpy" || eig_solver == "dense"
         @info "Using Dense Solver (LAPACK)"
-        solver_func = solve_eigen_dense_at_k
+        solver_func = solve_eigen_k
     else
         @info "Using Pardiso Solver"
         # Check if Pardiso is actually available, otherwise warn/fallback?
         # For now assume user knows what they are doing if they didn't specify 'dense'
-        solver_func = solve_eigen_at_k
+        solver_func = solve_eigen_k
     end
 
     # Run calculation
