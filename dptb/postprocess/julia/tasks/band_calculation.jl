@@ -11,8 +11,7 @@ using Printf
 using SparseArrays
 using LinearAlgebra
 using JSON
-
-export run_band_calculation
+using HDF5
 
 export run_band_calculation
 
@@ -101,41 +100,26 @@ function parse_kpath_abacus(kpath_config, lat, labels=String[])
 end
 
 """
-    save_bandstructure_npy(klist, xlist, eigenvalues, e_fermi, high_sym, labels, output_dir)
+    save_bandstructure_h5(klist, xlist, eigenvalues, e_fermi, high_sym, labels, output_dir)
 
-Save band structure data to NPY format for Python visualization.
+Save band structure data to HDF5 format.
 """
-function save_bandstructure_npy(klist, xlist, eigenvalues, e_fermi, high_sym, labels, output_dir)
+function save_bandstructure_h5(klist, xlist, eigenvalues, e_fermi, high_sym, labels, output_dir)
+    h5_path = joinpath(output_dir, "bandstructure.h5")
     try
-        data = Dict(
-            "klist" => klist,
-            "xlist" => xlist,
-            "eigenvalues" => eigenvalues,
-            "E_fermi" => e_fermi,
-            "high_sym_kpoints" => high_sym,
-            "labels" => labels,
-            "output_path" => joinpath(output_dir, "bandstructure.npy")
-        )
-
-        temp_json = joinpath(output_dir, "temp_band_data.json")
-        open(temp_json, "w") do f
-            JSON.print(f, data)
+        h5open(h5_path, "w") do file
+            # Convert Vector{Vector} to Matrix for HDF5
+            # hcat(eigenvalues...) -> [nb, nk] matrix
+            write(file, "eigenvalues", hcat(eigenvalues...))
+            write(file, "klist", hcat(klist...))
+            write(file, "xlist", xlist)
+            write(file, "E_fermi", e_fermi)
+            write(file, "high_sym_kpoints", high_sym)
+            write(file, "labels", labels)
         end
-
-        py_script = """
-import json, numpy as np
-with open('$temp_json', 'r') as f: data = json.load(f)
-out = {k: np.array(v) if k != 'labels' and k != 'output_path' else v for k, v in data.items()}
-np.save(data['output_path'], out)
-"""
-        py_file = joinpath(output_dir, "convert_npy.py")
-        write(py_file, py_script)
-        run(`python3 $py_file`)
-        rm(temp_json; force=true)
-        rm(py_file; force=true)
-        @info "Generated bandstructure.npy"
+        @info "Generated bandstructure.h5"
     catch e
-        @warn "Failed to generate bandstructure.npy: $e"
+        @warn "Failed to generate bandstructure.h5: $e"
     end
 end
 
@@ -170,15 +154,10 @@ function run_band_calculation(config, H_R, S_R, structure, output_dir, solver_op
     @info "Starting Band Structure Calculation"
     @info "Total K-points: $(length(klist)), Bands: $num_band, Fermi: $fermi_level eV"
 
-    # Initialize output
-    eigenval_file = joinpath(output_dir, "EIGENVAL")
-    open(eigenval_file, "w") do f
-        @printf(f, "%5i%5i%5i%5i\\n", 0, 0, 1, 1)
-        @printf(f, "%15.7E%15.7E%15.7E%15.7E%15.7e\\n", 0.0, 0.0, 0.0, 0.0, 0.0)
-        @printf(f, "%19.15E\\n", 0.0)
-        @printf(f, "%5s\\n", "CAR")
-        @printf(f, "%15s\\n", "DeepTB System")
-        @printf(f, "%7i%7i%7i\\n", 0, length(klist), num_band)
+    # Initialize text output (bands.dat)
+    txt_path = joinpath(output_dir, "bands.dat")
+    open(txt_path, "w") do f
+        @printf(f, "# %4s %10s %10s %10s %12s %s\n", "Idx", "Kx", "Ky", "Kz", "Dist", "Eigenvalues(eV, shifted by Fermi)")
     end
 
     all_egvals = Vector{Vector{Float64}}()
@@ -194,13 +173,15 @@ function run_band_calculation(config, H_R, S_R, structure, output_dir, solver_op
                                         false, solver_opts.ill_project, solver_opts.ill_threshold)
         push!(all_egvals, egvals)
 
-        # Save to EIGENVAL
-        open(eigenval_file, "a") do f
-            println(f)
-            @printf(f, "%15.7E%15.7E%15.7E%15.7e\\n", kpt..., 0.0)
-            for (ib, eb) in enumerate(egvals)
-                @printf(f, "%5i%16.6f%11.6f\\n", ib, eb - fermi_level, 0.0)
+        # Append to text file incrementally
+        open(txt_path, "a") do f
+            # Write K-point info
+            @printf(f, "%6d %10.6f %10.6f %10.6f %12.6f", ik, kpt[1], kpt[2], kpt[3], xlist[ik])
+            # Write eigenvalues (shifted by Fermi level for consistency with plot)
+            for e in egvals
+                @printf(f, " %12.6f", e - fermi_level)
             end
+            @printf(f, "\n")
         end
 
         # Progress logging
@@ -210,8 +191,8 @@ function run_band_calculation(config, H_R, S_R, structure, output_dir, solver_op
         end
     end
 
-    # Save NPY format
-    save_bandstructure_npy(klist, xlist, all_egvals, fermi_level, high_sym, klabels, output_dir)
+    # Save final HDF5 format
+    save_bandstructure_h5(klist, xlist, all_egvals, fermi_level, high_sym, klabels, output_dir)
 
     @info "Band structure calculation completed"
 end

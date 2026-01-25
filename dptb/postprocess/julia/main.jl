@@ -23,11 +23,13 @@ include("solvers/pardiso_solver.jl")
 include("solvers/dense_solver.jl")
 using .DenseSolver
 include("tasks/band_calculation.jl")
+include("tasks/dos_calculation.jl")
 
 # Import functions
 using .StructureIO: load_structure_json
 using .HamiltonianIO: construct_sparse_matrices
 using .BandCalculation: run_band_calculation
+using .DosCalculation: run_dos_calculation
 
 # Make solver functions available to modules
 # (solve_eigen_at_k is already in global scope from pardiso_solver.jl)
@@ -131,8 +133,7 @@ function main()
         run_band_calculation(config, H_R, S_R, structure, output_dir, solver_opts, log_path, solver_func)
     elseif calc_job == "dos"
         @info "Running DOS calculation"
-        # TODO: Implement DOS calculation
-        error("DOS calculation not yet implemented in modular version")
+        run_dos_calculation(config, H_R, S_R, structure, output_dir, solver_opts, log_path, solver_func)
     else
         error("Unknown calculation job: $calc_job")
     end
