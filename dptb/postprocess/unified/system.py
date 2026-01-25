@@ -167,7 +167,7 @@ class TBSystem:
         # Handle Overlap Override
         overlap_flag = hasattr(self._calculator.model, 'overlap')
         
-        if overlap_flag or isinstance(override_overlap, str):
+        if isinstance(override_overlap, str):
             assert os.path.exists(override_overlap), "Overlap file not found."
             with h5py.File(override_overlap, "r") as overlap_blocks:
                 if len(overlap_blocks) != 1:
@@ -325,3 +325,131 @@ class TBSystem:
             self._dos.compute()
             self.has_dos = True
             return self._dos
+
+
+    def to_pardiso(self, output_dir: Optional[str] = "pardiso_input"):
+        """
+        Export system data for Pardiso/Julia band structure calculation.
+
+        The following files will be generated in the output directory:
+        - predicted_hamiltonians.h5: Hamiltonian matrix elements.
+        - predicted_overlaps.h5: Overlap matrix elements (if applicable).
+        - atomic_numbers.dat: Atomic numbers of the system.
+        - positions.dat: Atomic positions (Cartesian).
+        - cell.dat: Unit cell vectors.
+        - basis.dat: Basis set information.
+
+        Parameters
+        ----------
+        output_dir : str, optional
+            Output directory path. Default is "pardiso_input".
+
+        Returns
+        -------
+        None
+        """
+        os.makedirs(output_dir, exist_ok=True)
+        log.info(f"Exporting Pardiso data to: {os.path.abspath(output_dir)}")
+        
+        # Calculate Hr and Sr
+        hr, sr = self.calculator.get_hr(self.data)
+        hr = self._symmetrize_hamiltonian(hr)
+        if sr is not None:
+            sr = self._symmetrize_hamiltonian(sr)
+            
+        # Save HDF5
+        self._save_h5([hr], "predicted_hamiltonians.h5", output_dir)
+        if sr is not None:
+            self._save_h5([sr], "predicted_overlaps.h5", output_dir)
+            
+        # Save auxiliary files
+        with open(os.path.join(output_dir, "atomic_numbers.dat"), "w") as f:
+            for z in self.atoms.get_atomic_numbers():
+                f.write(f"{z}\n")
+
+        with open(os.path.join(output_dir, "positions.dat"), "w") as f:
+            for pos in self.atoms.get_positions():
+                f.write(f"{pos[0]} {pos[1]} {pos[2]}\n")
+
+        with open(os.path.join(output_dir, "cell.dat"), "w") as f:
+            for vec in self.atoms.get_cell():
+                f.write(f"{vec[0]} {vec[1]} {vec[2]}\n")
+        
+        # basis.dat
+        basis_str_dict = {}
+        # Access basis info from model
+        basis_info = self.model.idp.basis
+        
+        for elem, orbitals in basis_info.items():
+            counts = {'s': 0, 'p': 0, 'd': 0, 'f': 0, 'g': 0}
+            for o in orbitals:
+                for orb_type in "spdfg" :
+                    if orb_type in o:
+                        counts[orb_type] += 1
+                        break
+            
+            compressed = ""
+            for orb_type in "spdfg":
+                if counts[orb_type] > 0:
+                    compressed += f"{counts[orb_type]}{orb_type}"
+            
+            basis_str_dict[elem] = compressed
+            
+        with open(os.path.join(output_dir, "basis.dat"), "w") as f:
+            f.write(str(basis_str_dict))
+            
+        log.info("Successfully saved all Pardiso data.")
+
+    def _save_h5(self, h_dict, fname, output_dir):
+        """
+        Save dictionary of matrices to HDF5 file.
+
+        """
+        path = os.path.join(output_dir, fname)
+        
+        # Ensure input is a list for the loop
+        if isinstance(h_dict, dict):
+            ham = [h_dict]
+        else:
+            ham = h_dict
+
+        with h5py.File(path, 'w') as f:
+            for i in range(len(ham)):
+                grp = f.create_group(str(i))
+                for key, block in ham[i].items():
+                    data = block.detach().numpy() if isinstance(block, torch.Tensor) else block
+                    grp.create_dataset(key, data=data)
+        log.info(f"Saved {fname} ({len(ham)} blocks)")
+
+    
+
+    def _symmetrize_hamiltonian(self, h_dict):
+        """
+        Ensure that for every block H_ij(R), the conjugate block H_ji(-R) exists.
+        Key format: "src_dst_rx_ry_rz"
+
+        Parameters
+        ----------
+        h_dict : dict
+            Dictionary of Hamiltonian blocks.
+
+        Returns
+        -------
+        dict
+            Symmetrized dictionary containing all conjugate blocks.
+        """
+        keys = list(h_dict.keys())
+        for key in keys:
+            parts = key.split('_')
+            src, dst = int(parts[0]), int(parts[1])
+            rx, ry, rz = int(parts[2]), int(parts[3]), int(parts[4])
+            
+            rev_key = f"{dst}_{src}_{-rx}_{-ry}_{-rz}"
+            
+            if rev_key not in h_dict:
+                block = h_dict[key]
+                if isinstance(block, torch.Tensor):
+                    h_dict[rev_key] = block.t().conj()
+                else:
+                    h_dict[rev_key] = block.T.conj()
+        return h_dict
