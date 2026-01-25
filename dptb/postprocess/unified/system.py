@@ -345,14 +345,15 @@ class TBSystem:
             return self._dos
 
 
-    def to_pardiso(self, output_dir: Optional[str] = "pardiso_input"):
+    def to_pardiso_debug(self, output_dir: Optional[str] = "pardiso_input"):
         """
-        Export system data for Pardiso/Julia band structure calculation.
+        Export system data for Pardiso/Julia (Legacy Text Format for Debugging).
 
         The following files will be generated in the output directory:
         - predicted_hamiltonians.h5: Hamiltonian matrix elements.
         - predicted_overlaps.h5: Overlap matrix elements (if applicable).
         - structure.json: Atomic structure and basis information.
+        - *.dat: Legacy text files (positions.dat, basis.dat, etc.)
 
         Parameters
         ----------
@@ -468,9 +469,9 @@ class TBSystem:
                     h_dict[rev_key] = block.T.conj()
         return h_dict
 
-    def to_pardiso_new(self, output_dir: Optional[str] = "pardiso_input"):
+    def to_pardiso(self, output_dir: Optional[str] = "pardiso_input"):
         """
-        Export system data for Pardiso/Julia (NEW optimized version with JSON).
+        Export system data for Pardiso/Julia (Standard JSON Format).
 
         The following files will be generated in the output directory:
         - predicted_hamiltonians.h5: Hamiltonian matrix elements (DFT-compatible format).

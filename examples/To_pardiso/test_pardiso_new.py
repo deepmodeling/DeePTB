@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
 from dptb.postprocess.unified.system import TBSystem
 
 def test_to_pardiso_new():
-    """Test the new to_pardiso_new method."""
+    """Test the new to_pardiso method."""
 
     # Setup paths (relative to this script)
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,7 +39,7 @@ def test_to_pardiso_new():
     print("Exporting with to_pardiso (JSON + legacy format)...")
     print("="*70)
     # Using the new method explicitely
-    tbsys.to_pardiso_new(output_dir=output_dir_new)
+    tbsys.to_pardiso(output_dir=output_dir_new)
     print()
 
     # Verify JSON structure
