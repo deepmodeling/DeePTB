@@ -11,14 +11,24 @@ from dptb.nn.sktb.socbasic import get_soc_matrix_cubic_basis
 import re
 from typing import Dict, Union, Optional
 
+
+# 你已有的依赖/函数应在别处定义：
+# - float2comlex
+# - OrbitalMapper
+# - AtomicDataDict
+# - anglrMId
+# - wigner_3j
+# - get_soc_matrix_cubic_basis
+
+
 class E3Hamiltonian(torch.nn.Module):
     def __init__(
         self,
         basis: Dict[str, Union[str, list]] = None,
         idp: Union["OrbitalMapper", None] = None,
         decompose: bool = False,
-        edge_field: str = "edge_features",   # AtomicDataDict.EDGE_FEATURES_KEY
-        node_field: str = "node_features",   # AtomicDataDict.NODE_FEATURES_KEY
+        edge_field: str = "edge_features",
+        node_field: str = "node_features",
         overlap: bool = False,
         dtype: Union[str, torch.dtype] = torch.float32,
         device: Union[str, torch.device] = torch.device("cpu"),
@@ -46,37 +56,40 @@ class E3Hamiltonian(torch.nn.Module):
         # 定义复数类型
         self.cdtype = float2comlex(self.dtype)
 
+        # ---- Debug state ----
+        self.debug = bool(debug)
+        self.debug_every = int(debug_every) if debug_every is not None else 1
+        self.debug_max_pairtypes = int(debug_max_pairtypes)
+        self.debug_sample_rows = int(debug_sample_rows)
+        self._forward_calls = 0
+
         # -----------------------------------------------------------
         # [NEW] NextHAM Logic: (0, y, z, x) -> (uu, ud, du, dd)
         # -----------------------------------------------------------
         if self.soc:
             sqrt2 = 1.4142135623730951
-            # 严格对应 NextHAM 的 oyzx2spin 矩阵
-            # Columns: 0, y, z, x
-            # Rows: uu, ud, du, dd
-            self.oyzx2spin = torch.tensor([
-                [1,   0,   1,   0],
-                [0, -1j,   0,   1],
-                [0,  1j,   0,   1],
-                [1,   0,  -1,   0]
-            ], dtype=self.cdtype, device=self.device) / sqrt2
+            self.oyzx2spin = torch.tensor(
+                [
+                    [1,   0,   1,   0],
+                    [0, -1j,   0,   1],
+                    [0,  1j,   0,   1],
+                    [1,   0,  -1,   0],
+                ],
+                dtype=self.cdtype,
+                device=self.device,
+            ) / sqrt2
 
             # Legacy SOC params initialization (maintain old logic)
             if hasattr(idp, "get_orbital_maps"):
-                # 只有当 idp 支持 get_orbital_maps 时才初始化显式 onsite 参数
-                # 避免只传 basis 时的 AttributeError
-                try:
-                    self.idp = idp if idp is not None else OrbitalMapper(basis, method="e3tb", device=self.device)
-                    if not hasattr(self.idp, "orbital_maps"):
-                        self.idp.get_orbital_maps()
+                self.idp = idp if idp is not None else OrbitalMapper(basis, method="e3tb", device=self.device)
+                if not hasattr(self.idp, "orbital_maps"):
+                    self.idp.get_orbital_maps()
 
-                    self.soc_base_matrix = {
-                        's': get_soc_matrix_cubic_basis(orbital='s', device=self.device, dtype=self.dtype),
-                        'p': get_soc_matrix_cubic_basis(orbital='p', device=self.device, dtype=self.dtype),
-                        'd': get_soc_matrix_cubic_basis(orbital='d', device=self.device, dtype=self.dtype),
-                    }
-                except Exception as e:
-                    pass # Silently fail if legacy init fails, relying on new projection logic
+                self.soc_base_matrix = {
+                    "s": get_soc_matrix_cubic_basis(orbital="s", device=self.device, dtype=self.dtype),
+                    "p": get_soc_matrix_cubic_basis(orbital="p", device=self.device, dtype=self.dtype),
+                    "d": get_soc_matrix_cubic_basis(orbital="d", device=self.device, dtype=self.dtype),
+                }
 
         self.decompose = decompose
         self.rotation = rotation
@@ -86,19 +99,15 @@ class E3Hamiltonian(torch.nn.Module):
         self.edge_field = edge_field
         self.node_field = node_field
 
-        # ---- Debug state ----
-        self.debug = bool(debug)
-        self.debug_every = int(debug_every) if debug_every is not None else 1
-        self.debug_max_pairtypes = int(debug_max_pairtypes)
-        self.debug_sample_rows = int(debug_sample_rows)
-        self._forward_calls = 0
-
         # ---- OrbitalMapper ----
         if basis is not None:
             soc_complex_doubling = bool(kwargs.get("soc_complex_doubling", True))
             self.idp = OrbitalMapper(
-                basis, method="e3tb", device=self.device,
-                has_soc=self.soc, soc_complex_doubling=soc_complex_doubling
+                basis,
+                method="e3tb",
+                device=self.device,
+                has_soc=self.soc,
+                soc_complex_doubling=soc_complex_doubling,
             )
             if idp is not None:
                 assert idp == self.idp, "The basis of idp and basis should be the same."
@@ -115,6 +124,70 @@ class E3Hamiltonian(torch.nn.Module):
         for orbpair in self.idp.orbpairtype_maps.keys():
             self._initialize_CG_basis(orbpair)
 
+    # ============================================================
+    # Debug helpers
+    # ============================================================
+    def _should_debug(self) -> bool:
+        return bool(self.debug) and (self._forward_calls % self.debug_every == 0)
+
+    def _dbg(self, msg: str):
+        if self._should_debug():
+            print(msg)
+
+    @torch.no_grad()
+    def _tensor_stats(self, name: str, x: torch.Tensor, max_print_el: int = 6):
+        if not self._should_debug():
+            return
+        if x is None:
+            print(f"[DBG] {name}: None")
+            return
+
+        print(f"[DBG] {name}: shape={tuple(x.shape)}, dtype={x.dtype}, device={x.device}, is_complex={x.is_complex()}")
+        if x.numel() == 0:
+            print("      (empty tensor)")
+            return
+
+        try:
+            if x.is_complex():
+                re = x.real
+                im = x.imag
+                finite_re = torch.isfinite(re).float().mean().item()
+                finite_im = torch.isfinite(im).float().mean().item()
+                print(f"      finite_ratio: real={finite_re:.4f}, imag={finite_im:.4f}")
+                print(f"      real: min={re.min().item():.4e}, max={re.max().item():.4e}, mean={re.mean().item():.4e}, std={re.std().item():.4e}")
+                print(f"      imag: min={im.min().item():.4e}, max={im.max().item():.4e}, mean={im.mean().item():.4e}, std={im.std().item():.4e}")
+            else:
+                finite = torch.isfinite(x).float().mean().item()
+                print(f"      finite_ratio: {finite:.4f}")
+                print(f"      min={x.min().item():.4e}, max={x.max().item():.4e}, mean={x.mean().item():.4e}, std={x.std().item():.4e}")
+        except Exception as e:
+            print(f"      stats_failed: {e}")
+
+        try:
+            flat = x.flatten()
+            n = min(flat.numel(), max_print_el)
+            samp = flat[:n]
+            print(f"      sample_flat[:{n}] = {samp}")
+        except Exception as e:
+            print(f"      sample_failed: {e}")
+
+    def _slice_len(self, sli, total_dim: int = None) -> int:
+        if isinstance(sli, slice):
+            start = 0 if sli.start is None else sli.start
+            stop = (total_dim if (sli.stop is None and total_dim is not None) else sli.stop)
+            step = 1 if sli.step is None else sli.step
+            if stop is None:
+                return -1
+            return max(0, (stop - start + (step - 1)) // step)
+        if isinstance(sli, (list, tuple)):
+            return len(sli)
+        if torch.is_tensor(sli):
+            return int(sli.numel())
+        return -1
+
+    # ============================================================
+    # Core helpers
+    # ============================================================
     def _infer_n_node(self, data) -> int:
         if self.node_field in data:
             return data[self.node_field].shape[0]
@@ -122,99 +195,161 @@ class E3Hamiltonian(torch.nn.Module):
             return data["pos"].shape[0]
         raise KeyError("Cannot infer n_node: missing node_field and pos in data.")
 
-    # -----------------------------------------------------------
-    # [NEW] Spin Projection Helper
-    # -----------------------------------------------------------
     def _spin_projection(self, HR_in: torch.Tensor) -> torch.Tensor:
         """
-        Input: [Batch, Channels_in, nL, nR] (Usually Real, containing 0yzx basis)
-        Output: [Batch, Channels_out, nL, nR] (Real, containing uu/ud/du/dd basis)
+        Input:  [B, C_in, nL, nR] (real storage possibly with complex-doubling)
+        Output: same storage style, but spin basis projected 0yzx -> uu/ud/du/dd
         """
-        # 1. 转换为复数 (Handle Complex Doubling)
-        # 假设 Channels_in 是 (Chunks * 4_basis * 2_doubling) 或 (Chunks * 4_basis)
+        if self._should_debug():
+            self._dbg("---- [DBG] _spin_projection ENTER ----")
+            self._tensor_stats("HR_in", HR_in, max_print_el=8)
+            self._dbg(f"    soc_complex_doubling={self.soc_complex_doubling}")
+
         is_real_storage = not HR_in.is_complex()
 
+        # 1) real storage + doubling => pack to complex
         if is_real_storage and self.soc_complex_doubling:
-            # Layout: [Real_Part | Imag_Part] in dim 1
             if HR_in.shape[1] % 2 != 0:
-                raise ValueError("HR shape mismatch for soc_complex_doubling")
+                raise ValueError(f"HR shape mismatch for soc_complex_doubling: C={HR_in.shape[1]} is odd")
             half = HR_in.shape[1] // 2
             HR_c = torch.complex(HR_in[:, :half], HR_in[:, half:])
+            if self._should_debug():
+                self._dbg(f"    packed complex: C_real={HR_in.shape[1]} -> C_complex={half}")
+                self._tensor_stats("HR_c(packed)", HR_c, max_print_el=8)
         else:
             HR_c = HR_in.to(self.cdtype)
+            if self._should_debug():
+                self._dbg("    cast to complex (no doubling pack)")
+                self._tensor_stats("HR_c(cast)", HR_c, max_print_el=8)
 
-        # 2. Reshape to isolate Spin Basis (4 channels: 0, y, z, x)
+        # 2) reshape to chunks x 4
         B, C, nL, nR = HR_c.shape
+        if self._should_debug():
+            self._dbg(f"    HR_c parsed: B={B}, C={C}, nL={nL}, nR={nR}")
+
         if C % 4 != 0:
-            # 如果通道数不能被4整除，说明可能上游 Irreps 没对齐，这里做个保护直接返回
-            # 或者抛出异常。但在 Minimal Invasive 原则下，不做破坏性 crash
+            if self._should_debug():
+                self._dbg(f"    [WARN] C % 4 != 0 (C={C}), skip projection and return HR_in unchanged")
+                self._dbg("---- [DBG] _spin_projection EXIT (SKIP) ----")
             return HR_in
 
         n_chunks = C // 4
-        # View: [B, Chunk, 4(0yzx), nL, nR]
         HR_view = HR_c.view(B, n_chunks, 4, nL, nR)
 
-        # 3. Einsum Projection with oyzx2spin
-        # HR: ...s (spin basis), Matrix: sp (s->p)
-        # Out: ...p (pauli basis: uu, ud, du, dd)
-        HR_proj = torch.einsum('nkslr, sp -> nkplr', HR_view, self.oyzx2spin)
+        if self._should_debug():
+            self._dbg(f"    view -> HR_view: shape={tuple(HR_view.shape)} (B, chunk, 4(0yzx), nL, nR)")
+            self._tensor_stats("oyzx2spin", self.oyzx2spin, max_print_el=16)
 
-        # 4. Flatten back and Convert back to storage format
+            # sample a point
+            b0 = 0
+            k0 = 0
+            i0 = 0
+            j0 = 0
+            if B > 0 and n_chunks > 0 and nL > 0 and nR > 0:
+                v_in = HR_view[b0, k0, :, i0, j0]  # [4]
+                self._dbg(f"    sample in[0yzx] @ (b={b0},chunk={k0},i={i0},j={j0}) = {v_in}")
+
+        # 3) projection (保持你原本的 einsum 方向不变)
+        HR_proj = torch.einsum("nkslr, ps -> nkplr", HR_view, self.oyzx2spin)
+
+        # debug: 同时算一次“备用方向(ps)”对比误差（不影响返回）
+        if self._should_debug():
+            try:
+                HR_proj_alt = torch.einsum("nkslr, ps -> nkplr", HR_view, self.oyzx2spin)
+                diff = (HR_proj - HR_proj_alt).abs()
+                self._dbg(
+                    f"    [CHECK] proj(sp) vs proj(ps): "
+                    f"mean|diff|={diff.mean().item():.4e}, max|diff|={diff.max().item():.4e}"
+                )
+            except Exception as e:
+                self._dbg(f"    [CHECK] alt projection failed: {e}")
+
+            if B > 0 and n_chunks > 0 and nL > 0 and nR > 0:
+                v_out = HR_proj[0, 0, :, 0, 0]
+                self._dbg(f"    sample out[uu ud du dd] @ (b=0,chunk=0,i=0,j=0) = {v_out}")
+
         HR_proj_flat = HR_proj.reshape(B, C, nL, nR)
 
+        # 4) back to storage format
         if is_real_storage and self.soc_complex_doubling:
-            return torch.cat([HR_proj_flat.real, HR_proj_flat.imag], dim=1)
+            out = torch.cat([HR_proj_flat.real, HR_proj_flat.imag], dim=1)
+            if self._should_debug():
+                self._tensor_stats("HR_out(real+imag cat)", out, max_print_el=8)
+                self._dbg("---- [DBG] _spin_projection EXIT ----")
+            return out
         elif is_real_storage:
-            return HR_proj_flat.real
+            out = HR_proj_flat.real
+            if self._should_debug():
+                self._tensor_stats("HR_out(real)", out, max_print_el=8)
+                self._dbg("---- [DBG] _spin_projection EXIT ----")
+            return out
         else:
+            if self._should_debug():
+                self._tensor_stats("HR_out(complex)", HR_proj_flat, max_print_el=8)
+                self._dbg("---- [DBG] _spin_projection EXIT ----")
             return HR_proj_flat
 
-    # -----------------------------------------------------------
-    # Legacy _apply_soc (Maintained as requested)
-    # -----------------------------------------------------------
     def _apply_soc(self, data, n_node: int):
         if not self.soc:
             return data
 
         # 仅当初始化成功时才运行旧逻辑（L·S term）
-        if not hasattr(self, 'soc_base_matrix'):
+        if not hasattr(self, "soc_base_matrix"):
             return data
 
-        if self.debug:
-             print(f"[E3Ham-Debug] _apply_soc legacy term applied.")
+        if self._should_debug():
+            self._dbg("[E3Ham-Debug] _apply_soc legacy term applied.")
 
-        # Legacy logic to add explicit L.S term to NODE features
-        # Assuming data structure fits expected layout
+        # Legacy logic placeholder (kept as-is)
         for atom_type in self.idp.basis.keys():
-            if atom_type not in self.idp.type_names: continue
+            if atom_type not in self.idp.type_names:
+                continue
 
             mask = (data[AtomicDataDict.ATOM_TYPE_KEY] == self.idp.chemical_symbol_to_type[atom_type]).flatten()
-            if mask.sum() == 0: continue
+            if mask.sum() == 0:
+                continue
 
             for orbital_name in self.idp.basis[atom_type]:
-                # 寻找对应的 slice
-                if orbital_name + "-" + orbital_name not in self.idp.orbital_maps: continue
+                if orbital_name + "-" + orbital_name not in self.idp.orbital_maps:
+                    continue
                 sli = self.idp.orbital_maps[orbital_name + "-" + orbital_name]
 
                 orbital_char = re.findall(r"[a-z]", orbital_name)[0]
-                if orbital_char not in self.soc_base_matrix: continue
+                if orbital_char not in self.soc_base_matrix:
+                    continue
 
-                # 获取 SOC 矩阵并展平
-                soc_mat = self.soc_base_matrix[orbital_char] # [4, 2l+1, 2l+1] or similar
+                soc_mat = self.soc_base_matrix[orbital_char]
                 dim = soc_mat.shape[-1]
-
-                # 适配 feature 存储格式 (uu, ud, du, dd)
-                # NextHAM/DPTB 格式通常是 flattened complex doubling
-                # 这里仅做简单示意，维持旧逻辑不做深究，重点是上面的 _spin_projection
-
-                # 注意：如果 feature 是 complex doubling, 需要把 complex soc_mat 拆分
-                # 这里假设旧逻辑是匹配旧数据流的，不做修改
+                # 旧逻辑未实现：保持不动
                 pass
 
         return data
 
     def forward(self, data):
         self._forward_calls += 1
+
+        # ---- Global debug header ----
+        if self._should_debug():
+            self._dbg("=" * 100)
+            self._dbg(f"[DBG] forward call #{self._forward_calls}")
+            self._dbg(
+                f"[DBG] soc={self.soc}, soc_complex_doubling={getattr(self, 'soc_complex_doubling', None)}, "
+                f"decompose={self.decompose}, overlap={self.overlap}, rotation={self.rotation}"
+            )
+            self._dbg(f"[DBG] edge_field='{self.edge_field}', node_field='{self.node_field}'")
+            try:
+                self._dbg(f"[DBG] data keys: {list(data.keys())}")
+            except Exception:
+                self._dbg("[DBG] data keys: <unavailable>")
+
+            if self.edge_field in data:
+                self._tensor_stats(f"data[{self.edge_field}]", data[self.edge_field], max_print_el=6)
+            if self.node_field in data:
+                self._tensor_stats(f"data[{self.node_field}]", data[self.node_field], max_print_el=6)
+            if "edge_index" in data:
+                self._tensor_stats("data[edge_index]", data["edge_index"], max_print_el=12)
+            if "pos" in data:
+                self._tensor_stats("data[pos]", data["pos"], max_print_el=6)
 
         # Consistent checks
         assert data[self.edge_field].shape[1] == self.idp.reduced_matrix_element, \
@@ -223,62 +358,127 @@ class E3Hamiltonian(torch.nn.Module):
         n_edge = data["edge_index"].shape[1]
         n_node = self._infer_n_node(data)
 
+        if self._should_debug():
+            self._dbg(f"[DBG] n_edge={n_edge}, n_node={n_node}")
+            pairtypes = list(self.idp.orbpairtype_maps.keys())
+            self._dbg(f"[DBG] orbpairtypes total = {len(pairtypes)}")
+            self._dbg(f"[DBG] verbose first {self.debug_max_pairtypes} pairtypes = {pairtypes[:self.debug_max_pairtypes]}")
+
         data = AtomicDataDict.with_edge_vectors(data, with_lengths=True)
 
         # ---------------- Not decompose: RME -> HR ----------------
         if not self.decompose:
-            # Edge
+            # ---------------- EDGE ----------------
             for k_i, opairtype in enumerate(self.idp.orbpairtype_maps.keys()):
+                verbose = self._should_debug() and (k_i < self.debug_max_pairtypes)
+
                 l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
                 n_rme = (2 * l1 + 1) * (2 * l2 + 1)
                 sli = self.idp.orbpairtype_maps[opairtype]
 
-                rme = data[self.edge_field][:, sli]
-                rme = rme.reshape(n_edge, -1, n_rme).transpose(1, 2)  # (N, n_rme, n_chunk)
+                if verbose:
+                    self._dbg("-" * 100)
+                    self._dbg(f"[DBG][EDGE] pairtype[{k_i}]='{opairtype}', l1={l1}, l2={l2}, n_rme={n_rme}, slice={sli}")
 
-                # 1. Spatial Reconstruction (Standard)
+                rme = data[self.edge_field][:, sli]
+                if verbose:
+                    self._tensor_stats(f"[EDGE]{opairtype}.rme(raw)", rme)
+
+                rme2 = rme.reshape(n_edge, -1, n_rme).transpose(1, 2)  # (n_edge, n_rme, n_chunk)
+                if verbose:
+                    self._dbg(f"[DBG][EDGE]{opairtype}: rme reshape -> {tuple(rme2.shape)} (n_edge, n_rme, n_chunk)")
+
                 HR = torch.sum(
-                    self.cgbasis[opairtype][None, :, :, :, None] * rme[:, None, None, :, :],
+                    self.cgbasis[opairtype][None, :, :, :, None] * rme2[:, None, None, :, :],
                     dim=-2
                 )
-                HR = HR.permute(0, 3, 1, 2) # (N, n_chunk, nL, nR)
+                HR = HR.permute(0, 3, 1, 2)  # (n_edge, n_chunk, nL, nR)
+                if verbose:
+                    self._tensor_stats(f"[EDGE]{opairtype}.HR(before_spinproj)", HR)
 
-                # 2. [NEW] Spin Projection (The "Inverter" Logic)
                 if self.soc:
                     HR = self._spin_projection(HR)
+                    if verbose:
+                        self._tensor_stats(f"[EDGE]{opairtype}.HR(after_spinproj)", HR)
 
-                data[self.edge_field][:, sli] = HR.reshape(n_edge, -1)
+                flat = HR.reshape(n_edge, -1)
+                if verbose:
+                    self._dbg(f"[DBG][EDGE]{opairtype}: flat shape={tuple(flat.shape)}")
+                    slen = self._slice_len(sli, total_dim=data[self.edge_field].shape[1])
+                    if slen != -1:
+                        self._dbg(f"[DBG][EDGE]{opairtype}: slice_len={slen}, flat_width={flat.shape[1]}")
+                        if slen != flat.shape[1]:
+                            self._dbg(f"[WARN][EDGE]{opairtype}: slice_len != flat_width !!!")
 
-            # Node
+                    if n_edge > 0:
+                        e0 = 0
+                        nshow = min(10, flat.shape[1])
+                        self._dbg(f"[DBG][EDGE]{opairtype}: flat[e0, :{nshow}]={flat[e0, :nshow]}")
+
+                data[self.edge_field][:, sli] = flat
+
+            # ---------------- NODE ----------------
             if not self.overlap:
                 for k_i, opairtype in enumerate(self.idp.orbpairtype_maps.keys()):
+                    verbose = self._should_debug() and (k_i < self.debug_max_pairtypes)
+
                     l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
                     n_rme = (2 * l1 + 1) * (2 * l2 + 1)
                     sli = self.idp.orbpairtype_maps[opairtype]
 
+                    if verbose:
+                        self._dbg("-" * 100)
+                        self._dbg(f"[DBG][NODE] pairtype[{k_i}]='{opairtype}', l1={l1}, l2={l2}, n_rme={n_rme}, slice={sli}")
+
                     rme = data[self.node_field][:, sli]
-                    rme = rme.reshape(n_node, -1, n_rme).transpose(1, 2)
+                    if verbose:
+                        self._tensor_stats(f"[NODE]{opairtype}.rme(raw)", rme)
+
+                    rme2 = rme.reshape(n_node, -1, n_rme).transpose(1, 2)  # (n_node, n_rme, n_chunk)
+                    if verbose:
+                        self._dbg(f"[DBG][NODE]{opairtype}: rme reshape -> {tuple(rme2.shape)} (n_node, n_rme, n_chunk)")
 
                     HR = torch.sum(
-                        self.cgbasis[opairtype][None, :, :, :, None] * rme[:, None, None, :, :],
+                        self.cgbasis[opairtype][None, :, :, :, None] * rme2[:, None, None, :, :],
                         dim=-2
                     )
-                    HR = HR.permute(0, 3, 1, 2)
+                    HR = HR.permute(0, 3, 1, 2)  # (n_node, n_chunk, nL, nR)
+                    if verbose:
+                        self._tensor_stats(f"[NODE]{opairtype}.HR(before_spinproj)", HR)
 
-                    # 2. [NEW] Spin Projection
                     if self.soc:
                         HR = self._spin_projection(HR)
+                        if verbose:
+                            self._tensor_stats(f"[NODE]{opairtype}.HR(after_spinproj)", HR)
 
-                    data[self.node_field][:, sli] = HR.reshape(n_node, -1)
+                    flat = HR.reshape(n_node, -1)
+                    if verbose:
+                        self._dbg(f"[DBG][NODE]{opairtype}: flat shape={tuple(flat.shape)}")
+                        slen = self._slice_len(sli, total_dim=data[self.node_field].shape[1])
+                        if slen != -1:
+                            self._dbg(f"[DBG][NODE]{opairtype}: slice_len={slen}, flat_width={flat.shape[1]}")
+                            if slen != flat.shape[1]:
+                                self._dbg(f"[WARN][NODE]{opairtype}: slice_len != flat_width !!!")
+
+                        if n_node > 0:
+                            a0 = 0
+                            nshow = min(10, flat.shape[1])
+                            self._dbg(f"[DBG][NODE]{opairtype}: flat[a0, :{nshow}]={flat[a0, :nshow]}")
+
+                    data[self.node_field][:, sli] = flat
 
         # ---------------- Decompose: HR -> RME ----------------
         else:
-            # Decompose logic remains untouched (Inverse of projection not implemented here)
-            # Assuming decompose=False for standard inference/training
+            if self._should_debug():
+                self._dbg("[DBG] decompose=True branch not implemented here.")
             pass
 
         # Legacy SOC onsite param application
         data = self._apply_soc(data, n_node=n_node)
+
+        if self._should_debug():
+            self._dbg(f"[DBG] forward end #{self._forward_calls}")
+            self._dbg("=" * 100)
 
         return data
 
@@ -289,7 +489,8 @@ class E3Hamiltonian(torch.nn.Module):
         cg = []
         for l_ird in range(abs(l2 - l1), l2 + l1 + 1):
             cg.append(
-                wigner_3j(int(l1), int(l2), int(l_ird), dtype=self.dtype, device=self.device) * (2 * l_ird + 1) ** 0.5
+                wigner_3j(int(l1), int(l2), int(l_ird), dtype=self.dtype, device=self.device)
+                * (2 * l_ird + 1) ** 0.5
             )
         cg = torch.cat(cg, dim=-1)
         self.cgbasis[pairtype] = cg
