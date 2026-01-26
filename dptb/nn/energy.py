@@ -86,7 +86,7 @@ class Eigenvalues(nn.Module):
             self,
             data: AtomicDataDict.Type,
             nk: Optional[int] = None,
-            ill_threshold: Optional[float] = 2e-3
+            ill_threshold: Optional[float] = 1e-5
     ) -> AtomicDataDict.Type:
         """
         Compute eigenvalues along k-points.

@@ -519,9 +519,7 @@ class DeepDoctorMonitor(Plugin):
         pass
 
 
-
 class Monitor(Plugin):
-
     def __init__(self, running_average=True, epoch_average=True, smoothing=0.7,
                  precision=None, number_format=None, unit='', sliding_win_size=50, avg_per_iter=False):
 
@@ -529,24 +527,19 @@ class Monitor(Plugin):
             precision = 4
         if number_format is None:
             number_format = '.{}f'.format(precision)
-        #规定了输出格式
         number_format = ':' + number_format
-        # interval for initialize the base plugin 
-        # list[(1, 'iteration'), (1, 'epoch')] is to define the trigger_interval.
+
         super(Monitor, self).__init__([(1, 'iteration'), (1, 'epoch')])
 
-        # smoothing value for calculate running average.
         self.smoothing = smoothing
-        # if cal running average 
         self.with_running_average = running_average
-        # if cal epoch average
         self.with_epoch_average = epoch_average
 
-        #输出日志的格式
         self.log_format = number_format
         self.log_unit = unit
         self.log_epoch_fields = None
         self.log_iter_fields = ['{last' + number_format + '}' + unit]
+
         if self.with_running_average:
             self.log_iter_fields += [' ({running_avg' + number_format + '}' + unit + ')']
         if self.with_epoch_average:
@@ -557,60 +550,91 @@ class Monitor(Plugin):
 
     def register(self, trainer):
         self.trainer = trainer
-        # `stat_name` need to be defined in the specific plugin.
-        # setdefault returns the value in the dictionary if it exists,
-        # otherwise it creates a new one with the input value as defult.
         stats = self.trainer.stats.setdefault(self.stat_name, {})
+
+        # --- 核心修复：初始化所有可能的键，防止 Logger 报 KeyError ---
+        stats['last'] = 0.0
+        if self.with_running_average:
+            stats['running_avg'] = 0.0
+        if self.with_epoch_average:
+            stats['epoch_mean'] = 0.0
+            stats['epoch_stats'] = (0, 0)
+        # -------------------------------------------------------
+
         stats['log_format'] = self.log_format
         stats['log_unit'] = self.log_unit
         stats['log_iter_fields'] = self.log_iter_fields
         if self.with_epoch_average:
             stats['log_epoch_fields'] = self.log_epoch_fields
-        if self.with_epoch_average:
-            stats['epoch_stats'] = (0, 0)
 
     def iteration(self, **kwargs):
-        '''`iteration` is called at the end of each iteration, and it updates the `stats` dictionary with the
-        current value of `stats['last']`
-        
-        '''
-
-        # `stat_name` need to be defined in the specific plugin.
         stats = self.trainer.stats.setdefault(self.stat_name, {})
-        # update the value of `stats['last']`
-        # The _get_value method must be defined in the specific plugin.!。
-        stats['last'] = self._get_value(**kwargs)
+        val = self._get_value(**kwargs)
+
+        # 如果获取不到值（例如 Trainer 还没传），则跳过本次更新
+        if val is None:
+            return
+
+        stats['last'] = val
 
         if self.with_epoch_average:
-            # return (sum_stats['last'], count)
-            stats['epoch_stats'] = tuple(sum(t) for t in
-                                         zip(stats['epoch_stats'], (stats['last'], 1)))
+            # 使用 sum 累加
+            curr_s, curr_c = stats.get('epoch_stats', (0, 0))
+            stats['epoch_stats'] = (curr_s + val, curr_c + 1)
 
         if self.with_running_average:
-            previous_avg = stats.get('running_avg', 0)
-            stats['running_avg'] = previous_avg * self.smoothing + stats['last'] * (1 - self.smoothing)
+            previous_avg = stats.get('running_avg', 0.0)
+            stats['running_avg'] = previous_avg * self.smoothing + val * (1 - self.smoothing)
 
         if self.avg_per_iter:
-            self.loss_queue.append(stats['last'])
+            self.loss_queue.append(val)
             stats['latest_avg_iter_loss'] = sum(self.loss_queue) / len(self.loss_queue)
 
-
     def epoch(self, **kwargs):
-        '''It computes the average of the values of epoch_stats key in the `stats` dictionary, 
-        and then resets the value in the dictionary to `(0, 0)`.
-        
-        Parameters
-        ----------
-        idx
-            the index of the epoch
-        
-        '''
-
         stats = self.trainer.stats.setdefault(self.stat_name, {})
         if self.with_epoch_average:
-            epoch_stats = stats['epoch_stats']
-            stats['epoch_mean'] = epoch_stats[0] / epoch_stats[1]
+            epoch_stats = stats.get('epoch_stats', (0, 0))
+            # 防御除零错误
+            if epoch_stats[1] > 0:
+                stats['epoch_mean'] = epoch_stats[0] / epoch_stats[1]
+            else:
+                # 如果这一轮没数据，保留之前的 epoch_mean 或用 last
+                stats['epoch_mean'] = stats.get('epoch_mean', stats.get('last', 0.0))
+            # 重置计数器
             stats['epoch_stats'] = (0, 0)
+
+class TrainOnsiteLossMonitor(Monitor):
+    stat_name = "train_onsite_loss"
+
+    def __init__(self, interval=None, **kwargs):
+        super().__init__(**kwargs)
+        # 显式初始化 interval（按你 Plugin 机制要求）
+        if interval is None:
+            interval = [(1, 'iteration'), (1, 'epoch')]
+        self.trigger_interval = interval
+
+    def _get_value(self, **kwargs):
+        val = kwargs.get("train_onsite_loss", 0.0)
+        if torch.is_tensor(val):
+            return val.item()
+        return float(val)
+
+
+class TrainHoppingLossMonitor(Monitor):
+    stat_name = "train_hopping_loss"
+
+    def __init__(self, interval=None, **kwargs):
+        super().__init__(**kwargs)
+        if interval is None:
+            interval = [(1, 'iteration'), (1, 'epoch')]
+        self.trigger_interval = interval
+
+    def _get_value(self, **kwargs):
+        val = kwargs.get("train_hopping_loss", 0.0)
+        if torch.is_tensor(val):
+            return val.item()
+        return float(val)
+
 
 
 class TrainLossMonitor(Monitor):
@@ -663,6 +687,7 @@ class Validationer(Monitor):
         stats = self.trainer.stats.setdefault(self.stat_name, {})
         stats['epoch_mean'] = self.trainer.validation(fast=self.fast_mode)
 
+
 class TensorBoardMonitor(Plugin):
     def __init__(self, interval):
         super(TensorBoardMonitor, self).__init__(interval=interval)
@@ -673,18 +698,34 @@ class TensorBoardMonitor(Plugin):
 
     def epoch(self, **kwargs):
         epoch = self.trainer.ep
-        self.writer.add_scalar(f'lr/epoch', self.trainer.stats['lr']['last'], epoch)
-        self.writer.add_scalar(f'train_loss_mean/epoch', self.trainer.stats['train_loss']['epoch_mean'], epoch)
-        if 'validation_loss' in self.trainer.stats.keys():
-            self.writer.add_scalar(f'validation_loss_mean/epoch', self.trainer.stats['validation_loss']['epoch_mean'], epoch)
+        # 使用 .get 获取 stats，并提供默认值 0.0 防止崩溃
+        def get_stat(name, key):
+            return self.trainer.stats.get(name, {}).get(key, 0.0)
+
+        self.writer.add_scalar(f'lr/epoch', get_stat('lr', 'last'), epoch)
+        self.writer.add_scalar(f'train_loss_mean/epoch', get_stat('train_loss', 'epoch_mean'), epoch)
+
+        if 'train_onsite_loss' in self.trainer.stats:
+            self.writer.add_scalar(f'train_onsite_loss_mean/epoch', get_stat('train_onsite_loss', 'epoch_mean'), epoch)
+        if 'train_hopping_loss' in self.trainer.stats:
+            self.writer.add_scalar(f'train_hopping_loss_mean/epoch', get_stat('train_hopping_loss', 'epoch_mean'), epoch)
+
+        if 'validation_loss' in self.trainer.stats:
+            self.writer.add_scalar(f'validation_loss_mean/epoch', get_stat('validation_loss', 'epoch_mean'), epoch)
 
     def iteration(self, **kwargs):
         iteration = self.trainer.iter
-        self.writer.add_scalar(f'lr_iter/iteration', self.trainer.stats['lr']['last'], iteration)
-        self.writer.add_scalar(f'train_loss_iter/iteration', self.trainer.stats['train_loss']['last'], iteration)
-        if 'latest_avg_iter_loss' in self.trainer.stats['train_loss'].keys():
-            self.writer.add_scalar(f'latest_avg_loss/iteration', self.trainer.stats['train_loss']['latest_avg_iter_loss'], iteration)
-        if 'validation_loss' in self.trainer.stats.keys():
-            self.writer.add_scalar(f'validation_loss_iter/iteration', self.trainer.stats['validation_loss']['last'], iteration)
+        def get_stat(name, key):
+            return self.trainer.stats.get(name, {}).get(key, 0.0)
 
+        self.writer.add_scalar(f'lr_iter/iteration', get_stat('lr', 'last'), iteration)
+        self.writer.add_scalar(f'train_loss_iter/iteration', get_stat('train_loss', 'last'), iteration)
 
+        # 核心修复点：使用 get_stat 替代直接索引
+        if 'train_onsite_loss' in self.trainer.stats:
+            self.writer.add_scalar(f'train_onsite_loss_iter/iteration', get_stat('train_onsite_loss', 'last'), iteration)
+        if 'train_hopping_loss' in self.trainer.stats:
+            self.writer.add_scalar(f'train_hopping_loss_iter/iteration', get_stat('train_hopping_loss', 'last'), iteration)
+
+        if 'latest_avg_iter_loss' in self.trainer.stats['train_loss']:
+            self.writer.add_scalar(f'latest_avg_loss/iteration', get_stat('train_loss', 'latest_avg_iter_loss'), iteration)

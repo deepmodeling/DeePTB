@@ -1,7 +1,7 @@
 from dptb.nnops.trainer import Trainer
 from dptb.nn.build import build_model
 from dptb.data.build import build_dataset
-from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor, DeepDoctorMonitor, SO2ModuleMonitor, PreTPBlockMonitor
+from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor, DeepDoctorMonitor, SO2ModuleMonitor, PreTPBlockMonitor, TrainOnsiteLossMonitor, TrainHoppingLossMonitor
 from dptb.plugins.train_logger import Logger
 from dptb.utils.argcheck import normalize, collect_cutoffs, chk_avg_per_iter
 from dptb.plugins.saver import Saver
@@ -539,8 +539,12 @@ def train(
     avg_per_iter = chk_avg_per_iter(jdata)
     trainer.register_plugin(TrainLossMonitor(sliding_win_size=jdata["train_options"]["sliding_win_size"], avg_per_iter=avg_per_iter)) # by default, avg_per_iter is false, will not be activated.
     trainer.register_plugin(LearningRateMonitor())
-
-
+##############################
+    trainer.register_plugin(TrainOnsiteLossMonitor(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')]))
+    trainer.register_plugin(TrainHoppingLossMonitor(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')]))
+    log_field.append("train_onsite_loss")
+    log_field.append("train_hopping_loss")
+##############################
     current_bs = jdata["train_options"]["batch_size"]
     grad_log_file = os.path.join(output, f"grad_trace_bs{current_bs}.csv")
 

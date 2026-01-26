@@ -272,11 +272,11 @@ class NNENV(nn.Module):
             self.hamiltonian = E3Hamiltonian(
                 edge_field=AtomicDataDict.EDGE_FEATURES_KEY,
                 node_field=AtomicDataDict.NODE_FEATURES_KEY,
-                idp=self.idp,
+                idp=self.embedding.idp,
                 dtype=self.dtype,
-                device=self.device
+                device=self.device,
+                soc=self.has_soc
             )
-
 
             if overlap:
                 self.overlap = SKHamiltonian(

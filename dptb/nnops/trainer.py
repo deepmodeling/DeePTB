@@ -118,6 +118,7 @@ class Trainer(BaseTrainer):
         batch = self.model(batch)
         batch.update(batch_info)
         batch_for_loss.update(batch_info)
+
         loss = self.train_lossfunc(batch, batch_for_loss)
 
         if ref_batch is not None:
@@ -140,16 +141,10 @@ class Trainer(BaseTrainer):
         self.optimizer.zero_grad(set_to_none=True)
         loss.backward()
 
-        # ============================================================
-        # [修改 2] 实现 Gradient Clip 并获取 Total Norm
-        # clip_grad_norm_ 会返回截断前的总范数，非常适合用来做统计
-        # ============================================================
         total_norm = torch.nn.utils.clip_grad_norm_(
             self.model.parameters(),
             max_norm=self.clip_grad_norm
         )
-
-        # print(total_norm)
 
         self.optimizer.step()
 
@@ -160,21 +155,36 @@ class Trainer(BaseTrainer):
             else:
                 self.lr_scheduler.step()
 
-        # ============================================================
-        # [修改 3] 将 total_norm 放入 state 传给 Plugin
-        # ============================================================
+        # 找到 Loss wrapper 内部真正的 loss 模块
+        loss_obj = self.train_lossfunc
+        for attr in ("lossfunc", "loss_fn", "criterion", "method", "loss"):
+            inner = getattr(loss_obj, attr, None)
+            if isinstance(inner, nn.Module):
+                loss_obj = inner
+                break
+
+        onsite_comp = getattr(loss_obj, "last_onsite_loss", None)
+        hopping_comp = getattr(loss_obj, "last_hopping_loss", None)
+
+
         state = {
             'field': 'iteration',
             "train_loss": loss.detach(),
             "lr": self.optimizer.state_dict()["param_groups"][0]['lr'],
-            "total_grad_norm": total_norm.item()  # 传递给 Monitor
+            "total_grad_norm": total_norm.item()
         }
+
+        # 只有在 lossfunc 真正提供了分量时才塞进 state，避免对别的 loss 类出错
+        if onsite_comp is not None:
+            state["train_onsite_loss"] = onsite_comp
+        if hopping_comp is not None:
+            state["train_hopping_loss"] = hopping_comp
+
         self.call_plugins(queue_name='iteration', time=self.iter, **state)
         self.iter += 1
 
         return loss.detach()
 
-    # ... (restart, epoch, update, validation 方法保持不变) ...
     @classmethod
     def restart(cls, checkpoint, train_datasets, train_options={}, common_options={}, reference_datasets=None,
                 validation_datasets=None):

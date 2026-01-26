@@ -904,11 +904,60 @@ def loss_options():
     doc_use_energy_weighting = "Use gaussian smearing for energy weighting. Default: True"
     doc_dataset_basis_name = "The basis used in the dataset. Default: def2svp"
 
-
     hamil = [
-        Argument("onsite_shift", bool, optional=True, default=False, doc="Whether to use onsite shift in loss function. Default: False"),
-        Argument("debug_flag", bool, optional=True, default=False, doc="Whether to show debug info. Default: False"),
-        Argument("nextham_uureal_mask", bool, optional=True, default=False, doc="Whether to use nextham style uureal_mask. Default: False"),
+        Argument(
+            "onsite_shift",
+            bool,
+            optional=True,
+            default=False,
+            doc="Whether to apply a global onsite shift (μ) between prediction and reference Hamiltonians. "
+                "Implemented by shifting ref_data using the overlap matrix. Default: False.",
+        ),
+        Argument(
+            "debug_flag",
+            bool,
+            optional=True,
+            default=False,
+            doc="Whether to print additional debug information inside the loss (e.g. norms, masks). "
+                "Default: False.",
+        ),
+        Argument(
+            "nextham_uureal_mask",
+            bool,
+            optional=True,
+            default=False,
+            doc="Whether to use NextHAM-style uu.real masking on SOC features. "
+                "When True, only the uu.real block of each SOC slice is supervised in the loss; "
+                "other spin/im parts are ignored. Default: False.",
+        ),
+        # 以下是我们为 HamilLossAbsMAE 新增的可选参数（如果你启用了 onsite_boost 机制）
+        Argument(
+            "onsite_boost",
+            bool,
+            optional=True,
+            default=False,
+            doc="Whether to up-weight onsite matrix-element errors in the early stage of training. "
+                "If True, the onsite part of the loss is multiplied by a time-decaying factor "
+                "that starts from `onsite_boost_max` and decays to 1.0 over `onsite_boost_steps` iterations. "
+                "Default: False.",
+        ),
+        Argument(
+            "onsite_boost_steps",
+            int,
+            optional=True,
+            default=50000,
+            doc="Number of iterations over which the onsite loss weight decays linearly from "
+                "`onsite_boost_max` to 1.0. Only used when `onsite_boost=True`. Default: 20000.",
+        ),
+        Argument(
+            "onsite_boost_max",
+            float,
+            optional=True,
+            default=200.0,
+            doc="Initial multiplicative factor for onsite loss when `onsite_boost=True`. "
+                "At iteration 0 the onsite loss is multiplied by this value, then linearly decays "
+                "to 1.0 at `onsite_boost_steps`. Default: 100.0.",
+        ),
     ]
 
     property_aux = [

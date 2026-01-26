@@ -23,12 +23,12 @@ class TypeMapper:
     _min_Z: int
 
     def __init__(
-        self,
-        type_names: Optional[List[str]] = None,
-        chemical_symbol_to_type: Optional[Dict[str, int]] = None,
-        type_to_chemical_symbol: Optional[Dict[int, str]] = None,
-        chemical_symbols: Optional[List[str]] = None,
-        device=torch.device("cpu"),
+            self,
+            type_names: Optional[List[str]] = None,
+            chemical_symbol_to_type: Optional[Dict[str, int]] = None,
+            type_to_chemical_symbol: Optional[Dict[int, str]] = None,
+            chemical_symbols: Optional[List[str]] = None,
+            device=torch.device("cpu"),
     ):
         self.device = device
         if chemical_symbols is not None:
@@ -41,7 +41,7 @@ class TypeMapper:
             atomic_nums = [ase.data.atomic_numbers[sym] for sym in chemical_symbols]
             # https://stackoverflow.com/questions/29876580/how-to-sort-a-list-according-to-another-list-python
             chemical_symbols = [
-                e[1] for e in sorted(zip(atomic_nums, chemical_symbols)) # low to high
+                e[1] for e in sorted(zip(atomic_nums, chemical_symbols))  # low to high
             ]
             chemical_symbol_to_type = {k: i for i, k in enumerate(chemical_symbols)}
             del chemical_symbols
@@ -118,7 +118,7 @@ class TypeMapper:
             assert set(type_to_chemical_symbol.keys()) == set(range(self.num_types))
 
     def __call__(
-        self, data: Union[AtomicDataDict.Type, AtomicData], types_required: bool = True
+            self, data: Union[AtomicDataDict.Type, AtomicData], types_required: bool = True
     ) -> Union[AtomicDataDict.Type, AtomicData]:
         if AtomicDataDict.ATOM_TYPE_KEY in data:
             if AtomicDataDict.ATOMIC_NUMBERS_KEY in data:
@@ -127,7 +127,7 @@ class TypeMapper:
                 )
         elif AtomicDataDict.ATOMIC_NUMBERS_KEY in data:
             assert (
-                self.chemical_symbol_to_type is not None
+                    self.chemical_symbol_to_type is not None
             ), "Atomic numbers provided but there is no chemical_symbols/chemical_symbol_to_type mapping!"
             atomic_numbers = data[AtomicDataDict.ATOMIC_NUMBERS_KEY]
             del data[AtomicDataDict.ATOMIC_NUMBERS_KEY]
@@ -150,7 +150,7 @@ class TypeMapper:
             )
 
         types = self._Z_to_index.to(device=atomic_numbers.device)[atomic_numbers - self._min_Z]
-        
+
         if -1 in types:
             bad_set = set(torch.unique(atomic_numbers).cpu().tolist()) - self._valid_set
             raise ValueError(
@@ -169,7 +169,7 @@ class TypeMapper:
 
     @staticmethod
     def format(
-        data: list, type_names: List[str], element_formatter: str = ".6f"
+            data: list, type_names: List[str], element_formatter: str = ".6f"
     ) -> str:
         """
             Formats a list of data elements along with their type names.
@@ -184,13 +184,13 @@ class TypeMapper:
 
         Raises:
             ValueError: If `data` is not None, not 0-dimensional, or not 1-dimensional with length equal to the length of `type_names`.
-        
+
         Example:
             >>> data = [1.123456789, 2.987654321]
             >>> type_names = ['Type1', 'Type2']
             >>> print(TypeMapper.format(data, type_names))
-                [Type1: 1.123457, Type2: 2.987654]    
-        """ 
+                [Type1: 1.123457, Type2: 2.987654]
+        """
         data = torch.as_tensor(data) if data is not None else None
         if data is None:
             return f"[{', '.join(type_names)}: None]"
@@ -198,12 +198,12 @@ class TypeMapper:
             return (f"[{', '.join(type_names)}: {{:{element_formatter}}}]").format(data)
         elif data.ndim == 1 and len(data) == len(type_names):
             return (
-                "["
-                + ", ".join(
-                    f"{{{i}[0]}}: {{{i}[1]:{element_formatter}}}"
-                    for i in range(len(data))
-                )
-                + "]"
+                    "["
+                    + ", ".join(
+                f"{{{i}[0]}}: {{{i}[1]:{element_formatter}}}"
+                for i in range(len(data))
+            )
+                    + "]"
             ).format(*zip(type_names, data))
         else:
             raise ValueError(
@@ -213,12 +213,13 @@ class TypeMapper:
 
 class BondMapper(TypeMapper):
     def __init__(
-            self, 
-            chemical_symbols: Optional[List[str]] = None, 
-            chemical_symbols_to_type:Union[Dict[str, int], None]=None,
+            self,
+            chemical_symbols: Optional[List[str]] = None,
+            chemical_symbols_to_type: Union[Dict[str, int], None] = None,
             device=torch.device("cpu"),
-            ):
-        super(BondMapper, self).__init__(chemical_symbol_to_type=chemical_symbols_to_type, chemical_symbols=chemical_symbols, device=device)
+    ):
+        super(BondMapper, self).__init__(chemical_symbol_to_type=chemical_symbols_to_type,
+                                         chemical_symbols=chemical_symbols, device=device)
 
         self.bond_types = [None] * self.num_types ** 2
         self.reduced_bond_types = [None] * ((self.num_types * (self.num_types + 1)) // 2)
@@ -230,74 +231,73 @@ class BondMapper(TypeMapper):
             for bsym, bi in self.chemical_symbol_to_type.items():
                 self.bond_types[ai * self.num_types + bi] = asym + "-" + bsym
                 if ai <= bi:
-                    self.reduced_bond_types[(2*self.num_types-ai+1) * ai // 2 + bi-ai] = asym + "-" + bsym
+                    self.reduced_bond_types[(2 * self.num_types - ai + 1) * ai // 2 + bi - ai] = asym + "-" + bsym
         for i, bt in enumerate(self.bond_types):
             self.bond_to_type[bt] = i
             self.type_to_bond[i] = bt
         for i, bt in enumerate(self.reduced_bond_types):
             self.reduced_bond_to_type[bt] = i
             self.type_to_reduced_bond[i] = bt
-        
+
         ZZ_to_index = torch.full(
-                size=(len(self._Z_to_index), len(self._Z_to_index)), fill_value=-1, device=device, dtype=torch.long
-            )
+            size=(len(self._Z_to_index), len(self._Z_to_index)), fill_value=-1, device=device, dtype=torch.long
+        )
         ZZ_to_reduced_index = torch.full(
-                size=(len(self._Z_to_index), len(self._Z_to_index)), fill_value=-1, device=device, dtype=torch.long
-            )
-        
+            size=(len(self._Z_to_index), len(self._Z_to_index)), fill_value=-1, device=device, dtype=torch.long
+        )
 
-        for abond, aidx in self.bond_to_type.items(): # type_names has a ascending order according to atomic number
+        for abond, aidx in self.bond_to_type.items():  # type_names has a ascending order according to atomic number
             asym, bsym = abond.split("-")
-            ZZ_to_index[ase.data.atomic_numbers[asym]-self._min_Z, ase.data.atomic_numbers[bsym]-self._min_Z] = aidx
+            ZZ_to_index[ase.data.atomic_numbers[asym] - self._min_Z, ase.data.atomic_numbers[bsym] - self._min_Z] = aidx
 
-        for abond, aidx in self.reduced_bond_to_type.items(): # type_names has a ascending order according to atomic number        
+        for abond, aidx in self.reduced_bond_to_type.items():  # type_names has a ascending order according to atomic number
             asym, bsym = abond.split("-")
-            ZZ_to_reduced_index[ase.data.atomic_numbers[asym]-self._min_Z, ase.data.atomic_numbers[bsym]-self._min_Z] = aidx
-        
-        
+            ZZ_to_reduced_index[
+                ase.data.atomic_numbers[asym] - self._min_Z, ase.data.atomic_numbers[bsym] - self._min_Z] = aidx
+
         self._ZZ_to_index = ZZ_to_index
         self._ZZ_to_reduced_index = ZZ_to_reduced_index
 
         self._index_to_ZZ = torch.zeros(
-                size=(len(self.bond_to_type),2), dtype=torch.long, device=device
-            )
+            size=(len(self.bond_to_type), 2), dtype=torch.long, device=device
+        )
         self._reduced_index_to_ZZ = torch.zeros(
-                size=(len(self.reduced_bond_to_type),2), dtype=torch.long, device=device
-            )
-        
+            size=(len(self.reduced_bond_to_type), 2), dtype=torch.long, device=device
+        )
+
         for abond, aidx in self.bond_to_type.items():
             asym, bsym = abond.split("-")
-            self._index_to_ZZ[aidx] = torch.tensor([ase.data.atomic_numbers[asym], ase.data.atomic_numbers[bsym]], dtype=torch.long, device=device)
+            self._index_to_ZZ[aidx] = torch.tensor([ase.data.atomic_numbers[asym], ase.data.atomic_numbers[bsym]],
+                                                   dtype=torch.long, device=device)
 
         for abond, aidx in self.reduced_bond_to_type.items():
             asym, bsym = abond.split("-")
-            self._reduced_index_to_ZZ[aidx] = torch.tensor([ase.data.atomic_numbers[asym], ase.data.atomic_numbers[bsym]], dtype=torch.long, device=device)
-
+            self._reduced_index_to_ZZ[aidx] = torch.tensor(
+                [ase.data.atomic_numbers[asym], ase.data.atomic_numbers[bsym]], dtype=torch.long, device=device)
 
     def transform_atom(self, atomic_numbers):
         return self.transform(atomic_numbers)
-    
+
     def transform_bond(self, iatomic_numbers, jatomic_numbers):
-        
+
         if iatomic_numbers.device != jatomic_numbers.device:
             raise ValueError("iatomic_numbers and jatomic_numbers should be on the same device!")
-        
+
         if iatomic_numbers.min() < self._min_Z or iatomic_numbers.max() > self._max_Z:
             bad_set = set(torch.unique(iatomic_numbers).cpu().tolist()) - self._valid_set
             raise ValueError(
                 f"Data included atomic numbers {bad_set} that are not part of the atomic number -> type mapping!"
             )
-        
+
         if jatomic_numbers.min() < self._min_Z or jatomic_numbers.max() > self._max_Z:
             bad_set = set(torch.unique(jatomic_numbers).cpu().tolist()) - self._valid_set
             raise ValueError(
                 f"Data included atomic numbers {bad_set} that are not part of the atomic number -> type mapping!"
             )
 
+        bondtypes = self._ZZ_to_index.to(device=iatomic_numbers.device)[iatomic_numbers - self._min_Z,
+                                                                        jatomic_numbers - self._min_Z]
 
-        bondtypes = self._ZZ_to_index.to(device=iatomic_numbers.device)[iatomic_numbers - self._min_Z, 
-                                                                    jatomic_numbers - self._min_Z]
-        
         if -1 in bondtypes:
             bad_set1 = set(torch.unique(iatomic_numbers).cpu().tolist()) - self._valid_set
             bad_set2 = set(torch.unique(jatomic_numbers).cpu().tolist()) - self._valid_set
@@ -305,15 +305,15 @@ class BondMapper(TypeMapper):
             raise ValueError(
                 f"Data included atomic numbers {bad_set} that are not part of the atomic number -> type mapping!"
             )
-        
+
         return bondtypes
-    
+
     def transform_reduced_bond(self, iatomic_numbers, jatomic_numbers):
-        
+
         if iatomic_numbers.device != jatomic_numbers.device:
             raise ValueError("iatomic_numbers and jatomic_numbers should be on the same device!")
-        
-        if not torch.all((iatomic_numbers -jatomic_numbers)<=0):
+
+        if not torch.all((iatomic_numbers - jatomic_numbers) <= 0):
             raise ValueError("iatomic_numbers[i] should <= jatomic_numbers[i]")
 
         if iatomic_numbers.min() < self._min_Z or iatomic_numbers.max() > self._max_Z:
@@ -321,17 +321,16 @@ class BondMapper(TypeMapper):
             raise ValueError(
                 f"Data included atomic numbers {bad_set} that are not part of the atomic number -> type mapping!"
             )
-        
+
         if jatomic_numbers.min() < self._min_Z or jatomic_numbers.max() > self._max_Z:
             bad_set = set(torch.unique(jatomic_numbers).cpu().tolist()) - self._valid_set
             raise ValueError(
                 f"Data included atomic numbers {bad_set} that are not part of the atomic number -> type mapping!"
             )
 
-
         red_bondtypes = self._ZZ_to_reduced_index.to(device=iatomic_numbers.device)[
-                                    iatomic_numbers - self._min_Z, jatomic_numbers - self._min_Z]
-        
+            iatomic_numbers - self._min_Z, jatomic_numbers - self._min_Z]
+
         if -1 in red_bondtypes:
             bad_set1 = set(torch.unique(iatomic_numbers).cpu().tolist()) - self._valid_set
             bad_set2 = set(torch.unique(jatomic_numbers).cpu().tolist()) - self._valid_set
@@ -339,28 +338,28 @@ class BondMapper(TypeMapper):
             raise ValueError(
                 f"Data included atomic numbers {bad_set} that are not part of the atomic number -> type mapping!"
             )
-        
+
         return red_bondtypes
-    
+
     def untransform_atom(self, atom_types):
         """Transform atom types back into atomic numbers"""
         return self.untransform(atom_types)
-    
+
     def untransform_bond(self, bond_types):
         """Transform bond types back into atomic numbers"""
         return self._index_to_ZZ[bond_types].to(device=bond_types.device)
-    
+
     def untransform_reduced_bond(self, bond_types):
         """Transform reduced bond types back into atomic numbers"""
         return self._reduced_index_to_ZZ[bond_types].to(device=bond_types.device)
-    
+
     @property
     def has_bond(self) -> bool:
         return self.bond_to_type is not None
-    
+
     def __call__(
             self, data: Union[AtomicDataDict.Type, AtomicData], types_required: bool = True
-            ) -> Union[AtomicDataDict.Type, AtomicData]:
+    ) -> Union[AtomicDataDict.Type, AtomicData]:
         if AtomicDataDict.EDGE_TYPE_KEY in data:
             if AtomicDataDict.ATOMIC_NUMBERS_KEY in data:
                 warnings.warn(
@@ -368,19 +367,19 @@ class BondMapper(TypeMapper):
                 )
         elif AtomicDataDict.ATOMIC_NUMBERS_KEY in data:
             assert (
-                self.bond_to_type is not None
+                    self.bond_to_type is not None
             ), "Atomic numbers provided but there is no chemical_symbols/chemical_symbol_to_type mapping!"
             atomic_numbers = data[AtomicDataDict.ATOMIC_NUMBERS_KEY]
 
             assert (
-                AtomicDataDict.EDGE_INDEX_KEY in data
+                    AtomicDataDict.EDGE_INDEX_KEY in data
             ), "The bond type mapper need a EDGE index as input."
 
             data[AtomicDataDict.EDGE_TYPE_KEY] = \
                 self.transform_bond(
                     atomic_numbers[data[AtomicDataDict.EDGE_INDEX_KEY][0]],
                     atomic_numbers[data[AtomicDataDict.EDGE_INDEX_KEY][1]]
-                    )
+                )
         else:
             if types_required:
                 raise KeyError(
@@ -393,6 +392,7 @@ import torch
 import re
 import logging
 import sys
+import inspect
 from typing import Dict, Union, List, Optional
 from e3nn import o3
 
@@ -456,6 +456,20 @@ class OrbitalMapper(BondMapper):
         Maps orbital pairs to feature indices (Reduced Matrix Elements).
         Supports both 'e3tb' (DeepH-like) and 'sktb' (Slater-Koster) methods.
         """
+
+        # --- Stack Inspection for Logging Caller ---
+        try:
+            # stack[0] is here, stack[1] is the caller
+            stack = inspect.stack()
+            if len(stack) > 1:
+                caller = stack[1]
+                log.info(
+                    f"OrbitalMapper initialized from: {caller.filename} (Line {caller.lineno}) via function '{caller.function}'")
+            else:
+                log.info("OrbitalMapper initialized (caller unknown)")
+        except Exception as e:
+            log.warning(f"Could not inspect call stack for OrbitalMapper: {e}")
+        # --------------------------------------------
 
         if chemical_symbol_to_type is not None:
             assert set(basis.keys()) == set(chemical_symbol_to_type.keys())
