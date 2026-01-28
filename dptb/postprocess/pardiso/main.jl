@@ -20,8 +20,10 @@ include("utils/kpoints.jl")
 include("io/io.jl")
 using .DataIO
 include("solvers/pardiso_solver.jl")
+using .PardisoSolver
 include("solvers/dense_solver.jl")
 using .DenseSolver
+
 include("tasks/band_calculation.jl")
 include("tasks/dos_calculation.jl")
 
@@ -30,6 +32,8 @@ using .DataIO: load_structure, load_matrix_hdf5
 using .Hamiltonian: get_HR_SR_sparse
 using .BandCalculation: run_band_calculation
 using .DosCalculation: run_dos_calculation
+using .DenseSolver: solve_eigen_k_dense
+using .PardisoSolver: solve_eigen_k_pardiso
 
 # Make solver functions available to modules
 # (solve_eigen_at_k is already in global scope from pardiso_solver.jl)
@@ -95,7 +99,7 @@ function main()
     end
 
     input_dir = args["input_dir"]
-    calc_job = get(config, "calc_job", "band")
+    calc_job = get(config, "task", "band")
 
     # Determine spinful status from config (needed for legacy fallback)
     spinful = haskey(config, "isspinful") ? (config["isspinful"] in [true, "true"]) : false
@@ -121,12 +125,12 @@ function main()
     
     if eig_solver == "numpy" || eig_solver == "dense"
         @info "Using Dense Solver (LAPACK)"
-        solver_func = solve_eigen_k
+        solver_func = solve_eigen_k_dense
     else
         @info "Using Pardiso Solver"
         # Check if Pardiso is actually available, otherwise warn/fallback?
         # For now assume user knows what they are doing if they didn't specify 'dense'
-        solver_func = solve_eigen_k
+        solver_func = solve_eigen_k_pardiso
     end
 
     # Run calculation

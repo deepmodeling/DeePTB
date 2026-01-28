@@ -4,6 +4,7 @@ Pardiso-based eigenvalue solver for large-scale tight-binding systems.
 This module provides efficient eigenvalue solvers using Intel MKL Pardiso
 with shift-invert technique for better convergence.
 """
+module PardisoSolver
 
 using Pardiso
 using Arpack
@@ -52,11 +53,11 @@ function make_shift_invert_map(H::AbstractMatrix, S::AbstractMatrix)
 end
 
 """
-    solve_eigen_k(H_k, S_k, fermi_level, num_band, max_iter, out_wfc, ill_project, ill_threshold)
+    solve_eigen_k_pardiso(H_k, S_k, fermi_level, num_band, max_iter, out_wfc, ill_project, ill_threshold)
 
 Solve generalized eigenvalue problem H|ψ⟩ = E S|ψ⟩ at a single k-point using Pardiso shift-invert.
 """
-function solve_eigen_k(H_k, S_k, fermi_level, num_band, max_iter, out_wfc, ill_project, ill_threshold)
+function solve_eigen_k_pardiso(H_k, S_k, fermi_level, num_band, max_iter, out_wfc, ill_project, ill_threshold)
     if ill_project
         lm, ps = make_shift_invert_map(Hermitian(H_k) - fermi_level * Hermitian(S_k), Hermitian(S_k))
 
@@ -124,4 +125,6 @@ function solve_eigen_k(H_k, S_k, fermi_level, num_band, max_iter, out_wfc, ill_p
     end
 end
 
-export make_shift_invert_map, solve_eigen_k
+export make_shift_invert_map, solve_eigen_k_pardiso
+
+end # module
