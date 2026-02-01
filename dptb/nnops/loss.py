@@ -461,6 +461,7 @@ class HamilLossAbs(nn.Module):
             onsite_boost: bool = False,
             onsite_boost_steps: int = 20000,
             onsite_boost_max: float = 100.0,
+            z_loss_coef: float = 0.0,  # 默认为 0，即不开启
             **kwargs,
     ):
         super(HamilLossAbs, self).__init__()
@@ -474,7 +475,8 @@ class HamilLossAbs(nn.Module):
         # Debug 开关与计数器
         self.debug = debug_flag
         self._debug_counter = 0
-
+        self.z_loss_coef = float(z_loss_coef)
+        self.last_z_loss = None # 用于 Monitor
         # ===== 新增：onsite 动态加权控制 =====
         self.onsite_boost = bool(onsite_boost)
         self.onsite_boost_steps = int(onsite_boost_steps)
@@ -554,10 +556,16 @@ class HamilLossAbs(nn.Module):
                                   torch.sqrt(self.loss2(pre_edge, tgt_edge)))
 
             # ===== 新增：把分量 loss 缓存到对象上，用于日志 =====
-            # 保持 tensor 形式，和 train_loss 一致，方便 Monitor 里 .item()
+            # 尝试从 data 中获取 z_loss，如果没有（非 MoE 模型），则为 0
+            if "z_loss" not in data.keys():
+                raw_z_loss = 0
+                self.last_z_loss = 0
+            else:
+                raw_z_loss = data["z_loss"]
+                self.last_z_loss = raw_z_loss.detach()
+
             self.last_onsite_loss = onsite_loss.detach()
             self.last_hopping_loss = hopping_loss.detach()
-
             # === Debug Print ===
             if verbose_step:
                 self._log_step_info(locals())
@@ -568,11 +576,14 @@ class HamilLossAbs(nn.Module):
             if self.onsite_boost:
                 w_onsite = self._current_onsite_weight()
                 total_loss = w_onsite * onsite_loss + hopping_loss
-                self._step += 1
-                return total_loss
+            else:
+                total_loss = 0.5 * (onsite_loss + hopping_loss)
 
-            # 旧行为：等权平均 onsite/hopping
-            return 0.5 * (onsite_loss + hopping_loss)
+            # [新增] 加上 Z-Loss
+            if self.z_loss_coef > 0:
+                total_loss = total_loss + self.z_loss_coef * raw_z_loss
+
+            return total_loss
 
         except Exception as e:
             if self.debug:

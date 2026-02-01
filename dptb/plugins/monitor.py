@@ -636,6 +636,21 @@ class TrainHoppingLossMonitor(Monitor):
         return float(val)
 
 
+class TrainZLossMonitor(Monitor):
+    stat_name = "train_z_loss"
+
+    def __init__(self, interval=None, **kwargs):
+        super().__init__(**kwargs)
+        if interval is None:
+            interval = [(1, 'iteration'), (1, 'epoch')]
+        self.trigger_interval = interval
+
+    def _get_value(self, **kwargs):
+        val = kwargs.get("train_z_loss", 0.0)
+        if torch.is_tensor(val):
+            return val.item()
+        return float(val)
+
 
 class TrainLossMonitor(Monitor):
     # It's a Monitor that records the loss.
@@ -644,6 +659,7 @@ class TrainLossMonitor(Monitor):
 
     def _get_value(self, **kwargs):
         return kwargs.get('train_loss', None)
+
 
 class TestLossMonitor(Monitor):
     # It's a Monitor that records the loss.
@@ -656,6 +672,7 @@ class TestLossMonitor(Monitor):
 
     def _get_value(self, **kwargs):
         return kwargs.get('test_loss', None)
+
 
 class LearningRateMonitor(Monitor):
     # It's a Monitor that records the loss.
@@ -698,6 +715,7 @@ class TensorBoardMonitor(Plugin):
 
     def epoch(self, **kwargs):
         epoch = self.trainer.ep
+
         # 使用 .get 获取 stats，并提供默认值 0.0 防止崩溃
         def get_stat(name, key):
             return self.trainer.stats.get(name, {}).get(key, 0.0)
@@ -708,13 +726,19 @@ class TensorBoardMonitor(Plugin):
         if 'train_onsite_loss' in self.trainer.stats:
             self.writer.add_scalar(f'train_onsite_loss_mean/epoch', get_stat('train_onsite_loss', 'epoch_mean'), epoch)
         if 'train_hopping_loss' in self.trainer.stats:
-            self.writer.add_scalar(f'train_hopping_loss_mean/epoch', get_stat('train_hopping_loss', 'epoch_mean'), epoch)
+            self.writer.add_scalar(f'train_hopping_loss_mean/epoch', get_stat('train_hopping_loss', 'epoch_mean'),
+                                   epoch)
+
+        # [新增] Z-Loss Epoch Mean
+        if 'train_z_loss' in self.trainer.stats:
+            self.writer.add_scalar(f'train_z_loss_mean/epoch', get_stat('train_z_loss', 'epoch_mean'), epoch)
 
         if 'validation_loss' in self.trainer.stats:
             self.writer.add_scalar(f'validation_loss_mean/epoch', get_stat('validation_loss', 'epoch_mean'), epoch)
 
     def iteration(self, **kwargs):
         iteration = self.trainer.iter
+
         def get_stat(name, key):
             return self.trainer.stats.get(name, {}).get(key, 0.0)
 
@@ -723,9 +747,16 @@ class TensorBoardMonitor(Plugin):
 
         # 核心修复点：使用 get_stat 替代直接索引
         if 'train_onsite_loss' in self.trainer.stats:
-            self.writer.add_scalar(f'train_onsite_loss_iter/iteration', get_stat('train_onsite_loss', 'last'), iteration)
+            self.writer.add_scalar(f'train_onsite_loss_iter/iteration', get_stat('train_onsite_loss', 'last'),
+                                   iteration)
         if 'train_hopping_loss' in self.trainer.stats:
-            self.writer.add_scalar(f'train_hopping_loss_iter/iteration', get_stat('train_hopping_loss', 'last'), iteration)
+            self.writer.add_scalar(f'train_hopping_loss_iter/iteration', get_stat('train_hopping_loss', 'last'),
+                                   iteration)
+
+        # [新增] Z-Loss Iteration Value
+        if 'train_z_loss' in self.trainer.stats:
+            self.writer.add_scalar(f'train_z_loss_iter/iteration', get_stat('train_z_loss', 'last'), iteration)
 
         if 'latest_avg_iter_loss' in self.trainer.stats['train_loss']:
-            self.writer.add_scalar(f'latest_avg_loss/iteration', get_stat('train_loss', 'latest_avg_iter_loss'), iteration)
+            self.writer.add_scalar(f'latest_avg_loss/iteration', get_stat('train_loss', 'latest_avg_iter_loss'),
+                                   iteration)

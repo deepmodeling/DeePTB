@@ -17,7 +17,7 @@ from dptb.data import _keys
 from dptb.nn.cutoff import cosine_cutoff, polynomial_cutoff
 from dptb.nn.rescale import E3ElementLinear
 # Note: Modified SO2_Linear and MOLE classes imported here
-from dptb.nn.tensor_product_moe import SO2_Linear, MOLEGlobals, MOLERouter
+from dptb.nn.tensor_product_moe_top_k import SO2_Linear, MOLEGlobals, MOLERouter
 import math
 from dptb.data.transforms import OrbitalMapper
 from ..type_encode.one_hot import OneHotAtomEncoding, OneHotEdgeEmbedding
@@ -25,9 +25,14 @@ from dptb.data.AtomicDataDict import with_edge_vectors, with_batch
 
 from math import ceil
 
+# [修改 1] 引入 logging 并初始化 logger
+import logging
 
-@Embedding.register("lem_moe")
-class LemMoE(torch.nn.Module):
+log = logging.getLogger(__name__)
+
+
+@Embedding.register("lem_moe_topk")
+class LemMoETopK(torch.nn.Module):
     def __init__(
             self,
             basis: Dict[str, Union[str, list]] = None,
@@ -65,16 +70,27 @@ class LemMoE(torch.nn.Module):
             use_interpolation_out: Optional[bool] = True,
             # MOE parameters
             num_experts: int = 8,
-            top_k: Optional[int] = 1,  # <--- [修改1] 新增参数，默认 1
+            top_k: Optional[int] = 1,
             **kwargs,
     ):
 
-        super(LemMoE, self).__init__()
+        super(LemMoETopK, self).__init__()
 
         irreps_hidden = o3.Irreps(irreps_hidden)
         lmax = irreps_hidden.lmax
         self.num_experts = num_experts
-        print(f'num_experts: {self.num_experts}, top_k: {top_k}') # <--- [可选] 打印 top_k 方便调试
+
+        # [修改 2] 使用 log.info 打印参数和 Z-Loss 的理论边界
+        log.info(f'[LemMoETopK] Initialized with num_experts: {self.num_experts}, top_k: {top_k}')
+
+        # 计算理论边界 (基于 mean(max(probs)^2))
+        # 下界：Uniform 分布，每个概率为 1/N，max为 1/N，平方为 1/N^2
+        z_lower_bound = (1.0 / self.num_experts) ** 2
+        # 上界：One-Hot 分布，max为 1.0，平方为 1.0
+        z_upper_bound = 1.0
+
+        log.info(f"[LemMoETopK] Theoretical Z-Loss Bounds -> "
+                 f"Min (Uniform): {z_lower_bound:.6f} | Max (One-Hot): {z_upper_bound:.6f}")
 
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype)
@@ -235,8 +251,8 @@ class LemMoE(torch.nn.Module):
         global_feat = scatter_mean(node_one_hot, batch, dim=0)  # [Batch, n_atom]
 
         # 2. Compute Routing Coefficients
-        coeffs = self.router(global_feat)  # [Batch, num_experts]
-
+        coeffs, z_loss = self.router(global_feat)  # [Batch, num_experts], scalar
+        data["z_loss"] = z_loss
         # 3. Prepare MOLEGlobals
         # NOTE: SO2_Linear in this architecture primarily operates on edges or mixed node-edge concatenations
         # that map to edges (messages). Therefore, 'sizes' should reflect the number of *edges* per system

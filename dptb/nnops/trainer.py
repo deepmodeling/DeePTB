@@ -165,7 +165,7 @@ class Trainer(BaseTrainer):
 
         onsite_comp = getattr(loss_obj, "last_onsite_loss", None)
         hopping_comp = getattr(loss_obj, "last_hopping_loss", None)
-
+        z_loss_comp = getattr(loss_obj, "last_z_loss", None)
 
         state = {
             'field': 'iteration',
@@ -179,6 +179,8 @@ class Trainer(BaseTrainer):
             state["train_onsite_loss"] = onsite_comp
         if hopping_comp is not None:
             state["train_hopping_loss"] = hopping_comp
+        if z_loss_comp is not None:
+            state["train_z_loss"] = z_loss_comp
 
         self.call_plugins(queue_name='iteration', time=self.iter, **state)
         self.iter += 1

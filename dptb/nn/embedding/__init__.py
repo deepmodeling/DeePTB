@@ -30,6 +30,7 @@ from .emoles import EMolES, EMolESOpenequi
 from .lem_moe_openequi import LemMoEOpenEqui
 from .lem_full_tp import LemFullTP, LemFullTPOpenEqui
 from .lem_cutoff import LemCutoff
+from .lem_moe_top_k import LemMoETopK
 
 __all__ = [
     "Descriptor",
@@ -51,6 +52,7 @@ __all__ = [
     "LemInFrameHeavy",
     "LemInFrameOpenequi",
     "LemMoE",
+    "LemMoETopK",
     "LemSO2Global",
     "LemGlobal",
     "LemSO2",

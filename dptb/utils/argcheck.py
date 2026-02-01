@@ -503,6 +503,7 @@ def embedding():
             Argument("lem_in_frame_openequi", dict, slem()),
             Argument("lem_in_frame_heavy", dict, slem()),
             Argument("lem_moe_charge", dict, slem()),
+            Argument("lem_moe_topk", dict, slem()),
             Argument("lem_moe", dict, slem()),
             Argument("lem_so2", dict, slem()),
             Argument("lem_so2_local", dict, slem()),
@@ -669,7 +670,7 @@ def slem():
             Argument("self_mix_iter", int, optional=True, default=2),
 
             Argument("n_radial_basis", int, optional=True, default=128, doc=doc_n_radial_basis),
-            Argument("top_k_experts", int, optional=True, default=1, doc="The number of experts to be used in MoE. Default: 1"),
+            Argument("top_k", int, optional=True, default=1, doc="The number of experts to be used in MoE. Default: 1"),
             Argument("num_experts", int, optional=True, default=8, doc="The number of experts for MoE. Default: 8"),
             Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
             Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
@@ -958,6 +959,14 @@ def loss_options():
                 "At iteration 0 the onsite loss is multiplied by this value, then linearly decays "
                 "to 1.0 at `onsite_boost_steps`. Default: 100.0.",
         ),
+        Argument(
+            "z_loss_coef",
+            float,
+            optional=True,
+            default=0,
+            doc="Coefficient used to punish the unbalance of expert workload",
+        ),
+
     ]
 
     property_aux = [
@@ -1756,7 +1765,7 @@ def get_cutoffs_from_model_options(model_options):
         embedding = model_options.get("embedding")
         if embedding["method"] == "se2":
             er_max = embedding["rc"]
-        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_charge", "emoles", "emoles_openequi", "lem_cutoff", "lem_full_tp_oeq", "lem_moe_openequi", "lem_in_frame_moe", "lem_full_tp", "lem_in_frame_e3nn", "lem_in_frame_openequi", "lem_wo_ln", "lem_in_frame", "lem_in_frame_heavy", "lem_light_v2", "lem_light", "lem_moe_charge", "lem_frame", "lem_high_order", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
+        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_moe_topk", "lem_charge", "emoles", "emoles_openequi", "lem_cutoff", "lem_full_tp_oeq", "lem_moe_openequi", "lem_in_frame_moe", "lem_full_tp", "lem_in_frame_e3nn", "lem_in_frame_openequi", "lem_wo_ln", "lem_in_frame", "lem_in_frame_heavy", "lem_light_v2", "lem_light", "lem_moe_charge", "lem_frame", "lem_high_order", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
             r_max = embedding["r_max"]
         else:
             log.error("The method of embedding have not been defined in get cutoff functions")
