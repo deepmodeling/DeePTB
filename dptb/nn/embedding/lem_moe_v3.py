@@ -89,7 +89,7 @@ class LemMoEV3(torch.nn.Module):
         # 上界：One-Hot 分布，max为 1.0，平方为 1.0
         mean_max_prob_upper_bound = 1.0
 
-        log.info(f"[LemMoETopK] Theoretical Z-Loss Bounds -> "
+        log.info(f"[LemMoEV3] Theoretical mean_max_prob Bounds -> "
                  f"Min (Uniform): {mean_max_prob_lower_bound:.6f} | Max (One-Hot): {mean_max_prob_upper_bound:.6f}")
 
         if isinstance(dtype, str):
