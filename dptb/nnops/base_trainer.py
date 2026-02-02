@@ -4,14 +4,13 @@ import logging
 from dptb.utils.tools import get_lr_scheduler, j_must_have, get_optimizer
 from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
-from future.utils import with_metaclass
 from dptb.utils.constants import dtype_dict
 from dptb.plugins.base_plugin import PluginUser
 
 
 log = logging.getLogger(__name__)
 
-class BaseTrainer(with_metaclass(ABCMeta, PluginUser)):
+class BaseTrainer(PluginUser, metaclass=ABCMeta):
 
     def __init__(
             self, 

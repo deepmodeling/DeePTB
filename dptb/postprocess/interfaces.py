@@ -28,18 +28,19 @@ class ToWannier90(object):
         self.model = model
         self.model.eval()
 
-    def _get_data_and_blocks(self, data: Union[AtomicData, ase.Atoms, str], AtomicData_options: dict = {}, e_fermi: float = 0.0):
+    def _get_data_and_blocks(self, data: Union[AtomicData, ase.Atoms, dict, str], AtomicData_options: dict = {}, e_fermi: float = 0.0):
         # Check for overlap
         if getattr(self.model, "overlap", False):
             raise ValueError("Export to Wannier90 format does not support models with non-orthogonal bases (overlap). Please use an orthogonal model.")
 
         # Use centralized data loading
-        data = load_data_for_model(
-            data=data,
-            model=self.model,
-            device=self.device,
-            AtomicData_options=AtomicData_options
-        )
+        if not isinstance(data,dict):
+            data = load_data_for_model(
+                data=data,
+                model=self.model,
+                device=self.device,
+                AtomicData_options=AtomicData_options
+            )
         self.positions = data[AtomicDataDict.POSITIONS_KEY].numpy()
         self.scaled_pos = data[AtomicDataDict.POSITIONS_KEY] @  data[AtomicDataDict.CELL_KEY].inverse()
         self.scaled_pos = self.scaled_pos.numpy()
@@ -280,7 +281,7 @@ class ToPythTB(object):
             log.exception("PythTB not installed. Run `pip install pythtb`")
             raise
 
-    def get_model(self, data: Union[AtomicData, ase.Atoms, str], AtomicData_options: dict = {}, e_fermi: float = 0.0):
+    def get_model(self, data: Union[AtomicData, ase.Atoms, dict, str], AtomicData_options: dict = {}, e_fermi: float = 0.0):
         from pythtb import tb_model
         
         # Check for overlap
@@ -288,12 +289,13 @@ class ToPythTB(object):
             raise ValueError("Export to PythTB does not support models with non-orthogonal bases (overlap). Please use an orthogonal model.")
 
         # Use centralized data loading
-        data = load_data_for_model(
-            data=data,
-            model=self.model,
-            device=self.device,
-            AtomicData_options=AtomicData_options
-        )
+        if not isinstance(data, dict):
+            data = load_data_for_model(
+                data=data,
+                model=self.model,
+                device=self.device,
+                AtomicData_options=AtomicData_options
+            )
         
         # Run model forward
         data = self.model(data)

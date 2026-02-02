@@ -6,9 +6,10 @@ import logging
 from typing import Union, Optional
 from copy import deepcopy
 from ase.io import read
-
+import sys
 from dptb.data import AtomicData, AtomicDataDict, block_to_feature
 from dptb.utils.argcheck import get_cutoffs_from_model_options
+import matplotlib.pyplot as plt
 
 log = logging.getLogger(__name__)
 
@@ -110,3 +111,61 @@ def load_data_for_model(
     # Actually, ElecStruCal.get_data does NOT run self.model(data). It runs self.model.idp(data).
     # self.get_eigs runs self.model(data).
     return data_obj
+
+def is_gui_available():
+    """
+    Detect if GUI display is available for matplotlib.
+    
+    Returns:
+        bool: True if GUI is available, False otherwise
+    """
+    try:
+        # Check if we're in a Jupyter notebook environment
+        if 'ipykernel' in sys.modules or 'IPython' in sys.modules:
+            # In Jupyter, we can typically show plots
+            return True
+        
+        # Check DISPLAY environment variable (Unix-like systems)
+        if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
+            display = os.environ.get('DISPLAY')
+            if display is None:
+                return False
+        
+        # Try to get the current matplotlib backend
+        backend = plt.get_backend().lower()
+        
+        # Non-interactive backends
+        non_gui_backends = ['agg', 'pdf', 'ps', 'svg', 'cairo', 'gdk', 'template']
+        if any(non_gui in backend for non_gui in non_gui_backends):
+            return False
+        
+        # Try to create a test figure to see if it works
+        # This is a more robust check
+        try:
+            import matplotlib
+            # Save current backend
+            current_backend = matplotlib.get_backend()
+            
+            # Try to use a GUI backend if not already
+            if 'agg' in backend.lower():
+                # Try common GUI backends
+                for test_backend in ['TkAgg', 'Qt5Agg', 'Qt4Agg', 'WXAgg']:
+                    try:
+                        matplotlib.use(test_backend, force=True)
+                        test_fig = plt.figure()
+                        plt.close(test_fig)
+                        matplotlib.use(current_backend, force=True)
+                        return True
+                    except:
+                        continue
+                return False
+            else:
+                # Current backend seems to be GUI-based
+                return True
+                
+        except Exception:
+            return False
+            
+    except Exception:
+        # If any error occurs, assume no GUI is available
+        return False
