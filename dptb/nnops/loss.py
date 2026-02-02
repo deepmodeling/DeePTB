@@ -557,11 +557,11 @@ class HamilLossAbs(nn.Module):
 
             # ===== 新增：把分量 loss 缓存到对象上，用于日志 =====
             # 尝试从 data 中获取 z_loss，如果没有（非 MoE 模型），则为 0
-            if "z_loss" not in data.keys():
+            if "mean_max_prob" not in data.keys():
                 raw_z_loss = 0
                 self.last_z_loss = 0
             else:
-                raw_z_loss = data["z_loss"]
+                raw_z_loss = data["mean_max_prob"]
                 self.last_z_loss = raw_z_loss.detach()
 
             self.last_onsite_loss = onsite_loss.detach()

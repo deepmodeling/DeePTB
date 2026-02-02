@@ -7,6 +7,7 @@ from .deephe3 import E3DeePH
 from .e3baseline_local6 import E3BaseLineModel6
 from .slem import Slem
 from .lem import Lem
+from .lem_moe_v3 import LemMoEV3
 from .lem_moe import LemMoE
 from .lem_global import LemGlobal
 from .lem_local import LemLocal
@@ -52,6 +53,7 @@ __all__ = [
     "LemInFrameHeavy",
     "LemInFrameOpenequi",
     "LemMoE",
+    "LemMoEV3",
     "LemMoETopK",
     "LemSO2Global",
     "LemGlobal",

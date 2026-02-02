@@ -637,7 +637,7 @@ class TrainHoppingLossMonitor(Monitor):
 
 
 class TrainZLossMonitor(Monitor):
-    stat_name = "train_z_loss"
+    stat_name = "mean_max_prob"
 
     def __init__(self, interval=None, **kwargs):
         super().__init__(**kwargs)
@@ -646,7 +646,7 @@ class TrainZLossMonitor(Monitor):
         self.trigger_interval = interval
 
     def _get_value(self, **kwargs):
-        val = kwargs.get("train_z_loss", 0.0)
+        val = kwargs.get("mean_max_prob", 0.0)
         if torch.is_tensor(val):
             return val.item()
         return float(val)
@@ -730,8 +730,8 @@ class TensorBoardMonitor(Plugin):
                                    epoch)
 
         # [新增] Z-Loss Epoch Mean
-        if 'train_z_loss' in self.trainer.stats:
-            self.writer.add_scalar(f'train_z_loss_mean/epoch', get_stat('train_z_loss', 'epoch_mean'), epoch)
+        if 'mean_max_prob' in self.trainer.stats:
+            self.writer.add_scalar(f'mean_max_prob_mean/epoch', get_stat('mean_max_prob', 'epoch_mean'), epoch)
 
         if 'validation_loss' in self.trainer.stats:
             self.writer.add_scalar(f'validation_loss_mean/epoch', get_stat('validation_loss', 'epoch_mean'), epoch)
@@ -754,8 +754,8 @@ class TensorBoardMonitor(Plugin):
                                    iteration)
 
         # [新增] Z-Loss Iteration Value
-        if 'train_z_loss' in self.trainer.stats:
-            self.writer.add_scalar(f'train_z_loss_iter/iteration', get_stat('train_z_loss', 'last'), iteration)
+        if 'mean_max_prob' in self.trainer.stats:
+            self.writer.add_scalar(f'mean_max_prob_iter/iteration', get_stat('mean_max_prob', 'last'), iteration)
 
         if 'latest_avg_iter_loss' in self.trainer.stats['train_loss']:
             self.writer.add_scalar(f'latest_avg_loss/iteration', get_stat('train_loss', 'latest_avg_iter_loss'),

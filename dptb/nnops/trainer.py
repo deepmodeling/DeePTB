@@ -180,7 +180,7 @@ class Trainer(BaseTrainer):
         if hopping_comp is not None:
             state["train_hopping_loss"] = hopping_comp
         if z_loss_comp is not None:
-            state["train_z_loss"] = z_loss_comp
+            state["mean_max_prob"] = z_loss_comp
 
         self.call_plugins(queue_name='iteration', time=self.iter, **state)
         self.iter += 1

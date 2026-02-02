@@ -543,7 +543,7 @@ def train(
     trainer.register_plugin(TrainOnsiteLossMonitor(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')]))
     trainer.register_plugin(TrainHoppingLossMonitor(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')]))
     trainer.register_plugin(TrainZLossMonitor(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')]))
-    log_field.append("train_z_loss")
+    log_field.append("mean_max_prob")
     log_field.append("train_onsite_loss")
     log_field.append("train_hopping_loss")
 ##############################
