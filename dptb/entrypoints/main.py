@@ -16,6 +16,7 @@ from dptb.entrypoints.collectskf import skf2pth, skf2nnsk
 
 from dptb.entrypoints.emp_sk import to_empsk
 from dptb.entrypoints.export import export
+from dptb.entrypoints.pdso import pdso
 
 from dptb import __version__
 
@@ -493,6 +494,66 @@ def main_parser() -> argparse.ArgumentParser:
         help="Target format: wannier90 (default) or pythtb."
     )
 
+    # pdso parser (Julia/Pardiso Backend)
+    parser_pdso = subparsers.add_parser(
+        "pdso",
+        parents=[parser_log],
+        help="Run the modular solver backend (Julia/Pardiso)",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser_pdso.add_argument(
+        "INPUT",
+        help="Configuration JSON file (e.g. band.json)",
+        type=str
+    )
+
+    parser_pdso.add_argument(
+        "-i",
+        "--init_model",
+        type=str,
+        default=None,
+        help="Path to model checkpoint (triggers Export + Run mode)."
+    )
+
+    parser_pdso.add_argument(
+        "-stu",
+        "--structure",
+        type=str,
+        default=None,
+        help="Path to structure file (required if -i provided)."
+    )
+
+    parser_pdso.add_argument(
+        "-d",
+        "--data_dir",
+        type=str,
+        default=None,
+        help="Path to pre-exported data directory (Run Only mode)."
+    )
+
+    parser_pdso.add_argument(
+        "-o",
+        "--output_dir",
+        type=str,
+        default="./",
+        help="Output directory for results."
+    )
+
+    parser_pdso.add_argument(
+        "--ill_project",
+        type=lambda x: x.lower() == 'true',
+        default=True,
+        help="Enable ill-conditioned state projection (default: True)."
+    )
+
+    parser_pdso.add_argument(
+        "--ill_threshold",
+        type=float,
+        default=5e-4,
+        help="Threshold for ill-conditioning detection (default: 5e-4)."
+    )
+
     return parser
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
@@ -562,3 +623,6 @@ def main():
 
     elif args.command == 'export':
         export(**dict_args)
+
+    elif args.command == 'pdso':
+        pdso(**dict_args)
