@@ -15,14 +15,16 @@ def compute_overlap(data: AtomicDataDict, idp: OrbitalMapper, orb_dir, orb_names
         nspin=1, # for current usage
         lspinorb=False,
         orb_dir=orb_dir, 
-        orb_name=orb_names,
-        log_file="op2c.log"
+        orb_name=orb_names
     )
 
+    device = data[_keys.EDGE_INDEX_KEY].device
     ovp_dict = {}
 
     if _keys.EDGE_VECTORS_KEY not in data:
         data = with_edge_vectors(data)
+    if _keys.ATOM_TYPE_KEY not in data:
+        idp(data)
 
     edge_index = data[_keys.EDGE_INDEX_KEY].cpu()
     atom_types = data[_keys.ATOM_TYPE_KEY].cpu()
@@ -50,6 +52,8 @@ def compute_overlap(data: AtomicDataDict, idp: OrbitalMapper, orb_dir, orb_names
         ovp_dict["{}_{}_{}_{}_{}".format(k, k, 0, 0, 0)] = S.reshape(inorb, inorb)
 
     block_to_feature(data, idp, False, ovp_dict, False)
+    data[_keys.NODE_OVERLAP_KEY].to(device)
+    data[_keys.EDGE_OVERLAP_KEY].to(device)
 
     return data
     
