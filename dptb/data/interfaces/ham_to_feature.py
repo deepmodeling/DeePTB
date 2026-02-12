@@ -455,8 +455,8 @@ def feature_to_block(data, idp, overlap: bool = False):
     # --- 2. 核心还原函数 ---
     def _unpack_tensor(vecs, rows, cols):
         B = vecs.shape[0]
-        # A. Complex Doubling
-        if soc_complex_doubling:
+        # A. Complex Doubling — 仅在 SOC 模式下执行
+        if has_soc and soc_complex_doubling:  # ← 修复：加 has_soc
             n_real = vecs.shape[1] // 2
             val = torch.complex(vecs[:, :n_real], vecs[:, n_real:])
         else:
@@ -497,7 +497,7 @@ def feature_to_block(data, idp, overlap: bool = False):
             basis_list = idp.basis[symbol]
 
             mat_dim = 2 * spatial_norb if has_soc else spatial_norb
-            is_complex_out = has_soc or sub_feats.is_complex() or soc_complex_doubling
+            is_complex_out = (has_soc and soc_complex_doubling) or sub_feats.is_complex()
             dtype_out = torch.complex64 if is_complex_out else torch.float32
 
             batch_blocks = torch.zeros((num_atoms_sub, mat_dim, mat_dim), dtype=dtype_out, device=device)
