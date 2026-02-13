@@ -4,6 +4,7 @@ from dptb.data.build import build_dataset
 from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor
 from dptb.plugins.train_logger import Logger
 from dptb.utils.argcheck import normalize, collect_cutoffs, chk_avg_per_iter
+from dptb.utils.orbital_parser import parse_orbital_file
 from dptb.plugins.saver import Saver
 from typing import Dict, List, Optional, Any
 from dptb.utils.tools import j_loader, setup_seed, j_must_have
@@ -90,6 +91,35 @@ def train(
 
     jdata = j_loader(INPUT)
     jdata = normalize(jdata)
+
+    # Validate and process orbital files in basis
+    if jdata.get("common_options") and jdata["common_options"].get("basis"):
+        orbital_files_content = {}
+        for elem, value in jdata["common_options"]["basis"].items():
+            if isinstance(value, str) and os.path.isfile(value):
+                # strict check for e3tb method
+                # Check if model_options exists and has prediction method
+                model_opts = jdata.get("model_options", {})
+                pred_opts = model_opts.get("prediction", {})
+                # normalize might handle defaults, but safely check here
+                if pred_opts and pred_opts.get("method", "e3tb") != "e3tb":
+                     raise ValueError(f"Orbital files in 'basis' are only supported for the 'e3tb' method. Found method: {pred_opts.get('method')}")
+                
+                 # Also checking if we are in a mixed model which might be different, 
+                 # but usually orbital files for basis imply the main basis handling.
+                 # transform logic
+                try:
+                    parsed_basis = parse_orbital_file(value)
+                    with open(value, 'r') as f:
+                        orbital_files_content[value] = f.read()
+                    
+                    jdata["common_options"]["basis"][elem] = parsed_basis
+                    log.info(f"Parsed orbital file for {elem}: {value} -> {parsed_basis}")
+                except Exception as e:
+                    raise ValueError(f"Failed to parse orbital file {value} for element {elem}: {e}")
+        
+        if orbital_files_content:
+             jdata["common_options"]["orbital_files_content"] = orbital_files_content
     # update basis if init_model or restart
     # update jdata
     # this is not necessary, because if we init model from checkpoint, the build_model will load the model_options from checkpoints if not provided
