@@ -10,7 +10,8 @@ try:
     from vbcsr import ImageContainer
     from vbcsr import AtomicData as AtomicData_vbcsr
 except ImportError:
-    raise ImportError("Please install vbcsr first: pip install vbcsr")
+    ImageContainer = None
+    AtomicData_vbcsr = None
 
 class Hr2HR:
     def __init__(
@@ -23,6 +24,9 @@ class Hr2HR:
             dtype: Union[str, torch.dtype] = torch.float32, 
             device: Union[str, torch.device] = torch.device("cpu")
             ):
+        
+        if ImageContainer is None or AtomicData_vbcsr is None:
+            raise ImportError("vbcsr")
 
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype)

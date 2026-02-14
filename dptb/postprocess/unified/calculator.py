@@ -8,6 +8,9 @@ from dptb.nn.energy import Eigenvalues, Eigh
 from dptb.data.interfaces.ham_to_feature import feature_to_block
 from dptb.nn.hr2hk import HR2HK
 from dptb.nn.hr2hR import Hr2HR
+import logging
+
+log = logging.getLogger(__name__)
 
 class HamiltonianCalculator(ABC):
     """Abstract Base Class defining the interface for a Hamiltonian calculator."""
