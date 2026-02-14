@@ -102,7 +102,7 @@ def train(
                 model_opts = jdata.get("model_options", {})
                 pred_opts = model_opts.get("prediction", {})
                 # normalize might handle defaults, but safely check here
-                if pred_opts and pred_opts.get("method", "e3tb") != "e3tb":
+                if pred_opts.get("method", "e3tb") != "e3tb":
                      raise ValueError(f"Orbital files in 'basis' are only supported for the 'e3tb' method. Found method: {pred_opts.get('method')}")
                 
                  # Also checking if we are in a mixed model which might be different, 

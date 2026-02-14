@@ -47,7 +47,7 @@ class Hr2HR:
         self.edge_field = edge_field
         self.node_field = node_field
 
-    def __call__(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
+    def __call__(self, data: AtomicDataDict.Type):
 
         # construct bond wise hamiltonian block from obital pair wise node/edge features
         # we assume the edge feature have the similar format as the node feature, which is reduced from orbitals index oj-oi with j>i
@@ -60,8 +60,6 @@ class Hr2HR:
         nedge = orbpair_hopping.shape[0]
         
         bondwise_hopping = torch.zeros((nedge, self.idp.full_basis_norb, self.idp.full_basis_norb), dtype=self.dtype, device=self.device)
-        bondwise_hopping.to(self.device)
-        bondwise_hopping.type(self.dtype)
         onsite_block = torch.zeros((natom, self.idp.full_basis_norb, self.idp.full_basis_norb,), dtype=self.dtype, device=self.device)
 
         atom_type = data[AtomicDataDict.ATOM_TYPE_KEY].flatten()
@@ -109,13 +107,13 @@ class Hr2HR:
                     
                     jst += 2*lj+1
                 ist += 2*li+1
-        self.onsite_block = onsite_block.to("cpu")
-        self.bondwise_hopping = bondwise_hopping.to("cpu")
+        onsite_block = onsite_block.to("cpu")
+        bondwise_hopping = bondwise_hopping.to("cpu")
         if soc and not self.overlap:
             # store for later use
             # for now, soc only contribute to Hamiltonain, thus for overlap not store soc parts.
-            self.soc_upup_block = soc_upup_block.to("cpu")
-            self.soc_updn_block = soc_updn_block.to("cpu")
+            soc_upup_block = soc_upup_block.to("cpu")
+            soc_updn_block = soc_updn_block.to("cpu")
 
         adata = AtomicData_vbcsr.from_distributed(
             natom, natom, 0, nedge, nedge,

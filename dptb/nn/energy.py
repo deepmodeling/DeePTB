@@ -16,7 +16,11 @@ try:
     from dptb.utils.feast_wrapper import FeastSolver
     from scipy.sparse.linalg import eigsh, LinearOperator
 except ImportError:
-    pass
+    PyPardisoSolver = None
+    FeastSolver = None
+    eigsh = None
+    LinearOperator = None
+
 log = logging.getLogger(__name__)
 
 class Eigenvalues(nn.Module):
@@ -130,11 +134,13 @@ class PardisoEig:
             neig: Number of eigenvalues to solve for.
             mode: Eigsh mode ('normal', 'buckling', 'cayley').
         """
+        if PyPardisoSolver is None or eigsh is None:
+            raise ImportError("PardisoEig requires MKL (pypardiso) and scipy.sparse.linalg")
+
         self.sigma = sigma
         self.neig = neig
         self.mode = mode
-        
-        self.mode = mode
+
         
     def solve(self, h_container, s_container, kpoints:  Union[list, torch.Tensor, np.ndarray], return_eigenvectors: bool = False):
         """
@@ -216,6 +222,10 @@ class FEASTEig:
             uplo: 'U' (Upper) or 'L' (Lower) triangular part to use.
             extract_triangular: Whether to extract triangular part automatically.
         """
+
+        if FeastSolver is None:
+            raise ImportError("FEAST solver not available")
+
         self.emin = emin
         self.emax = emax
         self.m0 = m0

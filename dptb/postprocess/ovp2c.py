@@ -5,6 +5,7 @@ from dptb.data import AtomicDataDict
 from dptb.data import _keys
 from dptb.data.interfaces import block_to_feature
 from dptb.data.AtomicDataDict import with_edge_vectors
+import numpy as np
 try:
     from vbcsr import ImageContainer
     from vbcsr import AtomicData as AtomicData_vbcsr
@@ -74,9 +75,6 @@ def compute_overlap_image(data: AtomicDataDict, idp: OrbitalMapper, orb_dir, orb
         orb_dir=orb_dir, 
         orb_name=orb_names
     )
-
-    device = data[_keys.EDGE_INDEX_KEY].device
-    ovp_dict = {}
 
     if _keys.EDGE_VECTORS_KEY not in data:
         data = with_edge_vectors(data)
