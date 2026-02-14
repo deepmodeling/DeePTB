@@ -111,7 +111,7 @@ def train(
                 try:
                     parsed_basis = parse_orbital_file(value)
                     with open(value, 'r') as f:
-                        orbital_files_content[value] = f.read()
+                        orbital_files_content[elem] = f.read()
                     
                     jdata["common_options"]["basis"][elem] = parsed_basis
                     log.info(f"Parsed orbital file for {elem}: {value} -> {parsed_basis}")

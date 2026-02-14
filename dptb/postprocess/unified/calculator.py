@@ -150,13 +150,35 @@ class DeePTBAdapter(HamiltonianCalculator):
 
         # Run model forward pass to get H/S blocks
         atomic_data = self.model(atomic_data)
+
+        """
+            Overlap logic:
+                overlap sources: a. the model inference b. the user defined overlap files c. the two center integrals
+            priority: b > c > a
+        """
         
         # Restore overlap if it was an override
         # We only need to do this if the model actually has overlap capability (and thus might have overwritten it)
         if self.overlap and override_edge is not None:
             atomic_data[AtomicDataDict.EDGE_OVERLAP_KEY] = override_edge
             if override_node is not None:
-                atomic_data[AtomicDataDict.NODE_OVERLAP_KEY] = override_node          
+                atomic_data[AtomicDataDict.NODE_OVERLAP_KEY] = override_node
+        elif self.overlap and hasattr(self.model, "orbital_files_content"):
+            from dptb.postprocess.ovp2c import compute_overlap
+            # write the orbital files content to a temporary file
+            orb_names = []
+            for sym in self.model.idp.type_names:
+                with open(f"./temp_{sym}.orb", "w") as f:
+                    f.write(self.model.orbital_files_content[sym])
+                orb_names.append(f"temp_{sym}.orb")
+            atomic_data = compute_overlap(atomic_data, self.model.idp, "./", orb_names)
+            # remove the temporary files
+            for orb_name in orb_names:
+                os.remove(orb_name)
+        elif self.overlap:
+            if self.model.method == "e3tb":
+                log.warning("The overlap inferenced from model is not stable in singular basis, please ensure this is what you want.")
+            
         return atomic_data
 
     def get_hr(self, atomic_data):
