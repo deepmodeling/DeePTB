@@ -290,6 +290,8 @@ class NNENV(nn.Module):
                     device=self.device,
                     )
 
+        if kwargs.get("orbital_files_content"):
+            self.orbital_files_content = kwargs["orbital_files_content"]
 
     def forward(self, data: AtomicDataDict.Type):
         if data.get(AtomicDataDict.EDGE_TYPE_KEY, None) is None:

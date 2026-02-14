@@ -326,6 +326,15 @@ class TBSystem:
             self.has_dos = True
             return self._dos
 
+    def get_hR(self):
+        """
+        Get the Hamiltonian (and Overlap) as vbcsr.ImageContainer.
+        
+        Returns:
+             Tuple of (H_container, S_container). S_container can be None.
+        """
+        return self._calculator.get_hR(self._atomic_data)
+
 
     def to_pardiso(self, output_dir: Optional[str] = "pardiso_input"):
         """
