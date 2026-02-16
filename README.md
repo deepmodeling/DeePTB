@@ -180,6 +180,45 @@ Installing **DeePTB** is straightforward with UV, a fast Python package manager.
   > [!TIP]
   > For easier installation with automatic GPU/CPU detection, use the **From Source** method above instead.
 
+- **Julia Backend** (Optional - for High-Performance Pardiso Solver)
+  
+  > [!NOTE]
+  > **Platform Support**: Pardiso backend currently supports **Linux only**.
+  > - **macOS**: Not supported (Intel MKL limitations)
+  > - **Windows**: Use WSL2 (Windows Subsystem for Linux)
+  
+  If you want to use the Pardiso backend for accelerated band structure calculations:
+  
+  **Automated Installation** (Recommended):
+  ```bash
+  ./install_julia.sh
+  ```
+  
+  **Manual Installation**:
+  1. Install Julia:
+     ```bash
+     # Linux/macOS
+     curl -fsSL https://install.julialang.org | sh
+     ```
+  2. Install required packages:
+     ```bash
+     julia install_julia_packages.jl
+     ```
+  
+  **Verify Installation**:
+  ```bash
+  julia -e 'using Pardiso; println("Pardiso available: ", Pardiso.MKL_PARDISO_LOADED[])'
+  ```
+  
+  **Usage**:
+  ```bash
+  dptb pdso band.json -i model.pth -stu structure.vasp -o ./output
+  ```
+  
+  For more details, see:
+  - [Pardiso Backend README](dptb/postprocess/pardiso/README.md)
+  - [Example Tutorial](examples/To_pardiso/README.md)
+
 ## Test code 
 
 To ensure the code is correctly installed, please run the unit tests first:
