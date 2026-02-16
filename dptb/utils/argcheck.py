@@ -861,8 +861,8 @@ def loss_options():
     ]
 
     eig_ham = [
-        Argument("coeff_ham", float, optional=True, default=1., doc="The coefficient of the hamiltonian penalty. Default: 1"),
-        Argument("coeff_ovp", float, optional=True, default=1., doc="The coefficient of the hamiltonian penalty. Default: 1"),
+        Argument("coeff_ham", [int, float], optional=True, default=1., doc="The coefficient of the hamiltonian penalty. Default: 1"),
+        Argument("coeff_ovp", [int, float], optional=True, default=1., doc="The coefficient of the overlap penalty. Default: 1"),
     ]
 
     skints = [
@@ -1790,4 +1790,4 @@ def normalize_skf2nnsk(data):
     base.check_value(data, strict=True)
 
     return data
-
+    

@@ -8,12 +8,14 @@ import re
 import os
 from dptb.utils.gen_inputs import gen_inputs
 import json
+from collections import OrderedDict
 log = logging.getLogger(__name__)
 
 def to_empsk(
     INPUT,
     output='./', 
     basemodel='poly2',
+    soc= None,
     **kwargs):
     """
     Convert the model to empirical SK parameters.
@@ -23,7 +25,7 @@ def to_empsk(
     with open(INPUT, 'r') as f:
         input = json.load(f)
     common_options = input['common_options']
-    EmpSK(common_options, basemodel=basemodel).to_json(outdir=output)
+    EmpSK(common_options, basemodel=basemodel).to_json(outdir=output, soc=soc)
 
 class EmpSK(object):
     """
@@ -45,7 +47,7 @@ class EmpSK(object):
 
         self.model = build_model(model_ckpt, common_options=common_options, no_check=True)
 
-    def to_json(self, outdir='./'):
+    def to_json(self, outdir='./', soc=None):
         """
         Convert the model to json format.
         """
@@ -53,9 +55,48 @@ class EmpSK(object):
         if not os.path.exists(outdir):
             os.makedirs(outdir, exist_ok=True)
         json_dict = self.model.to_json(basisref=self.basisref)
-        with open(os.path.join(outdir,'sktb.json'), 'w') as f:
+        if soc is not None:
+            mp = json_dict.setdefault("model_params", {})
+            onsite = mp.get("onsite", {})
+            # build soc block based on onsite
+            soc_block = {}
+            for key, val in onsite.items():
+                parts = key.split("-")
+                if len(parts) < 3:
+                    continue
+                elem, orb = parts[0], parts[1]
+                # s and * orbitals -> 0, others -> soc value
+                # * 辅助轨道，不一定是s*, 如果是 d*. soc value should not be  zero.
+                if 's' in orb.lower():
+                    v = 0.0
+                else:
+                    v = float(soc)
+                soc_block[key] = [v]
+
+            # insert soc block after overlap
+            if isinstance(mp, dict):
+                new_mp = OrderedDict()
+                inserted = False
+                for k, v in mp.items():
+                    new_mp[k] = v
+                    if k == "overlap":
+                        new_mp["soc"] = soc_block
+                        inserted = True
+                if not inserted:
+                    new_mp["soc"] = soc_block
+                json_dict["model_params"] = new_mp
+
+            # update model_options for nnsk.soc.method
+            mo = json_dict.setdefault("model_options", {})
+            nnsk = mo.setdefault("nnsk", {})
+            soc_opt = nnsk.setdefault("soc", {})
+            soc_opt["method"] = json_dict['model_options']['nnsk']['onsite'].get('method')
+            assert soc_opt["method"] is not None and soc_opt["method"] in ['uniform','uniform_noref']
+
+        # write final file
+        with open(os.path.join(outdir, 'sktb.json'), 'w') as f:
             json.dump(json_dict, f, indent=4)
-        
+
         # save input template
         # input_template = gen_inputs(model=self.model, task='train', mode=mode)
         

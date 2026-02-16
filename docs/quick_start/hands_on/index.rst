@@ -1,5 +1,5 @@
 =================================================
-A quick Example
+Quick Examples
 =================================================
 
 .. toctree::
@@ -7,3 +7,4 @@ A quick Example
    tutorial2_data
    tutorial3_train_si
    tutorial4_E3_si
+   tutorial5_TBPlaS

@@ -6,7 +6,7 @@ import re
 import e3nn.o3 as o3
 import h5py
 import logging
-from dptb.utils.constants import anglrMId, OPENMX2DeePTB
+from dptb.utils.constants import OPENMX2DeePTB
 from dptb.data import AtomicData, AtomicDataDict
 
 log = logging.getLogger(__name__)
@@ -320,8 +320,22 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
 #         data[_keys.EDGE_OVERLAP_KEY] = torch.as_tensor(np.array(edge_overlap), dtype=torch.get_default_dtype())
 
 def feature_to_block(data, idp, overlap: bool = False):
-    idp.get_orbital_maps()
-    idp.get_orbpair_maps()
+    """Convert feature vectors to Hamiltonian/overlap block matrices.
+
+    This function uses pre-computed scatter indices for vectorized operations,
+    avoiding nested Python loops for better performance.
+
+    Args:
+        data: AtomicData dictionary containing node/edge features
+        idp: OrbitalMapper instance with basis information
+        overlap: If True, process overlap features instead of Hamiltonian
+
+    Returns:
+        Dictionary mapping block indices to block matrices
+    """
+    # Get pre-computed index mappings (computed once, cached)
+    node_indices = idp.get_node_feature_to_block_indices()
+    edge_indices = idp.get_edge_feature_to_block_indices()
 
     has_block = False
     if not overlap:
@@ -340,59 +354,107 @@ def feature_to_block(data, idp, overlap: bool = False):
             raise KeyError("Overlap features not found in data.")
 
     if has_block:
-        # get node blocks from node_features
+        device = node_features.device
+        dtype = node_features.dtype
+
+        # Pre-compute atom symbols for all atoms (vectorized lookup)
+        atom_types = data[_keys.ATOM_TYPE_KEY]
+        atom_symbols = [
+            ase.data.chemical_symbols[idp.untransform(atom_types[i].reshape(-1))]
+            for i in range(len(atom_types))
+        ]
+
+        # Cache device-transferred indices per symbol to avoid redundant transfers
+        unique_symbols = set(atom_symbols)
+        node_indices_on_device = {}
+        for symbol in unique_symbols:
+            idx_info = node_indices[symbol]
+            node_indices_on_device[symbol] = {
+                'src': idx_info['src'].to(device),
+                'dst': idx_info['dst'].to(device),
+                'dst_T': idx_info['dst_T'].to(device),
+                'is_diag': idx_info['is_diag'].to(device),
+                'norb': idx_info['norb']
+            }
+
+        # Process node blocks using scatter
         for atom, onsite in enumerate(node_features):
-            symbol = ase.data.chemical_symbols[idp.untransform(data[_keys.ATOM_TYPE_KEY][atom].reshape(-1))]
-            basis_list = idp.basis[symbol]
-            block = torch.zeros((idp.norbs[symbol], idp.norbs[symbol]), device=node_features.device, dtype=node_features.dtype)
+            symbol = atom_symbols[atom]
+            idx_info = node_indices_on_device[symbol]
 
-            for index, basis_i in enumerate(basis_list):
-                f_basis_i = idp.basis_to_full_basis[symbol].get(basis_i)
-                slice_i = idp.orbital_maps[symbol][basis_i]
-                li = anglrMId[re.findall(r"[a-zA-Z]+", basis_i)[0]]
-                for basis_j in basis_list[index:]:
-                    f_basis_j = idp.basis_to_full_basis[symbol].get(basis_j)
-                    lj = anglrMId[re.findall(r"[a-zA-Z]+", basis_j)[0]]
-                    slice_j = idp.orbital_maps[symbol][basis_j]
-                    pair_ij = f_basis_i + "-" + f_basis_j
-                    feature_slice = idp.orbpair_maps[pair_ij]
-                    block_ij = onsite[feature_slice].reshape(2*li+1, 2*lj+1)
-                    block[slice_i, slice_j] = block_ij
-                    if slice_i != slice_j:
-                        block[slice_j, slice_i] = block_ij.T
+            # Use cached indices (already on device)
+            src_idx = idx_info['src']
+            dst_idx = idx_info['dst']
+            dst_idx_T = idx_info['dst_T']
+            is_diag = idx_info['is_diag']
+            norb = idx_info['norb']
 
-            block_index = '_'.join(map(str, map(int, [atom, atom] + list([0, 0, 0]))))
+            # Create flat block and scatter values
+            block_flat = torch.zeros(norb * norb, device=device, dtype=dtype)
+
+            # Scatter upper triangle values
+            block_flat.scatter_(0, dst_idx, onsite[src_idx])
+
+            # Scatter lower triangle (transpose) for off-diagonal blocks
+            off_diag_mask = ~is_diag
+            if off_diag_mask.any():
+                block_flat.scatter_(0, dst_idx_T[off_diag_mask], onsite[src_idx[off_diag_mask]])
+
+            block = block_flat.reshape(norb, norb)
+            block_index = '_'.join(map(str, map(int, [atom, atom, 0, 0, 0])))
             blocks[block_index] = block
-        
-        # get edge blocks from edge_features
+
+        # Process edge blocks using scatter
         edge_index = data[_keys.EDGE_INDEX_KEY]
         edge_cell_shift = data[_keys.EDGE_CELL_SHIFT_KEY]
+
+        # Cache device-transferred indices for all possible bond types
+        edge_indices_on_device = {}
+        for sym_i in unique_symbols:
+            for sym_j in unique_symbols:
+                bond_type = f"{sym_i}-{sym_j}"
+                if bond_type in edge_indices:
+                    idx_info = edge_indices[bond_type]
+                    edge_indices_on_device[bond_type] = {
+                        'src': idx_info['src'].to(device),
+                        'dst': idx_info['dst'].to(device),
+                        'scale': idx_info['scale'].to(device=device, dtype=dtype),
+                        'norb_i': idx_info['norb_i'],
+                        'norb_j': idx_info['norb_j']
+                    }
+
         for edge, hopping in enumerate(edge_features):
-            atom_i, atom_j, R_shift = edge_index[0][edge], edge_index[1][edge], edge_cell_shift[edge]
-            symbol_i = ase.data.chemical_symbols[idp.untransform(data[_keys.ATOM_TYPE_KEY][atom_i].reshape(-1))]
-            symbol_j = ase.data.chemical_symbols[idp.untransform(data[_keys.ATOM_TYPE_KEY][atom_j].reshape(-1))]
-            block = torch.zeros((idp.norbs[symbol_i], idp.norbs[symbol_j]), device=edge_features.device, dtype=edge_features.dtype)
+            atom_i, atom_j = int(edge_index[0][edge]), int(edge_index[1][edge])
+            R_shift = edge_cell_shift[edge]
+            symbol_i = atom_symbols[atom_i]
+            symbol_j = atom_symbols[atom_j]
+            bond_type = f"{symbol_i}-{symbol_j}"
 
-            for index, f_basis_i in enumerate(idp.full_basis):
-                basis_i = idp.full_basis_to_basis[symbol_i].get(f_basis_i)
-                if basis_i is None:
-                    continue
-                li = anglrMId[re.findall(r"[a-zA-Z]+", basis_i)[0]]
-                slice_i = idp.orbital_maps[symbol_i][basis_i]
-                for f_basis_j in idp.full_basis[index:]:
-                    basis_j = idp.full_basis_to_basis[symbol_j].get(f_basis_j)
-                    if basis_j is None:
-                        continue
-                    lj = anglrMId[re.findall(r"[a-zA-Z]+", basis_j)[0]]
-                    slice_j = idp.orbital_maps[symbol_j][basis_j]
-                    pair_ij = f_basis_i + "-" + f_basis_j
-                    feature_slice = idp.orbpair_maps[pair_ij]
-                    block_ij = hopping[feature_slice].reshape(2*li+1, 2*lj+1)
-                    if f_basis_i == f_basis_j:
-                        block[slice_i, slice_j] = 0.5 * block_ij
-                    else:
-                        block[slice_i, slice_j] = block_ij
+            if bond_type not in edge_indices_on_device:  
+                available = ", ".join(sorted(map(str, edge_indices.keys())))  
+                msg = (  
+                    f"Missing precomputed edge indices for bond type '{bond_type}'. "  
+                    f"Encountered edge between atoms {atom_i} ({symbol_i}) and "  
+                    f"{atom_j} ({symbol_j}) with cell shift {list(map(int, R_shift))}. "  
+                    f"Available bond types in edge_indices: {available if available else 'none'}."  
+                )  
+                log.error(msg)  
+                raise KeyError(msg) 
+            idx_info = edge_indices_on_device[bond_type]
 
+            # Use cached indices (already on device)
+            src_idx = idx_info['src']
+            dst_idx = idx_info['dst']
+            scale = idx_info['scale']
+            norb_i = idx_info['norb_i']
+            norb_j = idx_info['norb_j']
+
+            # Create flat block and scatter scaled values
+            block_flat = torch.zeros(norb_i * norb_j, device=device, dtype=dtype)
+            block_flat.scatter_(0, dst_idx, hopping[src_idx] * scale)
+            block = block_flat.reshape(norb_i, norb_j)
+
+            # Handle block accumulation based on atom ordering
             block_index = '_'.join(map(str, map(int, [atom_i, atom_j] + list(R_shift))))
             if atom_i < atom_j:
                 if blocks.get(block_index, None) is None:
@@ -411,7 +473,7 @@ def feature_to_block(data, idp, overlap: bool = False):
                     blocks[block_index] = block.T
                 else:
                     blocks[block_index] += block.T
-                    
+
     return blocks
 
 

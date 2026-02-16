@@ -32,8 +32,11 @@ CELL_KEY: Final[str] = "cell"
 KPOINT_KEY = "kpoint"
 
 HAMILTONIAN_KEY = "hamiltonian"
+HAMILTONIAN_DERIV_KEY = "hamiltonian_derivative" # dH(k)/dk
 
 OVERLAP_KEY = "overlap"
+OVERLAP_DERIV_KEY = "overlap_derivative"  # dS(k)/dk
+
 # [n_batch, 3] bool tensor
 PBC_KEY: Final[str] = "pbc"
 # [n_atom, 1] long tensor

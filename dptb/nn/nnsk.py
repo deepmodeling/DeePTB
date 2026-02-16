@@ -22,6 +22,7 @@ from dptb.utils.constants import ALLOWED_VERSIONS
 from dptb.nn.sktb.soc import SOCFormula
 from dptb.data.AtomicData import get_r_map, get_r_map_bondwise
 from dptb.nn.sktb.onsiteDB import  onsite_energy_database
+from dptb.nn.sktb.socDB import soc_strength_database
 import logging
 
 log = logging.getLogger(__name__)
@@ -965,7 +966,7 @@ class NNSK(torch.nn.Module):
         to_uniform = False
         new_basis = self.basis.copy()
         if basisref is not None:
-            if  self.model_options['nnsk']['onsite']['method'] in ['uniform_noref']:
+            if  self.model_options['nnsk']['onsite'].get('method', None) in ['uniform_noref']:
                 for atom, orb in self.basis.items():
                     new_basis[atom] = []
                     if atom not in basisref:
@@ -979,6 +980,22 @@ class NNSK(torch.nn.Module):
                 to_uniform = True
             else:
                 print("The basisref is not used. since the onsite method is not uniform_noref.")
+        # add the support for soc uniform_noref when use ['s', 'p', 'd', 'f'] in soc case 
+        if basisref is not None:
+            if  self.model_options['nnsk']['soc'].get('method',None) in ['uniform_noref']:
+                for atom, orb in self.basis.items():
+                    new_basis[atom] = []
+                    if atom not in basisref:
+                        raise ValueError("The atom in the model basis should be in the basisref.")
+                    for o in orb:
+                        if o not in ['s', 'p', 'd', 'f']:
+                            raise ValueError("For uniform_noref mode, the orb in the model basis should be in ['s', 'p', 'd', 'f'].")
+                        if o not in list(basisref[atom].keys()):
+                            raise ValueError("The orb in the model basis should be in the basisref.")
+                        new_basis[atom].append(basisref[atom][o]) 
+            else:
+                print("The basisref is not used. since the soc method is not uniform_noref.")
+
 
         ckpt = {}
         # load hopping params
@@ -1171,6 +1188,10 @@ class NNSK(torch.nn.Module):
                         continue
                     if to_uniform:
                         iorb = basisref[asym][iorb]
+                        # Current the soc_strength_database is all 0.
+                        # ref_soc_lambda = soc_strength_database[asym][iorb]     
+                    # else:
+                        # ref_soc_lambda = 0.0
                     for i in range(slices.start, slices.stop): 
                         ind = i-slices.start      
                         soc_param[f"{asym}-{iorb}-{ind}"] = (np.abs(soc[self.idp_sk.chemical_symbol_to_type[asym], i])).tolist()

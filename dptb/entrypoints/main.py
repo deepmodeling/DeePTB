@@ -13,7 +13,9 @@ from dptb.entrypoints.data import data
 from dptb.utils.loggers import set_log_handles
 from dptb.utils.config_check import check_config_train
 from dptb.entrypoints.collectskf import skf2pth, skf2nnsk
+
 from dptb.entrypoints.emp_sk import to_empsk
+from dptb.entrypoints.export import export
 
 from dptb import __version__
 
@@ -435,6 +437,62 @@ def main_parser() -> argparse.ArgumentParser:
         default="poly2",
         help="The base model type can be poly2 or poly4."
     )
+    parser_esk.add_argument(
+        "--soc",
+        "--soc_onsite",
+        nargs="?", 
+        const=0.2, 
+        type=float,
+        help="Enable SOC, default 0.2 if no value is given. Example: --soc or --soc=0.5"
+    )
+
+
+    # export parser
+    parser_export = subparsers.add_parser(
+        "export",
+        parents=[parser_log],
+        help="Export DeePTB model to external formats (Wannier90, PythTB, TB2J)",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    
+    parser_export.add_argument(
+        "INPUT", help="the input parameter file in json format",
+        type=str,
+        default=None
+    )
+    
+    parser_export.add_argument(
+        "-i",
+        "--init-model",
+        type=str,
+        default=None,
+        help="Initialize the model by the provided checkpoint.",
+    )
+
+    parser_export.add_argument(
+        "-stu",
+        "--structure",
+        type=str,
+        default=None,
+        help="the structure file name."
+    )
+    
+    parser_export.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default="./",
+        help="The output directory."
+    )
+    
+    parser_export.add_argument(
+        "-f",
+        "--format",
+        type=str,
+        default="wannier90",
+        help="Target format: wannier90 (default) or pythtb."
+    )
+
     return parser
 
 def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
@@ -501,3 +559,6 @@ def main():
 
     elif args.command == 'esk':
         to_empsk(**dict_args)
+
+    elif args.command == 'export':
+        export(**dict_args)

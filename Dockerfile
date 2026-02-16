@@ -28,16 +28,13 @@ RUN apt-get update > /dev/null && \
     echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate base" >> /etc/skel/.bashrc && \
     echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate base" >> ~/.bashrc
 
-RUN git clone https://github.com/deepmodeling/DeePTB.git
-RUN source ~/.bashrc &&  \ 
-    conda create -n deeptb python=3.9 -c conda-forge -y  && \
-    source activate deeptb && \
-    pip install torch==2.1.1 && \
-    pip install torch-scatter -f https://data.pyg.org/whl/torch-2.1.1+cpu.html && \
-    cd ./DeePTB && \
-    pip install . && \
-    cd ..  && \ 
-    rm ./DeePTB -r && \
-    conda clean --all -y && \
-    rm -rf /root/.cache/pip && \
-    echo "source activate deeptb" >> ~/.bashrc
+RUN git clone https://github.com/deepmodeling/DeePTB.git && \
+    cd DeePTB && \
+    bash install.sh cpu
+
+# Add .venv activation to bashrc so dptb command is available
+RUN echo 'source /DeePTB/.venv/bin/activate' >> ~/.bashrc
+
+# Clean up caches to reduce image size
+RUN conda clean --all -y && \
+    rm -rf /root/.cache/pip /root/.cache/uv
