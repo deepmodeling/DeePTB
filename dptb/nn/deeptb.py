@@ -68,6 +68,7 @@ class NNENV(nn.Module):
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             transform: bool = True,
+            scale_type: str = 'scale_w_back_grad',
             **kwargs,
     ):
         
@@ -103,7 +104,7 @@ class NNENV(nn.Module):
         self.device = device
         self.model_options = {"embedding": embedding.copy(), "prediction": prediction.copy()}
         self.transform = transform
-        
+        self.scale_type = scale_type
         
         self.method = prediction.get("method", "e3tb")
         # self.soc = prediction.get("soc", False)
@@ -298,9 +299,11 @@ class NNENV(nn.Module):
         data = self.embedding(data)
         if hasattr(self, "overlap") and self.method == "sktb":
             data[AtomicDataDict.EDGE_OVERLAP_KEY] = data[AtomicDataDict.EDGE_FEATURES_KEY]
-        
-        data = self.node_prediction_h(data)
-        data = self.edge_prediction_h(data)
+
+        if self.scale_type != 'no_scale':
+            data = self.node_prediction_h(data)
+            data = self.edge_prediction_h(data)
+
         if hasattr(self, "overlap"):
             data = self.edge_prediction_s(data)
             data[AtomicDataDict.NODE_OVERLAP_KEY] = self.overlaponsite_param[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
