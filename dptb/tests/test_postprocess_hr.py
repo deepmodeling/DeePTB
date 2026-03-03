@@ -31,7 +31,7 @@ class TestPostProcessHR(unittest.TestCase):
         h, s = system.get_hR()
 
         if s is not None:
-            sK = s.sample_k([0,0,0], sym=True)
+            sK = s.sample_k([0,0,0], symm=True)
             # print(sK.to_dense())
             self.assertIsNotNone(sK)
         
