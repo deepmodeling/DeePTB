@@ -180,7 +180,7 @@ class DeePTBAdapter(HamiltonianCalculator):
             for orb_name in orb_names:
                 os.remove(orb_name)
         elif self.overlap:
-            if self.model.method == "e3tb":
+            if hasattr(self.model, "method") and getattr(self.model, "method", None) == "e3tb":
                 log.warning("The overlap inferenced from model is not stable in singular basis, please ensure this is what you want.")
             
         return atomic_data

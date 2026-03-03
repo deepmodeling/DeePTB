@@ -2,18 +2,20 @@ import unittest
 from unittest.mock import patch, MagicMock
 import os
 import tempfile
+import sys
 from dptb.entrypoints.train import train
+train_module = sys.modules['dptb.entrypoints.train']
 
 class TestTrainOrbitalIntegration(unittest.TestCase):
     
-    @patch('dptb.entrypoints.train.j_loader')
-    @patch('dptb.entrypoints.train.normalize')
-    @patch('dptb.entrypoints.train.build_dataset')
-    @patch('dptb.entrypoints.train.build_model')
-    @patch('dptb.entrypoints.train.Trainer')
-    @patch('dptb.entrypoints.train.set_log_handles')
-    @patch('dptb.entrypoints.train.collect_cutoffs')
-    @patch('dptb.entrypoints.train.setup_seed')
+    @patch.object(train_module, 'j_loader')
+    @patch.object(train_module, 'normalize')
+    @patch.object(train_module, 'build_dataset')
+    @patch.object(train_module, 'build_model')
+    @patch.object(train_module, 'Trainer')
+    @patch.object(train_module, 'set_log_handles')
+    @patch.object(train_module, 'collect_cutoffs')
+    @patch.object(train_module, 'setup_seed')
     @patch('os.makedirs') # Mock makedirs to prevent creating directories
     @patch('pathlib.Path.mkdir')
     def test_train_orbital_parsing(self, mock_mkdir, mock_makedirs, mock_setup_seed, mock_collect_cutoffs, mock_set_log, mock_trainer, mock_build_model, mock_build_dataset, mock_normalize, mock_j_loader):
@@ -50,7 +52,7 @@ class TestTrainOrbitalIntegration(unittest.TestCase):
                 # raising an exception in build_model allows us to stop execution after parsing
                 mock_build_model.side_effect = InterruptedError("Verify point reached")
                 
-                train(INPUT="dummy.json", init_model=None, restart=None, output="dummy_out", log_level=20, log_path=None)
+                train(INPUT="dummy.json", init_model=None, restart=None, output=None, log_level=20, log_path=None)
             except InterruptedError:
                 pass
             except Exception as e:
@@ -69,15 +71,15 @@ class TestTrainOrbitalIntegration(unittest.TestCase):
             
             # 2. Check orbital_files_content
             self.assertIn('orbital_files_content', common_options)
-            self.assertIn(orb_file_path, common_options['orbital_files_content'])
+            self.assertIn('Si', common_options['orbital_files_content'])
             # Verify some content from the real file
-            self.assertIn("Number of Sorbital-->       2", common_options['orbital_files_content'][orb_file_path])
+            self.assertIn("Number of Sorbital-->       2", common_options['orbital_files_content']['Si'])
 
         finally:
             pass 
     
-    @patch('dptb.entrypoints.train.j_loader')
-    @patch('dptb.entrypoints.train.normalize')
+    @patch.object(train_module, 'j_loader')
+    @patch.object(train_module, 'normalize')
     def test_train_orbital_parsing_wrong_method(self, mock_normalize, mock_j_loader):
          with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.orb') as tmp_orb:
             tmp_orb_path = tmp_orb.name
