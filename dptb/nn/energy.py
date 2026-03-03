@@ -193,14 +193,14 @@ class PardisoEig:
             try:
                 # Use larger NCV to help convergence, especially for clustered eigenvalues
                 ncv =  max(2*self.neig + 1, 20)
-                vals, vecs = eigsh(A=hk, M=M, k=self.neig, sigma=self.sigma, OPinv=Op, mode=self.mode, which="LM", ncv=ncv)
+                vals, vecs = eigsh(A=hk, M=M, k=self.neig, sigma=0.0, OPinv=Op, mode=self.mode, which="LM", ncv=ncv)
             except Exception:
                 # Retry with larger NCV if ARPACK fails (e.g. error 3: No shifts could be applied)
                 # This often happens when eigenvalues are clustered near the shift
                 ncv =  max(5*self.neig, 50)
-                vals, vecs = eigsh(A=hk, M=M, k=self.neig, sigma=self.sigma, OPinv=Op, mode=self.mode, which="LM", ncv=ncv)
+                vals, vecs = eigsh(A=hk, M=M, k=self.neig, sigma=0.0, OPinv=Op, mode=self.mode, which="LM", ncv=ncv)
             
-            eigvals_list.append(vals)
+            eigvals_list.append(vals + self.sigma)
             if return_eigenvectors:
                 eigvecs_list.append(vecs)
             
@@ -237,9 +237,9 @@ class FEASTEig:
         try:
             self.solver = FeastSolver()
         except ImportError as e:
-            raise ImportError(f"FEAST solver not available: {e}")
+            raise ImportError(f"FEAST solver not available: {e}") from e
         except Exception as e:
-             raise RuntimeError(f"Failed to initialize FeastSolver: {e}")
+             raise RuntimeError(f"Failed to initialize FeastSolver: {e}") from e
 
     def solve(self, h_container, s_container, kpoints: Union[list, torch.Tensor, np.ndarray], return_eigenvectors: bool = False):
         """

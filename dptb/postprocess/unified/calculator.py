@@ -9,6 +9,7 @@ from dptb.data.interfaces.ham_to_feature import feature_to_block
 from dptb.nn.hr2hk import HR2HK
 from dptb.nn.hr2hR import Hr2HR
 import logging
+import os
 
 log = logging.getLogger(__name__)
 

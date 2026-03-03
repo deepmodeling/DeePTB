@@ -6,12 +6,15 @@ from dptb.nn.hr2hR import Hr2HR
 from dptb.nn.energy import PardisoEig
 import torch
 import pytest
+from dptb.utils.pardiso_wrapper import _MKL_RT_HANDLE
+
 
 
 @pytest.fixture(scope='session', autouse=True)
 def root_directory(request):
     return str(request.config.rootdir)
 
+@pytest.mark.skipif(_MKL_RT_HANDLE is None, reason="MKL runtime not found")
 def test_hr2hr(root_directory):
     # build the trained e3_band hamiltonian and overlap model
     model = build_model(checkpoint=f"{root_directory}/dptb/tests/data/e3_band/ref_model/nnenv.ep1474.pth") 
@@ -36,9 +39,9 @@ def test_hr2hr(root_directory):
 
     sr2sr = Hr2HR(
         idp=model.idp,
-        edge_field=AtomicDataDict.EDGE_FEATURES_KEY,
-        node_field=AtomicDataDict.NODE_FEATURES_KEY,
-        overlap=False,
+        edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
+        node_field=AtomicDataDict.NODE_OVERLAP_KEY,
+        overlap=True,
         dtype=torch.float32, 
         device=torch.device("cpu")
     )
@@ -47,7 +50,7 @@ def test_hr2hr(root_directory):
     image_h = hr2hr(adata)
     image_s = sr2sr(adata)
 
-    h = image_h.sample_k([0,0,0], symm=True).to_scipy(format="csr")
+    # h = image_h.sample_k([0,0,0], symm=True).to_scipy(format="csr")
 
     peig = PardisoEig(
         sigma=0.0,

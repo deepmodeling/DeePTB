@@ -95,7 +95,7 @@ class TestTrainOrbitalIntegration(unittest.TestCase):
             mock_normalize.return_value = mock_config
 
             with self.assertRaisesRegex(ValueError, "only supported for the 'e3tb' method"):
-                train(INPUT="dummy.json", init_model=None, restart=None, output="dummy_out", log_level=20, log_path=None)
+                train(INPUT="dummy.json", init_model=None, restart=None, output=None, log_level=20, log_path=None)
 
          finally:
             if os.path.exists(tmp_orb_path):

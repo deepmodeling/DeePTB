@@ -30,8 +30,10 @@ class TestPostProcessHR(unittest.TestCase):
         # Call get_hR
         h, s = system.get_hR()
 
-        sK = s.sample_k([0,0,0], sym=True)
-        print(sK.to_dense())
+        if s is not None:
+            sK = s.sample_k([0,0,0], sym=True)
+            # print(sK.to_dense())
+            self.assertIsNotNone(sK)
         
         # Verification
         # The model in test_to_pardiso might or might not have overlap. 

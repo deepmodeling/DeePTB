@@ -119,7 +119,7 @@ def train(
                     raise ValueError(f"Failed to parse orbital file {value} for element {elem}: {e}")
         
         if orbital_files_content:
-             jdata["common_options"]["orbital_files_content"] = orbital_files_content
+            jdata["common_options"]["orbital_files_content"] = orbital_files_content
     # update basis if init_model or restart
     # update jdata
     # this is not necessary, because if we init model from checkpoint, the build_model will load the model_options from checkpoints if not provided

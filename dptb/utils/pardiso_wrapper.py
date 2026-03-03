@@ -207,7 +207,7 @@ class PyPardisoSolver:
         return x
 
     def _is_already_factorized(self, A):
-        if type(self.factorized_A) == str:
+        if isinstance(self.factorized_A, str):
             return self._hash_csr_matrix(A) == self.factorized_A
         else:
             return self._csr_matrix_equal(A, self.factorized_A)

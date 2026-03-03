@@ -146,8 +146,8 @@ class Hr2HR:
             image_container.add_block(g_row=i, g_col=i, data=full_block, R=None, mode="insert")
     
         for i, hblock in enumerate(bondwise_hopping):
-            iatom = data[AtomicDataDict.EDGE_INDEX_KEY][0][i]
-            jatom = data[AtomicDataDict.EDGE_INDEX_KEY][1][i]
+            iatom = data[AtomicDataDict.EDGE_INDEX_KEY][0][i].item()
+            jatom = data[AtomicDataDict.EDGE_INDEX_KEY][1][i].item()
             imask = self.idp.mask_to_basis[atom_type[iatom]]
             jmask = self.idp.mask_to_basis[atom_type[jatom]]
             masked_hblock = hblock[imask][:,jmask]

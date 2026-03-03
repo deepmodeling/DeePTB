@@ -91,7 +91,7 @@ def compute_overlap_image(data: AtomicDataDict, idp: OrbitalMapper, orb_dir, orb
     adata = AtomicData_vbcsr.from_distributed(
         natom, natom, 0, nedge, nedge,
         list(range(natom)), atom_types, edge_index.T, idp.atom_norb, cell_shifts,
-        data[_keys.CELL_KEY], data[_keys.POSITIONS_KEY]
+        data[_keys.CELL_KEY].cpu(), data[_keys.POSITIONS_KEY].cpu()
     )
     image_container = ImageContainer(adata, np.float64)
 
