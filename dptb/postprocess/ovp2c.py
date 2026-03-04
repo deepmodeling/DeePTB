@@ -107,13 +107,13 @@ def compute_overlap_image(data: AtomicDataDict, idp: OrbitalMapper, orb_dir, orb
         jnorb = idp.atom_norb[jtype]
 
         S = op.overlap(itype, jtype, Rij, is_transpose=False)
-        image_container.add_block(i, j, Rvec, S.reshape(inorb, jnorb))
+        image_container.add_block(i, j, S.reshape(inorb, jnorb), Rvec)
     
     for k in range(natom):
         itype = atom_types[k].item()
         S = op.overlap(itype, itype, [0, 0, 0], is_transpose=False)
         inorb = idp.atom_norb[itype]
-        image_container.add_block(k, k, [0, 0, 0], S.reshape(inorb, inorb))
+        image_container.add_block(k, k, S.reshape(inorb, inorb), [0, 0, 0])
 
     image_container.assemble()
 
