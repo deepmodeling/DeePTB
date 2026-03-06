@@ -91,6 +91,10 @@ class LemMoEV3(torch.nn.Module):
 
         log.info(f"[LemMoEV3] Theoretical mean_max_prob Bounds -> "
                  f"Min (Uniform): {mean_max_prob_lower_bound:.6f} | Max (One-Hot): {mean_max_prob_upper_bound:.6f}")
+        cv_lower_bound = 0.0
+        cv_upper_bound = math.sqrt((self.num_experts - top_k) / top_k) if top_k else 0.0
+        log.info(f"[LemMoEV3] Theoretical expert_load_cv Bounds -> "
+                 f"Min (Balanced): {cv_lower_bound:.6f} | Max (Collapsed): {cv_upper_bound:.6f}")
 
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype)
