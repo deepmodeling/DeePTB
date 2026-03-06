@@ -300,7 +300,7 @@ class NNENV(nn.Module):
         if hasattr(self, "overlap") and self.method == "sktb":
             data[AtomicDataDict.EDGE_OVERLAP_KEY] = data[AtomicDataDict.EDGE_FEATURES_KEY]
 
-        if self.scale_type != 'no_scale':
+        if self.method != "e3tb" or self.scale_type != "no_scale":
             data = self.node_prediction_h(data)
             data = self.edge_prediction_h(data)
 

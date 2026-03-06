@@ -145,7 +145,7 @@ def get_optimizer(type: str, model_param, lr: float, **options: dict):
     elif type == 'LBFGS':
         optimizer = optim.LBFGS(params=model_param, lr=lr, **options)
     else:
-        raise RuntimeError("Optimizer should be Adam/AdamW/SGD/RMSprop, not {}".format(type))
+        raise RuntimeError("Optimizer should be Adam/AdamW/SGD/RMSprop/LBFGS, not {}".format(type))
     return optimizer
 
 def get_lr_scheduler(type: str, optimizer: optim.Optimizer, **sch_options):

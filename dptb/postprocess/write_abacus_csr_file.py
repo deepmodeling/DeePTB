@@ -103,11 +103,24 @@ def write_blocks_to_abacus_csr(atomic_numbers, basis_dict, blocks_dict, matrix_s
     element_l_lists = {}
     for Z in np.unique(atomic_numbers):
         basis_str = find_basis_for_Z_or_symbol(basis_dict, int(Z))
+
+        # 1. 检测基组是否缺失
         if basis_str is None:
-            element_l_lists[int(Z)] = [0]
+            raise ValueError(
+                f"Matrix '{matrix_symbol}': find_basis_for_Z_or_symbol() could not find a basis for Z={Z}. "
+                f"Available keys in basis_dict: {list(basis_dict.keys())}. "
+                f"Aborting to prevent silent downstream dimension errors in element_l_lists."
+            )
         else:
             ll = parse_basis_to_l_list(basis_str)
-            element_l_lists[int(Z)] = ll if ll else [0]
+            # 2. 检测基组字符串是否解析为空
+            if not ll:
+                raise ValueError(
+                    f"Matrix '{matrix_symbol}': parse_basis_to_l_list() returned an empty list "
+                    f"for basis string '{basis_str}' (Z={Z}). "
+                    f"Aborting to prevent silent downstream dimension errors in element_l_lists."
+                )
+            element_l_lists[int(Z)] = ll
 
     # site norbits
     site_norbits = np.array([sum(2 * l + 1 for l in element_l_lists[int(Z)]) for Z in atomic_numbers], dtype=int)
@@ -123,8 +136,11 @@ def write_blocks_to_abacus_csr(atomic_numbers, basis_dict, blocks_dict, matrix_s
         if not m:
             # skip unparseable keys
             continue
-        i_site = int(m.group(1)); j_site = int(m.group(2))
-        Rx = int(m.group(3)); Ry = int(m.group(4)); Rz = int(m.group(5))
+        i_site = int(m.group(1))
+        j_site = int(m.group(2))
+        Rx = int(m.group(3))
+        Ry = int(m.group(4))
+        Rz = int(m.group(5))
         r_str = f"{Rx}_{Ry}_{Rz}"
 
         # l-lists
@@ -174,7 +190,6 @@ def write_blocks_to_abacus_csr(atomic_numbers, basis_dict, blocks_dict, matrix_s
 
     write_abacus_csr_format(reassembled, matrix_symbol, output_path, step=step)
     return reassembled, norbits
-
 
 # demo main
 if __name__ == "__main__":

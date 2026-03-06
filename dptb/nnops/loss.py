@@ -728,6 +728,32 @@ class HamilLossAbsMAE(nn.Module):
         pre = torch.cat([pre_onsite, pre_hopping], dim=0)
         tgt = torch.cat([tgt_onsite, tgt_hopping], dim=0)
 
+        # ================= 新增：overlap loss 逻辑 =================
+        if self.overlap:
+            # onsite overlap
+            pre_onsite_ovlp = data[AtomicDataDict.NODE_OVERLAP_KEY][
+                self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+            ]
+            tgt_onsite_ovlp = ref_data[AtomicDataDict.NODE_OVERLAP_KEY][
+                self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+            ]
+
+            # hopping overlap
+            pre_hopping_ovlp = data[AtomicDataDict.EDGE_OVERLAP_KEY][
+                self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
+            ]
+            tgt_hopping_ovlp = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY][
+                self.idp.mask_to_erme[ref_data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
+            ]
+
+            pre_ovlp = torch.cat([pre_onsite_ovlp, pre_hopping_ovlp], dim=0)
+            tgt_ovlp = torch.cat([tgt_onsite_ovlp, tgt_hopping_ovlp], dim=0)
+
+            # 将 overlap 特征拼接到 pre/tgt 中一同计算 MAE
+            pre = torch.cat([pre, pre_ovlp], dim=0)
+            tgt = torch.cat([tgt, tgt_ovlp], dim=0)
+        # ==========================================================
+
         total_loss = self.loss1(pre, tgt)
         return total_loss
 
