@@ -923,7 +923,14 @@ def neighbor_list_and_relative_vec(
     if isinstance(pbc, bool):
         pbc = (pbc,) * 3
 
-    atomic_numbers_np = np.asarray(atomic_numbers) if atomic_numbers is not None else None
+    # 【优化】：确保如果输入的是 GPU Tensor，能够安全转换
+    if atomic_numbers is not None:
+        if isinstance(atomic_numbers, torch.Tensor):
+            atomic_numbers_np = atomic_numbers.detach().cpu().numpy()
+        else:
+            atomic_numbers_np = np.asarray(atomic_numbers)
+    else:
+        atomic_numbers_np = None
 
     # -------------------------------------------------------------------------
     # 1. Parse r_max to ASE-compatible format for native pair-cutoff filtering
@@ -940,13 +947,13 @@ def neighbor_list_and_relative_vec(
 
         if len(key_parts) == 1:
             # Atom-wise cutoffs: ASE naturally handles array input as R[i] + R[j] < cutoff
-            r_map = get_r_map(r_max, atomic_numbers)
+            r_map = get_r_map(r_max, atomic_numbers_np)
             r_map_np = r_map.detach().cpu().numpy() if isinstance(r_map, torch.Tensor) else np.asarray(r_map)
             user_cutoff = 0.5 * r_map_np[atomic_numbers_np - 1]
 
         elif len(key_parts) == 2:
             # Pair-wise cutoffs: Convert user string keys to ASE tuple keys
-            r_map = get_r_map_bondwise(r_max, atomic_numbers)
+            r_map = get_r_map_bondwise(r_max, atomic_numbers_np)
             r_map_np = r_map.detach().cpu().numpy() if isinstance(r_map, torch.Tensor) else np.asarray(r_map)
             user_cutoff = {}
             unique_nums = np.unique(atomic_numbers_np)
@@ -976,17 +983,19 @@ def neighbor_list_and_relative_vec(
             "Currently, neighborlists require a round trip to the CPU. Please pass CPU tensors if possible."
         )
 
+    # 获取初始 cell 数据
     if isinstance(cell, torch.Tensor):
         temp_cell = cell.detach().cpu().numpy()
-        cell_tensor = cell.to(device=out_device, dtype=out_dtype)
     elif cell is not None:
         temp_cell = np.asarray(cell)
-        cell_tensor = torch.as_tensor(temp_cell, device=out_device, dtype=out_dtype)
     else:
         temp_cell = np.zeros((3, 3), dtype=temp_pos.dtype)
-        cell_tensor = torch.as_tensor(temp_cell, device=out_device, dtype=out_dtype)
 
+    # ASE 补全缺失的晶格向量
     temp_cell = ase.geometry.complete_cell(temp_cell)
+
+    # 【修复2】：在此处（补全后）生成 cell_tensor，保证输出与 shifts 处于同一坐标系参考标准下
+    cell_tensor = torch.as_tensor(temp_cell, device=out_device, dtype=out_dtype)
 
     # -------------------------------------------------------------------------
     # 3. Call core O(N) neighbor search algorithm

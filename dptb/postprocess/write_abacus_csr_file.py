@@ -21,9 +21,11 @@ def parse_basis_to_l_list(basis_str):
     """'2s2p1d' or 'spd' -> [0,0,1,1,2]."""
     if basis_str is None:
         return []
-    s = str(basis_str).strip().lower()
+    s = re.sub(r"\s+", "", str(basis_str).lower())
     if s == "":
         return []
+    if not re.fullmatch(r"(?:\d*[spdfgh])+", s):
+        raise ValueError(f"Invalid basis string '{basis_str}'")
     tokens = re.findall(r'(\d*)([spdfgh])', s)
     lst = []
     for num, ch in tokens:
