@@ -78,7 +78,7 @@ class HR2HK(nn.Module):
 
         # --- Mode Detection ---
         self.has_soc = getattr(self.idp, "has_soc", False)
-        self.soc_complex_doubling = getattr(self.idp, "soc_complex_doubling", True)
+        self.soc_complex_doubling = getattr(self.idp, "soc_complex_doubling", self.has_soc)
         self.method = getattr(self.idp, "method", "e3tb")
 
         # S 矩阵强制使用 scalar 逻辑（因为 IO 中 Overlap 被存储为 scalar），H 矩阵如果是 SOC 则是 Full SOC

@@ -483,7 +483,7 @@ class OrbitalMapper(BondMapper):
         self.method = method
         self.device = device
         self.has_soc = has_soc
-        self.soc_complex_doubling = soc_complex_doubling
+        self.soc_complex_doubling = soc_complex_doubling if has_soc else False
         self.nextham_uureal_mask = nextham_uureal_mask
         if self.method not in ["e3tb", "sktb"]:
             raise ValueError(f"Unknown method {self.method}, only 'e3tb' and 'sktb' are supported.")
