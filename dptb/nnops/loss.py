@@ -477,6 +477,7 @@ class HamilLossAbs(nn.Module):
         self._debug_counter = 0
         self.z_loss_coef = float(z_loss_coef)
         self.last_z_loss = None # 用于 Monitor
+        self.expert_load_cv = None # 用于 Monitor
         # ===== 新增：onsite 动态加权控制 =====
         self.onsite_boost = bool(onsite_boost)
         self.onsite_boost_steps = int(onsite_boost_steps)
@@ -563,6 +564,12 @@ class HamilLossAbs(nn.Module):
             else:
                 raw_z_loss = data["mean_max_prob"]
                 self.last_z_loss = raw_z_loss.detach()
+
+            if "expert_load_cv" not in data.keys():
+                self.expert_load_cv = 0
+            else:
+                expert_load_cv = data["expert_load_cv"]
+                self.expert_load_cv = expert_load_cv.detach()
 
             self.last_onsite_loss = onsite_loss.detach()
             self.last_hopping_loss = hopping_loss.detach()
@@ -903,6 +910,8 @@ class HamilLossAbsMAE(nn.Module):
         # ------------- 旧逻辑：不区分 onsite/hopping 权重 -------------
         pre = torch.cat([pre_onsite, pre_hopping], dim=0)
         tgt = torch.cat([tgt_onsite, tgt_hopping], dim=0)
+
+
         total_loss = self.loss1(pre, tgt)
         return total_loss
 

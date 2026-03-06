@@ -254,12 +254,12 @@ class LemMoEV3(torch.nn.Module):
 
         # 2. Compute Routing Coefficients
         # 返回: coeffs [Batch, Num_Experts], monitor_val (mean max prob)
-        coeffs, monitor_val = self.router(global_feat)
+        coeffs, monitor_val, expert_load_cv = self.router(global_feat)
 
         # [修改] 不再记录 z_loss，改为记录监控指标 mean_max_prob
         # 这个值越接近 1.0 表示路由越自信，接近 0.5 (TopK=1时) 表示犹豫
         data["mean_max_prob"] = monitor_val
-
+        data["expert_load_cv"] = expert_load_cv
         # 3. Prepare MOLEGlobals
         # ... (Init Layer Logic remains same)
         num_nodes_total = node_one_hot.shape[0]

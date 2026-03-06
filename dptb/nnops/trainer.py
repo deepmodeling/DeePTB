@@ -166,6 +166,7 @@ class Trainer(BaseTrainer):
         onsite_comp = getattr(loss_obj, "last_onsite_loss", None)
         hopping_comp = getattr(loss_obj, "last_hopping_loss", None)
         z_loss_comp = getattr(loss_obj, "last_z_loss", None)
+        expert_load_cv = getattr(loss_obj, "expert_load_cv", None)
 
         state = {
             'field': 'iteration',
@@ -179,6 +180,8 @@ class Trainer(BaseTrainer):
             state["train_onsite_loss"] = onsite_comp
         if hopping_comp is not None:
             state["train_hopping_loss"] = hopping_comp
+        if expert_load_cv is not None:
+            state["expert_load_cv"] = expert_load_cv
         if z_loss_comp is not None:
             state["mean_max_prob"] = z_loss_comp
 

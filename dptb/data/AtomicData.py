@@ -15,7 +15,6 @@ import ase
 from ase.calculators.singlepoint import SinglePointCalculator, SinglePointDFTCalculator
 from ase.calculators.calculator import all_properties as ase_all_properties
 from ase.stress import voigt_6_to_full_3x3_stress, full_3x3_to_voigt_6_stress
-from ase.neighborlist import NewPrimitiveNeighborList
 from ase.data import chemical_symbols
 import itertools
 
@@ -885,14 +884,15 @@ _ERROR_ON_NO_EDGES = os.environ.get("NEQUIP_ERROR_ON_NO_EDGES", "true").lower()
 assert _ERROR_ON_NO_EDGES in ("true", "false"), "NEQUIP_ERROR_ON_NO_EDGES must be 'true' or 'false'"
 _ERROR_ON_NO_EDGES = _ERROR_ON_NO_EDGES == "true"
 
+
 def neighbor_list_and_relative_vec(
-    pos,
-    r_max,
-    self_interaction=False,
-    reduce=True,
-    atomic_numbers=None,
-    cell=None,
-    pbc=False,
+        pos,
+        r_max,
+        self_interaction=False,
+        reduce=True,
+        atomic_numbers=None,
+        cell=None,
+        pbc=False,
 ):
     """Create neighbor list and neighbor vectors based on radial cutoff.
 
@@ -906,45 +906,69 @@ def neighbor_list_and_relative_vec(
     Thus, ``edge_index`` has the same convention as the relative vectors:
     :math:`\\vec{r}_{source, target}`
 
-    If the input positions are a tensor with ``requires_grad == True``,
-    the output displacement vectors will be correctly attached to the inputs
-    for autograd.
-
-    All outputs are Tensors on the same device as ``pos``; this allows future
-    optimization of the neighbor list on the GPU.
-
     Args:
         pos (shape [N, 3]): Positional coordinate; Tensor or numpy array. If Tensor, must be on CPU.
-        r_max (float): Radial cutoff distance for neighbor finding.
+        r_max (float, dict): Radial cutoff distance. Can be a global float, or a dictionary.
         cell (numpy shape [3, 3]): Cell for periodic boundary conditions. Ignored if ``pbc == False``.
-        pbc (bool or 3-tuple of bool): Whether the system is periodic in each of the three cell dimensions.
-        self_interaction (bool): Whether or not to include same periodic image self-edges in the neighbor list.
-        strict_self_interaction (bool): Whether to include *any* self interaction edges in the graph, even if the two
-            instances of the atom are in different periodic images. Defaults to True, should be True for most applications.
+        pbc (bool or 3-tuple of bool): Periodic boundary conditions.
+        self_interaction (bool): Whether to include same periodic image self-edges.
+        reduce (bool): If True, returns an undirected graph (half edges). If False, returns a full directed graph.
+        atomic_numbers (array-like): Atomic numbers of the atoms, required if r_max is a dict.
 
     Returns:
-        edge_index (torch.tensor shape [2, num_edges]): List of edges.
-        edge_cell_shift (torch.tensor shape [num_edges, 3]): Relative cell shift
-            vectors. Returned only if cell is not None.
-        cell (torch.Tensor [3, 3]): the cell as a tensor on the correct device.
-            Returned only if cell is not None.
+        edge_index (torch.tensor shape [2, num_edges])
+        shifts (torch.tensor shape [num_edges, 3])
+        cell (torch.Tensor [3, 3])
     """
     if isinstance(pbc, bool):
         pbc = (pbc,) * 3
 
-    mask_r = False
-    if isinstance(r_max, dict):
-        _r_max = max(r_max.values())
-        if _r_max - min(r_max.values()) > 1e-5:
-            mask_r = True
-        
-        if len(r_max) < len(set(atomic_numbers)):
-            raise ValueError("The number of r_max is less than the number of required atom species.")
+    # 【优化】：确保如果输入的是 GPU Tensor，能够安全转换
+    if atomic_numbers is not None:
+        if isinstance(atomic_numbers, torch.Tensor):
+            atomic_numbers_np = atomic_numbers.detach().cpu().numpy()
+        else:
+            atomic_numbers_np = np.asarray(atomic_numbers)
     else:
-        _r_max = r_max
-        assert isinstance(r_max, (float, int))
+        atomic_numbers_np = None
 
-    # Either the position or the cell may be on the GPU as tensors
+    # -------------------------------------------------------------------------
+    # 1. Parse r_max to ASE-compatible format for native pair-cutoff filtering
+    # -------------------------------------------------------------------------
+    if isinstance(r_max, dict):
+        if atomic_numbers_np is None:
+            raise ValueError("atomic_numbers must be provided when r_max is a dict.")
+
+        if len(r_max) < len(set(atomic_numbers_np)):
+            raise ValueError("The number of r_max is less than the number of required atom species.")
+
+        first_key = next(iter(r_max.keys()))
+        key_parts = str(first_key).split("-")
+
+        if len(key_parts) == 1:
+            # Atom-wise cutoffs: ASE naturally handles array input as R[i] + R[j] < cutoff
+            r_map = get_r_map(r_max, atomic_numbers_np)
+            r_map_np = r_map.detach().cpu().numpy() if isinstance(r_map, torch.Tensor) else np.asarray(r_map)
+            user_cutoff = 0.5 * r_map_np[atomic_numbers_np - 1]
+
+        elif len(key_parts) == 2:
+            # Pair-wise cutoffs: Convert user string keys to ASE tuple keys
+            r_map = get_r_map_bondwise(r_max, atomic_numbers_np)
+            r_map_np = r_map.detach().cpu().numpy() if isinstance(r_map, torch.Tensor) else np.asarray(r_map)
+            user_cutoff = {}
+            unique_nums = np.unique(atomic_numbers_np)
+            for z1 in unique_nums:
+                for z2 in unique_nums:
+                    user_cutoff[(int(z1), int(z2))] = float(r_map_np[int(z1) - 1, int(z2) - 1])
+        else:
+            raise ValueError("The r_max keys should be either atomic number or atomic number pair.")
+    else:
+        assert isinstance(r_max, (float, int))
+        user_cutoff = float(r_max)
+
+    # -------------------------------------------------------------------------
+    # 2. Setup Device, Tensors, and Geometry
+    # -------------------------------------------------------------------------
     if isinstance(pos, torch.Tensor):
         temp_pos = pos.detach().cpu().numpy()
         out_device = pos.device
@@ -954,185 +978,88 @@ def neighbor_list_and_relative_vec(
         out_device = torch.device("cpu")
         out_dtype = torch.get_default_dtype()
 
-    # Right now, GPU tensors require a round trip
     if out_device.type != "cpu":
         warnings.warn(
             "Currently, neighborlists require a round trip to the CPU. Please pass CPU tensors if possible."
         )
 
-    # Get a cell on the CPU no matter what
+    # 获取初始 cell 数据
     if isinstance(cell, torch.Tensor):
         temp_cell = cell.detach().cpu().numpy()
-        cell_tensor = cell.to(device=out_device, dtype=out_dtype)
     elif cell is not None:
         temp_cell = np.asarray(cell)
-        cell_tensor = torch.as_tensor(temp_cell, device=out_device, dtype=out_dtype)
     else:
-        # ASE will "complete" this correctly.
         temp_cell = np.zeros((3, 3), dtype=temp_pos.dtype)
-        cell_tensor = torch.as_tensor(temp_cell, device=out_device, dtype=out_dtype)
 
-    # ASE dependent part
+    # ASE 补全缺失的晶格向量
     temp_cell = ase.geometry.complete_cell(temp_cell)
-##################################################################################
-###################################### 新代码 ########################################
-    elements = np.unique(atomic_numbers).tolist()
-    pair_cutoffs = {}
-    for elem1, elem2 in itertools.combinations_with_replacement(elements, 2):
-        pair_cutoffs[(elem1, elem2)] = max(r_max[chemical_symbols[elem1]], r_max[chemical_symbols[elem2]])
 
-    nl = NewPrimitiveNeighborList(
-        cutoffs=10,
-        skin=0.0,
+    # 【修复2】：在此处（补全后）生成 cell_tensor，保证输出与 shifts 处于同一坐标系参考标准下
+    cell_tensor = torch.as_tensor(temp_cell, device=out_device, dtype=out_dtype)
+
+    # -------------------------------------------------------------------------
+    # 3. Call core O(N) neighbor search algorithm
+    # -------------------------------------------------------------------------
+    # By default, primitive_neighbor_list returns a fully directed graph representing
+    # both (i, j, S) and (j, i, -S). It also automatically removes self-edges (i=i, S=0)
+    # if self_interaction=False.
+    first_idx, second_idx, shifts = ase.neighborlist.primitive_neighbor_list(
+        "ijS",
+        pbc,
+        temp_cell,
+        temp_pos,
+        cutoff=user_cutoff,
+        numbers=atomic_numbers_np,
         self_interaction=self_interaction,
-        bothways=True,
-        use_scaled_positions=False
+        use_scaled_positions=False,
     )
-    nl.cutoffs = pair_cutoffs
-    nl.update(pbc, temp_cell, temp_pos, atomic_numbers)
-    first_idex, second_idex, shifts = nl.pair_first, nl.pair_second, nl.offset_vec
-    mask_r = False
-    _r_max = max(pair_cutoffs.values())
+    # -------------------------------------------------------------------------
+    # 4. Handle graph reduction state
+    # -------------------------------------------------------------------------
+    if reduce:
+        # Convert full directed graph to undirected half-graph
+        mask_lt = first_idx < second_idx
+        mask_eq = first_idx == second_idx
 
-    ##################################################################################
-    ##################################### 老代码 #########################################
-    # first_idex, second_idex, shifts = ase.neighborlist.primitive_neighbor_list(
-    #     "ijS",
-    #     pbc,
-    #     temp_cell,
-    #     temp_pos,
-    #     cutoff=float(_r_max),
-    #     self_interaction=self_interaction,  # we want edges from atom to itself in different periodic images!
-    #     use_scaled_positions=False,
-    # )
+        # Deduplicate mirrored periodic boundaries for i == j
+        eq_first = first_idx[mask_eq]
+        eq_shifts = shifts[mask_eq]
+        eq_keep = np.zeros(len(eq_first), dtype=bool)
 
-    ##################################################################################
-    ##################################################################################
-    # Eliminate true self-edges that don't cross periodic boundaries
-    # if not self_interaction:
-    #     bad_edge = first_idex == second_idex
-    #     bad_edge &= np.all(shifts == 0, axis=1)
-    #     keep_edge = ~bad_edge
-    #     if _ERROR_ON_NO_EDGES and (not np.any(keep_edge)):
-    #         raise ValueError(
-    #             f"Every single atom has no neighbors within the cutoff r_max={r_max} (after eliminating self edges, no edges remain in this system)"
-    #         )
-    #     first_idex = first_idex[keep_edge]
-    #     second_idex = second_idex[keep_edge]
-    #     shifts = shifts[keep_edge]
+        rev_dict = {}
+        for i in range(len(eq_first)):
+            key = f"{eq_first[i]}_{eq_shifts[i]}"
+            key_rev = f"{eq_first[i]}_{-eq_shifts[i]}"
+            rev_dict[key] = True
 
-    """
-    bond list is: i, j, shift; but i j shift and j i -shift are the same bond. so we need to remove the duplicate bonds.s
-    first for i != j; we only keep i < j; then the j i -shift will be removed.
-    then, for i == j; we only keep i i shift and remove i i -shift.
-    """
-    # 1. for i != j, keep i < j
-    assert atomic_numbers is not None
-    atomic_numbers = torch.as_tensor(atomic_numbers, dtype=torch.long)
-    mask = first_idex <= second_idex
-    first_idex = first_idex[mask]
-    second_idex = second_idex[mask]
-    shifts = shifts[mask]
+            if not (rev_dict.get(key_rev, False) and rev_dict.get(key, False)):
+                eq_keep[i] = True
 
-    # 2. for i == j
-    
-    mask = torch.ones(len(first_idex), dtype=torch.bool)
-    mask[first_idex == second_idex] = False
-    # get index bool type ~mask  for i == j.
-    o_first_idex = first_idex[~mask]
-    o_second_idex = second_idex[~mask]
-    o_shift = shifts[~mask]
-    o_mask = mask[~mask]  # this is all False, with length being the number all  the bonds with i == j.
+            if self_interaction and (eq_shifts[i] == 0).all():
+                eq_keep[i] = True
 
-    
-    # using the dict key to remove the duplicate bonds, because it is O(1) to check if a key is in the dict.
-    rev_dict = {}
-    for i in range(len(o_first_idex)):
-        key = str(o_first_idex[i])+str(o_shift[i])
-        key_rev = str(o_first_idex[i])+str(-o_shift[i])
-        rev_dict[key] = True
-        # key_rev is the reverse key of key, if key_rev is in the dict, then the bond is duplicate.
-        # so， only when key_rev is not in the dict, we keep the bond. that is when rev_dict.get(key_rev, False) is False, we set o_mast = True.
-        if not (rev_dict.get(key_rev, False) and rev_dict.get(key, False)):
-            o_mask[i] = True
-        
-        if self_interaction:
-            log.warning("self_interaction is True, but usually we do not want the self-interaction, please check if it is correct.")
-            # for self-interaction, the above will remove the self-interaction, i.e. i == j, shift == [0, 0, 0]. since -0 = 0.
-            if (o_shift[i] == np.array([0, 0, 0])).all():
-                o_mask[i] = True
+        # Combine reduction masks
+        final_mask = mask_lt.copy()
+        final_mask[mask_eq] = eq_keep
 
-    del rev_dict
-    del o_first_idex
-    del o_second_idex
-    del o_shift
-    mask[~mask] = o_mask
-    del o_mask
-    
-    first_idex = torch.LongTensor(first_idex[mask], device=out_device)
-    second_idex = torch.LongTensor(second_idex[mask], device=out_device)
-    shifts = torch.as_tensor(shifts[mask], dtype=out_dtype, device=out_device)
+        first_idx = first_idx[final_mask]
+        second_idx = second_idx[final_mask]
+        shifts = shifts[final_mask]
 
-    if not reduce:
-        assert self_interaction == False, "for self_interaction = True,  i i 0 0 0 will be duplicated."
-        first_idex, second_idex = torch.cat((first_idex, second_idex), dim=0), torch.cat((second_idex, first_idex), dim=0)
-        shifts = torch.cat((shifts, -shifts), dim=0)
-    
-    # Build output:
-    edge_index = torch.vstack(
-        (torch.LongTensor(first_idex), torch.LongTensor(second_idex))
-    )
+    # Note: If `reduce=False`, the output of primitive_neighbor_list is exactly the
+    # full bidirectional graph structure required, so no post-processing is needed.
 
-    # TODO: mask the edges that is larger than r_max
-    if mask_r:
-        edge_vec = pos[edge_index[1]] - pos[edge_index[0]]
-        if cell is not None :
-            edge_vec = edge_vec + torch.einsum(
-                "ni,ij->nj",
-                shifts,
-                cell_tensor.reshape(3,3),  # remove batch dimension
-            )
+    # -------------------------------------------------------------------------
+    # 5. Build output tensors
+    # -------------------------------------------------------------------------
+    first_idx_t = torch.as_tensor(first_idx, dtype=torch.long, device=out_device)
+    second_idx_t = torch.as_tensor(second_idx, dtype=torch.long, device=out_device)
+    shifts_t = torch.as_tensor(shifts, dtype=out_dtype, device=out_device)
 
-        edge_length = torch.linalg.norm(edge_vec, dim=-1)
+    edge_index = torch.vstack((first_idx_t, second_idx_t))
 
-        # atom_species_num = [atomic_num_dict[k] for k in r_max.keys()]
-        # for i in set(atomic_numbers):
-        #     assert i in atom_species_num
-        # r_map = torch.zeros(max(atom_species_num))
-        # for k, v in r_max.items():
-        #     r_map[atomic_num_dict[k]-1] = v
+    return edge_index, shifts_t, cell_tensor
 
-        first_key = next(iter(r_max.keys()))
-        key_parts = first_key.split("-")
-        
-        if len(key_parts)==1:
-            r_map = get_r_map(r_max, atomic_numbers)
-            edge_length_max = 0.5 * (r_map[atomic_numbers[edge_index[0]]-1] + r_map[atomic_numbers[edge_index[1]]-1])
-        
-        elif len(key_parts)==2:
-            r_map = get_r_map_bondwise(r_max, atomic_numbers)
-            edge_length_max = r_map[atomic_numbers[edge_index[0]]-1,atomic_numbers[edge_index[1]]-1]            
-        else:
-            raise ValueError("The r_max keys should be either atomic number or atomic number pair.")
-        
-        r_mask = edge_length <= edge_length_max
-        if any(~r_mask):
-            edge_index = edge_index[:, r_mask]
-            shifts = shifts[r_mask]
-        # 收集不同类型的边及其对应的最大截断半径
-        #edge_types = {}
-        #for i in range(edge_index.shape[1]):
-        #    atom_type_pair = (atomic_numbers[edge_index[0, i]], atomic_numbers[edge_index[1, i]])
-        #    if atom_type_pair not in edge_types:
-        #        edge_types[atom_type_pair] = edge_length_max[i].item()
-        
-        del edge_length
-        del edge_vec
-        del r_map
-        del edge_length_max
-        del r_mask
-
-    return edge_index, shifts, cell_tensor
 
 def get_r_map(r_max: dict, atomic_numbers=None):
     """

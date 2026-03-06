@@ -159,72 +159,65 @@ class MOLERouterV3(nn.Module):
         # 2. 专家偏置 (Buffer): 不参与梯度下降，手动更新
         self.register_buffer('expert_bias', torch.zeros(num_experts))
 
-    def forward(self, global_features):
-        # global_features: [Batch, Dim]
+        # ======= 找到 MOLERouterV3 类中的 forward 方法 =======
+        def forward(self, global_features):
+            # global_features: [Batch, Dim]
 
-        # --- Step 1: 计算基础分数 (Sigmoid) ---
-        logits = self.net(global_features)
-        scores = torch.sigmoid(logits)  # [Batch, Num_Experts]
+            # --- Step 1: 计算基础分数 (Sigmoid) ---
+            logits = self.net(global_features)
+            scores = torch.sigmoid(logits)  # [Batch, Num_Experts]
 
-        # --- Step 2: 准备路由依据 (Routing Scores) ---
-        # 训练阶段且开启负载均衡时，加上 bias 进行选人
-        if self.aux_loss_free and self.training:
-            scores_for_selection = scores + self.expert_bias
-        else:
-            scores_for_selection = scores
-
-        # --- Step 3: Top-K 选择 ---
-        if self.top_k is not None:
-            # 选出 Top-K 的分数和索引 (基于 Bias 调整后的分数)
-            # values: [Batch, K], indices: [Batch, K]
-            topk_scores_biased, topk_indices = torch.topk(scores_for_selection, k=self.top_k, dim=-1)
-
-            # --- Step 4: 动态负载均衡更新 (Aux-Loss-Free Update) ---
+            # --- Step 2: 准备路由依据 (Routing Scores) ---
             if self.aux_loss_free and self.training:
+                scores_for_selection = scores + self.expert_bias
+            else:
+                scores_for_selection = scores
+
+            # --- Step 3: Top-K 选择 ---
+            if self.top_k is not None:
+                topk_scores_biased, topk_indices = torch.topk(scores_for_selection, k=self.top_k, dim=-1)
+
+                # [新增修改] --- 无论是否 training，都提取专家负载统计作监控 ---
                 with torch.no_grad():
-                    # 4.1 统计当前 Batch 每个专家的真实负载
-                    # mask: [Batch, TopK] -> 散布到 [Batch, Num_Experts]
                     mask = F.one_hot(topk_indices, num_classes=self.num_experts).float()
-                    current_load = mask.sum(dim=(0, 1))  # Sum over Batch and K
+                    current_load = mask.sum(dim=(0, 1))  # [Num_Experts]
+                    # 计算负载变异系数 CV = std / mean。值为0代表绝对均衡。
+                    expert_load_cv = current_load.std() / (current_load.mean() + 1e-8)
 
-                    # 4.2 计算目标负载 (假设完全均匀)
-                    batch_size = scores.size(0)
-                    target_load = (batch_size * self.top_k) / self.num_experts
+                # --- Step 4: 动态负载均衡更新 (Aux-Loss-Free Update) ---
+                if self.aux_loss_free and self.training:
+                    with torch.no_grad():
+                        # 4.2 计算目标负载 (假设完全均匀)
+                        batch_size = scores.size(0)
+                        target_load = (batch_size * self.top_k) / self.num_experts
 
-                    # 4.3 动态更新 Bias
-                    # 负载过重(Error>0) -> 减 Bias; 负载过轻(Error<0) -> 加 Bias
-                    error = current_load - target_load
-                    self.expert_bias -= torch.sign(error) * self.bias_update_speed
+                        # 4.3 动态更新 Bias
+                        error = current_load - target_load
+                        self.expert_bias -= torch.sign(error) * self.bias_update_speed
+                        self.expert_bias -= self.expert_bias.mean()
 
-                    # 4.4 Bias 中心化 (防止数值整体漂移，保持均值为 0)
-                    self.expert_bias -= self.expert_bias.mean()
+                # --- Step 5: 计算最终权重 (基于原始 Sigmoid 分数) ---
+                topk_scores_original = torch.gather(scores, 1, topk_indices)
+                denominators = topk_scores_original.sum(dim=-1, keepdim=True) + 1e-8
+                topk_probs = topk_scores_original / denominators
 
-            # --- Step 5: 计算最终权重 (基于原始 Sigmoid 分数) ---
-            # 即使选人用了 Bias，计算权重时必须用原始分数，保证梯度真实性
-            topk_scores_original = torch.gather(scores, 1, topk_indices)
+                # --- Step 6: 构建稀疏输出系数 ---
+                coeffs = torch.zeros_like(scores)
+                coeffs.scatter_(1, topk_indices, topk_probs)
 
-            # L1 归一化: p_i = s_i / sum(s)
-            denominators = topk_scores_original.sum(dim=-1, keepdim=True) + 1e-8
-            topk_probs = topk_scores_original / denominators
+                # --- Step 7: 监控指标 (Mean Max Probability) ---
+                monitor_val = topk_probs.max(dim=-1)[0].mean().detach()
 
-            # --- Step 6: 构建稀疏输出系数 ---
-            # zeros: [Batch, Num_Experts]
-            coeffs = torch.zeros_like(scores)
-            coeffs.scatter_(1, topk_indices, topk_probs)
+                # [修改返回值] 多返回一个 expert_load_cv
+                return coeffs, monitor_val, expert_load_cv.detach()
 
-            # --- Step 7: 监控指标 (Mean Max Probability) ---
-            # 衡量 Router 的置信度。
-            # 接近 1.0 = 非常确信; 接近 1/K = 非常犹豫
-            monitor_val = topk_probs.max(dim=-1)[0].mean().detach()
-
-            return coeffs, monitor_val
-
-        else:
-            # Fallback: Dense Mode (全激活，调试用)
-            denominators = scores.sum(dim=-1, keepdim=True) + 1e-8
-            probs = scores / denominators
-            monitor_val = probs.max(dim=-1)[0].mean().detach()
-            return probs, monitor_val
+            else:
+                # Fallback: Dense Mode (全激活，调试用)
+                denominators = scores.sum(dim=-1, keepdim=True) + 1e-8
+                probs = scores / denominators
+                monitor_val = probs.max(dim=-1)[0].mean().detach()
+                # [修改返回值] Fallback时补0
+                return probs, monitor_val, torch.tensor(0.0, device=scores.device)
 
 
 class MOLELinear(nn.Module):

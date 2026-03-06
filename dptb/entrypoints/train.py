@@ -1,7 +1,7 @@
 from dptb.nnops.trainer import Trainer
 from dptb.nn.build import build_model
 from dptb.data.build import build_dataset
-from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor, DeepDoctorMonitor, SO2ModuleMonitor, PreTPBlockMonitor, TrainOnsiteLossMonitor, TrainHoppingLossMonitor, TrainZLossMonitor
+from dptb.plugins.monitor import TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor, DeepDoctorMonitor, SO2ModuleMonitor, PreTPBlockMonitor, TrainOnsiteLossMonitor, TrainHoppingLossMonitor, TrainZLossMonitor, ExpertLoadCVMonitor
 from dptb.plugins.train_logger import Logger
 from dptb.utils.argcheck import normalize, collect_cutoffs, chk_avg_per_iter
 from dptb.plugins.saver import Saver
@@ -543,7 +543,9 @@ def train(
     trainer.register_plugin(TrainOnsiteLossMonitor(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')]))
     trainer.register_plugin(TrainHoppingLossMonitor(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')]))
     trainer.register_plugin(TrainZLossMonitor(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')]))
+    trainer.register_plugin(ExpertLoadCVMonitor(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')]))
     log_field.append("mean_max_prob")
+    log_field.append("expert_load_cv")
     log_field.append("train_onsite_loss")
     log_field.append("train_hopping_loss")
 ##############################
