@@ -5,14 +5,15 @@ from dptb.nn.dftbsk import DFTBSK
 import torch
 from dptb.utils.tools import j_must_have, j_loader
 import copy
-import os
+
 log = logging.getLogger(__name__)
 
 def build_model(
         checkpoint: str=None,
         model_options: dict={}, 
         common_options: dict={},
-        no_check: bool=False
+        no_check: bool=False,
+        device: str=None,
         ):
     """
     The build model method should composed of the following steps:
@@ -43,10 +44,6 @@ def build_model(
 
     # load the model_options and common_options from checkpoint if not provided
     if not from_scratch:
-        if checkpoint in ['poly2', 'poly4']:
-            modelname = f'base_{checkpoint}.pth'
-            checkpoint = os.path.join(os.path.dirname(__file__), 'dftb', modelname)
-            
         if checkpoint.split(".")[-1] == "json":
             ckptconfig = j_loader(checkpoint)
         else:
@@ -140,6 +137,8 @@ def build_model(
 
 
         # check if the model is deeptb or nnsk
+    if device:
+        common_options.update({"device": device})
 
     # init deeptb
     if from_scratch:
@@ -155,6 +154,8 @@ def build_model(
             model = None   
     else:
         # load the model from the checkpoint
+
+        print(common_options)
         if init_nnenv:
             model = NNENV.from_reference(checkpoint, **model_options, **common_options)
         elif init_nnsk:
@@ -172,7 +173,9 @@ def build_model(
                 log.warning(f"The model options {k} is not defined in input model_options, set to {v}.")
             else:
                 deep_dict_difference(k, v, model_options)
+
     model.to(model.device)
+
     return model
 
 

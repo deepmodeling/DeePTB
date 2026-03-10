@@ -1,5 +1,5 @@
-from .one_hot import OneHotAtomEncoding
+from .one_hot import OneHotAtomEncoding, OneHotEdgeEmbedding
 
 __all__ = [
-    OneHotAtomEncoding,
+    OneHotAtomEncoding, OneHotEdgeEmbedding
 ]

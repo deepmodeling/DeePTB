@@ -7,11 +7,236 @@ from torch.nn import Linear
 import os
 import torch.nn.functional as F
 from collections import defaultdict
+from .tensor_product import InterpolationBlock, RadialFunction
 
-# 你可能已有的静态数据加载（保持不变）
-_Jd = torch.load(os.path.join(os.path.dirname(__file__), "Jd.pt"), weights_only=False)
-_idx_data = torch.load(os.path.join(os.path.dirname(__file__), "z_rot_indices_lmax12.pt"), weights_only=False)
+# Load helpers (Keep original logic)
+try:
+    _Jd = torch.load(os.path.join(os.path.dirname(__file__), "Jd.pt"), weights_only=False)
+    _idx_data = torch.load(os.path.join(os.path.dirname(__file__), "z_rot_indices_lmax12.pt"), weights_only=False)
+except (FileNotFoundError, RuntimeError):
+    # Fallback for dry-run or missing files
+    _Jd = []
+    _idx_data = {}
 
+
+def build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes):
+    """
+    angle_stack: (3*N, )    # Input with alpha, beta, gamma stacked together
+    l_max: int
+
+    Returns: (Xa, Xb, Xc) # Each is of shape (N, D_total, D_total)
+    """
+    N_all = angle_stack.shape[0]
+    N = N_all // 3
+
+    D_total = sizes.sum().item()
+
+    # Step 1: Vectorized computation of sine and cosine values
+    angle_expand = angle_stack[None, :, None]  # (1, 3N, 1)
+    freq_expand = freq[:, None, :]  # (L, 1, Mmax)
+    sin_val = torch.sin(freq_expand * angle_expand)  # (L, 3N, Mmax)
+    cos_val = torch.cos(freq_expand * angle_expand)  # (L, 3N, Mmax)
+
+    # Step 2: Construct the block-diagonal matrix
+    M_total = angle_stack.new_zeros((N_all, D_total, D_total))
+    idx_l, idx_row = torch.where(mask)  # (K,), (K,)
+    idx_col_diag = idx_row
+    idx_col_anti = reversed_inds[idx_l, idx_row]
+    global_row = offsets[idx_l] + idx_row  # (K,)
+    global_col_diag = offsets[idx_l] + idx_col_diag
+    global_col_anti = offsets[idx_l] + idx_col_anti
+
+    # Assign values to the diagonal
+    M_total[:, global_row, global_col_diag] = cos_val[idx_l, :, idx_row].transpose(0, 1)
+    # Assign values to non-overlapping anti-diagonals
+    overlap_mask = (global_row == global_col_anti)
+    M_total[:, global_row[~overlap_mask], global_col_anti[~overlap_mask]] = sin_val[idx_l[~overlap_mask], :,
+                                                                            idx_row[~overlap_mask]].transpose(0, 1)
+
+    # Step 3: Split into three components corresponding to alpha, beta, gamma
+    Xa = M_total[:N]
+    Xb = M_total[N:2 * N]
+    Xc = M_total[2 * N:]
+
+    return Xa, Xb, Xc
+
+
+def batch_wigner_D(l_max, alpha, beta, gamma, _Jd):
+    """
+    Compute Wigner D matrices for all L (from 0 to l_max) in a single batch.
+    Returns a tensor of shape [N, D, D], where D = sum(2l+1 for l in 0..l_max).
+    """
+    device = alpha.device
+    N = alpha.shape[0]
+    idx_data = {k: (v.to(device) if isinstance(v, torch.Tensor) else v) for k, v in _idx_data.items()}
+
+    # Load static data
+    sizes = idx_data["sizes"][:l_max + 1]
+    offsets = idx_data["offsets"][:l_max + 1]
+    mask = idx_data["mask"][:l_max + 1]
+    freq = idx_data["freq"][:l_max + 1]
+    reversed_inds = idx_data["reversed_inds"][:l_max + 1]
+
+    # Precompute block structure information
+    dims = [2 * l + 1 for l in range(l_max + 1)]
+    D_total = sum(dims)
+
+    # Construct block-diagonal J matrix
+    J_full_small = torch.zeros(D_total, D_total, device=device)
+    for l in range(l_max + 1):
+        start = offsets[l]
+        J_full_small[start:start + 2 * l + 1, start:start + 2 * l + 1] = _Jd[l]
+
+    J_full = J_full_small.unsqueeze(0).expand(N, -1, -1)
+    angle_stack = torch.cat([alpha, beta, gamma], dim=0)
+    Xa, Xb, Xc = build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes)
+
+    return Xa @ J_full @ Xb @ J_full @ Xc
+
+
+def wigner_D(l, alpha, beta, gamma):
+    if not l < len(_Jd):
+        raise NotImplementedError(
+            f"wigner D maximum l implemented is {len(_Jd) - 1}, send us an email to ask for more"
+        )
+    alpha, beta, gamma = torch.broadcast_tensors(alpha, beta, gamma)
+    J = _Jd[l].to(dtype=alpha.dtype, device=alpha.device)
+    Xa = _z_rot_mat(alpha, l)
+    Xb = _z_rot_mat(beta, l)
+    Xc = _z_rot_mat(gamma, l)
+    return Xa @ J @ Xb @ J @ Xc
+
+
+def _z_rot_mat(angle, l):
+    shape, device, dtype = angle.shape, angle.device, angle.dtype
+    M = angle.new_zeros((*shape, 2 * l + 1, 2 * l + 1))
+    inds = torch.arange(0, 2 * l + 1, 1, device=device)
+    reversed_inds = torch.arange(2 * l, -1, -1, device=device)
+    frequencies = torch.arange(l, -l - 1, -1, dtype=dtype, device=device)
+    M[..., inds, reversed_inds] = torch.sin(frequencies * angle[..., None])
+    M[..., inds, inds] = torch.cos(frequencies * angle[..., None])
+    return M
+
+
+# ------------------------------------------------------------------------------
+# MOLE COMPONENTS (Added)
+# ------------------------------------------------------------------------------
+
+class MOLEGlobals:
+    """Stores routing information for the current forward pass."""
+
+    def __init__(self, coefficients=None, sizes=None):
+        self.coefficients = coefficients  # [Batch, Num_Experts]
+        self.sizes = sizes  # [Batch] (Edge counts per system)
+
+
+class MOLERouter(nn.Module):
+    """Computes routing coefficients from global features with Top-K support."""
+
+    def __init__(self, in_features, num_experts=8, top_k=1):
+        super().__init__()
+        self.top_k = top_k
+        self.net = nn.Sequential(
+            nn.Linear(in_features, 128),
+            nn.SiLU(),
+            nn.Linear(128, num_experts)
+        )
+
+    def forward(self, global_features):
+        # global_features: [Batch, Dim]
+        logits = self.net(global_features)
+
+        # [修改] Top-K 激活逻辑
+        if self.top_k is not None and 0 < self.top_k < logits.shape[-1]:
+            # 1. 找出 Top-K 的值和索引
+            topk_logits, topk_indices = torch.topk(logits, k=self.top_k, dim=-1)
+
+            # 2. 创建一个全负无穷的 mask (这样 softmax 后为 0)
+            # 或者创建一个全 0 的输出容器
+            zeros = torch.full_like(logits, float('-inf'))
+
+            # 3. 将 Top-K logit 填回去
+            zeros.scatter_(1, topk_indices, topk_logits)
+
+            # 4. 对结果做 Softmax (非 Top-K 的位置通过 -inf 变为 0)
+            coeffs = F.softmax(zeros, dim=-1)
+
+            # 5. 保持原有的一点点噪声扰动机制(如果需要)，或者直接返回
+            # 这里为了保持纯净 Top-K，通常直接返回归一化后的权重
+            return coeffs
+        else:
+            # 原始全激活逻辑 (Softmax)
+            return F.softmax(logits, dim=-1) + 0.005
+
+
+class MOLELinear(nn.Module):
+    """
+    Linear layer replacement that uses Mixture of Linear Experts.
+    """
+
+    def __init__(self, in_features, out_features, num_experts=8, bias=True):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.num_experts = num_experts
+
+        self.weight_experts = nn.Parameter(torch.empty(num_experts, out_features, in_features))
+        if bias:
+            self.bias_experts = nn.Parameter(torch.empty(num_experts, out_features))
+        else:
+            self.register_parameter('bias_experts', None)
+
+        self.reset_parameters()
+
+        # For inference merging
+        self.merged_weight = None
+        self.merged_bias = None
+        self.is_merged = False
+
+    def reset_parameters(self):
+        k = math.sqrt(1.0 / self.in_features)
+        nn.init.uniform_(self.weight_experts, -k, k)
+        if self.bias_experts is not None:
+            nn.init.uniform_(self.bias_experts, -k, k)
+
+    def merge_weights(self, coefficients):
+        with torch.no_grad():
+            w = torch.einsum("eoi, be -> boi", self.weight_experts, coefficients)
+            self.merged_weight = w.squeeze(0)
+            if self.bias_experts is not None:
+                b = torch.einsum("eo, be -> bo", self.bias_experts, coefficients)
+                self.merged_bias = b.squeeze(0)
+            self.is_merged = True
+
+    def forward(self, x, mole_globals: MOLEGlobals):
+        if self.is_merged:
+            return F.linear(x, self.merged_weight, self.merged_bias)
+
+        if mole_globals is None or mole_globals.coefficients is None:
+            # Safety fallback
+            w_avg = self.weight_experts.mean(0)
+            b_avg = self.bias_experts.mean(0) if self.bias_experts is not None else None
+            return F.linear(x, w_avg, b_avg)
+
+        # Compute mixed weights per system [Batch, Out, In]
+        mixed_weights = torch.einsum("be, eoi -> boi", mole_globals.coefficients, self.weight_experts)
+
+        mixed_bias = None
+        if self.bias_experts is not None:
+            mixed_bias = torch.einsum("be, eo -> bo", mole_globals.coefficients, self.bias_experts)
+
+        # Split input based on system sizes (dim 0 is always items/edges in this model)
+        # Note: If x is [Total_Nodes, In], mole_globals.sizes must reflect node counts per batch
+        x_split = torch.split(x, mole_globals.sizes.tolist(), dim=0)
+
+        out_parts = []
+        for i, x_sys in enumerate(x_split):
+            w = mixed_weights[i]
+            b = mixed_bias[i] if mixed_bias is not None else None
+            out_parts.append(F.linear(x_sys, w, b))
+
+        return torch.cat(out_parts, dim=0)
+# ------------------------------------------------------------------------------
 
 class SO2_Attention(torch.nn.Module):
     def __init__(self, node_irreps, latent_dim: int, use_so2_att_proj: bool = True):
@@ -130,179 +355,9 @@ class SO2_Attention(torch.nn.Module):
         return latent
 
 
-# --- 若文件中已有 build_z_rot_multi / batch_wigner_D / wigner_D / _z_rot_mat，保留不变 ---
-# 这里假设上面的函数在原文件中已有实现（和你贴出的片段一致）
-# 为了简洁，这里不重复这些辅助函数的实现（如果你的文件中没有，请把原实现拷回）
-
-def wigner_D(l, alpha, beta, gamma):
-    if not l < len(_Jd):
-        raise NotImplementedError(
-            f"wigner D maximum l implemented is {len(_Jd) - 1}, send us an email to ask for more"
-        )
-    alpha, beta, gamma = torch.broadcast_tensors(alpha, beta, gamma)
-    J = _Jd[l].to(dtype=alpha.dtype, device=alpha.device)
-    Xa = _z_rot_mat(alpha, l)
-    Xb = _z_rot_mat(beta, l)
-    Xc = _z_rot_mat(gamma, l)
-    return Xa @ J @ Xb @ J @ Xc
-
-def _z_rot_mat(angle, l):
-    shape, device, dtype = angle.shape, angle.device, angle.dtype
-    M = angle.new_zeros((*shape, 2 * l + 1, 2 * l + 1))
-    inds = torch.arange(0, 2 * l + 1, 1, device=device)
-    reversed_inds = torch.arange(2 * l, -1, -1, device=device)
-    frequencies = torch.arange(l, -l - 1, -1, dtype=dtype, device=device)
-    M[..., inds, reversed_inds] = torch.sin(frequencies * angle[..., None])
-    M[..., inds, inds] = torch.cos(frequencies * angle[..., None])
-    return M
-
-
-def build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes):
-    """
-    angle_stack: (3*N, )    # Input with alpha, beta, gamma stacked together
-    Returns: (Xa, Xb, Xc) # Each is of shape (N, D_total, D_total)
-    """
-    N_all = angle_stack.shape[0]
-    N = N_all // 3
-
-    D_total = sizes.sum().item()
-
-    # Step 1: Vectorized computation of sine and cosine values
-    angle_expand = angle_stack[None, :, None]  # (1, 3N, 1)
-    freq_expand = freq[:, None, :]  # (L, 1, Mmax)
-    sin_val = torch.sin(freq_expand * angle_expand)  # (L, 3N, Mmax)
-    cos_val = torch.cos(freq_expand * angle_expand)  # (L, 3N, Mmax)
-
-    # Step 2: Construct the block-diagonal matrix
-    M_total = angle_stack.new_zeros((N_all, D_total, D_total))
-    idx_l, idx_row = torch.where(mask)  # (K,), (K,)
-    idx_col_diag = idx_row
-    idx_col_anti = reversed_inds[idx_l, idx_row]
-    global_row = offsets[idx_l] + idx_row  # (K,)
-    global_col_diag = offsets[idx_l] + idx_col_diag
-    global_col_anti = offsets[idx_l] + idx_col_anti
-
-    # Assign values to the diagonal
-    M_total[:, global_row, global_col_diag] = cos_val[idx_l, :, idx_row].transpose(0, 1)
-    # Assign values to non-overlapping anti-diagonals
-    overlap_mask = (global_row == global_col_anti)
-    M_total[:, global_row[~overlap_mask], global_col_anti[~overlap_mask]] = sin_val[idx_l[~overlap_mask], :,
-                                                                            idx_row[~overlap_mask]].transpose(0, 1)
-
-    # Step 3: Split into three components corresponding to alpha, beta, gamma
-    Xa = M_total[:N]
-    Xb = M_total[N:2 * N]
-    Xc = M_total[2 * N:]
-
-    return Xa, Xb, Xc
-
-
-def batch_wigner_D(l_max, alpha, beta, gamma, _Jd):
-    """
-    Compute Wigner D matrices for all L (from 0 to l_max) in a single batch.
-    Returns a tensor of shape [N, D, D], where D = sum(2l+1 for l in 0..l_max).
-    """
-    device = alpha.device
-    N = alpha.shape[0]
-    idx_data = {k: (v.to(device) if isinstance(v, torch.Tensor) else v) for k, v in _idx_data.items()}
-
-    # Load static data
-    sizes = idx_data["sizes"][:l_max + 1]
-    offsets = idx_data["offsets"][:l_max + 1]
-    mask = idx_data["mask"][:l_max + 1]
-    freq = idx_data["freq"][:l_max + 1]
-    reversed_inds = idx_data["reversed_inds"][:l_max + 1]
-
-    # Precompute block structure information
-    dims = [2 * l + 1 for l in range(l_max + 1)]
-    D_total = sum(dims)
-
-    # Construct block-diagonal J matrix
-    J_full_small = torch.zeros(D_total, D_total, device=device)
-    for l in range(l_max + 1):
-        start = offsets[l]
-        J_full_small[start:start + 2 * l + 1, start:start + 2 * l + 1] = _Jd[l]
-
-    J_full = J_full_small.unsqueeze(0).expand(N, -1, -1)
-    angle_stack = torch.cat([alpha, beta, gamma], dim=0)
-    Xa, Xb, Xc = build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes)
-
-    return Xa @ J_full @ Xb @ J_full @ Xc
-
-
-def rotate_vector(x, irreps, wigner_D_all, back=False):
-    """
-    辅助函数：手动旋转向量。
-    back=False: Global -> Local (x @ R)
-    back=True:  Local -> Global (x @ R.T)
-    """
-    n, _ = x.shape
-    x_out = torch.zeros_like(x)
-    irreps = Irreps(irreps).simplify()
-
-    # 预计算 offset
-    l_max = max((l for (_, (l, _)), _ in zip(irreps, irreps.slices()) if l > 0), default=0)
-    dims = {l: 2 * l + 1 for l in range(l_max + 1)}
-    offsets = {}
-    offset = 0
-    for l in range(l_max + 1):
-        offsets[l] = offset
-        offset += dims[l]
-
-    groups = defaultdict(list)
-    for (mul, (l, p)), slice_info in zip(irreps, irreps.slices()):
-        groups[l].append((mul, slice_info))
-
-    # 复制 scalar
-    for (mul, (l, p)), slice_info in zip(irreps, irreps.slices()):
-        if l == 0:
-            x_out[:, slice_info] = x[:, slice_info]
-
-    # 旋转 vector
-    for l, group in groups.items():
-        if l == 0 or not group:
-            continue
-        muls, slices = zip(*group)
-        x_parts = [x[:, sl].reshape(n, mul, 2 * l + 1) for mul, sl in group]
-        x_combined = torch.cat(x_parts, dim=1)  # (N, total_mul, 2l+1)
-
-        start = offsets[l]
-        rot_mat = wigner_D_all[:, start:start + dims[l], start:start + dims[l]]
-
-        if not back:
-            # Global -> Local
-            transformed = torch.bmm(x_combined, rot_mat)
-        else:
-            # Local -> Global (multiply by transpose)
-            transformed = torch.bmm(x_combined, rot_mat.transpose(1, 2))
-
-        for part, slice_info in zip(transformed.split(muls, dim=1), slices):
-            x_out[:, slice_info] = part.reshape(n, -1)
-
-    return x_out
-
-
-class InterpolationBlock(nn.Module):
-    def __init__(self, in_features, out_features, bias=False):
-        super().__init__()
-        self.out_features = out_features
-        hidden_features1 = max(1, int(in_features * 2 / 3 + out_features * 1 / 3))
-        hidden_features2 = max(1, int(in_features * 1 / 3 + out_features * 2 / 3))
-        self.net = nn.Sequential(
-            nn.Linear(in_features, hidden_features1, bias=True),
-            nn.SiLU(),
-            nn.Linear(hidden_features1, hidden_features2, bias=True),
-            nn.SiLU(),
-            nn.Linear(hidden_features2, out_features, bias=bias)
-        )
-
-    def forward(self, x):
-        return self.net(x)
-
-
 class SO2_Linear(torch.nn.Module):
     """
-    SO(2) Convolutional layer.
+    SO(2) Convolutional layer with MoE and Rotate Control.
     """
 
     def __init__(
@@ -314,7 +369,9 @@ class SO2_Linear(torch.nn.Module):
             radial_channels: list = None,
             extra_m0_outsize: int = 0,
             use_interpolation: bool = False,
-            # === 新增参数 ===
+            # === MoE 参数 ===
+            num_experts: int = 8,
+            # === Rotation 控制参数 (Keep-in-Frame) ===
             rotate_in: bool = True,
             rotate_out: bool = True,
     ):
@@ -324,20 +381,31 @@ class SO2_Linear(torch.nn.Module):
         self.irreps_out = (Irreps(f"{extra_m0_outsize}x0e") + Irreps(irreps_out)).simplify()
         self.radial_emb = radial_emb
         self.latent_dim = latent_dim
-        self.m_linear = nn.ModuleList()
 
         # 保存 flag
         self.rotate_in = rotate_in
         self.rotate_out = rotate_out
+        self.num_experts = num_experts
+
+        self.m_linear = nn.ModuleList()
 
         num_in_m0 = self.irreps_in.num_irreps
         num_out_m0 = self.irreps_out.num_irreps
 
-        self.fc_m0 = Linear(num_in_m0, num_out_m0, bias=True)
+        # MODIFICATION: Use MOLELinear for scalar projection (bias=True as per original)
+        self.fc_m0 = MOLELinear(num_in_m0, num_out_m0, num_experts=num_experts, bias=True)
 
         for m in range(1, self.irreps_out.lmax + 1):
-            self.m_linear.append(SO2_m_Linear(m, self.irreps_in, self.irreps_out, use_interpolation=use_interpolation))
+            # 假设 SO2_m_Linear 已经支持 num_experts 参数
+            self.m_linear.append(SO2_m_Linear(
+                m,
+                self.irreps_in,
+                self.irreps_out,
+                use_interpolation=use_interpolation,
+                num_experts=num_experts
+            ))
 
+        # --- Mask 和 Index 构建逻辑 (保持不变) ---
         self.m_in_mask = torch.zeros(self.irreps_in.lmax + 1, self.irreps_in.dim, dtype=torch.bool)
         self.m_out_mask = torch.zeros(self.irreps_in.lmax + 1, self.irreps_out.dim, dtype=torch.bool)
         if self.irreps_in.dim <= self.irreps_out.dim:
@@ -377,19 +445,28 @@ class SO2_Linear(torch.nn.Module):
             self.offsets[l] = offset
             offset += self.dims[l]
 
-    def forward(self, x, R, latents=None, wigner_D_all=None):
+    def forward(self, x, R, mole_globals: MOLEGlobals, latents=None, wigner_D_all=None):
+        """
+        Args:
+            x: Input features
+            R: Edge vectors (for rotation)
+            mole_globals: MoE routing info
+            latents: Latent features for radial embedding
+            wigner_D_all: Precomputed Wigner D matrices (optional)
+        """
         n, _ = x.shape
         if self.radial_emb:
             weights = self.radial_emb(latents)
         x_ = torch.zeros_like(x)
 
-        # 旋转逻辑：需要旋转才计算 Wigner D (或者如果外部传进来了就用)
+        # === 1. 旋转矩阵准备 (Rotate Control) ===
         if wigner_D_all is None:
             # 只有当需要 rotate_in 或者 rotate_out 时才必须计算 D
             if (self.rotate_in or self.rotate_out) and self.l_max > 0:
                 angle = xyz_to_angles(R[:, [1, 2, 0]])
                 wigner_D_all = batch_wigner_D(self.l_max, angle[0], angle[1], torch.zeros_like(angle[0]), _Jd)
 
+        # === 2. Rotate In (Global -> Local) ===
         groups = defaultdict(list)
         for (mul, (l, p)), slice_info in zip(self.irreps_in, self.irreps_in.slices()):
             groups[l].append((mul, slice_info))
@@ -401,12 +478,12 @@ class SO2_Linear(torch.nn.Module):
                 continue
             muls, slices = zip(*group)
 
-            # === 如果 rotate_in 为 False，直接复制不旋转 ===
+            # --- Flag Check: 如果 rotate_in 为 False，直接复制不旋转 ---
             if not self.rotate_in:
                 for mul, sl in group:
                     x_[:, sl] = x[:, sl]
                 continue
-            # ============================================
+            # ----------------------------------------------------
 
             x_parts = [x[:, sl].reshape(n, mul, 2 * l + 1) for mul, sl in group]
             x_combined = torch.cat(x_parts, dim=1)
@@ -416,34 +493,44 @@ class SO2_Linear(torch.nn.Module):
             for part, slice_info, mul in zip(transformed.split(muls, dim=1), slices, muls):
                 x_[:, slice_info] = part.reshape(n, -1)
 
+        # === 3. Convolution (Linear / MoE) ===
         out = torch.zeros(n, self.irreps_out.dim, dtype=x.dtype, device=x.device)
         for m in range(self.irreps_out.lmax + 1):
             radial_weight = weights[:, self.m_in_index[m]:self.m_in_index[m + 1]].unsqueeze(
                 1) if self.radial_emb else 1.
+
             if m == 0:
+                # MoE Logic for m=0
+                inp = x_[:, self.m_in_mask[m]]
                 if self.front and self.radial_emb:
-                    out[:, self.m_out_mask[m]] += self.fc_m0(x_[:, self.m_in_mask[m]] * radial_weight.squeeze(1))
+                    # mole_globals passed here
+                    out[:, self.m_out_mask[m]] += self.fc_m0(inp * radial_weight.squeeze(1), mole_globals)
                 elif self.radial_emb:
-                    out[:, self.m_out_mask[m]] += self.fc_m0(x_[:, self.m_in_mask[m]]) * radial_weight.squeeze(1)
+                    out[:, self.m_out_mask[m]] += self.fc_m0(inp, mole_globals) * radial_weight.squeeze(1)
                 else:
-                    out[:, self.m_out_mask[m]] += self.fc_m0(x_[:, self.m_in_mask[m]])
+                    out[:, self.m_out_mask[m]] += self.fc_m0(inp, mole_globals)
             else:
+                # MoE Logic for m>0
                 x_m_in = x_[:, self.m_in_mask[m]].reshape(n, -1, 2).transpose(1, 2).contiguous()
+
                 if self.front and self.radial_emb:
                     x_m_in.mul_(radial_weight)
-                    linear_output = self.m_linear[m - 1](x_m_in)
+                    # mole_globals passed here
+                    linear_output = self.m_linear[m - 1](x_m_in, mole_globals)
                 elif self.radial_emb:
-                    linear_output = self.m_linear[m - 1](x_m_in)
+                    linear_output = self.m_linear[m - 1](x_m_in, mole_globals)
                     linear_output.mul_(radial_weight)
                 else:
-                    linear_output = self.m_linear[m - 1](x_m_in)
+                    linear_output = self.m_linear[m - 1](x_m_in, mole_globals)
+
                 final_addition = linear_output.transpose(1, 2).contiguous().reshape(n, -1)
                 out[:, self.m_out_mask[m]] += final_addition
 
-        # === 如果 rotate_out 为 False，直接返回 out，不旋转回 global ===
+        # === 4. Rotate Out (Local -> Global) ===
+        # --- Flag Check: 如果 rotate_out 为 False，直接返回 ---
         if not self.rotate_out:
             return out.contiguous(), wigner_D_all
-        # =========================================================
+        # --------------------------------------------------
 
         for (mul, (l, p)), slice_in in zip(self.irreps_out, self.irreps_out.slices()):
             if l > 0:
@@ -452,50 +539,48 @@ class SO2_Linear(torch.nn.Module):
                 x_slice = out[:, slice_in].reshape(n, mul, -1)
                 rotated = torch.einsum('nij,nmj->nmi', rot_mat, x_slice)
                 out[:, slice_in] = rotated.reshape(n, -1)
+
         return out.contiguous(), wigner_D_all
 
 
 class SO2_m_Linear(torch.nn.Module):
+    """
+    SO(2) Convolution for a specific order m > 0.
+    """
+
     def __init__(
             self,
             m,
             irreps_in,
             irreps_out,
             use_interpolation: bool = False,
+            num_experts: int = 8,  # Added
     ):
         super(SO2_m_Linear, self).__init__()
         self.m = m
         self.num_in_channel = sum(mul for mul, (l, p) in irreps_in if l >= m)
         self.num_out_channel = sum(mul for mul, (l, p) in irreps_out if l >= m)
 
+        # MODIFICATION: MOLE Logic with bias=False (original was bias=False)
         if use_interpolation:
             self.fc = InterpolationBlock(self.num_in_channel, 2 * self.num_out_channel, bias=False)
+            self.is_mole = False
         else:
-            self.fc = Linear(self.num_in_channel, 2 * self.num_out_channel, bias=False)
-            self.fc.weight.data.mul_(1 / math.sqrt(2))
+            self.fc = MOLELinear(self.num_in_channel, 2 * self.num_out_channel, num_experts=num_experts, bias=False)
+            with torch.no_grad():
+                self.fc.weight_experts.data.mul_(1 / math.sqrt(2))
+            self.is_mole = True
 
-    def forward(self, x_m):
+    def forward(self, x_m, mole_globals: MOLEGlobals):  # Added mole_globals
         # x_m ~ [N, 2, n_channels]
-        x_m = self.fc(x_m)
+        if self.is_mole:
+            x_m = self.fc(x_m, mole_globals)
+        else:
+            x_m = self.fc(x_m)
+
         x_r = x_m.narrow(2, 0, self.num_out_channel)
         x_i = x_m.narrow(2, self.num_out_channel, self.num_out_channel)
         x_m_r = x_r.narrow(1, 0, 1) - x_i.narrow(1, 1, 1)
         x_m_i = x_r.narrow(1, 1, 1) + x_i.narrow(1, 0, 1)
         return torch.cat((x_m_r, x_m_i), dim=1)
 
-
-class RadialFunction(nn.Module):
-    def __init__(self, channels_list):
-        super().__init__()
-        modules = []
-        input_channels = channels_list[0]
-        for i in range(1, len(channels_list)):
-            modules.append(nn.Linear(input_channels, channels_list[i], bias=True))
-            input_channels = channels_list[i]
-            if i < len(channels_list) - 1:
-                modules.append(nn.LayerNorm(channels_list[i]))
-                modules.append(nn.SiLU())
-        self.net = nn.Sequential(*modules)
-
-    def forward(self, inputs):
-        return self.net(inputs)

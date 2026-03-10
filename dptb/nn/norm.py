@@ -6,22 +6,29 @@ from e3nn.util.jit import compile_mode
 from torch_scatter import scatter_mean
 from typing import Union
 
+import torch
+from torch import nn
+from e3nn import o3
+from typing import Union
+
+
 class SeperableLayerNorm(nn.Module):
     '''
         1. Normalize over L = 0.
         2. Normalize across all m components from degrees L > 0.
         3. Do not normalize separately for different L (L > 0).
     '''
+
     def __init__(
-            self, 
-            irreps, 
-            eps=1e-5, 
-            affine=True, 
-            normalization='component', 
+            self,
+            irreps,
+            eps=1e-5,
+            affine=True,
+            normalization='component',
             std_balance_degrees=True,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu")
-            ):
+    ):
         super().__init__()
         if isinstance(irreps, o3.Irreps):
             self.irreps = irreps.simplify()
@@ -42,7 +49,7 @@ class SeperableLayerNorm(nn.Module):
 
         self.num_features = self.irreps.num_irreps
 
-        count_scales= 0
+        count_scales = 0
         count_shift = 0
         self.shift_index = []
         self.scale_index = []
@@ -60,16 +67,17 @@ class SeperableLayerNorm(nn.Module):
                     self.scalar_weight_index += [count_scales]
                 self.scale_index += [count_scales] * ir.dim
                 count_scales += 1
-        
+
         self.shift_index = torch.as_tensor(self.shift_index, dtype=torch.int64, device=self.device)
         self.scale_index = torch.as_tensor(self.scale_index, dtype=torch.int64, device=self.device)
         self.scalar_weight_index = torch.as_tensor(self.scalar_weight_index, dtype=torch.int64, device=self.device)
 
         if self.affine:
-            self.affine_weight = nn.Parameter(torch.ones(1,self.irreps.num_irreps))
-            self.affine_bias = nn.Parameter(torch.zeros(1,self.num_scalar))
+            self.affine_weight = nn.Parameter(torch.ones(1, self.irreps.num_irreps))
+            self.affine_bias = nn.Parameter(torch.zeros(1, self.num_scalar))
         else:
-            self.register_parameter('affine_weight', None)
+            self.register_parameter("affine_weight", None)
+            self.register_parameter("affine_bias", None)
 
         assert normalization in ['norm', 'component']
         self.normalization = normalization
@@ -79,9 +87,9 @@ class SeperableLayerNorm(nn.Module):
             count = 0
             for mul, ir in self.irreps:
                 if ir.l == 0:
-                    balance_degree_weight[count:count+mul] = self.lmax # to make the devided value to 1.0
+                    balance_degree_weight[count:count + mul] = self.lmax  # to make the devided value to 1.0
                 else:
-                    balance_degree_weight[count:count+mul] = (1.0 / ir.dim / mul)
+                    balance_degree_weight[count:count + mul] = (1.0 / ir.dim / mul)
                 count += mul
             balance_degree_weight = balance_degree_weight / sum([1 for mul, ir in self.irreps if ir.l > 0])
             self.register_buffer('balance_degree_weight', balance_degree_weight)
@@ -91,56 +99,108 @@ class SeperableLayerNorm(nn.Module):
     def __repr__(self):
         return f"{self.__class__.__name__}(irreps={self.irreps}, eps={self.eps}, std_balance_degrees={self.std_balance_degrees})"
 
-
-    @torch.amp.autocast(device_type="cuda",enabled=False)
+    @torch.amp.autocast(device_type="cuda", enabled=False)
     def forward(self, x):
         '''
-            Assume input is of shape [N, sphere_basis, C]
+            Assume input is of shape [N, sphere_basis, C] or [N, dim]
         '''
         batch, dim = x.shape
         x = x.reshape(batch, dim)  # [batch, stacked features]
 
-        # 1. shift the 0e value with their mean
-        # 2. compute the weight of all the features
-        # 3. do multiplication
+        # 1. 0e 特征去均值
+        # 注意：这里我们使用 mask 提取，计算 mean，然后再减去
+        # 为了避免 inplace 修改原始输入，我们先 clone 一个 x，或者显式构建新变量
+        # 这里的 x = x + 0. 操作虽然创建了副本，但后续的切片赋值 x[:] = ... 依然是 inplace
+        # 但在这个阶段（计算 norm 之前），inplace 修改 x 是允许的，因为它是新的变量
 
-        # 1
-        feature_mean = x[:, self.shift_index.ge(0)].mean(dim=1, keepdim=True)
-        x = x + 0. # to avoid the inplace operation of x
-        x[:, self.shift_index.ge(0)] = x[:, self.shift_index.ge(0)] - feature_mean
+        x = x + 0.  # Create a copy
+
+        # 提取标量部分
+        scalar_mask = self.shift_index.ge(0)
+        if scalar_mask.any():
+            # 计算均值
+            feature_mean = x[:, scalar_mask].mean(dim=1, keepdim=True)
+            # 减去均值 (Inplace on x is okay here because x is not used for gradient before this)
+            x[:, scalar_mask] = x[:, scalar_mask] - feature_mean
+
+        # 2. 计算 Norm (基于去均值后的 x)
         # compute norm of x0
-        scalar_norm = 1.0 / (x[:, self.shift_index.ge(0)].norm(dim=1, keepdim=True) + self.eps)  # [N, 1]
+        if scalar_mask.any():
+            scalar_norm = 1.0 / (x[:, scalar_mask].norm(dim=1, keepdim=True) + self.eps)  # [N, 1]
+        else:
+            scalar_norm = None
 
-        # 2. compute the norm across all irreps except for 0e
-        if self.lmax > 0:
+        # 3. compute the norm across all irreps except for 0e
+        vector_mask = self.shift_index.lt(0)
+        feature_norm = None
+
+        if self.lmax > 0 and vector_mask.any():
             if self.normalization == 'norm':
-                feature_norm = x[:,self.shift_index.lt(0)].pow(2).sum(1, keepdim=True)              # [N, 1]
+                feature_norm = x[:, vector_mask].pow(2).sum(1, keepdim=True)  # [N, 1]
             elif self.normalization == 'component':
                 if self.std_balance_degrees:
-                    feature_norm = x.pow(2)                              
-                    feature_norm = feature_norm * self.balance_degree_weight[self.scale_index] # [N, dim]
-                    feature_norm = feature_norm[:, self.shift_index.lt(0)].sum(1, keepdim=True) # [N, 1]
+                    # 全局加权
+                    feature_sq = x.pow(2) * self.balance_degree_weight[self.scale_index]
+                    feature_norm = feature_sq[:, vector_mask].sum(1, keepdim=True)  # [N, 1]
                 else:
-                    feature_norm = x[:,self.shift_index.lt(0)].pow(2).sum(dim=1, keepdim=True)     # [N, 1]
-        else:
-            if self.normalization == 'norm':
-                feature_norm = x[:,self.shift_index.lt(0)].pow(2).sum(1, keepdim=True)
-            else:
-                feature_norm = x[:,self.shift_index.lt(0)].pow(2).mean(1, keepdim=True)
+                    feature_norm = x[:, vector_mask].pow(2).sum(dim=1, keepdim=True)  # [N, 1]
 
-        feature_norm = (feature_norm + self.eps).pow(-0.5)
+            feature_norm = (feature_norm + self.eps).pow(-0.5)
+
+        # 4. 应用 Scaling
         if self.affine:
-            weight = self.affine_weight * feature_norm # [1, n_ir] * [N, 1] = [N, n_ir]
-            weight[:,self.scalar_weight_index] = self.affine_weight[:, self.scalar_weight_index] * scalar_norm  # [N, n_ir0], only for 0e
-            x = x * weight[:, self.scale_index]
-        else:
-            x[:,self.shift_index.lt(0)] = x[:,self.shift_index.lt(0)] * weight[:, self.scale_index]
-            x[:,self.shift_index.ge(0)] = x[:,self.shift_index.ge(0)] * scalar_norm
+            # 这里的 x 已经被修改过（减去均值），可以直接乘
+            # 构建完整的 weight 向量
+            # weight shape: [N, num_features]
 
-        x[:, self.shift_index.ge(0)] = x[:, self.shift_index.ge(0)] + self.affine_bias
+            # 由于 vector 和 scalar 混合，我们需要正确的索引
+            # feature_norm [N, 1], scalar_norm [N, 1]
+
+            # 使用 self.scale_index 映射 [0, 0, 1, 1, 1, ...]
+            # scalar 指向的 index 对应 scalar_norm，vector 对应 feature_norm
+
+            # 组合 norms 到一个 tensor [N, num_irreps_groups]
+            # 这是一个稍微复杂点的地方，原代码通过 weight[:, self.scale_index] 巧妙解决了
+
+            # 还原原代码逻辑，这是安全的
+            # 先给 feature_norm 广播
+            weight_base = feature_norm if feature_norm is not None else torch.ones_like(scalar_norm)
+
+            # 乘以可学习参数
+            weight = self.affine_weight * weight_base  # [N, num_irreps]
+
+            # 修正 Scalar 部分的 norm (替换为 scalar_norm)
+            if scalar_norm is not None:
+                weight[:, self.scalar_weight_index] = self.affine_weight[:, self.scalar_weight_index] * scalar_norm
+
+            # 广播到所有维度 [N, dim]
+            x = x * weight[:, self.scale_index]
+
+            # 加 bias
+            if scalar_mask.any():
+                x[:, scalar_mask] = x[:, scalar_mask] + self.affine_bias
+
+        else:
+            # === [Fix for affine=False] ===
+            # 这里不能做 x[:] = ... 因为 x 已经被用来计算 norm 了
+
+            # 构建一个全 1 的缩放矩阵
+            scale_map = torch.ones_like(x)
+
+            # 填入 scalar norm
+            if scalar_norm is not None:
+                # expand 到 scalar 的列数
+                scale_map[:, scalar_mask] = scalar_norm.expand(-1, scalar_mask.sum())
+
+            # 填入 vector norm
+            if feature_norm is not None:
+                # expand 到 vector 的列数
+                scale_map[:, vector_mask] = feature_norm.expand(-1, vector_mask.sum())
+
+            # 最后做一次非原地的乘法
+            x = x * scale_map
 
         return x
-
 @compile_mode("unsupported")
 class TypeNorm(nn.Module):
     """Batch normalization for orthonormal representations

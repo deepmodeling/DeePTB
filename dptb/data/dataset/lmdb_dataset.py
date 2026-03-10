@@ -22,25 +22,26 @@ import lmdb
 from dptb.data.interfaces.ham_to_feature import block_to_feature
 import pickle
 
+
 class LMDBDataset(AtomicDataset):
     def __init__(
-        self,
-        root: str,
-        info_files: dict,
-        url: Optional[str] = None,
-        include_frames: Optional[List[int]] = None,
-        type_mapper: TypeMapper = None,
-        orthogonal: bool = False,
-        get_Hamiltonian: bool = False,
-        get_overlap: bool = False,
-        get_DM: bool = False,
-        get_eigenvalues: bool = False,
+            self,
+            root: str,
+            info_files: dict,
+            url: Optional[str] = None,
+            include_frames: Optional[List[int]] = None,
+            type_mapper: TypeMapper = None,
+            orthogonal: bool = False,
+            get_Hamiltonian: bool = False,
+            get_overlap: bool = False,
+            get_DM: bool = False,
+            get_eigenvalues: bool = False,
     ):
         # TO DO, this may be simplified
         # See if a subclass defines some inputs
         self.url = getattr(type(self), "URL", url)
         self.include_frames = include_frames
-        self.info_files = info_files # there should be one info file for one LMDB Dataset
+        self.info_files = info_files  # there should be one info file for one LMDB Dataset
         # print(self.info_files)
 
         self.data = None
@@ -55,7 +56,7 @@ class LMDBDataset(AtomicDataset):
         # Initialize the InMemoryDataset, which runs download and process
         # See https://pytorch-geometric.readthedocs.io/en/latest/notes/create_dataset.html#creating-in-memory-datasets
         # Then pre-process the data if disk files are not found
-        super().__init__(root=root, type_mapper=type_mapper) # the type_mapper will be called in getitem in PyG data class
+        super().__init__(root=root, type_mapper=type_mapper)  # the type_mapper will be called in getitem in PyG data class
         self.get_Hamiltonian = get_Hamiltonian
         self.get_overlap = get_overlap
         self.get_DM = get_DM
@@ -115,7 +116,7 @@ class LMDBDataset(AtomicDataset):
 
         # Return all existing paths
         return [path for path in candidate_paths if os.path.exists(path)]
-    
+
     @property
     def raw_file_names(self):
         # TODO: this is not implemented.
@@ -177,15 +178,39 @@ class LMDBDataset(AtomicDataset):
 
                 if not (self.get_Hamiltonian or self.get_DM):
                     blocks = False
+
+                if self.info_files[self.file_map[idx]]['train_dip'] == True:
+                    self.info_files[self.file_map[idx]].update({'dip': data_dict['dipole_moment']})
+
+                if self.info_files[self.file_map[idx]]['train_w_charge'] == True:
+                    self.info_files[self.file_map[idx]].update({'charge': np.array(data_dict['charge'])})
+
+                if self.info_files[self.file_map[idx]]['train_w_eps'] == True:
+                    self.info_files[self.file_map[idx]].update({'dielectric_constant': np.array(data_dict['dielectric_constant'])})
+
+                if self.info_files[self.file_map[idx]]['train_polar'] == True:
+                    self.info_files[self.file_map[idx]].update({'polar': data_dict['polarizability']})
+
+                if self.info_files[self.file_map[idx]]['wave_align'] == True:
+                    orbital_energies = data_dict.get('orbital_energies', 0)
+                    orbital_coefficients = data_dict.get('orbital_coefficients', 0)
+                    self.info_files[self.file_map[idx]].update(
+                        {'orbital_energies': orbital_energies, 'orbital_coefficients': orbital_coefficients})
+
+                cache_info = {}
+                for key in ['train_polar', 'train_dip', 'wave_align', 'train_w_charge', 'train_w_eps']:
+                    cache_info.update({key: self.info_files[self.file_map[idx]][key]})
+                    del self.info_files[self.file_map[idx]][key]
             db_env.close()
 
         atomicdata = AtomicData.from_points(
-            pos=pos.reshape(-1,3),
-            cell=cell.reshape(3,3),
+            pos=pos.reshape(-1, 3),
+            cell=cell.reshape(3, 3),
             atomic_numbers=atomic_numbers,
             pbc=pbc,
             **self.info_files[self.file_map[idx]]
         )
+        self.info_files[self.file_map[idx]].update(cache_info)
 
         # transform blocks to atomicdata features
         if self.get_Hamiltonian or self.get_DM or self.get_overlap:
@@ -193,7 +218,7 @@ class LMDBDataset(AtomicDataset):
 
         return atomicdata
 
-    def E3statistics(self, model: torch.nn.Module=None):
+    def E3statistics(self, model: torch.nn.Module = None):
 
         if not self.get_Hamiltonian and not self.get_DM:
             return None
@@ -201,14 +226,19 @@ class LMDBDataset(AtomicDataset):
         if model is not None:
             if not isinstance(model.node_prediction_h, torch.nn.Module):
                 return None
-        
-        assert self.transform is not None
-        idp = self.transform
 
-        e3h = E3Hamiltonian(basis=idp.basis, decompose=True)
+        assert self.transform is not None
+        idp = model.embedding.idp
+        has_soc = model.embedding.idp.has_soc
+
+        e3h = E3Hamiltonian(basis=idp.basis, decompose=True, soc=has_soc)
         idp.get_irreps()
-        sorted_irreps = idp.orbpair_irreps.sort()[0].simplify()
-        n_scalar = sorted_irreps[0].mul if sorted_irreps[0].ir.l == 0 else 0
+
+        # [FIX] Correctly count n_scalar for both SOC (0e+0o) and non-SOC (0e) cases.
+        # Original code only counted the first type of scalar in sorted irreps.
+        # sorted_irreps = idp.orbpair_irreps.sort()[0].simplify()
+        # n_scalar = sorted_irreps[0].mul if sorted_irreps[0].ir.l == 0 else 0
+        n_scalar = sum(mul for mul, (l, p) in idp.orbpair_irreps if l == 0)
 
         # init a count dict of atom species
         count_at = {}
@@ -256,28 +286,41 @@ class LMDBDataset(AtomicDataset):
                     n_at = at_mask.shape[0]
 
                     if n_at > 0:
-                        at_onsite = atomicdata[AtomicDataDict.NODE_FEATURES_KEY][atomicdata[AtomicDataDict.ATOM_TYPE_KEY].flatten().eq(tp)]
+                        at_onsite = atomicdata[AtomicDataDict.NODE_FEATURES_KEY][
+                            atomicdata[AtomicDataDict.ATOM_TYPE_KEY].flatten().eq(tp)]
                         for ir, s in enumerate(idp.orbpair_irreps.slices()):
                             sub_tensor = at_onsite[:, s]
                             if sub_tensor.shape[-1] == 1:
                                 count_scalar += 1
                             norms = torch.norm(sub_tensor, p=2, dim=1)
                             # we do a running avg and var here
-                            node_norm_ave[tp][ir] = (node_norm_ave[tp][ir] * count_at[tp] + norms.sum(dim=0)) / (count_at[tp] + n_at)
-                            node_square_ave[tp][ir] = (node_square_ave[tp][ir] * count_at[tp] + (norms**2).sum(dim=0)) / (count_at[tp] + n_at)
+                            node_norm_ave[tp][ir] = (node_norm_ave[tp][ir] * count_at[tp] + norms.sum(dim=0)) / (
+                                        count_at[tp] + n_at)
+                            node_square_ave[tp][ir] = (node_square_ave[tp][ir] * count_at[tp] + (norms ** 2).sum(
+                                dim=0)) / (count_at[tp] + n_at)
                             if count_at[tp] + n_at > 1:
-                                node_norm_std[tp][ir] = torch.nan_to_num(torch.sqrt((count_at[tp] + n_at) / (count_at[tp] + n_at - 1) * (node_square_ave[tp][ir] - node_norm_ave[tp][ir]**2)), nan=0.0)
+                                node_norm_std[tp][ir] = torch.nan_to_num(torch.sqrt(
+                                    (count_at[tp] + n_at) / (count_at[tp] + n_at - 1) * (
+                                                node_square_ave[tp][ir] - node_norm_ave[tp][ir] ** 2)), nan=0.0)
                             else:
                                 node_norm_std[tp][ir] = 1.0
 
                             if sub_tensor.shape[-1] == 1:
                                 # is scalar
-                                node_scalar_ave[tp][count_scalar-1] = (node_scalar_ave[tp][count_scalar-1] * count_at[tp] + sub_tensor.sum()) / (count_at[tp] + n_at)
-                                node_scalar_square_ave[tp][count_scalar-1] = (node_scalar_square_ave[tp][count_scalar-1] * count_at[tp] + (sub_tensor**2).sum()) / (count_at[tp] + n_at)
+                                node_scalar_ave[tp][count_scalar - 1] = (node_scalar_ave[tp][count_scalar - 1] *
+                                                                         count_at[tp] + sub_tensor.sum()) / (
+                                                                                    count_at[tp] + n_at)
+                                node_scalar_square_ave[tp][count_scalar - 1] = (node_scalar_square_ave[tp][
+                                                                                    count_scalar - 1] * count_at[tp] + (
+                                                                                            sub_tensor ** 2).sum()) / (
+                                                                                           count_at[tp] + n_at)
                                 if count_at[tp] + n_at > 1:
-                                    node_scalar_std[tp][count_scalar-1] = torch.nan_to_num(torch.sqrt((count_at[tp] + n_at) / (count_at[tp] + n_at - 1) * (node_scalar_square_ave[tp][count_scalar-1] - node_scalar_ave[tp][count_scalar-1]**2)), nan=0.0)
+                                    node_scalar_std[tp][count_scalar - 1] = torch.nan_to_num(torch.sqrt(
+                                        (count_at[tp] + n_at) / (count_at[tp] + n_at - 1) * (
+                                                    node_scalar_square_ave[tp][count_scalar - 1] - node_scalar_ave[tp][
+                                                count_scalar - 1] ** 2)), nan=0.0)
                                 else:
-                                    node_scalar_std[tp][count_scalar-1] = 1.0
+                                    node_scalar_std[tp][count_scalar - 1] = 1.0
                         subcount_at[tp] = n_at
                         count_at[tp] += n_at
                 assert sum(subcount_at.values()) == atomicdata[AtomicDataDict.POSITIONS_KEY].shape[0]
@@ -290,7 +333,8 @@ class LMDBDataset(AtomicDataset):
                     n_bt = bt_mask.shape[0]
 
                     if n_bt > 0:
-                        bt_hopping = atomicdata[AtomicDataDict.EDGE_FEATURES_KEY][atomicdata[AtomicDataDict.EDGE_TYPE_KEY].flatten().eq(tp)]
+                        bt_hopping = atomicdata[AtomicDataDict.EDGE_FEATURES_KEY][
+                            atomicdata[AtomicDataDict.EDGE_TYPE_KEY].flatten().eq(tp)]
                         for ir, s in enumerate(idp.orbpair_irreps.slices()):
                             sub_tensor = bt_hopping[:, s]
                             if sub_tensor.shape[-1] == 1:
@@ -298,20 +342,32 @@ class LMDBDataset(AtomicDataset):
 
                             norms = torch.norm(sub_tensor, p=2, dim=1)
                             # we do a running avg and var here
-                            edge_norm_ave[tp][ir] = (edge_norm_ave[tp][ir] * count_bt[tp] + norms.sum(dim=0)) / (count_bt[tp] + n_bt)
-                            edge_square_ave[tp][ir] = (edge_square_ave[tp][ir] * count_bt[tp] + (norms**2).sum(dim=0)) / (count_bt[tp] + n_bt)
+                            edge_norm_ave[tp][ir] = (edge_norm_ave[tp][ir] * count_bt[tp] + norms.sum(dim=0)) / (
+                                        count_bt[tp] + n_bt)
+                            edge_square_ave[tp][ir] = (edge_square_ave[tp][ir] * count_bt[tp] + (norms ** 2).sum(
+                                dim=0)) / (count_bt[tp] + n_bt)
                             if count_bt[tp] + n_bt > 1:
-                                edge_norm_std[tp][ir] = torch.nan_to_num(torch.sqrt((count_bt[tp] + n_bt) / (count_bt[tp] + n_bt - 1) * (edge_square_ave[tp][ir] - edge_norm_ave[tp][ir]**2)), nan=0.0)
+                                edge_norm_std[tp][ir] = torch.nan_to_num(torch.sqrt(
+                                    (count_bt[tp] + n_bt) / (count_bt[tp] + n_bt - 1) * (
+                                                edge_square_ave[tp][ir] - edge_norm_ave[tp][ir] ** 2)), nan=0.0)
                             else:
                                 edge_norm_std[tp][ir] = 1.0
                             if sub_tensor.shape[-1] == 1:
                                 # is scalar
-                                edge_scalar_ave[tp][count_scalar-1] = (edge_scalar_ave[tp][count_scalar-1] * count_bt[tp] + sub_tensor.sum()) / (count_bt[tp] + n_bt)
-                                edge_scalar_square_ave[tp][count_scalar-1] = (edge_scalar_square_ave[tp][count_scalar-1] * count_bt[tp] + (sub_tensor**2).sum()) / (count_bt[tp] + n_bt)
+                                edge_scalar_ave[tp][count_scalar - 1] = (edge_scalar_ave[tp][count_scalar - 1] *
+                                                                         count_bt[tp] + sub_tensor.sum()) / (
+                                                                                    count_bt[tp] + n_bt)
+                                edge_scalar_square_ave[tp][count_scalar - 1] = (edge_scalar_square_ave[tp][
+                                                                                    count_scalar - 1] * count_bt[tp] + (
+                                                                                            sub_tensor ** 2).sum()) / (
+                                                                                           count_bt[tp] + n_bt)
                                 if count_bt[tp] + n_bt > 1:
-                                    edge_scalar_std[tp][count_scalar-1] = torch.nan_to_num(torch.sqrt((count_bt[tp] + n_bt) / (count_bt[tp] + n_bt - 1) * (edge_scalar_square_ave[tp][count_scalar-1] - edge_scalar_ave[tp][count_scalar-1]**2)), nan=0.0)
+                                    edge_scalar_std[tp][count_scalar - 1] = torch.nan_to_num(torch.sqrt(
+                                        (count_bt[tp] + n_bt) / (count_bt[tp] + n_bt - 1) * (
+                                                    edge_scalar_square_ave[tp][count_scalar - 1] - edge_scalar_ave[tp][
+                                                count_scalar - 1] ** 2)), nan=0.0)
                                 else:
-                                    edge_scalar_std[tp][count_scalar-1] = 1.0
+                                    edge_scalar_std[tp][count_scalar - 1] = 1.0
 
                         subcount_bt[tp] = n_bt
                         count_bt[tp] += n_bt
@@ -333,14 +389,14 @@ class LMDBDataset(AtomicDataset):
 
         if model is not None:
             # initilize the model param with statistics
-            scalar_mask = torch.BoolTensor([ir.dim==1 for ir in model.idp.orbpair_irreps])
+            scalar_mask = torch.BoolTensor([ir.dim == 1 for ir in model.idp.orbpair_irreps])
             node_shifts = stats["node"]["scalar_ave"]
             node_scales = stats["node"]["norm_ave"]
-            node_scales[:,scalar_mask] = stats["node"]["scalar_std"]
+            node_scales[:, scalar_mask] = stats["node"]["scalar_std"]
 
             edge_shifts = stats["edge"]["scalar_ave"]
             edge_scales = stats["edge"]["norm_ave"]
-            edge_scales[:,scalar_mask] = stats["edge"]["scalar_std"]
+            edge_scales[:, scalar_mask] = stats["edge"]["scalar_std"]
             model.node_prediction_h.set_scale_shift(scales=node_scales, shifts=node_shifts)
             model.edge_prediction_h.set_scale_shift(scales=edge_scales, shifts=edge_shifts)
 

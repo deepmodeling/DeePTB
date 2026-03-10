@@ -17,7 +17,7 @@ from dptb.nn.embedding.from_deephe3.deephe3 import tp_path_exists
 from dptb.data import _keys
 from dptb.nn.cutoff import cosine_cutoff, polynomial_cutoff
 from dptb.nn.rescale import E3ElementLinear
-from dptb.nn.tensor_product import SO2_Linear
+from dptb.nn.old_tensor_product import SO2_Linear
 import math
 from dptb.data.transforms import OrbitalMapper
 import torch_geometric
