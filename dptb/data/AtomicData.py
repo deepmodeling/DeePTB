@@ -132,14 +132,14 @@ def register_fields(
     graph_fields: Sequence[str] = [],
     long_fields: Sequence[str] = [],
 ) -> None:
-    
+
     r"""Register fields as being per-atom, per-edge, or per-frame.
 
     Args:
         node_permute_fields: fields that are equivariant to node permutations.
         edge_permute_fields: fields that are equivariant to edge permutations.
     """
-    
+
     node_fields: set = set(node_fields)
     edge_fields: set = set(edge_fields)
     env_fields: set = set(env_fields)
@@ -479,7 +479,7 @@ class AtomicData(Data):
             if cell is not None:
                 kwargs[AtomicDataDict.ENV_CELL_SHIFT_KEY] = env_cell_shift
             kwargs[AtomicDataDict.ENV_INDEX_KEY] = env_index
-        
+
         # add onsitenv index
         if oer_max is not None:
             onsitenv_index, onsitenv_cell_shift, _ = neighbor_list_and_relative_vec(
@@ -495,7 +495,7 @@ class AtomicData(Data):
             if cell is not None:
                 kwargs[AtomicDataDict.ONSITENV_CELL_SHIFT_KEY] = onsitenv_cell_shift
             kwargs[AtomicDataDict.ONSITENV_INDEX_KEY] = onsitenv_index
-            
+
         return cls(edge_index=edge_index, pos=torch.as_tensor(pos), **kwargs)
 
     @classmethod
@@ -767,7 +767,7 @@ class AtomicData(Data):
     def get_edge_vectors(data: Data) -> torch.Tensor:
         data = AtomicDataDict.with_edge_vectors(AtomicData.to_AtomicDataDict(data))
         return data[AtomicDataDict.EDGE_VECTORS_KEY]
-    
+
     def get_env_vectors(data: Data) -> torch.Tensor:
         data = AtomicDataDict.with_env_vectors(AtomicData.to_AtomicDataDict(data))
         return data[AtomicDataDict.ENV_VECTORS_KEY]

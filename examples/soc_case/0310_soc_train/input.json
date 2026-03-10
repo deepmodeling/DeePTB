@@ -1,0 +1,79 @@
+{
+  "common_options": {
+    "basis": {
+            "As": "2s2p1d",
+            "Ga": "2s2p2d"
+    },
+    "device": "cuda",
+    "has_soc": true,
+    "overlap": false
+  },
+  "model_options": {
+    "embedding": {
+      "method": "lem",
+      "irreps_hidden": "88x0e+24x1o+24x1e+24x2e+24x2o+18x3o+18x3e+12x4e+12x4o+8x5e+8x5o",
+      "n_layers": 3,
+      "avg_num_neighbors": 80,
+      "r_max": {
+    "As": 9,
+    "Ga": 11
+      },
+      "universal": true,
+      "tp_radial_emb": true
+    },
+    "prediction": {
+      "method": "e3tb",
+            "scale_type": "no_scale",
+      "neurons": [
+        64,
+        64
+      ]
+    }
+  },
+  "train_options": {
+    "num_epoch": 1000000,
+    "batch_size": 1,
+    "optimizer": {
+            "lr": 0.005,
+            "type": "AdamW",
+            "betas": [
+                0.9,
+                0.999
+            ],
+            "weight_decay": 0.001,
+            "eps": 1e-08,
+            "amsgrad": false
+    },
+    "lr_scheduler": {
+      "type": "rop",
+      "factor": 0.9,
+      "patience": 100,
+      "min_lr": 0.0000001
+    },
+    "loss_options": {
+      "train": {
+                "method": "hamil_abs",
+                "debug_flag": false,
+                "onsite_boost": false,
+                "onsite_boost_steps": 50000,
+                "nextham_uureal_mask": true
+      }
+    },
+    "save_freq": 5000,
+    "validation_freq": 200,
+    "display_freq": 200,
+    "sliding_win_size": 1000,
+    "update_lr_per_iter": true,
+    "use_tensorboard": true
+  },
+  "data_options": {
+    "train": {
+      "root": "./../delta_H_lmdb",
+      "prefix": "data",
+      "type": "LMDBDataset",
+      "get_Hamiltonian": true,
+      "get_DM": false,
+      "get_overlap": true
+    }
+  }
+}

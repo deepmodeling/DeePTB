@@ -1,0 +1,19 @@
+{
+    "save_path": "results",
+    "bohrium_group_name": "band-strcutre",
+    "run_dft": {
+        "example": [
+            "."
+        ],
+        "extra_files": [
+            "run.sh"
+        ],
+        "command": "bash run.sh",
+        "image": "registry.dp.tech/dptech/abacus:LTSv3.10.1",
+        "bohrium": {
+            "scass_type": "c32_m64_cpu",
+            "job_type": "container",
+            "platform": "ali"
+        }
+    }
+}

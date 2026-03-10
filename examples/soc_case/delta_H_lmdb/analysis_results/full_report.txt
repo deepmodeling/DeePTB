@@ -1,0 +1,77 @@
+
+============================================================
+STEP 1: Processing LMDB & Extracting Stats
+============================================================
+Found 1 LMDB file(s):
+ - data.3457651.lmdb
+Opening: data.3457651.lmdb
+
+Processing complete. Total processed: 1. Saving pickle...
+
+============================================================
+STEP 3: Auto-Optimization (Linear Programming)
+============================================================
+
+>>> MATRIX: HAMILTONIAN
+    Target: 70.0% Retention (30.0% Count Loss)
+    Recommended Dictionary: {"Ga": 10.5771, "As": 8.9393}
+    Target: 90.0% Retention (10.0% Count Loss)
+    Recommended Dictionary: {"Ga": 11.2485, "As": 8.9393}
+    Target: 95.0% Retention (5.0% Count Loss)
+    Recommended Dictionary: {"Ga": 11.2485, "As": 8.9393}
+    Target: 99.0% Retention (1.0% Count Loss)
+    Recommended Dictionary: {"Ga": 11.3074, "As": 8.9393}
+    Target: 99.9% Retention (0.1% Count Loss)
+    Recommended Dictionary: {"Ga": 11.3074, "As": 8.9393}
+
+>>> MATRIX: OVERLAP
+    Target: 70.0% Retention (30.0% Count Loss)
+    Recommended Dictionary: {"Ga": 9.7995, "As": 6.9243}
+    Target: 90.0% Retention (10.0% Count Loss)
+    Recommended Dictionary: {"Ga": 8.9393, "As": 7.9955}
+    Target: 95.0% Retention (5.0% Count Loss)
+    Recommended Dictionary: {"Ga": 8.9393, "As": 7.9955}
+    Target: 99.0% Retention (1.0% Count Loss)
+    Recommended Dictionary: {"Ga": 8.9393, "As": 7.9955}
+    Target: 99.9% Retention (0.1% Count Loss)
+    Recommended Dictionary: {"Ga": 8.9393, "As": 7.9955}
+
+>>> MATRIX: DENSITY_MATRIX
+    Target: 70.0% Retention (30.0% Count Loss)
+    Recommended Dictionary: {"Ga": 11.2485, "As": 8.9393}
+    Target: 90.0% Retention (10.0% Count Loss)
+    Recommended Dictionary: {"Ga": 12.7742, "As": 8.9393}
+    Target: 95.0% Retention (5.0% Count Loss)
+    Recommended Dictionary: {"Ga": 11.9933, "As": 11.3074}
+    Target: 99.0% Retention (1.0% Count Loss)
+    Recommended Dictionary: {"Ga": 11.9933, "As": 11.3074}
+    Target: 99.9% Retention (0.1% Count Loss)
+    Recommended Dictionary: {"Ga": 11.9933, "As": 11.3074}
+
+============================================================
+STEP 4: Evaluating User Custom Input
+============================================================
+User Input:
+{
+    "As": 11,
+    "Ga": 12
+}
+
+[Global Loss Report]
+Matrix          | Count Loss (%)  | Value Loss (%) 
+--------------------------------------------------
+hamiltonian     | 0.0000          | 0.000000       
+overlap         | 0.0000          | 0.000000       
+density_matrix  | 1.2146          | 0.105096       
+
+[Detailed Pair Check vs Hamiltonian 95% Safe Dist]
+Gap = User - Ref. Positive=Safe, Negative=Risky.
+------------------------------------------------------------
+Pair         | User(Å)    | Ref95(Å)   | Gap(Å)     | Status
+------------------------------------------------------------
+As-As        | 11.000     | 11.307     | -0.307     | Tight
+Ga-Ga        | 12.000     | 11.993     | 0.007      | Safe
+Ga-As        | 11.500     | 10.857     | 0.643      | Safe
+
+============================================================
+All done. Results in 'analysis_results'
