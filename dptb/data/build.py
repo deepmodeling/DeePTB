@@ -231,11 +231,13 @@ class DatasetBuilder:
             train_dip_flag = kwargs.get('train_dip', False)
             train_w_charge_flag = kwargs.get('train_w_charge', False)
             train_w_eps_flag = kwargs.get('train_w_eps', False)
+            train_w_homo_lumo_gap_flag = kwargs.get('train_w_homo_lumo_gap', False)
             wave_align_flag = kwargs.get('wave_align', False)
             train_polar_flag = kwargs.get('train_polar', False)
             for ikey in info_files:
                 info_files[ikey].update({'r_max': r_max, 'er_max': er_max, 'oer_max': oer_max,
                                          'wave_align': wave_align_flag,
+                                         'train_w_homo_lumo_gap': train_w_homo_lumo_gap_flag,
                                          'train_w_eps': train_w_eps_flag,
                                          'train_w_charge': train_w_charge_flag,
                                          'train_dip': train_dip_flag,

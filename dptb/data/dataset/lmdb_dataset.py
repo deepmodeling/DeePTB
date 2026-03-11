@@ -187,6 +187,12 @@ class LMDBDataset(AtomicDataset):
 
                 if self.info_files[self.file_map[idx]]['train_w_eps'] == True:
                     self.info_files[self.file_map[idx]].update({'dielectric_constant': np.array(data_dict['dielectric_constant'])})
+                if self.info_files[self.file_map[idx]]['train_w_homo_lumo_gap'] == True:
+                    self.info_files[self.file_map[idx]].update({
+                        'GAP_eV': np.array(data_dict['GAP_eV']),
+                        'LUMO_eV': np.array(data_dict['LUMO_eV']),
+                        'HOMO_eV': np.array(data_dict['HOMO_eV']),
+                    })
 
                 if self.info_files[self.file_map[idx]]['train_polar'] == True:
                     self.info_files[self.file_map[idx]].update({'polar': data_dict['polarizability']})
@@ -198,7 +204,7 @@ class LMDBDataset(AtomicDataset):
                         {'orbital_energies': orbital_energies, 'orbital_coefficients': orbital_coefficients})
 
                 cache_info = {}
-                for key in ['train_polar', 'train_dip', 'wave_align', 'train_w_charge', 'train_w_eps']:
+                for key in ['train_polar', 'train_dip', 'wave_align', 'train_w_charge', 'train_w_eps', 'train_w_homo_lumo_gap']:
                     cache_info.update({key: self.info_files[self.file_map[idx]][key]})
                     del self.info_files[self.file_map[idx]][key]
             db_env.close()
