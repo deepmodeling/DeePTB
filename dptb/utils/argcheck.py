@@ -87,10 +87,20 @@ def common_options():
     doc_seed = "The random seed used to initialize the parameters and determine the shuffling order of datasets. Default: `3982377700`"
     doc_basis = "The atomic orbitals used to construct the basis. e.p. {'A':['2s','2p','s*'],'B':'[3s','3p']}"
     doc_overlap = "Whether to calculate the overlap matrix. Default: False"
+    doc_train_w_charge = "Whether to train with charge info. Default: False"
+    doc_has_soc = "Whether to train with SOC. Default: False"
+    doc_train_dip = "Whether to train the dipole moment tensor. Default: False"
+    doc_train_polar = "Whether to train the polarizaty tensor. Default: False"
+    doc_wave_align = "Whether to align the wavefunctions. Default: False"
 
     args = [
         Argument("basis", dict, optional=False, doc=doc_basis),
         Argument("overlap", bool, optional=True, default=False, doc=doc_overlap),
+        Argument("train_polar", bool, optional=True, default=False, doc=doc_train_polar),
+        Argument("wave_align", bool, optional=True, default=False, doc=doc_wave_align),
+        Argument("train_dip", bool, optional=True, default=False, doc=doc_train_dip),
+        Argument("train_w_charge", bool, optional=True, default=False, doc=doc_train_w_charge),
+        Argument("has_soc", bool, optional=True, default=False, doc=doc_has_soc),
         Argument("device", str, optional = True, default="cpu", doc = doc_device),
         Argument("dtype", str, optional = True, default="float32", doc = doc_dtype),
         Argument("seed", int, optional=True, default=3982377700, doc=doc_seed),
@@ -115,9 +125,10 @@ def train_options():
     doc_sliding_win_size = "Sliding window size for the average of the latest iterations' loss. Used for the reduce on plateau learning rate scheduler in case of the pairing of large dataset and small batch size. Default: `50`"
 
     doc_optimizer = "\
-        The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `SGD` and `LBFGS` \n\n\
+        The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `AdamW`, `SGD` and `LBFGS` \n\n\
         For more information about these optmization algorithm, we refer to:\n\n\
         - `Adam`: [Adam: A Method for Stochastic Optimization.](https://arxiv.org/abs/1412.6980)\n\n\
+        - `AdamW`: [AdamW: Decoupled Weight Decay Regularization.](https://arxiv.org/abs/1711.05101)\n\n\
         - `SGD`: [Stochastic Gradient Descent.](https://pytorch.org/docs/stable/generated/torch.optim.SGD.html)\n\n\
         - `LBFGS`: [On the limited memory BFGS method for large scale optimization.](http://users.iems.northwestern.edu/~nocedal/PDFfiles/limited-memory.pdf) \n\n\
     "
@@ -130,6 +141,8 @@ def train_options():
     args = [
         Argument("num_epoch", int, optional=False, doc=doc_num_epoch),
         Argument("batch_size", int, optional=True, default=1, doc=doc_batch_size),
+        Argument("monitor_flag", bool, optional=True, default=False, doc='Set true to start monitor.'),
+        Argument("clip_grad", float, optional=True, default=1, doc='Gradient clip'),
         Argument("ref_batch_size", int, optional=True, default=1, doc=doc_ref_batch_size),
         Argument("val_batch_size", int, optional=True, default=1, doc=doc_val_batch_size),
         Argument("optimizer", dict, sub_fields=[], optional=True, default={}, sub_variants=[optimizer()], doc = doc_optimizer),
@@ -231,10 +244,11 @@ def LBFGS():
     ]
 
 def optimizer():
-    doc_type = "select type of optimizer, support type includes: `Adam`, `SGD` and `LBFGS`. Default: `Adam`"
+    doc_type = "select type of optimizer, support type includes: `Adam`, `AdamW`, `SGD` and `LBFGS`. Default: `Adam`"
 
     return Variant("type", [
             Argument("Adam", dict, Adam()),
+            Argument("AdamW", dict, Adam()),
             Argument("SGD", dict, SGD()),
             Argument("RMSprop", dict, RMSprop()),
             Argument("LBFGS", dict, LBFGS()),
@@ -471,11 +485,15 @@ def embedding():
             Argument("deeph-e3", dict, deephe3()),
             Argument("slem", dict, slem()),
             Argument("lem", dict, slem()),
+            Argument("emoles", dict, slem()),
+            Argument("emoles_openequi", dict, slem()),
+            Argument("lem_wo_ln", dict, slem()),
+            Argument("lem_moe_v3", dict, slem()),
+            Argument("lem_moe", dict, slem()),
             Argument("trinity", dict, slem()+[Argument("only2b", bool, optional=True, default=False, doc=doc_only2b)],),
         ],optional=True, default_tag="se2", doc=doc_method)
 
 def se2():
-
     doc_rs = "The soft cutoff where the smooth function starts."
     doc_rc = "The hard cutoff where the smooth function value ~0.0"
     doc_n_axis = "the out axis shape of the deepmd-se2 descriptor."
@@ -616,25 +634,46 @@ def slem():
     doc_n_layers = ""
     doc_env_embed_multiplicity = ""
     doc_universal = "Set true to activate universal model related features. Currently, this will create a broader onehot embedding for the transfer learning into unseen elements. Other features are on the way. Default: `False`"
+    doc_use_interpolation_out = "Set true to activate SO2 interpolation layer in the final output layer. Default: `False`"
+    doc_so2_attn_aggressive = "Set true to activate SO2 attention radical mode. Default: `False`"
 
     return [
             Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
             Argument("avg_num_neighbors", [int, float], optional=False, doc=doc_avg_num_neighbors),
             Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
             Argument("n_layers", int, optional=False, doc=doc_n_layers),
+            Argument("mp_cutoff",[float, int, dict], optional=True),
+            Argument("self_mix_mode", str, optional=True, default="full"),
+            Argument("self_mix_type", str, optional=True, default="all"),
+            Argument("self_mix_flag", bool, optional=True, default=False),
+            Argument("optimized_in_frame", bool, optional=True, default=True),
+            Argument("self_mix_iter", int, optional=True, default=2),
 
-            Argument("n_radial_basis", int, optional=True, default=10, doc=doc_n_radial_basis),
+            Argument("n_radial_basis", int, optional=True, default=128, doc=doc_n_radial_basis),
+            Argument("top_k", int, optional=True, default=1, doc="The number of experts to be used in MoE. Default: 1"),
+            Argument("num_experts", int, optional=True, default=8, doc="The number of experts for MoE. Default: 8"),
             Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
             Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
-            Argument("env_embed_multiplicity", int, optional=True, default=10, doc=doc_env_embed_multiplicity),
+            Argument("color_mode", str, optional=True, default="tp", doc="The type of color mode. Default: tp"),
+            Argument("onehot_mode", str, optional=True, default="FullTP", doc="The type of onehot mode. Default: FullTP"),
+            Argument("env_embed_multiplicity", int, optional=True, default=64, doc=doc_env_embed_multiplicity),
             Argument("tp_radial_emb", bool, optional=True, default=False, doc="Whether to use tensor product radial embedding."),
             Argument("tp_radial_channels", list, optional=True, default=[32], doc="The number of channels in tensor product radial embedding."),
             Argument("latent_channels", list, optional=True, default=[32], doc="The number of channels in latent embedding."),
             Argument("latent_dim", int, optional=True, default=64, doc="The dimension of latent embedding."),
+            Argument("edge_one_hot_dim", int, optional=True, default=128, doc="The dimension of edge_one_hot."),
+            Argument("use_out_onehot_tp", bool, optional=True, default=True, doc="Whether to use out_onehot_tp."),
+            Argument("use_layer_onehot_tp", bool, optional=True, default=True, doc="Whether to use layer_onehot_tp."),
             Argument("res_update", bool, optional=True, default=True, doc="Whether to use residual update."),
             Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
             Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
+            Argument("use_interpolation_out", bool, optional=True, default=False, doc=doc_use_interpolation_out),
+            Argument("so2_attn_aggressive", bool, optional=True, default=False, doc=doc_so2_attn_aggressive),
             Argument("universal", bool, optional=True, default=False, doc=doc_universal),
+            Argument("in_frame_flag", bool, optional=True, default=True),
+            Argument("ln_flag", bool, optional=True, default=True),
+            Argument("use_angle", bool, optional=True, default=False, doc="Whether to use angle."),
+            Argument("norm_eps", float, optional=True, default=1e-8, doc="eps in SeperableLayerNorm."),
     ]
 
 
@@ -662,17 +701,21 @@ def sktb_prediction():
 
 
 def e3tb_prediction():
-    doc_scales_trainable = "whether to scale the trianing target."
-    doc_shifts_trainable = "whether to shift the training target."
+    doc_scales_trainable = "The scale parameter is from the statistics. Whether to train this parameter."
+    doc_shifts_trainable = "The scale parameter is from the statistics. Whether to train this parameter."
     doc_neurons = "neurons in the neural network."
     doc_activation = "activation function."
     doc_if_batch_normalized = "if to turn on batch normalization"
+    doc_scale_type = ("Which scale method to use. Can be no_scale, "
+                      "scale_wo_back_grad (the scale parameter will not engage the back grad computation graph), "
+                      "scale_w_back_grad (the scale parameter will engage the back grad computation graph)")
 
     nn = [
         Argument("scales_trainable", bool, optional=True, default=False, doc=doc_scales_trainable),
         Argument("shifts_trainable", bool, optional=True, default=False, doc=doc_shifts_trainable),
         Argument("neurons", list, optional=True, default=None, doc=doc_neurons),
         Argument("activation", str, optional=True, default="tanh", doc=doc_activation),
+        Argument("scale_type", str, optional=True, default="scale_w_back_grad", doc=doc_scale_type),
         Argument("if_batch_normalized", bool, optional=True, default=False, doc=doc_if_batch_normalized),
     ]
 
@@ -835,9 +878,90 @@ def loss_options():
     doc_train = "Loss options for training."
     doc_validation = "Loss options for validation."
     doc_reference = "Loss options for reference data in training."
+    doc_model_basis_name = "The basis used by the model for the calculation of fock matrix. Default: def2svp"
+    doc_on_the_fly_ovp_flag = "Calculate overlap matrices on the fly. Default: True"
+    doc_on_the_fly_solve_eigen = "Get eigen values on the fly. Default: True"
+    doc_add_ham_flag = "Add huber loss of hamiltonian element to the waloss. Default: True"
+    doc_use_energy_weighting = "Use gaussian smearing for energy weighting. Default: True"
+    doc_dataset_basis_name = "The basis used in the dataset. Default: def2svp"
 
     hamil = [
-        Argument("onsite_shift", bool, optional=True, default=False, doc="Whether to use onsite shift in loss function. Default: False"),
+        Argument(
+            "onsite_shift",
+            bool,
+            optional=True,
+            default=False,
+            doc="Whether to apply a global onsite shift (μ) between prediction and reference Hamiltonians. "
+                "Implemented by shifting ref_data using the overlap matrix. Default: False.",
+        ),
+        Argument(
+            "debug_flag",
+            bool,
+            optional=True,
+            default=False,
+            doc="Whether to print additional debug information inside the loss (e.g. norms, masks). "
+                "Default: False.",
+        ),
+        Argument(
+            "nextham_uureal_mask",
+            bool,
+            optional=True,
+            default=False,
+            doc="Whether to use NextHAM-style uu.real masking on SOC features. "
+                "When True, only the uu.real block of each SOC slice is supervised in the loss; "
+                "other spin/im parts are ignored. Default: False.",
+        ),
+        # 以下是我们为 HamilLossAbsMAE 新增的可选参数（如果你启用了 onsite_boost 机制）
+        Argument(
+            "onsite_boost",
+            bool,
+            optional=True,
+            default=False,
+            doc="Whether to up-weight onsite matrix-element errors in the early stage of training. "
+                "If True, the onsite part of the loss is multiplied by a time-decaying factor "
+                "that starts from `onsite_boost_max` and decays to 1.0 over `onsite_boost_steps` iterations. "
+                "Default: False.",
+        ),
+        Argument(
+            "onsite_boost_steps",
+            int,
+            optional=True,
+            default=50000,
+            doc="Number of iterations over which the onsite loss weight decays linearly from "
+                "`onsite_boost_max` to 1.0. Only used when `onsite_boost=True`. Default: 20000.",
+        ),
+        Argument(
+            "onsite_boost_max",
+            float,
+            optional=True,
+            default=200.0,
+            doc="Initial multiplicative factor for onsite loss when `onsite_boost=True`. "
+                "At iteration 0 the onsite loss is multiplied by this value, then linearly decays "
+                "to 1.0 at `onsite_boost_steps`. Default: 100.0.",
+        ),
+        Argument(
+            "z_loss_coef",
+            float,
+            optional=True,
+            default=0,
+            doc="Coefficient used to punish the unbalance of expert workload",
+        ),
+
+    ]
+
+    property_aux = [
+        Argument("model_basis_name", str, optional=True, default='def2svp', doc=doc_model_basis_name),
+        Argument("on_the_fly_ovp_flag", bool, optional=True, default=True, doc=doc_on_the_fly_ovp_flag),
+        Argument("dataset_basis_name", str, optional=True, default='def2svp', doc=doc_dataset_basis_name),
+        Argument("num_e_loss_weight", float, optional=True, default=0.01)
+    ]
+
+    wa_loss_aux = [
+        Argument("model_basis_name", str, optional=True, default='def2svp', doc=doc_model_basis_name),
+        Argument("use_energy_weighting", bool, optional=True, default=True, doc=doc_use_energy_weighting),
+        Argument("add_ham_flag", bool, optional=True, default=True, doc=doc_add_ham_flag),
+        Argument("on_the_fly_solve_eigen", bool, optional=True, default=True, doc=doc_on_the_fly_solve_eigen),
+        Argument("dataset_basis_name", str, optional=True, default='def2svp', doc=doc_dataset_basis_name)
     ]
 
     wt = [
@@ -848,14 +972,14 @@ def loss_options():
     eigvals = [
         Argument("diff_on", bool, optional=True, default=False, doc="Whether to use random differences in loss function. Default: False"),
         Argument("eout_weight", float, optional=True, default=0.001, doc="The weight of eigenvalue out of range. Default: 0.01"),
-        Argument("diff_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue difference. Default: 0.01"),
+        Argument("diff_weight", float, optional=True, default=0.1, doc="The weight of eigenvalue difference. Default: 0.01"),
         Argument("diff_valence", [dict,None], optional=True, default=None, doc="set the difference of the number of valence electrons in DFT and TB. eg {'A':6,'B':7}, Default: None, which means no difference"),
         Argument("spin_deg", int, optional=True, default=2, doc="The spin degeneracy of band structure. Default: 2"),
     ]
 
     eig_ham = [
-        Argument("coeff_ham", [int, float], optional=True, default=1., doc="The coefficient of the hamiltonian penalty. Default: 1"),
-        Argument("coeff_ovp", [int, float], optional=True, default=1., doc="The coefficient of the overlap penalty. Default: 1"),
+        Argument("coeff_ham", float, optional=True, default=1., doc="The coefficient of the hamiltonian penalty. Default: 1"),
+        Argument("coeff_ovp", float, optional=True, default=1., doc="The coefficient of the hamiltonian penalty. Default: 1"),
     ]
 
     skints = [
@@ -867,6 +991,11 @@ def loss_options():
         Argument("eigvals", dict, sub_fields=eigvals),
         Argument("skints", dict, sub_fields=skints),
         Argument("hamil_abs", dict, sub_fields=hamil),
+        Argument("hamil_abs_mae", dict, sub_fields=hamil),
+        Argument("hamil_w_num_e", dict, sub_fields=property_aux),
+        Argument("wa_loss", dict, sub_fields=wa_loss_aux),
+        Argument("dip_loss", dict, sub_fields=property_aux),
+        Argument("dip_loss_mae", dict, sub_fields=property_aux),
         Argument("hamil_blas", dict, sub_fields=hamil),
         Argument("hamil_wt", dict, sub_fields=hamil+wt),
         Argument("eig_ham", dict, sub_fields=hamil+eigvals+eig_ham),
@@ -1616,7 +1745,7 @@ def get_cutoffs_from_model_options(model_options):
         embedding = model_options.get("embedding")
         if embedding["method"] == "se2":
             er_max = embedding["rc"]
-        elif embedding["method"] in ["slem", "lem", "trinity"]:
+        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_moe_v3", "lem_wo_ln", "trinity"]:
             r_max = embedding["r_max"]
         else:
             log.error("The method of embedding have not been defined in get cutoff functions")
@@ -1756,9 +1885,10 @@ def normalize_skf2nnsk(data):
 
     doc_lr_scheduler = "The learning rate scheduler tools settings, the lr scheduler is used to scales down the learning rate during the training process. Proper setting can make the training more stable and efficient. The supported lr schedular includes: `Exponential Decaying (exp)`, `Linear multiplication (linear)`"
     doc_optimizer = "\
-        The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `SGD` and `LBFGS` \n\n\
+        The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `AdamW`, `SGD` and `LBFGS` \n\n\
         For more information about these optmization algorithm, we refer to:\n\n\
         - `Adam`: [Adam: A Method for Stochastic Optimization.](https://arxiv.org/abs/1412.6980)\n\n\
+        - `AdamW`: [AdamW: Decoupled Weight Decay Regularization.](https://arxiv.org/abs/1711.05101)\n\n\
         - `SGD`: [Stochastic Gradient Descent.](https://pytorch.org/docs/stable/generated/torch.optim.SGD.html)\n\n\
         - `LBFGS`: [On the limited memory BFGS method for large scale optimization.](http://users.iems.northwestern.edu/~nocedal/PDFfiles/limited-memory.pdf) \n\n\
     "
@@ -1782,4 +1912,4 @@ def normalize_skf2nnsk(data):
     base.check_value(data, strict=True)
 
     return data
-    
+

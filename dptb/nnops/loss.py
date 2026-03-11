@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 from dptb.utils.constants import anglrMId
 from dptb.nn.dftbsk import DFTBSK
 import re
+from dptb.nn.hr2hk import HR2HK, HR2HK_Gamma_Only
+from pyscf import gto, dft
 
 """this is the register class for descriptors
 
@@ -432,92 +434,238 @@ class EigHamLoss(nn.Module):
 
         return self.coeff_ham * ham_loss + (1 - self.coeff_ham) * eigloss
 
-        
 
+import logging
+import inspect
+import torch
 
-    
+# 假设这些类已经在上下文或其他地方定义
+# from somewhere import Loss, OrbitalMapper, AtomicDataDict
+
+log = logging.getLogger(__name__)
+
 
 @Loss.register("hamil_abs")
 class HamilLossAbs(nn.Module):
     def __init__(
-            self, 
-            basis: Dict[str, Union[str, list]]=None,
-            idp: Union[OrbitalMapper, None]=None,
-            overlap: bool=False,
-            onsite_shift: bool=False,
-            dtype: Union[str, torch.dtype] = torch.float32, 
+            self,
+            basis: Dict[str, Union[str, list]] = None,
+            idp: Union[OrbitalMapper, None] = None,
+            overlap: bool = False,
+            onsite_shift: bool = False,
+            dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
+            debug_flag: bool = False,      # 原有 debug flag
+            nextham_uureal_mask: bool = False,   # 原有 nextham mask
+            # ===== 新增：onsite 动态加权相关参数 =====
+            onsite_boost: bool = False,
+            onsite_boost_steps: int = 20000,
+            onsite_boost_max: float = 100.0,
+            z_loss_coef: float = 0.0,  # 默认为 0，即不开启
             **kwargs,
-        ):
-
+    ):
         super(HamilLossAbs, self).__init__()
         self.loss1 = nn.L1Loss()
         self.loss2 = nn.MSELoss()
         self.overlap = overlap
         self.device = device
         self.onsite_shift = onsite_shift
+        self.dtype = dtype
 
+        # Debug 开关与计数器
+        self.debug = debug_flag
+        self._debug_counter = 0
+        self.z_loss_coef = float(z_loss_coef)
+        self.last_z_loss = None # 用于 Monitor
+        self.expert_load_cv = None # 用于 Monitor
+        # ===== 新增：onsite 动态加权控制 =====
+        self.onsite_boost = bool(onsite_boost)
+        self.onsite_boost_steps = int(onsite_boost_steps)
+        self.onsite_boost_max = float(onsite_boost_max)
+        self._step = 0  # 内部迭代计数器
+        self.last_onsite_loss = None
+        self.last_hopping_loss = None
+        # 如果开启 Debug，记录调用者信息
+        if self.debug:
+            self._log_caller_info(kwargs)
+
+        # 初始化 OrbitalMapper
         if basis is not None:
-            self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
+            has_soc = kwargs.get('has_soc', False)
+            self.idp = OrbitalMapper(
+                basis,
+                method="e3tb",
+                device=self.device,
+                has_soc=has_soc,
+                nextham_uureal_mask=nextham_uureal_mask,
+            )
+            log.warning(f'initialize loss rme with nextham_uureal_mask: {nextham_uureal_mask}')
             if idp is not None:
                 assert idp == self.idp, "The basis of idp and basis should be the same."
         else:
             assert idp is not None, "Either basis or idp should be provided."
             self.idp = idp
 
+    # ===== 新增：计算当前 onsite 权重 =====
+    def _current_onsite_weight(self) -> float:
+        """
+        从 0 到 onsite_boost_steps 线性衰减：
+            step=0       => weight = onsite_boost_max
+            step>=steps  => weight = 1.0
+        """
+        if not self.onsite_boost:
+            return 1.0
+        progress = min(self._step / max(self.onsite_boost_steps, 1), 1.0)
+        w = self.onsite_boost_max - (self.onsite_boost_max - 1.0) * progress
+        return float(w)
+
     def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
-        # mask the data
-        if self.onsite_shift:
-            batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0]))
-            mu_n, mu_e, norm_ss_n, norm_ss_e = shift_mu(data=data, ref_data=ref_data,idp=self.idp)
+        self._debug_counter += 1
+        verbose_step = self.debug and (self._debug_counter <= 1 or self._debug_counter % 5 == 1)
 
-            if batch.max() == 0: # when batchsize is zero
-                diffhs = mu_n.sum() + mu_e.sum()
-                ss = norm_ss_n.sum() + norm_ss_e.sum()
-                mu = diffhs / ss
-                mu = mu.detach()
-                ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
-                ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
-            elif batch.max() >= 1:
-                slices = data["__slices__"]["pos"]
-                slices_e = data["__slices__"]["edge_index"]
-                mu_n = torch.stack([mu_n[slices[i]:slices[i+1]].sum() for i in range(len(slices)-1)])
-                mu_e = torch.stack([mu_e[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
+        try:
+            # === Onsite Part ===
+            atom_types = data[AtomicDataDict.ATOM_TYPE_KEY].flatten()
+            node_mask = self.idp.mask_to_nrme[atom_types]
 
-                norm_ss_n = torch.stack([norm_ss_n[slices[i]:slices[i+1]].sum() for i in range(len(slices)-1)])
-                norm_ss_e = torch.stack([norm_ss_e[slices_e[i]:slices_e[i+1]].sum() for i in range(len(slices_e)-1)])
-               
-                mu = mu_n + mu_e 
-                ss = norm_ss_n + norm_ss_e 
-                mu = mu / ss
-                mu = mu.detach()
+            raw_pre_node = data[AtomicDataDict.NODE_FEATURES_KEY]
+            raw_tgt_node = ref_data[AtomicDataDict.NODE_FEATURES_KEY]
 
-                ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + mu[batch, None] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
-                edge_mu_index = torch.zeros(data[AtomicDataDict.EDGE_INDEX_KEY].shape[1], dtype=torch.long, device=self.device)
-                for i in range(1, batch.max().item()+1):
-                    edge_mu_index[data["__slices__"]["edge_index"][i]:data["__slices__"]["edge_index"][i+1]] += i
-                ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + mu[edge_mu_index, None] * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
-                
-        pre = data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
-        tgt = ref_data[AtomicDataDict.NODE_FEATURES_KEY][self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
-        onsite_loss = 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
+            pre_node = raw_pre_node[node_mask]
+            tgt_node = raw_tgt_node[node_mask]
 
-        pre = data[AtomicDataDict.EDGE_FEATURES_KEY][self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-        tgt = ref_data[AtomicDataDict.EDGE_FEATURES_KEY][self.idp.mask_to_erme[ref_data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-        hopping_loss = 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
-        
-        if self.overlap:
-            pre = data[AtomicDataDict.EDGE_OVERLAP_KEY][self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-            tgt = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY][self.idp.mask_to_erme[ref_data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]]
-            overlap_loss = 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
+            if pre_node.shape != tgt_node.shape:
+                raise ValueError(f"Onsite Shape Mismatch: Pre {pre_node.shape} vs Tgt {tgt_node.shape}")
 
-            pre = data[AtomicDataDict.NODE_OVERLAP_KEY][self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
-            tgt = ref_data[AtomicDataDict.NODE_OVERLAP_KEY][self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
-            overlap_loss += 0.5*(self.loss1(pre, tgt) + torch.sqrt(self.loss2(pre, tgt)))
+            onsite_loss = 0.5 * (self.loss1(pre_node, tgt_node) +
+                                 torch.sqrt(self.loss2(pre_node, tgt_node)))
 
-            return (1/3) * (hopping_loss + onsite_loss + overlap_loss)
-        else:
-            return 0.5 * (onsite_loss + hopping_loss)
+            # === Hopping Part ===
+            edge_types = data[AtomicDataDict.EDGE_TYPE_KEY].flatten()
+            edge_mask = self.idp.mask_to_erme[edge_types]
+
+            raw_pre_edge = data[AtomicDataDict.EDGE_FEATURES_KEY]
+            raw_tgt_edge = ref_data[AtomicDataDict.EDGE_FEATURES_KEY]
+
+            pre_edge = raw_pre_edge[edge_mask]
+            tgt_edge = raw_tgt_edge[edge_mask]
+
+            if pre_edge.shape != tgt_edge.shape:
+                raise ValueError(f"Hopping Shape Mismatch: Pre {pre_edge.shape} vs Tgt {tgt_edge.shape}")
+
+            hopping_loss = 0.5 * (self.loss1(pre_edge, tgt_edge) +
+                                  torch.sqrt(self.loss2(pre_edge, tgt_edge)))
+
+            # ===== 新增：把分量 loss 缓存到对象上，用于日志 =====
+            # 尝试从 data 中获取 z_loss，如果没有（非 MoE 模型），则为 0
+            if "mean_max_prob" not in data.keys():
+                raw_z_loss = 0
+                self.last_z_loss = 0
+            else:
+                raw_z_loss = data["mean_max_prob"]
+                self.last_z_loss = raw_z_loss.detach()
+
+            if "expert_load_cv" not in data.keys():
+                self.expert_load_cv = 0
+            else:
+                expert_load_cv = data["expert_load_cv"]
+                self.expert_load_cv = expert_load_cv.detach()
+
+            self.last_onsite_loss = onsite_loss.detach()
+            self.last_hopping_loss = hopping_loss.detach()
+            # === Debug Print ===
+            if verbose_step:
+                self._log_step_info(locals())
+                if self.onsite_boost:
+                    print(f"  Onsite weight w(t) = {self._current_onsite_weight():.3f}")
+
+            # === 新增：动态加权 onsite vs hopping ===
+            if self.onsite_boost:
+                w_onsite = self._current_onsite_weight()
+                total_loss = w_onsite * onsite_loss + hopping_loss
+            else:
+                total_loss = 0.5 * (onsite_loss + hopping_loss)
+
+            # [新增] 加上 Z-Loss
+            if self.z_loss_coef > 0:
+                total_loss = total_loss + self.z_loss_coef * raw_z_loss
+
+            return total_loss
+
+        except Exception as e:
+            if self.debug:
+                self._print_crash_info(e, data, locals())
+            raise e
+    # =========================================================================
+    #                               Debug Helpers
+    # =========================================================================
+
+    def _log_caller_info(self, kwargs):
+        """记录初始化调用栈和参数"""
+        log.warning('=' * 44)
+        log.warning('========== HamilLossAbs Initialized ==========')
+        log.warning(f"KWARGS: {kwargs}")
+        log.warning(f"HAS_SOC: {kwargs.get('has_soc', 'Not Provided')}")
+
+        cur_frame = inspect.currentframe()
+        try:
+            caller_frame_info = inspect.getouterframes(cur_frame, 2)[1]
+            caller_file = caller_frame_info.filename
+            caller_line = caller_frame_info.lineno
+            caller_func = caller_frame_info.function
+
+            arg_info = inspect.getargvalues(caller_frame_info.frame)
+            caller_class = ""
+            if 'self' in arg_info.locals:
+                caller_class = arg_info.locals['self'].__class__.__name__ + "."
+
+            log.warning(f"CALLED BY: {caller_class}{caller_func}")
+            log.warning(f"LOCATION : {caller_file}:{caller_line}")
+        except Exception:
+            log.warning("Could not trace caller frame.")
+
+        log.warning('=' * 44)
+
+    def _log_step_info(self, locs):
+        """打印 Forward 过程中的 Tensor 形状信息"""
+        print(f"\n[Loss Debug] Step {self._debug_counter}")
+
+        if 'raw_pre_node' in locs and 'raw_tgt_node' in locs:
+            print(f"  Node Raw Shapes -> Pre: {locs['raw_pre_node'].shape}, Tgt: {locs['raw_tgt_node'].shape}")
+        if 'node_mask' in locs:
+            print(f"  Node Mask Shape -> {locs['node_mask'].shape}, "
+                  f"Selected Elements: {locs['node_mask'].sum().item()}")
+
+        if 'raw_pre_edge' in locs and 'raw_tgt_edge' in locs:
+            print(f"  Edge Raw Shapes -> Pre: {locs['raw_pre_edge'].shape}, Tgt: {locs['raw_tgt_edge'].shape}")
+        if 'edge_mask' in locs:
+            print(f"  Edge Mask Shape -> {locs['edge_mask'].shape}, "
+                  f"Selected Elements: {locs['edge_mask'].sum().item()}")
+
+        if 'onsite_loss' in locs and 'hopping_loss' in locs:
+            print(f"  Loss Values -> Onsite: {locs['onsite_loss'].item():.6f}, "
+                  f"Hopping: {locs['hopping_loss'].item():.6f}")
+
+    def _print_crash_info(self, error, data, locs):
+        """打印崩溃时的详细快照"""
+        print(f"\n{'!' * 20} Loss Forward Crash {'!' * 20}")
+        print(f"Error: {str(error)}")
+        print(f"Step: {self._debug_counter}")
+
+        try:
+            print(f"Atom Types Shape: {data[AtomicDataDict.ATOM_TYPE_KEY].shape}")
+            print(f"Edge Types Shape: {data[AtomicDataDict.EDGE_TYPE_KEY].shape}")
+        except:
+            print("Could not access input data shapes.")
+
+        vars_to_check = ['node_mask', 'edge_mask', 'pre_node', 'tgt_node', 'pre_edge', 'tgt_edge']
+        for var_name in vars_to_check:
+            if var_name in locs:
+                tensor = locs[var_name]
+                info = f"Sum: {tensor.sum()}" if tensor.dtype == torch.bool else "Feature Tensor"
+                print(f"{var_name}: Shape {tensor.shape}, {info}")
+
+        print('!' * 60)
 
 @Loss.register("hamil_blas")
 class HamilLossBlas(nn.Module):
@@ -642,6 +790,262 @@ class HamilLossBlas(nn.Module):
         else:
             return 0.5 * (onsite_loss + hopping_loss)
 
+
+@Loss.register("hamil_abs_mae")
+class HamilLossAbsMAE(nn.Module):
+    def __init__(
+            self,
+            basis: Dict[str, Union[str, list]] = None,
+            idp: Union[OrbitalMapper, None] = None,
+            overlap: bool = False,
+            onsite_shift: bool = False,
+            dtype: Union[str, torch.dtype] = torch.float32,
+            device: Union[str, torch.device] = torch.device("cpu"),
+            # ===== 新增参数（默认不启用） =====
+            onsite_boost: bool = False,
+            onsite_boost_steps: int = 20000,
+            onsite_boost_max: float = 100.0,
+            **kwargs,
+    ):
+
+        super(HamilLossAbsMAE, self).__init__()
+        self.loss1 = nn.L1Loss()
+        self.loss2 = nn.MSELoss()
+        self.overlap = overlap
+        self.device = device
+        self.onsite_shift = onsite_shift
+
+        # 新增：onsite 动态加权控制
+        self.onsite_boost = bool(onsite_boost)
+        self.onsite_boost_steps = int(onsite_boost_steps)
+        self.onsite_boost_max = float(onsite_boost_max)
+        self._step = 0  # 内部迭代计数器
+
+        if basis is not None:
+            self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
+            if idp is not None:
+                assert idp == self.idp, "The basis of idp and basis should be the same."
+        else:
+            assert idp is not None, "Either basis or idp should be provided."
+            self.idp = idp
+
+    def _current_onsite_weight(self) -> float:
+        """
+        从 0 到 onsite_boost_steps 线性衰减：
+            step=0       => weight = onsite_boost_max
+            step>=steps  => weight = 1.0
+        """
+        if not self.onsite_boost:
+            return 1.0
+        progress = min(self._step / max(self.onsite_boost_steps, 1), 1.0)
+        w = self.onsite_boost_max - (self.onsite_boost_max - 1.0) * progress
+        return float(w)
+
+    def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
+        # ------------- onsite_shift 原逻辑保持不动 -------------
+        if self.onsite_shift:
+            batch = data.get("batch", torch.zeros(data[AtomicDataDict.POSITIONS_KEY].shape[0],
+                                                  dtype=torch.long, device=self.device))
+            mu = data[AtomicDataDict.NODE_FEATURES_KEY][
+                     self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]] - \
+                 ref_data[AtomicDataDict.NODE_FEATURES_KEY][
+                     self.idp.mask_to_ndiag[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]]
+            if batch.max() == 0:  # when batchsize is zero
+                mu = mu.mean().detach()
+                ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + \
+                    mu * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+                ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + \
+                    mu * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
+            elif batch.max() >= 1:
+                slices = [data["__slices__"]["pos"][i] - data["__slices__"]["pos"][i - 1]
+                          for i in range(1, len(data["__slices__"]["pos"]))]
+                slices = [0] + slices
+                ndiag_batch = torch.stack([
+                    i.sum() for i in
+                    self.idp.mask_to_ndiag[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()].split(slices)
+                ])
+                ndiag_batch = torch.cumsum(ndiag_batch, dim=0)
+                mu = torch.stack([
+                    mu[ndiag_batch[i]:ndiag_batch[i + 1]].mean()
+                    for i in range(len(ndiag_batch) - 1)
+                ])
+                mu = mu.detach()
+                ref_data[AtomicDataDict.NODE_FEATURES_KEY] = ref_data[AtomicDataDict.NODE_FEATURES_KEY] + \
+                    mu[batch, None] * ref_data[AtomicDataDict.NODE_OVERLAP_KEY]
+
+                edge_mu_index = torch.zeros(
+                    data[AtomicDataDict.EDGE_INDEX_KEY].shape[1],
+                    dtype=torch.long,
+                    device=self.device
+                )
+                for i in range(1, batch.max().item() + 1):
+                    edge_mu_index[data["__slices__"]["edge_index"][i]:data["__slices__"]["edge_index"][i + 1]] += i
+                ref_data[AtomicDataDict.EDGE_FEATURES_KEY] = ref_data[AtomicDataDict.EDGE_FEATURES_KEY] + \
+                    mu[edge_mu_index, None] * ref_data[AtomicDataDict.EDGE_OVERLAP_KEY]
+
+        # ------------- 取出被 mask 的 onsite / hopping 特征 -------------
+        pre_onsite = data[AtomicDataDict.NODE_FEATURES_KEY][
+            self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+        ]
+        tgt_onsite = ref_data[AtomicDataDict.NODE_FEATURES_KEY][
+            self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+        ]
+
+        pre_hopping = data[AtomicDataDict.EDGE_FEATURES_KEY][
+            self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
+        ]
+        tgt_hopping = ref_data[AtomicDataDict.EDGE_FEATURES_KEY][
+            self.idp.mask_to_erme[ref_data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
+        ]
+
+        # ------------- 新增：动态加权 onsite -------------
+        if self.onsite_boost:
+            w_onsite = self._current_onsite_weight()
+            loss_onsite = self.loss1(pre_onsite, tgt_onsite)
+            loss_hopping = self.loss1(pre_hopping, tgt_hopping)
+            total_loss = w_onsite * loss_onsite + loss_hopping
+            self._step += 1
+            return total_loss
+
+        # ------------- 旧逻辑：不区分 onsite/hopping 权重 -------------
+        pre = torch.cat([pre_onsite, pre_hopping], dim=0)
+        tgt = torch.cat([tgt_onsite, tgt_hopping], dim=0)
+
+
+        total_loss = self.loss1(pre, tgt)
+        return total_loss
+
+
+def get_electron_number_from_dm_torch(dm, overlap):
+    """
+    [修复] 使用 PyTorch 操作替代 NumPy，确保:
+    1. 梯度可以回传 (Gradient Flow)
+    2. 数据均在 GPU 上
+    3. 类型匹配
+    """
+    P = dm
+    S = overlap
+
+    # 确保 overlap 类型与 P 一致 (float)
+    if P.dtype != S.dtype:
+        S = S.to(P.dtype)
+
+    # 如果是自旋分辨的 3D DM (spin, nao, nao)，则先对自旋求和
+    if P.ndim == 3:
+        P = torch.sum(P, dim=0)
+
+    # 如果 Overlap 是 3D
+    if S.ndim == 3:
+        S = S[0]
+
+    # [关键修复] 使用 torch.einsum 替代 np.einsum
+    # 计算 Trace(P @ S)
+    return torch.einsum("ij,ji->", P, S)
+
+
+@Loss.register("hamil_w_num_e")
+class HamilNumE(nn.Module):
+    def __init__(
+            self,
+            basis: Dict[str, Union[str, list]] = None,
+            idp: Union[OrbitalMapper, None] = None,
+            overlap: bool = False,
+            on_the_fly_ovp_flag: bool = False,
+            num_e_loss_weight: float = 0.1,
+            dtype: Union[str, torch.dtype] = torch.float32,
+            device: Union[str, torch.device] = torch.device("cpu"),
+            **kwargs,
+    ):
+        super(HamilNumE, self).__init__()
+        self.loss1 = nn.L1Loss()  # 用于 Hamiltonian 和 电子数 Loss
+        self.loss2 = nn.MSELoss()
+        self.overlap = overlap
+        self.device = device
+        self.on_the_fly_ovp_flag = on_the_fly_ovp_flag
+        self.num_e_loss_weight = num_e_loss_weight
+
+        if basis is not None:
+            self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
+            if idp is not None:
+                assert idp == self.idp, "The basis of idp and basis should be the same."
+        else:
+            assert idp is not None, "Either basis or idp should be provided."
+            self.idp = idp
+
+        self.dm_hr2hk = HR2HK_Gamma_Only(
+            idp=self.idp,
+            edge_field=AtomicDataDict.EDGE_FEATURES_KEY,
+            node_field=AtomicDataDict.NODE_FEATURES_KEY,
+            out_field=AtomicDataDict.HAMILTONIAN_KEY,
+            device=device
+        )
+        self.overlap_hr2hk = HR2HK_Gamma_Only(
+            idp=self.idp,
+            edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
+            node_field=AtomicDataDict.NODE_OVERLAP_KEY,
+            out_field=AtomicDataDict.OVERLAP_KEY,
+            device=device
+        )
+        self.kpoint = torch.tensor([[0.0, 0.0, 0.0]], device=device)
+
+
+    def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
+        data['kpoint'] = self.kpoint
+        ref_data['kpoint'] = self.kpoint
+
+        type_numbers = data[AtomicDataDict.ATOM_TYPE_KEY].squeeze(-1)
+        # atomic_numbers 是 int/long 类型
+        atomic_numbers = self.idp.untransform_atom(type_numbers)
+        #######################################################################################
+        #######################################################################################
+
+        # 预测 DM (Float, on CUDA, requires_grad=True)
+        pred_dm_data = self.dm_hr2hk.forward(data)
+        pred_dm = pred_dm_data[AtomicDataDict.HAMILTONIAN_KEY]
+
+        # 真实 Overlap (Float, on CUDA)
+        ref_overlap_data = self.overlap_hr2hk.forward(ref_data)
+        ref_overlap = ref_overlap_data[AtomicDataDict.OVERLAP_KEY]
+
+        # 计算预测电子数 (Float, Tensor)
+        pred_electron_number = get_electron_number_from_dm_torch(pred_dm, ref_overlap)
+
+        # 获取真实电荷 (Int, on CUDA)
+        real_charge = ref_data['charge']
+
+        # 计算目标总电子数 (Int)
+        # sum_of_atomic_numbers (Int) - real_charge (Int) = target_electrons (Int)
+        sum_of_atomic_numbers = atomic_numbers.sum()
+        total_electrons = sum_of_atomic_numbers - real_charge
+
+        electron_number_loss = self.loss1(pred_electron_number, total_electrons.float())
+
+        #######################################################################################
+
+        # onsite loss
+        pre_onsite = data[AtomicDataDict.NODE_FEATURES_KEY][
+            self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+        ]
+        tgt_onsite = ref_data[AtomicDataDict.NODE_FEATURES_KEY][
+            self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+        ]
+        # hopping loss
+        pre_hopping = data[AtomicDataDict.EDGE_FEATURES_KEY][
+            self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
+        ]
+        tgt_hopping = ref_data[AtomicDataDict.EDGE_FEATURES_KEY][
+            self.idp.mask_to_erme[ref_data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
+        ]
+
+        pre = torch.cat([pre_onsite, pre_hopping], dim=0)
+        tgt = torch.cat([tgt_onsite, tgt_hopping], dim=0)
+
+        hamil_loss = self.loss1(pre, tgt)
+
+        # 加权求和
+        final_loss = hamil_loss + self.num_e_loss_weight * electron_number_loss
+
+        return final_loss
 
 @Loss.register("hamil_wt")
 class HamilLossWT(nn.Module):
