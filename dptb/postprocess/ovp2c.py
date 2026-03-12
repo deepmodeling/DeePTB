@@ -19,12 +19,11 @@ except ImportError:
 
 def compute_overlap(data: AtomicDataDict, idp: OrbitalMapper, orb_dir, orb_names):
     ntype = idp.num_types
-    op = op2c.Op2C(
-        ntype=ntype, 
+    op = op2c.Op2c.from_files(
         nspin=1, # for current usage
         lspinorb=False,
         orb_dir=orb_dir, 
-        orb_name=orb_names
+        orb_names=orb_names
     )
 
     device = data[_keys.EDGE_INDEX_KEY].device
@@ -51,12 +50,12 @@ def compute_overlap(data: AtomicDataDict, idp: OrbitalMapper, orb_dir, orb_names
         inorb = idp.atom_norb[itype]
         jnorb = idp.atom_norb[jtype]
 
-        S = op.overlap(itype, jtype, Rij, is_transpose=False)
+        S = op.overlap(itype, jtype, Rij, transpose=False)
         ovp_dict["{}_{}_{}_{}_{}".format(i, j, *Rvec)] = S.reshape(inorb, jnorb)
     
     for k in range(atom_types.shape[0]):
         itype = atom_types[k].item()
-        S = op.overlap(itype, itype, [0, 0, 0], is_transpose=False)
+        S = op.overlap(itype, itype, [0, 0, 0], transpose=False)
         inorb = idp.atom_norb[itype]
         ovp_dict["{}_{}_{}_{}_{}".format(k, k, 0, 0, 0)] = S.reshape(inorb, inorb)
 
@@ -68,12 +67,11 @@ def compute_overlap(data: AtomicDataDict, idp: OrbitalMapper, orb_dir, orb_names
 
 def compute_overlap_image(data: AtomicDataDict, idp: OrbitalMapper, orb_dir, orb_names):
     ntype = idp.num_types
-    op = op2c.Op2C(
-        ntype=ntype, 
+    op = op2c.Op2c.from_files(
         nspin=1, # for current usage
         lspinorb=False,
         orb_dir=orb_dir, 
-        orb_name=orb_names
+        orb_names=orb_names
     )
 
     if _keys.EDGE_VECTORS_KEY not in data:
@@ -106,12 +104,12 @@ def compute_overlap_image(data: AtomicDataDict, idp: OrbitalMapper, orb_dir, orb
         inorb = idp.atom_norb[itype]
         jnorb = idp.atom_norb[jtype]
 
-        S = op.overlap(itype, jtype, Rij, is_transpose=False)
+        S = op.overlap(itype, jtype, Rij, transpose=False)
         image_container.add_block(i, j, S.reshape(inorb, jnorb), Rvec)
     
     for k in range(natom):
         itype = atom_types[k].item()
-        S = op.overlap(itype, itype, [0, 0, 0], is_transpose=False)
+        S = op.overlap(itype, itype, [0, 0, 0], transpose=False)
         inorb = idp.atom_norb[itype]
         image_container.add_block(k, k, S.reshape(inorb, inorb), [0, 0, 0])
 
