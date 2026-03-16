@@ -132,92 +132,93 @@ class MOLEGlobals:
 
 
 class MOLERouterV3(nn.Module):
-    """
-    DeepSeek-V3 Style Router Implementation.
-
-    Features:
-    1. Sigmoid Affinity: Uses Sigmoid instead of Softmax for independent expert scoring.
-    2. Aux-Loss-Free Balancing: Uses dynamic bias updates instead of auxiliary loss.
-    3. L1 Normalization: Normalizes selected expert weights to sum to 1.
-    4. Monitoring: Returns mean(max_prob) instead of z-loss for easier interpretation.
-    """
-
-    def __init__(self, in_features, num_experts=24, top_k=1,
-                 aux_loss_free=True, bias_update_speed=0.001):
+    def __init__(self, in_features, num_experts=48, top_k=6,
+                 aux_loss_free=True,
+                 initial_bias_speed=0.05,  # 初始猛药
+                 initial_jitter=0.1,  # 初始探索噪声
+                 decay_steps=5000):  # 在多少步内将它们衰减完（根据你的总 iteration 调整）
         super().__init__()
         self.top_k = top_k
         self.num_experts = num_experts
         self.aux_loss_free = aux_loss_free
-        self.bias_update_speed = bias_update_speed
 
-        # 1. 路由网络: Linear -> SiLU -> Linear
+        self.initial_bias_speed = initial_bias_speed
+        self.initial_jitter = initial_jitter
+        self.decay_steps = decay_steps
+
         self.net = nn.Sequential(
             nn.Linear(in_features, 128),
             nn.SiLU(),
             nn.Linear(128, num_experts)
         )
 
-        # 2. 专家偏置 (Buffer): 不参与梯度下降，手动更新
         self.register_buffer('expert_bias', torch.zeros(num_experts))
+        self.register_buffer('ema_load', torch.ones(num_experts) * (top_k / num_experts))
 
-    def forward(self, global_features):
-        # global_features: [Batch, Dim]
+        # 记录前向传播的步数
+        self.register_buffer('step_count', torch.tensor(0.0))
 
-        # --- Step 1: 计算基础分数 (Sigmoid) ---
+    def forward(self, global_features, sizes=None):
+        # 1. 计算当前的衰减系数 (从 1.0 线性衰减到 0.0)
+        if self.training:
+            decay_factor = max(0.001, 1.0 - (self.step_count.item() / self.decay_steps))
+            current_jitter = self.initial_jitter * decay_factor
+            current_bias_speed = self.initial_bias_speed * decay_factor
+            # 每调用一次 forward，步数 +1
+            self.step_count += 1.0
+        else:
+            current_jitter = 0.0
+            current_bias_speed = 0.0
+
         logits = self.net(global_features)
-        scores = torch.sigmoid(logits)  # [Batch, Num_Experts]
 
-        # --- Step 2: 准备路由依据 (Routing Scores) ---
+        # 2. 注入逐渐变弱的噪声
+        if self.training and current_jitter > 0.0:
+            noise = torch.rand_like(logits) * current_jitter
+            logits = logits + noise
+
+        scores = torch.sigmoid(logits)
+
         if self.aux_loss_free and self.training:
             scores_for_selection = scores + self.expert_bias
         else:
             scores_for_selection = scores
 
-        # --- Step 3: Top-K 选择 ---
         if self.top_k is not None:
             topk_scores_biased, topk_indices = torch.topk(scores_for_selection, k=self.top_k, dim=-1)
 
-            # [新增修改] --- 无论是否 training，都提取专家负载统计作监控 ---
             with torch.no_grad():
                 mask = F.one_hot(topk_indices, num_classes=self.num_experts).float()
-                current_load = mask.sum(dim=(0, 1))  # [Num_Experts]
-                # 计算负载变异系数 CV = std / mean。值为0代表绝对均衡。
-                expert_load_cv = current_load.std() / (current_load.mean() + 1e-8)
 
-            # --- Step 4: 动态负载均衡更新 (Aux-Loss-Free Update) ---
-            if self.aux_loss_free and self.training:
+                # 计算负载
+                if sizes is not None:
+                    weight = sizes.view(-1, 1, 1)
+                    weighted_mask = mask * weight
+                    current_load = weighted_mask.sum(dim=(0, 1))
+                    target_load = (sizes.sum() * self.top_k) / self.num_experts
+                else:
+                    current_load = mask.sum(dim=(0, 1))
+                    target_load = (scores.size(0) * self.top_k) / self.num_experts
+
+                self.ema_load.mul_(0.9).add_(current_load, alpha=0.1)
+                expert_load_cv = self.ema_load.std() / (self.ema_load.mean() + 1e-8)
+
+            # 3. 使用逐渐变弱的惩罚力度更新 Bias
+            if self.aux_loss_free and self.training and current_bias_speed > 0.0:
                 with torch.no_grad():
-                    # 4.2 计算目标负载 (假设完全均匀)
-                    batch_size = scores.size(0)
-                    target_load = (batch_size * self.top_k) / self.num_experts
-
-                    # 4.3 动态更新 Bias
                     error = current_load - target_load
-                    self.expert_bias -= torch.sign(error) * self.bias_update_speed
+                    self.expert_bias -= torch.sign(error) * current_bias_speed
                     self.expert_bias -= self.expert_bias.mean()
 
-            # --- Step 5: 计算最终权重 (基于原始 Sigmoid 分数) ---
-            topk_scores_original = torch.gather(scores, 1, topk_indices)
-            denominators = topk_scores_original.sum(dim=-1, keepdim=True) + 1e-8
-            topk_probs = topk_scores_original / denominators
+            # 4. 彻底抛弃错误的归一化，直接使用原始 Sigmoid 值！
+            topk_probs = torch.gather(scores, 1, topk_indices)
 
-            # --- Step 6: 构建稀疏输出系数 ---
             coeffs = torch.zeros_like(scores)
             coeffs.scatter_(1, topk_indices, topk_probs)
 
-            # --- Step 7: 监控指标 (Mean Max Probability) ---
-            monitor_val = topk_probs.max(dim=-1)[0].mean().detach()
+            monitor_val = topk_probs.mean().detach()
 
-            # [修改返回值] 多返回一个 expert_load_cv
             return coeffs, monitor_val, expert_load_cv.detach()
-
-        else:
-            # Fallback: Dense Mode (全激活，调试用)
-            denominators = scores.sum(dim=-1, keepdim=True) + 1e-8
-            probs = scores / denominators
-            monitor_val = probs.max(dim=-1)[0].mean().detach()
-            # [修改返回值] Fallback时补0
-            return probs, monitor_val, torch.tensor(0.0, device=scores.device)
 
 
 class MOLELinear(nn.Module):
