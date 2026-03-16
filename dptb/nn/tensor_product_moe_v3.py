@@ -1,3 +1,4 @@
+
 from e3nn.o3 import xyz_to_angles, Irreps
 import math
 import torch
@@ -159,8 +160,6 @@ class MOLERouterV3(nn.Module):
         # 2. 专家偏置 (Buffer): 不参与梯度下降，手动更新
         self.register_buffer('expert_bias', torch.zeros(num_experts))
 
-        # ======= 找到 MOLERouterV3 类中的 forward 方法 =======
-
     def forward(self, global_features):
         # global_features: [Batch, Dim]
 
@@ -230,12 +229,12 @@ class MOLELinear(nn.Module):
     """
 
     def __init__(self, in_features, out_features, num_experts=8,
-                 use_shared_expert=True, bias=True):
+                 num_shared_experts=1, bias=True):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.num_experts = num_experts
-        self.use_shared_expert = use_shared_expert
+        self.num_shared_experts = num_shared_experts
 
         # 1. 路由专家权重
         self.weight_experts = nn.Parameter(torch.empty(num_experts, out_features, in_features))
@@ -244,13 +243,16 @@ class MOLELinear(nn.Module):
         else:
             self.register_parameter('bias_experts', None)
 
-        # 2. 共享专家权重 (Shared Expert)
-        if self.use_shared_expert:
-            self.weight_shared = nn.Parameter(torch.empty(out_features, in_features))
+        # 2. 共享专家权重 (Shared Expert) 支持配置数量
+        if self.num_shared_experts > 0:
+            self.weight_shared = nn.Parameter(torch.empty(num_shared_experts, out_features, in_features))
             if bias:
-                self.bias_shared = nn.Parameter(torch.empty(out_features))
+                self.bias_shared = nn.Parameter(torch.empty(num_shared_experts, out_features))
             else:
                 self.register_parameter('bias_shared', None)
+        else:
+            self.register_parameter('weight_shared', None)
+            self.register_parameter('bias_shared', None)
 
         self.reset_parameters()
 
@@ -260,7 +262,7 @@ class MOLELinear(nn.Module):
         if self.bias_experts is not None:
             nn.init.uniform_(self.bias_experts, -k, k)
 
-        if self.use_shared_expert:
+        if self.num_shared_experts > 0:
             nn.init.uniform_(self.weight_shared, -k, k)
             if self.bias_shared is not None:
                 nn.init.uniform_(self.bias_shared, -k, k)
@@ -269,13 +271,13 @@ class MOLELinear(nn.Module):
         # 安全回退
         if mole_globals is None or mole_globals.coefficients is None:
             w_avg = self.weight_experts.mean(0)
-            if self.use_shared_expert:
-                w_avg = w_avg + self.weight_shared
+            if self.num_shared_experts > 0:
+                w_avg = w_avg + self.weight_shared.sum(0)
             b_avg = None
             if self.bias_experts is not None:
                 b_avg = self.bias_experts.mean(0)
-                if self.use_shared_expert and self.bias_shared is not None:
-                    b_avg = b_avg + self.bias_shared
+                if self.num_shared_experts > 0 and self.bias_shared is not None:
+                    b_avg = b_avg + self.bias_shared.sum(0)
             return F.linear(x, w_avg, b_avg)
 
         # === 核心逻辑: 权重融合 (Weight Merging) ===
@@ -286,16 +288,16 @@ class MOLELinear(nn.Module):
         mixed_weights = torch.einsum("be, eoi -> boi", mole_globals.coefficients, self.weight_experts)
 
         # 2. 【关键】融合共享专家权重
-        # 利用分配律: (W_routed + W_shared) * x
-        if self.use_shared_expert:
-            mixed_weights = mixed_weights + self.weight_shared.unsqueeze(0)
+        # 利用分配律: (W_routed + sum(W_shared)) * x
+        if self.num_shared_experts > 0:
+            mixed_weights = mixed_weights + self.weight_shared.sum(0).unsqueeze(0)
 
         # 3. 处理 Bias
         mixed_bias = None
         if self.bias_experts is not None:
             mixed_bias = torch.einsum("be, eo -> bo", mole_globals.coefficients, self.bias_experts)
-            if self.use_shared_expert and self.bias_shared is not None:
-                mixed_bias = mixed_bias + self.bias_shared.unsqueeze(0)
+            if self.num_shared_experts > 0 and self.bias_shared is not None:
+                mixed_bias = mixed_bias + self.bias_shared.sum(0).unsqueeze(0)
 
         # 4. 执行线性变换
         # 根据系统大小拆分 Input，因为每个系统(Graph)对应一个混合后的权重
@@ -303,7 +305,6 @@ class MOLELinear(nn.Module):
         out_parts = []
 
         # 循环执行 (虽然是 Python 循环，但通常 System 数量不多，开销可控)
-        # 如果追求极致性能，可以使用 torch.func.vmap 或 Grouped GEMM，但对于 Linear 维度通常可以直接 Loop
         for i, x_sys in enumerate(x_split):
             w = mixed_weights[i]
             b = mixed_bias[i] if mixed_bias is not None else None
@@ -445,6 +446,7 @@ class SO2_Linear(torch.nn.Module):
             use_interpolation: bool = False,
             # === MoE 参数 ===
             num_experts: int = 8,
+            num_shared_experts: int = 1, # Added
             # === Rotation 控制参数 (Keep-in-Frame) ===
             rotate_in: bool = True,
             rotate_out: bool = True,
@@ -467,7 +469,7 @@ class SO2_Linear(torch.nn.Module):
         num_out_m0 = self.irreps_out.num_irreps
 
         # MODIFICATION: Use MOLELinear for scalar projection (bias=True as per original)
-        self.fc_m0 = MOLELinear(num_in_m0, num_out_m0, num_experts=num_experts, bias=True)
+        self.fc_m0 = MOLELinear(num_in_m0, num_out_m0, num_experts=num_experts, num_shared_experts=num_shared_experts, bias=True)
 
         for m in range(1, self.irreps_out.lmax + 1):
             # 假设 SO2_m_Linear 已经支持 num_experts 参数
@@ -476,7 +478,8 @@ class SO2_Linear(torch.nn.Module):
                 self.irreps_in,
                 self.irreps_out,
                 use_interpolation=use_interpolation,
-                num_experts=num_experts
+                num_experts=num_experts,
+                num_shared_experts=num_shared_experts
             ))
 
         # --- Mask 和 Index 构建逻辑 (保持不变) ---
@@ -629,6 +632,7 @@ class SO2_m_Linear(torch.nn.Module):
             irreps_out,
             use_interpolation: bool = False,
             num_experts: int = 8,  # Added
+            num_shared_experts: int = 1, # Added
     ):
         super(SO2_m_Linear, self).__init__()
         self.m = m
@@ -640,7 +644,7 @@ class SO2_m_Linear(torch.nn.Module):
             self.fc = InterpolationBlock(self.num_in_channel, 2 * self.num_out_channel, bias=False)
             self.is_mole = False
         else:
-            self.fc = MOLELinear(self.num_in_channel, 2 * self.num_out_channel, num_experts=num_experts, bias=False)
+            self.fc = MOLELinear(self.num_in_channel, 2 * self.num_out_channel, num_experts=num_experts, num_shared_experts=num_shared_experts, bias=False)
             with torch.no_grad():
                 self.fc.weight_experts.data.mul_(1 / math.sqrt(2))
             self.is_mole = True
@@ -657,4 +661,3 @@ class SO2_m_Linear(torch.nn.Module):
         x_m_r = x_r.narrow(1, 0, 1) - x_i.narrow(1, 1, 1)
         x_m_i = x_r.narrow(1, 1, 1) + x_i.narrow(1, 0, 1)
         return torch.cat((x_m_r, x_m_i), dim=1)
-

@@ -25,7 +25,6 @@ from dptb.data.AtomicDataDict import with_edge_vectors, with_batch
 
 from math import ceil
 
-# [修改 1] 引入 logging 并初始化 logger
 import logging
 
 log = logging.getLogger(__name__)
@@ -70,6 +69,7 @@ class LemMoEV3(torch.nn.Module):
             use_interpolation_out: Optional[bool] = True,
             # MOE parameters
             num_experts: int = 8,
+            num_shared_experts: int = 1,
             top_k: Optional[int] = 1,
             **kwargs,
     ):
@@ -80,9 +80,10 @@ class LemMoEV3(torch.nn.Module):
         lmax = irreps_hidden.lmax
         self.num_experts = num_experts
 
-        # [修改] 使用 log.info 打印参数
+        # 使用 log.info 打印参数
         log.info(f'[LemMoEV3] Initialized DeepSeek-V3 Style MoE.')
         log.info(f'  - Num Experts: {self.num_experts}')
+        log.info(f'  - Num Shared Experts: {num_shared_experts}')
         log.info(f'  - Top-K: {top_k}')
         log.info(f'  - Strategy: Shared Expert + Aux-Loss-Free Balancing (Sigmoid Routing)')
         mean_max_prob_lower_bound = 1.0 / self.num_experts
@@ -205,7 +206,8 @@ class LemMoEV3(torch.nn.Module):
                 dtype=dtype,
                 device=device,
                 use_interpolation_tp=use_interpolation_tp,
-                num_experts=num_experts  # Pass down to Layer -> SO2_Linear
+                num_experts=num_experts,
+                num_shared_experts=num_shared_experts  # Pass down to Layer -> SO2_Linear
             ))
 
             if use_interpolation_tp:
@@ -260,12 +262,11 @@ class LemMoEV3(torch.nn.Module):
         # 返回: coeffs [Batch, Num_Experts], monitor_val (mean max prob)
         coeffs, monitor_val, expert_load_cv = self.router(global_feat)
 
-        # [修改] 不再记录 z_loss，改为记录监控指标 mean_max_prob
+        # 不再记录 z_loss，改为记录监控指标 mean_max_prob
         # 这个值越接近 1.0 表示路由越自信，接近 0.5 (TopK=1时) 表示犹豫
         data["mean_max_prob"] = monitor_val
         data["expert_load_cv"] = expert_load_cv
         # 3. Prepare MOLEGlobals
-        # ... (Init Layer Logic remains same)
         num_nodes_total = node_one_hot.shape[0]
         latents, node_features, edge_features, cutoff_coeffs, active_edges = self.init_layer(edge_index, atom_type,
                                                                                              bond_type, edge_sh,
@@ -335,7 +336,6 @@ def ShiftedSoftPlus(x: torch.Tensor):
     return torch.nn.functional.softplus(x) - math.log(2.0)
 
 
-# InitLayer remains unchanged
 class InitLayer(torch.nn.Module):
     def __init__(
             self,
@@ -523,7 +523,8 @@ class UpdateNode(torch.nn.Module):
             avg_num_neighbors: Optional[float] = None,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
-            num_experts: int = 8,  # Added
+            num_experts: int = 8,
+            num_shared_experts: int = 1,
     ):
         super(UpdateNode, self).__init__()
         self.irreps_in = irreps_in
@@ -571,7 +572,8 @@ class UpdateNode(torch.nn.Module):
             radial_emb=radial_emb,
             radial_channels=radial_channels,
             use_interpolation=use_interpolation_tp,
-            num_experts=num_experts  # Pass to SO2_Linear
+            num_experts=num_experts,
+            num_shared_experts=num_shared_experts
         )
 
         self.lin_post = Linear(
@@ -705,7 +707,8 @@ class UpdateEdge(torch.nn.Module):
             res_update_ratios_learnable: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
-            num_experts: int = 8,  # Added
+            num_experts: int = 8,
+            num_shared_experts: int = 1,
     ):
         super(UpdateEdge, self).__init__()
         self.irreps_in = irreps_in
@@ -748,7 +751,8 @@ class UpdateEdge(torch.nn.Module):
             radial_emb=radial_emb,
             radial_channels=radial_channels,
             use_interpolation=use_interpolation_tp,
-            num_experts=num_experts  # Pass to SO2_Linear
+            num_experts=num_experts,
+            num_shared_experts=num_shared_experts
         )
 
         self.latents_mlp_1 = ScalarMLPFunction(
@@ -828,6 +832,7 @@ class UpdateEdge(torch.nn.Module):
                     internal_weights=True,
                     biases=True,
                 )
+
     def forward(self, latents, node_features, node_onehot, edge_features, edge_index, edge_vector, cutoff_coeffs,
                 active_edges, edge_one_hot, wigner_D_all, mole_globals):  # Accept globals
         edge_center = edge_index[0]
@@ -880,8 +885,6 @@ class UpdateEdge(torch.nn.Module):
                 # 维度不同，必须经过 linear_res
                 edge_features = coefficient_old * self.linear_res(edge_features) + coefficient_new * new_edge_features
 
-            # edge_features = coefficient_new * new_edge_features + coefficient_old * self.linear_res(edge_features)
-
             latents = torch.index_copy(
                 latents, 0, active_edges,
                 coefficient_new * new_latents + coefficient_old * latents[active_edges]
@@ -921,7 +924,8 @@ class Layer(torch.nn.Module):
             res_update_ratios_learnable: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
-            num_experts: int = 8,  # Added
+            num_experts: int = 8,
+            num_shared_experts: int = 1,
     ):
         super(Layer, self).__init__()
 
@@ -951,7 +955,8 @@ class Layer(torch.nn.Module):
             device=device,
             use_interpolation_tp=use_interpolation_tp,
             norm_eps=norm_eps,
-            num_experts=num_experts  # Pass
+            num_experts=num_experts,
+            num_shared_experts=num_shared_experts
         )
 
         self.node_update = UpdateNode(
@@ -970,7 +975,8 @@ class Layer(torch.nn.Module):
             device=device,
             use_interpolation_tp=use_interpolation_tp,
             norm_eps=norm_eps,
-            num_experts=num_experts  # Pass
+            num_experts=num_experts,
+            num_shared_experts=num_shared_experts
         )
 
     def forward(self, latents, node_features, edge_features, node_onehot, edge_index, edge_vector, atom_type,

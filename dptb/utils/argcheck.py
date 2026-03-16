@@ -671,8 +671,9 @@ def slem():
             Argument("self_mix_iter", int, optional=True, default=2),
 
             Argument("n_radial_basis", int, optional=True, default=128, doc=doc_n_radial_basis),
-            Argument("top_k", int, optional=True, default=1, doc="The number of experts to be used in MoE. Default: 1"),
-            Argument("num_experts", int, optional=True, default=8, doc="The number of experts for MoE. Default: 8"),
+            Argument("top_k", int, optional=True, default=4, doc="The number of experts to be used in MoE. Default: 1"),
+            Argument("num_experts", int, optional=True, default=24, doc="The number of experts for MoE. Default: 8"),
+            Argument("num_shared_experts", int, optional=True, default=4, doc="The number of experts for MoE. Default: 8"),
             Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
             Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
             Argument("color_mode", str, optional=True, default="tp", doc="The type of color mode. Default: tp"),
