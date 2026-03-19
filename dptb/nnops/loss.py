@@ -643,6 +643,92 @@ class HamilLossBlas(nn.Module):
             return 0.5 * (onsite_loss + hopping_loss)
 
 
+@Loss.register("hamil_abs_mae")
+class HamilLossAbsMAE(nn.Module):
+    def __init__(
+            self,
+            basis: Dict[str, Union[str, list]] = None,
+            idp: Union[OrbitalMapper, None] = None,
+            overlap: bool = False,
+            onsite_shift: bool = False,
+            dtype: Union[str, torch.dtype] = torch.float32,
+            device: Union[str, torch.device] = torch.device("cpu"),
+            **kwargs,
+    ):
+
+        super(HamilLossAbsMAE, self).__init__()
+        self.loss1 = nn.L1Loss()
+        self.loss2 = nn.MSELoss()
+        self.overlap = overlap
+        self.device = device
+        self.onsite_shift = onsite_shift
+
+        if basis is not None:
+            self.idp = OrbitalMapper(basis, method="e3tb", device=self.device)
+            if idp is not None:
+                assert idp == self.idp, "The basis of idp and basis should be the same."
+        else:
+            assert idp is not None, "Either basis or idp should be provided."
+            self.idp = idp
+
+    def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
+
+        # ================= 修复 CodeRabbit 审查意见 =================
+        if self.onsite_shift:
+            # 直接复用统一的 shift_mu 函数，保持与 HamilLossAbs/EigHamLoss 语义对齐
+            # 内部会同时利用 node 和 edge 的 overlap 贡献综合推导并应用 mu
+            shift_mu(data, ref_data, self.idp)
+        # ============================================================
+
+        # onsite loss
+        pre_onsite = data[AtomicDataDict.NODE_FEATURES_KEY][
+            self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+        ]
+        tgt_onsite = ref_data[AtomicDataDict.NODE_FEATURES_KEY][
+            self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+        ]
+
+        # hopping loss
+        pre_hopping = data[AtomicDataDict.EDGE_FEATURES_KEY][
+            self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
+        ]
+        tgt_hopping = ref_data[AtomicDataDict.EDGE_FEATURES_KEY][
+            self.idp.mask_to_erme[ref_data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
+        ]
+
+        pre = torch.cat([pre_onsite, pre_hopping], dim=0)
+        tgt = torch.cat([tgt_onsite, tgt_hopping], dim=0)
+
+        # ================= 保留 overlap loss 逻辑 =================
+        if self.overlap:
+            # onsite overlap
+            pre_onsite_ovlp = data[AtomicDataDict.NODE_OVERLAP_KEY][
+                self.idp.mask_to_nrme[data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+            ]
+            tgt_onsite_ovlp = ref_data[AtomicDataDict.NODE_OVERLAP_KEY][
+                self.idp.mask_to_nrme[ref_data[AtomicDataDict.ATOM_TYPE_KEY].flatten()]
+            ]
+
+            # hopping overlap
+            pre_hopping_ovlp = data[AtomicDataDict.EDGE_OVERLAP_KEY][
+                self.idp.mask_to_erme[data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
+            ]
+            tgt_hopping_ovlp = ref_data[AtomicDataDict.EDGE_OVERLAP_KEY][
+                self.idp.mask_to_erme[ref_data[AtomicDataDict.EDGE_TYPE_KEY].flatten()]
+            ]
+
+            pre_ovlp = torch.cat([pre_onsite_ovlp, pre_hopping_ovlp], dim=0)
+            tgt_ovlp = torch.cat([tgt_onsite_ovlp, tgt_hopping_ovlp], dim=0)
+
+            # 将 overlap 特征拼接到 pre/tgt 中一同计算 MAE
+            pre = torch.cat([pre, pre_ovlp], dim=0)
+            tgt = torch.cat([tgt, tgt_ovlp], dim=0)
+        # ==========================================================
+
+        total_loss = self.loss1(pre, tgt)
+        return total_loss
+
+
 @Loss.register("hamil_wt")
 class HamilLossWT(nn.Module):
     def __init__(
