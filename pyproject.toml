@@ -43,6 +43,7 @@ dependencies = [
     "tensorboard",
     "seekpath",
     "rich>=13.0.0",
+    "vbcsr>=0.2.2"
 ]
 
 [project.optional-dependencies]
