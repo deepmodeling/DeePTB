@@ -82,9 +82,9 @@ class LemMoEV3(torch.nn.Module):
 
         # 使用 log.info 打印参数
         log.info(f'[LemMoEV3] Initialized DeepSeek-V3 Style MoE.')
-        log.info(f'  - Num Experts: {self.num_experts}')
         log.info(f'  - Num Shared Experts: {num_shared_experts}')
-        log.info(f'  - Top-K: {top_k}')
+        log.info(f'  - Num Routed Experts: {self.num_experts}')
+        log.info(f'  - Top-K Actived Routed Experts: {top_k}')
         log.info(f'  - Strategy: Shared Expert + Aux-Loss-Free Balancing (Sigmoid Routing)')
         mean_max_prob_lower_bound = 1.0 / self.num_experts
         # 上界：One-Hot 分布，max为 1.0，平方为 1.0
