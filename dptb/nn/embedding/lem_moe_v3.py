@@ -152,9 +152,7 @@ class LemMoEV3(torch.nn.Module):
             num_experts=num_experts,
             top_k=top_k,
             aux_loss_free=True,  # 开启 DeepSeek 负载均衡
-            initial_bias_speed=0.05,  # 初始猛药
-            initial_jitter=0.1,  # 初始探索噪声
-            decay_steps=30000
+            bias_update_speed=0.005
         )
 
         self.init_layer = InitLayer(

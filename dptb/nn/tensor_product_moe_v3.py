@@ -134,17 +134,14 @@ class MOLEGlobals:
 class MOLERouterV3(nn.Module):
     def __init__(self, in_features, num_experts=48, top_k=6,
                  aux_loss_free=True,
-                 initial_bias_speed=0.05,  # 初始猛药
-                 initial_jitter=0.1,  # 初始探索噪声
-                 decay_steps=5000):  # 在多少步内将它们衰减完（根据你的总 iteration 调整）
+                 bias_update_speed=0.005):  # 修改1: 固定 Bias 更新速度，不再衰减
         super().__init__()
         self.top_k = top_k
         self.num_experts = num_experts
         self.aux_loss_free = aux_loss_free
 
-        self.initial_bias_speed = initial_bias_speed
-        self.initial_jitter = initial_jitter
-        self.decay_steps = decay_steps
+        # 固定的惩罚力度
+        self.bias_update_speed = bias_update_speed
 
         self.net = nn.Sequential(
             nn.Linear(in_features, 128),
@@ -155,30 +152,14 @@ class MOLERouterV3(nn.Module):
         self.register_buffer('expert_bias', torch.zeros(num_experts))
         self.register_buffer('ema_load', torch.ones(num_experts) * (top_k / num_experts))
 
-        # 记录前向传播的步数
-        self.register_buffer('step_count', torch.tensor(0.0))
+        # 修改1: 删除了 step_count 等用于衰减的 Buffer
 
     def forward(self, global_features, sizes=None):
-        # 1. 计算当前的衰减系数 (从 1.0 线性衰减到 0.0)
-        if self.training:
-            decay_factor = max(0.001, 1.0 - (self.step_count.item() / self.decay_steps))
-            current_jitter = self.initial_jitter * decay_factor
-            current_bias_speed = self.initial_bias_speed * decay_factor
-            # 每调用一次 forward，步数 +1
-            self.step_count += 1.0
-        else:
-            current_jitter = 0.0
-            current_bias_speed = 0.0
-
+        # 修改1: 删除了 Jitter (探索噪声) 的注入逻辑，完全依赖网络的自然 Logits
         logits = self.net(global_features)
-
-        # 2. 注入逐渐变弱的噪声
-        if self.training and current_jitter > 0.0:
-            noise = torch.rand_like(logits) * current_jitter
-            logits = logits + noise
-
         scores = torch.sigmoid(logits)
 
+        # 加上 Bias 用于选择 Top-K (Aux-loss-free 核心机制)
         if self.aux_loss_free and self.training:
             scores_for_selection = scores + self.expert_bias
         else:
@@ -190,7 +171,7 @@ class MOLERouterV3(nn.Module):
             with torch.no_grad():
                 mask = F.one_hot(topk_indices, num_classes=self.num_experts).float()
 
-                # 计算负载
+                # 计算负载 (保留了 V1 支持 sizes 的优秀特性)
                 if sizes is not None:
                     weight = sizes.view(-1, 1, 1)
                     weighted_mask = mask * weight
@@ -200,25 +181,39 @@ class MOLERouterV3(nn.Module):
                     current_load = mask.sum(dim=(0, 1))
                     target_load = (scores.size(0) * self.top_k) / self.num_experts
 
-                self.ema_load.mul_(0.9).add_(current_load, alpha=0.1)
+                # 使用 EMA 平滑历史负载统计，使返回的 CV 指标极其稳定
+                if self.training:
+                    self.ema_load.mul_(0.9).add_(current_load, alpha=0.1)
                 expert_load_cv = self.ema_load.std() / (self.ema_load.mean() + 1e-8)
 
-            # 3. 使用逐渐变弱的惩罚力度更新 Bias
-            if self.aux_loss_free and self.training and current_bias_speed > 0.0:
+            # 修改1: 使用恒定力度 (0.005) 更新 Bias，持续进行负载均衡
+            if self.aux_loss_free and self.training and self.bias_update_speed > 0.0:
                 with torch.no_grad():
                     error = current_load - target_load
-                    self.expert_bias -= torch.sign(error) * current_bias_speed
+                    self.expert_bias -= torch.sign(error) * self.bias_update_speed
+                    # 保持 Bias 整体均值为 0，防止激活值整体漂移
                     self.expert_bias -= self.expert_bias.mean()
 
-            # 4. 彻底抛弃错误的归一化，直接使用原始 Sigmoid 值！
-            topk_probs = torch.gather(scores, 1, topk_indices)
+            # 修改2: 强制 L1 归一化 (防止路由专家被共享专家 "饿死")
+            topk_scores_original = torch.gather(scores, 1, topk_indices)
+            denominators = topk_scores_original.sum(dim=-1, keepdim=True) + 1e-8
+            topk_probs = topk_scores_original / denominators
 
+            # 构建稀疏输出系数
             coeffs = torch.zeros_like(scores)
             coeffs.scatter_(1, topk_indices, topk_probs)
 
-            monitor_val = topk_probs.mean().detach()
+            # 监控指标：计算最大概率的均值 (反映 Router 的置信度，比计算全部均值更有意义)
+            monitor_val = topk_probs.max(dim=-1)[0].mean().detach()
 
             return coeffs, monitor_val, expert_load_cv.detach()
+
+        else:
+            # Fallback 逻辑保持稳定
+            denominators = scores.sum(dim=-1, keepdim=True) + 1e-8
+            probs = scores / denominators
+            monitor_val = probs.max(dim=-1)[0].mean().detach()
+            return probs, monitor_val, torch.tensor(0.0, device=scores.device)
 
 
 class MOLELinear(nn.Module):
