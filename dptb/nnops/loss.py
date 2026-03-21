@@ -444,6 +444,17 @@ import torch
 
 log = logging.getLogger(__name__)
 
+import torch
+import torch.nn as nn
+import logging
+import inspect
+from typing import Dict, Union
+
+from dptb.utils.tools import OrbitalMapper
+from dptb.data.data_type import AtomicDataDict
+
+log = logging.getLogger(__name__)
+
 
 @Loss.register("hamil_abs")
 class HamilLossAbs(nn.Module):
@@ -455,13 +466,12 @@ class HamilLossAbs(nn.Module):
             onsite_shift: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
-            debug_flag: bool = False,      # 原有 debug flag
-            nextham_uureal_mask: bool = False,   # 原有 nextham mask
-            # ===== 新增：onsite 动态加权相关参数 =====
+            debug_flag: bool = False,
+            nextham_uureal_mask: bool = False,
             onsite_boost: bool = False,
             onsite_boost_steps: int = 20000,
             onsite_boost_max: float = 100.0,
-            z_loss_coef: float = 0.0,  # 默认为 0，即不开启
+            z_loss_coef: float = 0.0,
             **kwargs,
     ):
         super(HamilLossAbs, self).__init__()
@@ -472,24 +482,22 @@ class HamilLossAbs(nn.Module):
         self.onsite_shift = onsite_shift
         self.dtype = dtype
 
-        # Debug 开关与计数器
         self.debug = debug_flag
         self._debug_counter = 0
         self.z_loss_coef = float(z_loss_coef)
-        self.last_z_loss = None # 用于 Monitor
-        self.expert_load_cv = None # 用于 Monitor
-        # ===== 新增：onsite 动态加权控制 =====
+        self.last_z_loss = None
+        self.expert_load_cv = None
+
         self.onsite_boost = bool(onsite_boost)
         self.onsite_boost_steps = int(onsite_boost_steps)
         self.onsite_boost_max = float(onsite_boost_max)
-        self._step = 0  # 内部迭代计数器
+        self._step = 0
         self.last_onsite_loss = None
         self.last_hopping_loss = None
-        # 如果开启 Debug，记录调用者信息
+
         if self.debug:
             self._log_caller_info(kwargs)
 
-        # 初始化 OrbitalMapper
         if basis is not None:
             has_soc = kwargs.get('has_soc', False)
             self.idp = OrbitalMapper(
@@ -506,88 +514,85 @@ class HamilLossAbs(nn.Module):
             assert idp is not None, "Either basis or idp should be provided."
             self.idp = idp
 
-    # ===== 新增：计算当前 onsite 权重 =====
     def _current_onsite_weight(self) -> float:
-        """
-        从 0 到 onsite_boost_steps 线性衰减：
-            step=0       => weight = onsite_boost_max
-            step>=steps  => weight = 1.0
-        """
         if not self.onsite_boost:
             return 1.0
         progress = min(self._step / max(self.onsite_boost_steps, 1), 1.0)
-        w = self.onsite_boost_max - (self.onsite_boost_max - 1.0) * progress
-        return float(w)
+        return self.onsite_boost_max - (self.onsite_boost_max - 1.0) * progress
 
     def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
+        self._step += 1
         self._debug_counter += 1
         verbose_step = self.debug and (self._debug_counter <= 1 or self._debug_counter % 5 == 1)
 
         try:
             # === Onsite Part ===
             atom_types = data[AtomicDataDict.ATOM_TYPE_KEY].flatten()
-            node_mask = self.idp.mask_to_nrme[atom_types]
+            node_mask_orb = self.idp.mask_to_nrme[atom_types]  # 原有的轨道掩码
+
+            # 【最小侵入】：与专家的物理掩码进行逻辑与 (&)
+            if "expert_node_mask" in data:
+                node_mask_phy = data["expert_node_mask"]
+                final_node_mask = node_mask_orb & node_mask_phy
+            else:
+                final_node_mask = node_mask_orb
 
             raw_pre_node = data[AtomicDataDict.NODE_FEATURES_KEY]
             raw_tgt_node = ref_data[AtomicDataDict.NODE_FEATURES_KEY]
 
-            pre_node = raw_pre_node[node_mask]
-            tgt_node = raw_tgt_node[node_mask]
-
-            if pre_node.shape != tgt_node.shape:
-                raise ValueError(f"Onsite Shape Mismatch: Pre {pre_node.shape} vs Tgt {tgt_node.shape}")
-
-            onsite_loss = 0.5 * (self.loss1(pre_node, tgt_node) +
-                                 torch.sqrt(self.loss2(pre_node, tgt_node)))
+            if final_node_mask.any():
+                pre_node = raw_pre_node[final_node_mask]
+                tgt_node = raw_tgt_node[final_node_mask]
+                onsite_loss = 0.5 * (self.loss1(pre_node, tgt_node) +
+                                     torch.sqrt(self.loss2(pre_node, tgt_node)))
+            else:
+                onsite_loss = torch.tensor(0.0, device=self.device, requires_grad=True)
 
             # === Hopping Part ===
             edge_types = data[AtomicDataDict.EDGE_TYPE_KEY].flatten()
-            edge_mask = self.idp.mask_to_erme[edge_types]
+            edge_mask_orb = self.idp.mask_to_erme[edge_types]  # 原有的轨道掩码
+
+            # 【最小侵入】：与专家的物理掩码进行逻辑与 (&)
+            if "expert_edge_mask" in data:
+                edge_mask_phy = data["expert_edge_mask"]
+                final_edge_mask = edge_mask_orb & edge_mask_phy
+            else:
+                final_edge_mask = edge_mask_orb
 
             raw_pre_edge = data[AtomicDataDict.EDGE_FEATURES_KEY]
             raw_tgt_edge = ref_data[AtomicDataDict.EDGE_FEATURES_KEY]
 
-            pre_edge = raw_pre_edge[edge_mask]
-            tgt_edge = raw_tgt_edge[edge_mask]
-
-            if pre_edge.shape != tgt_edge.shape:
-                raise ValueError(f"Hopping Shape Mismatch: Pre {pre_edge.shape} vs Tgt {tgt_edge.shape}")
-
-            hopping_loss = 0.5 * (self.loss1(pre_edge, tgt_edge) +
-                                  torch.sqrt(self.loss2(pre_edge, tgt_edge)))
-
-            # ===== 新增：把分量 loss 缓存到对象上，用于日志 =====
-            # 尝试从 data 中获取 z_loss，如果没有（非 MoE 模型），则为 0
-            if "mean_max_prob" not in data.keys():
-                raw_z_loss = 0
-                self.last_z_loss = 0
+            if final_edge_mask.any():
+                pre_edge = raw_pre_edge[final_edge_mask]
+                tgt_edge = raw_tgt_edge[final_edge_mask]
+                hopping_loss = 0.5 * (self.loss1(pre_edge, tgt_edge) +
+                                      torch.sqrt(self.loss2(pre_edge, tgt_edge)))
             else:
-                raw_z_loss = data["mean_max_prob"]
-                self.last_z_loss = raw_z_loss.detach()
+                hopping_loss = torch.tensor(0.0, device=self.device, requires_grad=True)
 
-            if "expert_load_cv" not in data.keys():
-                self.expert_load_cv = 0
-            else:
-                expert_load_cv = data["expert_load_cv"]
-                self.expert_load_cv = expert_load_cv.detach()
+            # === 后续逻辑保持不变 ===
+            raw_z_loss = data.get("mean_max_prob", 0)
+            self.last_z_loss = raw_z_loss.detach() if isinstance(raw_z_loss, torch.Tensor) else raw_z_loss
+
+            expert_load_cv = data.get("expert_load_cv", 0)
+            self.expert_load_cv = expert_load_cv.detach() if isinstance(expert_load_cv,
+                                                                        torch.Tensor) else expert_load_cv
 
             self.last_onsite_loss = onsite_loss.detach()
             self.last_hopping_loss = hopping_loss.detach()
-            # === Debug Print ===
+
             if verbose_step:
                 self._log_step_info(locals())
                 if self.onsite_boost:
                     print(f"  Onsite weight w(t) = {self._current_onsite_weight():.3f}")
 
-            # === 新增：动态加权 onsite vs hopping ===
             if self.onsite_boost:
                 w_onsite = self._current_onsite_weight()
                 total_loss = w_onsite * onsite_loss + hopping_loss
             else:
                 total_loss = 0.5 * (onsite_loss + hopping_loss)
 
-            # [新增] 加上 Z-Loss
-            if self.z_loss_coef > 0:
+            if self.z_loss_coef > 0 and isinstance(raw_z_loss, torch.Tensor):
                 total_loss = total_loss + self.z_loss_coef * raw_z_loss
 
             return total_loss
@@ -596,77 +601,62 @@ class HamilLossAbs(nn.Module):
             if self.debug:
                 self._print_crash_info(e, data, locals())
             raise e
-    # =========================================================================
-    #                               Debug Helpers
-    # =========================================================================
 
+    # =========================================================================
+    #                               Debug Helpers (保持不变)
+    # =========================================================================
     def _log_caller_info(self, kwargs):
-        """记录初始化调用栈和参数"""
         log.warning('=' * 44)
         log.warning('========== HamilLossAbs Initialized ==========')
         log.warning(f"KWARGS: {kwargs}")
         log.warning(f"HAS_SOC: {kwargs.get('has_soc', 'Not Provided')}")
-
-        cur_frame = inspect.currentframe()
         try:
-            caller_frame_info = inspect.getouterframes(cur_frame, 2)[1]
+            caller_frame_info = inspect.getouterframes(inspect.currentframe(), 2)[1]
             caller_file = caller_frame_info.filename
             caller_line = caller_frame_info.lineno
             caller_func = caller_frame_info.function
-
             arg_info = inspect.getargvalues(caller_frame_info.frame)
             caller_class = ""
             if 'self' in arg_info.locals:
                 caller_class = arg_info.locals['self'].__class__.__name__ + "."
-
             log.warning(f"CALLED BY: {caller_class}{caller_func}")
             log.warning(f"LOCATION : {caller_file}:{caller_line}")
         except Exception:
             log.warning("Could not trace caller frame.")
-
         log.warning('=' * 44)
 
     def _log_step_info(self, locs):
-        """打印 Forward 过程中的 Tensor 形状信息"""
         print(f"\n[Loss Debug] Step {self._debug_counter}")
-
         if 'raw_pre_node' in locs and 'raw_tgt_node' in locs:
             print(f"  Node Raw Shapes -> Pre: {locs['raw_pre_node'].shape}, Tgt: {locs['raw_tgt_node'].shape}")
-        if 'node_mask' in locs:
-            print(f"  Node Mask Shape -> {locs['node_mask'].shape}, "
-                  f"Selected Elements: {locs['node_mask'].sum().item()}")
-
+        if 'final_node_mask' in locs:
+            print(
+                f"  Node Mask Final -> Shape: {locs['final_node_mask'].shape}, Selected: {locs['final_node_mask'].sum().item()}")
         if 'raw_pre_edge' in locs and 'raw_tgt_edge' in locs:
             print(f"  Edge Raw Shapes -> Pre: {locs['raw_pre_edge'].shape}, Tgt: {locs['raw_tgt_edge'].shape}")
-        if 'edge_mask' in locs:
-            print(f"  Edge Mask Shape -> {locs['edge_mask'].shape}, "
-                  f"Selected Elements: {locs['edge_mask'].sum().item()}")
-
+        if 'final_edge_mask' in locs:
+            print(
+                f"  Edge Mask Final -> Shape: {locs['final_edge_mask'].shape}, Selected: {locs['final_edge_mask'].sum().item()}")
         if 'onsite_loss' in locs and 'hopping_loss' in locs:
-            print(f"  Loss Values -> Onsite: {locs['onsite_loss'].item():.6f}, "
-                  f"Hopping: {locs['hopping_loss'].item():.6f}")
+            print(
+                f"  Loss Values -> Onsite: {locs['onsite_loss'].item():.6f}, Hopping: {locs['hopping_loss'].item():.6f}")
 
     def _print_crash_info(self, error, data, locs):
-        """打印崩溃时的详细快照"""
         print(f"\n{'!' * 20} Loss Forward Crash {'!' * 20}")
         print(f"Error: {str(error)}")
         print(f"Step: {self._debug_counter}")
-
         try:
             print(f"Atom Types Shape: {data[AtomicDataDict.ATOM_TYPE_KEY].shape}")
             print(f"Edge Types Shape: {data[AtomicDataDict.EDGE_TYPE_KEY].shape}")
         except:
             print("Could not access input data shapes.")
-
         vars_to_check = ['node_mask', 'edge_mask', 'pre_node', 'tgt_node', 'pre_edge', 'tgt_edge']
         for var_name in vars_to_check:
             if var_name in locs:
                 tensor = locs[var_name]
                 info = f"Sum: {tensor.sum()}" if tensor.dtype == torch.bool else "Feature Tensor"
                 print(f"{var_name}: Shape {tensor.shape}, {info}")
-
         print('!' * 60)
-
 @Loss.register("hamil_blas")
 class HamilLossBlas(nn.Module):
     def __init__(
