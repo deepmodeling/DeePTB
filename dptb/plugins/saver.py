@@ -1,3 +1,5 @@
+import shutil
+
 from dptb.plugins.base_plugin import Plugin
 from collections import defaultdict
 import logging
@@ -46,6 +48,15 @@ class Saver(Plugin):
             push = False
         self.push = push
 
+    def _safe_link_or_copy(self, src_abs, dst):
+        try:
+            os.symlink(src_abs, dst)
+            return
+        except Exception as e:
+            log.warning(f"Failed to create symlink {dst} -> {src_abs}, fallback to copy. Reason: {e}")
+        shutil.copy2(src_abs, dst)
+
+
     def iteration(self, **kwargs):
         if self.push == 'rs_w':
             suffix = ".iter_rs" + "%.3f" % self.trainer.model.hopping_options["rs"] + "_w" + "%.3f" % \
@@ -85,7 +96,7 @@ class Saver(Plugin):
             latest_ckpt_abs_path = os.path.abspath(latest_ckpt)
             if not os.path.exists(latest_ckpt_abs_path):
                 raise FileNotFoundError(f"Source file {latest_ckpt_abs_path} does not exist.")
-            os.symlink(latest_ckpt_abs_path, latest_symlink)
+            self._safe_link_or_copy(latest_ckpt_abs_path, latest_symlink)
 
     def epoch(self, **kwargs):
         updated_loss = self.trainer.stats.get('validation_loss')
@@ -122,7 +133,9 @@ class Saver(Plugin):
             best_ckpt_abs_path = os.path.abspath(best_ckpt)
             if not os.path.exists(best_ckpt_abs_path):
                 raise FileNotFoundError(f"Source file {best_ckpt_abs_path} does not exist.")
-            os.symlink(best_ckpt_abs_path, best_symlink)
+            self._safe_link_or_copy(best_ckpt_abs_path, best_symlink)
+
+
 
     def _save(self, name, model, model_options, common_options, train_options):
         obj = {}

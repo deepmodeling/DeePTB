@@ -4,6 +4,7 @@ import time
 import heapq
 import logging
 import torch
+import sys  # <--- 新增 sys 用于底层编码修改
 from pathlib import Path
 from typing import Optional
 
@@ -66,6 +67,19 @@ def multi_train(
         })
 
     set_log_handles(log_level, Path(log_path) if log_path else None)
+
+    # ====== 懒人补丁：强制 Windows 下日志和终端输出支持 UTF-8 (解决 Emoji 报错) ======
+    if sys.platform.startswith('win'):
+        for handler in logging.root.handlers + logging.getLogger().handlers:
+            if isinstance(handler, logging.FileHandler):
+                handler.stream.close()
+                handler.stream = open(handler.baseFilename, handler.mode, encoding='utf-8')
+            elif isinstance(handler, logging.StreamHandler):
+                try:
+                    handler.stream.reconfigure(encoding='utf-8')
+                except:
+                    pass
+    # =========================================================================
 
     jdata = j_loader(INPUT)
     jdata = normalize(jdata)
@@ -222,10 +236,12 @@ def multi_train(
             json.dump(jdata, fp, indent=4)
 
         if jdata["train_options"].get("save_freq"):
-            trainer.register_plugin(Saver(
-                interval=[(jdata["train_options"].get("save_freq"), 'iteration'), (1, 'epoch')],
+            # ====== 这里修复了原代码的括号位置错误 ======
+            trainer.register_plugin(
+                Saver(interval=[(jdata["train_options"].get("save_freq"), 'iteration'), (1, 'epoch')]),
                 checkpoint_path=run_opt["checkpoint_path"]
-            ))
+            )
+            # ============================================
 
     print_model_params_detailed(trainer.model, logger=log, max_depth=5)
 

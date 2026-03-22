@@ -444,10 +444,7 @@ import torch
 
 log = logging.getLogger(__name__)
 
-import torch
 import torch.nn as nn
-import logging
-import inspect
 from typing import Dict, Union
 
 
@@ -523,11 +520,11 @@ class HamilLossAbs(nn.Module):
         try:
             # === Onsite Part ===
             atom_types = data[AtomicDataDict.ATOM_TYPE_KEY].flatten()
-            node_mask_orb = self.idp.mask_to_nrme[atom_types]  # 原有的轨道掩码
+            node_mask_orb = self.idp.mask_to_nrme[atom_types]  # 原有的轨道掩码 -> shape (N, 107)
 
-            # 【最小侵入】：与专家的物理掩码进行逻辑与 (&)
+            # 【修复】：使用 unsqueeze(-1) 将 (N,) 变为 (N, 1) 进行正确广播
             if "expert_node_mask" in data:
-                node_mask_phy = data["expert_node_mask"]
+                node_mask_phy = data["expert_node_mask"].unsqueeze(-1)
                 final_node_mask = node_mask_orb & node_mask_phy
             else:
                 final_node_mask = node_mask_orb
@@ -545,11 +542,11 @@ class HamilLossAbs(nn.Module):
 
             # === Hopping Part ===
             edge_types = data[AtomicDataDict.EDGE_TYPE_KEY].flatten()
-            edge_mask_orb = self.idp.mask_to_erme[edge_types]  # 原有的轨道掩码
+            edge_mask_orb = self.idp.mask_to_erme[edge_types]  # 原有的轨道掩码 -> shape (E, 128)
 
-            # 【最小侵入】：与专家的物理掩码进行逻辑与 (&)
+            # 【修复】：使用 unsqueeze(-1) 将 (E,) 变为 (E, 1) 进行正确广播
             if "expert_edge_mask" in data:
-                edge_mask_phy = data["expert_edge_mask"]
+                edge_mask_phy = data["expert_edge_mask"].unsqueeze(-1)
                 final_edge_mask = edge_mask_orb & edge_mask_phy
             else:
                 final_edge_mask = edge_mask_orb

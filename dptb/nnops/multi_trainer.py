@@ -5,6 +5,7 @@ from typing import Union
 
 from dptb.utils.tools import get_lr_scheduler, get_optimizer
 from dptb.data import AtomicDataset, AtomicData
+from dptb.data.AtomicDataDict import with_edge_vectors
 from dptb.nnops.trainer import Trainer
 from dptb.nn.build import build_model
 
@@ -69,10 +70,7 @@ class MultiTrainer(Trainer):
         """
         d_min, d_max = range_dis
 
-        # 1. 边掩码 (Edge Mask)
-        # 根据 edge_vec 的 L2 范数（即距离）生成布尔掩码
-        edge_vec = batch_dict["edge_vec"]
-        dist = torch.norm(edge_vec, dim=-1)
+        dist = batch_dict['edge_lengths']
 
         # 【关键修改】：如果是最后一个专家，不再受 d_max 限制，吃掉所有 >= d_min 的边
         if expert_idx == self.num_experts - 1:
@@ -101,6 +99,7 @@ class MultiTrainer(Trainer):
             "__data_class__": batch_dev.__data_class__,
         }
         batch_dict = AtomicData.to_AtomicDataDict(batch_dev)
+        batch_dict = with_edge_vectors(batch_dict, with_lengths=True)
 
         total_loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
         expert_losses = []
@@ -115,7 +114,11 @@ class MultiTrainer(Trainer):
             batch_copy = batch_dict.copy()
             batch_copy["expert_edge_mask"] = expert_edge_mask
             batch_copy["expert_node_mask"] = expert_node_mask
-            batch_copy["expert_idx"] = expert_idx
+
+            # ====== JIT 类型安全补丁 ======
+            # 将 int 转换为 0D Tensor，防止底层 @torch.jit.script 把字典类型判断为混合类型
+            batch_copy["expert_idx"] = torch.tensor(expert_idx, dtype=torch.long, device=self.device)
+            # ==============================
 
             batch_for_loss = batch_copy.copy()
             pred_batch = self.model(batch_copy)  # 路由到对应专家
@@ -142,7 +145,10 @@ class MultiTrainer(Trainer):
                 ref_batch_copy = ref_batch_dict.copy()
                 ref_batch_copy["expert_edge_mask"] = ref_e_mask
                 ref_batch_copy["expert_node_mask"] = ref_n_mask
-                ref_batch_copy["expert_idx"] = expert_idx
+
+                # ====== JIT 类型安全补丁 ======
+                ref_batch_copy["expert_idx"] = torch.tensor(expert_idx, dtype=torch.long, device=self.device)
+                # ==============================
 
                 ref_batch_for_loss = ref_batch_copy.copy()
                 pred_ref = self.model(ref_batch_copy)
@@ -219,7 +225,10 @@ class MultiTrainer(Trainer):
                     batch_copy = batch_dict.copy()
                     batch_copy["expert_edge_mask"] = expert_edge_mask
                     batch_copy["expert_node_mask"] = expert_node_mask
-                    batch_copy["expert_idx"] = expert_idx
+
+                    # ====== JIT 类型安全补丁 ======
+                    batch_copy["expert_idx"] = torch.tensor(expert_idx, dtype=torch.long, device=self.device)
+                    # ==============================
 
                     batch_for_loss = batch_copy.copy()
                     pred_batch = self.model(batch_copy)
