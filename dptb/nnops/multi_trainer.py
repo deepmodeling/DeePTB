@@ -62,9 +62,10 @@ class MultiTrainer(Trainer):
         if hasattr(self, "optimizer"): del self.optimizer
         if hasattr(self, "lr_scheduler"): del self.lr_scheduler
 
-    def _prepare_expert_masks(self, batch_dict, range_dis):
+    def _prepare_expert_masks(self, batch_dict, range_dis, expert_idx):
         """
         Helper 函数：根据当前专家的距离区间，预生成物理距离掩码 (Mask)。
+        特殊处理：如果是最后一个区间，所有大于等于 d_min 的距离都归入该专家。
         """
         d_min, d_max = range_dis
 
@@ -72,7 +73,12 @@ class MultiTrainer(Trainer):
         # 根据 edge_vec 的 L2 范数（即距离）生成布尔掩码
         edge_vec = batch_dict["edge_vec"]
         dist = torch.norm(edge_vec, dim=-1)
-        expert_edge_mask = (dist >= d_min) & (dist < d_max)
+
+        # 【关键修改】：如果是最后一个专家，不再受 d_max 限制，吃掉所有 >= d_min 的边
+        if expert_idx == self.num_experts - 1:
+            expert_edge_mask = (dist >= d_min)
+        else:
+            expert_edge_mask = (dist >= d_min) & (dist < d_max)
 
         # 2. 节点掩码 (Node Mask)
         # 物理规则：只有包含 d=0 的专家才负责 Onsite (节点) 损失
@@ -103,8 +109,8 @@ class MultiTrainer(Trainer):
         for expert_idx, range_dis in enumerate(self.distance_ranges):
             self.optimizers[expert_idx].zero_grad(set_to_none=True)
 
-            # 生成并注入当前专家的物理掩码
-            expert_edge_mask, expert_node_mask = self._prepare_expert_masks(batch_dict, range_dis)
+            # 生成并注入当前专家的物理掩码 (传入 expert_idx)
+            expert_edge_mask, expert_node_mask = self._prepare_expert_masks(batch_dict, range_dis, expert_idx)
 
             batch_copy = batch_dict.copy()
             batch_copy["expert_edge_mask"] = expert_edge_mask
@@ -130,8 +136,8 @@ class MultiTrainer(Trainer):
                 }
                 ref_batch_dict = AtomicData.to_AtomicDataDict(ref_batch_dev)
 
-                # 为 Reference Batch 也生成掩码
-                ref_e_mask, ref_n_mask = self._prepare_expert_masks(ref_batch_dict, range_dis)
+                # 为 Reference Batch 也生成掩码 (传入 expert_idx)
+                ref_e_mask, ref_n_mask = self._prepare_expert_masks(ref_batch_dict, range_dis, expert_idx)
 
                 ref_batch_copy = ref_batch_dict.copy()
                 ref_batch_copy["expert_edge_mask"] = ref_e_mask
@@ -207,7 +213,8 @@ class MultiTrainer(Trainer):
                 batch_dict = AtomicData.to_AtomicDataDict(batch_dev)
 
                 for expert_idx, range_dis in enumerate(self.distance_ranges):
-                    expert_edge_mask, expert_node_mask = self._prepare_expert_masks(batch_dict, range_dis)
+                    # 验证集同样传入 expert_idx 以适配最后一个区间的逻辑
+                    expert_edge_mask, expert_node_mask = self._prepare_expert_masks(batch_dict, range_dis, expert_idx)
 
                     batch_copy = batch_dict.copy()
                     batch_copy["expert_edge_mask"] = expert_edge_mask

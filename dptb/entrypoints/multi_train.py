@@ -24,7 +24,7 @@ from dptb.utils.loggers import set_log_handles
 from dptb.entrypoints.train import deep_dict_difference, print_model_params_detailed
 
 # 引入上述的 MultiTrainer
-from multi_trainer import MultiTrainer
+from dptb.nnops.multi_trainer import MultiTrainer
 
 __all__ = ["multi_train"]
 

@@ -137,9 +137,11 @@ def train_options():
     doc_ref_batch_size = "The batch size used in reference data, Default: 1"
     doc_val_batch_size = "The batch size used in validation data, Default: 1"
     doc_max_ckpt = "The maximum number of saved checkpoints, Default: 4"
+    doc_distance_ranges = "The ranges split for distance-based MoE, Default: [[0.0, 1.0], [1.0, 2.0], [2.0, 4.0], [4.0, 6.0]]"
 
     args = [
         Argument("num_epoch", int, optional=False, doc=doc_num_epoch),
+        Argument("distance_ranges", list, optional=True, doc=doc_distance_ranges),
         Argument("batch_size", int, optional=True, default=1, doc=doc_batch_size),
         Argument("monitor_flag", bool, optional=True, default=False, doc='Set true to start monitor.'),
         Argument("clip_grad", float, optional=True, default=1, doc='Gradient clip'),

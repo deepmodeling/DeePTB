@@ -15,7 +15,7 @@ from dptb.utils.constants import anglrMId
 from dptb.nn.dftbsk import DFTBSK
 import re
 from dptb.nn.hr2hk import HR2HK, HR2HK_Gamma_Only
-from pyscf import gto, dft
+# from pyscf import gto, dft
 
 """this is the register class for descriptors
 
@@ -450,11 +450,6 @@ import logging
 import inspect
 from typing import Dict, Union
 
-from dptb.utils.tools import OrbitalMapper
-from dptb.data.data_type import AtomicDataDict
-
-log = logging.getLogger(__name__)
-
 
 @Loss.register("hamil_abs")
 class HamilLossAbs(nn.Module):
@@ -657,6 +652,8 @@ class HamilLossAbs(nn.Module):
                 info = f"Sum: {tensor.sum()}" if tensor.dtype == torch.bool else "Feature Tensor"
                 print(f"{var_name}: Shape {tensor.shape}, {info}")
         print('!' * 60)
+
+
 @Loss.register("hamil_blas")
 class HamilLossBlas(nn.Module):
     def __init__(

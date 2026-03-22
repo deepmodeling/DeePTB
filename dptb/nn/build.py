@@ -13,25 +13,32 @@ log = logging.getLogger(__name__)
 # ======================================================================
 # 新增: 距离集合包装器 (Distance Ensemble Wrapper)
 # ======================================================================
+# ======================================================================
+# Distance Ensemble Wrapper (距离多专家包装器)
+# ======================================================================
 class DistanceEnsembleWrapper(nn.Module):
     """
     一个透明的模型包装器，用于实现 Distance MOE。
+    训练阶段：负责将 batch 路由到具体的专家。
+    推理阶段：逆向使用 Mask 思路，通过布尔索引 (Boolean Indexing) 直接拼接出完整的 Hamiltonian。
     """
 
-    def __init__(self, base_model, num_experts):
+    def __init__(self, base_model, distance_ranges):
         super().__init__()
-        # 为了对外透明，将基础模型的属性映射到 wrapper 上
+        self.distance_ranges = distance_ranges
+        self.num_experts = len(distance_ranges)
+
+        # 映射基础模型的属性，使其对外部透明
         self.name = base_model.name
         self.device = base_model.device
         self.model_options = base_model.model_options
 
-        # 将原始基础模型深拷贝 N 份，作为独立的专家
-        # 这里需要注意：如果模型很大，这会复制多份显存。
+        # 深拷贝 N 份作为独立的专家
         self.experts = nn.ModuleList([
-            copy.deepcopy(base_model) if i > 0 else base_model for i in range(num_experts)
+            copy.deepcopy(base_model) if i > 0 else base_model for i in range(self.num_experts)
         ])
 
-        # 同步底层需要访问的核心属性（适配 Trainer 和 Saver 插件）
+        # 同步底层核心属性（适配插件）
         if hasattr(base_model, 'hamiltonian'):
             self.hamiltonian = base_model.hamiltonian
         if hasattr(base_model, 'hopping_options'):
@@ -41,18 +48,52 @@ class DistanceEnsembleWrapper(nn.Module):
 
     def forward(self, batch):
         expert_idx = batch.get("expert_idx", None)
-        if expert_idx is not None:
-            # 训练阶段：只调用被选中的那个专家
-            return self.experts[expert_idx](batch)
-        else:
-            # 推理阶段：调用所有专家，并将 Hamiltonian 累加
-            res = self.experts[0](batch)  # 取第一个专家的其他结果作为骨架
-            total_H = 0
-            for expert in self.experts:
-                total_H += expert(batch)["hamiltonian"]
-            res["hamiltonian"] = total_H
-            return res
 
+        if expert_idx is not None:
+            # ==== 训练/验证阶段 ====
+            # MultiTrainer 已经注入了 expert_idx，直接路由给对应专家。
+            return self.experts[expert_idx](batch)
+
+        else:
+            # ==== 推理阶段 (MD / ASE) ====
+            # 外部没有指定 expert_idx，需要自行运行各专家并进行物理拼接
+            edge_vec = batch["edge_vec"]
+            dist = torch.norm(edge_vec, dim=-1)
+
+            # 1. 运行 Expert 0 作为骨架
+            # (Expert 0 天然负责 distance=0 的 Onsite，以及第一段 Hopping)
+            res = self.experts[0](batch)
+
+            # 2. 依次评估其余 Expert，并逆向使用 Mask 进行数据拼接
+            for i in range(1, self.num_experts):
+                d_min, d_max = self.distance_ranges[i]
+
+                # 构造当前专家的物理距离掩码 (1D Boolean Tensor)
+                if i == self.num_experts - 1:
+                    mask = (dist >= d_min)
+                else:
+                    mask = (dist >= d_min) & (dist < d_max)
+
+                # [关键优化]：如果当前 batch 没有属于该专家的边，直接跳过计算，节省大量算力！
+                if not mask.any():
+                    continue
+
+                # 运行当前专家
+                res_i = self.experts[i](batch)
+
+                # 逆向使用 Loss 的 Mask 思路：
+                # 不再用乘法和 unsqueeze 累加，而是利用布尔索引直接原地替换对应的 Edge Block
+                res["hamiltonian"][mask] = res_i["hamiltonian"][mask]
+
+                # 如果启用了 Overlap (重叠矩阵)，同步拼接
+                if "overlap" in res and "overlap" in res_i:
+                    res["overlap"][mask] = res_i["overlap"][mask]
+
+                # 如果下游逻辑依赖中间特征，也可使用相同方式覆盖
+                if AtomicDataDict.EDGE_FEATURES_KEY in res:
+                    res[AtomicDataDict.EDGE_FEATURES_KEY][mask] = res_i[AtomicDataDict.EDGE_FEATURES_KEY][mask]
+
+            return res
 
 # ======================================================================
 
