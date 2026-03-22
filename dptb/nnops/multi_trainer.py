@@ -18,10 +18,11 @@ class MultiTrainer(Trainer):
 
     支持两种执行模式：
     1) serial：保守模式，逐 expert 串行 forward/backward/step
-    2) parallel_multi：全链路异步并行模式 (Full Pipeline Async)
-       - CUDA: 使用多 stream 同时发起多个 expert 的 Forward + Backward + Step，极致榨干 GPU。
-       - 非 CUDA: 退化为顺序全流程执行。
+    2) parallel_multi：全链路异步并行模式
+       - CUDA: 使用多 stream 发起多个 expert 的 forward/backward/step
+       - 非 CUDA: 自动退化为串行
     """
+
     object_keys = ["lr_schedulers", "optimizers"]
 
     def __init__(
@@ -47,6 +48,9 @@ class MultiTrainer(Trainer):
         self.distance_ranges = distance_ranges
         self.num_experts = len(distance_ranges)
         self.parallel_multi = bool(self.train_options.get("parallel_multi", False))
+        self.log_single_model_compatible_loss = bool(
+            self.train_options.get("log_single_model_compatible_loss", True)
+        )
 
         log.info(
             f"🚀 Initialized MultiTrainer with {self.num_experts} ISOLATED experts (Distance MOE): {self.distance_ranges}"
@@ -72,13 +76,15 @@ class MultiTrainer(Trainer):
 
         if self.parallel_multi:
             if self._is_cuda_device() and self.num_experts > 1:
-                log.info("⚡ Expert mode = parallel_multi (Full Async: Fwd+Bwd+Step via CUDA streams)")
+                log.info("⚡ Expert mode = parallel_multi (CUDA multi-stream)")
             elif self.num_experts > 1:
                 log.info("⚡ Expert mode = parallel_multi (Sequential fallback, non-CUDA)")
             else:
                 log.info("⚡ Expert mode = serial (only one expert)")
         else:
             log.info("⚡ Expert mode = serial")
+
+        log.info(f"📊 log_single_model_compatible_loss = {self.log_single_model_compatible_loss}")
 
     def _device_obj(self):
         return self.device if isinstance(self.device, torch.device) else torch.device(self.device)
@@ -178,7 +184,10 @@ class MultiTrainer(Trainer):
         if value is None:
             return float(default)
         if torch.is_tensor(value):
-            return float(value.detach().item())
+            value = value.detach()
+            if value.ndim != 0:
+                value = value.mean()
+            return float(value.item())
         return float(value)
 
     def _to_int_scalar(self, value, default=0):
@@ -236,7 +245,6 @@ class MultiTrainer(Trainer):
         )
 
         total_loss = main["loss"]
-
         active_nodes = main["active_nodes"]
         active_edges = main["active_edges"]
 
@@ -262,13 +270,11 @@ class MultiTrainer(Trainer):
             )
 
             total_loss = total_loss + ref_res["loss"]
-
             active_nodes = active_nodes + ref_res["active_nodes"]
             active_edges = active_edges + ref_res["active_edges"]
 
             onsite_weighted_sum = onsite_weighted_sum + ref_res["onsite"] * ref_res["active_nodes"].to(dtype=self.dtype)
-            hopping_weighted_sum = hopping_weighted_sum + ref_res["hopping"] * ref_res["active_edges"].to(
-                dtype=self.dtype)
+            hopping_weighted_sum = hopping_weighted_sum + ref_res["hopping"] * ref_res["active_edges"].to(dtype=self.dtype)
 
             if ref_res["z_loss"] is not None:
                 z_values.append(ref_res["z_loss"])
@@ -289,9 +295,51 @@ class MultiTrainer(Trainer):
             "hopping_weighted_sum": hopping_weighted_sum.detach(),
             "active_nodes": active_nodes.detach(),
             "active_edges": active_edges.detach(),
-            "z_values": z_values,
-            "load_cv_values": load_cv_values,
+            "z_values": [z.detach() for z in z_values],
+            "load_cv_values": [cv.detach() for cv in load_cv_values],
         }
+
+    def _run_full_batch_loss(self, batch_dict, batch_info, criterion):
+        """
+        不传 expert_idx，让 wrapper 自己 stitch 全部 experts 的输出。
+        这条路径对应“单模型口径”的 loss 计算。
+        """
+        batch_copy = batch_dict.copy()
+        batch_for_loss = batch_copy.copy()
+
+        pred_batch = self.model(batch_copy)
+        pred_batch.update(batch_info)
+        batch_for_loss.update(batch_info)
+
+        return criterion(pred_batch, batch_for_loss)
+
+    def _compute_single_model_compatible_train_loss(self, batch_dict, batch_info,
+                                                    ref_batch_dict=None, ref_batch_info=None):
+        """
+        用当前 MOE wrapper 的 stitched 全局输出，重新计算一次完整 batch loss。
+        该值用于日志/对比，口径尽量对齐旧单模型。
+        注意：
+        - 这是额外 forward，仅用于 logging，不参与 backward
+        - 建议给领导汇报时，train_loss / validation_loss 看这个口径
+        """
+        if not self.log_single_model_compatible_loss:
+            return None
+
+        with torch.no_grad():
+            full_loss = self._run_full_batch_loss(
+                batch_dict=batch_dict,
+                batch_info=batch_info,
+                criterion=self.train_lossfunc
+            )
+
+            if ref_batch_dict is not None:
+                full_loss = full_loss + self._run_full_batch_loss(
+                    batch_dict=ref_batch_dict,
+                    batch_info=ref_batch_info,
+                    criterion=self.train_lossfunc
+                )
+
+        return full_loss.detach()
 
     def _launch_train_payloads_parallel(self, batch_dict, batch_info, ref_batch_dict=None, ref_batch_info=None):
         payloads = [None] * self.num_experts
@@ -301,16 +349,11 @@ class MultiTrainer(Trainer):
             base_stream = torch.cuda.current_stream(device=device)
             streams = [torch.cuda.Stream(device=device) for _ in range(self.num_experts)]
 
-            # 1. 确保所有新流等待主数据准备完成
             for s in streams:
                 s.wait_stream(base_stream)
 
-            # 2. 纯粹并行的异步下发 Fwd -> Bwd -> Step -> Clean
             for expert_idx, range_dis in enumerate(self.distance_ranges):
                 with torch.cuda.stream(streams[expert_idx]):
-                    # 【重要修正 3】起步确保无残留梯度
-                    self.optimizers[expert_idx].zero_grad(set_to_none=True)
-
                     payload = self._build_train_payload(
                         batch_dict=batch_dict,
                         batch_info=batch_info,
@@ -327,26 +370,140 @@ class MultiTrainer(Trainer):
                         self.model.experts[expert_idx].parameters(),
                         max_norm=self.clip_grad_norm
                     )
+
                     self.optimizers[expert_idx].step()
 
-                    # 【重要修正 3】Step 完立刻释放梯度显存（极其节约 VRAM）
-                    self.optimizers[expert_idx].zero_grad(set_to_none=True)
+                    payload["grad_norm"] = grad_norm.detach() if torch.is_tensor(grad_norm) else torch.tensor(
+                        float(grad_norm), device=self.device, dtype=self.dtype
+                    )
+                    payload["loss_detached"] = loss_expert.detach()
+                    del payload["loss"]
 
-                    # 【重要修正 1】移除了此处的 _scheduler_step，防止内部 .item() 强行阻塞并发流
-
-                    # 【重要修正 2】切断计算图根节点引用，保持干净的返回包
-                    payload["loss"] = loss_expert.detach()
-
-                    payload["grad_norm"] = grad_norm
                     payloads[expert_idx] = payload
 
-            # 3. 阻塞主线程，等待所有 GPU 计算流完结 (此时可以安全收集 metrics)
             current = torch.cuda.current_stream(device=device)
             for s in streams:
                 current.wait_stream(s)
+        else:
+            for expert_idx, range_dis in enumerate(self.distance_ranges):
+                payload = self._build_train_payload(
+                    batch_dict=batch_dict,
+                    batch_info=batch_info,
+                    expert_idx=expert_idx,
+                    range_dis=range_dis,
+                    ref_batch_dict=ref_batch_dict,
+                    ref_batch_info=ref_batch_info,
+                )
+
+                loss_expert = payload["loss"]
+                loss_expert.backward()
+
+                grad_norm = torch.nn.utils.clip_grad_norm_(
+                    self.model.experts[expert_idx].parameters(),
+                    max_norm=self.clip_grad_norm
+                )
+
+                self.optimizers[expert_idx].step()
+
+                payload["grad_norm"] = grad_norm.detach() if torch.is_tensor(grad_norm) else torch.tensor(
+                    float(grad_norm), device=self.device, dtype=self.dtype
+                )
+                payload["loss_detached"] = loss_expert.detach()
+                del payload["loss"]
+
+                payloads[expert_idx] = payload
+
+        return payloads
+
+    def _scheduler_step(self, expert_idx, loss_expert):
+        if self.update_lr_per_iter:
+            if isinstance(self.lr_schedulers[expert_idx], torch.optim.lr_scheduler.ReduceLROnPlateau):
+                if self.iter > 1:
+                    metric = loss_expert
+                    if torch.is_tensor(metric):
+                        metric = metric.detach()
+                        if metric.ndim != 0:
+                            metric = metric.mean()
+                        metric = float(metric.item())
+                    else:
+                        metric = float(metric)
+                    self.lr_schedulers[expert_idx].step(metric)
+            else:
+                self.lr_schedulers[expert_idx].step()
+
+    def iteration(self, batch, ref_batch=None):
+        self.model.train()
+
+        batch_dict, batch_info = self._prepare_batch_bundle(batch, with_lengths=True)
+
+        ref_batch_dict = None
+        ref_batch_info = None
+        if ref_batch is not None:
+            ref_batch_dict, ref_batch_info = self._prepare_batch_bundle(ref_batch, with_lengths=True)
+
+        # 这个是“单模型可比口径”的训练损失（仅用于日志，不参与 backward）
+        comparable_train_loss = self._compute_single_model_compatible_train_loss(
+            batch_dict=batch_dict,
+            batch_info=batch_info,
+            ref_batch_dict=ref_batch_dict,
+            ref_batch_info=ref_batch_info,
+        )
+
+        total_loss_opt = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
+        expert_grad_norms = []
+
+        global_onsite_sum = 0.0
+        global_hopping_sum = 0.0
+        total_active_nodes = 0
+        total_active_edges = 0
+        expert_onsite_dict = {}
+        expert_hopping_dict = {}
+        z_metric_values = []
+        expert_load_cv_values = []
+
+        def collect_payload(expert_idx, payload, grad_norm):
+            nonlocal total_loss_opt
+            nonlocal global_onsite_sum, global_hopping_sum
+            nonlocal total_active_nodes, total_active_edges
+
+            total_loss_opt = total_loss_opt + payload["loss_detached"]
+            expert_grad_norms.append(self._to_float_scalar(grad_norm))
+
+            expert_onsite = self._to_float_scalar(payload["expert_onsite"])
+            expert_hopping = self._to_float_scalar(payload["expert_hopping"])
+            expert_onsite_dict[f"expert_{expert_idx}_onsite"] = expert_onsite
+            expert_hopping_dict[f"expert_{expert_idx}_hopping"] = expert_hopping
+
+            global_onsite_sum += self._to_float_scalar(payload["onsite_weighted_sum"])
+            global_hopping_sum += self._to_float_scalar(payload["hopping_weighted_sum"])
+            total_active_nodes += self._to_int_scalar(payload["active_nodes"])
+            total_active_edges += self._to_int_scalar(payload["active_edges"])
+
+            for z in payload["z_values"]:
+                if z is not None:
+                    z_metric_values.append(self._to_float_scalar(z))
+
+            for cv in payload["load_cv_values"]:
+                if cv is not None:
+                    expert_load_cv_values.append(self._to_float_scalar(cv))
+
+        if self.parallel_multi and self.num_experts > 1:
+            for opt in self.optimizers:
+                opt.zero_grad(set_to_none=True)
+
+            payloads = self._launch_train_payloads_parallel(
+                batch_dict=batch_dict,
+                batch_info=batch_info,
+                ref_batch_dict=ref_batch_dict,
+                ref_batch_info=ref_batch_info,
+            )
+
+            # scheduler 放到 stream 外面，避免隐式同步偷性能
+            for expert_idx, payload in enumerate(payloads):
+                self._scheduler_step(expert_idx, payload["loss_detached"])
+                collect_payload(expert_idx, payload, payload["grad_norm"])
 
         else:
-            # 串行 Fallback
             for expert_idx, range_dis in enumerate(self.distance_ranges):
                 self.optimizers[expert_idx].zero_grad(set_to_none=True)
 
@@ -367,135 +524,27 @@ class MultiTrainer(Trainer):
                     max_norm=self.clip_grad_norm
                 )
                 self.optimizers[expert_idx].step()
-                self.optimizers[expert_idx].zero_grad(set_to_none=True)
 
-                payload["loss"] = loss_expert.detach()
-                payload["grad_norm"] = grad_norm
-                payloads[expert_idx] = payload
+                payload["grad_norm"] = grad_norm.detach() if torch.is_tensor(grad_norm) else torch.tensor(
+                    float(grad_norm), device=self.device, dtype=self.dtype
+                )
+                payload["loss_detached"] = loss_expert.detach()
+                del payload["loss"]
 
-        return payloads
-
-    def _launch_validation_losses_parallel(self, batch_dict, batch_info):
-        losses = [None] * self.num_experts
-
-        if self._use_cuda_stream_parallel():
-            device = self._device_obj()
-            base_stream = torch.cuda.current_stream(device=device)
-            streams = [torch.cuda.Stream(device=device) for _ in range(self.num_experts)]
-
-            for s in streams:
-                s.wait_stream(base_stream)
-
-            for expert_idx, range_dis in enumerate(self.distance_ranges):
-                with torch.cuda.stream(streams[expert_idx]):
-                    losses[expert_idx] = self._run_one_expert_loss(
-                        batch_dict=batch_dict,
-                        batch_info=batch_info,
-                        criterion=self.validation_lossfunc,
-                        expert_idx=expert_idx,
-                        range_dis=range_dis,
-                        capture_metrics=False
-                    )["loss"].detach()
-
-            current = torch.cuda.current_stream(device=device)
-            for s in streams:
-                current.wait_stream(s)
-        else:
-            for expert_idx, range_dis in enumerate(self.distance_ranges):
-                losses[expert_idx] = self._run_one_expert_loss(
-                    batch_dict=batch_dict,
-                    batch_info=batch_info,
-                    criterion=self.validation_lossfunc,
-                    expert_idx=expert_idx,
-                    range_dis=range_dis,
-                    capture_metrics=False
-                )["loss"].detach()
-
-        return losses
-
-    def _scheduler_step(self, expert_idx, loss_expert):
-        """
-        注意：传入的 loss_expert 必须已经是 .detach() 的，防止意外的内存泄漏或图反向。
-        这里的 .item() 在 wait_stream() 后执行是安全的，不会阻塞并发调度。
-        """
-        if self.update_lr_per_iter:
-            if isinstance(self.lr_schedulers[expert_idx], torch.optim.lr_scheduler.ReduceLROnPlateau):
-                if self.iter > 1:
-                    # 确保是 Python float
-                    val = loss_expert.item() if torch.is_tensor(loss_expert) else float(loss_expert)
-                    self.lr_schedulers[expert_idx].step(val)
-            else:
-                self.lr_schedulers[expert_idx].step()
-
-    def iteration(self, batch, ref_batch=None):
-        self.model.train()
-
-        batch_dict, batch_info = self._prepare_batch_bundle(batch, with_lengths=True)
-
-        ref_batch_dict = None
-        ref_batch_info = None
-        if ref_batch is not None:
-            ref_batch_dict, ref_batch_info = self._prepare_batch_bundle(ref_batch, with_lengths=True)
-
-        total_loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
-        expert_grad_norms = []
-
-        global_onsite_sum = 0.0
-        global_hopping_sum = 0.0
-        total_active_nodes = 0
-        total_active_edges = 0
-        expert_onsite_dict = {}
-        expert_hopping_dict = {}
-        z_metric_values = []
-        expert_load_cv_values = []
-
-        def collect_payload(expert_idx, payload, grad_norm):
-            nonlocal total_loss
-            nonlocal global_onsite_sum, global_hopping_sum
-            nonlocal total_active_nodes, total_active_edges
-
-            total_loss = total_loss + payload["loss"]
-
-            expert_grad_norms.append(self._to_float_scalar(grad_norm))
-
-            expert_onsite = self._to_float_scalar(payload["expert_onsite"])
-            expert_hopping = self._to_float_scalar(payload["expert_hopping"])
-            expert_onsite_dict[f"expert_{expert_idx}"] = expert_onsite
-            expert_hopping_dict[f"expert_{expert_idx}"] = expert_hopping
-
-            global_onsite_sum += self._to_float_scalar(payload["onsite_weighted_sum"])
-            global_hopping_sum += self._to_float_scalar(payload["hopping_weighted_sum"])
-            total_active_nodes += self._to_int_scalar(payload["active_nodes"])
-            total_active_edges += self._to_int_scalar(payload["active_edges"])
-
-            for z in payload["z_values"]:
-                if z is not None:
-                    z_metric_values.append(self._to_float_scalar(z))
-
-            for cv in payload["load_cv_values"]:
-                if cv is not None:
-                    expert_load_cv_values.append(self._to_float_scalar(cv))
-
-        # 核心：无论是不是并行，逻辑收束到统一的数据处理流
-        payloads = self._launch_train_payloads_parallel(
-            batch_dict=batch_dict,
-            batch_info=batch_info,
-            ref_batch_dict=ref_batch_dict,
-            ref_batch_info=ref_batch_info,
-        )
-
-        for expert_idx, payload in enumerate(payloads):
-            # 1. 收集统计信息
-            collect_payload(expert_idx, payload, payload["grad_norm"])
-            # 2. 【重要修正 1】安全、统一地在主进程收集完数据后执行 Scheduler Step
-            self._scheduler_step(expert_idx, payload["loss"])
+                self._scheduler_step(expert_idx, payload["loss_detached"])
+                collect_payload(expert_idx, payload, payload["grad_norm"])
 
         global_onsite = global_onsite_sum / max(total_active_nodes, 1)
         global_hopping = global_hopping_sum / max(total_active_edges, 1)
 
+        # train_loss：给旧单模型对比用
+        # train_loss_opt：真实优化目标（Σ expert loss），仅调试参考
+        final_train_loss = comparable_train_loss if comparable_train_loss is not None else total_loss_opt
+
         state = {
             'field': 'iteration',
-            "train_loss": total_loss,
+            "train_loss": final_train_loss,
+            "train_loss_opt": total_loss_opt,
             "lr": self.optimizers[0].param_groups[0]['lr'],
             "total_grad_norm": sum(expert_grad_norms) / max(len(expert_grad_norms), 1),
             "train_onsite_loss": global_onsite,
@@ -503,8 +552,8 @@ class MultiTrainer(Trainer):
         }
 
         for i in range(self.num_experts):
-            state[f"expert_{i}_onsite"] = expert_onsite_dict.get(f"expert_{i}", 0.0)
-            state[f"expert_{i}_hopping"] = expert_hopping_dict.get(f"expert_{i}", 0.0)
+            state[f"expert_{i}_onsite"] = expert_onsite_dict.get(f"expert_{i}_onsite", 0.0)
+            state[f"expert_{i}_hopping"] = expert_hopping_dict.get(f"expert_{i}_hopping", 0.0)
 
         if expert_load_cv_values:
             state["expert_load_cv"] = sum(expert_load_cv_values) / len(expert_load_cv_values)
@@ -514,9 +563,13 @@ class MultiTrainer(Trainer):
         self.call_plugins(queue_name='iteration', time=self.iter, **state)
         self.iter += 1
 
-        return total_loss
+        return total_loss_opt
 
     def validation(self, fast=True):
+        """
+        验证阶段直接走 stitched 全局输出，再调用 validation_lossfunc。
+        这样 validation_loss 与旧单模型口径可比。
+        """
         with torch.no_grad():
             total_loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
             self.model.eval()
@@ -524,13 +577,12 @@ class MultiTrainer(Trainer):
             for batch in self.validation_loader:
                 batch_dict, batch_info = self._prepare_batch_bundle(batch, with_lengths=True)
 
-                losses = self._launch_validation_losses_parallel(
+                loss_i = self._run_full_batch_loss(
                     batch_dict=batch_dict,
-                    batch_info=batch_info
+                    batch_info=batch_info,
+                    criterion=self.validation_lossfunc,
                 )
-
-                for loss_i in losses:
-                    total_loss = total_loss + loss_i
+                total_loss = total_loss + loss_i.detach()
 
                 if fast:
                     break

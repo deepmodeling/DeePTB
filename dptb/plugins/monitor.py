@@ -518,7 +518,6 @@ class DeepDoctorMonitor(Plugin):
     def epoch(self, **kwargs):
         pass
 
-
 class Monitor(Plugin):
     def __init__(self, running_average=True, epoch_average=True, smoothing=0.7,
                  precision=None, number_format=None, unit='', sliding_win_size=50, avg_per_iter=False):
@@ -548,18 +547,26 @@ class Monitor(Plugin):
             self.loss_queue = collections.deque(maxlen=sliding_win_size)
         self.avg_per_iter = avg_per_iter
 
+    def _normalize_scalar(self, val):
+        if val is None:
+            return None
+        if torch.is_tensor(val):
+            val = val.detach()
+            if val.ndim > 0:
+                val = val.mean()
+            return float(val.item())
+        return float(val)
+
     def register(self, trainer):
         self.trainer = trainer
         stats = self.trainer.stats.setdefault(self.stat_name, {})
 
-        # --- 核心修复：初始化所有可能的键，防止 Logger 报 KeyError ---
         stats['last'] = 0.0
         if self.with_running_average:
             stats['running_avg'] = 0.0
         if self.with_epoch_average:
             stats['epoch_mean'] = 0.0
             stats['epoch_stats'] = (0, 0)
-        # -------------------------------------------------------
 
         stats['log_format'] = self.log_format
         stats['log_unit'] = self.log_unit
@@ -570,15 +577,14 @@ class Monitor(Plugin):
     def iteration(self, **kwargs):
         stats = self.trainer.stats.setdefault(self.stat_name, {})
         val = self._get_value(**kwargs)
+        val = self._normalize_scalar(val)
 
-        # 如果获取不到值（例如 Trainer 还没传），则跳过本次更新
         if val is None:
             return
 
         stats['last'] = val
 
         if self.with_epoch_average:
-            # 使用 sum 累加
             curr_s, curr_c = stats.get('epoch_stats', (0, 0))
             stats['epoch_stats'] = (curr_s + val, curr_c + 1)
 
@@ -594,30 +600,24 @@ class Monitor(Plugin):
         stats = self.trainer.stats.setdefault(self.stat_name, {})
         if self.with_epoch_average:
             epoch_stats = stats.get('epoch_stats', (0, 0))
-            # 防御除零错误
             if epoch_stats[1] > 0:
                 stats['epoch_mean'] = epoch_stats[0] / epoch_stats[1]
             else:
-                # 如果这一轮没数据，保留之前的 epoch_mean 或用 last
                 stats['epoch_mean'] = stats.get('epoch_mean', stats.get('last', 0.0))
-            # 重置计数器
             stats['epoch_stats'] = (0, 0)
+
 
 class TrainOnsiteLossMonitor(Monitor):
     stat_name = "train_onsite_loss"
 
     def __init__(self, interval=None, **kwargs):
         super().__init__(**kwargs)
-        # 显式初始化 interval（按你 Plugin 机制要求）
         if interval is None:
             interval = [(1, 'iteration'), (1, 'epoch')]
         self.trigger_interval = interval
 
     def _get_value(self, **kwargs):
-        val = kwargs.get("train_onsite_loss", 0.0)
-        if torch.is_tensor(val):
-            return val.item()
-        return float(val)
+        return kwargs.get("train_onsite_loss", None)
 
 
 class TrainHoppingLossMonitor(Monitor):
@@ -630,10 +630,7 @@ class TrainHoppingLossMonitor(Monitor):
         self.trigger_interval = interval
 
     def _get_value(self, **kwargs):
-        val = kwargs.get("train_hopping_loss", 0.0)
-        if torch.is_tensor(val):
-            return val.item()
-        return float(val)
+        return kwargs.get("train_hopping_loss", None)
 
 
 class TrainZLossMonitor(Monitor):
@@ -646,10 +643,7 @@ class TrainZLossMonitor(Monitor):
         self.trigger_interval = interval
 
     def _get_value(self, **kwargs):
-        val = kwargs.get("mean_max_prob", 0.0)
-        if torch.is_tensor(val):
-            return val.item()
-        return float(val)
+        return kwargs.get("mean_max_prob", None)
 
 
 class ExpertLoadCVMonitor(Monitor):
@@ -662,15 +656,28 @@ class ExpertLoadCVMonitor(Monitor):
         self.trigger_interval = interval
 
     def _get_value(self, **kwargs):
-        val = kwargs.get("expert_load_cv", 0.0)
-        if torch.is_tensor(val):
-            return val.item()
-        return float(val)
+        return kwargs.get("expert_load_cv", None)
+
+
+class ScalarFieldMonitor(Monitor):
+    """
+    通用标量监控器。
+    只要 Trainer 在 call_plugins(..., **state) 里传了对应字段，
+    就可以写进 trainer.stats，供 TensorBoard / Logger / epoch_mean 使用。
+    """
+
+    def __init__(self, stat_name, interval=None, **kwargs):
+        self.stat_name = stat_name
+        super().__init__(**kwargs)
+        if interval is None:
+            interval = [(1, 'iteration'), (1, 'epoch')]
+        self.trigger_interval = interval
+
+    def _get_value(self, **kwargs):
+        return kwargs.get(self.stat_name, None)
 
 
 class TrainLossMonitor(Monitor):
-    # It's a Monitor that records the loss.
-    # stat_name is used in the Monitor class to register.
     stat_name = 'train_loss'
 
     def _get_value(self, **kwargs):
@@ -678,9 +685,8 @@ class TrainLossMonitor(Monitor):
 
 
 class TestLossMonitor(Monitor):
-    # It's a Monitor that records the loss.
-    # stat_name is used in the Monitor class to register.
     stat_name = 'test_loss'
+
     def __init__(self):
         super(TestLossMonitor, self).__init__(
             precision=6,
@@ -691,20 +697,21 @@ class TestLossMonitor(Monitor):
 
 
 class LearningRateMonitor(Monitor):
-    # It's a Monitor that records the loss.
-    # stat_name is used in the Monitor class to register.
     stat_name = 'lr'
+
     def __init__(self):
         super(LearningRateMonitor, self).__init__(
             running_average=False, epoch_average=False, smoothing=0.7,
             precision=6, number_format='.{}g'.format(4), unit=''
         )
+
     def _get_value(self, **kwargs):
         return kwargs.get('lr', None)
 
 
 class Validationer(Monitor):
     stat_name = 'validation_loss'
+
     def __init__(self, interval, fast_mode=True):
         super(Validationer, self).__init__(
             precision=8,
@@ -718,75 +725,157 @@ class Validationer(Monitor):
 
     def epoch(self, **kwargs):
         stats = self.trainer.stats.setdefault(self.stat_name, {})
-        stats['epoch_mean'] = self.trainer.validation(fast=self.fast_mode)
+        val = self.trainer.validation(fast=self.fast_mode)
+        if torch.is_tensor(val):
+            val = val.detach()
+            if val.ndim > 0:
+                val = val.mean()
+            val = float(val.item())
+        else:
+            val = float(val)
+        stats['epoch_mean'] = val
 
 
 class TensorBoardMonitor(Plugin):
-    def __init__(self, interval):
+    """
+    兼容单模型与多专家模型：
+    - iteration 阶段优先从 kwargs 读最新值
+    - epoch 阶段从 trainer.stats 读 epoch_mean
+    - 单模型不会因为 expert_* 缺失而报错
+    """
+    def __init__(self, interval, log_dir='./tensorboard_logs', flush_every=20):
         super(TensorBoardMonitor, self).__init__(interval=interval)
-        self.writer = SummaryWriter(log_dir='./tensorboard_logs')
+        self.writer = SummaryWriter(log_dir=log_dir)
+        self.flush_every = flush_every
 
     def register(self, trainer):
         self.trainer = trainer
 
+    def _to_float(self, val, default=None):
+        if val is None:
+            return default
+        if torch.is_tensor(val):
+            val = val.detach()
+            if val.ndim > 0:
+                val = val.mean()
+            return float(val.item())
+        try:
+            return float(val)
+        except Exception:
+            return default
+
+    def _get_stat(self, name, key, default=None):
+        return self._to_float(self.trainer.stats.get(name, {}).get(key, default), default=default)
+
+    def _get_value(self, name, key='last', kwargs=None, default=None):
+        if kwargs is not None and name in kwargs:
+            return self._to_float(kwargs.get(name), default=default)
+        return self._get_stat(name, key, default=default)
+
     def epoch(self, **kwargs):
         epoch = self.trainer.ep
 
-        def get_stat(name, key):
-            return self.trainer.stats.get(name, {}).get(key, 0.0)
+        lr = self._get_stat('lr', 'last', None)
+        train_loss_mean = self._get_stat('train_loss', 'epoch_mean', None)
+        train_loss_opt_mean = self._get_stat('train_loss_opt', 'epoch_mean', None)
+        validation_loss_mean = self._get_stat('validation_loss', 'epoch_mean', None)
 
-        self.writer.add_scalar(f'lr/epoch', get_stat('lr', 'last'), epoch)
-        self.writer.add_scalar(f'train_loss_mean/epoch', get_stat('train_loss', 'epoch_mean'), epoch)
+        if lr is not None:
+            self.writer.add_scalar('lr/epoch', lr, epoch)
+        if train_loss_mean is not None:
+            self.writer.add_scalar('train_loss_mean/epoch', train_loss_mean, epoch)
+        if train_loss_opt_mean is not None:
+            self.writer.add_scalar('train_loss_opt_mean/epoch', train_loss_opt_mean, epoch)
+        if validation_loss_mean is not None:
+            self.writer.add_scalar('validation_loss_mean/epoch', validation_loss_mean, epoch)
 
         if 'train_onsite_loss' in self.trainer.stats:
-            self.writer.add_scalar(f'train_onsite_loss_mean/epoch', get_stat('train_onsite_loss', 'epoch_mean'), epoch)
+            self.writer.add_scalar(
+                'train_onsite_loss_mean/epoch',
+                self._get_stat('train_onsite_loss', 'epoch_mean', 0.0),
+                epoch
+            )
         if 'train_hopping_loss' in self.trainer.stats:
-            self.writer.add_scalar(f'train_hopping_loss_mean/epoch', get_stat('train_hopping_loss', 'epoch_mean'), epoch)
-
+            self.writer.add_scalar(
+                'train_hopping_loss_mean/epoch',
+                self._get_stat('train_hopping_loss', 'epoch_mean', 0.0),
+                epoch
+            )
         if 'mean_max_prob' in self.trainer.stats:
-            self.writer.add_scalar(f'mean_max_prob_mean/epoch', get_stat('mean_max_prob', 'epoch_mean'), epoch)
+            self.writer.add_scalar(
+                'mean_max_prob_mean/epoch',
+                self._get_stat('mean_max_prob', 'epoch_mean', 0.0),
+                epoch
+            )
         if 'expert_load_cv' in self.trainer.stats:
-            self.writer.add_scalar(f'expert_load_cv_mean/epoch', get_stat('expert_load_cv', 'epoch_mean'), epoch)
-        if 'validation_loss' in self.trainer.stats:
-            self.writer.add_scalar(f'validation_loss_mean/epoch', get_stat('validation_loss', 'epoch_mean'), epoch)
+            self.writer.add_scalar(
+                'expert_load_cv_mean/epoch',
+                self._get_stat('expert_load_cv', 'epoch_mean', 0.0),
+                epoch
+            )
 
-        # 记录单专家的 Epoch 平均值
         num_experts = getattr(self.trainer, 'num_experts', 0)
         for i in range(num_experts):
-            if f'expert_{i}_onsite' in self.trainer.stats:
-                self.writer.add_scalar(f'Expert_Onsite_Epoch_Mean/Expert_{i}', get_stat(f'expert_{i}_onsite', 'epoch_mean'), epoch)
-            if f'expert_{i}_hopping' in self.trainer.stats:
-                self.writer.add_scalar(f'Expert_Hopping_Epoch_Mean/Expert_{i}', get_stat(f'expert_{i}_hopping', 'epoch_mean'), epoch)
+            onsite_key = f'expert_{i}_onsite'
+            hopping_key = f'expert_{i}_hopping'
+
+            if onsite_key in self.trainer.stats:
+                self.writer.add_scalar(
+                    f'Expert_Onsite_Epoch_Mean/Expert_{i}',
+                    self._get_stat(onsite_key, 'epoch_mean', 0.0),
+                    epoch
+                )
+            if hopping_key in self.trainer.stats:
+                self.writer.add_scalar(
+                    f'Expert_Hopping_Epoch_Mean/Expert_{i}',
+                    self._get_stat(hopping_key, 'epoch_mean', 0.0),
+                    epoch
+                )
+
+        self.writer.flush()
 
     def iteration(self, **kwargs):
         iteration = self.trainer.iter
 
-        def get_stat(name, key):
-            return self.trainer.stats.get(name, {}).get(key, 0.0)
+        lr = self._get_value('lr', 'last', kwargs, default=None)
+        train_loss = self._get_value('train_loss', 'last', kwargs, default=None)
+        train_loss_opt = self._get_value('train_loss_opt', 'last', kwargs, default=None)
+        train_onsite = self._get_value('train_onsite_loss', 'last', kwargs, default=None)
+        train_hopping = self._get_value('train_hopping_loss', 'last', kwargs, default=None)
+        mean_max_prob = self._get_value('mean_max_prob', 'last', kwargs, default=None)
+        expert_load_cv = self._get_value('expert_load_cv', 'last', kwargs, default=None)
 
-        self.writer.add_scalar(f'lr_iter/iteration', get_stat('lr', 'last'), iteration)
-        self.writer.add_scalar(f'train_loss_iter/iteration', get_stat('train_loss', 'last'), iteration)
+        if lr is not None:
+            self.writer.add_scalar('lr_iter/iteration', lr, iteration)
+        if train_loss is not None:
+            self.writer.add_scalar('train_loss_iter/iteration', train_loss, iteration)
+        if train_loss_opt is not None:
+            self.writer.add_scalar('train_loss_opt_iter/iteration', train_loss_opt, iteration)
+        if train_onsite is not None:
+            self.writer.add_scalar('train_onsite_loss_iter/iteration', train_onsite, iteration)
+        if train_hopping is not None:
+            self.writer.add_scalar('train_hopping_loss_iter/iteration', train_hopping, iteration)
+        if mean_max_prob is not None:
+            self.writer.add_scalar('mean_max_prob_iter/iteration', mean_max_prob, iteration)
+        if expert_load_cv is not None:
+            self.writer.add_scalar('expert_load_cv_iter/iteration', expert_load_cv, iteration)
 
-        # 这里记录的是合并后的“全局等效 Loss”
-        if 'train_onsite_loss' in self.trainer.stats:
-            self.writer.add_scalar(f'train_onsite_loss_iter/iteration', get_stat('train_onsite_loss', 'last'), iteration)
-        if 'train_hopping_loss' in self.trainer.stats:
-            self.writer.add_scalar(f'train_hopping_loss_iter/iteration', get_stat('train_hopping_loss', 'last'), iteration)
+        latest_avg_iter_loss = self._get_stat('train_loss', 'latest_avg_iter_loss', None)
+        if latest_avg_iter_loss is not None:
+            self.writer.add_scalar('latest_avg_loss/iteration', latest_avg_iter_loss, iteration)
 
-        if 'mean_max_prob' in self.trainer.stats:
-            self.writer.add_scalar(f'mean_max_prob_iter/iteration', get_stat('mean_max_prob', 'last'), iteration)
-        if 'expert_load_cv' in self.trainer.stats:
-            self.writer.add_scalar(f'expert_load_cv_iter/iteration', get_stat('expert_load_cv', 'last'), iteration)
-
-        if 'latest_avg_iter_loss' in self.trainer.stats['train_loss']:
-            self.writer.add_scalar(f'latest_avg_loss/iteration', get_stat('train_loss', 'latest_avg_iter_loss'), iteration)
-
-        # ==================== [新增] 单专家进度面板 ====================
-        # 将各专家的曲线聚合在同一个 tag 下，方便直观比较差距和收敛性
         num_experts = getattr(self.trainer, 'num_experts', 0)
         for i in range(num_experts):
-            # 只有处理该物理任务的专家，才会有非零输出（比如 > 0 的专家，onsite 会画出 0 平曲线，这是符合物理直觉的）
-            if f'expert_{i}_onsite' in self.trainer.stats:
-                self.writer.add_scalar(f'Expert_Onsite_Iter/Expert_{i}', get_stat(f'expert_{i}_onsite', 'last'), iteration)
-            if f'expert_{i}_hopping' in self.trainer.stats:
-                self.writer.add_scalar(f'Expert_Hopping_Iter/Expert_{i}', get_stat(f'expert_{i}_hopping', 'last'), iteration)
+            onsite_key = f'expert_{i}_onsite'
+            hopping_key = f'expert_{i}_hopping'
+
+            onsite_val = self._get_value(onsite_key, 'last', kwargs, default=None)
+            hopping_val = self._get_value(hopping_key, 'last', kwargs, default=None)
+
+            if onsite_val is not None:
+                self.writer.add_scalar(f'Expert_Onsite_Iter/Expert_{i}', onsite_val, iteration)
+            if hopping_val is not None:
+                self.writer.add_scalar(f'Expert_Hopping_Iter/Expert_{i}', hopping_val, iteration)
+
+        if self.flush_every and iteration % self.flush_every == 0:
+            self.writer.flush()

@@ -14,7 +14,8 @@ from dptb.data.build import build_dataset
 from dptb.plugins.monitor import (
     TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor,
     DeepDoctorMonitor, SO2ModuleMonitor, PreTPBlockMonitor,
-    TrainOnsiteLossMonitor, TrainHoppingLossMonitor, TrainZLossMonitor, ExpertLoadCVMonitor
+    TrainOnsiteLossMonitor, TrainHoppingLossMonitor, TrainZLossMonitor, ExpertLoadCVMonitor,
+    ScalarFieldMonitor
 )
 from dptb.plugins.train_logger import Logger
 from dptb.plugins.saver import Saver
@@ -22,9 +23,7 @@ from dptb.utils.argcheck import normalize, collect_cutoffs, chk_avg_per_iter
 from dptb.utils.tools import j_loader, setup_seed, j_must_have
 from dptb.utils.loggers import set_log_handles
 
-# 复用 train.py 中的辅助函数
 from dptb.entrypoints.train import deep_dict_difference, print_model_params_detailed
-
 from dptb.nnops.multi_trainer import MultiTrainer
 
 __all__ = ["multi_train"]
@@ -179,7 +178,7 @@ def multi_train(
 
     set_log_handles(log_level, Path(log_path) if log_path else None)
 
-    # Windows 下日志/终端强制 UTF-8
+    # Windows 下日志 / 终端强制 UTF-8
     if sys.platform.startswith('win'):
         for handler in logging.root.handlers + logging.getLogger().handlers:
             if isinstance(handler, logging.FileHandler):
@@ -254,13 +253,19 @@ def multi_train(
 
     validation_datasets = None
     if jdata["data_options"].get("validation"):
-        validation_datasets = build_dataset(**cutoff_options, **jdata["data_options"]["validation"],
-                                            **jdata["common_options"])
+        validation_datasets = build_dataset(
+            **cutoff_options,
+            **jdata["data_options"]["validation"],
+            **jdata["common_options"]
+        )
 
     reference_datasets = None
     if jdata["data_options"].get("reference"):
-        reference_datasets = build_dataset(**cutoff_options, **jdata["data_options"]["reference"],
-                                           **jdata["common_options"])
+        reference_datasets = build_dataset(
+            **cutoff_options,
+            **jdata["data_options"]["reference"],
+            **jdata["common_options"]
+        )
 
     jdata["common_options"]["overlap"] = False
 
@@ -268,8 +273,25 @@ def multi_train(
         "distance_ranges",
         [[0.0, 1.0], [1.0, 2.0], [2.0, 4.0], [4.0, 6.0]]
     )
-    parallel_multi = bool(jdata["train_options"].get("parallel_multi", False))
+
+    parallel_multi = bool(
+        jdata["train_options"].get(
+            "parallel_multi",
+            jdata["train_options"].get("parallel_forward", False)
+        )
+    )
+    jdata["train_options"]["parallel_multi"] = parallel_multi
+
+    # 默认开启：日志里的 train_loss 采用“单模型兼容口径”
+    jdata["train_options"]["log_single_model_compatible_loss"] = bool(
+        jdata["train_options"].get("log_single_model_compatible_loss", True)
+    )
+
     log.info(f"[MultiTrainer] parallel_multi = {parallel_multi}")
+    log.info(
+        f"[MultiTrainer] log_single_model_compatible_loss = "
+        f"{jdata['train_options']['log_single_model_compatible_loss']}"
+    )
 
     if restart:
         trainer = MultiTrainer.restart(
@@ -307,27 +329,70 @@ def multi_train(
         )
 
     log_field = ["train_loss", "lr"]
+
     if validation_datasets:
         trainer.register_plugin(
-            Validationer(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')],
-                         fast_mode=jdata["train_options"]["valid_fast"]))
+            Validationer(
+                interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')],
+                fast_mode=jdata["train_options"]["valid_fast"]
+            )
+        )
         log_field.append("validation_loss")
 
     avg_per_iter = chk_avg_per_iter(jdata)
+
+    # train_loss：单模型可比口径
     trainer.register_plugin(
-        TrainLossMonitor(sliding_win_size=jdata["train_options"]["sliding_win_size"], avg_per_iter=avg_per_iter))
+        TrainLossMonitor(
+            sliding_win_size=jdata["train_options"]["sliding_win_size"],
+            avg_per_iter=avg_per_iter
+        )
+    )
     trainer.register_plugin(LearningRateMonitor())
 
+    # 推荐每 iteration 更新，保证 epoch_mean 和 TensorBoard 曲线都完整
     trainer.register_plugin(
-        TrainOnsiteLossMonitor(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')]))
+        TrainOnsiteLossMonitor(interval=[(1, 'iteration'), (1, 'epoch')])
+    )
     trainer.register_plugin(
-        TrainHoppingLossMonitor(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')]))
+        TrainHoppingLossMonitor(interval=[(1, 'iteration'), (1, 'epoch')])
+    )
     trainer.register_plugin(
-        TrainZLossMonitor(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')]))
+        TrainZLossMonitor(interval=[(1, 'iteration'), (1, 'epoch')])
+    )
     trainer.register_plugin(
-        ExpertLoadCVMonitor(interval=[(jdata["train_options"]["validation_freq"], 'iteration'), (1, 'epoch')]))
+        ExpertLoadCVMonitor(interval=[(1, 'iteration'), (1, 'epoch')])
+    )
 
-    log_field.extend(["mean_max_prob", "expert_load_cv", "train_onsite_loss", "train_hopping_loss"])
+    # 真实优化目标：Σ expert_loss，仅调试用，不建议直接和旧单模型汇报对比
+    trainer.register_plugin(
+        ScalarFieldMonitor(
+            stat_name="train_loss_opt",
+            interval=[(1, 'iteration'), (1, 'epoch')]
+        )
+    )
+
+    # 单专家 loss 监控
+    for i in range(trainer.num_experts):
+        trainer.register_plugin(
+            ScalarFieldMonitor(
+                stat_name=f"expert_{i}_onsite",
+                interval=[(1, 'iteration'), (1, 'epoch')]
+            )
+        )
+        trainer.register_plugin(
+            ScalarFieldMonitor(
+                stat_name=f"expert_{i}_hopping",
+                interval=[(1, 'iteration'), (1, 'epoch')]
+            )
+        )
+
+    log_field.extend([
+        "mean_max_prob",
+        "expert_load_cv",
+        "train_onsite_loss",
+        "train_hopping_loss"
+    ])
 
     monitor_flag = jdata["train_options"].get("monitor_flag", False)
     if monitor_flag:
@@ -336,11 +401,17 @@ def multi_train(
         trainer.register_plugin(PreTPBlockMonitor(output))
 
     if jdata["train_options"].get("use_tensorboard"):
+        tb_log_dir = os.path.join(output, "tensorboard_logs") if output else "./tensorboard_logs"
         trainer.register_plugin(
-            TensorBoardMonitor(interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
+            TensorBoardMonitor(
+                interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')],
+                log_dir=tb_log_dir
+            )
+        )
 
     trainer.register_plugin(
-        Logger(log_field, interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')]))
+        Logger(log_field, interval=[(jdata["train_options"]["display_freq"], 'iteration'), (1, 'epoch')])
+    )
 
     for q in trainer.plugin_queues.values():
         heapq.heapify(q)
@@ -355,7 +426,6 @@ def multi_train(
                 checkpoint_path=run_opt["checkpoint_path"]
             )
 
-    # 新版参数统计：单专家 + 全专家总和
     print_multi_model_params_detailed(trainer.model, logger=log, max_depth=5)
 
     start_time = time.time()
