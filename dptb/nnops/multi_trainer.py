@@ -102,34 +102,35 @@ class MultiTrainer(Trainer):
         batch_dict = with_edge_vectors(batch_dict, with_lengths=True)
 
         total_loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
-        expert_losses = []
         expert_grad_norms = []
+
+        # === [新增] 用于统计全局等效 Loss 与 单专家 Loss ===
+        global_onsite_sum = 0.0
+        global_hopping_sum = 0.0
+        total_active_nodes = 0
+        total_active_edges = 0
+        expert_onsite_dict = {}
+        expert_hopping_dict = {}
+        # =================================================
 
         for expert_idx, range_dis in enumerate(self.distance_ranges):
             self.optimizers[expert_idx].zero_grad(set_to_none=True)
 
-            # 生成并注入当前专家的物理掩码 (传入 expert_idx)
             expert_edge_mask, expert_node_mask = self._prepare_expert_masks(batch_dict, range_dis, expert_idx)
 
             batch_copy = batch_dict.copy()
             batch_copy["expert_edge_mask"] = expert_edge_mask
             batch_copy["expert_node_mask"] = expert_node_mask
-
-            # ====== JIT 类型安全补丁 ======
-            # 将 int 转换为 0D Tensor，防止底层 @torch.jit.script 把字典类型判断为混合类型
             batch_copy["expert_idx"] = torch.tensor(expert_idx, dtype=torch.long, device=self.device)
-            # ==============================
 
             batch_for_loss = batch_copy.copy()
-            pred_batch = self.model(batch_copy)  # 路由到对应专家
+            pred_batch = self.model(batch_copy)
 
             pred_batch.update(batch_info)
             batch_for_loss.update(batch_info)
 
-            # 计算 Loss，此时 Loss 内部会使用注入的 Mask
             loss_expert = self.train_lossfunc(pred_batch, batch_for_loss)
 
-            # 处理 Reference Batch
             if ref_batch is not None:
                 ref_batch_dev = ref_batch.to(self.device)
                 ref_batch_info = {
@@ -139,16 +140,11 @@ class MultiTrainer(Trainer):
                 }
                 ref_batch_dict = AtomicData.to_AtomicDataDict(ref_batch_dev)
 
-                # 为 Reference Batch 也生成掩码 (传入 expert_idx)
                 ref_e_mask, ref_n_mask = self._prepare_expert_masks(ref_batch_dict, range_dis, expert_idx)
-
                 ref_batch_copy = ref_batch_dict.copy()
                 ref_batch_copy["expert_edge_mask"] = ref_e_mask
                 ref_batch_copy["expert_node_mask"] = ref_n_mask
-
-                # ====== JIT 类型安全补丁 ======
                 ref_batch_copy["expert_idx"] = torch.tensor(expert_idx, dtype=torch.long, device=self.device)
-                # ==============================
 
                 ref_batch_for_loss = ref_batch_copy.copy()
                 pred_ref = self.model(ref_batch_copy)
@@ -173,31 +169,54 @@ class MultiTrainer(Trainer):
                     self.lr_schedulers[expert_idx].step()
 
             total_loss += loss_expert.detach()
-            expert_losses.append(loss_expert.detach())
             expert_grad_norms.append(grad_norm.item())
 
-        loss_obj = self.train_lossfunc
-        for attr in ("lossfunc", "loss_fn", "criterion", "method", "loss"):
-            inner = getattr(loss_obj, attr, None)
-            if isinstance(inner, nn.Module):
-                loss_obj = inner
-                break
+            # === [新增] 提取并累加当前专家的物理 Loss ===
+            loss_obj = self.train_lossfunc
+            for attr in ("lossfunc", "loss_fn", "criterion", "method", "loss"):
+                inner = getattr(loss_obj, attr, None)
+                if isinstance(inner, nn.Module):
+                    loss_obj = inner
+                    break
+
+            curr_onsite = getattr(loss_obj, "last_onsite_loss", torch.tensor(0.0)).item()
+            curr_hopping = getattr(loss_obj, "last_hopping_loss", torch.tensor(0.0)).item()
+
+            expert_onsite_dict[f"expert_{expert_idx}"] = curr_onsite
+            expert_hopping_dict[f"expert_{expert_idx}"] = curr_hopping
+
+            # 统计当前专家的节点/边数量，用于全局加权平均
+            n_nodes = expert_node_mask.sum().item()
+            n_edges = expert_edge_mask.sum().item()
+
+            global_onsite_sum += curr_onsite * n_nodes
+            global_hopping_sum += curr_hopping * n_edges
+            total_active_nodes += n_nodes
+            total_active_edges += n_edges
+            # ========================================
+
+        # === [新增] 计算全局等效 Loss，兼容终端输出 ===
+        # max(..., 1) 防止除零异常
+        global_onsite = global_onsite_sum / max(total_active_nodes, 1)
+        global_hopping = global_hopping_sum / max(total_active_edges, 1)
 
         state = {
             'field': 'iteration',
             "train_loss": total_loss,
-            "expert_losses": expert_losses,
             "lr": self.optimizers[0].state_dict()["param_groups"][0]['lr'],
-            "total_grad_norm": sum(expert_grad_norms) / self.num_experts
+            "total_grad_norm": sum(expert_grad_norms) / self.num_experts,
+            # 将合并后的全局 Loss 推送出去，保持控制台输出如旧
+            "train_onsite_loss": global_onsite,
+            "train_hopping_loss": global_hopping,
         }
 
-        onsite_comp = getattr(loss_obj, "last_onsite_loss", None)
-        hopping_comp = getattr(loss_obj, "last_hopping_loss", None)
+        # 将每个专家的独立 Loss 注入状态流，供 TensorBoard 读取
+        for i in range(self.num_experts):
+            state[f"expert_{i}_onsite"] = expert_onsite_dict[f"expert_{i}"]
+            state[f"expert_{i}_hopping"] = expert_hopping_dict[f"expert_{i}"]
+
         z_loss_comp = getattr(loss_obj, "last_z_loss", None)
         expert_load_cv = getattr(loss_obj, "expert_load_cv", None)
-
-        if onsite_comp is not None: state["train_onsite_loss"] = onsite_comp
-        if hopping_comp is not None: state["train_hopping_loss"] = hopping_comp
         if expert_load_cv is not None: state["expert_load_cv"] = expert_load_cv
         if z_loss_comp is not None: state["mean_max_prob"] = z_loss_comp
 

@@ -732,7 +732,6 @@ class TensorBoardMonitor(Plugin):
     def epoch(self, **kwargs):
         epoch = self.trainer.ep
 
-        # 使用 .get 获取 stats，并提供默认值 0.0 防止崩溃
         def get_stat(name, key):
             return self.trainer.stats.get(name, {}).get(key, 0.0)
 
@@ -742,18 +741,22 @@ class TensorBoardMonitor(Plugin):
         if 'train_onsite_loss' in self.trainer.stats:
             self.writer.add_scalar(f'train_onsite_loss_mean/epoch', get_stat('train_onsite_loss', 'epoch_mean'), epoch)
         if 'train_hopping_loss' in self.trainer.stats:
-            self.writer.add_scalar(f'train_hopping_loss_mean/epoch', get_stat('train_hopping_loss', 'epoch_mean'),
-                                   epoch)
+            self.writer.add_scalar(f'train_hopping_loss_mean/epoch', get_stat('train_hopping_loss', 'epoch_mean'), epoch)
 
-        # [新增] Z-Loss Epoch Mean
         if 'mean_max_prob' in self.trainer.stats:
             self.writer.add_scalar(f'mean_max_prob_mean/epoch', get_stat('mean_max_prob', 'epoch_mean'), epoch)
-        # [新增] Expert Load CV Epoch Mean (负载不平衡度)
         if 'expert_load_cv' in self.trainer.stats:
             self.writer.add_scalar(f'expert_load_cv_mean/epoch', get_stat('expert_load_cv', 'epoch_mean'), epoch)
-
         if 'validation_loss' in self.trainer.stats:
             self.writer.add_scalar(f'validation_loss_mean/epoch', get_stat('validation_loss', 'epoch_mean'), epoch)
+
+        # 记录单专家的 Epoch 平均值
+        num_experts = getattr(self.trainer, 'num_experts', 0)
+        for i in range(num_experts):
+            if f'expert_{i}_onsite' in self.trainer.stats:
+                self.writer.add_scalar(f'Expert_Onsite_Epoch_Mean/Expert_{i}', get_stat(f'expert_{i}_onsite', 'epoch_mean'), epoch)
+            if f'expert_{i}_hopping' in self.trainer.stats:
+                self.writer.add_scalar(f'Expert_Hopping_Epoch_Mean/Expert_{i}', get_stat(f'expert_{i}_hopping', 'epoch_mean'), epoch)
 
     def iteration(self, **kwargs):
         iteration = self.trainer.iter
@@ -764,22 +767,26 @@ class TensorBoardMonitor(Plugin):
         self.writer.add_scalar(f'lr_iter/iteration', get_stat('lr', 'last'), iteration)
         self.writer.add_scalar(f'train_loss_iter/iteration', get_stat('train_loss', 'last'), iteration)
 
-        # 核心修复点：使用 get_stat 替代直接索引
+        # 这里记录的是合并后的“全局等效 Loss”
         if 'train_onsite_loss' in self.trainer.stats:
-            self.writer.add_scalar(f'train_onsite_loss_iter/iteration', get_stat('train_onsite_loss', 'last'),
-                                   iteration)
+            self.writer.add_scalar(f'train_onsite_loss_iter/iteration', get_stat('train_onsite_loss', 'last'), iteration)
         if 'train_hopping_loss' in self.trainer.stats:
-            self.writer.add_scalar(f'train_hopping_loss_iter/iteration', get_stat('train_hopping_loss', 'last'),
-                                   iteration)
+            self.writer.add_scalar(f'train_hopping_loss_iter/iteration', get_stat('train_hopping_loss', 'last'), iteration)
 
-        # [新增] Z-Loss Iteration Value
         if 'mean_max_prob' in self.trainer.stats:
             self.writer.add_scalar(f'mean_max_prob_iter/iteration', get_stat('mean_max_prob', 'last'), iteration)
-
-        # [新增] Expert Load CV Iteration Value
         if 'expert_load_cv' in self.trainer.stats:
             self.writer.add_scalar(f'expert_load_cv_iter/iteration', get_stat('expert_load_cv', 'last'), iteration)
 
         if 'latest_avg_iter_loss' in self.trainer.stats['train_loss']:
-            self.writer.add_scalar(f'latest_avg_loss/iteration', get_stat('train_loss', 'latest_avg_iter_loss'),
-                                   iteration)
+            self.writer.add_scalar(f'latest_avg_loss/iteration', get_stat('train_loss', 'latest_avg_iter_loss'), iteration)
+
+        # ==================== [新增] 单专家进度面板 ====================
+        # 将各专家的曲线聚合在同一个 tag 下，方便直观比较差距和收敛性
+        num_experts = getattr(self.trainer, 'num_experts', 0)
+        for i in range(num_experts):
+            # 只有处理该物理任务的专家，才会有非零输出（比如 > 0 的专家，onsite 会画出 0 平曲线，这是符合物理直觉的）
+            if f'expert_{i}_onsite' in self.trainer.stats:
+                self.writer.add_scalar(f'Expert_Onsite_Iter/Expert_{i}', get_stat(f'expert_{i}_onsite', 'last'), iteration)
+            if f'expert_{i}_hopping' in self.trainer.stats:
+                self.writer.add_scalar(f'Expert_Hopping_Iter/Expert_{i}', get_stat(f'expert_{i}_hopping', 'last'), iteration)
