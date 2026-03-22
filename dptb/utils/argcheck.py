@@ -142,6 +142,8 @@ def train_options():
     args = [
         Argument("num_epoch", int, optional=False, doc=doc_num_epoch),
         Argument("distance_ranges", list, optional=True, doc=doc_distance_ranges),
+        Argument("parallel_multi", bool, optional=True, default=False,
+                 doc='Set true to start parallel training on CUDA.'),
         Argument("batch_size", int, optional=True, default=1, doc=doc_batch_size),
         Argument("monitor_flag", bool, optional=True, default=False, doc='Set true to start monitor.'),
         Argument("clip_grad", float, optional=True, default=1, doc='Gradient clip'),

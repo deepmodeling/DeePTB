@@ -4,7 +4,8 @@ import time
 import heapq
 import logging
 import torch
-import sys  # <--- 新增 sys 用于底层编码修改
+import torch.nn as nn
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -21,15 +22,125 @@ from dptb.utils.argcheck import normalize, collect_cutoffs, chk_avg_per_iter
 from dptb.utils.tools import j_loader, setup_seed, j_must_have
 from dptb.utils.loggers import set_log_handles
 
-# 引入你的父类函数 (复用 train.py 中的辅助函数)
+# 复用 train.py 中的辅助函数
 from dptb.entrypoints.train import deep_dict_difference, print_model_params_detailed
 
-# 引入上述的 MultiTrainer
 from dptb.nnops.multi_trainer import MultiTrainer
 
 __all__ = ["multi_train"]
 
 log = logging.getLogger(__name__)
+
+
+def _format_params_lazy(num: int) -> str:
+    if num >= 1_000_000_000:
+        return f"{num / 1_000_000_000:.2f}B"
+    if num >= 1_000_000:
+        return f"{num / 1_000_000:.2f}M"
+    if num >= 1_000:
+        return f"{num / 1_000:.2f}K"
+    return str(num)
+
+
+def _count_params(module: nn.Module):
+    total = sum(p.numel() for p in module.parameters())
+    trainable = sum(p.numel() for p in module.parameters() if p.requires_grad)
+    non_trainable = total - trainable
+    return {
+        "total": total,
+        "trainable": trainable,
+        "non_trainable": non_trainable,
+    }
+
+
+def print_multi_model_params_detailed(model: nn.Module, logger=None, max_depth: int = 5):
+    """
+    多专家参数统计：
+    1) 单个 expert（expert_0）
+    2) 所有 experts 之和
+    3) 整个 wrapper 的 model.parameters() 总和
+    4) 如果有 experts 外的共享参数，也单独打印
+    """
+    log_func = logger.info if logger else print
+
+    if not hasattr(model, "experts") or not isinstance(model.experts, nn.ModuleList) or len(model.experts) == 0:
+        print_model_params_detailed(model, logger=logger, max_depth=max_depth)
+        return
+
+    expert_stats = [_count_params(expert) for expert in model.experts]
+    num_experts = len(expert_stats)
+
+    single_stat = expert_stats[0]
+    experts_sum = {
+        "total": sum(x["total"] for x in expert_stats),
+        "trainable": sum(x["trainable"] for x in expert_stats),
+        "non_trainable": sum(x["non_trainable"] for x in expert_stats),
+    }
+    wrapper_stat = _count_params(model)
+
+    outside_expert = {
+        "total": wrapper_stat["total"] - experts_sum["total"],
+        "trainable": wrapper_stat["trainable"] - experts_sum["trainable"],
+        "non_trainable": wrapper_stat["non_trainable"] - experts_sum["non_trainable"],
+    }
+
+    same_layout = all(
+        st["total"] == single_stat["total"] and st["trainable"] == single_stat["trainable"]
+        for st in expert_stats
+    )
+
+    log_func("=" * 80)
+    log_func("MULTI-EXPERT PARAMETER SUMMARY")
+    log_func("=" * 80)
+    log_func(f"Number of Experts:       {num_experts}")
+    log_func("-" * 80)
+
+    log_func(
+        f"Single Expert (expert_0): total={_format_params_lazy(single_stat['total'])}, "
+        f"trainable={_format_params_lazy(single_stat['trainable'])}, "
+        f"non_trainable={_format_params_lazy(single_stat['non_trainable'])}"
+    )
+
+    if same_layout:
+        log_func(
+            f"All Experts Sum:         {num_experts} x {_format_params_lazy(single_stat['total'])} "
+            f"= {_format_params_lazy(experts_sum['total'])} "
+            f"(trainable={_format_params_lazy(experts_sum['trainable'])})"
+        )
+    else:
+        log_func(
+            f"All Experts Sum:         total={_format_params_lazy(experts_sum['total'])}, "
+            f"trainable={_format_params_lazy(experts_sum['trainable'])}, "
+            f"non_trainable={_format_params_lazy(experts_sum['non_trainable'])}"
+        )
+        max_show = min(num_experts, 8)
+        for i in range(max_show):
+            st = expert_stats[i]
+            log_func(
+                f"  expert_{i}: total={_format_params_lazy(st['total'])}, "
+                f"trainable={_format_params_lazy(st['trainable'])}, "
+                f"non_trainable={_format_params_lazy(st['non_trainable'])}"
+            )
+        if num_experts > max_show:
+            log_func(f"  ... ({num_experts - max_show} more experts omitted)")
+
+    log_func(
+        f"Wrapper model.parameters(): total={_format_params_lazy(wrapper_stat['total'])}, "
+        f"trainable={_format_params_lazy(wrapper_stat['trainable'])}, "
+        f"non_trainable={_format_params_lazy(wrapper_stat['non_trainable'])}"
+    )
+
+    if any(v != 0 for v in outside_expert.values()):
+        log_func(
+            f"Params outside experts:  total={_format_params_lazy(outside_expert['total'])}, "
+            f"trainable={_format_params_lazy(outside_expert['trainable'])}, "
+            f"non_trainable={_format_params_lazy(outside_expert['non_trainable'])}"
+        )
+
+    log_func("=" * 80)
+    log_func("DETAILED BREAKDOWN OF SINGLE EXPERT (expert_0)")
+    log_func("=" * 80)
+    print_model_params_detailed(model.experts[0], logger=logger, max_depth=max_depth)
 
 
 def multi_train(
@@ -68,7 +179,7 @@ def multi_train(
 
     set_log_handles(log_level, Path(log_path) if log_path else None)
 
-    # ====== 懒人补丁：强制 Windows 下日志和终端输出支持 UTF-8 (解决 Emoji 报错) ======
+    # Windows 下日志/终端强制 UTF-8
     if sys.platform.startswith('win'):
         for handler in logging.root.handlers + logging.getLogger().handlers:
             if isinstance(handler, logging.FileHandler):
@@ -77,15 +188,14 @@ def multi_train(
             elif isinstance(handler, logging.StreamHandler):
                 try:
                     handler.stream.reconfigure(encoding='utf-8')
-                except:
+                except Exception:
                     pass
-    # =========================================================================
 
     jdata = j_loader(INPUT)
     jdata = normalize(jdata)
     torch.set_default_dtype(getattr(torch, jdata["common_options"]["dtype"]))
 
-    # 配置合并逻辑复用
+    # 配置合并逻辑
     if restart or init_model:
         f = restart if restart else init_model
         if f.split(".")[-1] == "json":
@@ -96,7 +206,7 @@ def multi_train(
                 jdata["model_options"] = f["config"]["model_options"]
 
             basis = f["config"]["common_options"]["basis"]
-            if len(f["config"]["model_options"]) == 1 and f["config"]["model_options"].get("nnsk") != None:
+            if len(f["config"]["model_options"]) == 1 and f["config"]["model_options"].get("nnsk") is not None:
                 for asym, orb in jdata["common_options"]["basis"].items():
                     assert asym in basis.keys(), f"Atom {asym} not found in model's basis"
                     if orb != basis[asym]:
@@ -154,8 +264,12 @@ def multi_train(
 
     jdata["common_options"]["overlap"] = False
 
-    # 提取 distance_ranges
-    distance_ranges = jdata["train_options"].get("distance_ranges", [[0.0, 1.0], [1.0, 2.0], [2.0, 4.0], [4.0, 6.0]])
+    distance_ranges = jdata["train_options"].get(
+        "distance_ranges",
+        [[0.0, 1.0], [1.0, 2.0], [2.0, 4.0], [4.0, 6.0]]
+    )
+    parallel_multi = bool(jdata["train_options"].get("parallel_multi", False))
+    log.info(f"[MultiTrainer] parallel_multi = {parallel_multi}")
 
     if restart:
         trainer = MultiTrainer.restart(
@@ -172,7 +286,7 @@ def multi_train(
             checkpoint=checkpoint,
             model_options=jdata["model_options"],
             common_options=jdata["common_options"],
-            train_options=jdata["train_options"]  # 注入 train_options 以使 build_model 知道 distance_ranges
+            train_options=jdata["train_options"]
         )
 
         scale_type = jdata["model_options"]["prediction"].get('scale_type', "scale_w_back_grad")
@@ -236,14 +350,13 @@ def multi_train(
             json.dump(jdata, fp, indent=4)
 
         if jdata["train_options"].get("save_freq"):
-            # ====== 这里修复了原代码的括号位置错误 ======
             trainer.register_plugin(
                 Saver(interval=[(jdata["train_options"].get("save_freq"), 'iteration'), (1, 'epoch')]),
                 checkpoint_path=run_opt["checkpoint_path"]
             )
-            # ============================================
 
-    print_model_params_detailed(trainer.model, logger=log, max_depth=5)
+    # 新版参数统计：单专家 + 全专家总和
+    print_multi_model_params_detailed(trainer.model, logger=log, max_depth=5)
 
     start_time = time.time()
     trainer.run(trainer.train_options["num_epoch"])
@@ -253,7 +366,6 @@ def multi_train(
     log.info(f"wall time: {(end_time - start_time):.3f} s")
 
 
-# 测试运行脚本
 if __name__ == "__main__":
     import shutil
 
@@ -266,4 +378,5 @@ if __name__ == "__main__":
         log_level=2,
         log_path=r'log.txt',
         init_model=None,
+        restart=None,
     )
