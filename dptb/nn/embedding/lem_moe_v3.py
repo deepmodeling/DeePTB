@@ -239,8 +239,6 @@ class LemMoEV3(torch.nn.Module):
         return self.idp.orbpair_irreps
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
-        data = with_edge_vectors(data, with_lengths=True)
-        data = with_batch(data)
 
         edge_index = data[_keys.EDGE_INDEX_KEY]
         edge_vector = data[_keys.EDGE_VECTORS_KEY]

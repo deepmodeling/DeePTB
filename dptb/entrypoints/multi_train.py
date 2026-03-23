@@ -231,7 +231,7 @@ def multi_train(
     entry_tagger = _EntryTagger(
         enabled=bool(dbg.get("debug_tags", True)),
         cuda_mem=bool(dbg.get("debug_tag_cuda_mem", True)),
-        cuda_sync=bool(dbg.get("debug_tag_cuda_sync", False)),
+        cuda_sync=bool(dbg.get("debug_tag_cuda_sync", True)),
     )
 
     with entry_tagger.tag("set_default_dtype"):

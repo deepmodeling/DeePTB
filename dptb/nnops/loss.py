@@ -513,7 +513,6 @@ class HamilLossAbs(nn.Module):
         return self.onsite_boost_max - (self.onsite_boost_max - 1.0) * progress
 
     def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
-        # step: if trainer passes global_step, don't advance per-expert
         if "global_step" in data:
             try:
                 self._step = int(data["global_step"])
@@ -526,7 +525,9 @@ class HamilLossAbs(nn.Module):
         verbose_step = self.debug and (self._debug_counter <= 1 or self._debug_counter % 5 == 1)
 
         try:
-            # ========== Onsite ==========
+            # =================================================================
+            # Onsite (纯张量流：彻底消灭 .any() 与索引操作带来的隐式 CUDA 同步)
+            # =================================================================
             atom_types = data[AtomicDataDict.ATOM_TYPE_KEY].flatten()
             node_mask_orb = self.idp.mask_to_nrme[atom_types]  # (N, 107)
 
@@ -539,27 +540,26 @@ class HamilLossAbs(nn.Module):
             raw_pre_node = data[AtomicDataDict.NODE_FEATURES_KEY]
             raw_tgt_node = ref_data[AtomicDataDict.NODE_FEATURES_KEY]
 
-            # strict stats (sum & count over selected FEATURE entries)
-            if final_node_mask.any():
-                diff_node = (raw_pre_node - raw_tgt_node)[final_node_mask]
-                abs_node = diff_node.abs()
-                sq_node = diff_node * diff_node
+            diff_node = (raw_pre_node - raw_tgt_node) * final_node_mask
+            abs_node = diff_node.abs()
+            sq_node = diff_node * diff_node
 
-                onsite_l1_sum = abs_node.sum()
-                onsite_mse_sum = sq_node.sum()
-                onsite_cnt = torch.tensor(abs_node.numel(), device=abs_node.device, dtype=abs_node.dtype)
+            onsite_l1_sum = abs_node.sum()
+            onsite_mse_sum = sq_node.sum()
 
-                onsite_l1_mean = onsite_l1_sum / onsite_cnt.clamp_min(1.0)
-                onsite_mse_mean = onsite_mse_sum / onsite_cnt.clamp_min(1.0)
-                onsite_loss = 0.5 * (onsite_l1_mean + torch.sqrt(onsite_mse_mean))
-            else:
-                # keep graph (avoid leaf requires_grad=True scalar)
-                onsite_loss = raw_pre_node.sum() * 0.0
-                onsite_l1_sum = raw_pre_node.sum() * 0.0
-                onsite_mse_sum = raw_pre_node.sum() * 0.0
-                onsite_cnt = torch.zeros((), device=raw_pre_node.device, dtype=raw_pre_node.dtype)
+            # 使用 raw_pre_node 自身的 dtype
+            onsite_cnt = final_node_mask.sum().to(dtype=raw_pre_node.dtype)
+            valid_node = (onsite_cnt > 0.5).to(dtype=raw_pre_node.dtype)
 
-            # ========== Hopping ==========
+            safe_onsite_cnt = onsite_cnt.clamp_min(1.0)
+            onsite_l1_mean = onsite_l1_sum / safe_onsite_cnt
+            onsite_mse_mean = onsite_mse_sum / safe_onsite_cnt
+
+            onsite_loss = 0.5 * (onsite_l1_mean + torch.sqrt(onsite_mse_mean + (1.0 - valid_node) + 1e-12)) * valid_node
+
+            # =================================================================
+            # Hopping (同理重构)
+            # =================================================================
             edge_types = data[AtomicDataDict.EDGE_TYPE_KEY].flatten()
             edge_mask_orb = self.idp.mask_to_erme[edge_types]  # (E, 128)
 
@@ -572,23 +572,23 @@ class HamilLossAbs(nn.Module):
             raw_pre_edge = data[AtomicDataDict.EDGE_FEATURES_KEY]
             raw_tgt_edge = ref_data[AtomicDataDict.EDGE_FEATURES_KEY]
 
-            if final_edge_mask.any():
-                diff_edge = (raw_pre_edge - raw_tgt_edge)[final_edge_mask]
-                abs_edge = diff_edge.abs()
-                sq_edge = diff_edge * diff_edge
+            diff_edge = (raw_pre_edge - raw_tgt_edge) * final_edge_mask
+            abs_edge = diff_edge.abs()
+            sq_edge = diff_edge * diff_edge
 
-                hopping_l1_sum = abs_edge.sum()
-                hopping_mse_sum = sq_edge.sum()
-                hopping_cnt = torch.tensor(abs_edge.numel(), device=abs_edge.device, dtype=abs_edge.dtype)
+            hopping_l1_sum = abs_edge.sum()
+            hopping_mse_sum = sq_edge.sum()
 
-                hopping_l1_mean = hopping_l1_sum / hopping_cnt.clamp_min(1.0)
-                hopping_mse_mean = hopping_mse_sum / hopping_cnt.clamp_min(1.0)
-                hopping_loss = 0.5 * (hopping_l1_mean + torch.sqrt(hopping_mse_mean))
-            else:
-                hopping_loss = raw_pre_edge.sum() * 0.0
-                hopping_l1_sum = raw_pre_edge.sum() * 0.0
-                hopping_mse_sum = raw_pre_edge.sum() * 0.0
-                hopping_cnt = torch.zeros((), device=raw_pre_edge.device, dtype=raw_pre_edge.dtype)
+            # 使用 raw_pre_edge 自身的 dtype
+            hopping_cnt = final_edge_mask.sum().to(dtype=raw_pre_edge.dtype)
+            valid_edge = (hopping_cnt > 0.5).to(dtype=raw_pre_edge.dtype)
+
+            safe_hopping_cnt = hopping_cnt.clamp_min(1.0)
+            hopping_l1_mean = hopping_l1_sum / safe_hopping_cnt
+            hopping_mse_mean = hopping_mse_sum / safe_hopping_cnt
+
+            hopping_loss = 0.5 * (
+                        hopping_l1_mean + torch.sqrt(hopping_mse_mean + (1.0 - valid_edge) + 1e-12)) * valid_edge
 
             # ========== record strict reduce stats ==========
             self.last_onsite_l1_sum = onsite_l1_sum.detach()
@@ -631,8 +631,9 @@ class HamilLossAbs(nn.Module):
             if self.debug:
                 self._print_crash_info(e, data, locals())
             raise
+
     # =========================================================================
-    #                               Debug Helpers (保持不变)
+    #                               Debug Helpers
     # =========================================================================
     def _log_caller_info(self, kwargs):
         log.warning('=' * 44)
@@ -679,7 +680,8 @@ class HamilLossAbs(nn.Module):
             print(f"Edge Types Shape: {data[AtomicDataDict.EDGE_TYPE_KEY].shape}")
         except:
             print("Could not access input data shapes.")
-        vars_to_check = ['node_mask', 'edge_mask', 'pre_node', 'tgt_node', 'pre_edge', 'tgt_edge']
+        vars_to_check = ['final_node_mask', 'final_edge_mask', 'raw_pre_node', 'raw_tgt_node', 'raw_pre_edge',
+                         'raw_tgt_edge']
         for var_name in vars_to_check:
             if var_name in locs:
                 tensor = locs[var_name]
