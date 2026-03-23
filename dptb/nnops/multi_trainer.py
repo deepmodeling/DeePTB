@@ -172,10 +172,10 @@ class MultiTrainer(Trainer):
         self.parallel_multi = bool(self.train_options.get("parallel_multi", False))
 
         # debug/tag options
-        self.debug_tags = bool(self.train_options.get("debug_tags", True))
+        self.debug_tags = bool(self.train_options.get("debug_tags", False))
         self.debug_tag_freq = int(self.train_options.get("debug_tag_freq", 1))
         self.debug_tag_cuda_mem = bool(self.train_options.get("debug_tag_cuda_mem", True))
-        self.debug_tag_cuda_sync = bool(self.train_options.get("debug_tag_cuda_sync", True))
+        self.debug_tag_cuda_sync = bool(self.train_options.get("debug_tag_cuda_sync", False))
         self.debug_oom_dump = bool(self.train_options.get("debug_oom_dump", True))
 
         self._tagger = _StageTagger(

@@ -229,9 +229,9 @@ def multi_train(
     # entry tagger uses train_options flags if present
     dbg = jdata.get("train_options", {})
     entry_tagger = _EntryTagger(
-        enabled=bool(dbg.get("debug_tags", True)),
+        enabled=bool(dbg.get("debug_tags", False)),
         cuda_mem=bool(dbg.get("debug_tag_cuda_mem", True)),
-        cuda_sync=bool(dbg.get("debug_tag_cuda_sync", True)),
+        cuda_sync=bool(dbg.get("debug_tag_cuda_sync", False)),
     )
 
     with entry_tagger.tag("set_default_dtype"):
