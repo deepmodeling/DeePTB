@@ -32,7 +32,8 @@ def check_config_train(
     train_data_config = jdata["data_options"]["train"]
 
     if train_data_config.get("get_eigenvalues") and not train_data_config.get("get_Hamiltonian"):
-        assert jdata['train_options']['loss_options']['train'].get("method") in ["eigvals"]
+        assert jdata['train_options']['loss_options']['train'].get("method") in \
+            ["eigvals", "dos"]
 
     if train_data_config.get("get_Hamiltonian") and not train_data_config.get("get_eigenvalues"):
         assert jdata['train_options']['loss_options']['train'].get("method").startswith("hamil")
