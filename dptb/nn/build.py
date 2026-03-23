@@ -94,19 +94,33 @@ class DistanceEnsembleWrapper(nn.Module):
             if v is not None: keys.add(v)
         return keys
 
-    def _build_edge_mask(self, batch, expert_idx):
+    # 【核心修复1】扩展掩码生成函数：同时精准还原 edge_mask 和 node_mask
+    def _build_expert_masks(self, batch, expert_idx):
         if "edge_lengths" in batch:
             dist = batch["edge_lengths"]
         else:
-            batch = with_edge_vectors(batch, with_lengths=True)
-            dist = batch["edge_lengths"]
+            batch_with_len = with_edge_vectors(batch, with_lengths=True)
+            dist = batch_with_len["edge_lengths"]
 
         d_min, d_max = self.distance_ranges[expert_idx]
         if expert_idx == self.num_experts - 1:
-            mask = (dist >= d_min)
+            edge_mask = (dist >= d_min)
         else:
-            mask = (dist >= d_min) & (dist < d_max)
-        return mask
+            edge_mask = (dist >= d_min) & (dist < d_max)
+
+        # 安全获取节点总数以生成 node_mask
+        if getattr(AtomicDataDict, "ATOM_TYPE_KEY", "atom_types") in batch:
+            num_nodes = batch[getattr(AtomicDataDict, "ATOM_TYPE_KEY", "atom_types")].shape[0]
+        elif getattr(AtomicDataDict, "POSITIONS_KEY", "pos") in batch:
+            num_nodes = batch[getattr(AtomicDataDict, "POSITIONS_KEY", "pos")].shape[0]
+        else:
+            num_nodes = dist.shape[0]  # Fallback，一般不发生
+
+        node_mask = torch.ones(num_nodes, dtype=torch.bool, device=dist.device)
+        if d_min > 0:
+            node_mask.fill_(False)  # 非 0 专家跳过 onsite 节点的计算
+
+        return edge_mask, node_mask
 
     def _stitch_edge_aligned_outputs(self, res, res_i, mask):
         num_edges = mask.shape[0]
@@ -122,20 +136,43 @@ class DistanceEnsembleWrapper(nn.Module):
         expert_idx = batch.get("expert_idx", None)
         if expert_idx is not None:
             if torch.is_tensor(expert_idx):
-                expert_idx = int(expert_idx.detach().item())
+                expert_idx_val = int(expert_idx.detach().item())
             else:
-                expert_idx = int(expert_idx)
-            return self.experts[expert_idx](batch)
+                expert_idx_val = int(expert_idx)
 
-        res = self.experts[0](batch)
+            clean_batch = {k: v for k, v in batch.items() if k != "expert_idx"}
+            return self.experts[expert_idx_val](clean_batch)
+
+        # ==================== 推理分支 (Inference) ====================
+
+        # 【核心修复2】深拷贝字典以隔离输入，且手动注入等价于训练期的 Masks
+        batch_0 = batch.copy()
+        edge_mask_0, node_mask_0 = self._build_expert_masks(batch, 0)
+        batch_0["expert_edge_mask"] = edge_mask_0
+        batch_0["expert_node_mask"] = node_mask_0
+
+        res = self.experts[0](batch_0)
+
         for i in range(1, self.num_experts):
-            mask = self._build_edge_mask(batch, i)
-            if not mask.any():
+            edge_mask_i, node_mask_i = self._build_expert_masks(batch, i)
+            if not edge_mask_i.any():
                 continue
-            res_i = self.experts[i](batch)
-            self._stitch_edge_aligned_outputs(res, res_i, mask)
-        return res
 
+            # 同样复制一份干净的原始 batch，防止中间字典污染产生 None
+            batch_i = batch.copy()
+            batch_i["expert_edge_mask"] = edge_mask_i
+            batch_i["expert_node_mask"] = node_mask_i
+
+            res_i = self.experts[i](batch_i)
+            self._stitch_edge_aligned_outputs(res, res_i, edge_mask_i)
+
+        # 【核心修复3】剥离为了 Expert 前向注入的 mask，保证推理时的下游 Loss 计算为整图(全景)无损计算
+        if "expert_edge_mask" in res:
+            del res["expert_edge_mask"]
+        if "expert_node_mask" in res:
+            del res["expert_node_mask"]
+
+        return res
 
 # ======================================================================
 # [独立扩展模块] Multi-Expert Helper Functions
