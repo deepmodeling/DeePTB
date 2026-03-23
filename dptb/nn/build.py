@@ -121,7 +121,6 @@ class DistanceEnsembleWrapper(nn.Module):
     def forward(self, batch):
         expert_idx = batch.get("expert_idx", None)
         if expert_idx is not None:
-            # accept python int / cpu tensor / cuda tensor
             if torch.is_tensor(expert_idx):
                 expert_idx = int(expert_idx.detach().item())
             else:
