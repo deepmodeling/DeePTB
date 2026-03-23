@@ -121,12 +121,18 @@ class DistanceEnsembleWrapper(nn.Module):
     def forward(self, batch):
         expert_idx = batch.get("expert_idx", None)
         if expert_idx is not None:
-            return self.experts[int(expert_idx)](batch)
+            # accept python int / cpu tensor / cuda tensor
+            if torch.is_tensor(expert_idx):
+                expert_idx = int(expert_idx.detach().item())
+            else:
+                expert_idx = int(expert_idx)
+            return self.experts[expert_idx](batch)
 
         res = self.experts[0](batch)
         for i in range(1, self.num_experts):
             mask = self._build_edge_mask(batch, i)
-            if not mask.any(): continue
+            if not mask.any():
+                continue
             res_i = self.experts[i](batch)
             self._stitch_edge_aligned_outputs(res, res_i, mask)
         return res

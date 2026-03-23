@@ -513,18 +513,25 @@ class HamilLossAbs(nn.Module):
         return self.onsite_boost_max - (self.onsite_boost_max - 1.0) * progress
 
     def forward(self, data: AtomicDataDict, ref_data: AtomicDataDict):
-        self._step += 1
+        # step: if trainer passes global_step, don't advance per-expert
+        if "global_step" in data:
+            try:
+                self._step = int(data["global_step"])
+            except Exception:
+                self._step = self._step + 1
+        else:
+            self._step += 1
+
         self._debug_counter += 1
         verbose_step = self.debug and (self._debug_counter <= 1 or self._debug_counter % 5 == 1)
 
         try:
-            # === Onsite Part ===
+            # ========== Onsite ==========
             atom_types = data[AtomicDataDict.ATOM_TYPE_KEY].flatten()
-            node_mask_orb = self.idp.mask_to_nrme[atom_types]  # 原有的轨道掩码 -> shape (N, 107)
+            node_mask_orb = self.idp.mask_to_nrme[atom_types]  # (N, 107)
 
-            # 【修复】：使用 unsqueeze(-1) 将 (N,) 变为 (N, 1) 进行正确广播
             if "expert_node_mask" in data:
-                node_mask_phy = data["expert_node_mask"].unsqueeze(-1)
+                node_mask_phy = data["expert_node_mask"].unsqueeze(-1)  # (N,1)
                 final_node_mask = node_mask_orb & node_mask_phy
             else:
                 final_node_mask = node_mask_orb
@@ -532,21 +539,32 @@ class HamilLossAbs(nn.Module):
             raw_pre_node = data[AtomicDataDict.NODE_FEATURES_KEY]
             raw_tgt_node = ref_data[AtomicDataDict.NODE_FEATURES_KEY]
 
+            # strict stats (sum & count over selected FEATURE entries)
             if final_node_mask.any():
-                pre_node = raw_pre_node[final_node_mask]
-                tgt_node = raw_tgt_node[final_node_mask]
-                onsite_loss = 0.5 * (self.loss1(pre_node, tgt_node) +
-                                     torch.sqrt(self.loss2(pre_node, tgt_node)))
+                diff_node = (raw_pre_node - raw_tgt_node)[final_node_mask]
+                abs_node = diff_node.abs()
+                sq_node = diff_node * diff_node
+
+                onsite_l1_sum = abs_node.sum()
+                onsite_mse_sum = sq_node.sum()
+                onsite_cnt = torch.tensor(abs_node.numel(), device=abs_node.device, dtype=abs_node.dtype)
+
+                onsite_l1_mean = onsite_l1_sum / onsite_cnt.clamp_min(1.0)
+                onsite_mse_mean = onsite_mse_sum / onsite_cnt.clamp_min(1.0)
+                onsite_loss = 0.5 * (onsite_l1_mean + torch.sqrt(onsite_mse_mean))
             else:
-                onsite_loss = torch.tensor(0.0, device=self.device, requires_grad=True)
+                # keep graph (avoid leaf requires_grad=True scalar)
+                onsite_loss = raw_pre_node.sum() * 0.0
+                onsite_l1_sum = raw_pre_node.sum() * 0.0
+                onsite_mse_sum = raw_pre_node.sum() * 0.0
+                onsite_cnt = torch.zeros((), device=raw_pre_node.device, dtype=raw_pre_node.dtype)
 
-            # === Hopping Part ===
+            # ========== Hopping ==========
             edge_types = data[AtomicDataDict.EDGE_TYPE_KEY].flatten()
-            edge_mask_orb = self.idp.mask_to_erme[edge_types]  # 原有的轨道掩码 -> shape (E, 128)
+            edge_mask_orb = self.idp.mask_to_erme[edge_types]  # (E, 128)
 
-            # 【修复】：使用 unsqueeze(-1) 将 (E,) 变为 (E, 1) 进行正确广播
             if "expert_edge_mask" in data:
-                edge_mask_phy = data["expert_edge_mask"].unsqueeze(-1)
+                edge_mask_phy = data["expert_edge_mask"].unsqueeze(-1)  # (E,1)
                 final_edge_mask = edge_mask_orb & edge_mask_phy
             else:
                 final_edge_mask = edge_mask_orb
@@ -555,14 +573,33 @@ class HamilLossAbs(nn.Module):
             raw_tgt_edge = ref_data[AtomicDataDict.EDGE_FEATURES_KEY]
 
             if final_edge_mask.any():
-                pre_edge = raw_pre_edge[final_edge_mask]
-                tgt_edge = raw_tgt_edge[final_edge_mask]
-                hopping_loss = 0.5 * (self.loss1(pre_edge, tgt_edge) +
-                                      torch.sqrt(self.loss2(pre_edge, tgt_edge)))
-            else:
-                hopping_loss = torch.tensor(0.0, device=self.device, requires_grad=True)
+                diff_edge = (raw_pre_edge - raw_tgt_edge)[final_edge_mask]
+                abs_edge = diff_edge.abs()
+                sq_edge = diff_edge * diff_edge
 
-            # === 后续逻辑保持不变 ===
+                hopping_l1_sum = abs_edge.sum()
+                hopping_mse_sum = sq_edge.sum()
+                hopping_cnt = torch.tensor(abs_edge.numel(), device=abs_edge.device, dtype=abs_edge.dtype)
+
+                hopping_l1_mean = hopping_l1_sum / hopping_cnt.clamp_min(1.0)
+                hopping_mse_mean = hopping_mse_sum / hopping_cnt.clamp_min(1.0)
+                hopping_loss = 0.5 * (hopping_l1_mean + torch.sqrt(hopping_mse_mean))
+            else:
+                hopping_loss = raw_pre_edge.sum() * 0.0
+                hopping_l1_sum = raw_pre_edge.sum() * 0.0
+                hopping_mse_sum = raw_pre_edge.sum() * 0.0
+                hopping_cnt = torch.zeros((), device=raw_pre_edge.device, dtype=raw_pre_edge.dtype)
+
+            # ========== record strict reduce stats ==========
+            self.last_onsite_l1_sum = onsite_l1_sum.detach()
+            self.last_onsite_mse_sum = onsite_mse_sum.detach()
+            self.last_onsite_count = onsite_cnt.detach()
+
+            self.last_hopping_l1_sum = hopping_l1_sum.detach()
+            self.last_hopping_mse_sum = hopping_mse_sum.detach()
+            self.last_hopping_count = hopping_cnt.detach()
+
+            # ========== existing metrics ==========
             raw_z_loss = data.get("mean_max_prob", 0)
             self.last_z_loss = raw_z_loss.detach() if isinstance(raw_z_loss, torch.Tensor) else raw_z_loss
 
@@ -578,6 +615,7 @@ class HamilLossAbs(nn.Module):
                 if self.onsite_boost:
                     print(f"  Onsite weight w(t) = {self._current_onsite_weight():.3f}")
 
+            # ========== total ==========
             if self.onsite_boost:
                 w_onsite = self._current_onsite_weight()
                 total_loss = w_onsite * onsite_loss + hopping_loss
@@ -592,8 +630,7 @@ class HamilLossAbs(nn.Module):
         except Exception as e:
             if self.debug:
                 self._print_crash_info(e, data, locals())
-            raise e
-
+            raise
     # =========================================================================
     #                               Debug Helpers (保持不变)
     # =========================================================================
