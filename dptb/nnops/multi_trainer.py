@@ -5,14 +5,12 @@ from typing import Union, Optional, Dict, Any, List
 
 import torch
 import torch.nn as nn
-from torch.nn.parallel import DistributedDataParallel as DDP  # New import for DDP model check
-from torch.utils.data.distributed import DistributedSampler  # New import for DDP DataLoader
 
 from dptb.utils.tools import get_lr_scheduler, get_optimizer
 from dptb.data import AtomicDataset, AtomicData
 from dptb.data.AtomicDataDict import with_edge_vectors
-from dptb.nnops.trainer import Trainer  # Assuming Trainer is in dptb/nnops/trainer.py
-from dptb.nn.build import build_model  # Assuming build_model is in dptb/nn/build.py
+from dptb.nnops.trainer import Trainer
+from dptb.nn.build import build_model
 
 log = logging.getLogger(__name__)
 
@@ -31,9 +29,7 @@ class _StageTagger:
         self.oom_dump = bool(oom_dump)
 
     def _device(self) -> torch.device:
-        # Use trainer's device which is already DDP-assigned
-        return self.trainer.device if isinstance(self.trainer.device, torch.device) else torch.device(
-            self.trainer.device)
+        return self.trainer.device if isinstance(self.trainer.device, torch.device) else torch.device(self.trainer.device)
 
     def _is_cuda(self) -> bool:
         dev = self._device()
@@ -55,10 +51,10 @@ class _StageTagger:
         alloc, reserved, peak, free, total = mem
         mb = 1024 ** 2
         return (
-            f" | cuda_alloc={alloc / mb:.1f}MB"
-            f" cuda_reserved={reserved / mb:.1f}MB"
-            f" cuda_peak={peak / mb:.1f}MB"
-            f" free={free / mb:.1f}MB total={total / mb:.1f}MB"
+            f" | cuda_alloc={alloc/mb:.1f}MB"
+            f" cuda_reserved={reserved/mb:.1f}MB"
+            f" cuda_peak={peak/mb:.1f}MB"
+            f" free={free/mb:.1f}MB total={total/mb:.1f}MB"
         )
 
     def dump_cuda_mem_summary(self, where: str):
@@ -72,7 +68,7 @@ class _StageTagger:
         free, total = torch.cuda.mem_get_info(dev)
         log.error(
             f"[OOM-DUMP] where={where} alloc={alloc:.1f}MB reserved={reserved:.1f}MB peak={peak:.1f}MB "
-            f"free={free / mb:.1f}MB total={total / mb:.1f}MB"
+            f"free={free/mb:.1f}MB total={total/mb:.1f}MB"
         )
         if self.oom_dump:
             try:
@@ -152,24 +148,15 @@ class MultiTrainer(Trainer):
     object_keys = ["lr_schedulers", "optimizers"]
 
     def __init__(
-            self,
-            distance_ranges: list,
-            train_options: dict,
-            common_options: dict,
-            model: torch.nn.Module,
-            train_datasets: AtomicDataset,
-            reference_datasets: Union[AtomicDataset, None] = None,
-            validation_datasets: Union[AtomicDataset, None] = None,
-            # --- New DDP parameters ---
-            ddp_rank: int = 0,
-            ddp_world_size: int = 1,
-            ddp_available: bool = False,
-            # --- End New DDP parameters ---
+        self,
+        distance_ranges: list,
+        train_options: dict,
+        common_options: dict,
+        model: torch.nn.Module,
+        train_datasets: AtomicDataset,
+        reference_datasets: Union[AtomicDataset, None] = None,
+        validation_datasets: Union[AtomicDataset, None] = None,
     ) -> None:
-        # Store DDP parameters
-        self.ddp_rank = ddp_rank
-        self.ddp_world_size = ddp_world_size
-        self.ddp_available = ddp_available
 
         super().__init__(
             train_options=train_options,
@@ -181,18 +168,13 @@ class MultiTrainer(Trainer):
         )
 
         self.distance_ranges = distance_ranges
-        # If model is DDP wrapped, access the actual module
-        if isinstance(self.model, DDP):
-            self.num_experts = len(self.model.module.experts)
-        else:
-            self.num_experts = len(self.model.experts)
-
+        self.num_experts = len(distance_ranges)
         self.parallel_multi = bool(self.train_options.get("parallel_multi", False))
 
         # debug/tag options
-        self.debug_tags = bool(self.train_options.get("debug_tags", True))
+        self.debug_tags = bool(self.train_options.get("debug_tags", False))
         self.debug_tag_freq = int(self.train_options.get("debug_tag_freq", 1))
-        self.debug_tag_cuda_mem = bool(self.train_options.get("debug_tag_cuda_mem", False))
+        self.debug_tag_cuda_mem = bool(self.train_options.get("debug_tag_cuda_mem", True))
         self.debug_tag_cuda_sync = bool(self.train_options.get("debug_tag_cuda_sync", False))
         self.debug_oom_dump = bool(self.train_options.get("debug_oom_dump", True))
 
@@ -226,18 +208,14 @@ class MultiTrainer(Trainer):
             f"shared_scheduler_metric={self.shared_scheduler_metric}"
         )
 
-        # If DDP is used, self.model is a DDP wrapper. Access the inner module for experts.
-        model_to_init_optimizers = self.model.module if isinstance(self.model, DDP) else self.model
-        if not hasattr(model_to_init_optimizers, 'experts') or len(
-                model_to_init_optimizers.experts) != self.num_experts:
+        if not hasattr(self.model, 'experts') or len(self.model.experts) != self.num_experts:
             raise ValueError(f"Model must have a nn.ModuleList named 'experts' with {self.num_experts} sub-models!")
 
         # optimizers/schedulers per expert
         self.optimizers = []
         self.lr_schedulers = []
         for i in range(self.num_experts):
-            opt = get_optimizer(model_param=model_to_init_optimizers.experts[i].parameters(),
-                                **self.train_options["optimizer"])
+            opt = get_optimizer(model_param=self.model.experts[i].parameters(), **self.train_options["optimizer"])
             sch = get_lr_scheduler(optimizer=opt, **self.train_options["lr_scheduler"])
             self.optimizers.append(opt)
             self.lr_schedulers.append(sch)
@@ -249,32 +227,6 @@ class MultiTrainer(Trainer):
 
         self._warn_non_expert_trainables()
         self._t_last_iter_end: Optional[float] = None
-
-    # -------------------------------------------------------------------------
-    # DDP DataLoader override
-    # -------------------------------------------------------------------------
-    def _get_dataloader(self, dataset, batch_size, shuffle, drop_last, pin_memory, num_workers):
-        if self.ddp_available:
-            sampler = DistributedSampler(
-                dataset,
-                num_replicas=self.ddp_world_size,
-                rank=self.ddp_rank,
-                shuffle=shuffle,  # Sampler handles shuffle
-                drop_last=drop_last
-            )
-            # DataLoader's shuffle must be False when using a sampler
-            return torch.utils.data.DataLoader(
-                dataset,
-                batch_size=batch_size,
-                sampler=sampler,  # Use sampler
-                shuffle=False,  # Important: DataLoader must not shuffle when sampler is used
-                drop_last=drop_last,  # DataLoader usually respects sampler's drop_last. Keep for consistency.
-                pin_memory=pin_memory,
-                num_workers=num_workers,
-            )
-        else:
-            # Fallback to original behavior if DDP is not available
-            return super()._get_dataloader(dataset, batch_size, shuffle, drop_last, pin_memory, num_workers)
 
     # -------------------------------------------------------------------------
     # device helpers
@@ -294,11 +246,9 @@ class MultiTrainer(Trainer):
     # -------------------------------------------------------------------------
 
     def _warn_non_expert_trainables(self):
-        # If model is DDP wrapped, access the actual module
-        model_for_check = self.model.module if isinstance(self.model, DDP) else self.model
-        expert_param_ids = {id(p) for expert in model_for_check.experts for p in expert.parameters()}
+        expert_param_ids = {id(p) for expert in self.model.experts for p in expert.parameters()}
         outside = [
-            name for name, p in model_for_check.named_parameters()
+            name for name, p in self.model.named_parameters()
             if p.requires_grad and id(p) not in expert_param_ids
         ]
         if outside:
@@ -425,8 +375,8 @@ class MultiTrainer(Trainer):
 
         # strict reduce stats (optional)
         for k in (
-                "last_onsite_l1_sum", "last_onsite_mse_sum", "last_onsite_count",
-                "last_hopping_l1_sum", "last_hopping_mse_sum", "last_hopping_count",
+            "last_onsite_l1_sum", "last_onsite_mse_sum", "last_onsite_count",
+            "last_hopping_l1_sum", "last_hopping_mse_sum", "last_hopping_count",
         ):
             v = getattr(loss_module, k, None)
             out[k] = self._as_scalar_tensor(v, default=0.0) if v is not None else None
@@ -449,7 +399,6 @@ class MultiTrainer(Trainer):
         batch_copy["expert_idx"] = int(expert_idx)
 
         with self._tagger.tag("expert/model_forward", it=self.iter, expert=expert_idx):
-            # If model is DDP wrapped, forward call goes through DDP, then to its module
             pred_batch = self.model(batch_copy)
 
         # pass global step so loss doesn't advance per-expert (if loss supports global_step)
@@ -473,8 +422,8 @@ class MultiTrainer(Trainer):
         return out
 
     def _build_train_payload(
-            self, batch_dict, batch_info, expert_idx, range_dis,
-            ref_batch_dict=None, ref_batch_info=None
+        self, batch_dict, batch_info, expert_idx, range_dis,
+        ref_batch_dict=None, ref_batch_info=None
     ):
         main = self._run_one_expert_loss(
             batch_dict=batch_dict,
@@ -521,8 +470,7 @@ class MultiTrainer(Trainer):
             active_nodes = active_nodes + ref_res["active_nodes"]
             active_edges = active_edges + ref_res["active_edges"]
             onsite_weighted_sum = onsite_weighted_sum + ref_res["onsite"] * ref_res["active_nodes"].to(dtype=self.dtype)
-            hopping_weighted_sum = hopping_weighted_sum + ref_res["hopping"] * ref_res["active_edges"].to(
-                dtype=self.dtype)
+            hopping_weighted_sum = hopping_weighted_sum + ref_res["hopping"] * ref_res["active_edges"].to(dtype=self.dtype)
 
             # strict reduce stats add (if enabled)
             if onsite_l1_sum is not None and ref_res["last_onsite_l1_sum"] is not None:
@@ -589,15 +537,12 @@ class MultiTrainer(Trainer):
 
             if p.get("onsite_l1_sum") is not None:
                 onsite_l1_sum = p["onsite_l1_sum"] if onsite_l1_sum is None else (onsite_l1_sum + p["onsite_l1_sum"])
-                onsite_mse_sum = p["onsite_mse_sum"] if onsite_mse_sum is None else (
-                            onsite_mse_sum + p["onsite_mse_sum"])
+                onsite_mse_sum = p["onsite_mse_sum"] if onsite_mse_sum is None else (onsite_mse_sum + p["onsite_mse_sum"])
                 onsite_cnt = p["onsite_cnt"] if onsite_cnt is None else (onsite_cnt + p["onsite_cnt"])
 
             if p.get("hopping_l1_sum") is not None:
-                hopping_l1_sum = p["hopping_l1_sum"] if hopping_l1_sum is None else (
-                            hopping_l1_sum + p["hopping_l1_sum"])
-                hopping_mse_sum = p["hopping_mse_sum"] if hopping_mse_sum is None else (
-                            hopping_mse_sum + p["hopping_mse_sum"])
+                hopping_l1_sum = p["hopping_l1_sum"] if hopping_l1_sum is None else (hopping_l1_sum + p["hopping_l1_sum"])
+                hopping_mse_sum = p["hopping_mse_sum"] if hopping_mse_sum is None else (hopping_mse_sum + p["hopping_mse_sum"])
                 hopping_cnt = p["hopping_cnt"] if hopping_cnt is None else (hopping_cnt + p["hopping_cnt"])
 
             for z in p.get("z_values", []):
@@ -673,10 +618,8 @@ class MultiTrainer(Trainer):
                         loss_expert.backward()
 
                     with self._tagger.tag("expert/clip_grad_norm", it=self.iter, expert=expert_idx):
-                        # Access model.module if DDP wrapped
-                        model_for_grad = self.model.module if isinstance(self.model, DDP) else self.model
                         grad_norm = torch.nn.utils.clip_grad_norm_(
-                            model_for_grad.experts[expert_idx].parameters(),
+                            self.model.experts[expert_idx].parameters(),
                             max_norm=self.clip_grad_norm
                         )
 
@@ -697,7 +640,7 @@ class MultiTrainer(Trainer):
                 for s in streams:
                     current.wait_stream(s)
 
-        else:  # Serial execution (e.g., if parallel_multi is False or not CUDA)
+        else:
             for expert_idx, range_dis in enumerate(self.distance_ranges):
                 with self._tagger.tag("expert/build_payload(fwd+loss)", it=self.iter, expert=expert_idx):
                     payload = self._build_train_payload(
@@ -715,10 +658,8 @@ class MultiTrainer(Trainer):
                     loss_expert.backward()
 
                 with self._tagger.tag("expert/clip_grad_norm", it=self.iter, expert=expert_idx):
-                    # Access model.module if DDP wrapped
-                    model_for_grad = self.model.module if isinstance(self.model, DDP) else self.model
                     grad_norm = torch.nn.utils.clip_grad_norm_(
-                        model_for_grad.experts[expert_idx].parameters(),
+                        self.model.experts[expert_idx].parameters(),
                         max_norm=self.clip_grad_norm
                     )
 
@@ -770,17 +711,12 @@ class MultiTrainer(Trainer):
     # -------------------------------------------------------------------------
 
     def iteration(self, batch, ref_batch=None):
-        # Update DistributedSampler epoch for proper shuffling across epochs
-        if self.ddp_available and hasattr(self.train_loader.sampler, 'set_epoch'):
-            self.train_loader.sampler.set_epoch(self.ep)
-
         # rough "outside-iteration" wait time
         t_now = time.perf_counter()
         if self._t_last_iter_end is not None and self.debug_tags and (self.iter % self.debug_tag_freq == 0):
             log.info(f"[TAG][it={self.iter}][data_wait(outside_iteration)] dt={(t_now - self._t_last_iter_end):.4f}s")
 
         with self._tagger.tag("iteration/entry", it=self.iter):
-            # If DDP wrapped, model.train() propagates to the module
             self.model.train()
 
         try:
@@ -867,38 +803,13 @@ class MultiTrainer(Trainer):
                 # default: true optimized objective
                 sched_metric = total_loss_opt
 
-            # --- DDP synchronization of metrics before scheduler step ---
-            # All metrics must be averaged across ranks before scheduler steps
-            if self.ddp_available:
-                # Synchronize total_loss_opt (true objective)
-                dist.all_reduce(total_loss_opt, op=dist.ReduceOp.AVG)
-                # Synchronize final_train_loss (comparable loss)
-                if comparable_train_loss is not None:
-                    dist.all_reduce(final_train_loss, op=dist.ReduceOp.AVG)
-
-                # Synchronize sched_metric
-                dist.all_reduce(sched_metric, op=dist.ReduceOp.AVG)
-
-                # Synchronize global_onsite, global_hopping etc.
-                global_onsite_tensor = torch.tensor(global_onsite, dtype=self.dtype, device=self.device)
-                global_hopping_tensor = torch.tensor(global_hopping, dtype=self.dtype, device=self.device)
-                dist.all_reduce(global_onsite_tensor, op=dist.ReduceOp.AVG)
-                dist.all_reduce(global_hopping_tensor, op=dist.ReduceOp.AVG)
-                global_onsite = global_onsite_tensor.item()
-                global_hopping = global_hopping_tensor.item()
-
-                # Synchronize expert_onsite_dict, expert_hopping_dict (if needed for logging)
-                # For simplicity, we can log individual expert metrics only on rank 0, or average them.
-                # Averaging all individual expert metrics adds overhead.
-                # Let's just average the overall metrics for now.
-
             # shared scheduler step AFTER barrier
             self._shared_scheduler_step_after_barrier(sched_metric)
 
             state = {
                 'field': 'iteration',
-                "train_loss": final_train_loss,  # comparable if available
-                "train_loss_opt": total_loss_opt,  # true objective (sum experts)
+                "train_loss": final_train_loss,          # comparable if available
+                "train_loss_opt": total_loss_opt,        # true objective (sum experts)
                 "lr": self.optimizers[0].param_groups[0]['lr'],
                 "total_grad_norm": sum(expert_grad_norms) / max(len(expert_grad_norms), 1),
                 "train_onsite_loss": global_onsite,
@@ -913,11 +824,6 @@ class MultiTrainer(Trainer):
                 state["expert_load_cv"] = sum(expert_load_cv_values) / len(expert_load_cv_values)
             if z_metric_values:
                 state["mean_max_prob"] = sum(z_metric_values) / len(z_metric_values)
-
-            # --- DDP: Ensure all plugins are called with synchronized state if necessary ---
-            # ScalarFieldMonitor, TrainLossMonitor etc. should receive averaged metrics.
-            # They already do so because state dict uses averaged values.
-            # No explicit barrier here, as state values are already reduced.
 
             with self._tagger.tag("iteration/call_plugins", it=self.iter):
                 self.call_plugins(queue_name='iteration', time=self.iter, **state)
@@ -942,7 +848,6 @@ class MultiTrainer(Trainer):
         batch_copy = batch_dict.copy()
         batch_for_loss = batch_copy.copy()
 
-        # If model is DDP wrapped, forward call goes through DDP, then to its module
         pred_batch = self.model(batch_copy)
         pred_batch["global_step"] = int(self.iter)
         pred_batch.update(batch_info)
@@ -951,13 +856,8 @@ class MultiTrainer(Trainer):
         return criterion(pred_batch, batch_for_loss)
 
     def validation(self, fast=True):
-        # Update DistributedSampler epoch for proper validation data distribution
-        if self.ddp_available and hasattr(self.validation_loader.sampler, 'set_epoch'):
-            self.validation_loader.sampler.set_epoch(self.ep)
-
         with torch.no_grad():
             total_loss = torch.scalar_tensor(0., dtype=self.dtype, device=self.device)
-            # If DDP wrapped, model.eval() propagates to the module
             self.model.eval()
 
             for batch in self.validation_loader:
@@ -1007,10 +907,6 @@ class MultiTrainer(Trainer):
                 if fast:
                     break
 
-        # --- DDP synchronization of validation loss ---
-        if self.ddp_available:
-            dist.all_reduce(total_loss, op=dist.ReduceOp.AVG)
-
         if not fast:
             total_loss = total_loss / len(self.validation_loader)
 
@@ -1022,17 +918,13 @@ class MultiTrainer(Trainer):
 
     @classmethod
     def restart(cls, checkpoint, train_datasets, train_options={}, common_options={}, reference_datasets=None,
-                validation_datasets=None, ddp_rank: int = 0, ddp_world_size: int = 1, ddp_available: bool = False):
-        # Load checkpoint on the specific device for this rank
-        map_location = torch.device(common_options["device"])
-        ckpt = torch.load(checkpoint, map_location=map_location, weights_only=False)
-
+                validation_datasets=None):
+        ckpt = torch.load(checkpoint, map_location=common_options["device"], weights_only=False)
         model = build_model(
             checkpoint=checkpoint,
             model_options=ckpt["config"]["model_options"],
             common_options=ckpt["config"]["common_options"],
-            train_options=ckpt["config"].get("train_options", train_options),
-            device=map_location  # Pass device explicitly
+            train_options=ckpt["config"].get("train_options", train_options)
         )
         if len(train_options) == 0:
             train_options = ckpt["config"]["train_options"]
@@ -1051,10 +943,7 @@ class MultiTrainer(Trainer):
             reference_datasets=reference_datasets,
             validation_datasets=validation_datasets,
             train_options=train_options,
-            common_options=common_options,
-            ddp_rank=ddp_rank,  # Pass DDP info
-            ddp_world_size=ddp_world_size,
-            ddp_available=ddp_available,
+            common_options=common_options
         )
 
         trainer.ep = ckpt["epoch"] + 1
@@ -1066,17 +955,9 @@ class MultiTrainer(Trainer):
             for plugin in trainer.plugin_queues[unit]:
                 plugin = (getattr(trainer, unit) + plugin[0], plugin[1], plugin[2])
 
-        # Load optimizer and scheduler states
-        # For DDP, it's typically sufficient to load on rank 0 and DDP handles broadcast.
-        # Or load on all ranks if the checkpoint file is accessible to all.
-        # `model.module` for DDP wrapped model
-        model_to_load_state_dict = trainer.model.module if isinstance(trainer.model, DDP) else trainer.model
-        if "model_state_dict" in ckpt:
-            model_to_load_state_dict.load_state_dict(ckpt["model_state_dict"])
-
-        for key in cls.object_keys:  # e.g., optimizers, lr_schedulers
+        for key in cls.object_keys:
             items = getattr(trainer, key, None)
-            if items is not None and key + "_state_dict" in ckpt:
+            if items is not None:
                 saved_states = ckpt[key + "_state_dict"]
                 for obj, state in zip(items, saved_states):
                     obj.load_state_dict(state)
