@@ -163,47 +163,60 @@ class PardisoEig:
         eigvals_list = []
         eigvecs_list = []
         
-        for k in kpoints:
-            hk = h_container.sample_k(k, symm=True)
-            
-            if s_container is not None:
-                sk = s_container.sample_k(k, symm=True)
-                hk -= self.sigma * sk
-                A = hk.to_scipy(format="csr")
-                M = sk
-            else:
-                hk.shift(-self.sigma)
-                A = hk.to_scipy(format="csr")
-                M = None
-            
-            A.sort_indices()
-            A.sum_duplicates()
-            N = A.shape[0]
-            
-            # Try PARDISO first, fall back to scipy SuperLU if PARDISO fails
-            # (MKL PARDISO has a known bug with certain block-structured patterns)
-            solver = PyPardisoSolver(mtype=13)
-            solver.factorize(A)
-            
-            def matvec(b):
-                return solver.solve(A, b)
+        # Create a single solver instance and reuse it across k-points.
+        # PARDISO stores LU factors in opaque `pt` handles; creating a new
+        # solver per k-point without calling free_memory() leaks all that
+        # internal MKL memory.
+        solver = PyPardisoSolver(mtype=13)
+        
+        try:
+            for k in kpoints:
+                hk = h_container.sample_k(k, symm=True)
                 
-            Op = LinearOperator((N, N), matvec=matvec, dtype=A.dtype)
-            
-            try:
-                # Use larger NCV to help convergence, especially for clustered eigenvalues
-                ncv =  max(2*self.neig + 1, 20)
-                vals, vecs = eigsh(A=hk, M=M, k=self.neig, sigma=0.0, OPinv=Op, mode=self.mode, which="LM", ncv=ncv)
-            except Exception:
-                # Retry with larger NCV if ARPACK fails (e.g. error 3: No shifts could be applied)
-                # This often happens when eigenvalues are clustered near the shift
-                ncv =  max(5*self.neig, 50)
-                vals, vecs = eigsh(A=hk, M=M, k=self.neig, sigma=0.0, OPinv=Op, mode=self.mode, which="LM", ncv=ncv)
-            
-            eigvals_list.append(vals + self.sigma)
-            if return_eigenvectors:
-                eigvecs_list.append(vecs)
-            
+                if s_container is not None:
+                    sk = s_container.sample_k(k, symm=True)
+                    hk -= self.sigma * sk
+                    A = hk.to_scipy(format="csr")
+                    M = sk
+                else:
+                    hk.shift(-self.sigma)
+                    A = hk.to_scipy(format="csr")
+                    M = None
+                
+                A.sort_indices()
+                A.sum_duplicates()
+                N = A.shape[0]
+                
+                solver.factorize(A)
+                
+                def matvec(b):
+                    return solver.solve(A, b)
+                    
+                Op = LinearOperator((N, N), matvec=matvec, dtype=A.dtype)
+                
+                try:
+                    # Use larger NCV to help convergence, especially for clustered eigenvalues
+                    ncv =  max(2*self.neig + 1, 20)
+                    vals, vecs = eigsh(A=hk, M=M, k=self.neig, sigma=0.0, OPinv=Op, mode=self.mode, which="LM", ncv=ncv)
+                except Exception:
+                    # Retry with larger NCV if ARPACK fails (e.g. error 3: No shifts could be applied)
+                    # This often happens when eigenvalues are clustered near the shift
+                    ncv =  max(5*self.neig, 50)
+                    vals, vecs = eigsh(A=hk, M=M, k=self.neig, sigma=0.0, OPinv=Op, mode=self.mode, which="LM", ncv=ncv)
+                
+                # Release PARDISO's internal LU factorization memory for this
+                # k-point before moving to the next one.  Without this, the
+                # factorization buffers from *every* k-point accumulate.
+                solver.free_memory()
+                del Op
+                
+                eigvals_list.append(vals + self.sigma)
+                if return_eigenvectors:
+                    eigvecs_list.append(vecs)
+        finally:
+            # Guarantee all internal PARDISO memory is released even on error.
+            solver.free_memory(everything=True)
+        
         if return_eigenvectors:
             return eigvals_list, eigvecs_list
         else:
