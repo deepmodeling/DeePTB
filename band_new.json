@@ -1,0 +1,13 @@
+{
+    "calc_job": "band",
+    "kline_type": "abacus",
+    "kpath": [
+        [0.0, 0.0, 0.0, 100],
+        [0.0, 0.0, 0.5, 1]
+    ],
+    "klabels": ["G", "Z"],
+    "E_fermi": -9.03841,
+    "num_band": 30,
+    "max_iter": 400,
+    "out_wfc": "false"
+}
