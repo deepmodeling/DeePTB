@@ -110,7 +110,6 @@ def common_options():
 
     return Argument("common_options", dict, optional=False, sub_fields=args, sub_variants=[], doc=doc_common_options)
 
-
 def train_options():
     doc_num_epoch = "Total number of training epochs. It is worth noted, if the model is reloaded with `-r` or `--restart` option, epoch which have been trained will counted from the time that the checkpoint is saved."
     doc_save_freq = "Frequency, or every how many iteration to saved the current model into checkpoints, The name of checkpoint is formulated as `latest|best_dptb|nnsk_b<bond_cutoff>_c<sk_cutoff>_w<sk_decay_w>`. Default: `10`"
@@ -139,6 +138,15 @@ def train_options():
     doc_max_ckpt = "The maximum number of saved checkpoints, Default: 4"
     doc_distance_ranges = "The ranges split for distance-based MoE, Default: [[0.0, 1.0], [1.0, 2.0], [2.0, 4.0], [4.0, 6.0]]"
 
+    # ================= 新增的多进程 DDP & MoE 参数文档 =================
+    doc_use_ddp = "Set true to enable Distributed Data Parallel (DDP) training for multi-expert models across multiple GPUs. Default: `False`"
+    doc_ddp_backend = "The backend used for distributed training. Usually `nccl` for GPUs and `gloo` for CPUs. Default: `nccl` if CUDA is available, else `gloo`"
+    doc_ddp_master_addr = "Master node address for DDP communication. Default: `127.0.0.1`"
+    doc_ddp_master_port = "Master node port for DDP communication. Default: `29501`"
+    doc_ddp_timeout_sec = "Timeout in seconds for DDP process group operations. Default: `1800`"
+    doc_log_single_model_compatible_loss = "Set true to stitch and log a compatible loss across all distributed experts, allowing intuitive comparison with a single-model baseline. Default: `True`"
+    doc_log_single_model_compatible_loss_mode = "The reduction mode for the compatible loss stitching. Supported modes typically include `reduce`. Default: `reduce`"
+
     args = [
         Argument("num_epoch", int, optional=False, doc=doc_num_epoch),
         Argument("distance_ranges", list, optional=True, doc=doc_distance_ranges),
@@ -161,12 +169,22 @@ def train_options():
         Argument("max_ckpt", int, optional=True, default=4, doc=doc_max_ckpt),
         Argument("valid_fast", bool, optional=True, default=True, doc="Set True to valid on the first batch of validation dataset, set False to valid the whole dataset. Default: True"),
 
+        # ================= 新增的多进程 DDP & MoE 参数注入 =================
+        Argument("use_ddp", bool, optional=True, default=False, doc=doc_use_ddp),
+        Argument("ddp_backend", str, optional=True, default="nccl", doc=doc_ddp_backend),
+        Argument("ddp_master_addr", str, optional=True, default="127.0.0.1", doc=doc_ddp_master_addr),
+        Argument("ddp_master_port", (str, int), optional=True, default=29501, doc=doc_ddp_master_port),
+        Argument("ddp_timeout_sec", int, optional=True, default=1800, doc=doc_ddp_timeout_sec),
+        Argument("log_single_model_compatible_loss", bool, optional=True, default=True, doc=doc_log_single_model_compatible_loss),
+        Argument("log_single_model_compatible_loss_mode", str, optional=True, default="reduce", doc=doc_log_single_model_compatible_loss_mode),
+
         loss_options()
     ]
 
     doc_train_options = "Options that defines the training behaviour of DeePTB."
 
     return Argument("train_options", dict, sub_fields=args, sub_variants=[], optional=True, doc=doc_train_options)
+
 
 def test_options():
     doc_display_freq = "Frequency, or every how many iteration to display the training log to screem. Default: `1`"

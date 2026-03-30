@@ -1,10 +1,12 @@
 import contextlib
 import time
 import logging
+import copy
 from typing import Union, Optional, Dict, Any, List
 
 import torch
 import torch.nn as nn
+import torch.distributed as dist
 
 from dptb.utils.tools import get_lr_scheduler, get_optimizer
 from dptb.data import AtomicDataset, AtomicData
@@ -106,7 +108,6 @@ class _StageTagger:
                 pass
 
         t0 = time.perf_counter()
-        mem0 = self._cuda_mem() if self.cuda_mem else None
 
         try:
             yield
@@ -133,18 +134,6 @@ class _StageTagger:
 # =============================================================================
 
 class MultiTrainer(Trainer):
-    """
-    距离 MOE 多专家 Trainer。
-
-    重点实现：共享 scheduler（尤其 ReduceLROnPlateau）
-    - 并行多 stream：每个 expert stream 做 Fwd/Loss/Bwd/Clip/Step
-    - batch 结束 barrier(wait_streams) 后，再 .item() + scheduler.step(metric_float)
-    - 所有 expert 的 scheduler 使用同一个 metric
-
-    可比口径 train_loss：
-    - 默认 mode="reduce"：通过 loss 暴露的 sum/count 严格还原 stitched loss（不做额外 stitched forward）
-    """
-
     object_keys = ["lr_schedulers", "optimizers"]
 
     def __init__(
@@ -156,6 +145,9 @@ class MultiTrainer(Trainer):
         train_datasets: AtomicDataset,
         reference_datasets: Union[AtomicDataset, None] = None,
         validation_datasets: Union[AtomicDataset, None] = None,
+        distributed_expert: bool = False,
+        rank: int = 0,
+        world_size: int = 1,
     ) -> None:
 
         super().__init__(
@@ -169,7 +161,24 @@ class MultiTrainer(Trainer):
 
         self.distance_ranges = distance_ranges
         self.num_experts = len(distance_ranges)
+
+        self.distributed_expert = bool(distributed_expert)
+        self.rank = int(rank)
+        self.world_size = int(world_size)
+        self.local_expert_idx = self.rank if self.distributed_expert else None
+        self.is_main_process = (not self.distributed_expert) or (self.rank == 0)
+
         self.parallel_multi = bool(self.train_options.get("parallel_multi", False))
+        if self.distributed_expert:
+            if self.world_size != self.num_experts:
+                raise ValueError(
+                    f"distributed_expert mode requires world_size == num_experts, "
+                    f"got world_size={self.world_size}, num_experts={self.num_experts}"
+                )
+            if self.parallel_multi:
+                log.warning("distributed_expert=True: parallel_multi will be disabled.")
+            self.parallel_multi = False
+            self.train_options["parallel_multi"] = False
 
         # debug/tag options
         self.debug_tags = bool(self.train_options.get("debug_tags", False))
@@ -187,22 +196,27 @@ class MultiTrainer(Trainer):
             oom_dump=self.debug_oom_dump,
         )
 
-        # comparable loss options
         self.log_single_model_compatible_loss = bool(
             self.train_options.get("log_single_model_compatible_loss", True)
         )
         self.log_single_model_compatible_loss_mode = str(
             self.train_options.get("log_single_model_compatible_loss_mode", "reduce")
-        ).lower()  # "reduce" | "full_forward" | "off"
+        ).lower()
 
-        # shared scheduler options
-        # metric source: "train_loss_opt" (default, true objective) or "train_loss" (comparable)
+        if self.distributed_expert and self.log_single_model_compatible_loss_mode == "full_forward":
+            log.warning(
+                "distributed_expert=True does not support full stitched forward across GPUs. "
+                "Fallback log_single_model_compatible_loss_mode from 'full_forward' to 'reduce'."
+            )
+            self.log_single_model_compatible_loss_mode = "reduce"
+
         self.shared_scheduler_metric = str(
             self.train_options.get("shared_scheduler_metric", "train_loss_opt")
         ).lower()
 
         log.info(
-            f"[MultiTrainer] num_experts={self.num_experts}, parallel_multi={self.parallel_multi}, "
+            f"[MultiTrainer][rank={self.rank}] num_experts={self.num_experts}, "
+            f"distributed_expert={self.distributed_expert}, parallel_multi={self.parallel_multi}, "
             f"log_single_model_compatible_loss={self.log_single_model_compatible_loss}, "
             f"mode={self.log_single_model_compatible_loss_mode}, "
             f"shared_scheduler_metric={self.shared_scheduler_metric}"
@@ -211,14 +225,26 @@ class MultiTrainer(Trainer):
         if not hasattr(self.model, 'experts') or len(self.model.experts) != self.num_experts:
             raise ValueError(f"Model must have a nn.ModuleList named 'experts' with {self.num_experts} sub-models!")
 
-        # optimizers/schedulers per expert
-        self.optimizers = []
-        self.lr_schedulers = []
-        for i in range(self.num_experts):
-            opt = get_optimizer(model_param=self.model.experts[i].parameters(), **self.train_options["optimizer"])
+        if self.distributed_expert:
+            self._materialize_local_expert_only()
+
+        # optimizers/schedulers
+        if self.distributed_expert:
+            self.optimizers = [None] * self.num_experts
+            self.lr_schedulers = [None] * self.num_experts
+            idx = self.local_expert_idx
+            opt = get_optimizer(model_param=self.model.experts[idx].parameters(), **self.train_options["optimizer"])
             sch = get_lr_scheduler(optimizer=opt, **self.train_options["lr_scheduler"])
-            self.optimizers.append(opt)
-            self.lr_schedulers.append(sch)
+            self.optimizers[idx] = opt
+            self.lr_schedulers[idx] = sch
+        else:
+            self.optimizers = []
+            self.lr_schedulers = []
+            for i in range(self.num_experts):
+                opt = get_optimizer(model_param=self.model.experts[i].parameters(), **self.train_options["optimizer"])
+                sch = get_lr_scheduler(optimizer=opt, **self.train_options["lr_scheduler"])
+                self.optimizers.append(opt)
+                self.lr_schedulers.append(sch)
 
         if hasattr(self, "optimizer"):
             del self.optimizer
@@ -229,8 +255,11 @@ class MultiTrainer(Trainer):
         self._t_last_iter_end: Optional[float] = None
 
     # -------------------------------------------------------------------------
-    # device helpers
+    # dist helpers
     # -------------------------------------------------------------------------
+
+    def _dist_ready(self):
+        return self.distributed_expert and dist.is_available() and dist.is_initialized()
 
     def _device_obj(self):
         return self.device if isinstance(self.device, torch.device) else torch.device(self.device)
@@ -239,7 +268,55 @@ class MultiTrainer(Trainer):
         return self._device_obj().type == "cuda" and torch.cuda.is_available()
 
     def _use_cuda_stream_parallel(self):
-        return self.parallel_multi and self.num_experts > 1 and self._is_cuda_device()
+        return (not self.distributed_expert) and self.parallel_multi and self.num_experts > 1 and self._is_cuda_device()
+
+    def _all_reduce_(self, tensor: torch.Tensor, op=dist.ReduceOp.SUM):
+        if self._dist_ready():
+            dist.all_reduce(tensor, op=op)
+        return tensor
+
+    def _broadcast_(self, tensor: torch.Tensor, src: int = 0):
+        if self._dist_ready():
+            dist.broadcast(tensor, src=src)
+        return tensor
+
+    def _recursive_set_device_attr(self, module: nn.Module, device: torch.device):
+        for m in module.modules():
+            if hasattr(m, "device"):
+                try:
+                    setattr(m, "device", device)
+                except Exception:
+                    pass
+
+    def _materialize_local_expert_only(self):
+        local_dev = self._device_obj()
+        cpu_dev = torch.device("cpu")
+
+        for i, expert in enumerate(self.model.experts):
+            target = local_dev if i == self.local_expert_idx else cpu_dev
+            expert.to(target)
+            self._recursive_set_device_attr(expert, target)
+
+        if hasattr(self.model, "device"):
+            self.model.device = local_dev
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        log.info(
+            f"[MultiTrainer][rank={self.rank}] local_expert_idx={self.local_expert_idx} on {local_dev}, "
+            f"all other experts moved to CPU."
+        )
+
+    def _local_optimizer(self):
+        if self.distributed_expert:
+            return self.optimizers[self.local_expert_idx]
+        return self.optimizers[0]
+
+    def _local_scheduler(self):
+        if self.distributed_expert:
+            return self.lr_schedulers[self.local_expert_idx]
+        return self.lr_schedulers[0]
 
     # -------------------------------------------------------------------------
     # sanity checks
@@ -266,12 +343,12 @@ class MultiTrainer(Trainer):
 
     def _prepare_expert_masks(self, batch_dict, range_dis, expert_idx):
         d_min, d_max = range_dis
-        dist = batch_dict['edge_lengths']
+        dist_edge = batch_dict['edge_lengths']
 
         if expert_idx == self.num_experts - 1:
-            expert_edge_mask = (dist >= d_min)
+            expert_edge_mask = (dist_edge >= d_min)
         else:
-            expert_edge_mask = (dist >= d_min) & (dist < d_max)
+            expert_edge_mask = (dist_edge >= d_min) & (dist_edge < d_max)
 
         num_nodes = batch_dict["node_features"].shape[0]
         expert_node_mask = torch.ones(num_nodes, dtype=torch.bool, device=self.device)
@@ -360,20 +437,15 @@ class MultiTrainer(Trainer):
         return int(value)
 
     def _snapshot_loss_metrics(self, loss_obj) -> Dict[str, Any]:
-        """
-        legacy + strict reduce stats (if loss supports)
-        """
         loss_module = self._resolve_loss_module(loss_obj)
 
         out = {
-            # legacy monitors
             "onsite": self._as_scalar_tensor(getattr(loss_module, "last_onsite_loss", 0.0), default=0.0),
             "hopping": self._as_scalar_tensor(getattr(loss_module, "last_hopping_loss", 0.0), default=0.0),
             "z_loss": self._as_scalar_tensor(getattr(loss_module, "last_z_loss", None), allow_none=True),
             "expert_load_cv": self._as_scalar_tensor(getattr(loss_module, "expert_load_cv", None), allow_none=True),
         }
 
-        # strict reduce stats (optional)
         for k in (
             "last_onsite_l1_sum", "last_onsite_mse_sum", "last_onsite_count",
             "last_hopping_l1_sum", "last_hopping_mse_sum", "last_hopping_count",
@@ -394,14 +466,11 @@ class MultiTrainer(Trainer):
         batch_copy = batch_dict.copy()
         batch_copy["expert_edge_mask"] = expert_edge_mask
         batch_copy["expert_node_mask"] = expert_node_mask
-
-        # IMPORTANT: use python int (avoid CUDA tensor -> int bug in wrapper)
         batch_copy["expert_idx"] = int(expert_idx)
 
         with self._tagger.tag("expert/model_forward", it=self.iter, expert=expert_idx):
             pred_batch = self.model(batch_copy)
 
-        # pass global step so loss doesn't advance per-expert (if loss supports global_step)
         pred_batch["global_step"] = int(self.iter)
 
         with self._tagger.tag("expert/attach_batch_info", it=self.iter, expert=expert_idx):
@@ -423,12 +492,15 @@ class MultiTrainer(Trainer):
 
     def _build_train_payload(
         self, batch_dict, batch_info, expert_idx, range_dis,
-        ref_batch_dict=None, ref_batch_info=None
+        ref_batch_dict=None, ref_batch_info=None, criterion=None
     ):
+        if criterion is None:
+            criterion = self.train_lossfunc
+
         main = self._run_one_expert_loss(
             batch_dict=batch_dict,
             batch_info=batch_info,
-            criterion=self.train_lossfunc,
+            criterion=criterion,
             expert_idx=expert_idx,
             range_dis=range_dis,
             capture_metrics=True
@@ -441,7 +513,6 @@ class MultiTrainer(Trainer):
         onsite_weighted_sum = main["onsite"] * active_nodes.to(dtype=self.dtype)
         hopping_weighted_sum = main["hopping"] * active_edges.to(dtype=self.dtype)
 
-        # strict reduce stats (optional)
         onsite_l1_sum = main["last_onsite_l1_sum"]
         onsite_mse_sum = main["last_onsite_mse_sum"]
         onsite_cnt = main["last_onsite_count"]
@@ -460,7 +531,7 @@ class MultiTrainer(Trainer):
             ref_res = self._run_one_expert_loss(
                 batch_dict=ref_batch_dict,
                 batch_info=ref_batch_info,
-                criterion=self.train_lossfunc,
+                criterion=criterion,
                 expert_idx=expert_idx,
                 range_dis=range_dis,
                 capture_metrics=True
@@ -472,7 +543,6 @@ class MultiTrainer(Trainer):
             onsite_weighted_sum = onsite_weighted_sum + ref_res["onsite"] * ref_res["active_nodes"].to(dtype=self.dtype)
             hopping_weighted_sum = hopping_weighted_sum + ref_res["hopping"] * ref_res["active_edges"].to(dtype=self.dtype)
 
-            # strict reduce stats add (if enabled)
             if onsite_l1_sum is not None and ref_res["last_onsite_l1_sum"] is not None:
                 onsite_l1_sum = onsite_l1_sum + ref_res["last_onsite_l1_sum"]
                 onsite_mse_sum = onsite_mse_sum + ref_res["last_onsite_mse_sum"]
@@ -495,7 +565,6 @@ class MultiTrainer(Trainer):
         return {
             "loss": total_loss,
 
-            # legacy monitors
             "expert_onsite": expert_onsite.detach(),
             "expert_hopping": expert_hopping.detach(),
             "onsite_weighted_sum": onsite_weighted_sum.detach(),
@@ -503,7 +572,6 @@ class MultiTrainer(Trainer):
             "active_nodes": active_nodes.detach(),
             "active_edges": active_edges.detach(),
 
-            # strict reduce stats (detached)
             "onsite_l1_sum": onsite_l1_sum.detach() if torch.is_tensor(onsite_l1_sum) else None,
             "onsite_mse_sum": onsite_mse_sum.detach() if torch.is_tensor(onsite_mse_sum) else None,
             "onsite_cnt": onsite_cnt.detach() if torch.is_tensor(onsite_cnt) else None,
@@ -516,10 +584,13 @@ class MultiTrainer(Trainer):
         }
 
     # -------------------------------------------------------------------------
-    # stitched-compatible loss reconstruction (reduce)
+    # stitched-compatible loss reconstruction
     # -------------------------------------------------------------------------
 
-    def _compute_stitched_loss_by_reduce(self, payloads: List[Dict[str, Any]]) -> Optional[torch.Tensor]:
+    def _compute_stitched_loss_by_reduce(self, payloads: List[Dict[str, Any]], criterion=None) -> Optional[torch.Tensor]:
+        if criterion is None:
+            criterion = self.train_lossfunc
+
         if (not self.log_single_model_compatible_loss) or (self.log_single_model_compatible_loss_mode != "reduce"):
             return None
 
@@ -567,8 +638,7 @@ class MultiTrainer(Trainer):
         onsite_loss = 0.5 * (onsite_l1_mean + torch.sqrt(onsite_mse_mean))
         hopping_loss = 0.5 * (hopping_l1_mean + torch.sqrt(hopping_mse_mean))
 
-        # onsite_boost and z_loss coef from the actual loss module
-        loss_module = self._resolve_loss_module(self.train_lossfunc)
+        loss_module = self._resolve_loss_module(criterion)
         onsite_boost = bool(getattr(loss_module, "onsite_boost", False))
         onsite_boost_w = float(getattr(loss_module, "_current_onsite_weight", lambda: 1.0)())
         z_coef = float(getattr(loss_module, "z_loss_coef", 0.0))
@@ -578,14 +648,88 @@ class MultiTrainer(Trainer):
         else:
             total = 0.5 * (onsite_loss + hopping_loss)
 
-        # z_loss: reduce 无法严格等价 stitched 的 mean_max_prob，只能取一个代表值
         if z_coef > 0.0 and len(z_vals) > 0:
             total = total + z_coef * z_vals[0]
 
         return total.detach()
 
+    def _compute_distributed_reduce_loss_from_payload(self, payload: Dict[str, Any], criterion=None):
+        if criterion is None:
+            criterion = self.train_lossfunc
+
+        if (not self.log_single_model_compatible_loss) or (self.log_single_model_compatible_loss_mode != "reduce"):
+            return None
+
+        def _maybe_tensor(v):
+            if v is None:
+                return torch.zeros((), dtype=self.dtype, device=self.device)
+            if torch.is_tensor(v):
+                out = v.detach()
+                if out.ndim != 0:
+                    out = out.mean()
+                return out.to(self.device, dtype=self.dtype)
+            return torch.tensor(float(v), dtype=self.dtype, device=self.device)
+
+        onsite_l1_sum = _maybe_tensor(payload.get("onsite_l1_sum", None))
+        onsite_mse_sum = _maybe_tensor(payload.get("onsite_mse_sum", None))
+        onsite_cnt = _maybe_tensor(payload.get("onsite_cnt", None))
+
+        hopping_l1_sum = _maybe_tensor(payload.get("hopping_l1_sum", None))
+        hopping_mse_sum = _maybe_tensor(payload.get("hopping_mse_sum", None))
+        hopping_cnt = _maybe_tensor(payload.get("hopping_cnt", None))
+
+        self._all_reduce_(onsite_l1_sum)
+        self._all_reduce_(onsite_mse_sum)
+        self._all_reduce_(onsite_cnt)
+        self._all_reduce_(hopping_l1_sum)
+        self._all_reduce_(hopping_mse_sum)
+        self._all_reduce_(hopping_cnt)
+
+        if float(onsite_cnt.item()) <= 0.0 and float(hopping_cnt.item()) <= 0.0:
+            return None
+
+        eps = torch.tensor(1.0, dtype=self.dtype, device=self.device)
+
+        def _safe_mean(sum_t, cnt_t):
+            return sum_t / torch.clamp(cnt_t.to(dtype=self.dtype), min=eps)
+
+        onsite_l1_mean = _safe_mean(onsite_l1_sum, onsite_cnt)
+        onsite_mse_mean = _safe_mean(onsite_mse_sum, onsite_cnt)
+        hopping_l1_mean = _safe_mean(hopping_l1_sum, hopping_cnt)
+        hopping_mse_mean = _safe_mean(hopping_mse_sum, hopping_cnt)
+
+        onsite_loss = 0.5 * (onsite_l1_mean + torch.sqrt(onsite_mse_mean))
+        hopping_loss = 0.5 * (hopping_l1_mean + torch.sqrt(hopping_mse_mean))
+
+        loss_module = self._resolve_loss_module(criterion)
+        onsite_boost = bool(getattr(loss_module, "onsite_boost", False))
+        onsite_boost_w = float(getattr(loss_module, "_current_onsite_weight", lambda: 1.0)())
+        z_coef = float(getattr(loss_module, "z_loss_coef", 0.0))
+
+        if onsite_boost:
+            total = onsite_boost_w * onsite_loss + hopping_loss
+        else:
+            total = 0.5 * (onsite_loss + hopping_loss)
+
+        if z_coef > 0.0:
+            has_z = torch.tensor(
+                1 if (self.local_expert_idx == 0 and len(payload.get("z_values", [])) > 0 and payload["z_values"][0] is not None) else 0,
+                dtype=torch.int64,
+                device=self.device
+            )
+            self._broadcast_(has_z, src=0)
+            if int(has_z.item()) > 0:
+                if self.local_expert_idx == 0:
+                    z0 = self._as_scalar_tensor(payload["z_values"][0], default=0.0)
+                else:
+                    z0 = torch.zeros((), dtype=self.dtype, device=self.device)
+                self._broadcast_(z0, src=0)
+                total = total + z_coef * z0
+
+        return total.detach()
+
     # -------------------------------------------------------------------------
-    # parallel launch (NO scheduler inside streams)
+    # parallel launch (serial multi-expert mode only)
     # -------------------------------------------------------------------------
 
     def _launch_train_payloads_parallel(self, batch_dict, batch_info, ref_batch_dict=None, ref_batch_info=None):
@@ -634,7 +778,6 @@ class MultiTrainer(Trainer):
 
                     payloads[expert_idx] = payload
 
-            # barrier: after this, accessing loss_detached.item() should not add extra waiting
             with self._tagger.tag("parallel/wait_streams(barrier)", it=self.iter):
                 current = torch.cuda.current_stream(device=device)
                 for s in streams:
@@ -677,15 +820,10 @@ class MultiTrainer(Trainer):
         return payloads
 
     # -------------------------------------------------------------------------
-    # shared scheduler step (after barrier)
+    # shared scheduler step
     # -------------------------------------------------------------------------
 
     def _shared_scheduler_step_after_barrier(self, metric_tensor: torch.Tensor):
-        """
-        正确做法：
-        - barrier 之后才 .item()
-        - 所有 scheduler 使用同一个 metric_float
-        """
         if not self.update_lr_per_iter:
             return
 
@@ -699,27 +837,173 @@ class MultiTrainer(Trainer):
                 metric_float = float(metric_tensor)
 
         with self._tagger.tag("scheduler/shared_step(barrier_after)", it=self.iter, extra=f"metric={metric_float:.6g}"):
-            for expert_idx, sch in enumerate(self.lr_schedulers):
+            if self.distributed_expert:
+                sch = self.lr_schedulers[self.local_expert_idx]
                 if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
                     if self.iter > 1:
                         sch.step(metric_float)
                 else:
                     sch.step()
+            else:
+                for sch in self.lr_schedulers:
+                    if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                        if self.iter > 1:
+                            sch.step(metric_float)
+                    else:
+                        sch.step()
 
     # -------------------------------------------------------------------------
-    # iteration
+    # iteration - distributed expert
+    # -------------------------------------------------------------------------
+
+    def _iteration_distributed_expert(self, batch, ref_batch=None):
+        with self._tagger.tag("iteration/entry", it=self.iter):
+            self.model.train()
+
+        with self._tagger.tag("iteration/prepare_batch", it=self.iter):
+            batch_dict, batch_info = self._prepare_batch_bundle(batch, with_lengths=True)
+
+        ref_batch_dict = None
+        ref_batch_info = None
+        if ref_batch is not None:
+            with self._tagger.tag("iteration/prepare_ref_batch", it=self.iter):
+                ref_batch_dict, ref_batch_info = self._prepare_batch_bundle(ref_batch, with_lengths=True)
+
+        local_idx = self.local_expert_idx
+        local_opt = self.optimizers[local_idx]
+
+        with self._tagger.tag("iteration/zero_grad(local)", it=self.iter, expert=local_idx):
+            local_opt.zero_grad(set_to_none=True)
+
+        with self._tagger.tag("expert/build_payload(fwd+loss)", it=self.iter, expert=local_idx):
+            payload = self._build_train_payload(
+                batch_dict=batch_dict,
+                batch_info=batch_info,
+                expert_idx=local_idx,
+                range_dis=self.distance_ranges[local_idx],
+                ref_batch_dict=ref_batch_dict,
+                ref_batch_info=ref_batch_info,
+                criterion=self.train_lossfunc,
+            )
+
+        loss_local = payload["loss"]
+
+        with self._tagger.tag("expert/backward", it=self.iter, expert=local_idx):
+            loss_local.backward()
+
+        with self._tagger.tag("expert/clip_grad_norm", it=self.iter, expert=local_idx):
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.model.experts[local_idx].parameters(),
+                max_norm=self.clip_grad_norm
+            )
+
+        with self._tagger.tag("expert/optimizer_step", it=self.iter, expert=local_idx):
+            local_opt.step()
+
+        payload["grad_norm"] = grad_norm.detach() if torch.is_tensor(grad_norm) else torch.tensor(
+            float(grad_norm), device=self.device, dtype=self.dtype
+        )
+        payload["loss_detached"] = loss_local.detach()
+        del payload["loss"]
+
+        # true optimized objective: sum over experts
+        total_loss_opt = payload["loss_detached"].clone().to(self.device, dtype=self.dtype)
+        self._all_reduce_(total_loss_opt)
+
+        onsite_weighted_sum = payload["onsite_weighted_sum"].clone().to(self.device, dtype=self.dtype)
+        hopping_weighted_sum = payload["hopping_weighted_sum"].clone().to(self.device, dtype=self.dtype)
+        active_nodes = payload["active_nodes"].clone().to(self.device, dtype=self.dtype)
+        active_edges = payload["active_edges"].clone().to(self.device, dtype=self.dtype)
+
+        self._all_reduce_(onsite_weighted_sum)
+        self._all_reduce_(hopping_weighted_sum)
+        self._all_reduce_(active_nodes)
+        self._all_reduce_(active_edges)
+
+        global_onsite = onsite_weighted_sum / active_nodes.clamp_min(1.0)
+        global_hopping = hopping_weighted_sum / active_edges.clamp_min(1.0)
+
+        with self._tagger.tag("iteration/compute_train_loss_compatible(reduce_dist)", it=self.iter):
+            comparable_train_loss = self._compute_distributed_reduce_loss_from_payload(payload, self.train_lossfunc)
+
+        final_train_loss = comparable_train_loss if comparable_train_loss is not None else total_loss_opt
+        sched_metric = final_train_loss if self.shared_scheduler_metric == "train_loss" else total_loss_opt
+
+        self._shared_scheduler_step_after_barrier(sched_metric)
+
+        # gather expert specific scalars
+        local_metric = torch.stack([
+            payload["expert_onsite"].to(self.device, dtype=self.dtype),
+            payload["expert_hopping"].to(self.device, dtype=self.dtype),
+            self._as_scalar_tensor(payload["grad_norm"], default=0.0),
+        ])
+        gathered = [torch.zeros_like(local_metric) for _ in range(self.world_size)]
+        dist.all_gather(gathered, local_metric)
+
+        expert_onsite_dict = {}
+        expert_hopping_dict = {}
+        total_grad_norm = 0.0
+        for expert_idx, vec in enumerate(gathered):
+            expert_onsite_dict[f"expert_{expert_idx}_onsite"] = float(vec[0].item())
+            expert_hopping_dict[f"expert_{expert_idx}_hopping"] = float(vec[1].item())
+            total_grad_norm += float(vec[2].item())
+        total_grad_norm /= max(len(gathered), 1)
+
+        z_sum = torch.tensor(sum(self._to_float_scalar(z) for z in payload.get("z_values", [])),
+                             dtype=self.dtype, device=self.device)
+        z_cnt = torch.tensor(len(payload.get("z_values", [])), dtype=self.dtype, device=self.device)
+        self._all_reduce_(z_sum)
+        self._all_reduce_(z_cnt)
+
+        cv_sum = torch.tensor(sum(self._to_float_scalar(v) for v in payload.get("load_cv_values", [])),
+                              dtype=self.dtype, device=self.device)
+        cv_cnt = torch.tensor(len(payload.get("load_cv_values", [])), dtype=self.dtype, device=self.device)
+        self._all_reduce_(cv_sum)
+        self._all_reduce_(cv_cnt)
+
+        state = {
+            'field': 'iteration',
+            "train_loss": final_train_loss,
+            "train_loss_opt": total_loss_opt,
+            "lr": local_opt.param_groups[0]['lr'],
+            "total_grad_norm": total_grad_norm,
+            "train_onsite_loss": float(global_onsite.item()),
+            "train_hopping_loss": float(global_hopping.item()),
+        }
+
+        for i in range(self.num_experts):
+            state[f"expert_{i}_onsite"] = expert_onsite_dict.get(f"expert_{i}_onsite", 0.0)
+            state[f"expert_{i}_hopping"] = expert_hopping_dict.get(f"expert_{i}_hopping", 0.0)
+
+        if float(cv_cnt.item()) > 0.0:
+            state["expert_load_cv"] = float((cv_sum / cv_cnt).item())
+        if float(z_cnt.item()) > 0.0:
+            state["mean_max_prob"] = float((z_sum / z_cnt).item())
+
+        with self._tagger.tag("iteration/call_plugins", it=self.iter):
+            self.call_plugins(queue_name='iteration', time=self.iter, **state)
+
+        with self._tagger.tag("iteration/exit", it=self.iter):
+            self.iter += 1
+
+        return total_loss_opt
+
+    # -------------------------------------------------------------------------
+    # iteration - public
     # -------------------------------------------------------------------------
 
     def iteration(self, batch, ref_batch=None):
-        # rough "outside-iteration" wait time
         t_now = time.perf_counter()
         if self._t_last_iter_end is not None and self.debug_tags and (self.iter % self.debug_tag_freq == 0):
             log.info(f"[TAG][it={self.iter}][data_wait(outside_iteration)] dt={(t_now - self._t_last_iter_end):.4f}s")
 
-        with self._tagger.tag("iteration/entry", it=self.iter):
-            self.model.train()
-
         try:
+            if self.distributed_expert:
+                return self._iteration_distributed_expert(batch, ref_batch=ref_batch)
+
+            with self._tagger.tag("iteration/entry", it=self.iter):
+                self.model.train()
+
             with self._tagger.tag("iteration/prepare_batch", it=self.iter):
                 batch_dict, batch_info = self._prepare_batch_bundle(batch, with_lengths=True)
 
@@ -791,25 +1075,21 @@ class MultiTrainer(Trainer):
             global_hopping = global_hopping_sum / max(total_active_edges, 1)
 
             with self._tagger.tag("iteration/compute_train_loss_compatible(reduce)", it=self.iter):
-                comparable_train_loss = self._compute_stitched_loss_by_reduce(reduce_payloads)
+                comparable_train_loss = self._compute_stitched_loss_by_reduce(reduce_payloads, self.train_lossfunc)
 
-            # choose final train_loss for logging
             final_train_loss = comparable_train_loss if comparable_train_loss is not None else total_loss_opt
 
-            # choose shared scheduler metric tensor
             if self.shared_scheduler_metric == "train_loss":
                 sched_metric = final_train_loss
             else:
-                # default: true optimized objective
                 sched_metric = total_loss_opt
 
-            # shared scheduler step AFTER barrier
             self._shared_scheduler_step_after_barrier(sched_metric)
 
             state = {
                 'field': 'iteration',
-                "train_loss": final_train_loss,          # comparable if available
-                "train_loss_opt": total_loss_opt,        # true objective (sum experts)
+                "train_loss": final_train_loss,
+                "train_loss_opt": total_loss_opt,
                 "lr": self.optimizers[0].param_groups[0]['lr'],
                 "total_grad_norm": sum(expert_grad_norms) / max(len(expert_grad_norms), 1),
                 "train_onsite_loss": global_onsite,
@@ -841,7 +1121,7 @@ class MultiTrainer(Trainer):
             self._t_last_iter_end = time.perf_counter()
 
     # -------------------------------------------------------------------------
-    # validation (kept simple; uses reduce if enabled)
+    # validation
     # -------------------------------------------------------------------------
 
     def _run_full_batch_loss(self, batch_dict, batch_info, criterion):
@@ -864,43 +1144,59 @@ class MultiTrainer(Trainer):
                 with self._tagger.tag("validation/prepare_batch", it=self.iter):
                     batch_dict, batch_info = self._prepare_batch_bundle(batch, with_lengths=True)
 
-                # reduce path (preferred)
-                if self.log_single_model_compatible_loss and self.log_single_model_compatible_loss_mode == "reduce":
-                    payloads = []
-                    for expert_idx, range_dis in enumerate(self.distance_ranges):
-                        res = self._run_one_expert_loss(
-                            batch_dict=batch_dict,
-                            batch_info=batch_info,
-                            criterion=self.validation_lossfunc,
-                            expert_idx=expert_idx,
-                            range_dis=range_dis,
-                            capture_metrics=True
-                        )
-                        payloads.append({
-                            "onsite_l1_sum": res.get("last_onsite_l1_sum", None),
-                            "onsite_mse_sum": res.get("last_onsite_mse_sum", None),
-                            "onsite_cnt": res.get("last_onsite_count", None),
-                            "hopping_l1_sum": res.get("last_hopping_l1_sum", None),
-                            "hopping_mse_sum": res.get("last_hopping_mse_sum", None),
-                            "hopping_cnt": res.get("last_hopping_count", None),
-                            "z_values": [res["z_loss"]] if res.get("z_loss", None) is not None else [],
-                        })
+                if self.distributed_expert:
+                    local_idx = self.local_expert_idx
+                    payload = self._build_train_payload(
+                        batch_dict=batch_dict,
+                        batch_info=batch_info,
+                        expert_idx=local_idx,
+                        range_dis=self.distance_ranges[local_idx],
+                        ref_batch_dict=None,
+                        ref_batch_info=None,
+                        criterion=self.validation_lossfunc,
+                    )
 
-                    # temporarily use validation loss module for boost/z_coef logic
-                    old = self.train_lossfunc
-                    self.train_lossfunc = self.validation_lossfunc
-                    with self._tagger.tag("validation/compute_reduce_loss", it=self.iter):
-                        loss_i = self._compute_stitched_loss_by_reduce(payloads)
-                    self.train_lossfunc = old
-
-                    if loss_i is None:
-                        # fallback
-                        with self._tagger.tag("validation/fallback_full_forward", it=self.iter):
-                            loss_i = self._run_full_batch_loss(batch_dict, batch_info, self.validation_lossfunc)
+                    if self.log_single_model_compatible_loss and self.log_single_model_compatible_loss_mode == "reduce":
+                        with self._tagger.tag("validation/compute_reduce_loss_dist", it=self.iter):
+                            loss_i = self._compute_distributed_reduce_loss_from_payload(payload, self.validation_lossfunc)
+                        if loss_i is None:
+                            loss_i = payload["loss"].detach()
+                            self._all_reduce_(loss_i)
+                    else:
+                        loss_i = payload["loss"].detach()
+                        self._all_reduce_(loss_i)
 
                 else:
-                    with self._tagger.tag("validation/full_forward_stitched", it=self.iter):
-                        loss_i = self._run_full_batch_loss(batch_dict, batch_info, self.validation_lossfunc)
+                    if self.log_single_model_compatible_loss and self.log_single_model_compatible_loss_mode == "reduce":
+                        payloads = []
+                        for expert_idx, range_dis in enumerate(self.distance_ranges):
+                            res = self._run_one_expert_loss(
+                                batch_dict=batch_dict,
+                                batch_info=batch_info,
+                                criterion=self.validation_lossfunc,
+                                expert_idx=expert_idx,
+                                range_dis=range_dis,
+                                capture_metrics=True
+                            )
+                            payloads.append({
+                                "onsite_l1_sum": res.get("last_onsite_l1_sum", None),
+                                "onsite_mse_sum": res.get("last_onsite_mse_sum", None),
+                                "onsite_cnt": res.get("last_onsite_count", None),
+                                "hopping_l1_sum": res.get("last_hopping_l1_sum", None),
+                                "hopping_mse_sum": res.get("last_hopping_mse_sum", None),
+                                "hopping_cnt": res.get("last_hopping_count", None),
+                                "z_values": [res["z_loss"]] if res.get("z_loss", None) is not None else [],
+                            })
+
+                        with self._tagger.tag("validation/compute_reduce_loss", it=self.iter):
+                            loss_i = self._compute_stitched_loss_by_reduce(payloads, self.validation_lossfunc)
+
+                        if loss_i is None:
+                            with self._tagger.tag("validation/fallback_full_forward", it=self.iter):
+                                loss_i = self._run_full_batch_loss(batch_dict, batch_info, self.validation_lossfunc)
+                    else:
+                        with self._tagger.tag("validation/full_forward_stitched", it=self.iter):
+                            loss_i = self._run_full_batch_loss(batch_dict, batch_info, self.validation_lossfunc)
 
                 total_loss = total_loss + loss_i.detach()
 
@@ -918,20 +1214,24 @@ class MultiTrainer(Trainer):
 
     @classmethod
     def restart(cls, checkpoint, train_datasets, train_options={}, common_options={}, reference_datasets=None,
-                validation_datasets=None):
-        ckpt = torch.load(checkpoint, map_location=common_options["device"], weights_only=False)
+                validation_datasets=None, distributed_expert=False, rank=0, world_size=1):
+        map_loc = common_options["device"] if len(common_options) > 0 and "device" in common_options else "cpu"
+        ckpt = torch.load(checkpoint, map_location=map_loc, weights_only=False)
+
+        merged_train_options = copy.deepcopy(ckpt["config"].get("train_options", {}))
+        merged_train_options.update(train_options or {})
+
+        merged_common_options = copy.deepcopy(ckpt["config"]["common_options"])
+        merged_common_options.update(common_options or {})
+
         model = build_model(
             checkpoint=checkpoint,
             model_options=ckpt["config"]["model_options"],
-            common_options=ckpt["config"]["common_options"],
-            train_options=ckpt["config"].get("train_options", train_options)
+            common_options=merged_common_options,
+            train_options=merged_train_options
         )
-        if len(train_options) == 0:
-            train_options = ckpt["config"]["train_options"]
-        if len(common_options) == 0:
-            common_options = ckpt["config"]["common_options"]
 
-        distance_ranges = train_options.get(
+        distance_ranges = merged_train_options.get(
             "distance_ranges",
             [[0.0, 1.0], [1.0, 2.0], [2.0, 4.0], [4.0, 6.0]]
         )
@@ -942,8 +1242,11 @@ class MultiTrainer(Trainer):
             train_datasets=train_datasets,
             reference_datasets=reference_datasets,
             validation_datasets=validation_datasets,
-            train_options=train_options,
-            common_options=common_options
+            train_options=merged_train_options,
+            common_options=merged_common_options,
+            distributed_expert=distributed_expert,
+            rank=rank,
+            world_size=world_size,
         )
 
         trainer.ep = ckpt["epoch"] + 1
@@ -955,11 +1258,21 @@ class MultiTrainer(Trainer):
             for plugin in trainer.plugin_queues[unit]:
                 plugin = (getattr(trainer, unit) + plugin[0], plugin[1], plugin[2])
 
-        for key in cls.object_keys:
-            items = getattr(trainer, key, None)
-            if items is not None:
-                saved_states = ckpt[key + "_state_dict"]
-                for obj, state in zip(items, saved_states):
-                    obj.load_state_dict(state)
+        if distributed_expert:
+            idx = trainer.local_expert_idx
+            opt_states = ckpt.get("optimizers_state_dict", None)
+            sch_states = ckpt.get("lr_schedulers_state_dict", None)
+            if opt_states is not None and trainer.optimizers[idx] is not None:
+                trainer.optimizers[idx].load_state_dict(opt_states[idx])
+            if sch_states is not None and trainer.lr_schedulers[idx] is not None:
+                trainer.lr_schedulers[idx].load_state_dict(sch_states[idx])
+        else:
+            for key in cls.object_keys:
+                items = getattr(trainer, key, None)
+                if items is not None:
+                    saved_states = ckpt[key + "_state_dict"]
+                    for obj, state in zip(items, saved_states):
+                        if obj is not None:
+                            obj.load_state_dict(state)
 
         return trainer
