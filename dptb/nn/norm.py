@@ -9,7 +9,7 @@ from typing import Union
 import torch
 from torch import nn
 from e3nn import o3
-from typing import Union
+from typing import Union, Optional
 
 
 class MySeperableLayerNorm(nn.Module):
