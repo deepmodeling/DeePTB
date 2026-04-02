@@ -240,7 +240,9 @@ class TBSystem:
                                    device=self.calculator.device)
         data = self._atomic_data.copy()             
         data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([k_tensor])
-        data, eigs = self.calculator.get_eigenvalues(data)
+        data, eigs = self.calculator.get_eigenvalues(data,
+                                                     nk=kwargs.get("nk", None),
+                                                     eig_solver=kwargs.get("eig_solver", None))
 
         calculated_efermi = self.estimate_efermi_e(
                         eigenvalues=eigs.detach().numpy(),
@@ -294,7 +296,10 @@ class TBSystem:
         )    
         
 
-    def get_bands(self, kpath_config: Optional[dict] = None, reuse: Optional[bool]=True, **kwargs):
+    def get_bands(self,
+                  kpath_config: Optional[dict] = None,
+                  reuse: Optional[bool]=True,
+                  **kwargs):
         # 计算能带，返回 bands
         # bands 应该是一个类，也有属性。bands.kpoints, bands.eigenvalues, bands.klabels, bands.kticks, 也有函数 bands.plot()
         if self.has_bands and reuse:
@@ -303,7 +308,8 @@ class TBSystem:
             assert kpath_config is not None, "kpath_config must be provided if bands not calculated."
             self._bands = BandAccessor(self)
             self._bands.set_kpath(**kpath_config)
-            self._bands.compute()
+            self._bands.compute(nk=kwargs.get("nk", None),
+                                eig_solver=kwargs.get("eig_solver", None))
             self.has_bands = True
             return self._bands
 
