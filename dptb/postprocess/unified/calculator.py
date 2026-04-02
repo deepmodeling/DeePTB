@@ -59,7 +59,7 @@ class HamiltonianCalculator(ABC):
         pass
         
     @abstractmethod
-    def get_eigenvalues(self, atomic_data: dict) -> Tuple[dict, torch.Tensor]:
+    def get_eigenvalues(self, atomic_data: dict, **kwargs) -> Tuple[dict, torch.Tensor]:
         """
         Calculate eigenvalues for the given atomic data.
         
@@ -225,7 +225,12 @@ class DeePTBAdapter(HamiltonianCalculator):
     def get_eigenvalues(self, 
                         atomic_data: dict, 
                         nk: Optional[int]=None,
-                        solver: Optional[str]=None) -> Tuple[dict, torch.Tensor]:
+                        solver: Optional[str]=None,
+                        **kwargs) -> Tuple[dict, torch.Tensor]:
+        if not nk and kwargs.get("nk"):
+            nk = kwargs.get("nk")
+        if not solver and kwargs.get("eig_solver") or kwargs.get("solver"):
+            solver = kwargs.get("eig_solver") if kwargs.get("eig_solver") else kwargs.get("solver")
         # 1. Get Hamiltonian
         atomic_data = self.model_forward(atomic_data)
         
