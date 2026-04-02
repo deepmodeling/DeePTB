@@ -12,6 +12,166 @@ from e3nn import o3
 from typing import Union
 
 
+class MySeperableLayerNorm(nn.Module):
+    """
+    Gated Bottleneck Norm (Unconditioned Version).
+    Fuses:
+    1. Absolute Scale Preservation (Multiplicative Gate, No Division).
+    2. Correctness: Strict scalar channel mapping (Fixes interleaved irreps bug).
+    3. Performance: Scatter-based Vectorized RMS computation.
+    """
+
+    def __init__(
+            self,
+            irreps,
+            eps=1e-6,
+            affine=True,
+            normalization='component',  # 兼容老版本签名
+            std_balance_degrees=True,  # 兼容老版本签名
+            bottleneck_ratio=0.5,
+            gate_norm: Optional[str] = 'none',  # 可选: 'none', 'rms', 'layer'
+            dtype: Union[str, torch.dtype] = torch.float32,
+            device: Union[str, torch.device] = torch.device("cpu"),
+    ):
+        super().__init__()
+        self.irreps = o3.Irreps(irreps).simplify()
+        self.device = torch.device(device) if isinstance(device, str) else device
+        self.dtype = getattr(torch, dtype) if isinstance(dtype, str) else dtype
+
+        self.eps = eps
+        self.affine = affine
+        self.gate_norm = gate_norm.lower() if gate_norm else 'none'
+
+        # ── 1. 构建切片索引 (Scatter 友好版 & 修复错位 Bug) ──
+        scalar_idx = []
+        scalar_ch = []  # ✨ 记录标量对应的真实通道 ID
+        vector_idx = []  # 记录所有高阶特征的展平索引
+        vector_ch_local = []  # 用于 scatter_mean 的局部 channel id (0, 1, 2...)
+        ch_expand = []  # 门控输出广播到全特征的映射
+
+        ch = 0  # 全局通道 ID (0 to num_features - 1)
+        vec_ch = 0  # 向量专用局部 ID (0 to num_vector - 1)
+        offset = 0  # 展平后的特征偏移量
+
+        for mul, ir in self.irreps:
+            for _ in range(mul):
+                if ir.l == 0:
+                    scalar_idx.append(offset)
+                    scalar_ch.append(ch)  # 精确绑定标量的门控通道
+                    ch_expand.append(ch)
+                    offset += 1
+                else:
+                    for _ in range(ir.dim):
+                        vector_idx.append(offset)
+                        vector_ch_local.append(vec_ch)
+                        ch_expand.append(ch)
+                        offset += 1
+                    vec_ch += 1
+                ch += 1
+
+        self.num_scalar = len(scalar_idx)
+        self.num_vector = vec_ch
+        self.num_features = ch
+        self.total_dim = offset
+
+        # 注册所有索引为 buffer
+        self.register_buffer("scalar_idx", torch.tensor(scalar_idx, dtype=torch.long, device=self.device))
+        self.register_buffer("scalar_ch", torch.tensor(scalar_ch, dtype=torch.long, device=self.device))
+        self.register_buffer("ch_expand", torch.tensor(ch_expand, dtype=torch.long, device=self.device))
+
+        if self.num_vector > 0:
+            self.register_buffer("vector_idx", torch.tensor(vector_idx, dtype=torch.long, device=self.device))
+            self.register_buffer("vector_ch_local", torch.tensor(vector_ch_local, dtype=torch.long, device=self.device))
+
+        # ── 2. 门控 MLP ──
+        gate_in_dim = self.num_scalar + self.num_vector
+        bn_dim = max(int(gate_in_dim * bottleneck_ratio), 4)
+
+        self.gate_mlp = nn.Sequential(
+            nn.Linear(gate_in_dim, bn_dim, dtype=self.dtype, device=self.device),
+            nn.SiLU(),
+            nn.Linear(bn_dim, self.num_features, dtype=self.dtype, device=self.device),
+        )
+
+        # ✨ 保证初始阶段乘积系数为 1.0 (残差无损流转)
+        nn.init.zeros_(self.gate_mlp[-1].weight)
+        nn.init.zeros_(self.gate_mlp[-1].bias)
+
+        # ── 3. Affine 参数 ──
+        if self.affine:
+            self.affine_weight = nn.Parameter(torch.ones(1, self.num_features, dtype=self.dtype, device=self.device))
+            if self.num_scalar > 0:
+                self.affine_bias = nn.Parameter(torch.zeros(1, self.num_scalar, dtype=self.dtype, device=self.device))
+            else:
+                self.register_parameter("affine_bias", None)
+        else:
+            self.register_parameter("affine_weight", None)
+            self.register_parameter("affine_bias", None)
+
+    @torch.amp.autocast(device_type="cuda", enabled=False)
+    def forward(self, x):
+        batch_size = x.size(0)
+
+        # ---------------------------------------------------------
+        # 1. 标量特征 (去均值保持相对符号)
+        # ---------------------------------------------------------
+        if self.num_scalar > 0:
+            scalars = x[:, self.scalar_idx]
+            scalars_centered = scalars - scalars.mean(dim=1, keepdim=True)
+        else:
+            scalars = x.new_zeros((batch_size, 0))
+            scalars_centered = scalars
+
+        # ---------------------------------------------------------
+        # 2. 向量 RMS (GPU 高效并行版 Scatter_Mean)
+        # ---------------------------------------------------------
+        if self.num_vector > 0:
+            vec_sq = x[:, self.vector_idx].pow(2)
+            # scatter_mean 一次性聚合算出所有向量的均方
+            local_idx_expanded = self.vector_ch_local.unsqueeze(0).expand(batch_size, -1)
+            vec_mean_sq = scatter_mean(vec_sq, local_idx_expanded, dim=1, dim_size=self.num_vector)
+
+            # 必须开根号，获得线性尺度的 RMS，防止特征平方引发极大值爆炸
+            vectors_rms = (vec_mean_sq + self.eps).sqrt()
+        else:
+            vectors_rms = x.new_zeros((batch_size, 0))
+
+        # ---------------------------------------------------------
+        # 3. 门控信号拼装与规范化 (默认 'none'，如果抖动可以改成 'rms')
+        # ---------------------------------------------------------
+        gate_in = torch.cat([scalars_centered, vectors_rms], dim=1)
+
+        if self.gate_norm == 'rms':
+            rms_scale = torch.rsqrt(gate_in.pow(2).mean(dim=1, keepdim=True) + self.eps)
+            gate_in = gate_in * rms_scale
+        elif self.gate_norm == 'layer':
+            gate_in = torch.nn.functional.layer_norm(gate_in, (gate_in.shape[-1],))
+
+        # ---------------------------------------------------------
+        # 4. 计算门控分数 (2 * Sigmoid 恒等初始化)
+        # ---------------------------------------------------------
+        gate_scores = 2.0 * torch.sigmoid(self.gate_mlp(gate_in))
+
+        if self.affine:
+            gate_scores = gate_scores * self.affine_weight
+
+        # ---------------------------------------------------------
+        # 5. 主特征流缩放 (绝不除以模长！)
+        # ---------------------------------------------------------
+        x_out = x * gate_scores[:, self.ch_expand]
+
+        # ---------------------------------------------------------
+        # 6. 恢复标量偏置 (使用 scalar_ch 进行精准通道映射)
+        # ---------------------------------------------------------
+        if self.num_scalar > 0:
+            # 必须用精确通道索引，无惧 Irreps 乱序交错
+            x_out[:, self.scalar_idx] = scalars_centered * gate_scores[:, self.scalar_ch]
+            if self.affine:
+                x_out[:, self.scalar_idx] = x_out[:, self.scalar_idx] + self.affine_bias
+
+        return x_out
+
+
 class SeperableLayerNorm(nn.Module):
     '''
         1. Normalize over L = 0.
@@ -201,6 +361,8 @@ class SeperableLayerNorm(nn.Module):
             x = x * scale_map
 
         return x
+
+
 @compile_mode("unsupported")
 class TypeNorm(nn.Module):
     """Batch normalization for orthonormal representations
