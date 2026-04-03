@@ -34,6 +34,7 @@ class MySeperableLayerNorm(nn.Module):
             device: Union[str, torch.device] = torch.device("cpu"),
     ):
         super().__init__()
+        print(f'bottleneck_ratio: {bottleneck_ratio}')
         self.irreps = o3.Irreps(irreps).simplify()
         self.device = torch.device(device) if isinstance(device, str) else device
         self.dtype = getattr(torch, dtype) if isinstance(dtype, str) else dtype

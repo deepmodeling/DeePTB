@@ -88,6 +88,7 @@ class InitLayer(torch.nn.Module):
             r_start_cos_ratio: float = 0.8,
             norm_eps: float = 1e-8,
             polynomial_cutoff_p: float = 6,
+            norm_bottleneck_ratio: float = 0.1,
             cutoff_type: str = "polynomial",
             edge_one_hot_dim: int = 128,
             device: Union[str, torch.device] = torch.device("cpu"),
@@ -166,6 +167,7 @@ class InitLayer(torch.nn.Module):
                 std_balance_degrees=True,
                 dtype=self.dtype,
                 device=self.device,
+                bottleneck_ratio=norm_bottleneck_ratio
             )
         else:
             self.sln_n = torch.nn.Identity()
@@ -268,6 +270,7 @@ class EAMP(torch.nn.Module):
             latent_dim: int,
             node_one_hot_dim: int,
             norm_eps: float = 1e-8,
+            norm_bottleneck_ratio: float = 1e-8,
             radial_emb: bool = False,
             radial_channels: list = [128, 128],
             res_update: bool = True,
@@ -316,15 +319,15 @@ class EAMP(torch.nn.Module):
             "env_sum_normalizations",
             torch.as_tensor(avg_num_neighbors).rsqrt(),
         )
-
+        self.norm_bottleneck_ratio = norm_bottleneck_ratio
         if ln_flag:
             self.sln_n = SeperableLayerNorm(
                 irreps=self.node_irreps_in, eps=norm_eps, affine=True, normalization="component",
-                std_balance_degrees=True, dtype=self.dtype, device=self.device,
+                std_balance_degrees=True, dtype=self.dtype, device=self.device, bottleneck_ratio=norm_bottleneck_ratio
             )
             self.sln_e = SeperableLayerNorm(
                 irreps=self.edge_irreps_in, eps=norm_eps, affine=True, normalization="component",
-                std_balance_degrees=True, dtype=self.dtype, device=self.device,
+                std_balance_degrees=True, dtype=self.dtype, device=self.device, bottleneck_ratio=norm_bottleneck_ratio
             )
         else:
             self.sln_n = torch.nn.Identity()
@@ -439,7 +442,8 @@ class EAMP(torch.nn.Module):
             normalization="component",
             std_balance_degrees=True,
             dtype=self.dtype,
-            device=self.device
+            device=self.device,
+            bottleneck_ratio=self.norm_bottleneck_ratio
         )
 
         l0_indices = self.l0_indices
@@ -734,6 +738,7 @@ class EMolES(torch.nn.Module):
             self_mix_mode: str = "scalar_channelwise",
             self_mix_iter: int = 2,
             self_mix_type: str = "node",
+            norm_bottleneck_ratio: float = 0.1,
             **kwargs,
     ):
         super(EMolES, self).__init__()
@@ -820,6 +825,7 @@ class EMolES(torch.nn.Module):
             norm_eps=norm_eps,
             prune_edges_by_cutoff=prune_edges_by_cutoff,
             ln_flag=ln_flag,
+            norm_bottleneck_ratio=norm_bottleneck_ratio
         )
 
         self.layers = torch.nn.ModuleList()
@@ -875,6 +881,7 @@ class EMolES(torch.nn.Module):
                     self_mix_mode=self_mix_mode,
                     self_mix_iter=self_mix_iter,
                     self_mix_type=self_mix_type,
+                    norm_bottleneck_ratio=norm_bottleneck_ratio
                 )
             )
 
@@ -1144,7 +1151,8 @@ class EAMPOpenequi(EAMP):
             normalization="component",
             std_balance_degrees=True,
             dtype=self.dtype,
-            device=self.device
+            device=self.device,
+            bottleneck_ratio = self.norm_bottleneck_ratio
         )
 
         l0_indices = self.l0_indices
