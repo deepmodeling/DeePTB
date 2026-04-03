@@ -711,7 +711,7 @@ def slem():
             Argument("use_layer_onehot_tp", bool, optional=True, default=True, doc="Whether to use layer_onehot_tp."),
             Argument("res_update", bool, optional=True, default=True, doc="Whether to use residual update."),
             Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
-            Argument("norm_bottleneck_ratio", float, optional=True, default=0.1, doc="The ratios of norm bottle neck gate."),
+            Argument("norm_bottleneck_ratio", float, optional=True, default=0.5, doc="The ratios of norm bottle neck gate."),
             Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
             Argument("use_interpolation_out", bool, optional=True, default=False, doc=doc_use_interpolation_out),
             Argument("so2_attn_aggressive", bool, optional=True, default=False, doc=doc_so2_attn_aggressive),
