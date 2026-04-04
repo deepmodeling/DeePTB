@@ -663,6 +663,7 @@ def embedding():
             Argument("emoles", dict, slem()),
             Argument("emoles_openequi", dict, slem()),
             Argument("emoles_openequi_norm", dict, slem()),
+            Argument("emoles_openequi_norm_v2", dict, slem()),
             Argument("lem_light", dict, slem()),
             Argument("lem_light_v2", dict, slem()),
             Argument("lem_charge", dict, slem()),
@@ -831,45 +832,57 @@ def slem():
     doc_use_interpolation_out = "Set true to activate SO2 interpolation layer in the final output layer. Default: `False`"
     doc_so2_attn_aggressive = "Set true to activate SO2 attention radical mode. Default: `False`"
 
-    return [
-            Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
-            Argument("avg_num_neighbors", [int, float], optional=False, doc=doc_avg_num_neighbors),
-            Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
-            Argument("n_layers", int, optional=False, doc=doc_n_layers),
-            Argument("mp_cutoff",[float, int, dict], optional=True),
-            Argument("self_mix_mode", str, optional=True, default="full"),
-            Argument("self_mix_type", str, optional=True, default="all"),
-            Argument("self_mix_flag", bool, optional=True, default=False),
-            Argument("optimized_in_frame", bool, optional=True, default=True),
-            Argument("self_mix_iter", int, optional=True, default=2),
+    doc_norm_build_node_condition_branch = "Whether to build the conditioned branch for node layer norm. Default: `True`"
+    doc_norm_use_node_onehot = "Whether to use node one-hot as conditioning in node layer norm. Default: `True`"
+    doc_norm_build_edge_condition_branch = "Whether to build the conditioned branch for edge layer norm. Default: `True`"
+    doc_norm_use_edge_onehot = "Whether to use edge one-hot embedding as conditioning in edge layer norm. Default: `True`"
 
-            Argument("n_radial_basis", int, optional=True, default=128, doc=doc_n_radial_basis),
-            Argument("top_k", int, optional=True, default=4, doc="The number of experts to be used in MoE. Default: 1"),
-            Argument("num_experts", int, optional=True, default=24, doc="The number of experts for MoE. Default: 8"),
-            Argument("num_shared_experts", int, optional=True, default=4, doc="The number of experts for MoE. Default: 8"),
-            Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
-            Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
-            Argument("color_mode", str, optional=True, default="tp", doc="The type of color mode. Default: tp"),
-            Argument("onehot_mode", str, optional=True, default="FullTP", doc="The type of onehot mode. Default: FullTP"),
-            Argument("env_embed_multiplicity", int, optional=True, default=64, doc=doc_env_embed_multiplicity),
-            Argument("tp_radial_emb", bool, optional=True, default=False, doc="Whether to use tensor product radial embedding."),
-            Argument("tp_radial_channels", list, optional=True, default=[32], doc="The number of channels in tensor product radial embedding."),
-            Argument("latent_channels", list, optional=True, default=[32], doc="The number of channels in latent embedding."),
-            Argument("latent_dim", int, optional=True, default=64, doc="The dimension of latent embedding."),
-            Argument("edge_one_hot_dim", int, optional=True, default=128, doc="The dimension of edge_one_hot."),
-            Argument("use_out_onehot_tp", bool, optional=True, default=True, doc="Whether to use out_onehot_tp."),
-            Argument("use_layer_onehot_tp", bool, optional=True, default=True, doc="Whether to use layer_onehot_tp."),
-            Argument("res_update", bool, optional=True, default=True, doc="Whether to use residual update."),
-            Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
-            Argument("norm_bottleneck_ratio", float, optional=True, default=0.5, doc="The ratios of norm bottle neck gate."),
-            Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
-            Argument("use_interpolation_out", bool, optional=True, default=False, doc=doc_use_interpolation_out),
-            Argument("so2_attn_aggressive", bool, optional=True, default=False, doc=doc_so2_attn_aggressive),
-            Argument("universal", bool, optional=True, default=False, doc=doc_universal),
-            Argument("in_frame_flag", bool, optional=True, default=True),
-            Argument("ln_flag", bool, optional=True, default=True),
-            Argument("use_angle", bool, optional=True, default=False, doc="Whether to use angle."),
-            Argument("norm_eps", float, optional=True, default=1e-8, doc="eps in SeperableLayerNorm."),
+    return [
+        Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
+        Argument("avg_num_neighbors", [int, float], optional=False, doc=doc_avg_num_neighbors),
+        Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
+        Argument("n_layers", int, optional=False, doc=doc_n_layers),
+        Argument("mp_cutoff", [float, int, dict], optional=True),
+
+        Argument("self_mix_mode", str, optional=True, default="full"),
+        Argument("self_mix_type", str, optional=True, default="all"),
+        Argument("self_mix_flag", bool, optional=True, default=False),
+        Argument("optimized_in_frame", bool, optional=True, default=True),
+        Argument("self_mix_iter", int, optional=True, default=2),
+
+        Argument("n_radial_basis", int, optional=True, default=128, doc=doc_n_radial_basis),
+        Argument("top_k", int, optional=True, default=4, doc="The number of experts to be used in MoE. Default: 1"),
+        Argument("num_experts", int, optional=True, default=24, doc="The number of experts for MoE. Default: 8"),
+        Argument("num_shared_experts", int, optional=True, default=4, doc="The number of experts for MoE. Default: 8"),
+        Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
+        Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
+        Argument("color_mode", str, optional=True, default="tp", doc="The type of color mode. Default: tp"),
+        Argument("onehot_mode", str, optional=True, default="FullTP", doc="The type of onehot mode. Default: FullTP"),
+        Argument("env_embed_multiplicity", int, optional=True, default=64, doc=doc_env_embed_multiplicity),
+        Argument("tp_radial_emb", bool, optional=True, default=False, doc="Whether to use tensor product radial embedding."),
+        Argument("tp_radial_channels", list, optional=True, default=[32], doc="The number of channels in tensor product radial embedding."),
+        Argument("latent_channels", list, optional=True, default=[32], doc="The number of channels in latent embedding."),
+        Argument("latent_dim", int, optional=True, default=64, doc="The dimension of latent embedding."),
+        Argument("edge_one_hot_dim", int, optional=True, default=128, doc="The dimension of edge_one_hot."),
+        Argument("use_out_onehot_tp", bool, optional=True, default=True, doc="Whether to use out_onehot_tp."),
+        Argument("use_layer_onehot_tp", bool, optional=True, default=True, doc="Whether to use layer_onehot_tp."),
+        Argument("res_update", bool, optional=True, default=True, doc="Whether to use residual update."),
+        Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
+        Argument("norm_bottleneck_ratio", float, optional=True, default=0.1, doc="The ratios of norm bottle neck gate."),
+        Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
+        Argument("use_interpolation_out", bool, optional=True, default=False, doc=doc_use_interpolation_out),
+        Argument("so2_attn_aggressive", bool, optional=True, default=False, doc=doc_so2_attn_aggressive),
+        Argument("universal", bool, optional=True, default=False, doc=doc_universal),
+        Argument("in_frame_flag", bool, optional=True, default=True),
+        Argument("ln_flag", bool, optional=True, default=True),
+        Argument("use_angle", bool, optional=True, default=False, doc="Whether to use angle."),
+        Argument("norm_eps", float, optional=True, default=1e-8, doc="eps in SeperableLayerNorm."),
+
+        # ---- New norm conditioning flags ----
+        Argument("norm_build_node_condition_branch", bool, optional=True, default=True, doc=doc_norm_build_node_condition_branch),
+        Argument("norm_use_node_onehot", bool, optional=True, default=True, doc=doc_norm_use_node_onehot),
+        Argument("norm_build_edge_condition_branch", bool, optional=True, default=True, doc=doc_norm_build_edge_condition_branch),
+        Argument("norm_use_edge_onehot", bool, optional=True, default=True, doc=doc_norm_use_edge_onehot),
     ]
 
 
@@ -1941,7 +1954,7 @@ def get_cutoffs_from_model_options(model_options):
         embedding = model_options.get("embedding")
         if embedding["method"] == "se2":
             er_max = embedding["rc"]
-        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_moe_topk", "lem_moe_v3", "lem_charge", "emoles", "emoles_openequi_norm", "emoles_openequi", "lem_cutoff", "lem_full_tp_oeq", "lem_moe_openequi", "lem_in_frame_moe", "lem_full_tp", "lem_in_frame_e3nn", "lem_in_frame_openequi", "lem_wo_ln", "lem_in_frame", "lem_in_frame_heavy", "lem_light_v2", "lem_light", "lem_moe_charge", "lem_frame", "lem_high_order", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
+        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_moe_topk", "lem_moe_v3", "lem_charge", "emoles", "emoles_openequi_norm", "emoles_openequi_norm_v2", "emoles_openequi", "lem_cutoff", "lem_full_tp_oeq", "lem_moe_openequi", "lem_in_frame_moe", "lem_full_tp", "lem_in_frame_e3nn", "lem_in_frame_openequi", "lem_wo_ln", "lem_in_frame", "lem_in_frame_heavy", "lem_light_v2", "lem_light", "lem_moe_charge", "lem_frame", "lem_high_order", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
             r_max = embedding["r_max"]
         else:
             log.error("The method of embedding have not been defined in get cutoff functions")

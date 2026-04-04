@@ -4,61 +4,70 @@ from torch import nn
 from e3nn import o3
 from e3nn.util.jit import compile_mode
 from torch_scatter import scatter_mean
-from typing import Union
-
-import torch
-from torch import nn
-from e3nn import o3
 from typing import Union, Optional
 
 
 class MySeperableLayerNorm(nn.Module):
     """
-    Gated Bottleneck Norm (Unconditioned Version).
-    Fuses:
-    1. Absolute Scale Preservation (Multiplicative Gate, No Division).
-    2. Correctness: Strict scalar channel mapping (Fixes interleaved irreps bug).
-    3. Performance: Scatter-based Vectorized RMS computation.
+    Optional Conditioned Gated Separable LayerNorm (Early Fusion / Concat Version)
+
+    特点：
+    1. 无条件路径：只基于等变特征自身不变量统计做 gate
+    2. 有条件路径：将 [invariants, conditioning] 直接拼接后送入同一个 MLP
+       -> 保留早期非线性交叉能力
+    3. 接口保持兼容：
+       - __init__(..., cond_dim=...)
+       - forward(x, conditioning=None, use_condition=False)
+    4. 只有 0e 直接作为标量输入；
+       其它（含 0o 与 l>0）统一转成 RMS invariant
     """
 
+    supports_conditioning = True
+
     def __init__(
-            self,
-            irreps,
-            eps=1e-6,
-            affine=True,
-            normalization='component',  # 兼容老版本签名
-            std_balance_degrees=True,  # 兼容老版本签名
-            bottleneck_ratio=0.5,
-            gate_norm: Optional[str] = 'none',  # 可选: 'none', 'rms', 'layer'
-            dtype: Union[str, torch.dtype] = torch.float32,
-            device: Union[str, torch.device] = torch.device("cpu"),
+        self,
+        irreps,
+        eps=1e-6,
+        affine=True,
+        normalization='component',       # 兼容旧接口，占位
+        std_balance_degrees=True,        # 兼容旧接口，占位
+        bottleneck_ratio=0.25,
+        cond_dim: int = 0,
+        gate_norm: Optional[str] = 'rms',
+        dtype: Union[str, torch.dtype] = torch.float32,
+        device: Union[str, torch.device] = torch.device("cpu"),
     ):
         super().__init__()
-        print(f'bottleneck_ratio: {bottleneck_ratio}')
         self.irreps = o3.Irreps(irreps).simplify()
         self.device = torch.device(device) if isinstance(device, str) else device
         self.dtype = getattr(torch, dtype) if isinstance(dtype, str) else dtype
 
         self.eps = eps
         self.affine = affine
+        self.cond_dim = int(cond_dim)
         self.gate_norm = gate_norm.lower() if gate_norm else 'none'
+        self.bottleneck_ratio = bottleneck_ratio
 
-        # ── 1. 构建切片索引 (Scatter 友好版 & 修复错位 Bug) ──
+        # ---------------------------------------------------------
+        # 1. 建立索引
+        # 只有 0e 直接作为标量通道处理
+        # 其它（含 0o 和 l>0）统一走 RMS invariant
+        # ---------------------------------------------------------
         scalar_idx = []
-        scalar_ch = []  # ✨ 记录标量对应的真实通道 ID
-        vector_idx = []  # 记录所有高阶特征的展平索引
-        vector_ch_local = []  # 用于 scatter_mean 的局部 channel id (0, 1, 2...)
-        ch_expand = []  # 门控输出广播到全特征的映射
+        scalar_ch = []
+        vector_idx = []
+        vector_ch_local = []
+        ch_expand = []
 
-        ch = 0  # 全局通道 ID (0 to num_features - 1)
-        vec_ch = 0  # 向量专用局部 ID (0 to num_vector - 1)
-        offset = 0  # 展平后的特征偏移量
+        ch = 0
+        vec_ch = 0
+        offset = 0
 
         for mul, ir in self.irreps:
             for _ in range(mul):
-                if ir.l == 0:
+                if str(ir) == "0e":
                     scalar_idx.append(offset)
-                    scalar_ch.append(ch)  # 精确绑定标量的门控通道
+                    scalar_ch.append(ch)
                     ch_expand.append(ch)
                     offset += 1
                 else:
@@ -75,47 +84,86 @@ class MySeperableLayerNorm(nn.Module):
         self.num_features = ch
         self.total_dim = offset
 
-        # 注册所有索引为 buffer
-        self.register_buffer("scalar_idx", torch.tensor(scalar_idx, dtype=torch.long, device=self.device))
-        self.register_buffer("scalar_ch", torch.tensor(scalar_ch, dtype=torch.long, device=self.device))
-        self.register_buffer("ch_expand", torch.tensor(ch_expand, dtype=torch.long, device=self.device))
-
-        if self.num_vector > 0:
-            self.register_buffer("vector_idx", torch.tensor(vector_idx, dtype=torch.long, device=self.device))
-            self.register_buffer("vector_ch_local", torch.tensor(vector_ch_local, dtype=torch.long, device=self.device))
-
-        # ── 2. 门控 MLP ──
-        gate_in_dim = self.num_scalar + self.num_vector
-        bn_dim = max(int(gate_in_dim * bottleneck_ratio), 4)
-
-        self.gate_mlp = nn.Sequential(
-            nn.Linear(gate_in_dim, bn_dim, dtype=self.dtype, device=self.device),
-            nn.SiLU(),
-            nn.Linear(bn_dim, self.num_features, dtype=self.dtype, device=self.device),
+        self.register_buffer(
+            "scalar_idx",
+            torch.tensor(scalar_idx, dtype=torch.long, device=self.device)
+        )
+        self.register_buffer(
+            "scalar_ch",
+            torch.tensor(scalar_ch, dtype=torch.long, device=self.device)
+        )
+        self.register_buffer(
+            "ch_expand",
+            torch.tensor(ch_expand, dtype=torch.long, device=self.device)
         )
 
-        # ✨ 保证初始阶段乘积系数为 1.0 (残差无损流转)
-        nn.init.zeros_(self.gate_mlp[-1].weight)
-        nn.init.zeros_(self.gate_mlp[-1].bias)
+        if self.num_vector > 0:
+            self.register_buffer(
+                "vector_idx",
+                torch.tensor(vector_idx, dtype=torch.long, device=self.device)
+            )
+            self.register_buffer(
+                "vector_ch_local",
+                torch.tensor(vector_ch_local, dtype=torch.long, device=self.device)
+            )
 
-        # ── 3. Affine 参数 ──
+        # ---------------------------------------------------------
+        # 2. 无条件 gate MLP
+        # ---------------------------------------------------------
+        base_in_dim = self.num_scalar + self.num_vector
+        base_hidden = max(int(base_in_dim * bottleneck_ratio), 4)
+
+        self.base_gate_mlp = nn.Sequential(
+            nn.Linear(base_in_dim, base_hidden, dtype=self.dtype, device=self.device),
+            nn.SiLU(),
+            nn.Linear(base_hidden, self.num_features, dtype=self.dtype, device=self.device),
+        )
+
+        # 初始近似恒等：sigmoid(6) ≈ 0.9975
+        nn.init.zeros_(self.base_gate_mlp[-1].weight)
+        nn.init.constant_(self.base_gate_mlp[-1].bias, 6.0)
+
+        # ---------------------------------------------------------
+        # 3. 条件拼接 gate MLP（真正 early fusion）
+        #    输入是 [continuous_features, conditioning]
+        # ---------------------------------------------------------
+        if self.cond_dim > 0:
+            fused_in_dim = base_in_dim + self.cond_dim
+            fused_hidden = max(int(fused_in_dim * bottleneck_ratio), 4)
+
+            self.fused_gate_mlp = nn.Sequential(
+                nn.Linear(fused_in_dim, fused_hidden, dtype=self.dtype, device=self.device),
+                nn.SiLU(),
+                nn.Linear(fused_hidden, self.num_features, dtype=self.dtype, device=self.device),
+            )
+
+            # 同样初始化成近似恒等
+            nn.init.zeros_(self.fused_gate_mlp[-1].weight)
+            nn.init.constant_(self.fused_gate_mlp[-1].bias, 6.0)
+        else:
+            self.fused_gate_mlp = None
+
+        # ---------------------------------------------------------
+        # 4. Affine
+        # ---------------------------------------------------------
         if self.affine:
-            self.affine_weight = nn.Parameter(torch.ones(1, self.num_features, dtype=self.dtype, device=self.device))
+            self.affine_weight = nn.Parameter(
+                torch.ones(1, self.num_features, dtype=self.dtype, device=self.device)
+            )
             if self.num_scalar > 0:
-                self.affine_bias = nn.Parameter(torch.zeros(1, self.num_scalar, dtype=self.dtype, device=self.device))
+                self.affine_bias = nn.Parameter(
+                    torch.zeros(1, self.num_scalar, dtype=self.dtype, device=self.device)
+                )
             else:
                 self.register_parameter("affine_bias", None)
         else:
             self.register_parameter("affine_weight", None)
             self.register_parameter("affine_bias", None)
 
-    @torch.amp.autocast(device_type="cuda", enabled=False)
-    def forward(self, x):
+    def _extract_invariants(self, x: torch.Tensor):
         batch_size = x.size(0)
 
-        # ---------------------------------------------------------
-        # 1. 标量特征 (去均值保持相对符号)
-        # ---------------------------------------------------------
+        # 1) 0e 标量：去均值
         if self.num_scalar > 0:
             scalars = x[:, self.scalar_idx]
             scalars_centered = scalars - scalars.mean(dim=1, keepdim=True)
@@ -123,49 +171,87 @@ class MySeperableLayerNorm(nn.Module):
             scalars = x.new_zeros((batch_size, 0))
             scalars_centered = scalars
 
-        # ---------------------------------------------------------
-        # 2. 向量 RMS (GPU 高效并行版 Scatter_Mean)
-        # ---------------------------------------------------------
+        # 2) 其它通道：按 copy 求 RMS invariant
         if self.num_vector > 0:
             vec_sq = x[:, self.vector_idx].pow(2)
-            # scatter_mean 一次性聚合算出所有向量的均方
             local_idx_expanded = self.vector_ch_local.unsqueeze(0).expand(batch_size, -1)
-            vec_mean_sq = scatter_mean(vec_sq, local_idx_expanded, dim=1, dim_size=self.num_vector)
-
-            # 必须开根号，获得线性尺度的 RMS，防止特征平方引发极大值爆炸
+            vec_mean_sq = scatter_mean(
+                vec_sq,
+                local_idx_expanded,
+                dim=1,
+                dim_size=self.num_vector
+            )
             vectors_rms = (vec_mean_sq + self.eps).sqrt()
         else:
             vectors_rms = x.new_zeros((batch_size, 0))
 
-        # ---------------------------------------------------------
-        # 3. 门控信号拼装与规范化 (默认 'none'，如果抖动可以改成 'rms')
-        # ---------------------------------------------------------
-        gate_in = torch.cat([scalars_centered, vectors_rms], dim=1)
+        continuous_features = torch.cat([scalars_centered, vectors_rms], dim=1)
 
-        if self.gate_norm == 'rms':
-            rms_scale = torch.rsqrt(gate_in.pow(2).mean(dim=1, keepdim=True) + self.eps)
-            gate_in = gate_in * rms_scale
-        elif self.gate_norm == 'layer':
-            gate_in = torch.nn.functional.layer_norm(gate_in, (gate_in.shape[-1],))
+        # 只规范 continuous features，不动 conditioning
+        if continuous_features.shape[1] > 0:
+            if self.gate_norm == 'rms':
+                rms_scale = torch.rsqrt(
+                    continuous_features.pow(2).mean(dim=1, keepdim=True) + self.eps
+                )
+                continuous_features = continuous_features * rms_scale
+            elif self.gate_norm == 'layer':
+                continuous_features = torch.nn.functional.layer_norm(
+                    continuous_features,
+                    (continuous_features.shape[-1],)
+                )
+
+        return scalars, scalars_centered, continuous_features
+
+    @torch.amp.autocast(device_type="cuda", enabled=False)
+    def forward(
+        self,
+        x: torch.Tensor,
+        conditioning: Optional[torch.Tensor] = None,
+        use_condition: bool = False,
+    ):
+        batch_size = x.size(0)
+
+        scalars, scalars_centered, continuous_features = self._extract_invariants(x)
 
         # ---------------------------------------------------------
-        # 4. 计算门控分数 (2 * Sigmoid 恒等初始化)
+        # 选择 gate 路径
+        # use_condition=False -> 纯无条件路径
+        # use_condition=True  -> 拼接早融合路径
         # ---------------------------------------------------------
-        gate_scores = 2.0 * torch.sigmoid(self.gate_mlp(gate_in))
+        if use_condition:
+            if self.fused_gate_mlp is None:
+                raise ValueError(
+                    "use_condition=True, but this MySeperableLayerNorm was built with cond_dim=0."
+                )
+            if conditioning is None:
+                raise ValueError(
+                    "use_condition=True, but conditioning is None."
+                )
+            if conditioning.shape[0] != batch_size:
+                raise ValueError(
+                    f"conditioning batch mismatch: x batch={batch_size}, cond batch={conditioning.shape[0]}"
+                )
+            if conditioning.shape[1] != self.cond_dim:
+                raise ValueError(
+                    f"conditioning dim mismatch: expected {self.cond_dim}, got {conditioning.shape[1]}"
+                )
+
+            conditioning = conditioning.to(device=x.device, dtype=continuous_features.dtype)
+            fused_input = torch.cat([continuous_features, conditioning], dim=1)
+            gate_logits = self.fused_gate_mlp(fused_input)
+        else:
+            gate_logits = self.base_gate_mlp(continuous_features)
+
+        gate_scores = torch.sigmoid(gate_logits)
 
         if self.affine:
             gate_scores = gate_scores * self.affine_weight
 
-        # ---------------------------------------------------------
-        # 5. 主特征流缩放 (绝不除以模长！)
-        # ---------------------------------------------------------
+        # 所有非标量先按原值缩放
         x_out = x * gate_scores[:, self.ch_expand]
 
-        # ---------------------------------------------------------
-        # 6. 恢复标量偏置 (使用 scalar_ch 进行精准通道映射)
-        # ---------------------------------------------------------
+        # 0e 标量部分使用 centered scalars 替换
         if self.num_scalar > 0:
-            # 必须用精确通道索引，无惧 Irreps 乱序交错
             x_out[:, self.scalar_idx] = scalars_centered * gate_scores[:, self.scalar_ch]
             if self.affine:
                 x_out[:, self.scalar_idx] = x_out[:, self.scalar_idx] + self.affine_bias

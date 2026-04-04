@@ -28,6 +28,7 @@ from .lem_high_order import LemHighOrder
 from .lem_wo_ln import LemWOLN
 from .emoles import EMolES, EMolESOpenequi
 from .emoles_norm import EMolESOpenequiNorm
+from .emoles_norm_v2 import EMolESOpenequiNormV2
 # from .lem_in_frame_openequi import LemInFrameOpenequi
 from .lem_moe_openequi import LemMoEOpenEqui
 from .lem_full_tp import LemFullTP, LemFullTPOpenEqui
@@ -64,6 +65,7 @@ __all__ = [
     "EMolES",
     "EMolESOpenequi",
     "EMolESOpenequiNorm",
+    "EMolESOpenequiNormV2",
     "LemSO2Local",
     "LemLocal",
     "Slem",
