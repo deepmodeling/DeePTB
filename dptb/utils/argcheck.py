@@ -110,17 +110,22 @@ def common_options():
 
     return Argument("common_options", dict, optional=False, sub_fields=args, sub_variants=[], doc=doc_common_options)
 
+
 def train_options():
     doc_num_epoch = "Total number of training epochs. It is worth noted, if the model is reloaded with `-r` or `--restart` option, epoch which have been trained will counted from the time that the checkpoint is saved."
     doc_save_freq = "Frequency, or every how many iteration to saved the current model into checkpoints, The name of checkpoint is formulated as `latest|best_dptb|nnsk_b<bond_cutoff>_c<sk_cutoff>_w<sk_decay_w>`. Default: `10`"
     doc_validation_freq = "Frequency or every how many iteration to do model validation on validation datasets. Default: `10`"
     doc_display_freq = "Frequency, or every how many iteration to display the training log to screem. Default: `1`"
-    doc_use_tensorboard = "Set true to use tensorboard. It will record iteration error once every `25` iterations, epoch error once per epoch. " \
-                          "There are tree types of error will be recorded. `train_loss_iter` is iteration loss, `train_loss_last` is the error of the last iteration in an epoch, `train_loss_mean` is the mean error of all iterations in an epoch." \
-                          "Learning rates are tracked as well. A folder named `tensorboard_logs` will be created in the working directory. Use `tensorboard --logdir=tensorboard_logs` to view the logs." \
-                          "Default: `False`"
+    doc_use_tensorboard = (
+        "Set true to use tensorboard. It will record iteration error once every `25` iterations, "
+        "epoch error once per epoch. There are tree types of error will be recorded. "
+        "`train_loss_iter` is iteration loss, `train_loss_last` is the error of the last iteration in an epoch, "
+        "`train_loss_mean` is the mean error of all iterations in an epoch. "
+        "Learning rates are tracked as well. A folder named `tensorboard_logs` will be created in the working directory. "
+        "Use `tensorboard --logdir=tensorboard_logs` to view the logs. Default: `False`"
+    )
 
-    doc_update_lr_per_iter = "Set true to update learning rate per-step. Default: false."
+    doc_update_lr_per_iter = "Set true to update learning rate per-step. Default: `False`."
     doc_sliding_win_size = "Sliding window size for the average of the latest iterations' loss. Used for the reduce on plateau learning rate scheduler in case of the pairing of large dataset and small batch size. Default: `50`"
 
     doc_optimizer = "\
@@ -132,56 +137,201 @@ def train_options():
         - `LBFGS`: [On the limited memory BFGS method for large scale optimization.](http://users.iems.northwestern.edu/~nocedal/PDFfiles/limited-memory.pdf) \n\n\
     "
     doc_lr_scheduler = "The learning rate scheduler tools settings, the lr scheduler is used to scales down the learning rate during the training process. Proper setting can make the training more stable and efficient. The supported lr schedular includes: `Exponential Decaying (exp)`, `Linear multiplication (linear)`, `Reduce on pleatau (rop)`, `Cyclic learning rate (cyclic)`. See more documentation on Pytorch. "
-    doc_batch_size = "The batch size used in training, Default: 1"
-    doc_ref_batch_size = "The batch size used in reference data, Default: 1"
-    doc_val_batch_size = "The batch size used in validation data, Default: 1"
-    doc_max_ckpt = "The maximum number of saved checkpoints, Default: 4"
-    doc_distance_ranges = "The ranges split for distance-based MoE, Default: [[0.0, 1.0], [1.0, 2.0], [2.0, 4.0], [4.0, 6.0]]"
 
-    # ================= 新增的多进程 DDP & MoE 参数文档 =================
-    doc_use_ddp = "Set true to enable Distributed Data Parallel (DDP) training for multi-expert models across multiple GPUs. Default: `False`"
-    doc_ddp_backend = "The backend used for distributed training. Usually `nccl` for GPUs and `gloo` for CPUs. Default: `nccl` if CUDA is available, else `gloo`"
-    doc_ddp_master_addr = "Master node address for DDP communication. Default: `127.0.0.1`"
-    doc_ddp_master_port = "Master node port for DDP communication. Default: `29501`"
-    doc_ddp_timeout_sec = "Timeout in seconds for DDP process group operations. Default: `1800`"
-    doc_log_single_model_compatible_loss = "Set true to stitch and log a compatible loss across all distributed experts, allowing intuitive comparison with a single-model baseline. Default: `True`"
-    doc_log_single_model_compatible_loss_mode = "The reduction mode for the compatible loss stitching. Supported modes typically include `reduce`. Default: `reduce`"
+    doc_batch_size = "The batch size used in training, Default: `1`"
+    doc_ref_batch_size = "The batch size used in reference data, Default: `1`"
+    doc_val_batch_size = "The batch size used in validation data, Default: `1`"
+    doc_max_ckpt = "The maximum number of saved checkpoints, Default: `4`"
+    doc_distance_ranges = "The ranges split for distance-based MoE / expert parallelism. Default: `[[0.0, 1.0], [1.0, 2.0], [2.0, 4.0], [4.0, 6.0]]`"
+
+    # ================= 分布式 / DDP / expert-parallel =================
+    doc_use_ddp = (
+        "Set true to enable distributed expert-parallel training across multiple GPUs. "
+        "When `distance_ranges` contains multiple experts, each rank will host one expert. "
+        "Default: `False`"
+    )
+    doc_ddp_backend = "The backend used for distributed training. Usually `nccl` for GPUs and `gloo` for CPUs. Default: `nccl`"
+    doc_ddp_master_addr = "Master node address for distributed communication. Default: `127.0.0.1`"
+    doc_ddp_master_port = "Master node port for distributed communication. Default: `29501`"
+    doc_ddp_timeout_sec = "Timeout in seconds for distributed process group operations. Default: `1800`"
+
+    doc_parallel_multi = (
+        "Set true to start parallel training on CUDA streams in single-process multi-expert mode. "
+        "This option is automatically disabled when `use_ddp=True`."
+    )
+
+    # ================= stitched / compatible loss & scheduler =================
+    doc_log_single_model_compatible_loss = (
+        "Set true to reconstruct and log a stitched loss compatible with the single-model baseline. "
+        "This is mainly for fair metric comparison between the split-expert model and the unsplit single model. "
+        "Default: `True`"
+    )
+    doc_log_single_model_compatible_loss_mode = (
+        "Reduction mode for reconstructing the compatible stitched loss. "
+        "Currently the recommended mode is `reduce`. Default: `reduce`"
+    )
+    doc_shared_scheduler_metric = (
+        "Metric used by the shared scheduler logic. "
+        "Supported values: `train_loss` or `train_loss_opt`. "
+        "`train_loss` means the stitched comparable loss; "
+        "`train_loss_opt` means the actual optimized objective summed over experts. "
+        "Default: `train_loss_opt`"
+    )
+    doc_independent_expert_scheduler = (
+        "Set true to let each expert/rank update its own LR scheduler locally without waiting for globally stitched loss every iteration. "
+        "This may reduce synchronization overhead, but global logged loss may become delayed or sampled when combined with "
+        "`distributed_global_reduce_every > 1`. Default: `False`"
+    )
+    doc_distributed_global_reduce_every = (
+        "How often to perform global distributed metric reduction in expert-parallel mode. "
+        "Default: `1` means reduce every iteration. "
+        "Values > 1 are only meaningful when `independent_expert_scheduler=True`, and can reduce communication overhead "
+        "at the cost of less frequent global stitched metrics. Default: `1`"
+    )
+
+    # ================= 轻量 debug tag =================
+    doc_debug_tags = (
+        "Set true to print stage-level timing logs for iteration, batch preparation, forward, backward, communication, "
+        "scheduler and plugin stages. Useful for bottleneck diagnosis. Default: `False`"
+    )
+    doc_debug_tag_freq = "Print debug timing tags once every N iterations. Default: `1`"
+    doc_debug_tag_cuda_mem = "Set true to record CUDA allocated/reserved/peak memory in debug stage logs. Default: `True`"
+    doc_debug_tag_cuda_sync = (
+        "Set true to call `torch.cuda.synchronize()` before measuring each stage. "
+        "This makes timing more accurate but will slow training, so use it only for debugging. Default: `False`"
+    )
+    doc_debug_oom_dump = "Set true to dump detailed CUDA memory summary on OOM. Default: `True`"
+
+    # ================= profiler =================
+    doc_debug_profile = (
+        "Set true to enable PyTorch profiler for a selected iteration range and export Chrome trace json files. "
+        "Useful for detailed CPU/CUDA/kernel timeline analysis. Default: `False`"
+    )
+    doc_debug_profile_start_iter = "The first iteration index to profile when `debug_profile=True`. Default: `5`"
+    doc_debug_profile_end_iter = (
+        "The last iteration index to profile when `debug_profile=True`. "
+        "If equal to `debug_profile_start_iter`, only one iteration is profiled. Default: same as `debug_profile_start_iter`"
+    )
+    doc_debug_profile_dir = (
+        "Output directory for profiler Chrome trace json files. "
+        "If not set, a default local profile directory will be used."
+    )
+
+    # ================= 分布式 debug / NCCL debug =================
+    doc_ddp_debug_detail = (
+        "Set true to enable `TORCH_DISTRIBUTED_DEBUG=DETAIL`, which prints more detailed distributed runtime diagnostics. "
+        "Default: `False`"
+    )
+    doc_nccl_debug = "Set true to enable `NCCL_DEBUG`. Default: `False`"
+    doc_nccl_debug_level = "Debug level for NCCL when `nccl_debug=True`, e.g. `INFO` or `WARN`. Default: `INFO`"
+    doc_cuda_launch_blocking = (
+        "Set true to enable `CUDA_LAUNCH_BLOCKING=1` for easier debugging of asynchronous CUDA errors. "
+        "This will significantly slow training and should NOT be used for performance benchmarking. Default: `False`"
+    )
+    doc_nccl_async_error_handling = "Set true to enable `NCCL_ASYNC_ERROR_HANDLING=1`. Recommended for distributed runs. Default: `True`"
+
+    # ================= 运行时性能开关 =================
+    doc_cudnn_benchmark = (
+        "Set true to enable `torch.backends.cudnn.benchmark`, which may improve performance when input shapes are stable. "
+        "Default: `False`"
+    )
+    doc_allow_tf32 = (
+        "Set true to allow TF32 on supported NVIDIA GPUs for faster matrix operations with possible tiny numerical differences. "
+        "Default: `True`"
+    )
+    doc_float32_matmul_precision = (
+        "Precision policy for float32 matmul, passed to `torch.set_float32_matmul_precision`. "
+        "Typical values are `highest`, `high`, `medium`. Empty string means keeping framework default."
+    )
 
     args = [
         Argument("num_epoch", int, optional=False, doc=doc_num_epoch),
+
+        # expert / MoE split
         Argument("distance_ranges", list, optional=True, doc=doc_distance_ranges),
-        Argument("parallel_multi", bool, optional=True, default=False,
-                 doc='Set true to start parallel training on CUDA.'),
+        Argument("parallel_multi", bool, optional=True, default=False, doc=doc_parallel_multi),
+
+        # data / batch
         Argument("batch_size", int, optional=True, default=1, doc=doc_batch_size),
-        Argument("monitor_flag", bool, optional=True, default=False, doc='Set true to start monitor.'),
-        Argument("clip_grad", float, optional=True, default=1, doc='Gradient clip'),
         Argument("ref_batch_size", int, optional=True, default=1, doc=doc_ref_batch_size),
         Argument("val_batch_size", int, optional=True, default=1, doc=doc_val_batch_size),
-        Argument("optimizer", dict, sub_fields=[], optional=True, default={}, sub_variants=[optimizer()], doc = doc_optimizer),
-        Argument("lr_scheduler", dict, sub_fields=[], optional=True, default={}, sub_variants=[lr_scheduler()], doc = doc_lr_scheduler),
+
+        # training misc
+        Argument("monitor_flag", bool, optional=True, default=False, doc='Set true to start monitor.'),
+        Argument("clip_grad", float, optional=True, default=1, doc='Gradient clipping max norm.'),
+        Argument("valid_fast", bool, optional=True, default=True, doc="Set True to valid on the first batch of validation dataset, set False to valid the whole dataset. Default: `True`"),
+
+        # optimizer / lr scheduler
+        Argument("optimizer", dict, sub_fields=[], optional=True, default={}, sub_variants=[optimizer()], doc=doc_optimizer),
+        Argument("lr_scheduler", dict, sub_fields=[], optional=True, default={}, sub_variants=[lr_scheduler()], doc=doc_lr_scheduler),
+        Argument("update_lr_per_iter", bool, optional=True, default=False, doc=doc_update_lr_per_iter),
+        Argument("sliding_win_size", int, optional=True, default=50, doc=doc_sliding_win_size),
+
+        # save / log
         Argument("save_freq", int, optional=True, default=10, doc=doc_save_freq),
         Argument("validation_freq", int, optional=True, default=10, doc=doc_validation_freq),
         Argument("display_freq", int, optional=True, default=1, doc=doc_display_freq),
         Argument("use_tensorboard", bool, optional=True, default=False, doc=doc_use_tensorboard),
-
-        Argument("update_lr_per_iter", bool, optional=True, default=False, doc=doc_update_lr_per_iter),
-        Argument("sliding_win_size", int, optional=True, default=50, doc=doc_sliding_win_size),
         Argument("max_ckpt", int, optional=True, default=4, doc=doc_max_ckpt),
-        Argument("valid_fast", bool, optional=True, default=True, doc="Set True to valid on the first batch of validation dataset, set False to valid the whole dataset. Default: True"),
 
-        # ================= 新增的多进程 DDP & MoE 参数注入 =================
+        # distributed / DDP
         Argument("use_ddp", bool, optional=True, default=False, doc=doc_use_ddp),
         Argument("ddp_backend", str, optional=True, default="nccl", doc=doc_ddp_backend),
         Argument("ddp_master_addr", str, optional=True, default="127.0.0.1", doc=doc_ddp_master_addr),
         Argument("ddp_master_port", (str, int), optional=True, default=29501, doc=doc_ddp_master_port),
         Argument("ddp_timeout_sec", int, optional=True, default=1800, doc=doc_ddp_timeout_sec),
+        Argument("train_num_workers", int, optional=True, default=0,
+                 doc="Number of DataLoader workers for train loader (implemented in MultiTrainer)."),
+        Argument("ref_num_workers", int, optional=True, default=0,
+                 doc="Number of DataLoader workers for reference loader (implemented in MultiTrainer)."),
+        Argument("val_num_workers", int, optional=True, default=0,
+                 doc="Number of DataLoader workers for validation loader (implemented in MultiTrainer)."),
+        Argument("data_pin_memory", bool, optional=True, default=True,
+                 doc="Enable pin_memory when rebuilding loaders in MultiTrainer."),
+        Argument("data_persistent_workers", bool, optional=True, default=True,
+                 doc="Enable persistent_workers when rebuilding loaders in MultiTrainer."),
+        Argument("data_prefetch_factor", int, optional=True, default=2,
+                 doc="Prefetch factor when rebuilding loaders in MultiTrainer."),
+        Argument("distributed_rank0_prepare_batch", bool, optional=True, default=False,
+                 doc="In distributed expert mode, only rank0 loads batch, performs CPU preprocessing + H2D + with_edge_vectors, then broadcasts packed GPU tensor groups to other ranks."),
+
+
+        # stitched loss / scheduler behavior
         Argument("log_single_model_compatible_loss", bool, optional=True, default=True, doc=doc_log_single_model_compatible_loss),
         Argument("log_single_model_compatible_loss_mode", str, optional=True, default="reduce", doc=doc_log_single_model_compatible_loss_mode),
+        Argument("shared_scheduler_metric", str, optional=True, default="train_loss_opt", doc=doc_shared_scheduler_metric),
+        Argument("independent_expert_scheduler", bool, optional=True, default=False, doc=doc_independent_expert_scheduler),
+        Argument("distributed_global_reduce_every", int, optional=True, default=1, doc=doc_distributed_global_reduce_every),
+
+        # lightweight stage debug
+        Argument("debug_tags", bool, optional=True, default=False, doc=doc_debug_tags),
+        Argument("debug_tag_freq", int, optional=True, default=1, doc=doc_debug_tag_freq),
+        Argument("debug_tag_cuda_mem", bool, optional=True, default=True, doc=doc_debug_tag_cuda_mem),
+        Argument("debug_tag_cuda_sync", bool, optional=True, default=False, doc=doc_debug_tag_cuda_sync),
+        Argument("debug_oom_dump", bool, optional=True, default=True, doc=doc_debug_oom_dump),
+
+        # profiler
+        Argument("debug_profile", bool, optional=True, default=False, doc=doc_debug_profile),
+        Argument("debug_profile_start_iter", int, optional=True, default=5, doc=doc_debug_profile_start_iter),
+        Argument("debug_profile_end_iter", int, optional=True, default=5, doc=doc_debug_profile_end_iter),
+        Argument("debug_profile_dir", str, optional=True, default="", doc=doc_debug_profile_dir),
+
+        # distributed debug env
+        Argument("ddp_debug_detail", bool, optional=True, default=False, doc=doc_ddp_debug_detail),
+        Argument("nccl_debug", bool, optional=True, default=False, doc=doc_nccl_debug),
+        Argument("nccl_debug_level", str, optional=True, default="INFO", doc=doc_nccl_debug_level),
+        Argument("cuda_launch_blocking", bool, optional=True, default=False, doc=doc_cuda_launch_blocking),
+        Argument("nccl_async_error_handling", bool, optional=True, default=True, doc=doc_nccl_async_error_handling),
+
+        # runtime performance tuning
+        Argument("cudnn_benchmark", bool, optional=True, default=False, doc=doc_cudnn_benchmark),
+        Argument("allow_tf32", bool, optional=True, default=True, doc=doc_allow_tf32),
+        Argument("float32_matmul_precision", str, optional=True, default="", doc=doc_float32_matmul_precision),
 
         loss_options()
     ]
 
-    doc_train_options = "Options that defines the training behaviour of DeePTB."
+    doc_train_options = "Options that define the training behaviour of DeePTB, including optimizer/scheduler, expert split, distributed expert-parallel execution, debugging and profiling."
 
     return Argument("train_options", dict, sub_fields=args, sub_variants=[], optional=True, doc=doc_train_options)
 

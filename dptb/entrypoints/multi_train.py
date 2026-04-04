@@ -5,6 +5,7 @@ import heapq
 import logging
 import sys
 import contextlib
+import signal
 from pathlib import Path
 from typing import Optional, Dict, Any
 from datetime import timedelta
@@ -35,8 +36,6 @@ __all__ = ["multi_train"]
 
 log = logging.getLogger(__name__)
 
-
-# --------------------------- TAGGER (entrypoint) ---------------------------
 
 class _EntryTagger:
     def __init__(self, enabled: bool, cuda_mem: bool, cuda_sync: bool):
@@ -86,8 +85,6 @@ class _EntryTagger:
             mem1 = self._cuda_mem(dev) if (self.cuda_mem and dev.type == "cuda") else None
             log.info(f"[TAG][ENTRY][{name}] dt={dt:.4f}s{self._fmt_mem(mem1)}{(' | ' + extra) if extra else ''}")
 
-
-# --------------------------- param printing helpers ---------------------------
 
 def _format_params_lazy(num: int) -> str:
     if num >= 1_000_000_000:
@@ -178,8 +175,6 @@ def print_multi_model_params_detailed(model: nn.Module, logger=None, max_depth: 
     print_model_params_detailed(model.experts[0], logger=logger, max_depth=max_depth)
 
 
-# --------------------------- distributed helpers ---------------------------
-
 def _is_dist_ready():
     return dist.is_available() and dist.is_initialized()
 
@@ -202,6 +197,52 @@ def _destroy_process_group_safely():
             pass
 
 
+def _configure_debug_env(train_opt: Dict[str, Any]):
+    if bool(train_opt.get("ddp_debug_detail", False)):
+        os.environ.setdefault("TORCH_DISTRIBUTED_DEBUG", "DETAIL")
+
+    if bool(train_opt.get("nccl_debug", False)):
+        os.environ.setdefault("NCCL_DEBUG", str(train_opt.get("nccl_debug_level", "INFO")))
+
+    if bool(train_opt.get("cuda_launch_blocking", False)):
+        os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
+    if bool(train_opt.get("nccl_async_error_handling", True)):
+        os.environ.setdefault("NCCL_ASYNC_ERROR_HANDLING", "1")
+
+
+def _configure_runtime_perf(train_opt: Dict[str, Any]):
+    cudnn_benchmark = bool(train_opt.get("cudnn_benchmark", False))
+    allow_tf32 = bool(train_opt.get("allow_tf32", True))
+    matmul_precision = str(train_opt.get("float32_matmul_precision", "")).strip()
+
+    try:
+        torch.backends.cudnn.benchmark = cudnn_benchmark
+    except Exception:
+        pass
+
+    if torch.cuda.is_available():
+        try:
+            torch.backends.cuda.matmul.allow_tf32 = allow_tf32
+        except Exception:
+            pass
+        try:
+            torch.backends.cudnn.allow_tf32 = allow_tf32
+        except Exception:
+            pass
+
+    if matmul_precision:
+        try:
+            torch.set_float32_matmul_precision(matmul_precision)
+        except Exception:
+            pass
+
+    log.info(
+        f"[runtime] cudnn_benchmark={cudnn_benchmark}, allow_tf32={allow_tf32}, "
+        f"float32_matmul_precision={matmul_precision or 'default'}"
+    )
+
+
 def _ddp_spawn_worker(
     rank: int,
     world_size: int,
@@ -213,8 +254,21 @@ def _ddp_spawn_worker(
     log_path: Optional[str],
     kwargs: Dict[str, Any]
 ):
+    # 让被 mp.spawn SIGTERM 的进程也尽量 destroy pg，减少 NCCL warning
+    def _term_handler(signum, frame):
+        _destroy_process_group_safely()
+        raise SystemExit(128 + int(signum))
+
+    try:
+        signal.signal(signal.SIGTERM, _term_handler)
+        signal.signal(signal.SIGINT, _term_handler)
+    except Exception:
+        pass
+
     jdata = normalize(j_loader(INPUT))
     train_opt = jdata.get("train_options", {})
+
+    _configure_debug_env(train_opt)
 
     backend = str(train_opt.get("ddp_backend", "nccl" if torch.cuda.is_available() else "gloo"))
     timeout_sec = int(train_opt.get("ddp_timeout_sec", 1800))
@@ -248,8 +302,6 @@ def _ddp_spawn_worker(
     finally:
         _destroy_process_group_safely()
 
-
-# --------------------------- internal train impl ---------------------------
 
 def _multi_train_impl(
     INPUT: str,
@@ -288,14 +340,12 @@ def _multi_train_impl(
             "checkpoint_path": str(Path(checkpoint_path).absolute()),
             "log_path": str(Path(log_path).absolute())
         })
-
     else:
         if distributed_expert:
             log_path = _derive_rank_log_path(log_path, rank)
 
     set_log_handles(log_level, Path(log_path) if log_path else None)
 
-    # Windows UTF-8
     if sys.platform.startswith('win'):
         for handler in logging.root.handlers + logging.getLogger().handlers:
             if isinstance(handler, logging.FileHandler):
@@ -307,9 +357,11 @@ def _multi_train_impl(
                 except Exception:
                     pass
 
-    # Load config first
     jdata = j_loader(INPUT)
     jdata = normalize(jdata)
+
+    _configure_debug_env(jdata.get("train_options", {}))
+    _configure_runtime_perf(jdata.get("train_options", {}))
 
     dbg = jdata.get("train_options", {})
     entry_tagger = _EntryTagger(
@@ -381,7 +433,6 @@ def _multi_train_impl(
             j_must_have(jdata, "train_options")
 
     if distributed_expert:
-        # 重新覆盖，避免 checkpoint 中 device 被带回去
         jdata["common_options"]["device"] = f"cuda:{rank}"
         jdata["train_options"]["use_ddp"] = True
         jdata["train_options"]["ddp_world_size"] = world_size
@@ -390,7 +441,6 @@ def _multi_train_impl(
     cutoff_options = collect_cutoffs(jdata)
 
     with entry_tagger.tag("setup_seed"):
-        # 所有 rank 使用相同 seed，确保 batch 顺序一致
         setup_seed(seed=jdata["common_options"]["seed"])
 
     with entry_tagger.tag("build_dataset/train"):
@@ -449,13 +499,14 @@ def _multi_train_impl(
 
     log.info(f"[MultiTrainer][rank={rank}] distributed_expert = {distributed_expert}")
     log.info(f"[MultiTrainer][rank={rank}] parallel_multi = {parallel_multi}")
+    log.info(f"[MultiTrainer][rank={rank}] distributed_rank0_prepare_batch = {jdata['train_options'].get('distributed_rank0_prepare_batch', False)}")
+    log.info(f"[MultiTrainer][rank={rank}] train_num_workers = {jdata['train_options'].get('train_num_workers', jdata['train_options'].get('num_workers', 0))}")
     log.info(
         f"[MultiTrainer][rank={rank}] log_single_model_compatible_loss = "
         f"{jdata['train_options']['log_single_model_compatible_loss']}, "
         f"mode={jdata['train_options']['log_single_model_compatible_loss_mode']}"
     )
 
-    # Build trainer
     if restart:
         with entry_tagger.tag("trainer/restart"):
             trainer = MultiTrainer.restart(
@@ -502,11 +553,9 @@ def _multi_train_impl(
                 world_size=world_size,
             )
 
-    # Plugins
     with entry_tagger.tag("trainer/register_plugins"):
-        log_field = ["train_loss", "lr"]
+        log_field = ["train_loss", "train_loss_opt", "lr"]
 
-        # Validationer 必须所有 rank 都注册，否则验证阶段的 collective 会死锁
         if validation_datasets:
             trainer.register_plugin(
                 Validationer(
@@ -518,7 +567,6 @@ def _multi_train_impl(
 
         avg_per_iter = chk_avg_per_iter(jdata)
 
-        # 这些插件只维护 trainer.stats，分布式下所有 rank 注册可保持状态一致
         trainer.register_plugin(
             TrainLossMonitor(
                 sliding_win_size=jdata["train_options"]["sliding_win_size"],
@@ -531,16 +579,15 @@ def _multi_train_impl(
         trainer.register_plugin(TrainHoppingLossMonitor(interval=[(1, 'iteration'), (1, 'epoch')]))
         trainer.register_plugin(TrainZLossMonitor(interval=[(1, 'iteration'), (1, 'epoch')]))
         trainer.register_plugin(ExpertLoadCVMonitor(interval=[(1, 'iteration'), (1, 'epoch')]))
-
         trainer.register_plugin(ScalarFieldMonitor(stat_name="train_loss_opt", interval=[(1, 'iteration'), (1, 'epoch')]))
 
         for i in range(trainer.num_experts):
             trainer.register_plugin(ScalarFieldMonitor(stat_name=f"expert_{i}_onsite", interval=[(1, 'iteration'), (1, 'epoch')]))
             trainer.register_plugin(ScalarFieldMonitor(stat_name=f"expert_{i}_hopping", interval=[(1, 'iteration'), (1, 'epoch')]))
+            trainer.register_plugin(ScalarFieldMonitor(stat_name=f"expert_{i}_lr", interval=[(1, 'iteration'), (1, 'epoch')]))
 
         log_field.extend(["mean_max_prob", "expert_load_cv", "train_onsite_loss", "train_hopping_loss"])
 
-        # 以下输出型插件仅主进程注册
         if trainer.is_main_process:
             monitor_flag = jdata["train_options"].get("monitor_flag", False)
             if monitor_flag:
@@ -568,7 +615,6 @@ def _multi_train_impl(
             with open(os.path.join(output, "train_config.json"), "w") as fp:
                 json.dump(jdata, fp, indent=4)
 
-        # Saver 必须所有 rank 注册，因为内部要做 state gather
         if output and jdata["train_options"].get("save_freq"):
             trainer.register_plugin(
                 Saver(interval=[(jdata["train_options"].get("save_freq"), 'iteration'), (1, 'epoch')]),
@@ -594,8 +640,6 @@ def _multi_train_impl(
         log.info(f"wall time: {(end_time - start_time):.3f} s")
 
 
-# --------------------------- public API ---------------------------
-
 def multi_train(
     INPUT: str,
     init_model: Optional[str],
@@ -607,6 +651,8 @@ def multi_train(
 ):
     jdata = normalize(j_loader(INPUT))
     train_opt = jdata.get("train_options", {})
+    _configure_debug_env(train_opt)
+
     distance_ranges = train_opt.get(
         "distance_ranges",
         [[0.0, 1.0], [1.0, 2.0], [2.0, 4.0], [4.0, 6.0]]

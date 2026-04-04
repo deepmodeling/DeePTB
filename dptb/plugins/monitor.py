@@ -738,10 +738,10 @@ class Validationer(Monitor):
 
 class TensorBoardMonitor(Plugin):
     """
-    兼容单模型与多专家模型：
-    - iteration 阶段优先从 kwargs 读最新值
-    - epoch 阶段从 trainer.stats 读 epoch_mean
-    - 单模型不会因为 expert_* 缺失而报错
+    单 event run 版本：
+    - 只建议主进程注册
+    - iteration / epoch 均支持 expert_i_lr
+    - 优先使用 kwargs["time"] 作为 step
     """
     def __init__(self, interval, log_dir='./tensorboard_logs', flush_every=20):
         super(TensorBoardMonitor, self).__init__(interval=interval)
@@ -765,7 +765,10 @@ class TensorBoardMonitor(Plugin):
             return default
 
     def _get_stat(self, name, key, default=None):
-        return self._to_float(self.trainer.stats.get(name, {}).get(key, default), default=default)
+        stat = self.trainer.stats.get(name, {})
+        if stat is None:
+            return default
+        return self._to_float(stat.get(key, default), default=default)
 
     def _get_value(self, name, key='last', kwargs=None, default=None):
         if kwargs is not None and name in kwargs:
@@ -773,7 +776,7 @@ class TensorBoardMonitor(Plugin):
         return self._get_stat(name, key, default=default)
 
     def epoch(self, **kwargs):
-        epoch = self.trainer.ep
+        epoch = kwargs.get("time", self.trainer.ep)
 
         lr = self._get_stat('lr', 'last', None)
         train_loss_mean = self._get_stat('train_loss', 'epoch_mean', None)
@@ -818,6 +821,7 @@ class TensorBoardMonitor(Plugin):
         for i in range(num_experts):
             onsite_key = f'expert_{i}_onsite'
             hopping_key = f'expert_{i}_hopping'
+            lr_key = f'expert_{i}_lr'
 
             if onsite_key in self.trainer.stats:
                 self.writer.add_scalar(
@@ -831,11 +835,17 @@ class TensorBoardMonitor(Plugin):
                     self._get_stat(hopping_key, 'epoch_mean', 0.0),
                     epoch
                 )
+            if lr_key in self.trainer.stats:
+                self.writer.add_scalar(
+                    f'Expert_LR_Epoch/Expert_{i}',
+                    self._get_stat(lr_key, 'last', 0.0),
+                    epoch
+                )
 
         self.writer.flush()
 
     def iteration(self, **kwargs):
-        iteration = self.trainer.iter
+        iteration = kwargs.get("time", self.trainer.iter)
 
         lr = self._get_value('lr', 'last', kwargs, default=None)
         train_loss = self._get_value('train_loss', 'last', kwargs, default=None)
@@ -868,14 +878,18 @@ class TensorBoardMonitor(Plugin):
         for i in range(num_experts):
             onsite_key = f'expert_{i}_onsite'
             hopping_key = f'expert_{i}_hopping'
+            lr_key = f'expert_{i}_lr'
 
             onsite_val = self._get_value(onsite_key, 'last', kwargs, default=None)
             hopping_val = self._get_value(hopping_key, 'last', kwargs, default=None)
+            lr_val = self._get_value(lr_key, 'last', kwargs, default=None)
 
             if onsite_val is not None:
                 self.writer.add_scalar(f'Expert_Onsite_Iter/Expert_{i}', onsite_val, iteration)
             if hopping_val is not None:
                 self.writer.add_scalar(f'Expert_Hopping_Iter/Expert_{i}', hopping_val, iteration)
+            if lr_val is not None:
+                self.writer.add_scalar(f'Expert_LR_Iter/Expert_{i}', lr_val, iteration)
 
         if self.flush_every and iteration % self.flush_every == 0:
             self.writer.flush()
