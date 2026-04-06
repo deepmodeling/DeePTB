@@ -255,10 +255,11 @@ class TBSystem:
         return calculated_efermi
     
     def estimate_efermi_e(self, eigenvalues,
-                         k_weights=None,
-                         temperature: float = 300,
-                         smearing_method: str = 'FD',
-                         q_tol: float = 1e-5) -> float:
+                          k_weights=None,
+                          temperature: float = 300,
+                          smearing_method: str = 'FD',
+                          q_tol: float = 1e-5,
+                          **kwargs) -> float:
         """
         Calculate Fermi level from eigenvalues. 
         This is give a freedom that parse eigenvlues from outside calculation, such as band and dos calculations
