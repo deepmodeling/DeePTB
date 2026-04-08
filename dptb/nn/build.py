@@ -86,16 +86,33 @@ class DistanceEnsembleWrapper(nn.Module):
             "__slices__", "__cumsum__", "__cat_dims__", "__num_nodes_list__",
             "__data_class__", "edge_vec", "edge_index", "edge_type",
             "atom_types", "batch", "ptr", "cell", "pbc", "pos", "positions",
-            "edge_lengths"
+            "edge_lengths", "kpoints", "mean_max_prob", "expert_load_cv"
         }
+        # 将特殊键统一纳入免缝合白名单
         for const_name in ["ATOM_TYPE_KEY", "EDGE_TYPE_KEY", "EDGE_INDEX_KEY",
-                           "EDGE_VEC_KEY", "POSITIONS_KEY", "BATCH_KEY", "CELL_KEY", "PBC_KEY"]:
+                           "EDGE_VEC_KEY", "POSITIONS_KEY", "BATCH_KEY", "CELL_KEY", "PBC_KEY", "KPOINT_KEY"]:
             v = getattr(AtomicDataDict, const_name, None)
             if v is not None: keys.add(v)
         return keys
 
+    def _get_safe_num_nodes(self, batch):
+        """安全地提取节点数，严格避开 NestedTensor 带来的底层报错"""
+        for key in ["ATOM_TYPE_KEY", "POSITIONS_KEY"]:
+            actual_key = getattr(AtomicDataDict, key, key.lower().replace("_key", ""))
+            if actual_key in batch:
+                t = batch[actual_key]
+                if torch.is_tensor(t) and not getattr(t, "is_nested", False) and t.ndim > 0:
+                    return t.shape[0]
+
+        # 降级策略：根据 edge_index 的最大值推断
+        edge_index_key = getattr(AtomicDataDict, "EDGE_INDEX_KEY", "edge_index")
+        if edge_index_key in batch:
+            t = batch[edge_index_key]
+            if torch.is_tensor(t) and not getattr(t, "is_nested", False) and t.numel() > 0:
+                return int(t.max().item()) + 1
+        return 1
+
     def _build_expert_masks(self, batch, expert_idx):
-        # 此时 batch 必然已包含 edge_lengths (由 forward 入口保证)
         dist = batch["edge_lengths"]
 
         d_min, d_max = self.distance_ranges[expert_idx]
@@ -104,13 +121,7 @@ class DistanceEnsembleWrapper(nn.Module):
         else:
             edge_mask = (dist >= d_min) & (dist < d_max)
 
-        # 安全获取节点总数以生成 node_mask
-        if getattr(AtomicDataDict, "ATOM_TYPE_KEY", "atom_types") in batch:
-            num_nodes = batch[getattr(AtomicDataDict, "ATOM_TYPE_KEY", "atom_types")].shape[0]
-        elif getattr(AtomicDataDict, "POSITIONS_KEY", "pos") in batch:
-            num_nodes = batch[getattr(AtomicDataDict, "POSITIONS_KEY", "pos")].shape[0]
-        else:
-            num_nodes = dist.shape[0]  # Fallback
+        num_nodes = self._get_safe_num_nodes(batch)
 
         node_mask = torch.ones(num_nodes, dtype=torch.bool, device=dist.device)
         if d_min > 0:
@@ -121,18 +132,48 @@ class DistanceEnsembleWrapper(nn.Module):
     def _stitch_edge_aligned_outputs(self, res, res_i, mask):
         num_edges = mask.shape[0]
         for key, src in res_i.items():
-            if key in self._excluded_stitch_keys or key not in res: continue
+            # 1. 白名单过滤
+            if key in self._excluded_stitch_keys or key not in res:
+                continue
+
             dst = res[key]
-            if not torch.is_tensor(src) or not torch.is_tensor(dst): continue
-            if src.ndim == 0 or dst.ndim == 0 or src.shape != dst.shape: continue
-            if src.shape[0] != num_edges: continue
-            dst[mask] = src[mask]
+            if not torch.is_tensor(src) or not torch.is_tensor(dst):
+                continue
+
+            # 2. 危险张量过滤：拦截 NestedTensor 和 SparseTensor
+            if getattr(src, "is_nested", False) or getattr(dst, "is_nested", False):
+                continue
+            if getattr(src, "is_sparse", False) or getattr(dst, "is_sparse", False):
+                continue
+
+            # 3. 终极防御：如果仍有未知的奇葩张量导致 shape/掩码赋值崩溃，予以静默拦截
+            try:
+                if src.ndim == 0 or dst.ndim == 0 or src.shape != dst.shape:
+                    continue
+                if src.shape[0] != num_edges:
+                    continue
+                dst[mask] = src[mask]
+            except Exception as e:
+                log.warning(
+                    f"DistanceEnsembleWrapper safely skipped stitching key '{key}' due to internal tensor error: {e}")
+                continue
 
     def forward(self, batch):
         # 【防御 1】入口统一预处理：保证后续所有 batch copy 都携带 edge_lengths 和 vec
-        # 避免 expert 内部再次执行 with_edge_vectors 导致开销或缺输入崩溃
         if "edge_lengths" not in batch:
             batch = with_edge_vectors(batch, with_lengths=True)
+
+        # 【防御 2】自动为单图推理补齐 PyG 依赖的所有结构键
+        batch_key = getattr(AtomicDataDict, "BATCH_KEY", "batch")
+        if batch_key not in batch:
+            num_nodes = self._get_safe_num_nodes(batch)
+            device = batch.get("edge_lengths", torch.tensor([])).device
+
+            # 补齐 batch 数组 (全是 0，代表图 0)
+            batch[batch_key] = torch.zeros(num_nodes, dtype=torch.long, device=device)
+            # 补齐 ptr 游标数组 (PyG 聚合和 Scatter 常用)
+            ptr_key = getattr(AtomicDataDict, "PTR_KEY", "ptr")
+            batch[ptr_key] = torch.tensor([0, num_nodes], dtype=torch.long, device=device)
 
         expert_idx = batch.get("expert_idx", None)
 
@@ -143,10 +184,8 @@ class DistanceEnsembleWrapper(nn.Module):
             else:
                 expert_idx_val = int(expert_idx)
 
-            # 剥离引发 TorchScript 严格类型检查的 int
             clean_batch = {k: v for k, v in batch.items() if k != "expert_idx"}
 
-            # 【防御 2】自动补齐 Mask：如果在 Inference 阶段手动指定单专家，外部可能没给 mask
             if "expert_edge_mask" not in clean_batch or "expert_node_mask" not in clean_batch:
                 edge_mask, node_mask = self._build_expert_masks(clean_batch, expert_idx_val)
                 clean_batch["expert_edge_mask"] = edge_mask
@@ -155,11 +194,9 @@ class DistanceEnsembleWrapper(nn.Module):
             return self.experts[expert_idx_val](clean_batch)
 
         # ==================== 多专家全景推理分支 (Inference Ensemble) ====================
-
-        # 使用基础拷贝隔离外部数据
         base_batch = batch.copy()
 
-        # Expert 0：作为骨架必须完整执行，获取全量 node_features
+        # Expert 0: 获取骨架节点特征
         batch_0 = base_batch.copy()
         edge_mask_0, node_mask_0 = self._build_expert_masks(base_batch, 0)
         batch_0["expert_edge_mask"] = edge_mask_0
@@ -167,15 +204,13 @@ class DistanceEnsembleWrapper(nn.Module):
 
         res = self.experts[0](batch_0)
 
-        # Expert 1~N：增量执行并 Stitch
+        # Expert 1~N: 增量处理并 Stitch
         for i in range(1, self.num_experts):
             edge_mask_i, node_mask_i = self._build_expert_masks(base_batch, i)
 
-            # 【防御 3】显式 .item() 判断，防止 Tensor Bool Ambiguity 以及隐式的 Graph Break
             if not bool(edge_mask_i.any().item()):
                 continue
 
-            # 字典浅拷贝阻断 key 级别的值覆盖（防止后面的 expert 强行把 node_features 改成 None）
             batch_i = base_batch.copy()
             batch_i["expert_edge_mask"] = edge_mask_i
             batch_i["expert_node_mask"] = node_mask_i
@@ -183,14 +218,15 @@ class DistanceEnsembleWrapper(nn.Module):
             res_i = self.experts[i](batch_i)
             self._stitch_edge_aligned_outputs(res, res_i, edge_mask_i)
 
-        # 【防御 4】剥离注入的 Mask，确保返回的输出如同单一模型一样纯净
-        # 避免下游 Loss 函数看到 Mask 后只计算局部 Loss
+        # 擦除注入的掩码，保证传出纯净的数据流
         if "expert_edge_mask" in res:
             del res["expert_edge_mask"]
         if "expert_node_mask" in res:
             del res["expert_node_mask"]
 
         return res
+
+
 # ======================================================================
 # [独立扩展模块] Multi-Expert Helper Functions
 # ======================================================================
@@ -284,20 +320,10 @@ def build_model(
         checkpoint: str = None,
         model_options: dict = {},
         common_options: dict = {},
-        train_options: dict = {},  # 新增参数，支持外部传入 distance_ranges
+        train_options: dict = {},
         no_check: bool = False,
         device: str = None,
 ):
-    """
-    The build model method should composed of the following steps:
-        1. process the configs from user input and the config from the checkpoint (if any).
-        2. construct the model based on the configs.
-        3. process the config dict for the output dict.
-        run_opt = {
-        "init_model": init_model,
-        "restart": restart,
-    }
-    """
     if checkpoint is not None:
         from_scratch = False
     else:
@@ -312,7 +338,7 @@ def build_model(
     init_nnsk = False
     init_mixed = False
     init_dftbsk = False
-    ckpt_state_dict = None  # 新增变量用于拦截 multi-expert 权重
+    ckpt_state_dict = None
 
     if not from_scratch:
         if checkpoint.split(".")[-1] == "json":
@@ -320,7 +346,7 @@ def build_model(
         else:
             f = torch.load(checkpoint, map_location="cpu", weights_only=False)
             ckptconfig = f['config']
-            ckpt_state_dict = f.get("model_state_dict", None)  # 拦截权重
+            ckpt_state_dict = f.get("model_state_dict", None)
             del f
 
         if len(model_options) == 0:
@@ -330,11 +356,10 @@ def build_model(
             common_options = ckptconfig["common_options"]
 
         if len(train_options) == 0:
-            train_options = ckptconfig.get("train_options", {})  # 拦截 train_options
+            train_options = ckptconfig.get("train_options", {})
 
         del ckptconfig
 
-    # ================= 原版严格的类型判断逻辑 =================
     if model_options.get("dftbsk"):
         assert not model_options.get("nnsk"), "There should only be one of the dftbsk and nnsk in model_options."
         if all((model_options.get("embedding"), model_options.get("prediction"))):
@@ -349,12 +374,6 @@ def build_model(
         elif not any((model_options.get("embedding"), model_options.get("prediction"))):
             init_dftbsk = True
         else:
-            log.error("Model_options are not set correctly! \n" +
-                      "You can only choose one of the nnsk, dftb, mixed and nnenv modes.\n" +
-                      " -  `mixed`, set all the `nnsk` or `dftbsk` and both `embedding` and `prediction` options.\n" +
-                      " -  `nnenv`, set `embedding` and `prediction` options and no `nnsk` and no `dftbsk`.\n" +
-                      " -  `nnsk`, set only `nnsk` options.\n" +
-                      " -  `dftbsk`, set only `dftbsk` options.")
             raise ValueError("Model_options are not set correctly!")
 
     elif model_options.get("nnsk"):
@@ -371,22 +390,11 @@ def build_model(
         elif not any((model_options.get("embedding"), model_options.get("prediction"))):
             init_nnsk = True
         else:
-            log.error("Model_options are not set correctly! \n" +
-                      "You can only choose one of the nnsk, dftb, mixed and nnenv modes.\n" +
-                      " -  `mixed`, set all the `nnsk` or `dftbsk` and both `embedding` and `prediction` options.\n" +
-                      " -  `nnenv`, set `embedding` and `prediction` options and no `nnsk` and no `dftbsk`.\n" +
-                      " -  `nnsk`, set only `nnsk` options.\n" +
-                      " -  `dftbsk`, set only `dftbsk` options.")
             raise ValueError("Model_options are not set correctly!")
     else:
         if all((model_options.get("embedding"), model_options.get("prediction"))):
             init_nnenv = True
             if model_options["prediction"]['method'] == 'sktb':
-                log.warning(
-                    "The prediction method is sktb, but the nnsk option is not set. this is highly not recommand.\n" +
-                    "We recommand to train nnsk then train mix model for sktb. \n" +
-                    "Or you can use the dftb + nnenv to train a mix model for sktb. \n" +
-                    "Please make sure you know what you are doing!")
                 if not model_options['embedding']['method'] in ['se2']:
                     log.error("The embedding method must be se2 for sktb prediction in nnenv mode.")
                     raise ValueError("The embedding method must be se2 for sktb prediction in deeptb mode.")
@@ -396,12 +404,6 @@ def build_model(
                     log.error("The embedding method can not be se2 for e3tb prediction in deeptb mode.")
                     raise ValueError("The embedding method can not be se2 for e3tb prediction in deeptb mode.")
         else:
-            log.error("Model_options are not set correctly! \n" +
-                      "You can only choose one of the nnsk, dftb, mixed and nnenv modes.\n" +
-                      " -  `mixed`, set all the `nnsk` or `dftbsk` and both `embedding` and `prediction` options.\n" +
-                      " -  `nnenv`, set `embedding` and `prediction` options and no `nnsk` and no `dftbsk`.\n" +
-                      " -  `nnsk`, set only `nnsk` options.\n" +
-                      " -  `dftbsk`, set only `dftbsk` options.")
             raise ValueError("Model_options are not set correctly!")
 
         assert int(init_dftbsk) + int(init_mixed) + int(init_nnenv) + int(
@@ -410,7 +412,6 @@ def build_model(
     if device:
         common_options.update({"device": device})
 
-    # ================= 原版/多专家 逻辑分叉点 =================
     distance_ranges = train_options.get("distance_ranges", None)
     use_distance_ensemble = distance_ranges is not None and len(distance_ranges) > 1
 
@@ -441,7 +442,6 @@ def build_model(
                                                          init_mixed, init_dftbsk, model_options, common_options)
 
     else:
-        # 完全保留原版的逻辑，仅包裹 Seed 以防止 Windows/Linux 差异导致单模型无法复现
         with DeterministicExpertSeed(1):
             if from_scratch:
                 if init_nnenv:
@@ -455,7 +455,6 @@ def build_model(
                 else:
                     model = None
             else:
-                print(common_options)
                 if init_nnenv:
                     model = NNENV.from_reference(checkpoint, **model_options, **common_options)
                 elif init_nnsk:
@@ -466,7 +465,6 @@ def build_model(
                     model = DFTBSK.from_reference(checkpoint, **model_options["dftbsk"], **common_options)
                 else:
                     model = None
-    # =======================================================
 
     if not no_check:
         for k, v in model.model_options.items():
@@ -481,14 +479,7 @@ def build_model(
 
 
 def deep_dict_difference(base_key, expected_value, model_options):
-    """
-    递归地记录嵌套字典中的选项差异。
-
-    :param base_key: 基础键名，用于构建警告消息的前缀。
-    :param expected_value: 期望的值，可能是字典或非字典类型。
-    :param model_options: 用于比较的模型选项字典。
-    """
-    target_dict = copy.deepcopy(model_options)  # 防止修改原始字典
+    target_dict = copy.deepcopy(model_options)
     if isinstance(expected_value, dict):
         for subk, subv in expected_value.items():
             if subk not in target_dict.get(base_key, {}):
