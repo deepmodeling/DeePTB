@@ -127,7 +127,12 @@ def train_options():
 
     doc_update_lr_per_iter = "Set true to update learning rate per-step. Default: `False`."
     doc_sliding_win_size = "Sliding window size for the average of the latest iterations' loss. Used for the reduce on plateau learning rate scheduler in case of the pairing of large dataset and small batch size. Default: `50`"
-
+    doc_expert_lrs = (
+        "Optional per-expert initial learning rates. "
+        "If provided, it must be a list of floats with length == num_experts (len(distance_ranges)). "
+        "expert_lrs[i] will override optimizer.lr when building optimizer for expert i. "
+        "Default: [] (disabled, use optimizer.lr for all experts)."
+    )
     doc_optimizer = "\
         The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `AdamW`, `SGD` and `LBFGS` \n\n\
         For more information about these optmization algorithm, we refer to:\n\n\
@@ -266,7 +271,7 @@ def train_options():
         Argument("lr_scheduler", dict, sub_fields=[], optional=True, default={}, sub_variants=[lr_scheduler()], doc=doc_lr_scheduler),
         Argument("update_lr_per_iter", bool, optional=True, default=False, doc=doc_update_lr_per_iter),
         Argument("sliding_win_size", int, optional=True, default=50, doc=doc_sliding_win_size),
-
+        Argument("expert_lrs", list, optional=True, default=[], doc=doc_expert_lrs),
         # save / log
         Argument("save_freq", int, optional=True, default=10, doc=doc_save_freq),
         Argument("validation_freq", int, optional=True, default=10, doc=doc_validation_freq),

@@ -9,11 +9,7 @@ import torch
 import torch.nn as nn
 import torch.distributed as dist
 
-try:
-    from torch.profiler import profile as torch_profile, ProfilerActivity
-except Exception:
-    torch_profile = None
-    ProfilerActivity = None
+from torch.profiler import profile as torch_profile, ProfilerActivity
 
 from dptb.utils.tools import get_lr_scheduler, get_optimizer
 from dptb.data import AtomicDataset, AtomicData, DataLoader
@@ -220,7 +216,6 @@ class MultiTrainer(Trainer):
         self.ref_num_workers = int(self.train_options.get("ref_num_workers", self.train_num_workers))
         self.val_num_workers = int(self.train_options.get("val_num_workers", self.train_num_workers))
 
-        # FIX: self.device 可能是 str，不能用 self.device.type
         dev_obj = self._device_obj()
         self.data_pin_memory = bool(self.train_options.get("data_pin_memory", dev_obj.type == "cuda"))
 
@@ -250,6 +245,10 @@ class MultiTrainer(Trainer):
             )
             self.log_single_model_compatible_loss_mode = "reduce"
 
+        # ---------------- NEW: per-expert initial LR support ----------------
+        self.expert_lrs = self._parse_expert_lrs(self.train_options.get("expert_lrs", None))
+        # -------------------------------------------------------------------
+
         log.info(
             f"[MultiTrainer][rank={self.rank}] num_experts={self.num_experts}, "
             f"distributed_expert={self.distributed_expert}, parallel_multi={self.parallel_multi}, "
@@ -259,7 +258,8 @@ class MultiTrainer(Trainer):
             f"pin_memory={self.data_pin_memory}, persistent_workers={self.data_persistent_workers}, prefetch_factor={self.data_prefetch_factor}, "
             f"log_single_model_compatible_loss={self.log_single_model_compatible_loss}, "
             f"mode={self.log_single_model_compatible_loss_mode}, "
-            f"LR Scheduler is completely ISOLATED per expert."
+            f"LR Scheduler is completely ISOLATED per expert, "
+            f"expert_lrs={'(default optimizer.lr)' if self.expert_lrs is None else self.expert_lrs}."
         )
 
         if not hasattr(self.model, 'experts') or len(self.model.experts) != self.num_experts:
@@ -268,11 +268,20 @@ class MultiTrainer(Trainer):
         if self.distributed_expert:
             self._materialize_local_expert_only()
 
+        # ---------------- NEW: make per-expert optimizer config ----------------
+        def _make_opt_for_expert(i: int):
+            opt_cfg = copy.deepcopy(self.train_options["optimizer"])
+            if self.expert_lrs is not None:
+                opt_cfg["lr"] = float(self.expert_lrs[i])
+            return get_optimizer(model_param=self.model.experts[i].parameters(), **opt_cfg)
+        # ---------------------------------------------------------------------
+
         if self.distributed_expert:
             self.optimizers = [None] * self.num_experts
             self.lr_schedulers = [None] * self.num_experts
             idx = self.local_expert_idx
-            opt = get_optimizer(model_param=self.model.experts[idx].parameters(), **self.train_options["optimizer"])
+
+            opt = _make_opt_for_expert(idx)
             sch = get_lr_scheduler(optimizer=opt, **self.train_options["lr_scheduler"])
             self.optimizers[idx] = opt
             self.lr_schedulers[idx] = sch
@@ -280,7 +289,7 @@ class MultiTrainer(Trainer):
             self.optimizers = []
             self.lr_schedulers = []
             for i in range(self.num_experts):
-                opt = get_optimizer(model_param=self.model.experts[i].parameters(), **self.train_options["optimizer"])
+                opt = _make_opt_for_expert(i)
                 sch = get_lr_scheduler(optimizer=opt, **self.train_options["lr_scheduler"])
                 self.optimizers.append(opt)
                 self.lr_schedulers.append(sch)
@@ -294,6 +303,31 @@ class MultiTrainer(Trainer):
         self._warn_non_expert_trainables()
         self._t_last_iter_end: Optional[float] = None
         self._reset_display_window_buffers()
+
+    # ---------------- NEW: expert_lrs parsing & checks ----------------
+    def _parse_expert_lrs(self, expert_lrs) -> Optional[List[float]]:
+        """
+        train_options.expert_lrs:
+          - None / []: disabled
+          - list/tuple of float with length == num_experts: enabled
+        """
+        if expert_lrs is None:
+            return None
+        if isinstance(expert_lrs, (list, tuple)):
+            if len(expert_lrs) == 0:
+                return None
+            if len(expert_lrs) != self.num_experts:
+                raise ValueError(
+                    f"train_options.expert_lrs length must match num_experts={self.num_experts}, "
+                    f"got len(expert_lrs)={len(expert_lrs)}"
+                )
+            lrs = [float(x) for x in expert_lrs]
+            bad = [i for i, lr in enumerate(lrs) if not (lr > 0.0)]
+            if bad:
+                raise ValueError(f"train_options.expert_lrs must be all > 0.0, bad indices: {bad}, values={lrs}")
+            return lrs
+        raise TypeError(f"train_options.expert_lrs must be a list/tuple of float (or empty/None), got {type(expert_lrs)}")
+    # -----------------------------------------------------------------
 
     # ---------------------------------------------------------------------
     # dataloader rebuild in MultiTrainer only
@@ -355,7 +389,6 @@ class MultiTrainer(Trainer):
         )
 
         if self.use_reference:
-            # FIX: reference_datesets -> reference_datasets
             self.reference_loader = self._make_loader_compat(
                 dataset=self.reference_datasets,
                 batch_size=self.train_options["ref_batch_size"],
@@ -508,7 +541,6 @@ class MultiTrainer(Trainer):
             expert_edge_mask = (dist_edge >= d_min) & (dist_edge < d_max)
 
         num_nodes = batch_dict["node_features"].shape[0]
-        # device 允许 str，但这里统一用 self._device_obj() 更稳
         expert_node_mask = torch.ones(num_nodes, dtype=torch.bool, device=self._device_obj())
         if d_min > 0:
             expert_node_mask.fill_(False)
@@ -654,7 +686,11 @@ class MultiTrainer(Trainer):
                 flat = torch.empty((int(total_numel),), dtype=dtype, device=self.device)
 
             if int(total_numel) > 0:
-                with self._tagger.tag(f"{tag_name}/broadcast_group", it=self.iter, extra=f"dtype={code} numel={int(total_numel)}"):
+                with self._tagger.tag(
+                    f"{tag_name}/broadcast_group",
+                    it=self.iter,
+                    extra=f"dtype={code} numel={int(total_numel)}"
+                ):
                     dist.broadcast(flat, src=0)
             recv_flat_groups[code] = flat
 
@@ -1432,12 +1468,16 @@ class MultiTrainer(Trainer):
                 final_train_loss = comparable_train_loss if comparable_train_loss is not None else total_loss_opt
                 self._local_scheduler_step(final_train_loss)
 
+                # ---------------- NEW: make lr consistent: use mean lr across experts ----------------
+                avg_lr = sum(float(opt.param_groups[0]['lr']) for opt in self.optimizers) / max(len(self.optimizers), 1)
+                # ----------------------------------------------------------------------------------
+
                 state = {
                     'field': 'iteration',
                     'window_steps': 1,
                     "train_loss": final_train_loss,
                     "train_loss_opt": total_loss_opt,
-                    "lr": self.optimizers[0].param_groups[0]['lr'],
+                    "lr": avg_lr,
                     "total_grad_norm": sum(expert_grad_norms) / max(len(expert_grad_norms), 1),
                     "train_onsite_loss": global_onsite,
                     "train_hopping_loss": global_hopping,
@@ -1446,7 +1486,7 @@ class MultiTrainer(Trainer):
                 for i in range(self.num_experts):
                     state[f"expert_{i}_onsite"] = expert_onsite_dict.get(f"expert_{i}_onsite", 0.0)
                     state[f"expert_{i}_hopping"] = expert_hopping_dict.get(f"expert_{i}_hopping", 0.0)
-                    state[f"expert_{i}_lr"] = self.optimizers[i].param_groups[0]['lr']
+                    state[f"expert_{i}_lr"] = float(self.optimizers[i].param_groups[0]['lr'])
 
                 if expert_load_cv_values:
                     state["expert_load_cv"] = sum(expert_load_cv_values) / len(expert_load_cv_values)
@@ -1676,3 +1716,5 @@ class MultiTrainer(Trainer):
                             obj.load_state_dict(state)
 
         return trainer
+
+
