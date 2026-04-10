@@ -6,7 +6,7 @@ import logging
 import sys
 import contextlib
 import signal
-from pathlib import Path
+import copy
 from typing import Optional, Dict, Any
 from datetime import timedelta
 
@@ -14,9 +14,18 @@ import torch
 import torch.nn as nn
 import torch.distributed as dist
 import torch.multiprocessing as mp
+from pathlib import Path
 
 from dptb.nn.build import build_model
 from dptb.data.build import build_dataset
+from dptb.nnops.ddp_utils import (
+    configure_debug_env,
+    configure_runtime_perf,
+    derive_rank_log_path,
+    destroy_process_group_safely,
+    is_dist_ready,
+    load_multi_train_config,
+)
 from dptb.plugins.monitor import (
     TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor,
     DeepDoctorMonitor, SO2ModuleMonitor, PreTPBlockMonitor,
@@ -25,8 +34,8 @@ from dptb.plugins.monitor import (
 )
 from dptb.plugins.train_logger import Logger
 from dptb.plugins.saver import Saver
-from dptb.utils.argcheck import normalize, collect_cutoffs, chk_avg_per_iter
-from dptb.utils.tools import j_loader, setup_seed, j_must_have
+from dptb.utils.argcheck import collect_cutoffs, chk_avg_per_iter
+from dptb.utils.tools import setup_seed, j_must_have
 from dptb.utils.loggers import set_log_handles
 
 from dptb.entrypoints.train import deep_dict_difference, print_model_params_detailed
@@ -175,74 +184,6 @@ def print_multi_model_params_detailed(model: nn.Module, logger=None, max_depth: 
     print_model_params_detailed(model.experts[0], logger=logger, max_depth=max_depth)
 
 
-def _is_dist_ready():
-    return dist.is_available() and dist.is_initialized()
-
-
-def _derive_rank_log_path(log_path: Optional[str], rank: int) -> Optional[str]:
-    if log_path is None:
-        return None
-    p = Path(log_path)
-    if rank == 0:
-        return str(p)
-    suffix = p.suffix if p.suffix else ".txt"
-    return str(p.with_name(f"{p.stem}.rank{rank}{suffix}"))
-
-
-def _destroy_process_group_safely():
-    if _is_dist_ready():
-        try:
-            dist.destroy_process_group()
-        except Exception:
-            pass
-
-
-def _configure_debug_env(train_opt: Dict[str, Any]):
-    if bool(train_opt.get("ddp_debug_detail", False)):
-        os.environ.setdefault("TORCH_DISTRIBUTED_DEBUG", "DETAIL")
-
-    if bool(train_opt.get("nccl_debug", False)):
-        os.environ.setdefault("NCCL_DEBUG", str(train_opt.get("nccl_debug_level", "INFO")))
-
-    if bool(train_opt.get("cuda_launch_blocking", False)):
-        os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-
-    if bool(train_opt.get("nccl_async_error_handling", True)):
-        os.environ.setdefault("NCCL_ASYNC_ERROR_HANDLING", "1")
-
-
-def _configure_runtime_perf(train_opt: Dict[str, Any]):
-    cudnn_benchmark = bool(train_opt.get("cudnn_benchmark", False))
-    allow_tf32 = bool(train_opt.get("allow_tf32", True))
-    matmul_precision = str(train_opt.get("float32_matmul_precision", "")).strip()
-
-    try:
-        torch.backends.cudnn.benchmark = cudnn_benchmark
-    except Exception:
-        pass
-
-    if torch.cuda.is_available():
-        try:
-            torch.backends.cuda.matmul.allow_tf32 = allow_tf32
-        except Exception:
-            pass
-        try:
-            torch.backends.cudnn.allow_tf32 = allow_tf32
-        except Exception:
-            pass
-
-    if matmul_precision:
-        try:
-            torch.set_float32_matmul_precision(matmul_precision)
-        except Exception:
-            pass
-
-    log.info(
-        f"[runtime] cudnn_benchmark={cudnn_benchmark}, allow_tf32={allow_tf32}, "
-        f"float32_matmul_precision={matmul_precision or 'default'}"
-    )
-
-
 def _ddp_spawn_worker(
     rank: int,
     world_size: int,
@@ -256,7 +197,7 @@ def _ddp_spawn_worker(
 ):
     # 让被 mp.spawn SIGTERM 的进程也尽量 destroy pg，减少 NCCL warning
     def _term_handler(signum, frame):
-        _destroy_process_group_safely()
+        destroy_process_group_safely()
         raise SystemExit(128 + int(signum))
 
     try:
@@ -265,10 +206,10 @@ def _ddp_spawn_worker(
     except Exception:
         pass
 
-    jdata = normalize(j_loader(INPUT))
+    jdata = load_multi_train_config(INPUT)
     train_opt = jdata.get("train_options", {})
 
-    _configure_debug_env(train_opt)
+    configure_debug_env(train_opt)
 
     backend = str(train_opt.get("ddp_backend", "nccl" if torch.cuda.is_available() else "gloo"))
     timeout_sec = int(train_opt.get("ddp_timeout_sec", 1800))
@@ -300,7 +241,7 @@ def _ddp_spawn_worker(
             **kwargs,
         )
     finally:
-        _destroy_process_group_safely()
+        destroy_process_group_safely()
 
 
 def _multi_train_impl(
@@ -332,7 +273,7 @@ def _multi_train_impl(
         Path(checkpoint_path).mkdir(exist_ok=True, parents=True)
         if not log_path:
             log_path = os.path.join(str(output), "log/log.txt")
-        log_path = _derive_rank_log_path(log_path, rank) if distributed_expert else log_path
+        log_path = derive_rank_log_path(log_path, rank) if distributed_expert else log_path
         Path(log_path).parent.mkdir(exist_ok=True, parents=True)
 
         run_opt.update({
@@ -342,7 +283,7 @@ def _multi_train_impl(
         })
     else:
         if distributed_expert:
-            log_path = _derive_rank_log_path(log_path, rank)
+            log_path = derive_rank_log_path(log_path, rank)
 
     set_log_handles(log_level, Path(log_path) if log_path else None)
 
@@ -357,11 +298,10 @@ def _multi_train_impl(
                 except Exception:
                     pass
 
-    jdata = j_loader(INPUT)
-    jdata = normalize(jdata)
+    jdata = load_multi_train_config(INPUT)
 
-    _configure_debug_env(jdata.get("train_options", {}))
-    _configure_runtime_perf(jdata.get("train_options", {}))
+    configure_debug_env(jdata.get("train_options", {}))
+    configure_runtime_perf(jdata.get("train_options", {}))
 
     dbg = jdata.get("train_options", {})
     entry_tagger = _EntryTagger(
@@ -439,6 +379,9 @@ def _multi_train_impl(
         jdata["train_options"]["ddp_rank"] = rank
 
     cutoff_options = collect_cutoffs(jdata)
+    build_common_options = copy.deepcopy(jdata["common_options"])
+    if distributed_expert:
+        build_common_options["device"] = "cpu"
 
     with entry_tagger.tag("setup_seed"):
         setup_seed(seed=jdata["common_options"]["seed"])
@@ -527,7 +470,7 @@ def _multi_train_impl(
             model = build_model(
                 checkpoint=checkpoint,
                 model_options=jdata["model_options"],
-                common_options=jdata["common_options"],
+                common_options=build_common_options,
                 train_options=jdata["train_options"]
             )
 
@@ -535,7 +478,7 @@ def _multi_train_impl(
         if scale_type == 'no_scale':
             log.info('Skip the E3statistics part, since the scale_type is no_scale')
         else:
-            with entry_tagger.tag("dataset/E3statistics", device=torch.device(jdata["common_options"]["device"])):
+            with entry_tagger.tag("dataset/E3statistics", device=torch.device(build_common_options["device"])):
                 log.info(f'Start the E3statistics part, since the scale_type is {scale_type}')
                 train_datasets.E3statistics(model=model)
 
@@ -624,7 +567,7 @@ def _multi_train_impl(
     if trainer.is_main_process:
         print_multi_model_params_detailed(trainer.model, logger=log, max_depth=5)
 
-    if distributed_expert and _is_dist_ready():
+    if distributed_expert and is_dist_ready():
         dist.barrier()
 
     with entry_tagger.tag("trainer/run", device=torch.device(jdata["common_options"]["device"])):
@@ -632,7 +575,7 @@ def _multi_train_impl(
         trainer.run(trainer.train_options["num_epoch"])
         end_time = time.time()
 
-    if distributed_expert and _is_dist_ready():
+    if distributed_expert and is_dist_ready():
         dist.barrier()
 
     if trainer.is_main_process:
@@ -649,9 +592,9 @@ def multi_train(
     log_path: Optional[str],
     **kwargs
 ):
-    jdata = normalize(j_loader(INPUT))
+    jdata = load_multi_train_config(INPUT)
     train_opt = jdata.get("train_options", {})
-    _configure_debug_env(train_opt)
+    configure_debug_env(train_opt)
 
     distance_ranges = train_opt.get(
         "distance_ranges",

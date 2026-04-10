@@ -175,24 +175,6 @@ def train_options():
         "Reduction mode for reconstructing the compatible stitched loss. "
         "Currently the recommended mode is `reduce`. Default: `reduce`"
     )
-    doc_shared_scheduler_metric = (
-        "Metric used by the shared scheduler logic. "
-        "Supported values: `train_loss` or `train_loss_opt`. "
-        "`train_loss` means the stitched comparable loss; "
-        "`train_loss_opt` means the actual optimized objective summed over experts. "
-        "Default: `train_loss_opt`"
-    )
-    doc_independent_expert_scheduler = (
-        "Set true to let each expert/rank update its own LR scheduler locally without waiting for globally stitched loss every iteration. "
-        "This may reduce synchronization overhead, but global logged loss may become delayed or sampled when combined with "
-        "`distributed_global_reduce_every > 1`. Default: `False`"
-    )
-    doc_distributed_global_reduce_every = (
-        "How often to perform global distributed metric reduction in expert-parallel mode. "
-        "Default: `1` means reduce every iteration. "
-        "Values > 1 are only meaningful when `independent_expert_scheduler=True`, and can reduce communication overhead "
-        "at the cost of less frequent global stitched metrics. Default: `1`"
-    )
 
     # ================= 轻量 debug tag =================
     doc_debug_tags = (
@@ -304,9 +286,6 @@ def train_options():
         # stitched loss / scheduler behavior
         Argument("log_single_model_compatible_loss", bool, optional=True, default=True, doc=doc_log_single_model_compatible_loss),
         Argument("log_single_model_compatible_loss_mode", str, optional=True, default="reduce", doc=doc_log_single_model_compatible_loss_mode),
-        Argument("shared_scheduler_metric", str, optional=True, default="train_loss_opt", doc=doc_shared_scheduler_metric),
-        Argument("independent_expert_scheduler", bool, optional=True, default=False, doc=doc_independent_expert_scheduler),
-        Argument("distributed_global_reduce_every", int, optional=True, default=1, doc=doc_distributed_global_reduce_every),
 
         # lightweight stage debug
         Argument("debug_tags", bool, optional=True, default=False, doc=doc_debug_tags),

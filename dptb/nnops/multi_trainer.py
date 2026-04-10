@@ -2,6 +2,7 @@ import contextlib
 import time
 import logging
 import copy
+import heapq
 import os
 from typing import Union, Optional, Dict, Any, List, Tuple
 
@@ -163,14 +164,23 @@ class MultiTrainer(Trainer):
         rank: int = 0,
         world_size: int = 1,
     ) -> None:
+        trainer_common_options = copy.deepcopy(common_options)
+        if distributed_expert:
+            trainer_common_options["device"] = "cpu"
+
         super().__init__(
             train_options=train_options,
-            common_options=common_options,
+            common_options=trainer_common_options,
             model=model,
             train_datasets=train_datasets,
             reference_datasets=reference_datasets,
             validation_datasets=validation_datasets,
         )
+        self.common_options = common_options
+        if self.use_reference:
+            self.reference_datasets = getattr(self, "reference_datesets", None)
+        else:
+            self.reference_datasets = None
 
         self.distance_ranges = distance_ranges
         self.num_experts = len(distance_ranges)
@@ -180,6 +190,9 @@ class MultiTrainer(Trainer):
         self.world_size = int(world_size)
         self.local_expert_idx = self.rank if self.distributed_expert else None
         self.is_main_process = (not self.distributed_expert) or (self.rank == 0)
+        if self.distributed_expert:
+            self.device = common_options["device"]
+            self._move_aux_modules_to_device(self._device_obj())
 
         self.parallel_multi = bool(self.train_options.get("parallel_multi", False))
         if self.distributed_expert:
@@ -258,7 +271,7 @@ class MultiTrainer(Trainer):
             f"pin_memory={self.data_pin_memory}, persistent_workers={self.data_persistent_workers}, prefetch_factor={self.data_prefetch_factor}, "
             f"log_single_model_compatible_loss={self.log_single_model_compatible_loss}, "
             f"mode={self.log_single_model_compatible_loss_mode}, "
-            f"LR Scheduler is completely ISOLATED per expert, "
+            f"per-expert schedulers share the same scheduler config; only their optimizer lr may differ, "
             f"expert_lrs={'(default optimizer.lr)' if self.expert_lrs is None else self.expert_lrs}."
         )
 
@@ -365,6 +378,7 @@ class MultiTrainer(Trainer):
             "data_pin_memory", "data_persistent_workers", "data_prefetch_factor"
         }
         need_rebuild = (
+            self.distributed_expert or
             self.distributed_rank0_prepare_batch or
             any(k in self.train_options for k in worker_keys)
         )
@@ -400,7 +414,7 @@ class MultiTrainer(Trainer):
             self.validation_loader = self._make_loader_compat(
                 dataset=self.validation_datasets,
                 batch_size=self.train_options["val_batch_size"],
-                shuffle=True,
+                shuffle=not self.distributed_expert,
                 num_workers=val_workers,
             )
 
@@ -444,6 +458,20 @@ class MultiTrainer(Trainer):
             if hasattr(m, "device"):
                 try:
                     setattr(m, "device", device)
+                except Exception:
+                    pass
+
+    def _move_aux_modules_to_device(self, device: torch.device):
+        for attr in ("train_lossfunc", "validation_lossfunc", "reference_lossfunc"):
+            module = getattr(self, attr, None)
+            if module is None:
+                continue
+            if isinstance(module, nn.Module):
+                module.to(device)
+                self._recursive_set_device_attr(module, device)
+            elif hasattr(module, "device"):
+                try:
+                    setattr(module, "device", device)
                 except Exception:
                     pass
 
@@ -1215,6 +1243,21 @@ class MultiTrainer(Trainer):
     # scheduler
     # ---------------------------------------------------------------------
 
+    def _get_epoch_scheduler_metric(self):
+        validation_stat = self.stats.get("validation_loss", {})
+        if isinstance(validation_stat, dict) and ("epoch_mean" in validation_stat):
+            metric = validation_stat["epoch_mean"]
+        else:
+            train_stat = self.stats.get("train_loss", {})
+            metric = train_stat.get("epoch_mean", None) if isinstance(train_stat, dict) else None
+
+        if torch.is_tensor(metric):
+            metric = metric.detach()
+            if metric.ndim != 0:
+                metric = metric.mean()
+            return float(metric.item())
+        return metric
+
     def _local_scheduler_step(self, metric_tensor: torch.Tensor):
         if not self.update_lr_per_iter:
             return
@@ -1246,6 +1289,45 @@ class MultiTrainer(Trainer):
                             sch.step(metric_float)
                     else:
                         sch.step()
+
+    def _step_epoch_schedulers(self):
+        metric = self._get_epoch_scheduler_metric()
+        metric_float = None if metric is None else self._to_float_scalar(metric)
+
+        def _step_one_scheduler(sch, expert_idx=None):
+            if sch is None:
+                return
+
+            extra = f"metric={metric_float:.6g}" if metric_float is not None else "metric=None"
+            if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                if metric_float is None:
+                    log.warning("Skip epoch LR scheduler step: no epoch metric is available.")
+                    return
+                with self._tagger.tag("scheduler/epoch_step", it=self.iter, expert=expert_idx, extra=extra):
+                    sch.step(metric_float)
+            else:
+                with self._tagger.tag("scheduler/epoch_step", it=self.iter, expert=expert_idx, extra=extra):
+                    sch.step()
+
+        if self.distributed_expert:
+            _step_one_scheduler(self.lr_schedulers[self.local_expert_idx], expert_idx=self.local_expert_idx)
+        else:
+            for expert_idx, sch in enumerate(self.lr_schedulers):
+                _step_one_scheduler(sch, expert_idx=expert_idx)
+
+    def run(self, epochs=1):
+        for q in self.plugin_queues.values():
+            heapq.heapify(q)
+
+        for i in range(self.ep, epochs + 1):
+            self.epoch()
+            self.call_plugins(queue_name='epoch', time=i)
+
+            if not self.update_lr_per_iter:
+                self._step_epoch_schedulers()
+
+            self.update()
+            self.ep += 1
 
     # ---------------------------------------------------------------------
     # distributed expert iteration
@@ -1660,7 +1742,9 @@ class MultiTrainer(Trainer):
     @classmethod
     def restart(cls, checkpoint, train_datasets, train_options={}, common_options={}, reference_datasets=None,
                 validation_datasets=None, distributed_expert=False, rank=0, world_size=1):
-        map_loc = common_options["device"] if len(common_options) > 0 and "device" in common_options else "cpu"
+        map_loc = "cpu" if distributed_expert else (
+            common_options["device"] if len(common_options) > 0 and "device" in common_options else "cpu"
+        )
         ckpt = torch.load(checkpoint, map_location=map_loc, weights_only=False)
 
         merged_train_options = copy.deepcopy(ckpt["config"].get("train_options", {}))
@@ -1669,10 +1753,14 @@ class MultiTrainer(Trainer):
         merged_common_options = copy.deepcopy(ckpt["config"]["common_options"])
         merged_common_options.update(common_options or {})
 
+        build_common_options = copy.deepcopy(merged_common_options)
+        if distributed_expert:
+            build_common_options["device"] = "cpu"
+
         model = build_model(
             checkpoint=checkpoint,
             model_options=ckpt["config"]["model_options"],
-            common_options=merged_common_options,
+            common_options=build_common_options,
             train_options=merged_train_options
         )
 
