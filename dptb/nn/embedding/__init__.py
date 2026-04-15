@@ -20,6 +20,7 @@ from .lem_frame import LemFrame
 from .lem_light import LemLight
 from .lem_light_v2 import LemLightV2
 from .lem_charge import LemCharge
+from .lem_moe_v3_h0 import LemMoEV3H0
 from .lem_in_frame import LemInFrame, LemInFrameOpenequi
 from .lem_moe_charge import LemMoECharge
 from .lem_in_frame_heavy import LemInFrameHeavy
@@ -29,6 +30,9 @@ from .lem_wo_ln import LemWOLN
 from .emoles import EMolES, EMolESOpenequi
 from .emoles_norm import EMolESOpenequiNorm
 from .emoles_norm_v2 import EMolESOpenequiNormV2
+from .emoles_eqv3 import EMolESOpenequiEqV3
+from .emoles_openequi_eqv3_ffn import EMolESOpenequiEqV3FFN
+from .emoles_openequi_nodeffn import EMolESOpenequiNodeFFN
 # from .lem_in_frame_openequi import LemInFrameOpenequi
 from .lem_moe_openequi import LemMoEOpenEqui
 from .lem_full_tp import LemFullTP, LemFullTPOpenEqui
@@ -56,6 +60,7 @@ __all__ = [
     "LemInFrameOpenequi",
     "LemMoE",
     "LemMoEV3",
+    "LemMoEV3H0",
     "LemMoETopK",
     "LemSO2Global",
     "LemGlobal",
@@ -66,6 +71,9 @@ __all__ = [
     "EMolESOpenequi",
     "EMolESOpenequiNorm",
     "EMolESOpenequiNormV2",
+    "EMolESOpenequiEqV3",
+    "EMolESOpenequiEqV3FFN",
+    "EMolESOpenequiNodeFFN",
     "LemSO2Local",
     "LemLocal",
     "Slem",

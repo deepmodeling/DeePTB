@@ -514,6 +514,9 @@ def train_data_sub():
     doc_root = "This is where the dataset stores data files."
     doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
     doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
+    doc_h0 = "Choose whether to load H0 initialization data. If `hamiltonian_0` is present it will be converted online; if precomputed `node_h0/edge_h0` are present they will be used directly."
+    doc_h0_key = "The raw LMDB key used for H0 Hamiltonian blocks. Default: `hamiltonian_0`."
+    doc_precomputed_h0 = "Prefer precomputed `node_h0/edge_h0` over online conversion from `hamiltonian_0` when both exist. Default: `True`."
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
     doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
     doc_DM = "Choose whether the density matrix is loaded when building dataset."
@@ -525,6 +528,9 @@ def train_data_sub():
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("separator", str, optional=True, default='.', doc=doc_separator),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
+        Argument("get_H0", bool, optional=True, default=False, doc=doc_h0),
+        Argument("h0_key", str, optional=True, default="hamiltonian_0", doc=doc_h0_key),
+        Argument("prefer_precomputed_h0", bool, optional=True, default=True, doc=doc_precomputed_h0),
         Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
         Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
@@ -538,6 +544,9 @@ def validation_data_sub():
     doc_root = "This is where the dataset stores data files."
     doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
     doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
+    doc_h0 = "Choose whether to load H0 initialization data. If `hamiltonian_0` is present it will be converted online; if precomputed `node_h0/edge_h0` are present they will be used directly."
+    doc_h0_key = "The raw LMDB key used for H0 Hamiltonian blocks. Default: `hamiltonian_0`."
+    doc_precomputed_h0 = "Prefer precomputed `node_h0/edge_h0` over online conversion from `hamiltonian_0` when both exist. Default: `True`."
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
     doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
     doc_DM = "Choose whether the density matrix is loaded when building dataset."
@@ -549,6 +558,9 @@ def validation_data_sub():
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("separator", str, optional=True, default='.', doc=doc_separator),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
+        Argument("get_H0", bool, optional=True, default=False, doc=doc_h0),
+        Argument("h0_key", str, optional=True, default="hamiltonian_0", doc=doc_h0_key),
+        Argument("prefer_precomputed_h0", bool, optional=True, default=True, doc=doc_precomputed_h0),
         Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
         Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
@@ -562,6 +574,9 @@ def reference_data_sub():
     doc_root = "This is where the dataset stores data files."
     doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
     doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
+    doc_h0 = "Choose whether to load H0 initialization data. If `hamiltonian_0` is present it will be converted online; if precomputed `node_h0/edge_h0` are present they will be used directly."
+    doc_h0_key = "The raw LMDB key used for H0 Hamiltonian blocks. Default: `hamiltonian_0`."
+    doc_precomputed_h0 = "Prefer precomputed `node_h0/edge_h0` over online conversion from `hamiltonian_0` when both exist. Default: `True`."
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
     doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
     doc_DM = "Choose whether the density matrix is loaded when building dataset."
@@ -573,6 +588,9 @@ def reference_data_sub():
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("separator", str, optional=True, default='.', doc=doc_separator),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
+        Argument("get_H0", bool, optional=True, default=False, doc=doc_h0),
+        Argument("h0_key", str, optional=True, default="hamiltonian_0", doc=doc_h0_key),
+        Argument("prefer_precomputed_h0", bool, optional=True, default=True, doc=doc_precomputed_h0),
         Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
         Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig)
@@ -586,6 +604,9 @@ def test_data_sub():
     doc_root = "This is where the dataset stores data files."
     doc_prefix = "The prefix of the folders under root, which will be loaded in dataset."
     doc_ham = "Choose whether the Hamiltonian blocks (and overlap blocks, if provided) are loaded when building dataset."
+    doc_h0 = "Choose whether to load H0 initialization data. If `hamiltonian_0` is present it will be converted online; if precomputed `node_h0/edge_h0` are present they will be used directly."
+    doc_h0_key = "The raw LMDB key used for H0 Hamiltonian blocks. Default: `hamiltonian_0`."
+    doc_precomputed_h0 = "Prefer precomputed `node_h0/edge_h0` over online conversion from `hamiltonian_0` when both exist. Default: `True`."
     doc_eig = "Choose whether the eigenvalues and k-points are loaded when building dataset."
     doc_vlp = "Choose whether the overlap blocks are loaded when building dataset."
     doc_DM = "Choose whether the density matrix is loaded when building dataset."
@@ -596,6 +617,9 @@ def test_data_sub():
         Argument("root", str, optional=False, doc=doc_root),
         Argument("prefix", str, optional=True, default=None, doc=doc_prefix),
         Argument("get_Hamiltonian", bool, optional=True, default=False, doc=doc_ham),
+        Argument("get_H0", bool, optional=True, default=False, doc=doc_h0),
+        Argument("h0_key", str, optional=True, default="hamiltonian_0", doc=doc_h0_key),
+        Argument("prefer_precomputed_h0", bool, optional=True, default=True, doc=doc_precomputed_h0),
         Argument("get_eigenvalues", bool, optional=True, default=False, doc=doc_eig),
         Argument("get_overlap", bool, optional=True, default=False, doc=doc_vlp),
         Argument("get_DM", bool, optional=True, default=False, doc=doc_DM),
@@ -648,6 +672,9 @@ def embedding():
             Argument("emoles_openequi", dict, slem()),
             Argument("emoles_openequi_norm", dict, slem()),
             Argument("emoles_openequi_norm_v2", dict, slem()),
+            Argument("emoles_openequi_eqv3", dict, slem()),
+            Argument("emoles_openequi_eqv3_ffn", dict, slem()),
+            Argument("emoles_openequi_nodeffn", dict, slem()),
             Argument("lem_light", dict, slem()),
             Argument("lem_light_v2", dict, slem()),
             Argument("lem_charge", dict, slem()),
@@ -663,6 +690,7 @@ def embedding():
             Argument("lem_moe_charge", dict, slem()),
             Argument("lem_moe_topk", dict, slem()),
             Argument("lem_moe_v3", dict, slem()),
+            Argument("lem_moe_v3_h0", dict, slem_h0()),
             Argument("lem_moe", dict, slem()),
             Argument("lem_so2", dict, slem()),
             Argument("lem_so2_local", dict, slem()),
@@ -820,6 +848,12 @@ def slem():
     doc_norm_use_node_onehot = "Whether to use node one-hot as conditioning in node layer norm. Default: `True`"
     doc_norm_build_edge_condition_branch = "Whether to build the conditioned branch for edge layer norm. Default: `True`"
     doc_norm_use_edge_onehot = "Whether to use edge one-hot embedding as conditioning in edge layer norm. Default: `True`"
+    doc_equivariant_norm_type = "Equivariant normalization on the flat irreps path. Supported: `none`, `merged_rms`."
+    doc_hidden_edge_activation_type = "Activation used for hidden UpdateEdge blocks. Supported: `gate`, `swiglu_s2`."
+    doc_hidden_node_activation_type = "Activation used for hidden UpdateNode blocks. Supported: `gate`, `swiglu_s2`."
+    doc_swiglu_s2_grid_resolution = "Grid resolution `[lat, long]` for the flat SwiGLU-S2 adapter."
+    doc_ffn_hidden_factor = "Expansion factor for the optional node-wise equivariant FFN. Values `<= 1.0` disable it."
+    doc_ffn_apply_to_last = "Whether to also attach the node-wise FFN to the final layer. Default: `False`."
 
     return [
         Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
@@ -861,12 +895,43 @@ def slem():
         Argument("ln_flag", bool, optional=True, default=True),
         Argument("use_angle", bool, optional=True, default=False, doc="Whether to use angle."),
         Argument("norm_eps", float, optional=True, default=1e-8, doc="eps in SeperableLayerNorm."),
+        Argument("equivariant_norm_type", str, optional=True, default="none", doc=doc_equivariant_norm_type),
+        Argument("hidden_edge_activation_type", str, optional=True, default="gate", doc=doc_hidden_edge_activation_type),
+        Argument("hidden_node_activation_type", str, optional=True, default="gate", doc=doc_hidden_node_activation_type),
+        Argument("swiglu_s2_grid_resolution", list, optional=True, default=[14, 14], doc=doc_swiglu_s2_grid_resolution),
+        Argument("ffn_hidden_factor", float, optional=True, default=0.0, doc=doc_ffn_hidden_factor),
+        Argument("ffn_apply_to_last", bool, optional=True, default=False, doc=doc_ffn_apply_to_last),
 
         # ---- New norm conditioning flags ----
         Argument("norm_build_node_condition_branch", bool, optional=True, default=True, doc=doc_norm_build_node_condition_branch),
         Argument("norm_use_node_onehot", bool, optional=True, default=True, doc=doc_norm_use_node_onehot),
         Argument("norm_build_edge_condition_branch", bool, optional=True, default=True, doc=doc_norm_build_edge_condition_branch),
         Argument("norm_use_edge_onehot", bool, optional=True, default=True, doc=doc_norm_use_edge_onehot),
+    ]
+
+
+def slem_h0():
+    doc_use_h0_init = "Whether to replace the geometry init layer with the H0 init plugin. Default: `True`."
+    doc_h0_node_key = "Node-wise H0 key. Defaults to `node_h0`. When absent and fallback is enabled, the plugin checks `node_hamiltonian` first and then the configured fallback feature key."
+    doc_h0_edge_key = "Edge-wise H0 key. Defaults to `edge_h0`. When absent and fallback is enabled, the plugin checks `edge_hamiltonian` first and then the configured fallback feature key."
+    doc_h0_node_mode = "How to build node init from H0. Supported: `direct`, `self_edge`. Default: `direct`."
+    doc_fallback_to_hamiltonian = "Whether to fall back to the LMDB Hamiltonian-derived node/edge features when explicit H0 keys are absent. Default: `True`."
+    doc_fallback_node_key = "Fallback node key used when explicit H0 is absent. Default: `node_features`."
+    doc_fallback_edge_key = "Fallback edge key used when explicit H0 is absent. Default: `edge_features`."
+    doc_h0_merge_mode = "How to combine H0-projected features with the base init output. Supported: `replace`, `add`. Default: `replace`."
+    doc_h0_self_edge_tol = "Tolerance used to detect self-edges in `self_edge` node mode. Default: `1e-8`."
+
+    return slem() + [
+        Argument("use_h0_init", bool, optional=True, default=True, doc=doc_use_h0_init),
+        Argument("h0_node_key", str, optional=True, default="node_h0", doc=doc_h0_node_key),
+        Argument("h0_edge_key", str, optional=True, default="edge_h0", doc=doc_h0_edge_key),
+        Argument("h0_node_mode", str, optional=True, default="direct", doc=doc_h0_node_mode),
+        Argument("fallback_to_hamiltonian", bool, optional=True, default=True, doc=doc_fallback_to_hamiltonian),
+        Argument("h0_fallback_to_hamiltonian", bool, optional=True, default=True, doc=doc_fallback_to_hamiltonian),
+        Argument("fallback_node_key", str, optional=True, default="node_features", doc=doc_fallback_node_key),
+        Argument("fallback_edge_key", str, optional=True, default="edge_features", doc=doc_fallback_edge_key),
+        Argument("h0_merge_mode", str, optional=True, default="replace", doc=doc_h0_merge_mode),
+        Argument("h0_self_edge_tol", float, optional=True, default=1e-8, doc=doc_h0_self_edge_tol),
     ]
 
 
@@ -1938,7 +2003,7 @@ def get_cutoffs_from_model_options(model_options):
         embedding = model_options.get("embedding")
         if embedding["method"] == "se2":
             er_max = embedding["rc"]
-        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_moe_topk", "lem_moe_v3", "lem_charge", "emoles", "emoles_openequi_norm", "emoles_openequi_norm_v2", "emoles_openequi", "lem_cutoff", "lem_full_tp_oeq", "lem_moe_openequi", "lem_in_frame_moe", "lem_full_tp", "lem_in_frame_e3nn", "lem_in_frame_openequi", "lem_wo_ln", "lem_in_frame", "lem_in_frame_heavy", "lem_light_v2", "lem_light", "lem_moe_charge", "lem_frame", "lem_high_order", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
+        elif embedding["method"] in ["slem", "lem", "lem_moe", "lem_moe_topk", "lem_moe_v3", "lem_moe_v3_h0", "lem_charge", "emoles", "emoles_openequi_norm", "emoles_openequi_norm_v2", "emoles_openequi_eqv3", "emoles_openequi_eqv3_ffn", "emoles_openequi_nodeffn", "emoles_openequi", "lem_cutoff", "lem_full_tp_oeq", "lem_moe_openequi", "lem_in_frame_moe", "lem_full_tp", "lem_in_frame_e3nn", "lem_in_frame_openequi", "lem_wo_ln", "lem_in_frame", "lem_in_frame_heavy", "lem_light_v2", "lem_light", "lem_moe_charge", "lem_frame", "lem_high_order", "lem_so2_local", "lem_so2_global", "lem_local", "lem_global", "lem_so2", "trinity"]:
             r_max = embedding["r_max"]
         else:
             log.error("The method of embedding have not been defined in get cutoff functions")

@@ -10,6 +10,8 @@ dptb/tests/**/out*/*
 dptb/tests/**/*lmdb
 dptb/tests/**/*h5
 examples/_*
+dptb/scripts/*
+dptb/codex*/*
 *.dat
 *log*
 dptb/tests/data/**/out*/config_*.json

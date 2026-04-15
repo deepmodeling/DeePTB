@@ -277,9 +277,12 @@ class DatasetBuilder:
                 type_mapper=idp,
                 orthogonal=orthogonal,
                 get_Hamiltonian=get_Hamiltonian,
+                get_H0=kwargs.get("get_H0", False),
                 get_overlap=get_overlap,
                 get_DM=get_DM,
                 get_eigenvalues=get_eigenvalues,
+                h0_key=kwargs.get("h0_key", "hamiltonian_0"),
+                prefer_precomputed_h0=kwargs.get("prefer_precomputed_h0", True),
                 info_files = info_files
             )
 

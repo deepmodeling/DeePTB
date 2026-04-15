@@ -17,7 +17,17 @@ import ase.data
 # 假设你的项目中包含这个 key 定义文件，如果没有请替换为字符串常量
 
 
-def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=False):
+def block_to_feature(
+    data,
+    idp,
+    blocks=False,
+    overlap_blocks=False,
+    orthogonal=False,
+    node_field: str = _keys.NODE_FEATURES_KEY,
+    edge_field: str = _keys.EDGE_FEATURES_KEY,
+    node_overlap_field: str = _keys.NODE_OVERLAP_KEY,
+    edge_overlap_field: str = _keys.EDGE_OVERLAP_KEY,
+):
     """
     将 Hamiltonian/Overlap blocks 转换为模型可训练的 features。
     针对 SOC 进行了向量化优化，支持 Spinful H + Reduced Overlap 的混合输入。
@@ -376,13 +386,13 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
 
     # --- 6. 结果写回 ---
     if has_ham:
-        data[_keys.NODE_FEATURES_KEY] = torch.stack(onsite_ham, dim=0)
-        data[_keys.EDGE_FEATURES_KEY] = edge_feat_h
+        data[node_field] = torch.stack(onsite_ham, dim=0)
+        data[edge_field] = edge_feat_h
 
     if has_ovp:
         if not orthogonal:
-            data[_keys.NODE_OVERLAP_KEY] = torch.stack(onsite_ovp, dim=0)
-        data[_keys.EDGE_OVERLAP_KEY] = edge_feat_s
+            data[node_overlap_field] = torch.stack(onsite_ovp, dim=0)
+        data[edge_overlap_field] = edge_feat_s
 
     return data
 

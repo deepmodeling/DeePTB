@@ -1,11 +1,10 @@
-from typing import Optional, List, Union, Dict
+from typing import Optional, List, Union, Dict, Tuple
 import math
 import functools
 import torch
 from torch_runstats.scatter import scatter
 from torch import fx
 from e3nn import o3
-from e3nn.nn import Gate
 from torch_scatter import scatter_mean
 from e3nn.o3 import Linear, SphericalHarmonics, FullyConnectedTensorProduct, TensorProduct
 from dptb.data import AtomicDataDict
@@ -16,6 +15,12 @@ from dptb.nn.embedding.from_deephe3.deephe3 import tp_path_exists
 from dptb.data import _keys
 from dptb.nn.cutoff import cosine_cutoff, polynomial_cutoff
 from dptb.nn.rescale import E3ElementLinear
+from .lem_moe_v3_plugins import (
+    FlatSwiGLUS2Merge,
+    build_equivariant_norm,
+    build_gate_activation,
+    can_use_flat_s2_patch,
+)
 # Note: Modified SO2_Linear and MOLE classes imported here
 from dptb.nn.tensor_product_moe_v3 import SO2_Linear, MOLEGlobals, MOLERouterV3
 import math
@@ -63,6 +68,10 @@ class LemMoEV3(torch.nn.Module):
             res_update: bool = True,
             res_update_ratios: Optional[List[float]] = None,
             res_update_ratios_learnable: bool = False,
+            equivariant_norm_type: str = "none",
+            hidden_edge_activation_type: str = "gate",
+            hidden_node_activation_type: str = "gate",
+            swiglu_s2_grid_resolution: Tuple[int, int] = (14, 14),
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             universal: Optional[bool] = False,
@@ -183,11 +192,17 @@ class LemMoEV3(torch.nn.Module):
 
             if i == n_layers - 1:
                 irreps_out = orbpair_irreps.sort()[0].simplify()
-                if use_interpolation_out:
-                    use_interpolation_tp = True
+                use_interpolation_tp = bool(use_interpolation_out)
             else:
                 irreps_out = irreps_hidden
                 use_interpolation_tp = False
+
+            if i == n_layers - 1:
+                edge_activation_type = "gate"
+                node_activation_type = "gate"
+            else:
+                edge_activation_type = hidden_edge_activation_type
+                node_activation_type = hidden_node_activation_type
 
             self.layers.append(Layer(
                 num_types=self.n_atom,
@@ -203,6 +218,10 @@ class LemMoEV3(torch.nn.Module):
                 res_update=res_update,
                 res_update_ratios=res_update_ratios,
                 res_update_ratios_learnable=res_update_ratios_learnable,
+                equivariant_norm_type=equivariant_norm_type,
+                edge_activation_type=edge_activation_type,
+                node_activation_type=node_activation_type,
+                swiglu_s2_grid_resolution=swiglu_s2_grid_resolution,
                 dtype=dtype,
                 device=device,
                 use_interpolation_tp=use_interpolation_tp,
@@ -239,6 +258,8 @@ class LemMoEV3(torch.nn.Module):
         return self.idp.orbpair_irreps
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
+        data = with_edge_vectors(data, with_lengths=True)
+        data = with_batch(data)
 
         edge_index = data[_keys.EDGE_INDEX_KEY]
         edge_vector = data[_keys.EDGE_VECTORS_KEY]
@@ -518,6 +539,9 @@ class UpdateNode(torch.nn.Module):
             use_interpolation_tp: bool = False,
             res_update_ratios: Optional[List[float]] = None,
             res_update_ratios_learnable: bool = False,
+            equivariant_norm_type: str = "none",
+            activation_type: str = "gate",
+            swiglu_s2_grid_resolution: Tuple[int, int] = (14, 14),
             avg_num_neighbors: Optional[float] = None,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
@@ -551,24 +575,43 @@ class UpdateNode(torch.nn.Module):
             mlp_output_dimension=self._env_weighter.weight_numel,
         )
 
-        irreps_scalar = o3.Irreps([(mul, ir) for mul, ir in self.irreps_out if ir.l == 0]).simplify()
-        irreps_gated = o3.Irreps([(mul, ir) for mul, ir in self.irreps_out if ir.l > 0]).simplify()
-        irreps_gates = o3.Irreps([(mul, (0, 1)) for mul, _ in irreps_gated]).simplify()
-        act = {1: torch.nn.functional.silu, -1: torch.tanh}
-        act_gates = {1: torch.sigmoid, -1: torch.tanh}
-
-        self.activation = Gate(
-            irreps_scalar, [act[ir.p] for _, ir in irreps_scalar],
-            irreps_gates, [act_gates[ir.p] for _, ir in irreps_gates],
-            irreps_gated
+        self.node_norm = build_equivariant_norm(
+            equivariant_norm_type,
+            self.irreps_in,
+            norm_eps,
+            dtype,
+            device,
         )
+        self.edge_norm = build_equivariant_norm(
+            equivariant_norm_type,
+            self.edge_irreps_in,
+            norm_eps,
+            dtype,
+            device,
+        )
+
+        if activation_type not in {"gate", "swiglu_s2"}:
+            raise ValueError(f"Unsupported activation_type={activation_type!r}")
+        use_s2 = activation_type == "swiglu_s2" and can_use_flat_s2_patch(self.irreps_out)
+        if use_s2:
+            self.activation = FlatSwiGLUS2Merge(
+                self.irreps_out,
+                grid_resolution=swiglu_s2_grid_resolution,
+            )
+            tp_out_irreps = self.activation.tp_main_irreps
+            extra_m0_outsize = self.activation.extra_m0_outsize
+        else:
+            self.activation = build_gate_activation(self.irreps_out)
+            tp_out_irreps = self.activation.irreps_in
+            extra_m0_outsize = 0
 
         self.tp = SO2_Linear(
             irreps_in=self.irreps_in + self.edge_irreps_in,
-            irreps_out=self.activation.irreps_in,
+            irreps_out=tp_out_irreps,
             latent_dim=latent_dim,
             radial_emb=radial_emb,
             radial_channels=radial_channels,
+            extra_m0_outsize=extra_m0_outsize,
             use_interpolation=use_interpolation_tp,
             num_experts=num_experts,
             num_shared_experts=num_shared_experts
@@ -640,9 +683,11 @@ class UpdateNode(torch.nn.Module):
         edge_neighbor = edge_index[1]
 
         new_node_features = node_features
+        node_in = self.node_norm(new_node_features) if self.node_norm is not None else new_node_features
+        edge_in = self.edge_norm(edge_features) if self.edge_norm is not None else edge_features
         message, _ = self.tp(
             torch.cat(
-                [new_node_features[edge_center[active_edges]], edge_features]
+                [node_in[edge_center[active_edges]], edge_in]
                 , dim=-1), edge_vector[active_edges], mole_globals, latents[active_edges], wigner_D_all)  # Pass globals
 
         message = self.activation(message)
@@ -703,6 +748,9 @@ class UpdateEdge(torch.nn.Module):
             edge_one_hot_dim: int = 128,
             res_update_ratios: Optional[List[float]] = None,
             res_update_ratios_learnable: bool = False,
+            equivariant_norm_type: str = "none",
+            activation_type: str = "gate",
+            swiglu_s2_grid_resolution: Tuple[int, int] = (14, 14),
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             num_experts: int = 8,
@@ -730,24 +778,43 @@ class UpdateEdge(torch.nn.Module):
 
         self.ln = torch.nn.LayerNorm(latent_dim)
 
-        irreps_scalar = o3.Irreps([(mul, ir) for mul, ir in self.irreps_out if ir.l == 0]).simplify()
-        irreps_gated = o3.Irreps([(mul, ir) for mul, ir in self.irreps_out if ir.l > 0]).simplify()
-        irreps_gates = o3.Irreps([(mul, (0, 1)) for mul, _ in irreps_gated]).simplify()
-        act = {1: torch.nn.functional.silu, -1: torch.tanh}
-        act_gates = {1: torch.sigmoid, -1: torch.tanh}
-
-        self.activation = Gate(
-            irreps_scalar, [act[ir.p] for _, ir in irreps_scalar],
-            irreps_gates, [act_gates[ir.p] for _, ir in irreps_gates],
-            irreps_gated
+        self.node_norm = build_equivariant_norm(
+            equivariant_norm_type,
+            self.node_irreps_in,
+            norm_eps,
+            dtype,
+            device,
         )
+        self.edge_norm = build_equivariant_norm(
+            equivariant_norm_type,
+            self.irreps_in,
+            norm_eps,
+            dtype,
+            device,
+        )
+
+        if activation_type not in {"gate", "swiglu_s2"}:
+            raise ValueError(f"Unsupported activation_type={activation_type!r}")
+        use_s2 = activation_type == "swiglu_s2" and can_use_flat_s2_patch(self.irreps_out)
+        if use_s2:
+            self.activation = FlatSwiGLUS2Merge(
+                self.irreps_out,
+                grid_resolution=swiglu_s2_grid_resolution,
+            )
+            tp_out_irreps = self.activation.tp_main_irreps
+            extra_m0_outsize = self.activation.extra_m0_outsize
+        else:
+            self.activation = build_gate_activation(self.irreps_out)
+            tp_out_irreps = self.activation.irreps_in
+            extra_m0_outsize = 0
 
         self.tp = SO2_Linear(
             irreps_in=self.node_irreps_in + self.irreps_in + self.node_irreps_in,
-            irreps_out=self.activation.irreps_in,
+            irreps_out=tp_out_irreps,
             latent_dim=latent_dim,
             radial_emb=radial_emb,
             radial_channels=radial_channels,
+            extra_m0_outsize=extra_m0_outsize,
             use_interpolation=use_interpolation_tp,
             num_experts=num_experts,
             num_shared_experts=num_shared_experts
@@ -837,13 +904,15 @@ class UpdateEdge(torch.nn.Module):
         edge_neighbor = edge_index[1]
 
         new_node_features = node_features
+        node_in = self.node_norm(new_node_features) if self.node_norm is not None else new_node_features
+        edge_in = self.edge_norm(edge_features) if self.edge_norm is not None else edge_features
 
         new_edge_features, wigner_D_all = self.tp(
             torch.cat(
                 [
-                    new_node_features[edge_center[active_edges]],
-                    edge_features,
-                    new_node_features[edge_neighbor[active_edges]]
+                    node_in[edge_center[active_edges]],
+                    edge_in,
+                    node_in[edge_neighbor[active_edges]]
                 ]
                 , dim=-1), edge_vector[active_edges], mole_globals, latents[active_edges], wigner_D_all)  # Pass globals
 
@@ -920,6 +989,10 @@ class Layer(torch.nn.Module):
             edge_one_hot_dim: int = 128,
             res_update_ratios: Optional[List[float]] = None,
             res_update_ratios_learnable: bool = False,
+            equivariant_norm_type: str = "none",
+            edge_activation_type: str = "gate",
+            node_activation_type: str = "gate",
+            swiglu_s2_grid_resolution: Tuple[int, int] = (14, 14),
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             num_experts: int = 8,
@@ -949,6 +1022,9 @@ class Layer(torch.nn.Module):
             res_update=res_update,
             res_update_ratios=res_update_ratios,
             res_update_ratios_learnable=res_update_ratios_learnable,
+            equivariant_norm_type=equivariant_norm_type,
+            activation_type=edge_activation_type,
+            swiglu_s2_grid_resolution=swiglu_s2_grid_resolution,
             dtype=dtype,
             device=device,
             use_interpolation_tp=use_interpolation_tp,
@@ -969,6 +1045,9 @@ class Layer(torch.nn.Module):
             res_update_ratios=res_update_ratios,
             res_update_ratios_learnable=res_update_ratios_learnable,
             avg_num_neighbors=avg_num_neighbors,
+            equivariant_norm_type=equivariant_norm_type,
+            activation_type=node_activation_type,
+            swiglu_s2_grid_resolution=swiglu_s2_grid_resolution,
             dtype=dtype,
             device=device,
             use_interpolation_tp=use_interpolation_tp,

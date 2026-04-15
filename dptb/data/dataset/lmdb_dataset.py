@@ -33,9 +33,12 @@ class LMDBDataset(AtomicDataset):
             type_mapper: TypeMapper = None,
             orthogonal: bool = False,
             get_Hamiltonian: bool = False,
+            get_H0: bool = False,
             get_overlap: bool = False,
             get_DM: bool = False,
             get_eigenvalues: bool = False,
+            h0_key: str = "hamiltonian_0",
+            prefer_precomputed_h0: bool = True,
     ):
         # TO DO, this may be simplified
         # See if a subclass defines some inputs
@@ -58,10 +61,13 @@ class LMDBDataset(AtomicDataset):
         # Then pre-process the data if disk files are not found
         super().__init__(root=root, type_mapper=type_mapper)  # the type_mapper will be called in getitem in PyG data class
         self.get_Hamiltonian = get_Hamiltonian
+        self.get_H0 = get_H0
         self.get_overlap = get_overlap
         self.get_DM = get_DM
         self.get_eigenvalues = get_eigenvalues
         self.orthogonal = orthogonal
+        self.h0_key = h0_key
+        self.prefer_precomputed_h0 = prefer_precomputed_h0
         assert not get_Hamiltonian * get_DM, "Hamiltonian and Density Matrix can only loaded one at a time, for which will occupy the same attribute in the AtomicData."
 
         self.num_graphs = 0
@@ -151,7 +157,7 @@ class LMDBDataset(AtomicDataset):
                 pbc = data_dict[AtomicDataDict.PBC_KEY]
 
                 if self.get_Hamiltonian:
-                    blocks = data_dict["hamiltonian"]
+                    blocks = data_dict.get("hamiltonian", None)
                     # kk, vv = blocks.keys(), blocks.values()
                     # vv = map(lambda x: np.frombuffer(x, np.float32).reshape, vv)
                     # blocks = dict(zip(kk, vv))
@@ -159,7 +165,7 @@ class LMDBDataset(AtomicDataset):
                     # del vv
 
                 if self.get_overlap:
-                    overlap = data_dict["overlap"]
+                    overlap = data_dict.get("overlap", None)
                     # kk, vv = overlap.keys(), overlap.values()
                     # vv = map(lambda x: np.frombuffer(x, np.float32), vv)
                     # overlap = dict(zip(kk, vv))
@@ -169,7 +175,7 @@ class LMDBDataset(AtomicDataset):
                     overlap = False
 
                 if self.get_DM:
-                    blocks = data_dict["density_matrix"]
+                    blocks = data_dict.get("density_matrix", None)
                     # kk, vv = blocks.keys(), blocks.values()
                     # vv = map(lambda x: np.frombuffer(x, np.float32), vv)
                     # blocks = dict(zip(kk, vv))
@@ -178,6 +184,15 @@ class LMDBDataset(AtomicDataset):
 
                 if not (self.get_Hamiltonian or self.get_DM):
                     blocks = False
+
+                pre_node_features = data_dict.get(AtomicDataDict.NODE_FEATURES_KEY, None)
+                pre_edge_features = data_dict.get(AtomicDataDict.EDGE_FEATURES_KEY, None)
+                pre_node_overlap = data_dict.get(AtomicDataDict.NODE_OVERLAP_KEY, None)
+                pre_edge_overlap = data_dict.get(AtomicDataDict.EDGE_OVERLAP_KEY, None)
+
+                h0_blocks = data_dict.get(self.h0_key, None) if self.get_H0 else None
+                node_h0 = data_dict.get(AtomicDataDict.NODE_H0_KEY, None) if self.get_H0 else None
+                edge_h0 = data_dict.get(AtomicDataDict.EDGE_H0_KEY, None) if self.get_H0 else None
 
                 if self.info_files[self.file_map[idx]]['train_dip'] == True:
                     self.info_files[self.file_map[idx]].update({'dip': data_dict['dipole_moment']})
@@ -218,9 +233,41 @@ class LMDBDataset(AtomicDataset):
         )
         self.info_files[self.file_map[idx]].update(cache_info)
 
-        # transform blocks to atomicdata features
-        if self.get_Hamiltonian or self.get_DM or self.get_overlap:
+        # transform blocks to atomicdata features, or use precomputed features directly
+        need_main_features = bool(self.get_Hamiltonian or self.get_DM)
+        need_overlap_features = bool(self.get_overlap)
+        has_pre_main = pre_node_features is not None and pre_edge_features is not None
+        has_pre_overlap = (not need_overlap_features) or (
+            pre_edge_overlap is not None and (self.orthogonal or pre_node_overlap is not None)
+        )
+
+        if has_pre_main and has_pre_overlap:
+            atomicdata[AtomicDataDict.NODE_FEATURES_KEY] = torch.as_tensor(pre_node_features)
+            atomicdata[AtomicDataDict.EDGE_FEATURES_KEY] = torch.as_tensor(pre_edge_features)
+            if need_overlap_features:
+                if not self.orthogonal:
+                    atomicdata[AtomicDataDict.NODE_OVERLAP_KEY] = torch.as_tensor(pre_node_overlap)
+                atomicdata[AtomicDataDict.EDGE_OVERLAP_KEY] = torch.as_tensor(pre_edge_overlap)
+        elif self.get_Hamiltonian or self.get_DM or self.get_overlap:
             block_to_feature(atomicdata, self.type_mapper, blocks, overlap, self.orthogonal)
+
+        if self.get_H0:
+            if self.prefer_precomputed_h0 and node_h0 is not None and edge_h0 is not None:
+                atomicdata[AtomicDataDict.NODE_H0_KEY] = torch.as_tensor(node_h0)
+                atomicdata[AtomicDataDict.EDGE_H0_KEY] = torch.as_tensor(edge_h0)
+            elif h0_blocks is not None:
+                block_to_feature(
+                    atomicdata,
+                    self.type_mapper,
+                    h0_blocks,
+                    False,
+                    self.orthogonal,
+                    node_field=AtomicDataDict.NODE_H0_KEY,
+                    edge_field=AtomicDataDict.EDGE_H0_KEY,
+                )
+            elif node_h0 is not None and edge_h0 is not None:
+                atomicdata[AtomicDataDict.NODE_H0_KEY] = torch.as_tensor(node_h0)
+                atomicdata[AtomicDataDict.EDGE_H0_KEY] = torch.as_tensor(edge_h0)
 
         return atomicdata
 

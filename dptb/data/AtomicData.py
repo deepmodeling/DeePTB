@@ -53,6 +53,7 @@ _DEFAULT_LONG_FIELDS: Set[str] = {
 _DEFAULT_NODE_FIELDS: Set[str] = {
     AtomicDataDict.POSITIONS_KEY,
     AtomicDataDict.NODE_FEATURES_KEY,
+    AtomicDataDict.NODE_H0_KEY,
     AtomicDataDict.NODE_ATTRS_KEY,
     AtomicDataDict.ATOMIC_NUMBERS_KEY,
     AtomicDataDict.ATOM_TYPE_KEY,
@@ -71,6 +72,7 @@ _DEFAULT_EDGE_FIELDS: Set[str] = {
     AtomicDataDict.EDGE_ATTRS_KEY,
     AtomicDataDict.EDGE_EMBEDDING_KEY,
     AtomicDataDict.EDGE_FEATURES_KEY,
+    AtomicDataDict.EDGE_H0_KEY,
     AtomicDataDict.EDGE_CUTOFF_KEY,
     AtomicDataDict.EDGE_ENERGY_KEY,
     AtomicDataDict.EDGE_OVERLAP_KEY,
