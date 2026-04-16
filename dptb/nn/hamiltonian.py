@@ -21,6 +21,10 @@ from typing import Dict, Union, Optional
 # - get_soc_matrix_cubic_basis
 
 
+def _to_device(tensor: torch.Tensor, device: Union[str, torch.device]) -> torch.Tensor:
+    return tensor.to(device=device)
+
+
 class E3Hamiltonian(torch.nn.Module):
     def __init__(
         self,
@@ -238,7 +242,7 @@ class E3Hamiltonian(torch.nn.Module):
 
         if self._should_debug():
             self._dbg(f"    view -> HR_view: shape={tuple(HR_view.shape)} (B, chunk, 4(0yzx), nL, nR)")
-            self._tensor_stats("oyzx2spin", self.oyzx2spin, max_print_el=16)
+            self._tensor_stats("oyzx2spin", _to_device(self.oyzx2spin, HR_view.device), max_print_el=16)
 
             # sample a point
             b0 = 0
@@ -250,12 +254,13 @@ class E3Hamiltonian(torch.nn.Module):
                 self._dbg(f"    sample in[0yzx] @ (b={b0},chunk={k0},i={i0},j={j0}) = {v_in}")
 
         # 3) projection (保持你原本的 einsum 方向不变)
-        HR_proj = torch.einsum("nkslr, ps -> nkplr", HR_view, self.oyzx2spin)
+        oyzx2spin = _to_device(self.oyzx2spin, HR_view.device)
+        HR_proj = torch.einsum("nkslr, ps -> nkplr", HR_view, oyzx2spin)
 
         # debug: 同时算一次“备用方向(ps)”对比误差（不影响返回）
         if self._should_debug():
             try:
-                HR_proj_alt = torch.einsum("nkslr, ps -> nkplr", HR_view, self.oyzx2spin)
+                HR_proj_alt = torch.einsum("nkslr, ps -> nkplr", HR_view, oyzx2spin)
                 diff = (HR_proj - HR_proj_alt).abs()
                 self._dbg(
                     f"    [CHECK] proj(sp) vs proj(ps): "
@@ -318,7 +323,7 @@ class E3Hamiltonian(torch.nn.Module):
                 if orbital_char not in self.soc_base_matrix:
                     continue
 
-                soc_mat = self.soc_base_matrix[orbital_char]
+                soc_mat = _to_device(self.soc_base_matrix[orbital_char], data[self.node_field].device)
                 dim = soc_mat.shape[-1]
                 # 旧逻辑未实现：保持不动
                 pass
@@ -388,8 +393,9 @@ class E3Hamiltonian(torch.nn.Module):
                 if verbose:
                     self._dbg(f"[DBG][EDGE]{opairtype}: rme reshape -> {tuple(rme2.shape)} (n_edge, n_rme, n_chunk)")
 
+                cg_basis = _to_device(self.cgbasis[opairtype], rme2.device)
                 HR = torch.sum(
-                    self.cgbasis[opairtype][None, :, :, :, None] * rme2[:, None, None, :, :],
+                    cg_basis[None, :, :, :, None] * rme2[:, None, None, :, :],
                     dim=-2
                 )
                 HR = HR.permute(0, 3, 1, 2)  # (n_edge, n_chunk, nL, nR)
@@ -438,8 +444,9 @@ class E3Hamiltonian(torch.nn.Module):
                     if verbose:
                         self._dbg(f"[DBG][NODE]{opairtype}: rme reshape -> {tuple(rme2.shape)} (n_node, n_rme, n_chunk)")
 
+                    cg_basis = _to_device(self.cgbasis[opairtype], rme2.device)
                     HR = torch.sum(
-                        self.cgbasis[opairtype][None, :, :, :, None] * rme2[:, None, None, :, :],
+                        cg_basis[None, :, :, :, None] * rme2[:, None, None, :, :],
                         dim=-2
                     )
                     HR = HR.permute(0, 3, 1, 2)  # (n_node, n_chunk, nL, nR)
@@ -606,10 +613,12 @@ class SKHamiltonian_old(torch.nn.Module):
             l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
             n_skp = min(l1, l2)+1 # number of reduced matrix element
             skparam = edge_features[:, self.idp_sk.orbpairtype_maps[opairtype]].reshape(n_edge, -1, n_skp)
-            rme = skparam @ self.sk2irs[opairtype].T # shape (N, n_pair, n_rme)
+            sk2irs = _to_device(self.sk2irs[opairtype], skparam.device)
+            rme = skparam @ sk2irs.T # shape (N, n_pair, n_rme)
             rme = rme.transpose(1,2) # shape (N, n_rme, n_pair)
             
-            H_z = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
+            cg_basis = _to_device(self.cgbasis[opairtype], rme.device)
+            H_z = torch.sum(cg_basis[None,:,:,:,None] * \
                 rme[:,None, None, :, :], dim=-2) # shape (N, 2l1+1, 2l2+1, n_pair)
             
             # rotation
@@ -654,7 +663,8 @@ class SKHamiltonian_old(torch.nn.Module):
                 lsymbol = re.findall(r"[a-z]", otype)[0]
                 l = anglrMId[lsymbol]
                 socparam = soc_feature[:, self.idp_sk.sksoc_maps[otype]].reshape(n_node, -1, 1)
-                HR = self.soc_base_matrix[lsymbol][None, None, :, :] * socparam[:,:, None, :]
+                soc_base = _to_device(self.soc_base_matrix[lsymbol], socparam.device)
+                HR = soc_base[None, None, :, :] * socparam[:,:, None, :]
                 HR_upup_updn = HR[:,:,0:2*l+1,:]
                 data[AtomicDataDict.NODE_SOC_KEY][:, self.idp.orbpair_soc_maps[otype+"-"+otype]] = HR_upup_updn.reshape(n_node, -1)
 
@@ -667,10 +677,12 @@ class SKHamiltonian_old(torch.nn.Module):
                 # opairtype = opair[1]+"-"+opair[4]
                 n_skp = min(l1, l2)+1 # number of reduced matrix element
                 skparam = data[AtomicDataDict.ONSITENV_FEATURES_KEY][:, self.idp_sk.orbpairtype_maps[opairtype]].reshape(n_onsitenv, -1, n_skp)
-                rme = skparam @ self.sk2irs[opairtype].T # shape (N, n_pair, n_rme)
+                sk2irs = _to_device(self.sk2irs[opairtype], skparam.device)
+                rme = skparam @ sk2irs.T # shape (N, n_pair, n_rme)
                 rme = rme.transpose(1,2) # shape (N, n_rme, n_pair)
 
-                H_z = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
+                cg_basis = _to_device(self.cgbasis[opairtype], rme.device)
+                H_z = torch.sum(cg_basis[None,:,:,:,None] * \
                     rme[:,None, None, :, :], dim=-2) # shape (N, 2l1+1, 2l2+1, n_pair)
                 
                 angle = xyz_to_angles(data[AtomicDataDict.ONSITENV_VECTORS_KEY][:,[1,2,0]]) # (tensor(N), tensor(N))
@@ -855,7 +867,8 @@ class SKHamiltonian(torch.nn.Module):
                 lsymbol = re.findall(r"[a-z]", otype)[0]
                 l = anglrMId[lsymbol]
                 socparam = soc_feature[:, self.idp_sk.sksoc_maps[otype]].reshape(n_node, -1, 1)
-                HR = self.soc_base_matrix[lsymbol][None, None, :, :] * socparam[:,:, None, :]
+                soc_base = _to_device(self.soc_base_matrix[lsymbol], socparam.device)
+                HR = soc_base[None, None, :, :] * socparam[:,:, None, :]
                 HR_upup_updn = HR[:,:,0:2*l+1,:]
                 data[AtomicDataDict.NODE_SOC_KEY][:, self.idp.orbpair_soc_maps[otype+"-"+otype]] = HR_upup_updn.reshape(n_node, -1)
 

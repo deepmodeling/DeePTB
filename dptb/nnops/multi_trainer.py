@@ -258,9 +258,17 @@ class MultiTrainer(Trainer):
             )
             self.log_single_model_compatible_loss_mode = "reduce"
 
-        # ---------------- NEW: per-expert initial LR support ----------------
+        # ---------------- per-expert optimizer / scheduler overrides ----------------
         self.expert_lrs = self._parse_expert_lrs(self.train_options.get("expert_lrs", None))
-        # -------------------------------------------------------------------
+        self.expert_optimizer_overrides = self._parse_expert_config_overrides(
+            self.train_options.get("expert_optimizer_overrides", None),
+            field_name="train_options.expert_optimizer_overrides",
+        )
+        self.expert_lr_scheduler_overrides = self._parse_expert_config_overrides(
+            self.train_options.get("expert_lr_scheduler_overrides", None),
+            field_name="train_options.expert_lr_scheduler_overrides",
+        )
+        # ----------------------------------------------------------------------------
 
         log.info(
             f"[MultiTrainer][rank={self.rank}] num_experts={self.num_experts}, "
@@ -271,8 +279,9 @@ class MultiTrainer(Trainer):
             f"pin_memory={self.data_pin_memory}, persistent_workers={self.data_persistent_workers}, prefetch_factor={self.data_prefetch_factor}, "
             f"log_single_model_compatible_loss={self.log_single_model_compatible_loss}, "
             f"mode={self.log_single_model_compatible_loss_mode}, "
-            f"per-expert schedulers share the same scheduler config; only their optimizer lr may differ, "
-            f"expert_lrs={'(default optimizer.lr)' if self.expert_lrs is None else self.expert_lrs}."
+            f"expert_lrs={'(default optimizer.lr)' if self.expert_lrs is None else self.expert_lrs}, "
+            f"expert_optimizer_overrides={self._summarize_expert_override_list(self.expert_optimizer_overrides)}, "
+            f"expert_lr_scheduler_overrides={self._summarize_expert_override_list(self.expert_lr_scheduler_overrides)}."
         )
 
         if not hasattr(self.model, 'experts') or len(self.model.experts) != self.num_experts:
@@ -281,13 +290,13 @@ class MultiTrainer(Trainer):
         if self.distributed_expert:
             self._materialize_local_expert_only()
 
-        # ---------------- NEW: make per-expert optimizer config ----------------
         def _make_opt_for_expert(i: int):
-            opt_cfg = copy.deepcopy(self.train_options["optimizer"])
-            if self.expert_lrs is not None:
-                opt_cfg["lr"] = float(self.expert_lrs[i])
+            opt_cfg = self._build_optimizer_cfg_for_expert(i)
             return get_optimizer(model_param=self.model.experts[i].parameters(), **opt_cfg)
-        # ---------------------------------------------------------------------
+
+        def _make_scheduler_for_expert(i: int, opt):
+            sch_cfg = self._build_lr_scheduler_cfg_for_expert(i)
+            return get_lr_scheduler(optimizer=opt, **sch_cfg)
 
         if self.distributed_expert:
             self.optimizers = [None] * self.num_experts
@@ -295,7 +304,7 @@ class MultiTrainer(Trainer):
             idx = self.local_expert_idx
 
             opt = _make_opt_for_expert(idx)
-            sch = get_lr_scheduler(optimizer=opt, **self.train_options["lr_scheduler"])
+            sch = _make_scheduler_for_expert(idx, opt)
             self.optimizers[idx] = opt
             self.lr_schedulers[idx] = sch
         else:
@@ -303,7 +312,7 @@ class MultiTrainer(Trainer):
             self.lr_schedulers = []
             for i in range(self.num_experts):
                 opt = _make_opt_for_expert(i)
-                sch = get_lr_scheduler(optimizer=opt, **self.train_options["lr_scheduler"])
+                sch = _make_scheduler_for_expert(i, opt)
                 self.optimizers.append(opt)
                 self.lr_schedulers.append(sch)
 
@@ -317,7 +326,7 @@ class MultiTrainer(Trainer):
         self._t_last_iter_end: Optional[float] = None
         self._reset_display_window_buffers()
 
-    # ---------------- NEW: expert_lrs parsing & checks ----------------
+    # ---------------- per-expert optimizer / scheduler parsing & checks ----------------
     def _parse_expert_lrs(self, expert_lrs) -> Optional[List[float]]:
         """
         train_options.expert_lrs:
@@ -340,7 +349,58 @@ class MultiTrainer(Trainer):
                 raise ValueError(f"train_options.expert_lrs must be all > 0.0, bad indices: {bad}, values={lrs}")
             return lrs
         raise TypeError(f"train_options.expert_lrs must be a list/tuple of float (or empty/None), got {type(expert_lrs)}")
-    # -----------------------------------------------------------------
+
+    def _parse_expert_config_overrides(self, overrides, field_name: str) -> Optional[List[Dict[str, Any]]]:
+        if overrides is None:
+            return None
+        if isinstance(overrides, (list, tuple)):
+            if len(overrides) == 0:
+                return None
+            if len(overrides) != self.num_experts:
+                raise ValueError(
+                    f"{field_name} length must match num_experts={self.num_experts}, "
+                    f"got len({field_name})={len(overrides)}"
+                )
+            parsed = []
+            for idx, item in enumerate(overrides):
+                if item is None:
+                    parsed.append({})
+                elif isinstance(item, dict):
+                    parsed.append(copy.deepcopy(item))
+                else:
+                    raise TypeError(
+                        f"{field_name}[{idx}] must be dict or null/None, got {type(item)}"
+                    )
+            return parsed
+        raise TypeError(f"{field_name} must be a list/tuple of dict (or empty/None), got {type(overrides)}")
+
+    @staticmethod
+    def _summarize_expert_override_list(overrides: Optional[List[Dict[str, Any]]]) -> str:
+        if overrides is None:
+            return "(shared base config)"
+        active = [idx for idx, item in enumerate(overrides) if item]
+        if not active:
+            return "(shared base config)"
+        return f"active_experts={active}"
+
+    def _build_optimizer_cfg_for_expert(self, expert_idx: int) -> Dict[str, Any]:
+        opt_cfg = copy.deepcopy(self.train_options["optimizer"])
+        opt_override = None
+        if self.expert_optimizer_overrides is not None:
+            opt_override = self.expert_optimizer_overrides[expert_idx]
+            opt_cfg.update(opt_override)
+        if self.expert_lrs is not None:
+            lr_overridden_in_opt = isinstance(opt_override, dict) and ("lr" in opt_override)
+            if not lr_overridden_in_opt:
+                opt_cfg["lr"] = float(self.expert_lrs[expert_idx])
+        return opt_cfg
+
+    def _build_lr_scheduler_cfg_for_expert(self, expert_idx: int) -> Dict[str, Any]:
+        sch_cfg = copy.deepcopy(self.train_options["lr_scheduler"])
+        if self.expert_lr_scheduler_overrides is not None:
+            sch_cfg.update(self.expert_lr_scheduler_overrides[expert_idx])
+        return sch_cfg
+    # -----------------------------------------------------------------------------
 
     # ---------------------------------------------------------------------
     # dataloader rebuild in MultiTrainer only

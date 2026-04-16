@@ -51,7 +51,8 @@ def strip_deprecated_train_options(raw_config: Dict[str, Any]) -> Dict[str, Any]
         removed_keys = ", ".join(sorted(removed.keys()))
         log.warning(
             "Ignoring deprecated train_options keys: %s. "
-            "Only `expert_lrs` is kept as the per-expert LR interface.",
+            "Supported per-expert LR interfaces are `expert_lrs`, "
+            "`expert_optimizer_overrides`, and `expert_lr_scheduler_overrides`.",
             removed_keys,
         )
     return raw_config

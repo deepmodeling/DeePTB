@@ -22,6 +22,22 @@ register_fields(
 log = logging.getLogger(__name__)
 
 
+def _take_on_index_device(
+    tensor: torch.Tensor,
+    index: Union[int, torch.Tensor],
+    result_device: Optional[Union[str, torch.device]] = None,
+) -> torch.Tensor:
+    if torch.is_tensor(index):
+        tensor = tensor.to(device=index.device)
+        out = tensor[index]
+    else:
+        out = tensor[index]
+
+    if result_device is not None:
+        out = out.to(device=result_device)
+    return out
+
+
 def _prepare_source_tensor(
     tensor: Optional[torch.Tensor],
     expected_dim: int,
@@ -180,7 +196,11 @@ class H0InitLayer(torch.nn.Module):
         node_source: torch.Tensor,
         atom_type: torch.Tensor,
     ) -> torch.Tensor:
-        mask = self.idp.mask_to_nrme[atom_type.flatten()].to(device=node_source.device)
+        mask = _take_on_index_device(
+            self.idp.mask_to_nrme,
+            atom_type.flatten(),
+            result_device=node_source.device,
+        )
         return node_source * mask.to(dtype=node_source.dtype)
 
     def _mask_edge_source(
@@ -188,7 +208,11 @@ class H0InitLayer(torch.nn.Module):
         edge_source: torch.Tensor,
         bond_type: torch.Tensor,
     ) -> torch.Tensor:
-        mask = self.idp.mask_to_erme[bond_type.flatten()].to(device=edge_source.device)
+        mask = _take_on_index_device(
+            self.idp.mask_to_erme,
+            bond_type.flatten(),
+            result_device=edge_source.device,
+        )
         return edge_source * mask.to(dtype=edge_source.dtype)
 
     def _node_from_self_edge(

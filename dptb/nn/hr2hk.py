@@ -22,6 +22,22 @@ def recover_complex_tensor(tensor: torch.Tensor, is_complex_doubling: bool = Tru
     return tensor.cfloat()
 
 
+def _take_idp_tensor(
+    tensor: torch.Tensor,
+    index,
+    result_device=None,
+):
+    if torch.is_tensor(index):
+        tensor = tensor.to(device=index.device)
+        out = tensor[index]
+    else:
+        out = tensor[index]
+
+    if result_device is not None and torch.is_tensor(out):
+        out = out.to(device=result_device)
+    return out
+
+
 # ================== HR2HK Module ==================
 
 class HR2HK(nn.Module):
@@ -150,7 +166,11 @@ class HR2HK(nn.Module):
         if onsite_block is not None:
             fill_blocks(onsite_block, orbpair_onsite)
 
-        spatial_norb_total = int(self.idp.atom_norb[atom_types].sum().item())
+        spatial_norb_total = int(_take_idp_tensor(
+            self.idp.atom_norb,
+            atom_types,
+            result_device=data[self.node_field].device,
+        ).sum().item())
         final_dim = spatial_norb_total * 2
         num_k = kpoints.shape[0]
         HK = torch.zeros(num_k, final_dim, final_dim, dtype=self.ctype, device=self.device)
@@ -160,7 +180,11 @@ class HR2HK(nn.Module):
         atom_slices = []
         curr = 0
         for at in atom_types:
-            norb = int(self.idp.atom_norb[at].item())
+            norb = int(_take_idp_tensor(
+                self.idp.atom_norb,
+                at,
+                result_device=data[self.node_field].device,
+            ).item())
             atom_slices.append(slice(curr, curr + norb))
             curr += norb
 
@@ -171,7 +195,11 @@ class HR2HK(nn.Module):
 
         if onsite_block is not None:
             for i in range(num_atoms):
-                mask = self.idp.mask_to_basis[atom_types[i]]
+                mask = _take_idp_tensor(
+                    self.idp.mask_to_basis,
+                    atom_types[i],
+                    result_device=onsite_block.device,
+                )
                 oblock = onsite_block[i]
                 N_loc = local_spatial_dim
                 uu = oblock[:N_loc, :N_loc][mask][:, mask]
@@ -191,8 +219,16 @@ class HR2HK(nn.Module):
         for k_edge in range(num_edges):
             u, v = int(src_list[k_edge]), int(dst_list[k_edge])
             hblock = bondwise_hopping[k_edge]
-            mask_u = self.idp.mask_to_basis[atom_types[u]]
-            mask_v = self.idp.mask_to_basis[atom_types[v]]
+            mask_u = _take_idp_tensor(
+                self.idp.mask_to_basis,
+                atom_types[u],
+                result_device=hblock.device,
+            )
+            mask_v = _take_idp_tensor(
+                self.idp.mask_to_basis,
+                atom_types[v],
+                result_device=hblock.device,
+            )
 
             uu = hblock[:N_loc, :N_loc][mask_u][:, mask_v]
             ud = hblock[:N_loc, N_loc:][mask_u][:, mask_v]
@@ -316,7 +352,11 @@ class HR2HK(nn.Module):
             ist += dim_i
 
         # 4. Global Assembly (Sparse -> Dense)
-        global_norb = int(self.idp.atom_norb[atom_types].sum().item())
+        global_norb = int(_take_idp_tensor(
+            self.idp.atom_norb,
+            atom_types,
+            result_device=data[self.node_field].device,
+        ).sum().item())
         HK = torch.zeros(kpoints.shape[0], global_norb, global_norb, dtype=self.ctype, device=self.device)
         dHK = None if not self.derivative else torch.zeros(kpoints.shape[0], global_norb, global_norb, 3,
                                                            dtype=self.ctype, device=self.device)
@@ -324,14 +364,22 @@ class HR2HK(nn.Module):
         atom_slices = []
         curr = 0
         for at in atom_types:
-            norb = int(self.idp.atom_norb[at].item())
+            norb = int(_take_idp_tensor(
+                self.idp.atom_norb,
+                at,
+                result_device=data[self.node_field].device,
+            ).item())
             atom_slices.append(slice(curr, curr + norb))
             curr += norb
 
         # 4.1 Onsite Assembly
         if onsite_block is not None:
             for i in range(num_atoms):
-                mask = self.idp.mask_to_basis[atom_types[i]]
+                mask = _take_idp_tensor(
+                    self.idp.mask_to_basis,
+                    atom_types[i],
+                    result_device=onsite_block.device,
+                )
                 oblock = onsite_block[i][mask][:, mask]
                 sl = atom_slices[i]
                 HK[:, sl, sl] += oblock.unsqueeze(0)
@@ -344,8 +392,16 @@ class HR2HK(nn.Module):
         for k in range(num_edges):
             u, v = int(src_list[k]), int(dst_list[k])
 
-            mask_u = self.idp.mask_to_basis[atom_types[u]]
-            mask_v = self.idp.mask_to_basis[atom_types[v]]
+            mask_u = _take_idp_tensor(
+                self.idp.mask_to_basis,
+                atom_types[u],
+                result_device=bondwise_hopping.device,
+            )
+            mask_v = _take_idp_tensor(
+                self.idp.mask_to_basis,
+                atom_types[v],
+                result_device=bondwise_hopping.device,
+            )
 
             hblock = bondwise_hopping[k][mask_u][:, mask_v]
 
@@ -462,7 +518,11 @@ class HR2HK_Gamma_Only(torch.nn.Module):
             ist += 2 * li + 1
 
         # Gamma-point processing: use real matrix
-        all_norb = int(self.idp.atom_norb[data[AtomicDataDict.ATOM_TYPE_KEY]].sum().item())
+        all_norb = int(_take_idp_tensor(
+            self.idp.atom_norb,
+            data[AtomicDataDict.ATOM_TYPE_KEY],
+            result_device=data[self.node_field].device,
+        ).sum().item())
         block = torch.zeros(1, all_norb, all_norb, dtype=self.dtype, device=self.device)
 
         atom_types_flat = data[AtomicDataDict.ATOM_TYPE_KEY].flatten()
@@ -476,7 +536,11 @@ class HR2HK_Gamma_Only(torch.nn.Module):
             atype = int(atom_types_flat[i].item()) if isinstance(atom_types_flat[i], torch.Tensor) else int(
                 atom_types_flat[i])
             atom_types_int.append(atype)
-            mask = self.idp.mask_to_basis[atype]
+            mask = _take_idp_tensor(
+                self.idp.mask_to_basis,
+                atype,
+                result_device=onsite_block.device,
+            )
             atom_masks.append(mask)
             norb_this_atom = int(mask.sum().item())
             atom_slices.append(atom_slices[-1] + norb_this_atom)
@@ -527,8 +591,16 @@ class HR2HK_Gamma_Only(torch.nn.Module):
         block2d = block[0]  # (all_norb, all_norb), 实数类型
 
         for (itype, jtype), edges_info in type_pair_to_edges.items():
-            imask = self.idp.mask_to_basis[itype]
-            jmask = self.idp.mask_to_basis[jtype]
+            imask = _take_idp_tensor(
+                self.idp.mask_to_basis,
+                itype,
+                result_device=bondwise_hopping.device,
+            )
+            jmask = _take_idp_tensor(
+                self.idp.mask_to_basis,
+                jtype,
+                result_device=bondwise_hopping.device,
+            )
 
             edge_indices = [e[0] for e in edges_info]
             iatoms = [e[1] for e in edges_info]

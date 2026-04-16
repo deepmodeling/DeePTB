@@ -161,7 +161,8 @@ class TypeMapper:
 
     def untransform(self, atom_types):
         """Transform atom types back into atomic numbers"""
-        return self._index_to_Z[atom_types].to(device=atom_types.device)
+        index_to_Z = self._index_to_Z.to(device=atom_types.device)
+        return index_to_Z[atom_types]
 
     @property
     def has_chemical_symbols(self) -> bool:
@@ -348,11 +349,13 @@ class BondMapper(TypeMapper):
     
     def untransform_bond(self, bond_types):
         """Transform bond types back into atomic numbers"""
-        return self._index_to_ZZ[bond_types].to(device=bond_types.device)
-    
+        index_to_ZZ = self._index_to_ZZ.to(device=bond_types.device)
+        return index_to_ZZ[bond_types]
+
     def untransform_reduced_bond(self, bond_types):
         """Transform reduced bond types back into atomic numbers"""
-        return self._reduced_index_to_ZZ[bond_types].to(device=bond_types.device)
+        reduced_index_to_ZZ = self._reduced_index_to_ZZ.to(device=bond_types.device)
+        return reduced_index_to_ZZ[bond_types]
     
     @property
     def has_bond(self) -> bool:

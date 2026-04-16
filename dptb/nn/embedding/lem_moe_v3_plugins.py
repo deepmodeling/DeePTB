@@ -18,50 +18,67 @@ def _canonical_irreps(irreps: Union[str, o3.Irreps]) -> o3.Irreps:
 
 def _build_uniform_pack_indices(
     irreps: Union[str, o3.Irreps],
-) -> tuple[o3.Irreps, int, int, torch.Tensor, torch.Tensor]:
+) -> tuple[
+    o3.Irreps,
+    int,
+    int,
+    int,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
     irreps = _canonical_irreps(irreps)
     lmax = irreps.lmax
 
-    blocks = {}
-    num_channels = None
+    degree_blocks = {}
+    degree_channel_offsets = {}
     offset = 0
 
     for mul, ir in irreps:
-        if ir.l in blocks:
-            raise ValueError(
-                f"Need at most one block per degree for flat SwiGLU-S2, got duplicated l={ir.l}."
-            )
-        if num_channels is None:
-            num_channels = mul
-        elif num_channels != mul:
-            raise ValueError(
-                f"Need uniform multiplicity across degrees, got {num_channels} and {mul}."
-            )
-
-        blocks[ir.l] = (offset, ir.dim, mul)
+        channel_offset = degree_channel_offsets.get(ir.l, 0)
+        degree_blocks.setdefault(ir.l, []).append((offset, ir.dim, mul, channel_offset))
+        degree_channel_offsets[ir.l] = channel_offset + mul
         offset += mul * ir.dim
 
     expected = set(range(lmax + 1))
-    if set(blocks.keys()) != expected:
-        raise ValueError(f"Need contiguous degrees 0..{lmax}, got {sorted(blocks.keys())}.")
+    if set(degree_blocks.keys()) != expected:
+        raise ValueError(f"Need contiguous degrees 0..{lmax}, got {sorted(degree_blocks.keys())}.")
 
-    pack_index = []
+    num_channels = max(degree_channel_offsets.values())
+    num_coeffs = (lmax + 1) ** 2
+    pack_index = [0] * (num_coeffs * num_channels)
+    pad_mask = [True] * (num_coeffs * num_channels)
+    valid_packed_positions = []
+    valid_flat_positions = []
+    coeff_offset = 0
     for l in range(lmax + 1):
-        start, dim, mul = blocks[l]
+        blocks = degree_blocks[l]
+        dim = blocks[0][1]
+        if any(block_dim != dim for _, block_dim, _, _ in blocks):
+            raise ValueError(f"Inconsistent dim inside degree l={l}.")
         for m in range(dim):
-            for c in range(mul):
-                pack_index.append(start + c * dim + m)
-
-    unpack_index = [0] * len(pack_index)
-    for packed_pos, flat_pos in enumerate(pack_index):
-        unpack_index[flat_pos] = packed_pos
+            coeff_idx = coeff_offset + m
+            base = coeff_idx * num_channels
+            for start, _, mul, channel_offset in blocks:
+                for c in range(mul):
+                    packed_pos = base + channel_offset + c
+                    flat_pos = start + c * dim + m
+                    pack_index[packed_pos] = flat_pos
+                    pad_mask[packed_pos] = False
+                    valid_packed_positions.append(packed_pos)
+                    valid_flat_positions.append(flat_pos)
+        coeff_offset += dim
 
     return (
         irreps,
         num_channels,
-        (lmax + 1) ** 2,
+        num_coeffs,
+        offset,
         torch.tensor(pack_index, dtype=torch.long),
-        torch.tensor(unpack_index, dtype=torch.long),
+        torch.tensor(pad_mask, dtype=torch.bool),
+        torch.tensor(valid_packed_positions, dtype=torch.long),
+        torch.tensor(valid_flat_positions, dtype=torch.long),
     )
 
 
@@ -76,20 +93,32 @@ def can_use_flat_s2_patch(irreps) -> bool:
 class UniformDegreePacker(nn.Module):
     def __init__(self, irreps: Union[str, o3.Irreps]):
         super().__init__()
-        irreps, num_channels, num_coeffs, pack_index, unpack_index = _build_uniform_pack_indices(irreps)
+        (
+            irreps,
+            num_channels,
+            num_coeffs,
+            dim,
+            pack_index,
+            pad_mask,
+            valid_packed_index,
+            valid_flat_index,
+        ) = _build_uniform_pack_indices(irreps)
         self.irreps = irreps
         self.num_channels = num_channels
         self.num_coeffs = num_coeffs
-        self.dim = irreps.dim
+        self.dim = dim
         self.register_buffer("pack_index", pack_index)
-        self.register_buffer("unpack_index", unpack_index)
+        self.register_buffer("pad_mask", pad_mask.view(1, num_coeffs, num_channels))
+        self.register_buffer("valid_packed_index", valid_packed_index)
+        self.register_buffer("valid_flat_index", valid_flat_index)
 
     def pack(self, x_flat: torch.Tensor) -> torch.Tensor:
         if x_flat.ndim != 2 or x_flat.shape[-1] != self.dim:
             raise ValueError(f"Expected [N, {self.dim}], got {tuple(x_flat.shape)}")
 
         packed = x_flat.index_select(1, self.pack_index)
-        return packed.view(x_flat.shape[0], self.num_coeffs, self.num_channels)
+        packed = packed.view(x_flat.shape[0], self.num_coeffs, self.num_channels)
+        return packed.masked_fill(self.pad_mask, 0.0)
 
     def unpack(self, x_arr: torch.Tensor) -> torch.Tensor:
         expected = (self.num_coeffs, self.num_channels)
@@ -98,8 +127,11 @@ class UniformDegreePacker(nn.Module):
                 f"Expected [N, {expected[0]}, {expected[1]}], got {tuple(x_arr.shape)}"
             )
 
-        flat = x_arr.reshape(x_arr.shape[0], -1)
-        return flat.index_select(1, self.unpack_index)
+        packed = x_arr.reshape(x_arr.shape[0], -1)
+        valid = packed.index_select(1, self.valid_packed_index)
+        flat = x_arr.new_zeros((x_arr.shape[0], self.dim))
+        flat.index_copy_(1, self.valid_flat_index, valid)
+        return flat
 
 
 def doubled_irreps(irreps: Union[str, o3.Irreps]) -> o3.Irreps:

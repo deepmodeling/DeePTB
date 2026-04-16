@@ -442,6 +442,8 @@ class InitLayer(torch.nn.Module):
 
     def forward(self, edge_index, atom_type, bond_type, edge_sh, edge_length, edge_one_hot):
         edge_center = edge_index[0]
+        device = edge_length.device
+        r_max = self.r_max.to(device=device)
 
         edge_invariants = self.bessel(edge_length)
 
@@ -449,34 +451,38 @@ class InitLayer(torch.nn.Module):
             if self.cutoff_type == "cosine":
                 cutoff_coeffs = cosine_cutoff(
                     edge_length,
-                    self.r_max.reshape(-1),
+                    r_max.reshape(-1),
                     r_start_cos_ratio=self.r_start_cos_ratio,
                 ).flatten()
 
             elif self.cutoff_type == "polynomial":
                 cutoff_coeffs = polynomial_cutoff(
-                    edge_length, self.r_max.reshape(-1), p=self.polynomial_cutoff_p
+                    edge_length, r_max.reshape(-1), p=self.polynomial_cutoff_p
                 ).flatten()
 
             else:
                 assert False, "Invalid cutoff type"
         else:
-            cutoff_coeffs = torch.zeros(edge_index.shape[1], dtype=self.dtype, device=self.device)
+            cutoff_coeffs = torch.zeros(edge_index.shape[1], dtype=self.dtype, device=device)
             for bond, ty in self.idp.bond_to_type.items():
                 mask = bond_type == ty
                 index = mask.nonzero().squeeze(-1)
                 if mask.any():
                     iatom, jatom = bond.split("-")
+                    bond_r_max = 0.5 * (
+                        self.r_max_dict[iatom].to(device=device)
+                        + self.r_max_dict[jatom].to(device=device)
+                    )
                     if self.cutoff_type == "cosine":
                         c_coeff = cosine_cutoff(
                             edge_length[mask],
-                            0.5 * (self.r_max_dict[iatom] + self.r_max_dict[jatom]),
+                            bond_r_max,
                             r_start_cos_ratio=self.r_start_cos_ratio,
                         ).flatten()
                     elif self.cutoff_type == "polynomial":
                         c_coeff = polynomial_cutoff(
                             edge_length[mask],
-                            0.5 * (self.r_max_dict[iatom] + self.r_max_dict[jatom]),
+                            bond_r_max,
                             p=self.polynomial_cutoff_p
                         ).flatten()
                     else:

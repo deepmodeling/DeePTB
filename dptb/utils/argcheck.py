@@ -133,6 +133,18 @@ def train_options():
         "expert_lrs[i] will override optimizer.lr when building optimizer for expert i. "
         "Default: [] (disabled, use optimizer.lr for all experts)."
     )
+    doc_expert_optimizer_overrides = (
+        "Optional per-expert optimizer override dictionaries. "
+        "If provided, it must be a list with length == num_experts (len(distance_ranges)). "
+        "Each element is merged into the shared `optimizer` config for the corresponding expert. "
+        "Use `null` / `{}` to keep the shared optimizer config for one expert."
+    )
+    doc_expert_lr_scheduler_overrides = (
+        "Optional per-expert learning-rate scheduler override dictionaries. "
+        "If provided, it must be a list with length == num_experts (len(distance_ranges)). "
+        "Each element is merged into the shared `lr_scheduler` config for the corresponding expert. "
+        "This allows per-expert `patience`, `factor`, `min_lr`, or even scheduler `type`."
+    )
     doc_optimizer = "\
         The optimizer setting for selecting the gradient optimizer of model training. Optimizer supported includes `Adam`, `AdamW`, `SGD` and `LBFGS` \n\n\
         For more information about these optmization algorithm, we refer to:\n\n\
@@ -254,6 +266,8 @@ def train_options():
         Argument("update_lr_per_iter", bool, optional=True, default=False, doc=doc_update_lr_per_iter),
         Argument("sliding_win_size", int, optional=True, default=50, doc=doc_sliding_win_size),
         Argument("expert_lrs", list, optional=True, default=[], doc=doc_expert_lrs),
+        Argument("expert_optimizer_overrides", list, optional=True, default=[], doc=doc_expert_optimizer_overrides),
+        Argument("expert_lr_scheduler_overrides", list, optional=True, default=[], doc=doc_expert_lr_scheduler_overrides),
         # save / log
         Argument("save_freq", int, optional=True, default=10, doc=doc_save_freq),
         Argument("validation_freq", int, optional=True, default=10, doc=doc_validation_freq),
