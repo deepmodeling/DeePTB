@@ -19,8 +19,10 @@ except (FileNotFoundError, RuntimeError):
     _Jd = []
     _idx_data = {}
 
+_WIGNER_STATIC_CACHE = {}
 
-def build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes):
+
+def build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, d_total: int):
     """
     angle_stack: (3*N, )    # Input with alpha, beta, gamma stacked together
     l_max: int
@@ -30,8 +32,6 @@ def build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes):
     N_all = angle_stack.shape[0]
     N = N_all // 3
 
-    D_total = sizes.sum().item()
-
     # Step 1: Vectorized computation of sine and cosine values
     angle_expand = angle_stack[None, :, None]  # (1, 3N, 1)
     freq_expand = freq[:, None, :]  # (L, 1, Mmax)
@@ -39,7 +39,7 @@ def build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes):
     cos_val = torch.cos(freq_expand * angle_expand)  # (L, 3N, Mmax)
 
     # Step 2: Construct the block-diagonal matrix
-    M_total = angle_stack.new_zeros((N_all, D_total, D_total))
+    M_total = angle_stack.new_zeros((N_all, d_total, d_total))
     idx_l, idx_row = torch.where(mask)  # (K,), (K,)
     idx_col_diag = idx_row
     idx_col_anti = reversed_inds[idx_l, idx_row]
@@ -62,6 +62,42 @@ def build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes):
     return Xa, Xb, Xc
 
 
+def _get_wigner_static(l_max: int, device: torch.device, dtype: torch.dtype):
+    key = (int(l_max), str(device), dtype)
+    cached = _WIGNER_STATIC_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    idx_data = {
+        k: (v.to(device=device) if isinstance(v, torch.Tensor) else v)
+        for k, v in _idx_data.items()
+    }
+    sizes = idx_data["sizes"][:l_max + 1]
+    offsets = idx_data["offsets"][:l_max + 1]
+    mask = idx_data["mask"][:l_max + 1]
+    freq = idx_data["freq"][:l_max + 1]
+    reversed_inds = idx_data["reversed_inds"][:l_max + 1]
+
+    dims = [2 * l + 1 for l in range(l_max + 1)]
+    d_total = sum(dims)
+    J_full_small = torch.zeros(d_total, d_total, dtype=dtype, device=device)
+    for l, dim in enumerate(dims):
+        start = l * l
+        J_full_small[start:start + dim, start:start + dim] = _Jd[l].to(dtype=dtype, device=device)
+
+    cached = {
+        "sizes": sizes,
+        "offsets": offsets,
+        "mask": mask,
+        "freq": freq,
+        "reversed_inds": reversed_inds,
+        "J_full_small": J_full_small,
+        "d_total": d_total,
+    }
+    _WIGNER_STATIC_CACHE[key] = cached
+    return cached
+
+
 def batch_wigner_D(l_max, alpha, beta, gamma, _Jd):
     """
     Compute Wigner D matrices for all L (from 0 to l_max) in a single batch.
@@ -69,28 +105,18 @@ def batch_wigner_D(l_max, alpha, beta, gamma, _Jd):
     """
     device = alpha.device
     N = alpha.shape[0]
-    idx_data = {k: (v.to(device) if isinstance(v, torch.Tensor) else v) for k, v in _idx_data.items()}
+    static = _get_wigner_static(l_max, device, alpha.dtype)
+    d_total = static["d_total"]
 
-    # Load static data
-    sizes = idx_data["sizes"][:l_max + 1]
-    offsets = idx_data["offsets"][:l_max + 1]
-    mask = idx_data["mask"][:l_max + 1]
-    freq = idx_data["freq"][:l_max + 1]
-    reversed_inds = idx_data["reversed_inds"][:l_max + 1]
-
-    # Precompute block structure information
-    dims = [2 * l + 1 for l in range(l_max + 1)]
-    D_total = sum(dims)
-
-    # Construct block-diagonal J matrix
-    J_full_small = torch.zeros(D_total, D_total, device=device)
-    for l in range(l_max + 1):
-        start = offsets[l]
-        J_full_small[start:start + 2 * l + 1, start:start + 2 * l + 1] = _Jd[l]
+    offsets = static["offsets"]
+    mask = static["mask"]
+    freq = static["freq"]
+    reversed_inds = static["reversed_inds"]
+    J_full_small = static["J_full_small"]
 
     J_full = J_full_small.unsqueeze(0).expand(N, -1, -1)
     angle_stack = torch.cat([alpha, beta, gamma], dim=0)
-    Xa, Xb, Xc = build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes)
+    Xa, Xb, Xc = build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, d_total)
 
     return Xa @ J_full @ Xb @ J_full @ Xc
 
@@ -126,9 +152,30 @@ def _z_rot_mat(angle, l):
 class MOLEGlobals:
     """Stores routing information for the current forward pass."""
 
-    def __init__(self, coefficients=None, sizes=None):
+    def __init__(self, coefficients=None, sizes=None, split_sizes=None):
         self.coefficients = coefficients  # [Batch, Num_Experts]
         self.sizes = sizes  # [Batch] (Edge counts per system)
+        self.split_sizes = self._normalize_split_sizes(sizes, split_sizes)
+
+    @staticmethod
+    def _normalize_split_sizes(sizes, split_sizes):
+        if split_sizes is not None:
+            if torch.is_tensor(split_sizes):
+                return MOLEGlobals._tensor_to_split_tuple(split_sizes)
+            return tuple(int(v) for v in split_sizes)
+        if sizes is None:
+            return None
+        if torch.is_tensor(sizes):
+            return MOLEGlobals._tensor_to_split_tuple(sizes)
+        return tuple(int(v) for v in sizes)
+
+    @staticmethod
+    def _tensor_to_split_tuple(values):
+        values = values.detach().reshape(-1)
+        if values.device.type != "cpu":
+            # Compatibility fallback for direct callers that still pass CUDA sizes.
+            values = values.cpu()
+        return tuple(int(v) for v in values.tolist())
 
 
 class MOLERouterV3(nn.Module):
@@ -224,8 +271,14 @@ class MOLELinear(nn.Module):
     Optimization: Merges Shared Weights into Routed Weights for 0 extra inference overhead.
     """
 
-    def __init__(self, in_features, out_features, num_experts=8,
-                 num_shared_experts=1, bias=True):
+    def __init__(
+            self,
+            in_features,
+            out_features,
+            num_experts=8,
+            num_shared_experts=1,
+            bias=True,
+    ):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -297,7 +350,15 @@ class MOLELinear(nn.Module):
 
         # 4. 执行线性变换
         # 根据系统大小拆分 Input，因为每个系统(Graph)对应一个混合后的权重
-        x_split = torch.split(x, mole_globals.sizes.tolist(), dim=0)
+        split_sizes = mole_globals.split_sizes
+        if split_sizes is None:
+            split_sizes = (x.shape[0],)
+        if sum(split_sizes) != x.shape[0]:
+            raise ValueError(
+                f"MOLE split sizes sum to {sum(split_sizes)}, but input has {x.shape[0]} rows."
+            )
+
+        x_split = torch.split(x, split_sizes, dim=0)
         out_parts = []
 
         # 循环执行 (虽然是 Python 循环，但通常 System 数量不多，开销可控)
@@ -465,7 +526,13 @@ class SO2_Linear(torch.nn.Module):
         num_out_m0 = self.irreps_out.num_irreps
 
         # MODIFICATION: Use MOLELinear for scalar projection (bias=True as per original)
-        self.fc_m0 = MOLELinear(num_in_m0, num_out_m0, num_experts=num_experts, num_shared_experts=num_shared_experts, bias=True)
+        self.fc_m0 = MOLELinear(
+            num_in_m0,
+            num_out_m0,
+            num_experts=num_experts,
+            num_shared_experts=num_shared_experts,
+            bias=True,
+        )
 
         for m in range(1, self.irreps_out.lmax + 1):
             # 假设 SO2_m_Linear 已经支持 num_experts 参数
@@ -475,12 +542,12 @@ class SO2_Linear(torch.nn.Module):
                 self.irreps_out,
                 use_interpolation=use_interpolation,
                 num_experts=num_experts,
-                num_shared_experts=num_shared_experts
+                num_shared_experts=num_shared_experts,
             ))
 
         # --- Mask 和 Index 构建逻辑 (保持不变) ---
-        self.m_in_mask = torch.zeros(self.irreps_in.lmax + 1, self.irreps_in.dim, dtype=torch.bool)
-        self.m_out_mask = torch.zeros(self.irreps_in.lmax + 1, self.irreps_out.dim, dtype=torch.bool)
+        m_in_mask = torch.zeros(self.irreps_in.lmax + 1, self.irreps_in.dim, dtype=torch.bool)
+        m_out_mask = torch.zeros(self.irreps_in.lmax + 1, self.irreps_out.dim, dtype=torch.bool)
         if self.irreps_in.dim <= self.irreps_out.dim:
             front = True
             self.m_in_num = [0] * (self.irreps_in.lmax + 1)
@@ -491,8 +558,8 @@ class SO2_Linear(torch.nn.Module):
         for mul, (l, p) in self.irreps_in:
             start_id = offset + torch.LongTensor(list(range(mul))) * (2 * l + 1)
             for m in range(l + 1):
-                self.m_in_mask[m, start_id + l + m] = True
-                self.m_in_mask[m, start_id + l - m] = True
+                m_in_mask[m, start_id + l + m] = True
+                m_in_mask[m, start_id + l - m] = True
                 if front:
                     self.m_in_num[m] += mul
             offset += mul * (2 * l + 1)
@@ -501,12 +568,14 @@ class SO2_Linear(torch.nn.Module):
             start_id = offset + torch.LongTensor(list(range(mul))) * (2 * l + 1)
             for m in range(l + 1):
                 if m <= self.irreps_in.lmax:
-                    self.m_out_mask[m, start_id + l + m] = True
-                    self.m_out_mask[m, start_id + l - m] = True
+                    m_out_mask[m, start_id + l + m] = True
+                    m_out_mask[m, start_id + l - m] = True
                     if not front:
                         self.m_in_num[m] += mul
             offset += mul * (2 * l + 1)
-        self.m_in_index = [0] + list(torch.cumsum(torch.tensor(self.m_in_num), dim=0))
+        self.register_buffer("m_in_mask", m_in_mask)
+        self.register_buffer("m_out_mask", m_out_mask)
+        self.m_in_index = [0] + [int(v) for v in torch.cumsum(torch.tensor(self.m_in_num), dim=0).tolist()]
         if radial_emb:
             self.radial_emb = RadialFunction([latent_dim] + radial_channels + [self.m_in_index[-1]])
         self.front = front
@@ -537,7 +606,13 @@ class SO2_Linear(torch.nn.Module):
             # 只有当需要 rotate_in 或者 rotate_out 时才必须计算 D
             if (self.rotate_in or self.rotate_out) and self.l_max > 0:
                 angle = xyz_to_angles(R[:, [1, 2, 0]])
-                wigner_D_all = batch_wigner_D(self.l_max, angle[0], angle[1], torch.zeros_like(angle[0]), _Jd)
+                wigner_D_all = batch_wigner_D(
+                    self.l_max,
+                    angle[0],
+                    angle[1],
+                    torch.zeros_like(angle[0]),
+                    _Jd,
+                )
 
         # === 2. Rotate In (Global -> Local) ===
         groups = defaultdict(list)
@@ -640,7 +715,13 @@ class SO2_m_Linear(torch.nn.Module):
             self.fc = InterpolationBlock(self.num_in_channel, 2 * self.num_out_channel, bias=False)
             self.is_mole = False
         else:
-            self.fc = MOLELinear(self.num_in_channel, 2 * self.num_out_channel, num_experts=num_experts, num_shared_experts=num_shared_experts, bias=False)
+            self.fc = MOLELinear(
+                self.num_in_channel,
+                2 * self.num_out_channel,
+                num_experts=num_experts,
+                num_shared_experts=num_shared_experts,
+                bias=False,
+            )
             with torch.no_grad():
                 self.fc.weight_experts.data.mul_(1 / math.sqrt(2))
             self.is_mole = True

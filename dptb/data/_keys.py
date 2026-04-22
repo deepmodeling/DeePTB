@@ -86,6 +86,10 @@ ENV_FEATURES_KEY: Final[str] = "env_features"
 ONSITENV_FEATURES_KEY: Final[str] = "onsitenv_features"
 # [n_edge, 1] invariant of the radial cutoff envelope for each edge, allows reuse of cutoff envelopes
 EDGE_CUTOFF_KEY: Final[str] = "edge_cutoff"
+# Internal LEM/MoE-v3 metadata computed before model forward.
+LEM_ACTIVE_EDGES_KEY: Final[str] = "_lem_active_edges"
+LEM_CUTOFF_COEFFS_KEY: Final[str] = "_lem_cutoff_coeffs"
+LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY: Final[str] = "_lem_active_edge_split_sizes"
 # [n_edge, 1] invariant of the radial cutoff envelope for each env edge, allows reuse of cutoff envelopes
 ENV_CUTOFF_KEY: Final[str] = "env_cutoff"
 # [n_edge, 1] invariant of the radial cutoff envelope for each onsitenv edge, allows reuse of cutoff envelopes

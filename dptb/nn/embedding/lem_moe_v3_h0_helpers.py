@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Sequence, Union
+from typing import Optional, Sequence, Tuple, Union
 
 import torch
 from e3nn.o3 import Linear
@@ -223,22 +223,45 @@ class H0InitLayer(torch.nn.Module):
         edge_length: torch.Tensor,
         active_edges: torch.Tensor,
         atom_type: torch.Tensor,
-    ) -> Optional[torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         active_src = edge_index[0][active_edges]
         active_dst = edge_index[1][active_edges]
         active_len = edge_length[active_edges]
         self_mask = torch.logical_and(active_src == active_dst, active_len <= self.self_edge_tol)
+        node_features = scatter(
+            edge_features[self_mask],
+            active_src[self_mask],
+            dim=0,
+            dim_size=atom_type.numel(),
+        )
+        return node_features, self_mask.any()
 
-        if self_mask.any():
-            node_features = scatter(
-                edge_features[self_mask],
-                active_src[self_mask],
-                dim=0,
-                dim_size=atom_type.numel(),
+    def _fallback_node_features(
+        self,
+        data: AtomicDataDict.Type,
+        atom_type: torch.Tensor,
+        base_node_features: torch.Tensor,
+    ) -> torch.Tensor:
+        node_source = _get_feature_source(
+            data=data,
+            candidate_keys=self._candidate_keys(
+                self.h0_node_key,
+                self.fallback_node_key,
+                _keys.NODE_HAMILTONIAN_KEY,
+            ),
+            expected_dim=self.h0_dim,
+            dtype=self.dtype,
+            device=self.device,
+            label="node H0",
+        )
+        if node_source is None:
+            log.warning(
+                "No usable node H0 source found; falling back to the original node init."
             )
-            return node_features
+            return base_node_features
 
-        return None
+        node_source = self._mask_node_source(node_source, atom_type)
+        return self._merge_features(base_node_features, self.node_projector(node_source))
 
     def forward(
         self,
@@ -249,6 +272,8 @@ class H0InitLayer(torch.nn.Module):
         edge_sh: torch.Tensor,
         edge_length: torch.Tensor,
         edge_one_hot: torch.Tensor,
+        active_edges: Optional[torch.Tensor] = None,
+        cutoff_coeffs: Optional[torch.Tensor] = None,
     ):
         latents, base_node_features, base_edge_features, cutoff_coeffs, active_edges = self.base_init(
             edge_index,
@@ -257,6 +282,8 @@ class H0InitLayer(torch.nn.Module):
             edge_sh,
             edge_length,
             edge_one_hot,
+            active_edges,
+            cutoff_coeffs,
         )
 
         edge_source = _get_feature_source(
@@ -282,7 +309,7 @@ class H0InitLayer(torch.nn.Module):
         edge_features = self._merge_features(base_edge_features, edge_features_h0)
 
         if self.h0_node_mode == "self_edge":
-            node_features_h0 = self._node_from_self_edge(
+            self_node_features_h0, has_self_edge = self._node_from_self_edge(
                 edge_features=edge_features_h0,
                 data=data,
                 edge_index=edge_index,
@@ -290,47 +317,14 @@ class H0InitLayer(torch.nn.Module):
                 active_edges=active_edges,
                 atom_type=atom_type,
             )
-        else:
-            node_source = _get_feature_source(
-                data=data,
-                candidate_keys=self._candidate_keys(
-                    self.h0_node_key,
-                    self.fallback_node_key,
-                    _keys.NODE_HAMILTONIAN_KEY,
-                ),
-                expected_dim=self.h0_dim,
-                dtype=self.dtype,
-                device=self.device,
-                label="node H0",
+            self_node_features = self._merge_features(base_node_features, self_node_features_h0)
+            fallback_node_features = self._fallback_node_features(data, atom_type, base_node_features)
+            node_features = torch.where(
+                has_self_edge.reshape(1, 1),
+                self_node_features,
+                fallback_node_features,
             )
-            node_features_h0 = None
-            if node_source is not None:
-                node_source = self._mask_node_source(node_source, atom_type)
-                node_features_h0 = self.node_projector(node_source)
-
-        if node_features_h0 is None:
-            node_source = _get_feature_source(
-                data=data,
-                candidate_keys=self._candidate_keys(
-                    self.h0_node_key,
-                    self.fallback_node_key,
-                    _keys.NODE_HAMILTONIAN_KEY,
-                ),
-                expected_dim=self.h0_dim,
-                dtype=self.dtype,
-                device=self.device,
-                label="node H0",
-            )
-            if node_source is None:
-                log.warning(
-                    "No usable node H0 source found; falling back to the original node init."
-                )
-                node_features = base_node_features
-            else:
-                node_source = self._mask_node_source(node_source, atom_type)
-                node_features_h0 = self.node_projector(node_source)
-                node_features = self._merge_features(base_node_features, node_features_h0)
         else:
-            node_features = self._merge_features(base_node_features, node_features_h0)
+            node_features = self._fallback_node_features(data, atom_type, base_node_features)
 
         return latents, node_features, edge_features, cutoff_coeffs, active_edges

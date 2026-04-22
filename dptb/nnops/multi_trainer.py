@@ -14,6 +14,7 @@ from torch.profiler import profile as torch_profile, ProfilerActivity
 
 from dptb.utils.tools import get_lr_scheduler, get_optimizer
 from dptb.data import AtomicDataset, AtomicData, DataLoader
+from dptb.data import _keys
 from dptb.data.AtomicDataDict import with_edge_vectors
 from dptb.nnops.trainer import Trainer
 from dptb.nnops.ddp_utils import merge_restart_train_options
@@ -23,13 +24,23 @@ log = logging.getLogger(__name__)
 
 
 class _StageTagger:
-    def __init__(self, trainer, enabled: bool, freq: int, cuda_mem: bool, cuda_sync: bool, oom_dump: bool):
+    def __init__(
+        self,
+        trainer,
+        enabled: bool,
+        freq: int,
+        cuda_mem: bool,
+        cuda_sync: bool,
+        oom_dump: bool,
+        reset_peak: bool = True,
+    ):
         self.trainer = trainer
         self.enabled = bool(enabled)
         self.freq = max(int(freq), 1)
         self.cuda_mem = bool(cuda_mem)
         self.cuda_sync = bool(cuda_sync)
         self.oom_dump = bool(oom_dump)
+        self.reset_peak = bool(reset_peak)
 
     def _device(self) -> torch.device:
         return self.trainer.device if isinstance(self.trainer.device, torch.device) else torch.device(self.trainer.device)
@@ -102,7 +113,7 @@ class _StageTagger:
                 nvtx_pushed = False
 
         dev = self._device()
-        if self.cuda_mem and self._is_cuda():
+        if self.cuda_mem and self.reset_peak and self._is_cuda():
             try:
                 torch.cuda.reset_peak_memory_stats(dev)
             except Exception:
@@ -212,6 +223,18 @@ class MultiTrainer(Trainer):
         self.debug_tag_cuda_mem = bool(self.train_options.get("debug_tag_cuda_mem", True))
         self.debug_tag_cuda_sync = bool(self.train_options.get("debug_tag_cuda_sync", False))
         self.debug_oom_dump = bool(self.train_options.get("debug_oom_dump", True))
+        self.monitor_cuda_memory = bool(self.train_options.get("monitor_cuda_memory", True))
+        debug_tag_reset_peak_opt = self.train_options.get("debug_tag_reset_peak", None)
+        self.debug_tag_reset_peak = (
+            not self.monitor_cuda_memory
+            if debug_tag_reset_peak_opt is None
+            else bool(debug_tag_reset_peak_opt)
+        )
+        if self.debug_tags and self.debug_tag_cuda_mem and self.monitor_cuda_memory and self.debug_tag_reset_peak:
+            log.warning(
+                "monitor_cuda_memory=True with debug_tag_reset_peak=True will reset CUDA peak counters inside "
+                "debug tags and make regular cuda_peak_* fields stage-local instead of window-local."
+            )
 
         self.debug_profile = bool(self.train_options.get("debug_profile", False))
         self.debug_profile_start_iter = int(self.train_options.get("debug_profile_start_iter", 5))
@@ -224,6 +247,21 @@ class MultiTrainer(Trainer):
         self.distributed_rank0_prepare_batch = bool(
             self.train_options.get("distributed_rank0_prepare_batch", False)
         )
+        self.precompute_lem_active_edges = bool(
+            self.train_options.get("precompute_lem_active_edges", True)
+        )
+        self.precompute_lem_cutoff_coeffs = bool(
+            self.train_options.get("precompute_lem_cutoff_coeffs", True)
+        )
+        if self.precompute_lem_cutoff_coeffs:
+            self._validate_lem_cutoff_precompute_options()
+            log.warning(
+                "precompute_lem_cutoff_coeffs=True moves cutoff coefficients out of model forward. "
+                "Use only for fixed-geometry Hamiltonian training where geometry gradients are not needed."
+            )
+        self._lem_cutoff_init_layer = None
+        self._lem_cutoff_precompute_checked = False
+        self._lem_cutoff_precompute_warned = False
 
         # dataloader options
         self.train_num_workers = int(self.train_options.get("train_num_workers", self.train_options.get("num_workers", 0)))
@@ -243,6 +281,7 @@ class MultiTrainer(Trainer):
             cuda_mem=self.debug_tag_cuda_mem,
             cuda_sync=self.debug_tag_cuda_sync,
             oom_dump=self.debug_oom_dump,
+            reset_peak=self.debug_tag_reset_peak,
         )
 
         self.log_single_model_compatible_loss = bool(
@@ -497,6 +536,78 @@ class MultiTrainer(Trainer):
     def _is_cuda_device(self):
         return self._device_obj().type == "cuda" and torch.cuda.is_available()
 
+    def _cuda_memory_monitor_enabled(self) -> bool:
+        return bool(getattr(self, "monitor_cuda_memory", False)) and self._is_cuda_device()
+
+    def _reset_cuda_memory_peak(self):
+        if not self._cuda_memory_monitor_enabled():
+            return
+        try:
+            torch.cuda.reset_peak_memory_stats(self._device_obj())
+        except Exception:
+            pass
+
+    def _cuda_memory_tensor(self) -> Optional[torch.Tensor]:
+        if not self._cuda_memory_monitor_enabled():
+            return None
+
+        dev = self._device_obj()
+        mb = 1024 ** 2
+        try:
+            free, total = torch.cuda.mem_get_info(dev)
+            peak_reserved = (
+                torch.cuda.max_memory_reserved(dev)
+                if hasattr(torch.cuda, "max_memory_reserved")
+                else torch.cuda.memory_reserved(dev)
+            )
+            values = [
+                torch.cuda.memory_allocated(dev) / mb,
+                torch.cuda.memory_reserved(dev) / mb,
+                torch.cuda.max_memory_allocated(dev) / mb,
+                peak_reserved / mb,
+                free / mb,
+                total / mb,
+            ]
+        except Exception:
+            return None
+
+        return torch.tensor(values, dtype=self.dtype, device=dev)
+
+    def _gather_cuda_memory_metrics(self) -> List[torch.Tensor]:
+        local_metric = self._cuda_memory_tensor()
+        if local_metric is None:
+            return []
+        if not self._dist_ready():
+            return [local_metric]
+
+        gathered = [torch.zeros_like(local_metric) for _ in range(self.world_size)]
+        self._all_gather_(gathered, local_metric, name="dist/all_gather(cuda_memory_metrics)")
+        return gathered
+
+    def _add_cuda_memory_state(self, state: Dict[str, Any], gathered: List[torch.Tensor]) -> None:
+        if not gathered:
+            return
+
+        names = [
+            "cuda_allocated_mb",
+            "cuda_reserved_mb",
+            "cuda_peak_allocated_mb",
+            "cuda_peak_reserved_mb",
+            "cuda_free_mb",
+            "cuda_total_mb",
+        ]
+        rows = []
+        for metric in gathered:
+            metric = metric.detach().to("cpu")
+            rows.append([float(metric[i].item()) for i in range(len(names))])
+
+        for idx, name in enumerate(names):
+            state[name] = max(row[idx] for row in rows)
+
+        for expert_idx, row in enumerate(rows):
+            for idx, name in enumerate(names):
+                state[f"expert_{expert_idx}_{name}"] = row[idx]
+
     def _use_cuda_stream_parallel(self):
         return (not self.distributed_expert) and self.parallel_multi and self.num_experts > 1 and self._is_cuda_device()
 
@@ -636,9 +747,211 @@ class MultiTrainer(Trainer):
 
         return expert_edge_mask, expert_node_mask
 
+    def _validate_lem_cutoff_precompute_options(self):
+        loss_options_text = repr(self.train_options).lower()
+        geometry_terms = ("force", "forces", "stress", "virial")
+        if any(term in loss_options_text for term in geometry_terms):
+            raise ValueError(
+                "precompute_lem_cutoff_coeffs=True is incompatible with force/stress/virial "
+                "or other geometry-gradient losses."
+            )
+
+    def _assert_no_geometry_grad_for_cutoff_precompute(self, batch):
+        if not self.precompute_lem_cutoff_coeffs:
+            return
+        for key in (_keys.POSITIONS_KEY, _keys.CELL_KEY):
+            value = batch[key] if key in batch else None
+            if torch.is_tensor(value) and value.requires_grad:
+                raise RuntimeError(
+                    "precompute_lem_cutoff_coeffs=True requires fixed geometry, but "
+                    f"batch[{key!r}] has requires_grad=True."
+                )
+
+    def _iter_lem_cutoff_init_layers(self):
+        model = getattr(self.model, "module", self.model)
+        experts = getattr(model, "experts", None)
+        candidates = list(experts) if experts is not None else [model]
+
+        for candidate in candidates:
+            expert = getattr(candidate, "module", candidate)
+            embedding = getattr(expert, "embedding", None)
+            init_layer = getattr(embedding, "init_layer", None)
+            base_init = getattr(init_layer, "base_init", init_layer)
+            if hasattr(base_init, "precompute_cutoff_metadata"):
+                yield base_init
+
+    def _get_lem_cutoff_init_layer(self):
+        if not (self.precompute_lem_active_edges or self.precompute_lem_cutoff_coeffs):
+            return None
+        if self._lem_cutoff_precompute_checked:
+            return self._lem_cutoff_init_layer
+
+        layers = list(self._iter_lem_cutoff_init_layers())
+        if not layers:
+            if not self._lem_cutoff_precompute_warned:
+                log.warning("LEM cutoff precompute requested, but no compatible InitLayer was found.")
+                self._lem_cutoff_precompute_warned = True
+            self._lem_cutoff_precompute_checked = True
+            return None
+
+        signatures = [
+            layer.cutoff_config_signature()
+            for layer in layers
+            if hasattr(layer, "cutoff_config_signature")
+        ]
+        if signatures and any(sig != signatures[0] for sig in signatures[1:]):
+            log.warning(
+                "LEM cutoff precompute disabled because experts have different cutoff configurations."
+            )
+            self._lem_cutoff_precompute_checked = True
+            return None
+
+        self._lem_cutoff_init_layer = layers[0]
+        self._lem_cutoff_precompute_checked = True
+        log.info(
+            "LEM cutoff metadata precompute enabled: active_edges=%s, cutoff_coeffs=%s",
+            self.precompute_lem_active_edges,
+            self.precompute_lem_cutoff_coeffs,
+        )
+        return self._lem_cutoff_init_layer
+
+    @staticmethod
+    def _lem_active_edge_split_sizes(batch, active_edges):
+        batch_slices = getattr(batch, "__slices__", None)
+        if batch_slices is None and isinstance(batch, dict):
+            batch_slices = batch.get("__slices__", {})
+        slices = None if batch_slices is None else batch_slices.get(_keys.EDGE_INDEX_KEY)
+        if slices is None:
+            return None
+        if torch.is_tensor(active_edges):
+            active_edges = active_edges.detach().reshape(-1)
+            if active_edges.device.type != "cpu":
+                return None
+            active_edges = active_edges.to(dtype=torch.long)
+            active_edge_ids = [int(v) for v in active_edges.tolist()]
+        else:
+            active_edge_ids = [int(v) for v in active_edges]
+
+        active_edge_ids.sort()
+        split_sizes = []
+        cursor = 0
+        n_active = len(active_edge_ids)
+        for start, end in zip(slices[:-1], slices[1:]):
+            start = int(start)
+            end = int(end)
+            while cursor < n_active and active_edge_ids[cursor] < start:
+                cursor += 1
+            graph_start = cursor
+            while cursor < n_active and active_edge_ids[cursor] < end:
+                cursor += 1
+            split_sizes.append(cursor - graph_start)
+        return tuple(split_sizes)
+
+    @staticmethod
+    def _clear_lem_precompute_metadata(batch):
+        for key in (
+            _keys.LEM_ACTIVE_EDGES_KEY,
+            _keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY,
+            _keys.LEM_CUTOFF_COEFFS_KEY,
+        ):
+            try:
+                if key in batch:
+                    if hasattr(batch, "pop"):
+                        batch.pop(key, None)
+                    else:
+                        del batch[key]
+            except Exception:
+                pass
+        return batch
+
+    @staticmethod
+    def _attach_lem_cpu_split_sizes(batch_dict, cpu_batch):
+        if isinstance(cpu_batch, dict):
+            split_sizes = cpu_batch.get(_keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY, None)
+        else:
+            try:
+                split_sizes = cpu_batch[_keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY]
+            except Exception:
+                split_sizes = getattr(cpu_batch, _keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY, None)
+        if split_sizes is None:
+            return batch_dict
+        if torch.is_tensor(split_sizes):
+            if split_sizes.device.type != "cpu":
+                return batch_dict
+            split_sizes = split_sizes.detach().reshape(-1).to(dtype=torch.long)
+        else:
+            split_sizes = torch.tensor(
+                [int(v) for v in split_sizes],
+                dtype=torch.long,
+                device="cpu",
+            )
+        batch_dict[_keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY] = split_sizes
+        return batch_dict
+
+    def _precompute_lem_cutoff_metadata(self, batch):
+        batch = self._clear_lem_precompute_metadata(batch)
+        init_layer = self._get_lem_cutoff_init_layer()
+        if init_layer is None:
+            return batch
+
+        with self._tagger.tag("prepare_batch/precompute_lem_cutoff", it=self.iter):
+            if _keys.EDGE_TYPE_KEY not in batch:
+                if not self._lem_cutoff_precompute_warned:
+                    log.warning("LEM cutoff precompute skipped because the CPU batch has no edge_type key.")
+                    self._lem_cutoff_precompute_warned = True
+                return batch
+            self._assert_no_geometry_grad_for_cutoff_precompute(batch)
+            if (
+                _keys.EDGE_VECTORS_KEY not in batch
+                and _keys.CELL_KEY in batch
+                and _keys.EDGE_CELL_SHIFT_KEY not in batch
+            ):
+                if not self._lem_cutoff_precompute_warned:
+                    log.warning(
+                        "LEM cutoff precompute skipped because batch has cell but no edge_cell_shift; "
+                        "falling back to model forward cutoff computation."
+                    )
+                    self._lem_cutoff_precompute_warned = True
+                return batch
+            cutoff_data = {
+                key: batch[key]
+                for key in (
+                    _keys.EDGE_VECTORS_KEY,
+                    _keys.EDGE_LENGTH_KEY,
+                    _keys.POSITIONS_KEY,
+                    _keys.EDGE_INDEX_KEY,
+                    _keys.CELL_KEY,
+                    _keys.EDGE_CELL_SHIFT_KEY,
+                    _keys.BATCH_KEY,
+                )
+                if key in batch
+            }
+            cutoff_data = with_edge_vectors(cutoff_data, with_lengths=True)
+            if _keys.EDGE_VECTORS_KEY not in batch:
+                batch[_keys.EDGE_VECTORS_KEY] = cutoff_data[_keys.EDGE_VECTORS_KEY]
+            if _keys.EDGE_LENGTH_KEY not in batch:
+                batch[_keys.EDGE_LENGTH_KEY] = cutoff_data[_keys.EDGE_LENGTH_KEY]
+            active_edges, cutoff_coeffs = init_layer.precompute_cutoff_metadata(
+                cutoff_data[_keys.EDGE_LENGTH_KEY],
+                batch[_keys.EDGE_TYPE_KEY],
+                compute_cutoff=self.precompute_lem_cutoff_coeffs,
+            )
+            if self.precompute_lem_active_edges:
+                batch[_keys.LEM_ACTIVE_EDGES_KEY] = active_edges
+            split_sizes = self._lem_active_edge_split_sizes(batch, active_edges)
+            if split_sizes is not None:
+                batch[_keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY] = split_sizes
+            if cutoff_coeffs is not None:
+                batch[_keys.LEM_CUTOFF_COEFFS_KEY] = cutoff_coeffs
+        return batch
+
     def _prepare_batch_bundle(self, batch, with_lengths=True):
+        batch = self._precompute_lem_cutoff_metadata(batch)
         with self._tagger.tag("prepare_batch/to_device", it=self.iter):
-            batch_dev = batch.to(self.device)
+            batch_dev = batch.to(
+                self.device,
+                non_blocking=bool(self.data_pin_memory and self._is_cuda_device()),
+            )
 
         batch_info = {
             "__slices__": batch_dev.__slices__,
@@ -655,6 +968,7 @@ class MultiTrainer(Trainer):
             with self._tagger.tag("prepare_batch/with_edge_vectors", it=self.iter):
                 batch_dict = with_edge_vectors(batch_dict, with_lengths=True)
 
+        batch_dict = self._attach_lem_cpu_split_sizes(batch_dict, batch)
         return batch_dict, batch_info
 
     # -------------------- packed GPU tensor broadcast --------------------
@@ -805,30 +1119,40 @@ class MultiTrainer(Trainer):
         rank0_ref_batch_dict = None
 
         if self.rank == 0:
+            batch = self._precompute_lem_cutoff_metadata(batch)
             with self._tagger.tag("shared_batch/rank0_extract_batch_info", it=self.iter):
                 batch_info_holder[0] = self._extract_batch_info_from_cpu_batch(batch)
 
             with self._tagger.tag("shared_batch/rank0_to_device", it=self.iter):
-                batch_dev = batch.to(self.device)
+                batch_dev = batch.to(
+                    self.device,
+                    non_blocking=bool(self.data_pin_memory and self._is_cuda_device()),
+                )
 
             with self._tagger.tag("shared_batch/rank0_to_dict", it=self.iter):
                 rank0_batch_dict = AtomicData.to_AtomicDataDict(batch_dev)
 
             with self._tagger.tag("shared_batch/rank0_with_edge_vectors", it=self.iter):
                 rank0_batch_dict = with_edge_vectors(rank0_batch_dict, with_lengths=True)
+                rank0_batch_dict = self._attach_lem_cpu_split_sizes(rank0_batch_dict, batch)
 
             if ref_batch is not None:
+                ref_batch = self._precompute_lem_cutoff_metadata(ref_batch)
                 with self._tagger.tag("shared_batch/rank0_ref_extract_batch_info", it=self.iter):
                     ref_batch_info_holder[0] = self._extract_batch_info_from_cpu_batch(ref_batch)
 
                 with self._tagger.tag("shared_batch/rank0_ref_to_device", it=self.iter):
-                    ref_batch_dev = ref_batch.to(self.device)
+                    ref_batch_dev = ref_batch.to(
+                        self.device,
+                        non_blocking=bool(self.data_pin_memory and self._is_cuda_device()),
+                    )
 
                 with self._tagger.tag("shared_batch/rank0_ref_to_dict", it=self.iter):
                     rank0_ref_batch_dict = AtomicData.to_AtomicDataDict(ref_batch_dev)
 
                 with self._tagger.tag("shared_batch/rank0_ref_with_edge_vectors", it=self.iter):
                     rank0_ref_batch_dict = with_edge_vectors(rank0_ref_batch_dict, with_lengths=True)
+                    rank0_ref_batch_dict = self._attach_lem_cpu_split_sizes(rank0_ref_batch_dict, ref_batch)
 
         with self._tagger.tag("shared_batch/broadcast_batch_info", it=self.iter):
             dist.broadcast_object_list(batch_info_holder, src=0)
@@ -1188,6 +1512,7 @@ class MultiTrainer(Trainer):
         self._display_window_expert_active_nodes_sum_local = torch.zeros((), dtype=self.dtype, device=dev)
         self._display_window_expert_active_edges_sum_local = torch.zeros((), dtype=self.dtype, device=dev)
         self._display_window_last_lr_local = 0.0
+        self._reset_cuda_memory_peak()
 
     def _has_pending_display_window(self) -> bool:
         return float(self._display_window_pack_local[self._P_STEP_COUNT].item()) > 0.0
@@ -1257,6 +1582,7 @@ class MultiTrainer(Trainer):
             return None
 
         with self._tagger.tag("display/window_reduce", it=time_idx, extra=f"freq={self.display_sync_freq}"):
+            cuda_memory_metrics = self._gather_cuda_memory_metrics()
             reduced_pack = self._display_window_pack_local.clone()
             self._all_reduce_(reduced_pack, name="dist/all_reduce(display_window_metrics_packed)")
             gathered = self._gather_display_window_expert_metrics()
@@ -1297,6 +1623,8 @@ class MultiTrainer(Trainer):
         if float(reduced_pack[self._P_Z_CNT].item()) > 0.0:
             state["mean_max_prob"] = float((reduced_pack[self._P_Z_SUM] / reduced_pack[self._P_Z_CNT]).item())
 
+        self._add_cuda_memory_state(state, cuda_memory_metrics)
+
         self._reset_display_window_buffers()
         return state
 
@@ -1323,27 +1651,36 @@ class MultiTrainer(Trainer):
         if not self.update_lr_per_iter:
             return
 
-        if torch.is_tensor(metric_tensor):
-            m = metric_tensor.detach()
-            if m.ndim != 0:
-                m = m.mean()
-            metric_float = float(m.item())
-        else:
-            metric_float = float(metric_tensor)
+        def _metric_float():
+            if torch.is_tensor(metric_tensor):
+                m = metric_tensor.detach()
+                if m.ndim != 0:
+                    m = m.mean()
+                return float(m.item())
+            return float(metric_tensor)
 
         if self.distributed_expert:
             sch = self.lr_schedulers[self.local_expert_idx]
             if sch is None:
                 return
 
-            with self._tagger.tag("scheduler/local_step", it=self.iter, expert=self.local_expert_idx, extra=f"metric={metric_float:.6g}"):
-                if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
+            if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                metric_float = _metric_float()
+                with self._tagger.tag("scheduler/local_step", it=self.iter, expert=self.local_expert_idx, extra=f"metric={metric_float:.6g}"):
                     if self.iter > 1:
                         sch.step(metric_float)
-                else:
+            else:
+                with self._tagger.tag("scheduler/local_step", it=self.iter, expert=self.local_expert_idx, extra="metric=not_required"):
                     sch.step()
         else:
-            with self._tagger.tag("scheduler/local_step(all)", it=self.iter, extra=f"metric={metric_float:.6g}"):
+            needs_metric = any(
+                isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau)
+                for sch in self.lr_schedulers
+                if sch is not None
+            )
+            metric_float = _metric_float() if needs_metric else None
+            extra = f"metric={metric_float:.6g}" if metric_float is not None else "metric=not_required"
+            with self._tagger.tag("scheduler/local_step(all)", it=self.iter, extra=extra):
                 for sch in self.lr_schedulers:
                     if isinstance(sch, torch.optim.lr_scheduler.ReduceLROnPlateau):
                         if self.iter > 1:
@@ -1508,6 +1845,7 @@ class MultiTrainer(Trainer):
                     return self._iteration_distributed_expert(batch, ref_batch=ref_batch)
 
                 # single-process fallback
+                self._reset_cuda_memory_peak()
                 with self._tagger.tag("iteration/entry", it=self.iter):
                     self.model.train()
 
@@ -1635,6 +1973,8 @@ class MultiTrainer(Trainer):
                     state["expert_load_cv"] = sum(expert_load_cv_values) / len(expert_load_cv_values)
                 if z_metric_values:
                     state["mean_max_prob"] = sum(z_metric_values) / len(z_metric_values)
+
+                self._add_cuda_memory_state(state, self._gather_cuda_memory_metrics())
 
                 with self._tagger.tag("iteration/call_plugins", it=self.iter):
                     self.call_plugins(queue_name='iteration', time=self.iter, **state)

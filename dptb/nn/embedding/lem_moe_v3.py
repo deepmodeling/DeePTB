@@ -242,7 +242,7 @@ class LemMoEV3(torch.nn.Module):
                 device=device,
                 use_interpolation_tp=use_interpolation_tp,
                 num_experts=num_experts,
-                num_shared_experts=num_shared_experts  # Pass down to Layer -> SO2_Linear
+                num_shared_experts=num_shared_experts,  # Pass down to Layer -> SO2_Linear
             ))
 
             if use_interpolation_tp:
@@ -274,8 +274,14 @@ class LemMoEV3(torch.nn.Module):
         return self.idp.orbpair_irreps
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
+        preserved_split_sizes = data.get(_keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY, None)
+        if preserved_split_sizes is not None:
+            data = data.copy()
+            data.pop(_keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY, None)
         data = with_edge_vectors(data, with_lengths=True)
         data = with_batch(data)
+        if preserved_split_sizes is not None:
+            data[_keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY] = preserved_split_sizes
 
         edge_index = data[_keys.EDGE_INDEX_KEY]
         edge_vector = data[_keys.EDGE_VECTORS_KEY]
@@ -303,9 +309,19 @@ class LemMoEV3(torch.nn.Module):
         data["expert_load_cv"] = expert_load_cv
         # 3. Prepare MOLEGlobals
         num_nodes_total = node_one_hot.shape[0]
+        precomputed_active_edges = data.get(_keys.LEM_ACTIVE_EDGES_KEY, None)
+        precomputed_cutoff_coeffs = data.get(_keys.LEM_CUTOFF_COEFFS_KEY, None)
+        precomputed_split_sizes = data.get(_keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY, None)
+        if precomputed_cutoff_coeffs is not None and edge_length.requires_grad:
+            raise RuntimeError(
+                "Precomputed LEM cutoff coefficients cannot be used when edge_length requires gradients. "
+                "Set train_options.precompute_lem_cutoff_coeffs=false for force/stress/virial training."
+            )
         latents, node_features, edge_features, cutoff_coeffs, active_edges = self.init_layer(edge_index, atom_type,
                                                                                              bond_type, edge_sh,
-                                                                                             edge_length, edge_one_hot)
+                                                                                             edge_length, edge_one_hot,
+                                                                                             precomputed_active_edges,
+                                                                                             precomputed_cutoff_coeffs)
 
         n_active_nodes = node_features.shape[0]
         if n_active_nodes < num_nodes_total:
@@ -316,11 +332,13 @@ class LemMoEV3(torch.nn.Module):
         edge_one_hot = edge_one_hot[active_edges]
 
         # Determine sizes for active edges for Weight Merging in MOLELinear
-        edge_batch = batch[edge_index[0][active_edges]]  # Map edge to graph index
-        num_systems = batch.max().item() + 1
-        edge_sizes = torch.bincount(edge_batch, minlength=num_systems)
-
-        mole_globals = MOLEGlobals(coefficients=coeffs, sizes=edge_sizes)
+        if precomputed_split_sizes is not None:
+            mole_globals = MOLEGlobals(coefficients=coeffs, split_sizes=precomputed_split_sizes)
+        else:
+            edge_batch = batch[edge_index[0][active_edges]]  # Map edge to graph index
+            num_systems = coeffs.shape[0]
+            edge_sizes = torch.bincount(edge_batch, minlength=num_systems)
+            mole_globals = MOLEGlobals(coefficients=coeffs, sizes=edge_sizes)
         # --------------------------
 
         data[_keys.EDGE_OVERLAP_KEY] = latents
@@ -364,11 +382,34 @@ class LemMoEV3(torch.nn.Module):
         data[_keys.EDGE_FEATURES_KEY] = torch.index_copy(data[_keys.EDGE_FEATURES_KEY], 0, active_edges,
                                                          out_edge_features)
 
+        data.pop(_keys.LEM_ACTIVE_EDGES_KEY, None)
+        data.pop(_keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY, None)
+        data.pop(_keys.LEM_CUTOFF_COEFFS_KEY, None)
         return data
 
 @torch.jit.script
 def ShiftedSoftPlus(x: torch.Tensor):
     return torch.nn.functional.softplus(x) - math.log(2.0)
+
+
+def _cosine_cutoff_per_edge(
+    x: torch.Tensor, r_max: torch.Tensor, r_start_cos_ratio: float = 0.8
+) -> torch.Tensor:
+    r_decay = r_start_cos_ratio * r_max
+    x = torch.minimum(torch.maximum(x, r_decay), r_max)
+    return 0.5 * (torch.cos((math.pi / (r_max - r_decay)) * (x - r_decay)) + 1.0)
+
+
+def _polynomial_cutoff_per_edge(
+    x: torch.Tensor, r_max: torch.Tensor, p: float = 6.0
+) -> torch.Tensor:
+    assert p >= 2.0
+    x = x / r_max
+    out = 1.0
+    out = out - (((p + 1.0) * (p + 2.0) / 2.0) * torch.pow(x, p))
+    out = out + (p * (p + 2.0) * torch.pow(x, p + 1.0))
+    out = out - ((p * (p + 1.0) / 2) * torch.pow(x, p + 2.0))
+    return out * (x < 1.0)
 
 
 class InitLayer(torch.nn.Module):
@@ -398,11 +439,13 @@ class InitLayer(torch.nn.Module):
         SCALAR = o3.Irrep("0e")
         self.num_types = num_types
         if isinstance(r_max, float) or isinstance(r_max, int):
-            self.r_max = torch.tensor(r_max, device=device, dtype=dtype)
+            max_r_max_value = float(r_max)
+            r_max_tensor = torch.tensor(r_max, device=device, dtype=dtype)
             self.r_max_dict = None
         elif isinstance(r_max, dict):
             c_set = set(list(r_max.values()))
-            self.r_max = torch.tensor(max(list(r_max.values())), device=device, dtype=dtype)
+            max_r_max_value = max(list(r_max.values()))
+            r_max_tensor = torch.tensor(max_r_max_value, device=device, dtype=dtype)
             if len(r_max) == 1 or len(c_set) == 1:
                 self.r_max_dict = None
             else:
@@ -413,6 +456,29 @@ class InitLayer(torch.nn.Module):
             raise TypeError("r_max should be either float, int or dict")
 
         self.idp = idp
+        self.register_buffer("r_max", r_max_tensor)
+        self._r_max_cpu = r_max_tensor.detach().cpu()
+        r_max_by_edge_type = None
+        r_max_edge_type_valid = None
+        if self.r_max_dict is not None:
+            max_edge_type = max(int(v) for v in self.idp.bond_to_type.values())
+            edge_type_count = max(max_edge_type + 1, int(num_types) * int(num_types))
+            r_max_by_edge_type = torch.zeros(edge_type_count, device=device, dtype=dtype)
+            r_max_edge_type_valid = torch.zeros(edge_type_count, device=device, dtype=torch.bool)
+            for bond, ty in self.idp.bond_to_type.items():
+                iatom, jatom = bond.split("-")
+                if iatom not in self.r_max_dict or jatom not in self.r_max_dict:
+                    continue
+                r_max_by_edge_type[int(ty)] = 0.5 * (self.r_max_dict[iatom] + self.r_max_dict[jatom])
+                r_max_edge_type_valid[int(ty)] = True
+        self.register_buffer("r_max_by_edge_type", r_max_by_edge_type)
+        self.register_buffer("r_max_edge_type_valid", r_max_edge_type_valid)
+        self._r_max_by_edge_type_cpu = (
+            None if r_max_by_edge_type is None else r_max_by_edge_type.detach().cpu()
+        )
+        self._r_max_edge_type_valid_cpu = (
+            None if r_max_edge_type_valid is None else r_max_edge_type_valid.detach().cpu()
+        )
         self.r_start_cos_ratio = r_start_cos_ratio
         self.polynomial_cutoff_p = PolynomialCutoff_p
         self.cutoff_type = cutoff_type
@@ -454,16 +520,27 @@ class InitLayer(torch.nn.Module):
             mlp_initialization="uniform",
         )
 
-        self.bessel = BesselBasis(r_max=self.r_max, num_basis=n_radial_basis, trainable=True)
+        self.bessel = BesselBasis(r_max=float(max_r_max_value), num_basis=n_radial_basis, trainable=True)
 
-    def forward(self, edge_index, atom_type, bond_type, edge_sh, edge_length, edge_one_hot):
-        edge_center = edge_index[0]
-        device = edge_length.device
-        r_max = self.r_max.to(device=device)
+    def _r_max_for(self, edge_length: torch.Tensor) -> torch.Tensor:
+        if edge_length.device.type == "cpu":
+            return self._r_max_cpu.to(dtype=edge_length.dtype)
+        return self.r_max.to(device=edge_length.device, dtype=edge_length.dtype)
 
-        edge_invariants = self.bessel(edge_length)
+    def _r_max_tables_for(self, edge_length: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        if edge_length.device.type == "cpu":
+            return (
+                self._r_max_by_edge_type_cpu.to(dtype=edge_length.dtype),
+                self._r_max_edge_type_valid_cpu,
+            )
+        return (
+            self.r_max_by_edge_type.to(device=edge_length.device, dtype=edge_length.dtype),
+            self.r_max_edge_type_valid.to(device=edge_length.device),
+        )
 
+    def cutoff_coefficients(self, edge_length: torch.Tensor, bond_type: torch.Tensor) -> torch.Tensor:
         if self.r_max_dict is None:
+            r_max = self._r_max_for(edge_length)
             if self.cutoff_type == "cosine":
                 cutoff_coeffs = cosine_cutoff(
                     edge_length,
@@ -479,34 +556,94 @@ class InitLayer(torch.nn.Module):
             else:
                 assert False, "Invalid cutoff type"
         else:
-            cutoff_coeffs = torch.zeros(edge_index.shape[1], dtype=self.dtype, device=device)
-            for bond, ty in self.idp.bond_to_type.items():
-                mask = bond_type == ty
-                index = mask.nonzero().squeeze(-1)
-                if mask.any():
-                    iatom, jatom = bond.split("-")
-                    bond_r_max = 0.5 * (
-                        self.r_max_dict[iatom].to(device=device)
-                        + self.r_max_dict[jatom].to(device=device)
-                    )
-                    if self.cutoff_type == "cosine":
-                        c_coeff = cosine_cutoff(
-                            edge_length[mask],
-                            bond_r_max,
-                            r_start_cos_ratio=self.r_start_cos_ratio,
-                        ).flatten()
-                    elif self.cutoff_type == "polynomial":
-                        c_coeff = polynomial_cutoff(
-                            edge_length[mask],
-                            bond_r_max,
-                            p=self.polynomial_cutoff_p
-                        ).flatten()
-                    else:
-                        assert False, "Invalid cutoff type"
-                    cutoff_coeffs = torch.index_copy(cutoff_coeffs, 0, index, c_coeff)
+            r_max_by_edge_type, r_max_edge_type_valid = self._r_max_tables_for(edge_length)
+            bond_type_flat = bond_type.reshape(-1).to(device=edge_length.device, dtype=torch.long)
+            edge_length_flat = edge_length.reshape(-1)
+            table_size = r_max_by_edge_type.shape[0]
+            in_range = (bond_type_flat >= 0) & (bond_type_flat < table_size)
+            safe_bond_type = torch.where(in_range, bond_type_flat, torch.zeros_like(bond_type_flat))
+            bond_r_max = r_max_by_edge_type.index_select(0, safe_bond_type)
+            valid_bond_type = r_max_edge_type_valid.index_select(0, safe_bond_type) & in_range
+            safe_bond_r_max = torch.where(
+                valid_bond_type,
+                bond_r_max.clamp_min(torch.finfo(edge_length.dtype).eps),
+                torch.ones_like(bond_r_max),
+            )
+            safe_edge_length = torch.where(
+                valid_bond_type,
+                edge_length_flat,
+                torch.zeros_like(edge_length_flat),
+            )
+            if self.cutoff_type == "cosine":
+                cutoff_coeffs = _cosine_cutoff_per_edge(
+                    safe_edge_length,
+                    safe_bond_r_max,
+                    r_start_cos_ratio=self.r_start_cos_ratio,
+                )
+            elif self.cutoff_type == "polynomial":
+                cutoff_coeffs = _polynomial_cutoff_per_edge(
+                    safe_edge_length,
+                    safe_bond_r_max,
+                    p=self.polynomial_cutoff_p,
+                )
+            else:
+                assert False, "Invalid cutoff type"
+            cutoff_coeffs = cutoff_coeffs * valid_bond_type.to(dtype=cutoff_coeffs.dtype)
 
-        prev_mask = cutoff_coeffs > 0
-        active_edges = (cutoff_coeffs > 0).nonzero().squeeze(-1)
+        return cutoff_coeffs
+
+    def precompute_cutoff_metadata(
+        self,
+        edge_length: torch.Tensor,
+        bond_type: torch.Tensor,
+        compute_cutoff: bool = False,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        with torch.no_grad():
+            cutoff_coeffs = self.cutoff_coefficients(edge_length, bond_type)
+            active_edges = (cutoff_coeffs > 0).nonzero().squeeze(-1).to(dtype=torch.long)
+            if compute_cutoff:
+                return active_edges, cutoff_coeffs
+            return active_edges, None
+
+    def cutoff_config_signature(self):
+        table = None
+        valid = None
+        if self._r_max_by_edge_type_cpu is not None:
+            table = tuple(float(v) for v in self._r_max_by_edge_type_cpu.reshape(-1).tolist())
+            valid = tuple(bool(v) for v in self._r_max_edge_type_valid_cpu.reshape(-1).tolist())
+        return (
+            self.cutoff_type,
+            float(self.r_start_cos_ratio),
+            float(self.polynomial_cutoff_p),
+            tuple(float(v) for v in self._r_max_cpu.reshape(-1).tolist()),
+            table,
+            valid,
+        )
+
+    def forward(
+        self,
+        edge_index,
+        atom_type,
+        bond_type,
+        edge_sh,
+        edge_length,
+        edge_one_hot,
+        active_edges: Optional[torch.Tensor] = None,
+        cutoff_coeffs: Optional[torch.Tensor] = None,
+    ):
+        edge_center = edge_index[0]
+
+        edge_invariants = self.bessel(edge_length)
+
+        if cutoff_coeffs is None:
+            cutoff_coeffs = self.cutoff_coefficients(edge_length, bond_type)
+        else:
+            cutoff_coeffs = cutoff_coeffs.to(device=edge_length.device, dtype=edge_length.dtype).reshape(-1)
+
+        if active_edges is None:
+            active_edges = (cutoff_coeffs > 0).nonzero().squeeze(-1)
+        else:
+            active_edges = active_edges.to(device=edge_length.device, dtype=torch.long).reshape(-1)
 
         latents = torch.zeros(
             (edge_sh.shape[0], self.two_body_latent.out_features),
@@ -524,10 +661,10 @@ class InitLayer(torch.nn.Module):
             cutoff_coeffs[active_edges].unsqueeze(-1) * new_latents
         )
 
-        weights_e = self.env_embed_mlp(latents[prev_mask])
+        weights_e = self.env_embed_mlp(latents[active_edges])
 
         edge_features = self._env_weighter(
-            edge_sh[prev_mask], weights_e
+            edge_sh[active_edges], weights_e
         )
 
         node_features = scatter(
@@ -640,7 +777,7 @@ class UpdateNode(torch.nn.Module):
             extra_m0_outsize=extra_m0_outsize,
             use_interpolation=use_interpolation_tp,
             num_experts=num_experts,
-            num_shared_experts=num_shared_experts
+            num_shared_experts=num_shared_experts,
         )
 
         self.lin_post = Linear(
@@ -713,8 +850,14 @@ class UpdateNode(torch.nn.Module):
         edge_in = self.edge_norm(edge_features) if self.edge_norm is not None else edge_features
         message, _ = self.tp(
             torch.cat(
-                [node_in[edge_center[active_edges]], edge_in]
-                , dim=-1), edge_vector[active_edges], mole_globals, latents[active_edges], wigner_D_all)  # Pass globals
+                [node_in[edge_center[active_edges]], edge_in],
+                dim=-1,
+            ),
+            edge_vector[active_edges],
+            mole_globals,
+            latents[active_edges],
+            wigner_D_all,
+        )  # Pass globals
 
         message = self.activation(message)
         message = self.lin_post(message)
@@ -847,7 +990,7 @@ class UpdateEdge(torch.nn.Module):
             extra_m0_outsize=extra_m0_outsize,
             use_interpolation=use_interpolation_tp,
             num_experts=num_experts,
-            num_shared_experts=num_shared_experts
+            num_shared_experts=num_shared_experts,
         )
 
         self.latents_mlp_1 = ScalarMLPFunction(
@@ -942,9 +1085,15 @@ class UpdateEdge(torch.nn.Module):
                 [
                     node_in[edge_center[active_edges]],
                     edge_in,
-                    node_in[edge_neighbor[active_edges]]
-                ]
-                , dim=-1), edge_vector[active_edges], mole_globals, latents[active_edges], wigner_D_all)  # Pass globals
+                    node_in[edge_neighbor[active_edges]],
+                ],
+                dim=-1,
+            ),
+            edge_vector[active_edges],
+            mole_globals,
+            latents[active_edges],
+            wigner_D_all,
+        )  # Pass globals
 
         new_edge_features = self.activation(new_edge_features)
         new_edge_features = self.lin_post(new_edge_features)
@@ -1064,7 +1213,7 @@ class Layer(torch.nn.Module):
             use_interpolation_tp=use_interpolation_tp,
             norm_eps=norm_eps,
             num_experts=num_experts,
-            num_shared_experts=num_shared_experts
+            num_shared_experts=num_shared_experts,
         )
 
         self.node_update = UpdateNode(
@@ -1088,7 +1237,7 @@ class Layer(torch.nn.Module):
             use_interpolation_tp=use_interpolation_tp,
             norm_eps=norm_eps,
             num_experts=num_experts,
-            num_shared_experts=num_shared_experts
+            num_shared_experts=num_shared_experts,
         )
 
         self.node_ffn = None

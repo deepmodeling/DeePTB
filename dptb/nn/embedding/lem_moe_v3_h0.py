@@ -54,8 +54,14 @@ class LemMoEV3H0(LemMoEV3):
         if not self.use_h0_init:
             return super().forward(data)
 
+        preserved_split_sizes = data.get(_keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY, None)
+        if preserved_split_sizes is not None:
+            data = data.copy()
+            data.pop(_keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY, None)
         data = with_edge_vectors(data, with_lengths=True)
         data = with_batch(data)
+        if preserved_split_sizes is not None:
+            data[_keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY] = preserved_split_sizes
 
         edge_index = data[_keys.EDGE_INDEX_KEY]
         edge_vector = data[_keys.EDGE_VECTORS_KEY]
@@ -75,6 +81,14 @@ class LemMoEV3H0(LemMoEV3):
         data["expert_load_cv"] = expert_load_cv
 
         num_nodes_total = node_one_hot.shape[0]
+        precomputed_active_edges = data.get(_keys.LEM_ACTIVE_EDGES_KEY, None)
+        precomputed_cutoff_coeffs = data.get(_keys.LEM_CUTOFF_COEFFS_KEY, None)
+        precomputed_split_sizes = data.get(_keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY, None)
+        if precomputed_cutoff_coeffs is not None and edge_length.requires_grad:
+            raise RuntimeError(
+                "Precomputed LEM cutoff coefficients cannot be used when edge_length requires gradients. "
+                "Set train_options.precompute_lem_cutoff_coeffs=false for force/stress/virial training."
+            )
         latents, node_features, edge_features, cutoff_coeffs, active_edges = self.init_layer(
             data,
             edge_index,
@@ -83,6 +97,8 @@ class LemMoEV3H0(LemMoEV3):
             edge_sh,
             edge_length,
             edge_one_hot,
+            precomputed_active_edges,
+            precomputed_cutoff_coeffs,
         )
 
         if node_features.shape[0] < num_nodes_total:
@@ -91,10 +107,13 @@ class LemMoEV3H0(LemMoEV3):
             safe_node_one_hot = node_one_hot
 
         edge_one_hot = edge_one_hot[active_edges]
-        edge_batch = batch[edge_index[0][active_edges]]
-        num_systems = batch.max().item() + 1
-        edge_sizes = torch.bincount(edge_batch, minlength=num_systems)
-        mole_globals = MOLEGlobals(coefficients=coeffs, sizes=edge_sizes)
+        if precomputed_split_sizes is not None:
+            mole_globals = MOLEGlobals(coefficients=coeffs, split_sizes=precomputed_split_sizes)
+        else:
+            edge_batch = batch[edge_index[0][active_edges]]
+            num_systems = coeffs.shape[0]
+            edge_sizes = torch.bincount(edge_batch, minlength=num_systems)
+            mole_globals = MOLEGlobals(coefficients=coeffs, sizes=edge_sizes)
 
         data[_keys.EDGE_OVERLAP_KEY] = latents
         wigner_D_all = None
@@ -144,4 +163,7 @@ class LemMoEV3H0(LemMoEV3):
             active_edges,
             out_edge_features,
         )
+        data.pop(_keys.LEM_ACTIVE_EDGES_KEY, None)
+        data.pop(_keys.LEM_ACTIVE_EDGE_SPLIT_SIZES_KEY, None)
+        data.pop(_keys.LEM_CUTOFF_COEFFS_KEY, None)
         return data

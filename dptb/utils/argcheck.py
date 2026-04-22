@@ -199,7 +199,17 @@ def train_options():
         "Set true to call `torch.cuda.synchronize()` before measuring each stage. "
         "This makes timing more accurate but will slow training, so use it only for debugging. Default: `False`"
     )
+    doc_debug_tag_reset_peak = (
+        "Set true to reset CUDA peak counters at every debug tag boundary. "
+        "When `monitor_cuda_memory=True`, the default is False so regular window-level peak memory remains valid. "
+        "When `monitor_cuda_memory=False`, the default is True to preserve historical debug-tag behavior."
+    )
     doc_debug_oom_dump = "Set true to dump detailed CUDA memory summary on OOM. Default: `True`"
+    doc_monitor_cuda_memory = (
+        "Set true to record CUDA allocated/reserved and peak allocated/reserved memory in regular "
+        "iteration/epoch logs and TensorBoard. In distributed expert mode, per-rank values are gathered "
+        "as expert_i_cuda_*_mb fields and global cuda_*_mb fields use the maximum across ranks. Default: `True`"
+    )
 
     # ================= profiler =================
     doc_debug_profile = (
@@ -241,6 +251,15 @@ def train_options():
     doc_float32_matmul_precision = (
         "Precision policy for float32 matmul, passed to `torch.set_float32_matmul_precision`. "
         "Typical values are `highest`, `high`, `medium`. Empty string means keeping framework default."
+    )
+    doc_precompute_lem_active_edges = (
+        "Precompute LEM/MoE-v3 active edge indices on the CPU batch before moving tensors to GPU. "
+        "This avoids the CUDA nonzero used by InitLayer when the cutoff configuration is fixed."
+    )
+    doc_precompute_lem_cutoff_coeffs = (
+        "Also precompute LEM/MoE-v3 cutoff coefficients before model forward. "
+        "Default true for fixed-geometry Hamiltonian training; set false for force/stress/virial "
+        "or other geometry-gradient training."
     )
 
     args = [
@@ -295,6 +314,8 @@ def train_options():
                  doc="Prefetch factor when rebuilding loaders in MultiTrainer."),
         Argument("distributed_rank0_prepare_batch", bool, optional=True, default=False,
                  doc="In distributed expert mode, only rank0 loads batch, performs CPU preprocessing + H2D + with_edge_vectors, then broadcasts packed GPU tensor groups to other ranks."),
+        Argument("precompute_lem_active_edges", bool, optional=True, default=True, doc=doc_precompute_lem_active_edges),
+        Argument("precompute_lem_cutoff_coeffs", bool, optional=True, default=True, doc=doc_precompute_lem_cutoff_coeffs),
 
 
         # stitched loss / scheduler behavior
@@ -306,7 +327,9 @@ def train_options():
         Argument("debug_tag_freq", int, optional=True, default=1, doc=doc_debug_tag_freq),
         Argument("debug_tag_cuda_mem", bool, optional=True, default=True, doc=doc_debug_tag_cuda_mem),
         Argument("debug_tag_cuda_sync", bool, optional=True, default=False, doc=doc_debug_tag_cuda_sync),
+        Argument("debug_tag_reset_peak", bool, optional=True, default=None, doc=doc_debug_tag_reset_peak),
         Argument("debug_oom_dump", bool, optional=True, default=True, doc=doc_debug_oom_dump),
+        Argument("monitor_cuda_memory", bool, optional=True, default=True, doc=doc_monitor_cuda_memory),
 
         # profiler
         Argument("debug_profile", bool, optional=True, default=False, doc=doc_debug_profile),

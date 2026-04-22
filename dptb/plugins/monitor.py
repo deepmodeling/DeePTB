@@ -1,6 +1,7 @@
 import logging
 import time
 import collections
+import re
 
 import torch
 from dptb.data import AtomicData
@@ -17,6 +18,38 @@ import torch.nn as nn
 
 # 确保导入你的 SO2_Linear 类定义，以便 isinstance 判断
 from dptb.nn.tensor_product import SO2_Linear
+try:
+    from dptb.nn.tensor_product_moe_v3 import SO2_Linear as MOE_SO2_Linear
+except Exception:
+    MOE_SO2_Linear = None
+
+try:
+    from dptb.nn.embedding.eqv3_grid_helpers import EqV3StyleNodeFFN, FlatSwiGLUS2Merge
+except Exception:
+    EqV3StyleNodeFFN = None
+    FlatSwiGLUS2Merge = None
+
+
+def _is_so2_linear_module(module):
+    so2_types = tuple(
+        cls for cls in (SO2_Linear, MOE_SO2_Linear)
+        if isinstance(cls, type)
+    )
+    return isinstance(module, so2_types) or module.__class__.__name__ == "SO2_Linear"
+
+
+def _is_eqv3_ffn_module(module):
+    return (
+        (isinstance(EqV3StyleNodeFFN, type) and isinstance(module, EqV3StyleNodeFFN))
+        or module.__class__.__name__ == "EqV3StyleNodeFFN"
+    )
+
+
+def _is_s2_activation_module(module):
+    return (
+        (isinstance(FlatSwiGLUS2Merge, type) and isinstance(module, FlatSwiGLUS2Merge))
+        or module.__class__.__name__ == "FlatSwiGLUS2Merge"
+    )
 
 
 class PreTPBlockMonitor(Plugin):
@@ -212,7 +245,7 @@ class SO2ModuleMonitor(Plugin):
     def _register_hooks(self):
         count = 0
         for name, module in self.trainer.model.named_modules():
-            if isinstance(module, SO2_Linear):
+            if _is_so2_linear_module(module):
                 # 注册双向 Hook
                 module.register_forward_hook(self._make_forward_hook(name))
                 module.register_full_backward_hook(self._make_backward_hook(name))
@@ -342,6 +375,173 @@ class SO2ModuleMonitor(Plugin):
             self.buffer = []
         except Exception as e:
             log.warning(f"Monitor Write Failed: {e}")
+
+
+class CUDAModuleMemoryMonitor(Plugin):
+    """
+    Record CUDA allocator snapshots around selected module forward/backward hooks.
+
+    This does not reset CUDA peak counters. It is meant to complement the regular
+    iteration peak monitor: after the trainer resets the window peak, rows here
+    show which SO2/S2-related module first observes a new global peak.
+    """
+
+    def __init__(self, log_dir="monitor_logs", buffer_size=20, cuda_sync=False):
+        super(CUDAModuleMemoryMonitor, self).__init__([(1, 'iteration')])
+        self.log_dir = log_dir
+        self.buffer_size = int(buffer_size)
+        self.cuda_sync = bool(cuda_sync)
+        self.buffer = []
+
+        if not os.path.exists(self.log_dir):
+            os.makedirs(self.log_dir)
+
+        self.csv_path = os.path.join(self.log_dir, "cuda_module_memory.csv")
+        self.header = [
+            "iter", "module_name", "module_kind", "phase",
+            "alloc_before_mb", "alloc_after_mb", "alloc_delta_mb",
+            "reserved_before_mb", "reserved_after_mb", "reserved_delta_mb",
+            "peak_alloc_before_mb", "peak_alloc_after_mb", "peak_alloc_delta_mb",
+            "peak_reserved_before_mb", "peak_reserved_after_mb", "peak_reserved_delta_mb",
+            "global_peak_crossed",
+        ]
+        with open(self.csv_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(self.header)
+
+    def register(self, trainer):
+        self.trainer = trainer
+        self._register_hooks()
+
+    def _device(self):
+        if hasattr(self.trainer, "_device_obj"):
+            return self.trainer._device_obj()
+        dev = getattr(self.trainer, "device", None)
+        return dev if isinstance(dev, torch.device) else torch.device(dev)
+
+    def _is_cuda(self):
+        try:
+            return torch.cuda.is_available() and self._device().type == "cuda"
+        except Exception:
+            return False
+
+    def _snapshot(self):
+        if not self._is_cuda():
+            return None
+        dev = self._device()
+        if self.cuda_sync:
+            torch.cuda.synchronize(dev)
+        mb = 1024 ** 2
+        free, total = torch.cuda.mem_get_info(dev)
+        peak_reserved = (
+            torch.cuda.max_memory_reserved(dev)
+            if hasattr(torch.cuda, "max_memory_reserved")
+            else torch.cuda.memory_reserved(dev)
+        )
+        return {
+            "alloc": torch.cuda.memory_allocated(dev) / mb,
+            "reserved": torch.cuda.memory_reserved(dev) / mb,
+            "peak_alloc": torch.cuda.max_memory_allocated(dev) / mb,
+            "peak_reserved": peak_reserved / mb,
+            "free": free / mb,
+            "total": total / mb,
+        }
+
+    def _module_kind(self, module):
+        if _is_so2_linear_module(module):
+            return "SO2_Linear"
+        if _is_eqv3_ffn_module(module):
+            return "EqV3StyleNodeFFN"
+        if _is_s2_activation_module(module):
+            return "FlatSwiGLUS2Merge"
+        return module.__class__.__name__
+
+    def _should_monitor(self, module):
+        return (
+            _is_so2_linear_module(module)
+            or _is_eqv3_ffn_module(module)
+            or _is_s2_activation_module(module)
+        )
+
+    def _record(self, module, name, kind, phase, pre):
+        post = self._snapshot()
+        if pre is None or post is None:
+            return
+        peak_alloc_delta = post["peak_alloc"] - pre["peak_alloc"]
+        peak_reserved_delta = post["peak_reserved"] - pre["peak_reserved"]
+        self.buffer.append([
+            getattr(self.trainer, "iter", 0),
+            name,
+            kind,
+            phase,
+            f"{pre['alloc']:.1f}",
+            f"{post['alloc']:.1f}",
+            f"{post['alloc'] - pre['alloc']:.1f}",
+            f"{pre['reserved']:.1f}",
+            f"{post['reserved']:.1f}",
+            f"{post['reserved'] - pre['reserved']:.1f}",
+            f"{pre['peak_alloc']:.1f}",
+            f"{post['peak_alloc']:.1f}",
+            f"{peak_alloc_delta:.1f}",
+            f"{pre['peak_reserved']:.1f}",
+            f"{post['peak_reserved']:.1f}",
+            f"{peak_reserved_delta:.1f}",
+            int(peak_alloc_delta > 0.1 or peak_reserved_delta > 0.1),
+        ])
+        if len(self.buffer) >= self.buffer_size:
+            self._flush()
+
+    def _make_forward_pre_hook(self, name, kind):
+        def hook(module, inputs):
+            module._cuda_mem_fwd_pre = self._snapshot()
+        return hook
+
+    def _make_forward_hook(self, name, kind):
+        def hook(module, inputs, output):
+            pre = getattr(module, "_cuda_mem_fwd_pre", None)
+            self._record(module, name, kind, "forward", pre)
+            module._cuda_mem_fwd_pre = None
+        return hook
+
+    def _make_backward_pre_hook(self, name, kind):
+        def hook(module, grad_output):
+            module._cuda_mem_bwd_pre = self._snapshot()
+        return hook
+
+    def _make_backward_hook(self, name, kind):
+        def hook(module, grad_input, grad_output):
+            pre = getattr(module, "_cuda_mem_bwd_pre", None)
+            self._record(module, name, kind, "backward", pre)
+            module._cuda_mem_bwd_pre = None
+        return hook
+
+    def _register_hooks(self):
+        count = 0
+        for name, module in self.trainer.model.named_modules():
+            if not self._should_monitor(module):
+                continue
+            kind = self._module_kind(module)
+            module.register_forward_pre_hook(self._make_forward_pre_hook(name, kind))
+            module.register_forward_hook(self._make_forward_hook(name, kind))
+            if hasattr(module, "register_full_backward_pre_hook"):
+                module.register_full_backward_pre_hook(self._make_backward_pre_hook(name, kind))
+            module.register_full_backward_hook(self._make_backward_hook(name, kind))
+            count += 1
+        log.info(f"[CUDA Module Memory Monitor] hooked {count} SO2/S2 modules; csv={self.csv_path}")
+
+    def iteration(self, **kwargs):
+        self._flush()
+
+    def _flush(self):
+        if not self.buffer:
+            return
+        try:
+            with open(self.csv_path, 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerows(self.buffer)
+            self.buffer = []
+        except Exception as e:
+            log.warning(f"CUDA module memory monitor write failed: {e}")
 
 
 class DeepDoctorMonitor(Plugin):
@@ -677,6 +877,118 @@ class ScalarFieldMonitor(Monitor):
         return kwargs.get(self.stat_name, None)
 
 
+class CUDAMemoryMonitor(Plugin):
+    """
+    Track CUDA memory scalar fields supplied by Trainer.
+
+    The trainer owns CUDA allocator sampling because it can gather per-rank
+    values before rank0-only logging plugins run. This monitor normalizes those
+    fields into ``trainer.stats`` so Logger and TensorBoard can consume them.
+    """
+
+    _EXPERT_MEMORY_RE = re.compile(r"^expert_\d+_cuda_.*_mb$")
+
+    def __init__(self, interval=None, precision=1):
+        if interval is None:
+            interval = [(1, 'iteration'), (1, 'epoch')]
+        super(CUDAMemoryMonitor, self).__init__(interval)
+        self.precision = int(precision)
+        self._epoch_max = {}
+
+    @classmethod
+    def is_memory_field(cls, name):
+        return isinstance(name, str) and (
+            (name.startswith("cuda_") and name.endswith("_mb"))
+            or cls._EXPERT_MEMORY_RE.match(name) is not None
+        )
+
+    def register(self, trainer):
+        self.trainer = trainer
+        for name in (
+            "cuda_allocated_mb",
+            "cuda_reserved_mb",
+            "cuda_peak_allocated_mb",
+            "cuda_peak_reserved_mb",
+            "cuda_free_mb",
+            "cuda_total_mb",
+        ):
+            self._ensure_stat(name)
+
+    def _to_float(self, val):
+        if val is None:
+            return None
+        if torch.is_tensor(val):
+            val = val.detach()
+            if val.ndim > 0:
+                val = val.mean()
+            return float(val.item())
+        try:
+            return float(val)
+        except Exception:
+            return None
+
+    def _ensure_stat(self, name):
+        stat = self.trainer.stats.setdefault(name, {})
+        fmt = f":.{self.precision}f"
+        stat.setdefault("log_name", name)
+        stat.setdefault("log_format", fmt)
+        stat.setdefault("log_unit", "MB")
+        stat.setdefault("last", 0.0)
+        stat.setdefault("max", 0.0)
+        stat.setdefault("epoch_max", 0.0)
+        stat.setdefault("log_iter_fields", [
+            "{last" + fmt + "}MB",
+            "(max {max" + fmt + "}MB)",
+        ])
+        stat.setdefault("log_epoch_fields", [
+            "{epoch_max" + fmt + "}MB",
+            "(max {max" + fmt + "}MB)",
+        ])
+        return stat
+
+    def iteration(self, **kwargs):
+        for name, raw_val in kwargs.items():
+            if not self.is_memory_field(name):
+                continue
+            val = self._to_float(raw_val)
+            if val is None:
+                continue
+
+            stat = self._ensure_stat(name)
+            stat["last"] = val
+            stat["max"] = max(float(stat.get("max", val)), val)
+
+            prev_epoch = self._epoch_max.get(name)
+            self._epoch_max[name] = val if prev_epoch is None else max(prev_epoch, val)
+            stat["epoch_max"] = self._epoch_max[name]
+
+    def epoch(self, **kwargs):
+        memory_names = {
+            name for name in self.trainer.stats
+            if self.is_memory_field(name)
+        }
+        memory_names.update(
+            name for name in kwargs
+            if self.is_memory_field(name)
+        )
+
+        for name in memory_names:
+            stat = self._ensure_stat(name)
+            if name in kwargs:
+                val = self._to_float(kwargs.get(name))
+                if val is not None:
+                    stat["last"] = val
+                    stat["max"] = max(float(stat.get("max", val)), val)
+                    prev_epoch = self._epoch_max.get(name)
+                    self._epoch_max[name] = val if prev_epoch is None else max(prev_epoch, val)
+
+            epoch_val = self._epoch_max.get(name)
+            if epoch_val is None:
+                epoch_val = stat.get("last", 0.0)
+            stat["epoch_max"] = float(epoch_val)
+            self._epoch_max[name] = None
+
+
 class TrainLossMonitor(Monitor):
     stat_name = 'train_loss'
 
@@ -775,6 +1087,18 @@ class TensorBoardMonitor(Plugin):
             return self._to_float(kwargs.get(name), default=default)
         return self._get_stat(name, key, default=default)
 
+    def _memory_names(self, kwargs=None):
+        names = {
+            name for name in self.trainer.stats
+            if CUDAMemoryMonitor.is_memory_field(name)
+        }
+        if kwargs:
+            names.update(
+                name for name in kwargs
+                if CUDAMemoryMonitor.is_memory_field(name)
+            )
+        return sorted(names)
+
     def epoch(self, **kwargs):
         epoch = kwargs.get("time", self.trainer.ep)
 
@@ -842,6 +1166,14 @@ class TensorBoardMonitor(Plugin):
                     epoch
                 )
 
+        for name in self._memory_names(kwargs):
+            epoch_max = self._get_stat(name, 'epoch_max', None)
+            if epoch_max is not None:
+                self.writer.add_scalar(f'CUDA_Memory_Epoch_Max/{name}', epoch_max, epoch)
+            overall_max = self._get_stat(name, 'max', None)
+            if overall_max is not None:
+                self.writer.add_scalar(f'CUDA_Memory_Overall_Max/{name}', overall_max, epoch)
+
         self.writer.flush()
 
     def iteration(self, **kwargs):
@@ -890,6 +1222,14 @@ class TensorBoardMonitor(Plugin):
                 self.writer.add_scalar(f'Expert_Hopping_Iter/Expert_{i}', hopping_val, iteration)
             if lr_val is not None:
                 self.writer.add_scalar(f'Expert_LR_Iter/Expert_{i}', lr_val, iteration)
+
+        for name in self._memory_names(kwargs):
+            val = self._get_value(name, 'last', kwargs, default=None)
+            if val is not None:
+                self.writer.add_scalar(f'CUDA_Memory_Iter/{name}', val, iteration)
+            max_val = self._get_stat(name, 'max', None)
+            if max_val is not None:
+                self.writer.add_scalar(f'CUDA_Memory_Overall_Max_Iter/{name}', max_val, iteration)
 
         if self.flush_every and iteration % self.flush_every == 0:
             self.writer.flush()

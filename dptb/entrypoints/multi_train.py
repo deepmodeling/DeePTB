@@ -31,9 +31,9 @@ from dptb.nnops.ddp_utils import (
 )
 from dptb.plugins.monitor import (
     TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor,
-    DeepDoctorMonitor, SO2ModuleMonitor, PreTPBlockMonitor,
+    DeepDoctorMonitor, SO2ModuleMonitor, PreTPBlockMonitor, CUDAModuleMemoryMonitor,
     TrainOnsiteLossMonitor, TrainHoppingLossMonitor, TrainZLossMonitor, ExpertLoadCVMonitor,
-    ScalarFieldMonitor
+    ScalarFieldMonitor, CUDAMemoryMonitor
 )
 from dptb.plugins.train_logger import Logger
 from dptb.plugins.saver import Saver
@@ -533,8 +533,22 @@ def _multi_train_impl(
 
         log_field.extend(["mean_max_prob", "expert_load_cv", "train_onsite_loss", "train_hopping_loss"])
 
+        cuda_memory_enabled = (
+            bool(jdata["train_options"].get("monitor_cuda_memory", True))
+            and trainer._is_cuda_device()
+        )
+        if cuda_memory_enabled:
+            trainer.register_plugin(CUDAMemoryMonitor(interval=[(1, 'iteration'), (1, 'epoch')]))
+            log_field.extend(["cuda_peak_allocated_mb", "cuda_peak_reserved_mb"])
+
+        monitor_flag = jdata["train_options"].get("monitor_flag", False)
+        if monitor_flag and cuda_memory_enabled:
+            module_memory_output = output or "monitor_logs"
+            if distributed_expert:
+                module_memory_output = os.path.join(module_memory_output, f"rank{rank}")
+            trainer.register_plugin(CUDAModuleMemoryMonitor(module_memory_output))
+
         if trainer.is_main_process:
-            monitor_flag = jdata["train_options"].get("monitor_flag", False)
             if monitor_flag:
                 trainer.register_plugin(DeepDoctorMonitor(output, verbose_freq=1))
                 trainer.register_plugin(SO2ModuleMonitor(output))
