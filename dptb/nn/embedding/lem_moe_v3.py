@@ -16,6 +16,7 @@ from dptb.data import _keys
 from dptb.nn.cutoff import cosine_cutoff, polynomial_cutoff
 from dptb.nn.rescale import E3ElementLinear
 from .lem_moe_v3_plugins import (
+    EqV3StyleNodeFFN,
     FlatSwiGLUS2Merge,
     build_equivariant_norm,
     build_gate_activation,
@@ -72,6 +73,9 @@ class LemMoEV3(torch.nn.Module):
             hidden_edge_activation_type: str = "gate",
             hidden_node_activation_type: str = "gate",
             swiglu_s2_grid_resolution: Tuple[int, int] = (14, 14),
+            swiglu_s2_compat_mode: str = "modern",
+            ffn_hidden_factor: float = 0.0,
+            ffn_apply_to_last: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             universal: Optional[bool] = False,
@@ -95,6 +99,13 @@ class LemMoEV3(torch.nn.Module):
         log.info(f'  - Num Routed Experts: {self.num_experts}')
         log.info(f'  - Top-K Actived Routed Experts: {top_k}')
         log.info(f'  - Strategy: Shared Expert + Aux-Loss-Free Balancing (Sigmoid Routing)')
+        if ffn_hidden_factor > 1.0:
+            log.info(
+                f"  - EqV3 SO3 Grid FFN: enabled (hidden_factor={ffn_hidden_factor}, "
+                f"apply_to_last={ffn_apply_to_last})"
+            )
+        else:
+            log.info("  - EqV3 SO3 Grid FFN: disabled")
         mean_max_prob_lower_bound = 1.0 / self.num_experts
         # 上界：One-Hot 分布，max为 1.0，平方为 1.0
         mean_max_prob_upper_bound = 1.0
@@ -204,6 +215,8 @@ class LemMoEV3(torch.nn.Module):
                 edge_activation_type = hidden_edge_activation_type
                 node_activation_type = hidden_node_activation_type
 
+            use_node_ffn = ffn_hidden_factor > 1.0 and ((i < n_layers - 1) or ffn_apply_to_last)
+
             self.layers.append(Layer(
                 num_types=self.n_atom,
                 avg_num_neighbors=avg_num_neighbors,
@@ -222,6 +235,9 @@ class LemMoEV3(torch.nn.Module):
                 edge_activation_type=edge_activation_type,
                 node_activation_type=node_activation_type,
                 swiglu_s2_grid_resolution=swiglu_s2_grid_resolution,
+                swiglu_s2_compat_mode=swiglu_s2_compat_mode,
+                ffn_hidden_factor=ffn_hidden_factor,
+                use_node_ffn=use_node_ffn,
                 dtype=dtype,
                 device=device,
                 use_interpolation_tp=use_interpolation_tp,
@@ -548,6 +564,7 @@ class UpdateNode(torch.nn.Module):
             equivariant_norm_type: str = "none",
             activation_type: str = "gate",
             swiglu_s2_grid_resolution: Tuple[int, int] = (14, 14),
+            swiglu_s2_compat_mode: str = "modern",
             avg_num_neighbors: Optional[float] = None,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
@@ -598,7 +615,10 @@ class UpdateNode(torch.nn.Module):
 
         if activation_type not in {"gate", "swiglu_s2"}:
             raise ValueError(f"Unsupported activation_type={activation_type!r}")
-        use_s2 = activation_type == "swiglu_s2" and can_use_flat_s2_patch(self.irreps_out)
+        use_s2 = activation_type == "swiglu_s2" and can_use_flat_s2_patch(
+            self.irreps_out,
+            mode=swiglu_s2_compat_mode,
+        )
         if use_s2:
             self.activation = FlatSwiGLUS2Merge(
                 self.irreps_out,
@@ -757,6 +777,7 @@ class UpdateEdge(torch.nn.Module):
             equivariant_norm_type: str = "none",
             activation_type: str = "gate",
             swiglu_s2_grid_resolution: Tuple[int, int] = (14, 14),
+            swiglu_s2_compat_mode: str = "modern",
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             num_experts: int = 8,
@@ -801,7 +822,10 @@ class UpdateEdge(torch.nn.Module):
 
         if activation_type not in {"gate", "swiglu_s2"}:
             raise ValueError(f"Unsupported activation_type={activation_type!r}")
-        use_s2 = activation_type == "swiglu_s2" and can_use_flat_s2_patch(self.irreps_out)
+        use_s2 = activation_type == "swiglu_s2" and can_use_flat_s2_patch(
+            self.irreps_out,
+            mode=swiglu_s2_compat_mode,
+        )
         if use_s2:
             self.activation = FlatSwiGLUS2Merge(
                 self.irreps_out,
@@ -999,6 +1023,9 @@ class Layer(torch.nn.Module):
             edge_activation_type: str = "gate",
             node_activation_type: str = "gate",
             swiglu_s2_grid_resolution: Tuple[int, int] = (14, 14),
+            swiglu_s2_compat_mode: str = "modern",
+            ffn_hidden_factor: float = 0.0,
+            use_node_ffn: bool = False,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             num_experts: int = 8,
@@ -1031,6 +1058,7 @@ class Layer(torch.nn.Module):
             equivariant_norm_type=equivariant_norm_type,
             activation_type=edge_activation_type,
             swiglu_s2_grid_resolution=swiglu_s2_grid_resolution,
+            swiglu_s2_compat_mode=swiglu_s2_compat_mode,
             dtype=dtype,
             device=device,
             use_interpolation_tp=use_interpolation_tp,
@@ -1054,6 +1082,7 @@ class Layer(torch.nn.Module):
             equivariant_norm_type=equivariant_norm_type,
             activation_type=node_activation_type,
             swiglu_s2_grid_resolution=swiglu_s2_grid_resolution,
+            swiglu_s2_compat_mode=swiglu_s2_compat_mode,
             dtype=dtype,
             device=device,
             use_interpolation_tp=use_interpolation_tp,
@@ -1062,6 +1091,18 @@ class Layer(torch.nn.Module):
             num_shared_experts=num_shared_experts
         )
 
+        self.node_ffn = None
+        if use_node_ffn:
+            self.node_ffn = EqV3StyleNodeFFN(
+                self.irreps_out,
+                hidden_factor=ffn_hidden_factor,
+                norm_type=equivariant_norm_type,
+                norm_eps=norm_eps,
+                grid_resolution=swiglu_s2_grid_resolution,
+                dtype=dtype,
+                device=device,
+            )
+
     def forward(self, latents, node_features, edge_features, node_onehot, edge_index, edge_vector, atom_type,
                 cutoff_coeffs, active_edges, edge_one_hot, wigner_D_all, mole_globals):
         edge_features, latents, wigner_D_all = self.edge_update(latents, node_features, node_onehot, edge_features,
@@ -1069,5 +1110,7 @@ class Layer(torch.nn.Module):
                                                                 edge_one_hot, wigner_D_all, mole_globals)
         node_features = self.node_update(latents, node_features, edge_features, atom_type, node_onehot, edge_index,
                                          edge_vector, active_edges, wigner_D_all, mole_globals)
+        if self.node_ffn is not None:
+            node_features = self.node_ffn(node_features)
 
         return latents, node_features, edge_features, wigner_D_all

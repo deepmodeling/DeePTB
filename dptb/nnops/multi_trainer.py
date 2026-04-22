@@ -16,6 +16,7 @@ from dptb.utils.tools import get_lr_scheduler, get_optimizer
 from dptb.data import AtomicDataset, AtomicData, DataLoader
 from dptb.data.AtomicDataDict import with_edge_vectors
 from dptb.nnops.trainer import Trainer
+from dptb.nnops.ddp_utils import merge_restart_train_options
 from dptb.nn.build import build_model
 
 log = logging.getLogger(__name__)
@@ -1807,8 +1808,12 @@ class MultiTrainer(Trainer):
         )
         ckpt = torch.load(checkpoint, map_location=map_loc, weights_only=False)
 
-        merged_train_options = copy.deepcopy(ckpt["config"].get("train_options", {}))
-        merged_train_options.update(train_options or {})
+        ckpt_train_options = copy.deepcopy(ckpt["config"].get("train_options", {}))
+        merged_train_options = merge_restart_train_options(
+            train_options,
+            ckpt_train_options,
+            logger=log,
+        )
 
         merged_common_options = copy.deepcopy(ckpt["config"]["common_options"])
         merged_common_options.update(common_options or {})
@@ -1821,10 +1826,10 @@ class MultiTrainer(Trainer):
             checkpoint=checkpoint,
             model_options=ckpt["config"]["model_options"],
             common_options=build_common_options,
-            train_options=merged_train_options
+            train_options=ckpt_train_options
         )
 
-        distance_ranges = merged_train_options.get(
+        distance_ranges = ckpt_train_options.get(
             "distance_ranges",
             [[0.0, 1.0], [1.0, 2.0], [2.0, 4.0], [4.0, 6.0]]
         )

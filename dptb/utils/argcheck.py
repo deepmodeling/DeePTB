@@ -866,6 +866,7 @@ def slem():
     doc_hidden_edge_activation_type = "Activation used for hidden UpdateEdge blocks. Supported: `gate`, `swiglu_s2`."
     doc_hidden_node_activation_type = "Activation used for hidden UpdateNode blocks. Supported: `gate`, `swiglu_s2`."
     doc_swiglu_s2_grid_resolution = "Grid resolution `[lat, long]` for the flat SwiGLU-S2 adapter."
+    doc_swiglu_s2_compat_mode = "Compatibility mode for hidden `swiglu_s2`. `modern` uses the new flexible layout; `legacy_uniform_only` preserves the old behavior that falls back to Gate when irreps multiplicities are not uniform across degrees."
     doc_ffn_hidden_factor = "Expansion factor for the optional node-wise equivariant FFN. Values `<= 1.0` disable it."
     doc_ffn_apply_to_last = "Whether to also attach the node-wise FFN to the final layer. Default: `False`."
 
@@ -913,6 +914,7 @@ def slem():
         Argument("hidden_edge_activation_type", str, optional=True, default="gate", doc=doc_hidden_edge_activation_type),
         Argument("hidden_node_activation_type", str, optional=True, default="gate", doc=doc_hidden_node_activation_type),
         Argument("swiglu_s2_grid_resolution", list, optional=True, default=[14, 14], doc=doc_swiglu_s2_grid_resolution),
+        Argument("swiglu_s2_compat_mode", str, optional=True, default="modern", doc=doc_swiglu_s2_compat_mode),
         Argument("ffn_hidden_factor", float, optional=True, default=0.0, doc=doc_ffn_hidden_factor),
         Argument("ffn_apply_to_last", bool, optional=True, default=False, doc=doc_ffn_apply_to_last),
 

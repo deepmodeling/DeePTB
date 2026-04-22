@@ -22,9 +22,12 @@ from dptb.nnops.ddp_utils import (
     configure_debug_env,
     configure_runtime_perf,
     derive_rank_log_path,
+    dist_barrier_on_current_device,
     destroy_process_group_safely,
+    init_process_group_with_device,
     is_dist_ready,
     load_multi_train_config,
+    merge_restart_train_options,
 )
 from dptb.plugins.monitor import (
     TrainLossMonitor, LearningRateMonitor, Validationer, TensorBoardMonitor,
@@ -220,7 +223,7 @@ def _ddp_spawn_worker(
     if torch.cuda.is_available():
         torch.cuda.set_device(rank)
 
-    dist.init_process_group(
+    init_process_group_with_device(
         backend=backend,
         rank=rank,
         world_size=world_size,
@@ -347,15 +350,14 @@ def _multi_train_impl(
                     jdata["common_options"]["basis"] = basis
 
                 if restart:
-                    if jdata.get("train_options", None) is not None:
-                        for obj in MultiTrainer.object_keys:
-                            if jdata["train_options"].get(obj) != f["config"]["train_options"].get(obj):
-                                log.warning(f"{obj} in config file is not consistent with the checkpoint, using the one in checkpoint")
-                                jdata["train_options"][obj] = f["config"]["train_options"][obj]
-                    else:
-                        jdata["train_options"] = f["config"]["train_options"]
+                    jdata["train_options"] = merge_restart_train_options(
+                        jdata.get("train_options", None),
+                        f["config"].get("train_options", {}),
+                        logger=log,
+                    )
 
                     if jdata.get("model_options", None) is None or jdata["model_options"] != f["config"]["model_options"]:
+                        log.warning("model_options in config file is not consistent with the checkpoint, using the one in checkpoint")
                         jdata["model_options"] = f["config"]["model_options"]
                 else:
                     if jdata.get("train_options", None) is None:
@@ -568,7 +570,7 @@ def _multi_train_impl(
         print_multi_model_params_detailed(trainer.model, logger=log, max_depth=5)
 
     if distributed_expert and is_dist_ready():
-        dist.barrier()
+        dist_barrier_on_current_device()
 
     with entry_tagger.tag("trainer/run", device=torch.device(jdata["common_options"]["device"])):
         start_time = time.time()
@@ -576,7 +578,7 @@ def _multi_train_impl(
         end_time = time.time()
 
     if distributed_expert and is_dist_ready():
-        dist.barrier()
+        dist_barrier_on_current_device()
 
     if trainer.is_main_process:
         log.info("finished training")

@@ -928,9 +928,9 @@ def neighbor_list_and_relative_vec(
     # 【优化】：确保如果输入的是 GPU Tensor，能够安全转换
     if atomic_numbers is not None:
         if isinstance(atomic_numbers, torch.Tensor):
-            atomic_numbers_np = atomic_numbers.detach().cpu().numpy()
+            atomic_numbers_np = atomic_numbers.detach().cpu().numpy().astype(np.int64, copy=False)
         else:
-            atomic_numbers_np = np.asarray(atomic_numbers)
+            atomic_numbers_np = np.asarray(atomic_numbers, dtype=np.int64)
     else:
         atomic_numbers_np = None
 

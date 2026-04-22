@@ -297,6 +297,36 @@ def _is_multi_expert_state_dict(state_dict: dict):
     return _count_experts_in_state_dict(state_dict) > 0
 
 
+def _has_legacy_swiglu_s2_state(state_dict: dict) -> bool:
+    if not state_dict:
+        return False
+    return any(".activation.mul." in key for key in state_dict.keys())
+
+
+def _maybe_enable_legacy_swiglu_s2_compat(model_options: dict, state_dict: dict):
+    if not state_dict or not model_options:
+        return model_options
+
+    embedding = model_options.get("embedding", None)
+    if not isinstance(embedding, dict):
+        return model_options
+    if embedding.get("method") not in {"lem_moe_v3", "lem_moe_v3_h0"}:
+        return model_options
+    if embedding.get("swiglu_s2_compat_mode", "modern") != "modern":
+        return model_options
+    if not _has_legacy_swiglu_s2_state(state_dict):
+        return model_options
+
+    patched = copy.deepcopy(model_options)
+    patched.setdefault("embedding", {})
+    patched["embedding"]["swiglu_s2_compat_mode"] = "legacy_uniform_only"
+    log.warning(
+        "Detected legacy flat SwiGLU-S2 checkpoint layout; forcing "
+        "embedding.swiglu_s2_compat_mode='legacy_uniform_only' for compatibility."
+    )
+    return patched
+
+
 def _build_ensemble_from_wrapper_state(wrapper_state_dict, distance_ranges, init_nnenv, init_nnsk, init_mixed,
                                        init_dftbsk, model_options, common_options):
     ckpt_num_experts = _count_experts_in_state_dict(wrapper_state_dict)
@@ -359,6 +389,8 @@ def build_model(
             train_options = ckptconfig.get("train_options", {})
 
         del ckptconfig
+
+    model_options = _maybe_enable_legacy_swiglu_s2_compat(model_options, ckpt_state_dict)
 
     if model_options.get("dftbsk"):
         assert not model_options.get("nnsk"), "There should only be one of the dftbsk and nnsk in model_options."

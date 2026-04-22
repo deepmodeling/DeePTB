@@ -1,3 +1,4 @@
+import copy
 import logging
 import os
 from pathlib import Path
@@ -16,6 +17,16 @@ DEPRECATED_TRAIN_OPTION_KEYS = (
     "shared_scheduler_metric",
     "independent_expert_scheduler",
     "distributed_global_reduce_every",
+)
+
+RESTART_LOCKED_TRAIN_OPTION_KEYS = (
+    "optimizer",
+    "lr_scheduler",
+    "update_lr_per_iter",
+    "distance_ranges",
+    "expert_lrs",
+    "expert_optimizer_overrides",
+    "expert_lr_scheduler_overrides",
 )
 
 
@@ -39,6 +50,54 @@ def destroy_process_group_safely() -> None:
             dist.destroy_process_group()
         except Exception:
             pass
+
+
+def get_current_cuda_device_index() -> Optional[int]:
+    if not torch.cuda.is_available():
+        return None
+    try:
+        return int(torch.cuda.current_device())
+    except Exception:
+        return None
+
+
+def init_process_group_with_device(
+    *,
+    backend: str,
+    rank: int,
+    world_size: int,
+    timeout,
+) -> None:
+    kwargs = dict(
+        backend=backend,
+        rank=rank,
+        world_size=world_size,
+        timeout=timeout,
+    )
+    current_device = get_current_cuda_device_index()
+    if current_device is not None:
+        try:
+            dist.init_process_group(
+                device_id=torch.device(f"cuda:{current_device}"),
+                **kwargs,
+            )
+            return
+        except TypeError:
+            pass
+    dist.init_process_group(**kwargs)
+
+
+def dist_barrier_on_current_device() -> None:
+    if not is_dist_ready():
+        return
+    current_device = get_current_cuda_device_index()
+    if current_device is not None:
+        try:
+            dist.barrier(device_ids=[current_device])
+            return
+        except TypeError:
+            pass
+    dist.barrier()
 
 
 def strip_deprecated_train_options(raw_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -110,3 +169,27 @@ def configure_runtime_perf(train_opt: Dict[str, Any]) -> None:
         allow_tf32,
         matmul_precision or "default",
     )
+
+
+def merge_restart_train_options(
+    requested_train_options: Optional[Dict[str, Any]],
+    ckpt_train_options: Optional[Dict[str, Any]],
+    *,
+    logger: Optional[logging.Logger] = None,
+) -> Dict[str, Any]:
+    logger = logger or log
+    ckpt_train_options = copy.deepcopy(ckpt_train_options or {})
+    merged_train_options = copy.deepcopy(ckpt_train_options)
+    merged_train_options.update(copy.deepcopy(requested_train_options or {}))
+
+    for key in RESTART_LOCKED_TRAIN_OPTION_KEYS:
+        if key not in ckpt_train_options:
+            continue
+        if merged_train_options.get(key) != ckpt_train_options.get(key):
+            logger.warning(
+                "%s in config file is not consistent with the checkpoint, using the one in checkpoint",
+                key,
+            )
+        merged_train_options[key] = copy.deepcopy(ckpt_train_options[key])
+
+    return merged_train_options
