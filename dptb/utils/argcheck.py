@@ -892,6 +892,7 @@ def slem():
     doc_swiglu_s2_compat_mode = "Compatibility mode for hidden `swiglu_s2`. `modern` uses the new flexible layout; `legacy_uniform_only` preserves the old behavior that falls back to Gate when irreps multiplicities are not uniform across degrees."
     doc_ffn_hidden_factor = "Expansion factor for the optional node-wise equivariant FFN. Values `<= 1.0` disable it."
     doc_ffn_apply_to_last = "Whether to also attach the node-wise FFN to the final layer. Default: `False`."
+    doc_so2_wigner_apply_mode = "Wigner rotation application mode for SO2 TP. Supported: `compact_blocks`, `full_dense`. Default uses compact per-l Wigner blocks to reduce peak memory; set `full_dense` to restore the previous dense Wigner path."
 
     return [
         Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
@@ -940,6 +941,7 @@ def slem():
         Argument("swiglu_s2_compat_mode", str, optional=True, default="modern", doc=doc_swiglu_s2_compat_mode),
         Argument("ffn_hidden_factor", float, optional=True, default=0.0, doc=doc_ffn_hidden_factor),
         Argument("ffn_apply_to_last", bool, optional=True, default=False, doc=doc_ffn_apply_to_last),
+        Argument("so2_wigner_apply_mode", str, optional=True, default="compact_blocks", doc=doc_so2_wigner_apply_mode),
 
         # ---- New norm conditioning flags ----
         Argument("norm_build_node_condition_branch", bool, optional=True, default=True, doc=doc_norm_build_node_condition_branch),

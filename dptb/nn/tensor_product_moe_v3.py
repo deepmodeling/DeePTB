@@ -145,6 +145,46 @@ def _z_rot_mat(angle, l):
     return M
 
 
+class SO2WignerBlocks:
+    """Per-l Wigner rotation blocks without materializing the full [N, D, D] matrix."""
+
+    __slots__ = ("blocks",)
+
+    def __init__(self, blocks):
+        self.blocks = tuple(blocks)
+
+    def block(self, l: int):
+        return self.blocks[l]
+
+
+def batch_wigner_D_blocks(l_max, alpha, beta, gamma, _Jd):
+    """Compute Wigner D as compact per-l blocks instead of a dense block-diagonal matrix."""
+    return SO2WignerBlocks(wigner_D(l, alpha, beta, gamma) for l in range(l_max + 1))
+
+
+def _normalize_wigner_apply_mode(wigner_apply_mode: str) -> str:
+    if wigner_apply_mode not in ("full_dense", "compact_blocks"):
+        raise ValueError(
+            "wigner_apply_mode must be 'full_dense' or 'compact_blocks', "
+            f"got {wigner_apply_mode!r}"
+        )
+    return wigner_apply_mode
+
+
+def _make_wigner_rotation(l_max, alpha, beta, gamma, wigner_apply_mode: str):
+    if wigner_apply_mode == "compact_blocks":
+        return batch_wigner_D_blocks(l_max, alpha, beta, gamma, _Jd)
+    return batch_wigner_D(l_max, alpha, beta, gamma, _Jd)
+
+
+def _select_wigner_block(wigner_D_all, l: int, offsets, dims):
+    if isinstance(wigner_D_all, SO2WignerBlocks):
+        return wigner_D_all.block(l)
+    start = offsets[l]
+    dim = dims[l]
+    return wigner_D_all[:, start:start + dim, start:start + dim]
+
+
 # ------------------------------------------------------------------------------
 # MOLE COMPONENTS (Added)
 # ------------------------------------------------------------------------------
@@ -507,6 +547,7 @@ class SO2_Linear(torch.nn.Module):
             # === Rotation 控制参数 (Keep-in-Frame) ===
             rotate_in: bool = True,
             rotate_out: bool = True,
+            wigner_apply_mode: str = "compact_blocks",
     ):
         super(SO2_Linear, self).__init__()
 
@@ -518,6 +559,7 @@ class SO2_Linear(torch.nn.Module):
         # 保存 flag
         self.rotate_in = rotate_in
         self.rotate_out = rotate_out
+        self.wigner_apply_mode = _normalize_wigner_apply_mode(wigner_apply_mode)
         self.num_experts = num_experts
 
         self.m_linear = nn.ModuleList()
@@ -606,12 +648,12 @@ class SO2_Linear(torch.nn.Module):
             # 只有当需要 rotate_in 或者 rotate_out 时才必须计算 D
             if (self.rotate_in or self.rotate_out) and self.l_max > 0:
                 angle = xyz_to_angles(R[:, [1, 2, 0]])
-                wigner_D_all = batch_wigner_D(
+                wigner_D_all = _make_wigner_rotation(
                     self.l_max,
                     angle[0],
                     angle[1],
                     torch.zeros_like(angle[0]),
-                    _Jd,
+                    self.wigner_apply_mode,
                 )
 
         # === 2. Rotate In (Global -> Local) ===
@@ -635,8 +677,7 @@ class SO2_Linear(torch.nn.Module):
 
             x_parts = [x[:, sl].reshape(n, mul, 2 * l + 1) for mul, sl in group]
             x_combined = torch.cat(x_parts, dim=1)
-            start = self.offsets[l]
-            rot_mat = wigner_D_all[:, start:start + self.dims[l], start:start + self.dims[l]]
+            rot_mat = _select_wigner_block(wigner_D_all, l, self.offsets, self.dims)
             transformed = torch.bmm(x_combined, rot_mat)
             for part, slice_info, mul in zip(transformed.split(muls, dim=1), slices, muls):
                 x_[:, slice_info] = part.reshape(n, -1)
@@ -680,13 +721,19 @@ class SO2_Linear(torch.nn.Module):
             return out.contiguous(), wigner_D_all
         # --------------------------------------------------
 
-        for (mul, (l, p)), slice_in in zip(self.irreps_out, self.irreps_out.slices()):
+        out_groups = defaultdict(list)
+        for (mul, (l, p)), slice_info in zip(self.irreps_out, self.irreps_out.slices()):
             if l > 0:
-                start = self.offsets[l]
-                rot_mat = wigner_D_all[:, start:start + self.dims[l], start:start + self.dims[l]]
-                x_slice = out[:, slice_in].reshape(n, mul, -1)
-                rotated = torch.einsum('nij,nmj->nmi', rot_mat, x_slice)
-                out[:, slice_in] = rotated.reshape(n, -1)
+                out_groups[l].append((mul, slice_info))
+
+        for l, group in out_groups.items():
+            muls, slices = zip(*group)
+            out_parts = [out[:, sl].reshape(n, mul, self.dims[l]) for mul, sl in group]
+            out_combined = torch.cat(out_parts, dim=1)
+            rot_mat = _select_wigner_block(wigner_D_all, l, self.offsets, self.dims)
+            rotated = torch.bmm(out_combined, rot_mat.transpose(1, 2))
+            for part, slice_info, mul in zip(rotated.split(muls, dim=1), slices, muls):
+                out[:, slice_info] = part.reshape(n, -1)
 
         return out.contiguous(), wigner_D_all
 

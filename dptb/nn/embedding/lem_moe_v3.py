@@ -76,6 +76,7 @@ class LemMoEV3(torch.nn.Module):
             swiglu_s2_compat_mode: str = "modern",
             ffn_hidden_factor: float = 0.0,
             ffn_apply_to_last: bool = False,
+            so2_wigner_apply_mode: str = "compact_blocks",
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             universal: Optional[bool] = False,
@@ -238,6 +239,7 @@ class LemMoEV3(torch.nn.Module):
                 swiglu_s2_compat_mode=swiglu_s2_compat_mode,
                 ffn_hidden_factor=ffn_hidden_factor,
                 use_node_ffn=use_node_ffn,
+                so2_wigner_apply_mode=so2_wigner_apply_mode,
                 dtype=dtype,
                 device=device,
                 use_interpolation_tp=use_interpolation_tp,
@@ -703,6 +705,7 @@ class UpdateNode(torch.nn.Module):
             swiglu_s2_grid_resolution: Tuple[int, int] = (14, 14),
             swiglu_s2_compat_mode: str = "modern",
             avg_num_neighbors: Optional[float] = None,
+            so2_wigner_apply_mode: str = "compact_blocks",
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             num_experts: int = 8,
@@ -778,6 +781,7 @@ class UpdateNode(torch.nn.Module):
             use_interpolation=use_interpolation_tp,
             num_experts=num_experts,
             num_shared_experts=num_shared_experts,
+            wigner_apply_mode=so2_wigner_apply_mode,
         )
 
         self.lin_post = Linear(
@@ -921,6 +925,7 @@ class UpdateEdge(torch.nn.Module):
             activation_type: str = "gate",
             swiglu_s2_grid_resolution: Tuple[int, int] = (14, 14),
             swiglu_s2_compat_mode: str = "modern",
+            so2_wigner_apply_mode: str = "compact_blocks",
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             num_experts: int = 8,
@@ -991,6 +996,7 @@ class UpdateEdge(torch.nn.Module):
             use_interpolation=use_interpolation_tp,
             num_experts=num_experts,
             num_shared_experts=num_shared_experts,
+            wigner_apply_mode=so2_wigner_apply_mode,
         )
 
         self.latents_mlp_1 = ScalarMLPFunction(
@@ -1175,6 +1181,7 @@ class Layer(torch.nn.Module):
             swiglu_s2_compat_mode: str = "modern",
             ffn_hidden_factor: float = 0.0,
             use_node_ffn: bool = False,
+            so2_wigner_apply_mode: str = "compact_blocks",
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             num_experts: int = 8,
@@ -1214,6 +1221,7 @@ class Layer(torch.nn.Module):
             norm_eps=norm_eps,
             num_experts=num_experts,
             num_shared_experts=num_shared_experts,
+            so2_wigner_apply_mode=so2_wigner_apply_mode,
         )
 
         self.node_update = UpdateNode(
@@ -1238,6 +1246,7 @@ class Layer(torch.nn.Module):
             norm_eps=norm_eps,
             num_experts=num_experts,
             num_shared_experts=num_shared_experts,
+            so2_wigner_apply_mode=so2_wigner_apply_mode,
         )
 
         self.node_ffn = None
