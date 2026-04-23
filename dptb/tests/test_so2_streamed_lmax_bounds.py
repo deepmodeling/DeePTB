@@ -72,3 +72,66 @@ def test_so2_fusion_mode_env_selects_aggressive(monkeypatch):
     )
 
     assert layer.so2_fusion_mode == "streamed_m_major_aggressive"
+
+
+def test_so2_aggressive_cueq_indexed_linear_matches_staged_if_available():
+    torch = pytest.importorskip("torch")
+    pytest.importorskip("e3nn")
+    pytest.importorskip("cuequivariance")
+    pytest.importorskip("cuequivariance_torch")
+    if not torch.cuda.is_available():
+        pytest.skip("SO2 aggressive cueq indexed-linear integration requires CUDA")
+
+    from dptb.nn.tensor_product_moe_v3 import MOLEGlobals, SO2_Linear
+
+    torch.manual_seed(20260423)
+    device = torch.device("cuda")
+    dtype = torch.float32
+    kwargs = dict(
+        irreps_in="2x0e + 2x1o + 1x2e",
+        irreps_out="1x0e + 2x1o + 2x2e + 1x3o",
+        radial_emb=True,
+        latent_dim=6,
+        radial_channels=[8],
+        num_experts=6,
+        num_shared_experts=0,
+        rotate_in=True,
+        rotate_out=True,
+        wigner_apply_mode="compact_blocks",
+    )
+
+    staged = SO2_Linear(
+        **kwargs,
+        so2_fusion_mode="staged",
+        mole_linear_mode="split_loop",
+    ).to(device=device, dtype=dtype)
+    aggressive = SO2_Linear(
+        **kwargs,
+        so2_fusion_mode="streamed_m_major_aggressive",
+        mole_linear_mode="cueq_indexed_linear",
+    ).to(device=device, dtype=dtype)
+    aggressive.load_state_dict(staged.state_dict(), strict=True)
+
+    split_sizes = (3, 5, 4)
+    n_edges = sum(split_sizes)
+    coeffs = torch.rand(len(split_sizes), kwargs["num_experts"], device=device, dtype=dtype)
+    coeffs = coeffs / coeffs.sum(dim=-1, keepdim=True)
+    globals_ = MOLEGlobals(coefficients=coeffs, split_sizes=split_sizes)
+
+    x0 = torch.randn(n_edges, staged.irreps_in.dim, device=device, dtype=dtype, requires_grad=True)
+    x1 = x0.detach().clone().requires_grad_(True)
+    R0 = torch.randn(n_edges, 3, device=device, dtype=dtype, requires_grad=True)
+    R1 = R0.detach().clone().requires_grad_(True)
+    lat0 = torch.randn(n_edges, kwargs["latent_dim"], device=device, dtype=dtype, requires_grad=True)
+    lat1 = lat0.detach().clone().requires_grad_(True)
+
+    out0, _ = staged(x0, R0, globals_, lat0)
+    out1, _ = aggressive(x1, R1, globals_, lat1)
+    torch.testing.assert_close(out1, out0, atol=3e-4, rtol=3e-4)
+
+    probe = torch.randn_like(out0)
+    (out0 * probe).mean().backward()
+    (out1 * probe).mean().backward()
+    torch.testing.assert_close(x1.grad, x0.grad, atol=4e-4, rtol=4e-4)
+    torch.testing.assert_close(R1.grad, R0.grad, atol=4e-4, rtol=4e-4)
+    torch.testing.assert_close(lat1.grad, lat0.grad, atol=4e-4, rtol=4e-4)
