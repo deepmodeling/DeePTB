@@ -171,6 +171,15 @@ def _normalize_wigner_apply_mode(wigner_apply_mode: str) -> str:
     return wigner_apply_mode
 
 
+def _normalize_so2_fusion_mode(so2_fusion_mode: str) -> str:
+    if so2_fusion_mode not in ("staged", "streamed_m_major_ref"):
+        raise ValueError(
+            "so2_fusion_mode must be 'staged' or 'streamed_m_major_ref', "
+            f"got {so2_fusion_mode!r}"
+        )
+    return so2_fusion_mode
+
+
 def _make_wigner_rotation(l_max, alpha, beta, gamma, wigner_apply_mode: str):
     if wigner_apply_mode == "compact_blocks":
         return batch_wigner_D_blocks(l_max, alpha, beta, gamma, _Jd)
@@ -548,6 +557,7 @@ class SO2_Linear(torch.nn.Module):
             rotate_in: bool = True,
             rotate_out: bool = True,
             wigner_apply_mode: str = "compact_blocks",
+            so2_fusion_mode: str = "staged",
     ):
         super(SO2_Linear, self).__init__()
 
@@ -560,6 +570,7 @@ class SO2_Linear(torch.nn.Module):
         self.rotate_in = rotate_in
         self.rotate_out = rotate_out
         self.wigner_apply_mode = _normalize_wigner_apply_mode(wigner_apply_mode)
+        self.so2_fusion_mode = _normalize_so2_fusion_mode(so2_fusion_mode)
         self.num_experts = num_experts
 
         self.m_linear = nn.ModuleList()
@@ -638,6 +649,9 @@ class SO2_Linear(torch.nn.Module):
             latents: Latent features for radial embedding
             wigner_D_all: Precomputed Wigner D matrices (optional)
         """
+        if self.so2_fusion_mode == "streamed_m_major_ref":
+            return self._forward_streamed_m_major_ref(x, R, mole_globals, latents, wigner_D_all)
+
         n, _ = x.shape
         if self.radial_emb:
             weights = self.radial_emb(latents)
@@ -734,6 +748,111 @@ class SO2_Linear(torch.nn.Module):
             rotated = torch.bmm(out_combined, rot_mat.transpose(1, 2))
             for part, slice_info, mul in zip(rotated.split(muls, dim=1), slices, muls):
                 out[:, slice_info] = part.reshape(n, -1)
+
+        return out.contiguous(), wigner_D_all
+
+    def _ensure_wigner_rotation(self, R, wigner_D_all):
+        if wigner_D_all is not None:
+            return wigner_D_all
+        if (self.rotate_in or self.rotate_out) and self.l_max > 0:
+            angle = xyz_to_angles(R[:, [1, 2, 0]])
+            return _make_wigner_rotation(
+                self.l_max,
+                angle[0],
+                angle[1],
+                torch.zeros_like(angle[0]),
+                self.wigner_apply_mode,
+            )
+        return None
+
+    def _direct_rotate_pack_m(self, x, m: int, wigner_D_all):
+        n, _ = x.shape
+        if m == 0:
+            parts = []
+            for (mul, (l, p)), slice_info in zip(self.irreps_in, self.irreps_in.slices()):
+                x_l = x[:, slice_info].reshape(n, mul, 2 * l + 1)
+                if l == 0 or not self.rotate_in:
+                    parts.append(x_l[:, :, l])
+                else:
+                    rot_mat = _select_wigner_block(wigner_D_all, l, self.offsets, self.dims)
+                    parts.append(torch.einsum("ncd,nd->nc", x_l, rot_mat[:, :, l]))
+            return torch.cat(parts, dim=1)
+
+        parts = []
+        for (mul, (l, p)), slice_info in zip(self.irreps_in, self.irreps_in.slices()):
+            if l < m:
+                continue
+            x_l = x[:, slice_info].reshape(n, mul, 2 * l + 1)
+            local_rows = [l - m, l + m]
+            if not self.rotate_in:
+                pair = x_l[:, :, local_rows]
+            else:
+                rot_mat = _select_wigner_block(wigner_D_all, l, self.offsets, self.dims)
+                pair = torch.einsum("ncd,ndp->ncp", x_l, rot_mat[:, :, local_rows])
+            parts.append(pair)
+        return torch.cat(parts, dim=1).transpose(1, 2).contiguous()
+
+    def _accumulate_m0_output(self, out, y_m0, wigner_D_all):
+        n = out.shape[0]
+        channel_start = 0
+        for (mul, (l, p)), slice_info in zip(self.irreps_out, self.irreps_out.slices()):
+            y_l = y_m0[:, channel_start:channel_start + mul]
+            channel_start += mul
+            out_l = out[:, slice_info].reshape(n, mul, 2 * l + 1)
+            if l == 0 or not self.rotate_out:
+                out_l[:, :, l] += y_l
+            else:
+                rot_mat = _select_wigner_block(wigner_D_all, l, self.offsets, self.dims)
+                out_l += y_l.unsqueeze(-1) * rot_mat[:, :, l].unsqueeze(1)
+
+    def _accumulate_m_output(self, out, y_m, m: int, wigner_D_all):
+        n = out.shape[0]
+        channel_start = 0
+        for (mul, (l, p)), slice_info in zip(self.irreps_out, self.irreps_out.slices()):
+            if l < m:
+                continue
+            y_l = y_m[:, :, channel_start:channel_start + mul]
+            channel_start += mul
+            local_rows = [l - m, l + m]
+            out_l = out[:, slice_info].reshape(n, mul, 2 * l + 1)
+            if not self.rotate_out:
+                out_l[:, :, local_rows] += y_l.transpose(1, 2)
+            else:
+                rot_mat = _select_wigner_block(wigner_D_all, l, self.offsets, self.dims)
+                out_l += torch.einsum("npm,ndp->nmd", y_l, rot_mat[:, :, local_rows])
+
+    def _forward_streamed_m_major_ref(self, x, R, mole_globals: MOLEGlobals, latents=None, wigner_D_all=None):
+        wigner_D_all = self._ensure_wigner_rotation(R, wigner_D_all)
+        n, _ = x.shape
+        weights = self.radial_emb(latents) if self.radial_emb else None
+        out = torch.zeros(n, self.irreps_out.dim, dtype=x.dtype, device=x.device)
+
+        for m in range(self.irreps_out.lmax + 1):
+            radial_weight = weights[:, self.m_in_index[m]:self.m_in_index[m + 1]].unsqueeze(
+                1) if self.radial_emb else 1.
+
+            if m == 0:
+                inp = self._direct_rotate_pack_m(x, m, wigner_D_all)
+                if self.front and self.radial_emb:
+                    y_m = self.fc_m0(inp * radial_weight.squeeze(1), mole_globals)
+                elif self.radial_emb:
+                    y_m = self.fc_m0(inp, mole_globals) * radial_weight.squeeze(1)
+                else:
+                    y_m = self.fc_m0(inp, mole_globals)
+                self._accumulate_m0_output(out, y_m, wigner_D_all)
+                continue
+
+            x_m_in = self._direct_rotate_pack_m(x, m, wigner_D_all)
+            if self.front and self.radial_emb:
+                x_m_in = x_m_in * radial_weight
+                linear_output = self.m_linear[m - 1](x_m_in, mole_globals)
+            elif self.radial_emb:
+                linear_output = self.m_linear[m - 1](x_m_in, mole_globals)
+                linear_output = linear_output * radial_weight
+            else:
+                linear_output = self.m_linear[m - 1](x_m_in, mole_globals)
+
+            self._accumulate_m_output(out, linear_output, m, wigner_D_all)
 
         return out.contiguous(), wigner_D_all
 
