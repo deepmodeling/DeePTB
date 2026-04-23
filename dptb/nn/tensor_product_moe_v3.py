@@ -218,6 +218,54 @@ class MOLEGlobals:
         return tuple(int(v) for v in values.tolist())
 
 
+def _mole_split_sizes(mole_globals, n_rows: int):
+    split_sizes = getattr(mole_globals, "split_sizes", None)
+    if split_sizes is None:
+        split_sizes = (n_rows,)
+    if sum(split_sizes) != n_rows:
+        raise ValueError(
+            f"MOLE split sizes sum to {sum(split_sizes)}, but input has {n_rows} rows."
+        )
+    return split_sizes
+
+
+def _mole_graph_index(mole_globals, n_rows: int, *, device):
+    """Return sorted graph ids per row, matching the existing split-loop semantics."""
+    split_sizes = _mole_split_sizes(mole_globals, n_rows)
+    cache = getattr(mole_globals, "_graph_index_cache", None)
+    if cache is None:
+        cache = {}
+        setattr(mole_globals, "_graph_index_cache", cache)
+
+    key = (str(device), split_sizes)
+    graph_index = cache.get(key)
+    if graph_index is None:
+        sizes = torch.tensor(split_sizes, dtype=torch.long, device=device)
+        # cuEquivariance indexed_linear requires sorted indices; the split_sizes
+        # contract means rows are graph-contiguous, matching the old split loop.
+        graph_index = torch.repeat_interleave(
+            torch.arange(len(split_sizes), dtype=torch.long, device=device), sizes
+        )
+        cache[key] = graph_index
+    return graph_index
+
+
+def _expand_graph_index_for_leading_dims(graph_index: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+    """Expand [E] graph ids to match x.reshape(-1, in_features)."""
+    if x.ndim == 2:
+        return graph_index
+
+    expand_shape = [graph_index.shape[0]] + list(x.shape[1:-1])
+    return graph_index.reshape(-1, *([1] * (x.ndim - 2))).expand(expand_shape).reshape(-1)
+
+
+def _normalize_mole_linear_mode(mode: str) -> str:
+    allowed = {"split_loop", "indexed_ref", "cueq_indexed_linear"}
+    if mode not in allowed:
+        raise ValueError(f"mole_linear_mode must be one of {sorted(allowed)}, got {mode!r}")
+    return mode
+
+
 class MOLERouterV3(nn.Module):
     def __init__(self, in_features, num_experts=48, top_k=6,
                  aux_loss_free=True,
@@ -318,12 +366,18 @@ class MOLELinear(nn.Module):
             num_experts=8,
             num_shared_experts=1,
             bias=True,
+            mole_linear_mode=None,
     ):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.num_experts = num_experts
         self.num_shared_experts = num_shared_experts
+        self.mole_linear_mode = _normalize_mole_linear_mode(
+            mole_linear_mode or os.environ.get("DPTB_MOLE_LINEAR_MODE", "split_loop")
+        )
+        self._cueq_indexed_linear_cache = {}
+        self._cueq_weight_order = None
 
         # 1. 路由专家权重
         self.weight_experts = nn.Parameter(torch.empty(num_experts, out_features, in_features))
@@ -355,6 +409,110 @@ class MOLELinear(nn.Module):
             nn.init.uniform_(self.weight_shared, -k, k)
             if self.bias_shared is not None:
                 nn.init.uniform_(self.bias_shared, -k, k)
+
+    def _apply_indexed_ref(self, x, mixed_weights, mixed_bias, graph_index):
+        flat_x = x.reshape(-1, self.in_features)
+        flat_graph_index = _expand_graph_index_for_leading_dims(graph_index, x)
+        flat_w = mixed_weights.index_select(0, flat_graph_index)
+        flat_out = torch.bmm(flat_w, flat_x.unsqueeze(-1)).squeeze(-1)
+        if mixed_bias is not None:
+            flat_out = flat_out + mixed_bias.index_select(0, flat_graph_index)
+        return flat_out.reshape(*x.shape[:-1], self.out_features)
+
+    def _cueq_flatten_weight(self, mixed_weights, order: str):
+        scale = math.sqrt(self.in_features)
+        if order == "io_scaled":
+            flat = mixed_weights.transpose(1, 2).contiguous() * scale
+        elif order == "oi_scaled":
+            flat = mixed_weights.contiguous() * scale
+        elif order == "io":
+            flat = mixed_weights.transpose(1, 2).contiguous()
+        elif order == "oi":
+            flat = mixed_weights.contiguous()
+        else:
+            raise ValueError(f"unknown cueq weight order {order!r}")
+        return flat.reshape(mixed_weights.shape[0], -1)
+
+    def _get_cueq_indexed_linear(self, num_graphs: int, *, dtype, device):
+        if device.type != "cuda":
+            raise RuntimeError("cueq_indexed_linear requires CUDA; use split_loop or indexed_ref on CPU.")
+        if dtype not in (torch.float32, torch.float64):
+            raise RuntimeError(
+                "cueq_indexed_linear is currently validated only for float32/float64. "
+                "Disable AMP/autocast for this experimental backend or use split_loop."
+            )
+
+        try:
+            import cuequivariance as cue
+            import cuequivariance_torch as cuet
+        except ImportError as exc:
+            raise ImportError(
+                "mole_linear_mode='cueq_indexed_linear' requires cuequivariance and "
+                "cuequivariance_torch."
+            ) from exc
+
+        key = (num_graphs, str(dtype), str(device), self.in_features, self.out_features)
+        mod = self._cueq_indexed_linear_cache.get(key)
+        if mod is None:
+            irreps_in = cue.Irreps(cue.O3, f"{self.in_features}x0e")
+            irreps_out = cue.Irreps(cue.O3, f"{self.out_features}x0e")
+            mod = cuet.Linear(
+                irreps_in,
+                irreps_out,
+                shared_weights=True,
+                internal_weights=False,
+                weight_classes=num_graphs,
+                layout=cue.ir_mul,
+                device=device,
+                dtype=dtype,
+                method="indexed_linear",
+            )
+            self._cueq_indexed_linear_cache[key] = mod
+        return mod
+
+    def _infer_cueq_weight_order(self, cue_lin, flat_x, mixed_weights, flat_graph_index):
+        if self._cueq_weight_order is not None:
+            return self._cueq_weight_order
+
+        with torch.no_grad():
+            n_probe = min(int(flat_x.shape[0]), 64)
+            probe_x = flat_x[:n_probe]
+            probe_idx = flat_graph_index[:n_probe]
+            ref_w = mixed_weights.index_select(0, probe_idx)
+            ref = torch.bmm(ref_w, probe_x.unsqueeze(-1)).squeeze(-1)
+
+            best_order, best_err = None, None
+            for order in ("io_scaled", "oi_scaled", "io", "oi"):
+                try:
+                    weight = self._cueq_flatten_weight(mixed_weights, order)
+                    out = cue_lin(probe_x, weight=weight, weight_indices=probe_idx)
+                    err_val = float((out - ref).abs().max().detach().cpu())
+                except Exception:
+                    continue
+                if best_err is None or err_val < best_err:
+                    best_order, best_err = order, err_val
+
+        if best_order is None or best_err is None or best_err > 1e-4:
+            raise RuntimeError(
+                "Could not infer cuEquivariance scalar Linear weight order; "
+                f"best_order={best_order}, best_err={best_err}."
+            )
+
+        self._cueq_weight_order = best_order
+        return best_order
+
+    def _apply_cueq_indexed_linear(self, x, mixed_weights, mixed_bias, graph_index):
+        flat_x = x.reshape(-1, self.in_features)
+        flat_graph_index = _expand_graph_index_for_leading_dims(graph_index, x)
+        num_graphs = int(mixed_weights.shape[0])
+        cue_lin = self._get_cueq_indexed_linear(num_graphs, dtype=x.dtype, device=x.device)
+
+        order = self._infer_cueq_weight_order(cue_lin, flat_x, mixed_weights, flat_graph_index)
+        flat_weight = self._cueq_flatten_weight(mixed_weights, order)
+        flat_out = cue_lin(flat_x, weight=flat_weight, weight_indices=flat_graph_index)
+        if mixed_bias is not None:
+            flat_out = flat_out + mixed_bias.index_select(0, flat_graph_index)
+        return flat_out.reshape(*x.shape[:-1], self.out_features)
 
     def forward(self, x, mole_globals: MOLEGlobals):
         # 安全回退
@@ -390,6 +548,19 @@ class MOLELinear(nn.Module):
 
         # 4. 执行线性变换
         # 根据系统大小拆分 Input，因为每个系统(Graph)对应一个混合后的权重
+        mode = self.mole_linear_mode
+        if mode != "split_loop":
+            graph_index = _mole_graph_index(mole_globals, x.shape[0], device=x.device)
+            if graph_index.numel() != x.shape[0]:
+                raise ValueError(
+                    f"MOLE graph_index has {graph_index.numel()} rows, but input has {x.shape[0]} rows."
+                )
+            if mode == "indexed_ref":
+                return self._apply_indexed_ref(x, mixed_weights, mixed_bias, graph_index)
+            if mode == "cueq_indexed_linear":
+                return self._apply_cueq_indexed_linear(x, mixed_weights, mixed_bias, graph_index)
+            raise AssertionError(f"unreachable mole_linear_mode={mode!r}")
+
         split_sizes = mole_globals.split_sizes
         if split_sizes is None:
             split_sizes = (x.shape[0],)
@@ -548,6 +719,7 @@ class SO2_Linear(torch.nn.Module):
             rotate_in: bool = True,
             rotate_out: bool = True,
             wigner_apply_mode: str = "compact_blocks",
+            mole_linear_mode=None,
     ):
         super(SO2_Linear, self).__init__()
 
@@ -574,6 +746,7 @@ class SO2_Linear(torch.nn.Module):
             num_experts=num_experts,
             num_shared_experts=num_shared_experts,
             bias=True,
+            mole_linear_mode=mole_linear_mode,
         )
 
         for m in range(1, self.irreps_out.lmax + 1):
@@ -585,6 +758,7 @@ class SO2_Linear(torch.nn.Module):
                 use_interpolation=use_interpolation,
                 num_experts=num_experts,
                 num_shared_experts=num_shared_experts,
+                mole_linear_mode=mole_linear_mode,
             ))
 
         # --- Mask 和 Index 构建逻辑 (保持不变) ---
@@ -751,6 +925,7 @@ class SO2_m_Linear(torch.nn.Module):
             use_interpolation: bool = False,
             num_experts: int = 8,  # Added
             num_shared_experts: int = 1, # Added
+            mole_linear_mode=None,
     ):
         super(SO2_m_Linear, self).__init__()
         self.m = m
@@ -768,6 +943,7 @@ class SO2_m_Linear(torch.nn.Module):
                 num_experts=num_experts,
                 num_shared_experts=num_shared_experts,
                 bias=False,
+                mole_linear_mode=mole_linear_mode,
             )
             with torch.no_grad():
                 self.fc.weight_experts.data.mul_(1 / math.sqrt(2))
