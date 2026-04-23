@@ -1,5 +1,8 @@
 
 from e3nn.o3 import xyz_to_angles, Irreps
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
+import warnings
 import math
 import torch
 import torch.nn as nn
@@ -172,10 +175,15 @@ def _normalize_wigner_apply_mode(wigner_apply_mode: str) -> str:
 
 
 def _normalize_so2_fusion_mode(so2_fusion_mode: str) -> str:
-    if so2_fusion_mode not in ("staged", "streamed_m_major_ref", "streamed_m_major_aggressive"):
+    allowed = (
+        "staged",
+        "streamed_m_major_ref",
+        "streamed_m_major_aggressive",
+        "streamed_m_major_cueq",
+    )
+    if so2_fusion_mode not in allowed:
         raise ValueError(
-            "so2_fusion_mode must be 'staged', 'streamed_m_major_ref', or "
-            "'streamed_m_major_aggressive', "
+            f"so2_fusion_mode must be one of {allowed}, "
             f"got {so2_fusion_mode!r}"
         )
     return so2_fusion_mode
@@ -214,6 +222,64 @@ def _select_wigner_block(wigner_D_all, l: int, offsets, dims):
             f"block l={l}. Recompute Wigner D with l_max large enough for SO2_Linear."
         )
     return wigner_D_all[:, start:start + dim, start:start + dim]
+
+
+@dataclass(frozen=True)
+class _SO2EntryPlan:
+    l: int
+    mul: int
+    slice_info: slice
+    group_start: int
+
+
+@dataclass(frozen=True)
+class _SO2LGroupPlan:
+    l: int
+    dims: int
+    total_mul: int
+    muls: Tuple[int, ...]
+    slices: Tuple[slice, ...]
+
+
+def _build_so2_layout_plans(irreps) -> Tuple[Tuple[_SO2EntryPlan, ...], Dict[int, _SO2LGroupPlan]]:
+    running_by_l = defaultdict(int)
+    specs_by_l: Dict[int, List[Tuple[int, slice]]] = defaultdict(list)
+    entries: List[_SO2EntryPlan] = []
+
+    for (mul, (l, _p)), slice_info in zip(irreps, irreps.slices()):
+        group_start = running_by_l[l]
+        entries.append(
+            _SO2EntryPlan(
+                l=l,
+                mul=mul,
+                slice_info=slice_info,
+                group_start=group_start,
+            )
+        )
+        running_by_l[l] += mul
+        specs_by_l[l].append((mul, slice_info))
+
+    groups: Dict[int, _SO2LGroupPlan] = {}
+    for l, specs in specs_by_l.items():
+        groups[l] = _SO2LGroupPlan(
+            l=l,
+            dims=2 * l + 1,
+            total_mul=sum(mul for mul, _ in specs),
+            muls=tuple(mul for mul, _ in specs),
+            slices=tuple(slice_info for _, slice_info in specs),
+        )
+    return tuple(entries), groups
+
+
+def _gather_so2_l_group(x: torch.Tensor, plan: _SO2LGroupPlan) -> torch.Tensor:
+    n = x.shape[0]
+    parts = [
+        x[:, slice_info].reshape(n, mul, plan.dims)
+        for mul, slice_info in zip(plan.muls, plan.slices)
+    ]
+    if len(parts) == 1:
+        return parts[0].contiguous()
+    return torch.cat(parts, dim=1).contiguous()
 
 
 # ------------------------------------------------------------------------------
@@ -849,6 +915,17 @@ class SO2_Linear(torch.nn.Module):
         for l in range(self.l_max + 1):
             self.offsets[l] = offset
             offset += self.dims[l]
+        self._in_entry_plans, self._in_group_plans = _build_so2_layout_plans(self.irreps_in)
+        self._out_entry_plans, self._out_group_plans = _build_so2_layout_plans(self.irreps_out)
+        self._in_entries_by_m = {
+            m: tuple(entry for entry in self._in_entry_plans if entry.l >= m)
+            for m in range(self.m_max + 1)
+        }
+        self._out_entries_by_m = {
+            m: tuple(entry for entry in self._out_entry_plans if entry.l >= m)
+            for m in range(self.m_max + 1)
+        }
+        self._route_warned = set()
 
     def forward(self, x, R, mole_globals: MOLEGlobals, latents=None, wigner_D_all=None):
         """
@@ -861,6 +938,15 @@ class SO2_Linear(torch.nn.Module):
         """
         if self.so2_fusion_mode in ("streamed_m_major_ref", "streamed_m_major_aggressive"):
             return self._forward_streamed_m_major_ref(x, R, mole_globals, latents, wigner_D_all)
+        if self.so2_fusion_mode == "streamed_m_major_cueq":
+            return self._forward_streamed_m_major_grouped(
+                x,
+                R,
+                mole_globals,
+                latents,
+                wigner_D_all,
+                route="streamed_m_major_cueq",
+            )
 
         n, _ = x.shape
         if self.radial_emb:
@@ -1068,6 +1154,197 @@ class SO2_Linear(torch.nn.Module):
 
             self._accumulate_m_output(out, linear_output, m, wigner_D_all)
 
+        return out.contiguous(), wigner_D_all
+
+    def _warn_route_once(self, key: str, message: str):
+        if key in self._route_warned:
+            return
+        warnings.warn(message, RuntimeWarning, stacklevel=3)
+        self._route_warned.add(key)
+
+    def _cueq_linear_is_enabled(self) -> bool:
+        backends = []
+        if isinstance(getattr(self, "fc_m0", None), MOLELinear):
+            backends.append(self.fc_m0.mole_linear_mode)
+        for module in self.m_linear:
+            fc = getattr(module, "fc", None)
+            if isinstance(fc, MOLELinear):
+                backends.append(fc.mole_linear_mode)
+        return bool(backends) and all(mode == "cueq_indexed_linear" for mode in backends)
+
+    def _prepare_streamed_route(self, route: str):
+        if route == "streamed_m_major_cueq" and not self._cueq_linear_is_enabled():
+            self._warn_route_once(
+                "cueq_linear_not_enabled",
+                "streamed_m_major_cueq is active but MOLELinear is not using "
+                "cueq_indexed_linear; the route remains correct but only the grouped "
+                "streamed SO2 dataflow is active.",
+            )
+
+    def _make_wigner_block_cache(self, wigner_D_all) -> Dict[int, torch.Tensor]:
+        if wigner_D_all is None:
+            return {}
+        return {
+            l: _select_wigner_block(wigner_D_all, l, self.offsets, self.dims)
+            for l in range(1, self.l_max + 1)
+        }
+
+    def _gather_input_l_groups(self, x: torch.Tensor) -> Dict[int, torch.Tensor]:
+        return {
+            l: _gather_so2_l_group(x, plan)
+            for l, plan in self._in_group_plans.items()
+        }
+
+    def _alloc_output_l_groups(self, n: int, *, dtype, device) -> Dict[int, torch.Tensor]:
+        return {
+            l: torch.zeros((n, plan.total_mul, plan.dims), dtype=dtype, device=device)
+            for l, plan in self._out_group_plans.items()
+        }
+
+    def _materialize_output_l_groups(self, out_groups: Dict[int, torch.Tensor], *, n: int, dtype, device) -> torch.Tensor:
+        out = torch.zeros((n, self.irreps_out.dim), dtype=dtype, device=device)
+        for entry in self._out_entry_plans:
+            group_view = out_groups[entry.l][:, entry.group_start:entry.group_start + entry.mul, :]
+            out[:, entry.slice_info] = group_view.reshape(n, -1)
+        return out
+
+    def _pack_group_m0(self, x_group: torch.Tensor, l: int, rot_block: Optional[torch.Tensor]) -> torch.Tensor:
+        if x_group.numel() == 0:
+            return x_group.new_empty((x_group.shape[0], x_group.shape[1]))
+        if l == 0 or not self.rotate_in or rot_block is None:
+            return x_group[:, :, l]
+        return torch.einsum("ncd,nd->nc", x_group, rot_block[:, :, l])
+
+    def _pack_group_pair(self, x_group: torch.Tensor, l: int, m: int, rot_block: Optional[torch.Tensor]) -> torch.Tensor:
+        if x_group.numel() == 0:
+            return x_group.new_empty((x_group.shape[0], 2, x_group.shape[1]))
+        rows = [l - m, l + m]
+        if not self.rotate_in or rot_block is None:
+            return x_group[:, :, rows].transpose(1, 2).contiguous()
+        return torch.einsum("ncd,ndp->npc", x_group, rot_block[:, :, rows])
+
+    def _accumulate_group_m0_(self, out_group: torch.Tensor, y_group: torch.Tensor, l: int, rot_block: Optional[torch.Tensor]) -> None:
+        if y_group.numel() == 0:
+            return
+        if l == 0 or not self.rotate_out or rot_block is None:
+            out_group[:, :, l] += y_group
+            return
+        out_group += y_group.unsqueeze(-1) * rot_block[:, :, l].unsqueeze(1)
+
+    def _accumulate_group_pair_(self, out_group: torch.Tensor, y_group: torch.Tensor, l: int, m: int, rot_block: Optional[torch.Tensor]) -> None:
+        if y_group.numel() == 0:
+            return
+        rows = [l - m, l + m]
+        if not self.rotate_out or rot_block is None:
+            out_group[:, :, rows] += y_group.transpose(1, 2)
+            return
+        out_group += torch.einsum("npc,ndp->ncd", y_group, rot_block[:, :, rows])
+
+    def _assemble_grouped_m0_input(
+            self,
+            input_groups: Dict[int, torch.Tensor],
+            rot_blocks: Dict[int, torch.Tensor],
+            n: int,
+            x_template: torch.Tensor,
+    ) -> torch.Tensor:
+        packed_by_l = {}
+        for l, x_group in input_groups.items():
+            packed_by_l[l] = self._pack_group_m0(x_group, l, rot_blocks.get(l))
+
+        parts = [
+            packed_by_l[entry.l][:, entry.group_start:entry.group_start + entry.mul]
+            for entry in self._in_entries_by_m[0]
+        ]
+        return torch.cat(parts, dim=1) if parts else x_template.new_empty((n, 0))
+
+    def _assemble_grouped_pair_input(
+            self,
+            input_groups: Dict[int, torch.Tensor],
+            rot_blocks: Dict[int, torch.Tensor],
+            m: int,
+            n: int,
+            x_template: torch.Tensor,
+    ) -> torch.Tensor:
+        packed_by_l = {}
+        for l, x_group in input_groups.items():
+            if l < m:
+                continue
+            packed_by_l[l] = self._pack_group_pair(x_group, l, m, rot_blocks.get(l))
+
+        parts = [
+            packed_by_l[entry.l][:, :, entry.group_start:entry.group_start + entry.mul]
+            for entry in self._in_entries_by_m[m]
+        ]
+        return torch.cat(parts, dim=2) if parts else x_template.new_empty((n, 2, 0))
+
+    def _accumulate_grouped_m0_output_(
+            self,
+            out_groups: Dict[int, torch.Tensor],
+            y_m0: torch.Tensor,
+            rot_blocks: Dict[int, torch.Tensor],
+    ) -> None:
+        cursor = 0
+        for entry in self._out_entries_by_m[0]:
+            y_entry = y_m0[:, cursor:cursor + entry.mul]
+            cursor += entry.mul
+            out_view = out_groups[entry.l][:, entry.group_start:entry.group_start + entry.mul, :]
+            self._accumulate_group_m0_(out_view, y_entry, entry.l, rot_blocks.get(entry.l))
+
+    def _accumulate_grouped_pair_output_(
+            self,
+            out_groups: Dict[int, torch.Tensor],
+            y_m: torch.Tensor,
+            rot_blocks: Dict[int, torch.Tensor],
+            m: int,
+    ) -> None:
+        cursor = 0
+        for entry in self._out_entries_by_m[m]:
+            y_entry = y_m[:, :, cursor:cursor + entry.mul]
+            cursor += entry.mul
+            out_view = out_groups[entry.l][:, entry.group_start:entry.group_start + entry.mul, :]
+            self._accumulate_group_pair_(out_view, y_entry, entry.l, m, rot_blocks.get(entry.l))
+
+    def _forward_streamed_m_major_grouped(self, x, R, mole_globals: MOLEGlobals, latents=None, wigner_D_all=None, *, route: str):
+        self._prepare_streamed_route(route)
+        wigner_D_all = self._ensure_wigner_rotation(R, wigner_D_all)
+        n, _ = x.shape
+        if self.radial_emb and latents is None:
+            raise ValueError("SO2_Linear grouped streamed path requires latents when radial_emb=True.")
+        weights = self.radial_emb(latents) if self.radial_emb else None
+        rot_blocks = self._make_wigner_block_cache(wigner_D_all)
+        input_groups = self._gather_input_l_groups(x)
+        out_groups = self._alloc_output_l_groups(n, dtype=x.dtype, device=x.device)
+
+        for m in range(self.m_max + 1):
+            radial_weight = (
+                weights[:, self.m_in_index[m]:self.m_in_index[m + 1]].unsqueeze(1)
+                if self.radial_emb else 1.
+            )
+
+            if m == 0:
+                inp = self._assemble_grouped_m0_input(input_groups, rot_blocks, n, x)
+                if self.front and self.radial_emb:
+                    y_m = self.fc_m0(inp * radial_weight.squeeze(1), mole_globals)
+                elif self.radial_emb:
+                    y_m = self.fc_m0(inp, mole_globals) * radial_weight.squeeze(1)
+                else:
+                    y_m = self.fc_m0(inp, mole_globals)
+                self._accumulate_grouped_m0_output_(out_groups, y_m, rot_blocks)
+                continue
+
+            x_m_in = self._assemble_grouped_pair_input(input_groups, rot_blocks, m, n, x)
+            if self.front and self.radial_emb:
+                x_m_in = x_m_in * radial_weight
+                linear_output = self.m_linear[m - 1](x_m_in, mole_globals)
+            elif self.radial_emb:
+                linear_output = self.m_linear[m - 1](x_m_in, mole_globals)
+                linear_output = linear_output * radial_weight
+            else:
+                linear_output = self.m_linear[m - 1](x_m_in, mole_globals)
+
+            self._accumulate_grouped_pair_output_(out_groups, linear_output, rot_blocks, m)
+
+        out = self._materialize_output_l_groups(out_groups, n=n, dtype=x.dtype, device=x.device)
         return out.contiguous(), wigner_D_all
 
 

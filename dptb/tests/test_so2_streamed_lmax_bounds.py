@@ -2,7 +2,10 @@ import pytest
 
 
 @pytest.mark.parametrize("wigner_apply_mode", ["compact_blocks", "full_dense"])
-@pytest.mark.parametrize("so2_fusion_mode", ["streamed_m_major_ref", "streamed_m_major_aggressive"])
+@pytest.mark.parametrize(
+    "so2_fusion_mode",
+    ["streamed_m_major_ref", "streamed_m_major_aggressive", "streamed_m_major_cueq"],
+)
 @pytest.mark.parametrize(
     "rotate_in, rotate_out",
     [(True, True), (False, True), (True, False), (False, False)],
@@ -58,12 +61,16 @@ def test_so2_streamed_handles_out_lmax_gt_in_lmax(so2_fusion_mode, wigner_apply_
     torch.testing.assert_close(lat1.grad, lat0.grad, atol=1e-8, rtol=1e-8)
 
 
-def test_so2_fusion_mode_env_selects_aggressive(monkeypatch):
+@pytest.mark.parametrize(
+    "env_mode",
+    ["streamed_m_major_aggressive", "streamed_m_major_cueq"],
+)
+def test_so2_fusion_mode_env_selects_streamed_modes(monkeypatch, env_mode):
     pytest.importorskip("torch")
     pytest.importorskip("e3nn")
     from dptb.nn.tensor_product_moe_v3 import SO2_Linear
 
-    monkeypatch.setenv("DPTB_SO2_FUSION_MODE", "streamed_m_major_aggressive")
+    monkeypatch.setenv("DPTB_SO2_FUSION_MODE", env_mode)
     layer = SO2_Linear(
         irreps_in="1x0e + 1x1o",
         irreps_out="1x0e + 1x1o",
@@ -71,10 +78,10 @@ def test_so2_fusion_mode_env_selects_aggressive(monkeypatch):
         num_shared_experts=0,
     )
 
-    assert layer.so2_fusion_mode == "streamed_m_major_aggressive"
+    assert layer.so2_fusion_mode == env_mode
 
 
-@pytest.mark.parametrize("so2_fusion_mode", ["staged", "streamed_m_major_aggressive"])
+@pytest.mark.parametrize("so2_fusion_mode", ["staged", "streamed_m_major_aggressive", "streamed_m_major_cueq"])
 def test_so2_radial_requires_latents(so2_fusion_mode):
     torch = pytest.importorskip("torch")
     pytest.importorskip("e3nn")
@@ -122,7 +129,7 @@ def test_so2_rejects_too_small_external_wigner_dense():
         layer(x, R, None, wigner_D_all=too_small)
 
 
-def test_so2_aggressive_cueq_indexed_linear_matches_staged_if_available():
+def test_so2_streamed_cueq_indexed_linear_matches_staged_if_available():
     torch = pytest.importorskip("torch")
     pytest.importorskip("e3nn")
     pytest.importorskip("cuequivariance")
@@ -155,7 +162,7 @@ def test_so2_aggressive_cueq_indexed_linear_matches_staged_if_available():
     ).to(device=device, dtype=dtype)
     aggressive = SO2_Linear(
         **kwargs,
-        so2_fusion_mode="streamed_m_major_aggressive",
+        so2_fusion_mode="streamed_m_major_cueq",
         mole_linear_mode="cueq_indexed_linear",
     ).to(device=device, dtype=dtype)
     aggressive.load_state_dict(staged.state_dict(), strict=True)
