@@ -269,11 +269,13 @@ def _normalize_mole_linear_mode(mode: str) -> str:
 class MOLERouterV3(nn.Module):
     def __init__(self, in_features, num_experts=48, top_k=6,
                  aux_loss_free=True,
-                 bias_update_speed=0.005):  # 修改1: 固定 Bias 更新速度，不再衰减
+                 bias_update_speed=0.005,
+                 full_expert_fast_path: bool = True):  # 修改1: 固定 Bias 更新速度，不再衰减
         super().__init__()
         self.top_k = top_k
         self.num_experts = num_experts
         self.aux_loss_free = aux_loss_free
+        self.full_expert_fast_path = full_expert_fast_path
 
         # 固定的惩罚力度
         self.bias_update_speed = bias_update_speed
@@ -285,7 +287,8 @@ class MOLERouterV3(nn.Module):
         )
 
         self.register_buffer('expert_bias', torch.zeros(num_experts))
-        self.register_buffer('ema_load', torch.ones(num_experts) * (top_k / num_experts))
+        effective_top_k = num_experts if top_k is None else min(top_k, num_experts)
+        self.register_buffer('ema_load', torch.ones(num_experts) * (effective_top_k / num_experts))
 
         # 修改1: 删除了 step_count 等用于衰减的 Buffer
 
@@ -293,6 +296,12 @@ class MOLERouterV3(nn.Module):
         # 修改1: 删除了 Jitter (探索噪声) 的注入逻辑，完全依赖网络的自然 Logits
         logits = self.net(global_features)
         scores = torch.sigmoid(logits)
+
+        if self.full_expert_fast_path and (self.top_k is None or self.top_k >= self.num_experts):
+            denominators = scores.sum(dim=-1, keepdim=True) + 1e-8
+            probs = scores / denominators
+            monitor_val = probs.max(dim=-1)[0].mean().detach()
+            return probs, monitor_val, torch.zeros((), dtype=scores.dtype, device=scores.device)
 
         # 加上 Bias 用于选择 Top-K (Aux-loss-free 核心机制)
         if self.aux_loss_free and self.training:

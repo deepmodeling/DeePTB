@@ -893,6 +893,7 @@ def slem():
     doc_ffn_hidden_factor = "Expansion factor for the optional node-wise equivariant FFN. Values `<= 1.0` disable it."
     doc_ffn_apply_to_last = "Whether to also attach the node-wise FFN to the final layer. Default: `False`."
     doc_so2_wigner_apply_mode = "Wigner rotation application mode for SO2 TP. Supported: `compact_blocks`, `full_dense`. Default uses compact per-l Wigner blocks to reduce peak memory; set `full_dense` to restore the previous dense Wigner path."
+    doc_mole_full_expert_fast_path = "When `top_k >= num_experts`, skip top-k/one-hot/scatter router work and directly use dense normalized expert weights. This is mathematically equivalent to selecting all routed experts. Default: `True`."
 
     return [
         Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
@@ -911,6 +912,7 @@ def slem():
         Argument("top_k", int, optional=True, default=4, doc="The number of experts to be used in MoE. Default: 1"),
         Argument("num_experts", int, optional=True, default=24, doc="The number of experts for MoE. Default: 8"),
         Argument("num_shared_experts", int, optional=True, default=4, doc="The number of experts for MoE. Default: 8"),
+        Argument("mole_full_expert_fast_path", bool, optional=True, default=True, doc=doc_mole_full_expert_fast_path),
         Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
         Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
         Argument("color_mode", str, optional=True, default="tp", doc="The type of color mode. Default: tp"),
