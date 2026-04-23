@@ -74,6 +74,54 @@ def test_so2_fusion_mode_env_selects_aggressive(monkeypatch):
     assert layer.so2_fusion_mode == "streamed_m_major_aggressive"
 
 
+@pytest.mark.parametrize("so2_fusion_mode", ["staged", "streamed_m_major_aggressive"])
+def test_so2_radial_requires_latents(so2_fusion_mode):
+    torch = pytest.importorskip("torch")
+    pytest.importorskip("e3nn")
+    from dptb.nn.tensor_product_moe_v3 import SO2_Linear
+
+    layer = SO2_Linear(
+        irreps_in="1x0e + 1x1o",
+        irreps_out="1x0e + 1x1o",
+        radial_emb=True,
+        latent_dim=4,
+        radial_channels=[5],
+        num_experts=2,
+        num_shared_experts=0,
+        rotate_in=False,
+        rotate_out=False,
+        so2_fusion_mode=so2_fusion_mode,
+    )
+    x = torch.randn(3, layer.irreps_in.dim)
+    R = torch.randn(3, 3)
+
+    with pytest.raises(ValueError, match="latents"):
+        layer(x, R, None, latents=None)
+
+
+def test_so2_rejects_too_small_external_wigner_dense():
+    torch = pytest.importorskip("torch")
+    pytest.importorskip("e3nn")
+    from dptb.nn.tensor_product_moe_v3 import SO2_Linear
+
+    layer = SO2_Linear(
+        irreps_in="1x0e + 1x1o",
+        irreps_out="1x0e + 1x1o",
+        radial_emb=False,
+        num_experts=2,
+        num_shared_experts=0,
+        rotate_in=True,
+        rotate_out=True,
+        wigner_apply_mode="full_dense",
+    )
+    x = torch.randn(3, layer.irreps_in.dim)
+    R = torch.randn(3, 3)
+    too_small = torch.eye(1).repeat(3, 1, 1)
+
+    with pytest.raises(ValueError, match="l_max|block"):
+        layer(x, R, None, wigner_D_all=too_small)
+
+
 def test_so2_aggressive_cueq_indexed_linear_matches_staged_if_available():
     torch = pytest.importorskip("torch")
     pytest.importorskip("e3nn")

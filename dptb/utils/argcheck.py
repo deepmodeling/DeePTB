@@ -895,6 +895,7 @@ def slem():
     doc_so2_wigner_apply_mode = "Wigner rotation application mode for SO2 TP. Supported: `compact_blocks`, `full_dense`. Default uses compact per-l Wigner blocks to reduce peak memory; set `full_dense` to restore the previous dense Wigner path."
     doc_mole_full_expert_fast_path = "When `top_k >= num_experts`, skip top-k/one-hot/scatter router work and directly use dense normalized expert weights. This is mathematically equivalent to selecting all routed experts. Default: `True`."
     doc_so2_fusion_mode = "SO2_Linear fusion mode. Supported: `staged`, `streamed_m_major_ref`, `streamed_m_major_aggressive`. Default keeps the current staged path; streamed modes are correctness/reference paths for m-major fusion experiments."
+    doc_mole_linear_mode = "MoLELinear backend. Supported: `split_loop`, `indexed_ref`, `cueq_indexed_linear`. Default `None` uses the DPTB_MOLE_LINEAR_MODE environment variable or falls back to `split_loop`."
 
     return [
         Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
@@ -947,6 +948,7 @@ def slem():
         Argument("so2_wigner_apply_mode", str, optional=True, default="compact_blocks", doc=doc_so2_wigner_apply_mode),
         Argument("mole_full_expert_fast_path", bool, optional=True, default=True, doc=doc_mole_full_expert_fast_path),
         Argument("so2_fusion_mode", str, optional=True, default="staged", doc=doc_so2_fusion_mode),
+        Argument("mole_linear_mode", [str, None], optional=True, default=None, doc=doc_mole_linear_mode),
 
         # ---- New norm conditioning flags ----
         Argument("norm_build_node_condition_branch", bool, optional=True, default=True, doc=doc_norm_build_node_condition_branch),

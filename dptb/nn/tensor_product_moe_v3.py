@@ -188,10 +188,31 @@ def _make_wigner_rotation(l_max, alpha, beta, gamma, wigner_apply_mode: str):
 
 
 def _select_wigner_block(wigner_D_all, l: int, offsets, dims):
-    if isinstance(wigner_D_all, SO2WignerBlocks):
-        return wigner_D_all.block(l)
-    start = offsets[l]
+    if wigner_D_all is None:
+        raise ValueError(
+            f"wigner_D_all is required to select Wigner block l={l}; "
+            "enable rotation construction or pass a precomputed Wigner object."
+        )
     dim = dims[l]
+    if isinstance(wigner_D_all, SO2WignerBlocks):
+        if l >= len(wigner_D_all.blocks):
+            raise ValueError(
+                f"wigner_D_all only has {len(wigner_D_all.blocks)} compact blocks, "
+                f"but SO2 needs l={l}. Recompute Wigner D with a larger l_max."
+            )
+        block = wigner_D_all.block(l)
+        if block.shape[-2:] != (dim, dim):
+            raise ValueError(
+                f"Wigner block l={l} has shape {tuple(block.shape[-2:])}, "
+                f"expected {(dim, dim)}."
+            )
+        return block
+    start = offsets[l]
+    if wigner_D_all.shape[-2] < start + dim or wigner_D_all.shape[-1] < start + dim:
+        raise ValueError(
+            f"wigner_D_all dense shape {tuple(wigner_D_all.shape[-2:])} does not include "
+            f"block l={l}. Recompute Wigner D with l_max large enough for SO2_Linear."
+        )
     return wigner_D_all[:, start:start + dim, start:start + dim]
 
 
@@ -843,6 +864,8 @@ class SO2_Linear(torch.nn.Module):
 
         n, _ = x.shape
         if self.radial_emb:
+            if latents is None:
+                raise ValueError("SO2_Linear requires latents when radial_emb=True.")
             weights = self.radial_emb(latents)
         x_ = torch.zeros_like(x)
 
@@ -1013,6 +1036,8 @@ class SO2_Linear(torch.nn.Module):
     def _forward_streamed_m_major_ref(self, x, R, mole_globals: MOLEGlobals, latents=None, wigner_D_all=None):
         wigner_D_all = self._ensure_wigner_rotation(R, wigner_D_all)
         n, _ = x.shape
+        if self.radial_emb and latents is None:
+            raise ValueError("SO2_Linear streamed path requires latents when radial_emb=True.")
         weights = self.radial_emb(latents) if self.radial_emb else None
         out = torch.zeros(n, self.irreps_out.dim, dtype=x.dtype, device=x.device)
 

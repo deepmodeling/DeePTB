@@ -78,6 +78,7 @@ class LemMoEV3(torch.nn.Module):
             ffn_apply_to_last: bool = False,
             so2_wigner_apply_mode: str = "compact_blocks",
             so2_fusion_mode: str = "staged",
+            mole_linear_mode: Optional[str] = None,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             universal: Optional[bool] = False,
@@ -102,6 +103,7 @@ class LemMoEV3(torch.nn.Module):
         log.info(f'  - Num Routed Experts: {self.num_experts}')
         log.info(f'  - Top-K Actived Routed Experts: {top_k}')
         log.info(f'  - Full Expert Fast Path: {mole_full_expert_fast_path}')
+        log.info(f'  - MoLE Linear Mode: {mole_linear_mode or "env/default"}')
         log.info(f'  - Strategy: Shared Expert + Aux-Loss-Free Balancing (Sigmoid Routing)')
         if ffn_hidden_factor > 1.0:
             log.info(
@@ -246,6 +248,7 @@ class LemMoEV3(torch.nn.Module):
                 use_node_ffn=use_node_ffn,
                 so2_wigner_apply_mode=so2_wigner_apply_mode,
                 so2_fusion_mode=so2_fusion_mode,
+                mole_linear_mode=mole_linear_mode,
                 dtype=dtype,
                 device=device,
                 use_interpolation_tp=use_interpolation_tp,
@@ -713,6 +716,7 @@ class UpdateNode(torch.nn.Module):
             avg_num_neighbors: Optional[float] = None,
             so2_wigner_apply_mode: str = "compact_blocks",
             so2_fusion_mode: str = "staged",
+            mole_linear_mode: Optional[str] = None,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             num_experts: int = 8,
@@ -790,6 +794,7 @@ class UpdateNode(torch.nn.Module):
             num_shared_experts=num_shared_experts,
             wigner_apply_mode=so2_wigner_apply_mode,
             so2_fusion_mode=so2_fusion_mode,
+            mole_linear_mode=mole_linear_mode,
         )
 
         self.lin_post = Linear(
@@ -935,6 +940,7 @@ class UpdateEdge(torch.nn.Module):
             swiglu_s2_compat_mode: str = "modern",
             so2_wigner_apply_mode: str = "compact_blocks",
             so2_fusion_mode: str = "staged",
+            mole_linear_mode: Optional[str] = None,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             num_experts: int = 8,
@@ -1007,6 +1013,7 @@ class UpdateEdge(torch.nn.Module):
             num_shared_experts=num_shared_experts,
             wigner_apply_mode=so2_wigner_apply_mode,
             so2_fusion_mode=so2_fusion_mode,
+            mole_linear_mode=mole_linear_mode,
         )
 
         self.latents_mlp_1 = ScalarMLPFunction(
@@ -1193,6 +1200,7 @@ class Layer(torch.nn.Module):
             use_node_ffn: bool = False,
             so2_wigner_apply_mode: str = "compact_blocks",
             so2_fusion_mode: str = "staged",
+            mole_linear_mode: Optional[str] = None,
             dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             num_experts: int = 8,
@@ -1234,6 +1242,7 @@ class Layer(torch.nn.Module):
             num_shared_experts=num_shared_experts,
             so2_wigner_apply_mode=so2_wigner_apply_mode,
             so2_fusion_mode=so2_fusion_mode,
+            mole_linear_mode=mole_linear_mode,
         )
 
         self.node_update = UpdateNode(
@@ -1260,6 +1269,7 @@ class Layer(torch.nn.Module):
             num_shared_experts=num_shared_experts,
             so2_wigner_apply_mode=so2_wigner_apply_mode,
             so2_fusion_mode=so2_fusion_mode,
+            mole_linear_mode=mole_linear_mode,
         )
 
         self.node_ffn = None
