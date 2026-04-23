@@ -563,6 +563,10 @@ class SO2_Linear(torch.nn.Module):
 
         self.irreps_in = Irreps(irreps_in).simplify()
         self.irreps_out = (Irreps(f"{extra_m0_outsize}x0e") + Irreps(irreps_out)).simplify()
+        self.in_l_max = self.irreps_in.lmax
+        self.out_l_max = self.irreps_out.lmax
+        self.m_max = min(self.in_l_max, self.out_l_max)
+        self.l_max = max(self.in_l_max, self.out_l_max)
         self.radial_emb = radial_emb
         self.latent_dim = latent_dim
 
@@ -587,7 +591,7 @@ class SO2_Linear(torch.nn.Module):
             bias=True,
         )
 
-        for m in range(1, self.irreps_out.lmax + 1):
+        for m in range(1, self.m_max + 1):
             # 假设 SO2_m_Linear 已经支持 num_experts 参数
             self.m_linear.append(SO2_m_Linear(
                 m,
@@ -596,21 +600,21 @@ class SO2_Linear(torch.nn.Module):
                 use_interpolation=use_interpolation,
                 num_experts=num_experts,
                 num_shared_experts=num_shared_experts,
-            ))
+        ))
 
         # --- Mask 和 Index 构建逻辑 (保持不变) ---
-        m_in_mask = torch.zeros(self.irreps_in.lmax + 1, self.irreps_in.dim, dtype=torch.bool)
-        m_out_mask = torch.zeros(self.irreps_in.lmax + 1, self.irreps_out.dim, dtype=torch.bool)
+        m_in_mask = torch.zeros(self.m_max + 1, self.irreps_in.dim, dtype=torch.bool)
+        m_out_mask = torch.zeros(self.m_max + 1, self.irreps_out.dim, dtype=torch.bool)
         if self.irreps_in.dim <= self.irreps_out.dim:
             front = True
-            self.m_in_num = [0] * (self.irreps_in.lmax + 1)
+            self.m_in_num = [0] * (self.m_max + 1)
         else:
             front = False
-            self.m_in_num = [0] * (self.irreps_out.lmax + 1)
+            self.m_in_num = [0] * (self.m_max + 1)
         offset = 0
         for mul, (l, p) in self.irreps_in:
             start_id = offset + torch.LongTensor(list(range(mul))) * (2 * l + 1)
-            for m in range(l + 1):
+            for m in range(min(l, self.m_max) + 1):
                 m_in_mask[m, start_id + l + m] = True
                 m_in_mask[m, start_id + l - m] = True
                 if front:
@@ -619,12 +623,11 @@ class SO2_Linear(torch.nn.Module):
         offset = 0
         for mul, (l, p) in self.irreps_out:
             start_id = offset + torch.LongTensor(list(range(mul))) * (2 * l + 1)
-            for m in range(l + 1):
-                if m <= self.irreps_in.lmax:
-                    m_out_mask[m, start_id + l + m] = True
-                    m_out_mask[m, start_id + l - m] = True
-                    if not front:
-                        self.m_in_num[m] += mul
+            for m in range(min(l, self.m_max) + 1):
+                m_out_mask[m, start_id + l + m] = True
+                m_out_mask[m, start_id + l - m] = True
+                if not front:
+                    self.m_in_num[m] += mul
             offset += mul * (2 * l + 1)
         self.register_buffer("m_in_mask", m_in_mask)
         self.register_buffer("m_out_mask", m_out_mask)
@@ -632,7 +635,6 @@ class SO2_Linear(torch.nn.Module):
         if radial_emb:
             self.radial_emb = RadialFunction([latent_dim] + radial_channels + [self.m_in_index[-1]])
         self.front = front
-        self.l_max = max((l for (_, (l, _)), _ in zip(self.irreps_in, self.irreps_in.slices()) if l > 0), default=0)
         self.dims = {l: 2 * l + 1 for l in range(self.l_max + 1)}
         self.offsets = {}
         offset = 0
@@ -698,7 +700,7 @@ class SO2_Linear(torch.nn.Module):
 
         # === 3. Convolution (Linear / MoE) ===
         out = torch.zeros(n, self.irreps_out.dim, dtype=x.dtype, device=x.device)
-        for m in range(self.irreps_out.lmax + 1):
+        for m in range(self.m_max + 1):
             radial_weight = weights[:, self.m_in_index[m]:self.m_in_index[m + 1]].unsqueeze(
                 1) if self.radial_emb else 1.
 
@@ -827,7 +829,7 @@ class SO2_Linear(torch.nn.Module):
         weights = self.radial_emb(latents) if self.radial_emb else None
         out = torch.zeros(n, self.irreps_out.dim, dtype=x.dtype, device=x.device)
 
-        for m in range(self.irreps_out.lmax + 1):
+        for m in range(self.m_max + 1):
             radial_weight = weights[:, self.m_in_index[m]:self.m_in_index[m + 1]].unsqueeze(
                 1) if self.radial_emb else 1.
 
