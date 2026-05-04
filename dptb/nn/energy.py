@@ -99,16 +99,20 @@ class Eigenvalues(nn.Module):
                 if eig_solver == 'torch':
                     chklowt = torch.linalg.cholesky(data[self.s_out_field])
                     chklowtinv = torch.linalg.inv(chklowt)
-                    data[self.h_out_field] = (chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj())
+                    h_transformed = (
+                        chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj()
+                    )
                 elif eig_solver == 'numpy':
                     s_np = data[self.s_out_field].detach().cpu().numpy()
                     h_np = data[self.h_out_field].detach().cpu().numpy()
                     chklowt = np.linalg.cholesky(s_np)
                     chklowtinv = np.linalg.inv(chklowt)
                     h_transformed_np = chklowtinv @ h_np @ np.transpose(chklowtinv,(0,2,1)).conj()
+            else:
+                h_transformed = data[self.h_out_field]
 
             if eig_solver == 'torch':
-                eigvals.append(torch.linalg.eigvalsh(data[self.h_out_field]))
+                eigvals.append(torch.linalg.eigvalsh(h_transformed))
             elif eig_solver == 'numpy':
                 if h_transformed_np is None:
                     h_transformed_np = data[self.h_out_field].detach().cpu().numpy()
@@ -362,18 +366,17 @@ class Eigh(nn.Module):
                 data = self.s2k(data)
                 chklowt = torch.linalg.cholesky(data[self.s_out_field])
                 chklowtinv = torch.linalg.inv(chklowt)
-                data[self.h_out_field] = (
+                h_transformed = (
                     chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj()
                 )
+            else:
+                h_transformed = data[self.h_out_field]
 
-            eigval, eigvec = torch.linalg.eigh(data[self.h_out_field])
+            eigval, eigvec = torch.linalg.eigh(h_transformed)
             if self.overlap:
                 eigvec = torch.transpose(
                     torch.transpose(chklowtinv,dim0=1,dim1=2).conj() @ eigvec,
                     dim0=1,dim1=2)
-                data[self.h_out_field] = (
-                    chklowt @ data[self.h_out_field] @ torch.transpose(chklowt, dim0=1, dim1=2).conj()
-                )
 
             eigvecs.append(eigvec)
             eigvals.append(eigval)
