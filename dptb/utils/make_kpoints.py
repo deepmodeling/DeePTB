@@ -5,39 +5,35 @@ log = logging.getLogger(__name__)
 
 
 def rot_revlatt_2D(rev_latt,index=[0,1]): # 0, x; 1,y, 2,z
-    """ Transform the coordinate system of reciprocal lattice vectors. 
-    The new coordinate system is defined by the two reciprocal lattice vectors with index [0,1] in the original coordinate system. 
+    """ Transform the coordinate system of reciprocal lattice vectors.
+    The new coordinate system is defined by the two reciprocal lattice vectors with index [0,1] in the original coordinate system.
     The new x-axis is along the reciprocal lattice vector with index 0, and the new z-axis is perpendicular to the new x-axis and the reciprocal lattice vector with index 1.
-    The new y-axis is perpendicular to the new x-axis and the new z-axis. 
-    The new coordinate system is right-handed. 
-    The new reciprocal lattice vectors are returned as a 3x3 matrix. 
-    The transformation matrix is also returned. The new reciprocal lattice vectors are obtained by new_rev_latt = rev_latt @ newcorr.I
+    The new y-axis is perpendicular to the new x-axis and the new z-axis.
+    The new coordinate system is right-handed.
+    The new reciprocal lattice vectors are returned as a 3x3 array.
+    The transformation matrix is also returned. The new reciprocal lattice vectors are obtained by new_rev_latt = rev_latt @ np.linalg.inv(newcorr)
 
 
     Parameters
     ----------
-    rev_latt : numpy.matrix
-        The reciprocal lattice vectors in the original coordinate system. A 3x3 matrix.
+    rev_latt : numpy.ndarray
+        The reciprocal lattice vectors in the original coordinate system. A 3x3 array.
     index : list. [i1, i2]
-        A list of 2 integers, the index of the two reciprocal lattice vectors to be used to define the new coordinate system. 
+        A list of 2 integers, the index of the two reciprocal lattice vectors to be used to define the new coordinate system.
         The index of the reciprocal lattice vector is 0, 1, or 2, corresponding to the x, y, and z direction, respectively.
 
     Returns
     -------
-    rev_latt_new : numpy.matrix
-        The reciprocal lattice vectors in the new coordinate system. A 3x3 matrix.
-    newcorr : numpy.matrix
-        The transformation matrix. The new reciprocal lattice vectors are obtained by new_rev_latt = rev_latt @ newcorr.I
+    rev_latt_new : numpy.ndarray
+        The reciprocal lattice vectors in the new coordinate system. A 3x3 array.
+    newcorr : numpy.ndarray
+        The transformation matrix. The new reciprocal lattice vectors are obtained by new_rev_latt = rev_latt @ np.linalg.inv(newcorr)
     """
-
-    if isinstance(rev_latt, np.matrix):
-        if rev_latt.shape != (3,3):
-            log.error("Error! rev_latt must be a 3x3 matrix!")
-            raise ValueError
-    else:
-        log.error("Error! rev_latt must be a 3x3 matrix!")
+    rev_latt = np.asarray(rev_latt)
+    if rev_latt.shape != (3,3):
+        log.error("Error! rev_latt must be a 3x3 array!")
         raise ValueError
-    
+
     index_left  = [0,1,2]
     for i in index:
         index_left.remove(i)
@@ -51,13 +47,12 @@ def rot_revlatt_2D(rev_latt,index=[0,1]): # 0, x; 1,y, 2,z
     avec2 = np.cross(avec3,avec1)
     if np.dot(np.cross(avec1,avec2),avec3) < 0:
         avec3 = -avec3
-    newcorr = np.zeros((3,3))    
+    newcorr = np.zeros((3,3))
     newcorr[index[0]] = avec1
     newcorr[index[1]] = avec2
     newcorr[index_left[0]] = avec3
-    newcorr = np.mat(newcorr)
 
-    rev_latt_new = rev_latt @ newcorr.I
+    rev_latt_new = rev_latt @ np.linalg.inv(newcorr)
 
     return rev_latt_new, newcorr
 
@@ -114,37 +109,26 @@ def gamma_center(meshgrid=[1,1,1]):
     Returns
     -------
     kpoints : numpy.ndarray
-        A numpy array of k-points.
+        A numpy array of k-points centered around gamma in [-0.5, 0.5) range.
     """
     if len(meshgrid) != 3  or not (np.array(meshgrid,dtype=int) > 0).all():
         log.error("Error! meshgrid must be a list of 3 positive integers!")
         raise ValueError
 
     kpoints = np.indices(meshgrid).transpose((1, 2, 3, 0)).reshape((-1, 3))
-    kpoints = (kpoints) / meshgrid
+    kpoints = kpoints / meshgrid
+    # Shift k-points > 0.5 to negative values to center around gamma
+    kpoints[kpoints >= 0.5] = kpoints[kpoints >= 0.5] - 1
     return kpoints
 
 
-def kmesh_sampling_weight(meshgrid=[1,1,1], is_gamma_center=True):
-    """ Generate k-points using Monkhorst-Pack method based on given meshgrid. The k-points are centered at Gamma point by default.
-     
-    """
 
-    kpoints = np.indices(meshgrid).transpose((1, 2, 3, 0)).reshape((-1, 3))
-
-    if is_gamma_center:
-        kpoints = gamma_center(meshgrid)
-    else:
-        kpoints = monkhorst_pack(meshgrid)
-    weights = np.ones(kpoints.shape[0])
-    return kpoints, weights 
 
 def kmesh_sampling(meshgrid=[1,1,1], is_gamma_center=True):
-    """ Generate k-points using Monkhorst-Pack method based on given meshgrid. The k-points are centered at Gamma point by default.
-     
-    """
+    """ Generate k-points using Monkhorst-Pack method based on given meshgrid. 
+    sThe k-points are centered at Gamma point by default.
 
-    kpoints = np.indices(meshgrid).transpose((1, 2, 3, 0)).reshape((-1, 3))
+    """
 
     if is_gamma_center:
         kpoints = gamma_center(meshgrid)
@@ -169,119 +153,69 @@ def kmesh_sampling_negf(meshgrid=[1,1,1], is_gamma_center=True, is_time_reversal
 
 
 def time_symmetry_reduce(meshgrid=[1,1,1], is_gamma_center=True):
-    '''Reduce the number of k-points in a meshgrid by applying symmetry operations.
+    '''Reduce the number of k-points in a meshgrid by applying time-reversal symmetry.
 
-    For gamma centered meshgrid, k-points range from 0 to 1 in each dimension initially. 
-    For non-gamma centered meshgrid, k-points range from -0.5 to 0.5 in each dimension initially.
+    K-points are in [-0.5, 0.5) range for both gamma-centered and MP sampling.
+    With time symmetry reduction, the number of k-points is reduced by pairing k and -k.
 
-    With time symmetry reduction, the number of k-points is reduced and limited to [0,0.5] in x-direction.
-    
     Parameters
     ----------
     meshgrid
-        The `meshgrid` parameter specifies the number of k-points in each direction. 
+        The `meshgrid` parameter specifies the number of k-points in each direction.
     is_gamma_center
         The parameter "is_gamma_center" is a boolean value that determines whether the k-point mesh must be
-    centered around the gamma point (0, 0, 0) or not. 
-    
+    centered around the gamma point (0, 0, 0) or not.
+
     Returns
     -------
         the reduced k-points and their corresponding weights.
-    
+
     '''
 
+    meshgrid_np = np.array(meshgrid)
     k_points = kmesh_sampling(meshgrid, is_gamma_center=is_gamma_center)
+    # k_points are already in [-0.5, 0.5) range from kmesh_sampling
+
+    k_points = np.round(k_points, decimals=8)
+
+    # Convert k-points to integer indices for O(1) hashing
+    # Use 2*meshgrid to avoid half-integer issues with MP sampling
+    # Gamma: k = i/N → k * 2N = 2i (distinct even integers)
+    # MP: k = (2i+1-N)/(2N) → k * 2N = 2i+1-N (distinct integers)
+    double_meshgrid = 2 * meshgrid_np
+    k_indices = np.round(k_points * double_meshgrid).astype(int)
+
+    # Use dictionary with tuple keys for O(1) lookup
+    seen = {}  # {canonical_idx_tuple: position_in_reduced_list}
     k_points_with_tr = []
     kweight = []
 
-    
-    if is_gamma_center:
-        k_points[k_points>0.5] = k_points[k_points>0.5] - 1
+    for kp, idx in zip(k_points, k_indices):
+        # Canonical form: wrap indices to [0, 2N) range
+        idx_canonical = tuple(idx % double_meshgrid)
+        # Time-reversal partner: -k wrapped to [0, 2N) range
+        neg_idx_canonical = tuple((-idx) % double_meshgrid)
 
-    k_points = np.round(k_points, decimals=5)
-
-    for kp in k_points:
-        if (-kp).tolist() not in k_points_with_tr:
+        if neg_idx_canonical in seen:
+            kweight[seen[neg_idx_canonical]] += 1
+        else:
+            seen[idx_canonical] = len(k_points_with_tr)
             k_points_with_tr.append(kp.tolist())
             kweight.append(1)
-        else:
-            kweight[k_points_with_tr.index((-kp).tolist())] += 1
 
     k_points_with_tr = np.array(k_points_with_tr)
-
-    # make the reduced kpoints in [0,0.5] in x-direction
-    if is_gamma_center:
-        k_points_with_tr[k_points_with_tr < 0] += 1 
-    else: # MP sampling
-        k_points_with_tr =  -1 * k_points_with_tr # due to time revesal symmetry
+    # Keep k-points in [-0.5, 0.5) range for compatibility with ksampling.py
 
     # sort the k-points
     k_sort_indx = np.lexsort((k_points_with_tr[:, 2], k_points_with_tr[:, 1], k_points_with_tr[:, 0]))
     k_points_with_tr = k_points_with_tr[k_sort_indx]
-    kweight = np.array(kweight)/len(k_points) # normalize the weight to one
+    kweight = np.array(kweight) / len(k_points)  # normalize the weight to one
     kweight = kweight[k_sort_indx]
     assert abs(kweight.sum() - 1.0) < 1e-5, "The sum of weight is not 1.0"
 
     return k_points_with_tr, kweight
 
-def time_symmetry_reduce_correct(k_points):
-    """
-    Applies time-reversal symmetry to a list of k-points and returns
-    the irreducible k-points along with their corresponding weights.
 
-    Args:
-        k_points (np.ndarray): A numpy array of k-points, with shape (N, 3).
-                               It's assumed k-points are in fractional coordinates
-                               and folded into the range (-0.5, 0.5].
-
-    Returns:
-        np.ndarray: A numpy array of shape (N_ir, 4), where N_ir is the
-                    number of irreducible k-points. The first 3 columns
-                    are the k-point coordinates, and the 4th column is
-                    the integer weight of the k-point (1 or 2).
-    """
-    # A set to store the canonical representation of k-points that have been seen
-    seen_kpoints_hash = set()
-    
-    # Lists to store the irreducible k-points and their weights
-    ir_k_points = []
-    ir_weights = []
-
-    for k_point in k_points:
-        # Convert the k-point to a tuple for hashing and comparison
-        k_tuple = tuple(k_point)
-        # Calculate the time-reversal partner
-        minus_k_tuple = tuple(-k_point)
-
-        # Normalize the k-points to handle the Brillouin zone boundary.
-        # This helps in identifying TRIM points correctly.
-        k_norm = tuple(0.5 if np.isclose(x, -0.5) else x for x in k_tuple)
-        minus_k_norm = tuple(0.5 if np.isclose(x, -0.5) else x for x in minus_k_tuple)
-        
-        # The canonical representation is the lexicographically smaller tuple
-        canonical_rep = min(k_norm, minus_k_norm)
-        # If we haven't seen this canonical representation before...
-        if canonical_rep not in seen_kpoints_hash:
-            # Add the representation to our set of seen hashes
-            seen_kpoints_hash.add(canonical_rep)
-            
-            # Add the k-point to our irreducible list
-            ir_k_points.append(k_point)
-
-            # Check if it's a Time-Reversal Invariant Momenta (TRIM) point
-            # A k-point is a TRIM if its normalized form is identical to its partner's
-            if k_norm == minus_k_norm:
-                # TRIM points have a weight of 1
-                ir_weights.append(1)
-            else:
-                # Regular points represent a pair (k, -k) and have a weight of 2
-                ir_weights.append(2)
-
-    # Combine k-points and weights into a single (N_ir, 4) array
-    ir_k_points_arr = np.array(ir_k_points)
-    ir_weights_arr = np.array(ir_weights).reshape(-1, 1)
-    ir_weights_arr = ir_weights_arr/np.sum(ir_weights_arr)
-    return ir_k_points_arr, ir_weights_arr
 
 
 def kgrid_spacing(structase,kspacing:float,sampling='MP'):
@@ -303,8 +237,9 @@ def kgrid_spacing(structase,kspacing:float,sampling='MP'):
     """
     
     assert isinstance(structase,ase.Atoms)
-    rev_latt = 2*np.pi*np.mat(structase.cell).I
-    meshgrid = np.ceil(np.dot(rev_latt.T, np.array([1/kspacing, 1/kspacing, 1/kspacing]))).astype(int)
+    # Reciprocal lattice vectors as rows: G = 2π * (R^-1)^T where R has real-space vectors as rows
+    rev_latt = 2*np.pi*np.linalg.inv(np.array(structase.cell)).T
+    meshgrid = np.maximum(1, np.floor(np.linalg.norm(rev_latt, axis=1) / kspacing).astype(int) + 1)
 
     if sampling == 'MP':
         kpoints = monkhorst_pack(meshgrid)
@@ -446,10 +381,10 @@ def vasp_kpath(structase, pathstr:list[str], high_sym_kpoints_dict:dict, number_
     klist = np.concatenate(klist)
 
 
-    rev_latt = np.mat(structase.cell).I.T
-    #rev_latt = 2*np.pi*np.mat(ase_struct.cell).I
+    rev_latt = np.linalg.inv(np.array(structase.cell)).T
+    #rev_latt = 2*np.pi*np.linalg.inv(np.array(ase_struct.cell))
     kdiff = kpath[:,1] - kpath[:,0]
-    kdiff_cart = np.asarray(kdiff * rev_latt)
+    kdiff_cart = np.dot(kdiff, rev_latt)
     kdist  = np.linalg.norm(kdiff_cart,axis=1)
 
     xlist_label = [0] 

@@ -371,6 +371,9 @@ class Eigh(nn.Module):
                 eigvec = torch.transpose(
                     torch.transpose(chklowtinv,dim0=1,dim1=2).conj() @ eigvec,
                     dim0=1,dim1=2)
+                data[self.h_out_field] = (
+                    chklowt @ data[self.h_out_field] @ torch.transpose(chklowt, dim0=1, dim1=2).conj()
+                )
 
             eigvecs.append(eigvec)
             eigvals.append(eigval)

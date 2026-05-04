@@ -1,17 +1,56 @@
 import torch
-from typing import Tuple, Union, Dict
+from typing import Union, Dict, Literal
 from dptb.data.transforms import OrbitalMapper
 from dptb.data import AtomicDataDict
 from .sktb import OnsiteFormula
-from dptb.nn.dftb.hopping_dftb import HoppingIntp
+from dptb.nn.dftb.hopping_dftb import HoppingIntp, HoppingIntpSmooth
 from dptb.nn.hamiltonian import SKHamiltonian
 from dptb.nn.dftb.sk_param import SKParam
+from dptb.utils.constants import DFTBPLUS_DIST_FUDGE, DFTBPLUS_N_INTER
 import logging
 
 log = logging.getLogger(__name__)
 
+# Valid interpolation methods
+VALID_INTERP_METHODS = ['linear', 'cspline', 'smooth_intp']
+InterpMethod = Literal['linear', 'cspline', 'smooth_intp']
+
 
 class DFTBSK(torch.nn.Module):
+    """
+    DFTB Slater-Koster model for tight-binding calculations.
+
+    Parameters
+    ----------
+    basis : dict, optional
+        Orbital basis specification for each element type.
+    idp_sk : OrbitalMapper, optional
+        Pre-configured OrbitalMapper instance.
+    skdata : str, optional
+        Path to Slater-Koster data files (.skf).
+    overlap : bool, default False
+        Whether to include overlap matrix calculation.
+    dtype : torch.dtype, default torch.float32
+        Data type for tensors.
+    device : torch.device, default 'cpu'
+        Device for computation.
+    transform : bool, default True
+        Whether to transform SK parameters to Hamiltonian.
+    num_xgrid : int, default -1
+        Number of grid points. -1 means read from SK files.
+    interp_method : str, default 'linear'
+        Interpolation method: 'linear', 'cspline', or 'smooth_intp'.
+        - 'linear': Simple 2-point linear interpolation (fast, C⁰)
+        - 'cspline': Cubic spline interpolation (smooth, C²)
+        - 'smooth_intp': DFTB+ compatible 8-point polynomial with smooth cutoff (C²)
+    smooth_ski : bool, default False
+        Shorthand for interp_method='smooth_intp'. When True, uses smooth
+        SK integral interpolation which produces identical results to DFTB+.
+    dist_fudge : float, optional
+        Extrapolation zone size in Bohr for smooth_intp method. Default is 1.0.
+    n_interp_points : int, optional
+        Number of interpolation points for smooth_intp method. Default is 8.
+    """
     name = "dftbsk"
     def __init__(
             self,
@@ -19,10 +58,14 @@ class DFTBSK(torch.nn.Module):
             idp_sk: Union[OrbitalMapper, None]=None,
             skdata: str=None,
             overlap: bool = False,
-            dtype: Union[str, torch.dtype] = torch.float32, 
+            dtype: Union[str, torch.dtype] = torch.float32,
             device: Union[str, torch.device] = torch.device("cpu"),
             transform: bool = True,
             num_xgrid: int = -1,
+            interp_method: InterpMethod = 'linear',
+            smooth_ski: bool = False,
+            dist_fudge: float = None,
+            n_interp_points: int = None,
             **kwargs,
             ) -> None:
         
@@ -44,22 +87,53 @@ class DFTBSK(torch.nn.Module):
         self.basis = self.idp_sk.basis
         self.idp_sk.get_orbpair_maps()
         self.idp_sk.get_skonsite_maps()
+        # Determine interpolation method
+        if smooth_ski:
+            if interp_method != 'smooth_intp':
+                log.debug("smooth_ski is True, override interp_method to 'smooth_intp'.")
+            interp_method = 'smooth_intp'
+        if interp_method not in VALID_INTERP_METHODS:
+            raise ValueError(
+                f"Invalid interp_method '{interp_method}'. "
+                f"Must be one of {VALID_INTERP_METHODS}"
+            )
+        self.interp_method = interp_method
+
         self.model_options = {
             "dftbsk":{
-                "skdata": skdata         
+                "skdata": skdata,
+                "interp_method": interp_method,
                 }
         }
 
-
         self.onsite_fn = OnsiteFormula(idp=self.idp_sk, functype='dftb', dtype=dtype, device=device)
-        self.hopping_fn = HoppingIntp(num_ingrls=self.idp_sk.reduced_matrix_element, method='linear')
+
+        # Create hopping interpolation function
+        if interp_method == 'smooth_intp':
+            # _dist_fudge and _n_points use provided values or default constants
+            _dist_fudge = dist_fudge if dist_fudge is not None else DFTBPLUS_DIST_FUDGE
+            _n_points = n_interp_points if n_interp_points is not None else DFTBPLUS_N_INTER
+            # Use DFTB+ compatible interpolation
+            self.hopping_fn = HoppingIntpSmooth(
+                num_ingrls=self.idp_sk.reduced_matrix_element,
+                dist_fudge=_dist_fudge,
+                n_points=_n_points,
+            )
+            log.debug(f"Using DFTB+ compatible interpolation: {_n_points}-point polynomial, "
+                     f"dist_fudge={_dist_fudge} Bohr")
+        else:
+            self.hopping_fn = HoppingIntp(
+                num_ingrls=self.idp_sk.reduced_matrix_element,
+                method=interp_method
+            )
 
         if num_xgrid == -1:
-            skparams = SKParam(basis=self.basis, skdata=skdata)
+            skparams = SKParam(basis=self.basis, skdata=skdata, dtype=self.dtype, device=self.device)
          
             distance_param = skparams.skdict['Distance']
             hopping_param = skparams.skdict['Hopping']
             onsite_param = skparams.skdict['OnsiteE']
+            mass_param = skparams.skdict['Mass']
             if overlap:
                 overlap_param = skparams.skdict['Overlap']
 
@@ -70,6 +144,7 @@ class DFTBSK(torch.nn.Module):
             distance_param = torch.zeros([num_xgrid],dtype=self.dtype, device=self.device)
             hopping_param = torch.zeros([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, num_xgrid], dtype=self.dtype, device=self.device)
             onsite_param = torch.zeros([len(self.idp_sk.type_names), self.idp_sk.n_onsite_Es, self.onsite_fn.num_paras], dtype=self.dtype, device=self.device)
+            mass_param = torch.zeros([len(self.idp_sk.type_names), 1], dtype=self.dtype, device=self.device)
             if overlap:
                 overlap_param = torch.zeros([len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, num_xgrid], dtype=self.dtype, device=self.device)
         else:
@@ -79,6 +154,7 @@ class DFTBSK(torch.nn.Module):
         self.register_buffer("distance_param", distance_param)
         self.register_buffer("hopping_param", hopping_param)
         self.register_buffer("onsite_param", onsite_param)
+        self.register_buffer("mass",mass_param)
         if overlap:
             self.register_buffer("overlap_param", overlap_param)
         else:
@@ -128,6 +204,7 @@ class DFTBSK(torch.nn.Module):
                 atomic_numbers=atomic_numbers, nn_onsite_paras=self.onsite_param)
         
         if AtomicDataDict.NODE_SOC_SWITCH_KEY not in data:
+            # not support soc, but we need to init the soc switch to False. there for we use the shape of pbc to init the soc switch.
             data[AtomicDataDict.NODE_SOC_SWITCH_KEY] =  torch.full((data['pbc'].shape[0], 1), False)
         else:
             data[AtomicDataDict.NODE_SOC_SWITCH_KEY].fill_(False)
@@ -142,17 +219,53 @@ class DFTBSK(torch.nn.Module):
     
     @classmethod
     def from_reference(
-        cls, 
-        checkpoint: str, 
+        cls,
+        checkpoint: str,
         basis: Dict[str, Union[str, list]]=None,
         skdata: str=None,
         overlap: bool=None,
-        dtype: Union[str, torch.dtype]=None, 
+        dtype: Union[str, torch.dtype]=None,
         device: Union[str, torch.device]=None,
         transform: bool=True,
+        interp_method: InterpMethod=None,
+        smooth_ski: bool=False,
+        dist_fudge: float=None,
+        n_interp_points: int=None,
         **kwargs,
         ):
+        """
+        Load a DFTBSK model from a checkpoint file.
 
+        Parameters
+        ----------
+        checkpoint : str
+            Path to the .pth checkpoint file.
+        basis : dict, optional
+            Orbital basis specification. If None, loaded from checkpoint.
+        skdata : str, optional
+            Path to SK data files. If None, loaded from checkpoint.
+        overlap : bool, optional
+            Whether to include overlap. If None, loaded from checkpoint.
+        dtype : torch.dtype, optional
+            Data type. If None, loaded from checkpoint.
+        device : torch.device, optional
+            Device for computation. If None, loaded from checkpoint.
+        transform : bool, default True
+            Whether to transform SK parameters to Hamiltonian.
+        interp_method : str, optional
+            Interpolation method. If None, loaded from checkpoint or defaults to 'linear'.
+        smooth_ski : bool, default False
+            Use smooth SK integral interpolation.
+        dist_fudge : float, optional
+            Extrapolation zone size for smooth_intp method.
+        n_interp_points : int, optional
+            Number of interpolation points for smooth_intp method.
+
+        Returns
+        -------
+        DFTBSK
+            Loaded model instance.
+        """
         common_options = {
             "dtype": dtype,
             "device": device,
@@ -160,28 +273,52 @@ class DFTBSK(torch.nn.Module):
             "overlap": overlap,
         }
 
-        dftb={
-                "skdata": skdata         
+        dftbsk_options = {
+            "skdata": skdata,
+            "interp_method": interp_method,
         }
 
-        assert checkpoint.split(".")[-1] == "pth", "The checkpoint should be a pth file." 
+        assert checkpoint.split(".")[-1] == "pth", "The checkpoint should be a pth file."
         f = torch.load(checkpoint, map_location=device, weights_only=False)
 
-        for k,v in common_options.items():
+        for k, v in common_options.items():
             if v is None:
                 common_options[k] = f["config"]["common_options"][k]
                 log.info(f"{k} is not provided in the input json, set to the value {common_options[k]} in model ckpt.")
-        for k,v in dftb.items():
+
+        # Handle dftbsk model options (support both 'dftb' and 'dftbsk' keys for backward compatibility)
+        config_model_opts = f["config"].get("model_options", {})
+        saved_dftbsk_opts = config_model_opts.get("dftbsk", config_model_opts.get("dftb", {}))
+
+        for k, v in dftbsk_options.items():
             if v is None:
-                dftb[k] = f["config"]["model_options"]["dftb"][k]
-                log.info(f"{k} is not provided in the input json, set to the value {dftb[k]} in model ckpt.")
+                if k in saved_dftbsk_opts:
+                    dftbsk_options[k] = saved_dftbsk_opts[k]
+                    log.info(f"{k} is not provided in the input json, set to the value {dftbsk_options[k]} in model ckpt.")
+                elif k == "interp_method":
+                    # Default to 'linear' for backward compatibility with old checkpoints
+                    dftbsk_options[k] = 'linear'
+                    log.info(f"{k} is not in model ckpt, defaulting to 'linear'.")
+
+        # Handle smooth_ski flag
+        if smooth_ski:
+            log.debug("smooth_ski is True, override interp_method to 'smooth_intp'.")
+            dftbsk_options["interp_method"] = 'smooth_intp'
 
         num_xgrid = f["model_state_dict"]["distance_param"].shape[0]
-        model = cls(**common_options, **dftb, num_xgrid=num_xgrid, transform=transform)
-        
+        model = cls(
+            **common_options,
+            **dftbsk_options,
+            num_xgrid=num_xgrid,
+            transform=transform,
+            smooth_ski=False,  # Already handled above
+            dist_fudge=dist_fudge,
+            n_interp_points=n_interp_points,
+        )
+
         if f["config"]["common_options"]["basis"] == common_options["basis"]:
             model.load_state_dict(f["model_state_dict"])
         else:
             log.warning("The basis in the input json is different from the basis in the model ckpt, the model state is not loaded.")
-        
+
         return model

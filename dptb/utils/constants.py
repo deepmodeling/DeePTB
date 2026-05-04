@@ -38,6 +38,15 @@ atomic_num_dict_r = dict(zip(atomic_num_dict.values(), atomic_num_dict.keys()))
 MaxShells  = 3
 NumHvals   = 10
 
+# DFTB+ interpolation constants for modern equal-grid SK interpolation.
+DFTBPLUS_N_INTER = 8
+DFTBPLUS_N_RIGHT_INTER = 4
+DFTBPLUS_DIST_FUDGE = 1.0
+DFTBPLUS_DELTA_R = 1e-5
+
+# Euler-Mascheroni constant for Ewald summation.
+euler = 0.5772156649
+
 Orbital_Order_Wan_Default = { 's': ['s'],
                               'p': ['pz','px','py'],
                               'd': ['dz2','dxz','dyz','dx2-y2','dxy']}
@@ -121,5 +130,4 @@ PYSCF2DeePTB = {
             4: np.eye(9),
             5: np.eye(11)
         }
-
 
