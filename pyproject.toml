@@ -42,8 +42,7 @@ dependencies = [
     "pyfiglet==1.0.2",
     "tensorboard",
     "seekpath",
-    "rich>=13.0.0",
-    "vbcsr>=0.2.2"
+    "rich>=13.0.0"
 ]
 
 [project.optional-dependencies]
@@ -51,6 +50,7 @@ dependencies = [
 tbtrans_init = ["sisl"]
 pybinding = ["pybinding"]
 pythtb = ["pythtb"]
+vbcsr = ["vbcsr>=0.2.2"]
 
 [project.scripts]
 dptb = "dptb.__main__:main"
