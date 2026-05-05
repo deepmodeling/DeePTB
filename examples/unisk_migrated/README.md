@@ -2,7 +2,7 @@
 
 These examples were copied from UniSK to help inspect and manually validate the DFTB/SCC migration in DeePTB.
 
-Most imports were mechanically changed from `dpusk` to `dptb`, and obvious absolute/local SK paths were adjusted to use data inside this directory.
+Imports and obvious absolute/local SK paths were adjusted to use DeePTB modules and data inside this directory.
 
 Recommended notebooks for the migrated DeePTB functionality:
 
