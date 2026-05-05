@@ -1,10 +1,13 @@
+import pytest
+
+pytest.importorskip("vbcsr")
+
 from dptb.postprocess.bandstructure.band import Band
 from dptb.utils.tools import j_loader
 from dptb.nn.build import build_model
 from dptb.data import build_dataset, AtomicData, AtomicDataDict
 from dptb.nn.hr2hR import Hr2HR
 import torch
-import pytest
 
 
 @pytest.fixture(scope='session', autouse=True)

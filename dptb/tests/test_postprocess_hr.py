@@ -2,6 +2,9 @@ import sys
 import os
 import unittest
 # from unittest.mock import MagicMock, patch
+import pytest
+
+pytest.importorskip("vbcsr")
 
 # Mock vbcsr before importing dptb to avoid crash if vbcsr is not installed or broken
 # sys.modules["vbcsr"] = MagicMock()
