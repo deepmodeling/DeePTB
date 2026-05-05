@@ -9,13 +9,13 @@ import numpy as np
 try:
     from vbcsr import ImageContainer
     from vbcsr import AtomicData as AtomicData_vbcsr
-except ImportError:
+except ModuleNotFoundError:
     ImageContainer = None
     AtomicData_vbcsr = None
 
 try:
     import op2c
-except ImportError:
+except ModuleNotFoundError:
     op2c = None
 
 def compute_overlap(data: AtomicDataDict, idp: OrbitalMapper, orb_dir, orb_names):
