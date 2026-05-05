@@ -64,38 +64,23 @@ class ElecStruCal(object):
             log.error('The model.transform is not True, please check the model.')
             raise RuntimeError('The model.transform is not True, please check the model.')
         
+        solver_cls = {
+            'eigvalsh': Eigenvalues, # eigenvalues only
+            'eigh': Eigh, # eigenvalues and eigenvectors
+        }[self.eig_method]
+        
+        solver_kwargs = {
+            'idp': model.idp,
+            'device': self.device,
+            'dtype': model.dtype,
+        }
         if self.overlap:
-            if self.eig_method == 'eigvalsh': # eigenvalues only
-                self.eig_solver = Eigenvalues(
-                    idp=model.idp,
-                    device=self.device,
-                    s_edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
-                    s_node_field=AtomicDataDict.NODE_OVERLAP_KEY,
-                    s_out_field=AtomicDataDict.OVERLAP_KEY,
-                    dtype=model.dtype,
-                )
-            elif self.eig_method == 'eigh': # eigenvalues and eigenvectors
-                self.eig_solver = Eigh(
-                    idp=model.idp,
-                    device=self.device,
-                    s_edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
-                    s_node_field=AtomicDataDict.NODE_OVERLAP_KEY,
-                    s_out_field=AtomicDataDict.OVERLAP_KEY,
-                    dtype=model.dtype,
-                )
-        else:
-            if self.eig_method == 'eigvalsh': # eigenvalues only
-                self.eig_solver = Eigenvalues(
-                    idp=model.idp,
-                    device=self.device,
-                    dtype=model.dtype,
-                ) 
-            elif self.eig_method == 'eigh': # eigenvalues and eigenvectors
-                self.eig_solver = Eigh(
-                    idp=model.idp,
-                    device=self.device,
-                    dtype=model.dtype,
-                )
+            solver_kwargs.update({
+                's_edge_field': AtomicDataDict.EDGE_OVERLAP_KEY,
+                's_node_field': AtomicDataDict.NODE_OVERLAP_KEY,
+                's_out_field': AtomicDataDict.OVERLAP_KEY,
+            })
+        self.eig_solver = solver_cls(**solver_kwargs)
 
         r_max, er_max, oer_max  = get_cutoffs_from_model_options(model.model_options)
         self.cutoffs = {'r_max': r_max, 'er_max': er_max, 'oer_max': oer_max}
