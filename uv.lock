@@ -931,6 +931,9 @@ pythtb = [
 tbtrans-init = [
     { name = "sisl" },
 ]
+vbcsr = [
+    { name = "vbcsr" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -968,8 +971,9 @@ requires-dist = [
     { name = "torch-geometric", specifier = ">=2.4.0" },
     { name = "torch-runstats", specifier = "==0.2.0" },
     { name = "torch-scatter", specifier = "==2.1.2" },
+    { name = "vbcsr", marker = "extra == 'vbcsr'", specifier = ">=0.2.2" },
 ]
-provides-extras = ["3dfermi", "tbtrans-init", "pybinding", "pythtb"]
+provides-extras = ["3dfermi", "tbtrans-init", "pybinding", "pythtb", "vbcsr"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -4942,6 +4946,23 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/15/22/9ee70a2574a4f4599c47dd506532914ce044817c7752a79b6a51286319bc/urllib3-2.5.0.tar.gz", hash = "sha256:3fc47733c7e419d4bc3f6b3dc2b4f890bb743906a30d56ba4a5bfa4bbff92760", size = 393185, upload-time = "2025-06-18T14:07:41.644Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/c2/fe1e52489ae3122415c51f387e221dd0773709bad6c6cdaa599e8a2c5185/urllib3-2.5.0-py3-none-any.whl", hash = "sha256:e6b01673c0fa6a13e374b50871808eb3bf7046c4b125b216f6bf1cc604cff0dc", size = 129795, upload-time = "2025-06-18T14:07:40.39Z" },
+]
+
+[[package]]
+name = "vbcsr"
+version = "0.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ase" },
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c4/8f/fd913110765c9ab654a79b70637d9ea5bda607d4ae12ae524169c574d5df/vbcsr-0.2.2.tar.gz", hash = "sha256:04e0d99fad262af85f084031be94713e20c6bdbc264f4503935967b125e31edc", size = 893962, upload-time = "2026-03-03T22:24:17.083Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/a4/a970f1f847667a1d2742a68b4e39b44b8bbcfff0f4eebc95c11284a7efd6/vbcsr-0.2.2-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:5bfafe2c1299ba4c3693cccd4eded5c5cdbfdbcbaaf5e8f318a9179d90c3a309", size = 16265367, upload-time = "2026-03-03T22:24:01.915Z" },
+    { url = "https://files.pythonhosted.org/packages/45/e8/9b9ecb3fa9fe6cc5958fec9988302ae888a37e8664f639bec5f614efc26f/vbcsr-0.2.2-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:1993d24d065f8ccaec0f709de493e33b3a7d6884023ec9e83a5bd1ff852233af", size = 16269321, upload-time = "2026-03-03T22:24:04.559Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/e6/c2931daf8daa7aa2faa082dc4fca237963a6097a0989f5de2d37b76c900f/vbcsr-0.2.2-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:7a50e336c5bd1fcc69dc724393fcf1bd8e4460e1a9e6266201973022a2cb5b1c", size = 16272520, upload-time = "2026-03-03T22:24:07.342Z" },
+    { url = "https://files.pythonhosted.org/packages/55/72/55326573dffc4ef4a223e5499f50cfbc8b1fd94ab6a196fd6cf933da4fbf/vbcsr-0.2.2-cp39-cp39-manylinux_2_28_x86_64.whl", hash = "sha256:945a03d16fd56117f895b10751fbf73220dd1bfc5c0c01541564026b7abf3074", size = 16264718, upload-time = "2026-03-03T22:24:15.078Z" },
 ]
 
 [[package]]
