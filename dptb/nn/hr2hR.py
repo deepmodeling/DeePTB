@@ -9,7 +9,7 @@ import numpy as np
 try:
     from vbcsr import ImageContainer
     from vbcsr import AtomicData as AtomicData_vbcsr
-except ImportError:
+except ModuleNotFoundError:
     ImageContainer = None
     AtomicData_vbcsr = None
 
