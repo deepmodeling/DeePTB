@@ -10,14 +10,18 @@ try:
     from vbcsr import ImageContainer
     from vbcsr import AtomicData as AtomicData_vbcsr
 except ImportError:
-    print("VBCSR is not installed, therefore, the compute_overlap_image is not supported.")
+    ImageContainer = None
+    AtomicData_vbcsr = None
 
 try:
     import op2c
 except ImportError:
-    print("OP2C is not installed, therefore, the compute_overlap is not supported.")
+    op2c = None
 
 def compute_overlap(data: AtomicDataDict, idp: OrbitalMapper, orb_dir, orb_names):
+    if op2c is None:
+        raise ImportError("compute_overlap requires op2c.")
+
     ntype = idp.num_types
     op = op2c.Op2c.from_files(
         nspin=1, # for current usage
@@ -66,6 +70,11 @@ def compute_overlap(data: AtomicDataDict, idp: OrbitalMapper, orb_dir, orb_names
     return data
 
 def compute_overlap_image(data: AtomicDataDict, idp: OrbitalMapper, orb_dir, orb_names):
+    if op2c is None:
+        raise ImportError("compute_overlap_image requires op2c.")
+    if ImageContainer is None or AtomicData_vbcsr is None:
+        raise ImportError("compute_overlap_image requires vbcsr. Install with `uv sync --extra vbcsr`.")
+
     ntype = idp.num_types
     op = op2c.Op2c.from_files(
         nspin=1, # for current usage
