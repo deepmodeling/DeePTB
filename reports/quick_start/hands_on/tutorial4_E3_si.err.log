@@ -26,8 +26,8 @@ os.chdir("/root/soft/dftio/test/data")
 [31m---------------------------------------------------------------------------[39m
 [31mPermissionError[39m                           Traceback (most recent call last)
 [36mCell[39m[36m [39m[32mIn[1][39m[32m, line 2[39m
-[32m      1[39m [38;5;28;01mimport[39;00m[38;5;250m [39m[34;01mos[39;00m
-[32m----> [39m[32m2[39m [43mos[49m[43m.[49m[43mchdir[49m[43m([49m[33;43m"[39;49m[33;43m/root/soft/dftio/test/data[39;49m[33;43m"[39;49m[43m)[49m
+[32m      1[39m [38;5;28;01mimport[39;00m os
+[32m----> [39m[32m2[39m os.chdir([33m"/root/soft/dftio/test/data"[39m)
 
 [31mPermissionError[39m: [Errno 13] Permission denied: '/root/soft/dftio/test/data'
 
