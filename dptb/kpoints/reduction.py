@@ -1,6 +1,6 @@
 """K-point symmetry reduction routines."""
 
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -22,6 +22,46 @@ except ImportError:
 def _wrap_to_bz(kpt: np.ndarray) -> np.ndarray:
     '''Wrap k-point to the first Brillouin zone [-0.5, 0.5).'''
     return (kpt + 0.5) % 1 - 0.5
+
+
+def _validate_symm_prec(symm_prec: float) -> float:
+    if not np.isfinite(symm_prec) or symm_prec <= 0:
+        raise ValueError("symm_prec must be positive and finite.")
+    return float(symm_prec)
+
+
+def _validate_kvec_d(kvec_d: np.ndarray) -> np.ndarray:
+    kvec_d = np.asarray(kvec_d)
+    if kvec_d.ndim == 1:
+        if kvec_d.shape[0] != 3:
+            raise ValueError("kvec_d must have shape (3,) or (n, 3).")
+        kvec_d = kvec_d.reshape(1, 3)
+    elif kvec_d.ndim == 2:
+        if kvec_d.shape[1] != 3:
+            raise ValueError("kvec_d must have shape (3,) or (n, 3).")
+    else:
+        raise ValueError("kvec_d must have shape (3,) or (n, 3).")
+    if kvec_d.shape[0] == 0:
+        raise ValueError("kvec_d must contain at least one k-point.")
+    if not np.all(np.isfinite(kvec_d)):
+        raise ValueError("kvec_d must contain only finite values.")
+    return kvec_d.astype(float, copy=False)
+
+
+def _validate_symm_ops(symm_op) -> np.ndarray:
+    symm_ops = np.asarray(symm_op)
+    if symm_ops.ndim == 2 and symm_ops.shape == (3, 3):
+        symm_ops = symm_ops.reshape(1, 3, 3)
+    if symm_ops.ndim != 3 or symm_ops.shape[1:] != (3, 3) or symm_ops.shape[0] == 0:
+        raise ValueError("symm_op must contain one or more 3x3 symmetry matrices.")
+    if not np.all(np.isfinite(symm_ops)):
+        raise ValueError("symm_op must contain only finite values.")
+    return symm_ops.astype(float, copy=False)
+
+
+def _can_use_packed_hash(symm_prec: float) -> bool:
+    scale = 1.0 / symm_prec
+    return np.isfinite(scale) and scale < 2**20
 
 
 # =============================================================================
@@ -277,7 +317,7 @@ def _compute_hash_key(kpt_rounded: np.ndarray) -> tuple:
 
 def _reduce_by_symmetry_direct(k: np.ndarray,
                                wk: np.ndarray,
-                               symm_ops: List[np.ndarray],
+                               symm_ops: np.ndarray,
                                symm_prec: float) -> Tuple[np.ndarray, np.ndarray]:
     '''
     Direct O(n^2*m) method for reducing k-points by symmetry operations.
@@ -316,7 +356,7 @@ def _reduce_by_symmetry_direct(k: np.ndarray,
 
 def _reduce_by_symmetry_hash(k: np.ndarray,
                              wk: np.ndarray,
-                             symm_ops: List[np.ndarray],
+                             symm_ops: np.ndarray,
                              symm_prec: float) -> Tuple[np.ndarray, np.ndarray]:
     '''
     Hash-based O(n*m) method for reducing k-points by symmetry operations.
@@ -383,7 +423,7 @@ def _reduce_by_symmetry_hash(k: np.ndarray,
 
 def _reduce_by_symmetry_numba(k: np.ndarray,
                               wk: np.ndarray,
-                              symm_ops: List[np.ndarray],
+                              symm_ops: np.ndarray,
                               symm_prec: float,
                               use_hash: bool = True) -> Tuple[np.ndarray, np.ndarray]:
     '''
@@ -423,7 +463,7 @@ def _reduce_by_symmetry_numba(k: np.ndarray,
 
 def _reduce_by_symmetry(k: np.ndarray,
                         wk: np.ndarray,
-                        symm_ops: List[np.ndarray],
+                        symm_ops: np.ndarray,
                         symm_prec: float,
                         threshold: int = 500) -> Tuple[np.ndarray, np.ndarray]:
     '''
@@ -444,14 +484,15 @@ def _reduce_by_symmetry(k: np.ndarray,
         crossover point for switching between direct and hash methods
     '''
     nk = len(k)
+    use_packed_hash = _can_use_packed_hash(symm_prec)
 
     # Use Numba-optimized version if available and mesh is large enough
     if HAS_NUMBA and nk > 100:
-        use_hash = nk > threshold
+        use_hash = nk > threshold and use_packed_hash
         return _reduce_by_symmetry_numba(k, wk, symm_ops, symm_prec, use_hash=use_hash)
 
     # Fallback to pure Python implementation
-    if nk > threshold:
+    if nk > threshold and use_packed_hash:
         return _reduce_by_symmetry_hash(k, wk, symm_ops, symm_prec)
     else:
         return _reduce_by_symmetry_direct(k, wk, symm_ops, symm_prec)
@@ -465,7 +506,8 @@ def reduce_time_inversion(kvec_d: np.ndarray,
     Uses a hybrid approach: hash-based O(n) for large meshes,
     direct O(n^2) for small meshes where it has less overhead.
     '''
-    k = kvec_d.reshape(-1, 3)
+    symm_prec = _validate_symm_prec(symm_prec)
+    k = _validate_kvec_d(kvec_d)
     nk = len(k)
     wk = np.ones(shape=(nk,), dtype=float)
 
@@ -478,9 +520,9 @@ def reduce_time_inversion(kvec_d: np.ndarray,
 
 
 def reduce_rotation(kvec_d: np.ndarray,
-                    symm_op: List[np.ndarray],
+                    symm_op: np.ndarray,
                     symm_prec: float = 1e-8,
-                    degeneracies_: Optional[List[float]] = None) -> Tuple[np.ndarray, np.ndarray]:
+                    degeneracies_: Optional[np.ndarray] = None) -> Tuple[np.ndarray, np.ndarray]:
     '''
     Reduce the Brillouin zone by iteratively imposing the symmetry operations on k-points.
     If the transformed k-point is identical with any other, they are considered equivalent
@@ -502,16 +544,23 @@ def reduce_rotation(kvec_d: np.ndarray,
     Tuple[np.ndarray, np.ndarray]
         The reduced k points and their degeneracies
     '''
-    k = kvec_d.reshape(-1, 3)
+    k = _validate_kvec_d(kvec_d)
+    symm_op = _validate_symm_ops(symm_op)
+    symm_prec = _validate_symm_prec(symm_prec)
     nk = len(k)
 
     degen = np.ones(shape=(nk,), dtype=float)
     if degeneracies_ is not None:
-        assert len(degeneracies_) == nk
+        degeneracies_ = np.asarray(degeneracies_, dtype=float)
+        if degeneracies_.shape != (nk,):
+            raise ValueError("degeneracies_ must have one value per k-point.")
+        if not np.all(np.isfinite(degeneracies_)):
+            raise ValueError("degeneracies_ must contain only finite values.")
         if not all(is_integer(x) for x in degeneracies_):
-            degeneracies_ = np.array(degeneracies_) * nk
-            assert all(is_integer(x) for x in degeneracies_)
-        degen = np.array(degeneracies_, dtype=float)
+            degeneracies_ = degeneracies_ * nk
+            if not all(is_integer(x) for x in degeneracies_):
+                raise ValueError("degeneracies_ must be integer counts or normalized integer counts.")
+        degen = degeneracies_.astype(float)
 
     if nk == 1:
         return k, degen.astype(int)
@@ -520,9 +569,9 @@ def reduce_rotation(kvec_d: np.ndarray,
     return k_reduced, degen_reduced.astype(int)
 
 def reduce(kvec_d: np.ndarray,
-           symm_op: List[np.ndarray],
+           symm_op: np.ndarray,
            time_inversion_symmetry: bool = True,
-           symm_prec: float = 1e-8) -> Tuple[np.ndarray, List[int]]:
+           symm_prec: float = 1e-8) -> Tuple[np.ndarray, np.ndarray]:
     '''
     reduce the primitive k vectors in direct coordinates, optionally (but default) also taking
     the time-inversion symmetry into consideration. All kpoints that are identical (indistinguishable
@@ -542,9 +591,12 @@ def reduce(kvec_d: np.ndarray,
 
     Returns
     -------
-    Tuple[np.ndarray, List[int]]
+    Tuple[np.ndarray, np.ndarray]
         The reduced k points and their degeneracies
     '''
+    symm_op = _validate_symm_ops(symm_op)
+    symm_prec = _validate_symm_prec(symm_prec)
+    kvec_d = _validate_kvec_d(kvec_d)
     wk = None
     if time_inversion_symmetry:
         kvec_d, wk = reduce_time_inversion(kvec_d, symm_prec)

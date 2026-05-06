@@ -53,7 +53,7 @@ log = logging.getLogger(__name__)
 # plt.rcParams['font.size'] = 16
 
 def fgau(x):
-    '''distribution function of Gaussian smearing, in which the x = (ef - e) / sigma
+    '''distribution function of Gaussian smearing, in which the x = (e - ef) / sigma
     is the smearing-normalized energy'''
     # the integration on 
     # deltagau(x) = 1 / np.sqrt(np.pi) * np.exp(-x**2)
@@ -151,11 +151,9 @@ def sfd(x):
     return out
 
 def fmp1(x):
-    '''distribution function of Methfessel-Paxton smearing order 1, in which the x = (ef - e) / sigma
+    '''distribution function of Methfessel-Paxton smearing order 1, in which the x = (e - ef) / sigma
     is the smearing-normalized energy'''
-    f_analytical = lambda e: 1/2 * (erf(e) + 1/np.sqrt(np.pi) * x * np.exp(-x**2))
-    f = lambda x: f_analytical(x) - f_analytical(-np.inf)
-    return 1 - f(x)
+    return 1/2 * (1 - erf(x)) - 1/2/np.sqrt(np.pi) * x * np.exp(-x**2)
 
 def smp1(x):
     '''entropy contribution of Methfessel-Paxton smearing order 1
@@ -167,7 +165,7 @@ def smp1(x):
     return 0
 
 def fcold(x):
-    '''distribution function of Marzari-Vanderbilt smearing, in which the x = (ef - e) / sigma
+    '''distribution function of Marzari-Vanderbilt smearing, in which the x = (e - ef) / sigma
     is the smearing-normalized energy'''
     f_analytical = lambda e:  1/np.sqrt(2*np.pi) * np.exp(-1/4 * (np.sqrt(2) - 2*e)**2) \
                             - 1/2 * erf(1/np.sqrt(2) - e)
@@ -181,15 +179,35 @@ def scold(x):
 # Module-level dictionaries to avoid repeated creation
 _FOCCUPY_METHODS = {'gaussian': fgau, 'fd': ffd, 'mp': fmp1, 'mv': fcold}
 _SOCCUPY_METHODS = {'gaussian': sgau, 'fd': sfd, 'mp': smp1, 'mv': scold}
+_OCCUPY_ALIASES = {
+    'gaussian': ['gau'],
+    'fd': ['fermi-dirac', 'f-d'],
+    'mp': ['methfessel-paxton', 'm-p'],
+    'mv': ['marzari-vanderbilt', 'cold', 'm-v'],
+}
+_OCCUPY_METHOD_LOOKUP = {alias: method for method, aliases in _OCCUPY_ALIASES.items() for alias in aliases + [method]}
+_SUPPORTED_OCCUPY_METHODS = ', '.join(sorted(_OCCUPY_METHOD_LOOKUP))
+
+
+def _normalize_occupy_method(method: str) -> str:
+    if not isinstance(method, str):
+        raise TypeError("method must be a string.")
+    normalized = _OCCUPY_METHOD_LOOKUP.get(method.lower())
+    if normalized is None:
+        raise ValueError(f"Unsupported smearing method '{method}'. Supported methods and aliases: {_SUPPORTED_OCCUPY_METHODS}.")
+    return normalized
+
 
 def foccupy(e, ef, sigma, method):
     """Compute occupation function. Works on arrays of any shape."""
-    assert sigma > 0
+    if sigma <= 0:
+        raise ValueError("sigma must be positive.")
     return _FOCCUPY_METHODS[method]((e - ef) / sigma)
 
 def soccupy(e, ef, sigma, method):
     """Compute entropy function. Works on arrays of any shape."""
-    assert sigma > 0
+    if sigma <= 0:
+        raise ValueError("sigma must be positive.")
     return _SOCCUPY_METHODS[method]((e - ef) / sigma)
 
 # Vectorized function to calculate the number of electrons with given fermi energy
@@ -275,27 +293,33 @@ def calculate_fermi_level(eigs: np.ndarray,
     >>> wk_sp = np.ones(4) / 4  # k-point weights
     >>> ef_sp, occ_sp, eband_sp, eband_free_sp = calculate_fermi_level(ekb_sp, wk_sp, 30, 0.1, method='mv')
     '''
-    assert isinstance(eigs, np.ndarray)
-    assert eigs.ndim == 3
+    if not isinstance(eigs, np.ndarray):
+        raise TypeError("eigs must be a numpy.ndarray.")
+    if eigs.ndim != 3:
+        raise ValueError("eigs must have shape (nspin, nk, nb).")
+    if not np.all(np.isfinite(eigs)):
+        raise ValueError("eigs must contain only finite values.")
     nspin, nk, nb = eigs.shape
-    assert nspin in [1, 2]
-    assert nk >= 0 and nb >= 0, f'Invalid ekb data: nk={nk}, nb={nb}'
-    
-    assert isinstance(wk, np.ndarray)
-    assert wk.ndim == 1
-    assert len(wk) == nk
-    
-    assert ne >= 0
-    assert sigma > 0
+    if nspin not in [1, 2]:
+        raise ValueError("eigs first dimension nspin must be 1 or 2.")
+    if nk <= 0 or nb <= 0:
+        raise ValueError(f'Invalid ekb data: nk={nk}, nb={nb}')
 
-    # method
-    alias = {'gaussian': ['gau'], 
-             'fd': ['fermi-dirac', 'f-d'],
-             'mp': ['methfessel-paxton', 'm-p'],
-             'mv': ['marzari-vanderbilt', 'cold', 'm-v']}
-    reverse_alias = lambda m: {vi: k for k, v in alias.items() for vi in v + [k]}[m.lower()]
-    method = reverse_alias(method)
-    assert method in ['gaussian', 'fd', 'mp', 'mv']
+    if not isinstance(wk, np.ndarray):
+        raise TypeError("wk must be a numpy.ndarray.")
+    if wk.ndim != 1:
+        raise ValueError("wk must be a 1D array.")
+    if len(wk) != nk:
+        raise ValueError("wk length must match the k-point dimension of eigs.")
+    if not np.all(np.isfinite(wk)):
+        raise ValueError("wk must contain only finite values.")
+
+    if ne < 0:
+        raise ValueError("ne must be non-negative.")
+    if not np.isfinite(sigma) or sigma <= 0:
+        raise ValueError("sigma must be positive and finite.")
+
+    method = _normalize_occupy_method(method)
     
     # the spin-degeneracy
     spindeg = 2 if nspin == 1 else 1
@@ -360,7 +384,7 @@ def calculate_fermi_level(eigs: np.ndarray,
     if method in ['mp', 'mv']:
         def ferr_(ef):
             return np.abs(fne_vectorized(eigs, ef, sigma, method, spindeg, wk_broadcast) - ne)
-        ef = minimize(ferr_, x0=ef).x  # BFGS
+        ef = minimize(ferr_, x0=ef).x.item()  # BFGS
 
     # With fermi energy, calculate the occupations and eband (vectorized)
     # foccupy already works on full arrays, no need to loop

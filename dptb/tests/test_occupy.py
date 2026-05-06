@@ -12,10 +12,11 @@ This test suite covers:
 import numpy as np
 import pytest
 from itertools import product as itprod
+from scipy.special import erf
 
 from dptb.utils.occupy import (
     fgau, sgau,
-    ffd, sfd,
+    ffd, dffd, sfd,
     fmp1, smp1,
     fcold, scold,
     foccupy, soccupy,
@@ -92,9 +93,55 @@ class TestSmearingFunctions:
         assert np.isclose(fmp1(x), 0.5, atol=1e-6)
         # Cold smearing has different value at x=0 due to its functional form
         assert 0.5 < fcold(x) < 0.65
+    def test_fgau_matches_closed_form(self):
+        """Test Gaussian smearing closed-form formula."""
+        x = np.array([-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0])
+        expected = 0.5 * (1 - erf(x))
+        np.testing.assert_allclose(fgau(x), expected, rtol=1e-12, atol=1e-12)
+
+    def test_ffd_matches_closed_form(self):
+        """Test Fermi-Dirac smearing closed-form formula."""
+        x = np.array([-50.0, -2.0, -1.0, 0.0, 1.0, 2.0, 50.0])
+        expected = 1 / (1 + np.exp(x))
+        np.testing.assert_allclose(ffd(x), expected, rtol=1e-12, atol=1e-12)
+
+    def test_dffd_matches_fermi_dirac_broadening(self):
+        """Test Fermi-Dirac derivative/broadening function."""
+        x = np.array([-50.0, -2.0, -1.0, 0.0, 1.0, 2.0, 50.0])
+        expected = 1 / (2 * np.cosh(x) + 2)
+        np.testing.assert_allclose(dffd(x), expected, rtol=1e-12, atol=1e-12)
+
+    def test_sgau_matches_closed_form(self):
+        """Test Gaussian entropy contribution closed-form formula."""
+        x = np.array([-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0])
+        expected = 0.5 / np.sqrt(np.pi) * np.exp(-x**2)
+        np.testing.assert_allclose(sgau(x), expected, rtol=1e-12, atol=1e-12)
+
+    def test_sfd_matches_closed_form(self):
+        """Test Fermi-Dirac entropy contribution closed-form formula."""
+        x = np.array([-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0])
+        f = ffd(x)
+        expected = -f * np.log(f) - (1 - f) * np.log(1 - f)
+        np.testing.assert_allclose(sfd(x), expected, rtol=1e-12, atol=1e-12)
 
 
-class TestEntropyFunctions:
+        """Test Methfessel-Paxton order 1 formula away from the Fermi level."""
+        x = np.array([-2.0, -1.0, -0.5, 0.5, 1.0, 2.0])
+        expected = 0.5 * (1 - erf(x)) - 0.5 / np.sqrt(np.pi) * x * np.exp(-x**2)
+        np.testing.assert_allclose(fmp1(x), expected, rtol=1e-12, atol=1e-12)
+        assert not np.allclose(fmp1(x), fgau(x))
+
+    def test_fcold_matches_closed_form(self):
+        """Test Marzari-Vanderbilt cold smearing closed-form formula."""
+        x = np.array([-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0])
+        expected = (
+            0.5
+            + 0.5 * erf(1 / np.sqrt(2) - x)
+            - 1 / np.sqrt(2 * np.pi) * np.exp(-0.25 * (np.sqrt(2) - 2 * x) ** 2)
+        )
+        np.testing.assert_allclose(fcold(x), expected, rtol=1e-12, atol=1e-12)
+
+
     """Test entropy contribution functions."""
 
     def test_sgau_properties(self):
@@ -162,11 +209,11 @@ class TestOccupyFunctions:
         assert occ_above < 0.5
 
     def test_foccupy_sigma_validation(self):
-        """Test that negative or zero sigma raises assertion error."""
-        with pytest.raises(AssertionError):
+        """Test that negative or zero sigma raises a validation error."""
+        with pytest.raises((TypeError, ValueError)):
             foccupy(0.0, 0.0, 0.0, 'gaussian')
 
-        with pytest.raises(AssertionError):
+        with pytest.raises((TypeError, ValueError)):
             foccupy(0.0, 0.0, -0.1, 'gaussian')
 
     def test_soccupy_methods(self):
@@ -180,11 +227,11 @@ class TestOccupyFunctions:
             assert np.isfinite(s), f"Failed for method {method}"
 
     def test_soccupy_sigma_validation(self):
-        """Test that negative or zero sigma raises assertion error."""
-        with pytest.raises(AssertionError):
+        """Test that negative or zero sigma raises a validation error."""
+        with pytest.raises((TypeError, ValueError)):
             soccupy(0.0, 0.0, 0.0, 'gaussian')
 
-        with pytest.raises(AssertionError):
+        with pytest.raises((TypeError, ValueError)):
             soccupy(0.0, 0.0, -0.1, 'gaussian')
 
 
@@ -230,6 +277,20 @@ class TestCalculateFermiLevel:
 
             ne_calc = np.sum(occ * wk[0])
             assert abs(ne_calc - ne) / ne < 0.01, f"Failed for method {method}: ne={ne}, ne_calc={ne_calc}"
+
+    def test_mp_mv_fermi_level_is_scalar(self):
+        """Test MP/MV refinement returns a scalar Fermi level."""
+        ekb = np.linspace(-4, 4, 100).reshape(1, 1, -1)
+        wk = np.array([1.0])
+        ne = 10
+        sigma = 0.05
+
+        for method in ['mp', 'mv']:
+            ef, occ, eband, eband_free = calculate_fermi_level(ekb, wk, ne, sigma, method=method)
+            assert isinstance(ef, (float, np.floating)), f"Failed for method {method}: ef type is {type(ef)}"
+            assert occ.shape == ekb.shape
+            assert isinstance(eband, (float, np.floating))
+            assert isinstance(eband_free, (float, np.floating))
 
     def test_spin_polarized(self):
         """Test with spin-polarized calculation (nspin=2)."""
@@ -406,14 +467,14 @@ class TestCalculateFermiLevel:
     def test_input_validation_eigs_shape(self):
         """Test input validation for eigenvalues shape."""
         # Wrong number of dimensions
-        with pytest.raises(AssertionError):
+        with pytest.raises((TypeError, ValueError)):
             ekb = np.linspace(-4, 4, 50).reshape(1, -1)  # 2D instead of 3D
             wk = np.array([1.0])
             calculate_fermi_level(ekb, wk, 10, 0.1)
 
     def test_input_validation_eigs_type(self):
         """Test input validation for eigenvalues type."""
-        with pytest.raises(AssertionError):
+        with pytest.raises((TypeError, ValueError)):
             ekb = [[[-1, 0, 1]]]  # List instead of numpy array
             wk = np.array([1.0])
             calculate_fermi_level(ekb, wk, 10, 0.1)
@@ -423,19 +484,19 @@ class TestCalculateFermiLevel:
         ekb = np.linspace(-4, 4, 50).reshape(1, 2, -1)
 
         # Wrong shape
-        with pytest.raises(AssertionError):
+        with pytest.raises((TypeError, ValueError)):
             wk = np.array([[1.0, 1.0]])  # 2D instead of 1D
             calculate_fermi_level(ekb, wk, 10, 0.1)
 
         # Wrong length
-        with pytest.raises(AssertionError):
+        with pytest.raises((TypeError, ValueError)):
             wk = np.array([1.0])  # Should be length 2
             calculate_fermi_level(ekb, wk, 10, 0.1)
 
     def test_input_validation_nspin(self):
         """Test input validation for spin channels."""
         # nspin = 3 should fail
-        with pytest.raises(AssertionError):
+        with pytest.raises((TypeError, ValueError)):
             ekb = np.linspace(-4, 4, 60).reshape(3, 1, 20)  # nspin=3 (invalid)
             wk = np.array([1.0])
             calculate_fermi_level(ekb, wk, 10, 0.1)
@@ -446,11 +507,11 @@ class TestCalculateFermiLevel:
         wk = np.array([1.0])
 
         # Negative sigma
-        with pytest.raises(AssertionError):
+        with pytest.raises((TypeError, ValueError)):
             calculate_fermi_level(ekb, wk, 10, -0.1)
 
         # Zero sigma
-        with pytest.raises(AssertionError):
+        with pytest.raises((TypeError, ValueError)):
             calculate_fermi_level(ekb, wk, 10, 0.0)
 
     def test_input_validation_ne(self):
@@ -459,7 +520,7 @@ class TestCalculateFermiLevel:
         wk = np.array([1.0])
 
         # Negative ne
-        with pytest.raises(AssertionError):
+        with pytest.raises((TypeError, ValueError)):
             calculate_fermi_level(ekb, wk, -10, 0.1)
 
     def test_different_sigma_values(self):

@@ -18,7 +18,8 @@ def calculate_reciprocal_vectors(
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Calculate reciprocal lattice vectors."""
     vol = np.dot(a, np.cross(b, c))
-    assert np.abs(vol) > 1e-10
+    if np.abs(vol) <= 1e-10:
+        raise ValueError("Lattice vectors are singular and cannot define reciprocal vectors.")
     rmat = np.vstack([x.reshape((1, 3)) for x in [a, b, c]])
     gmat = np.linalg.solve(rmat, np.eye(3)).T * 2 * np.pi
     return gmat[0], gmat[1], gmat[2]
@@ -31,15 +32,25 @@ def get_symm_ops(atoms: Atoms) -> List[np.ndarray]:
     latt = atoms.get_cell()
     coords = atoms.get_positions()
     type_map = atoms.get_atomic_numbers()
-    return [op for op in _spglib_get_symmetry((latt, coords, type_map))["rotations"]]
+    symmetry = _spglib_get_symmetry((latt, coords, type_map))
+    if symmetry is None or "rotations" not in symmetry:
+        raise ValueError("spglib failed to determine rotational symmetry operations.")
+    rotations = symmetry["rotations"]
+    if len(rotations) == 0:
+        raise ValueError("spglib returned no rotational symmetry operations.")
+    return [op for op in rotations]
 
 
-def rot_revlatt_2D(rev_latt, index=[0, 1]):  # 0, x; 1,y, 2,z
+def rot_revlatt_2D(rev_latt, index=None):  # 0, x; 1,y, 2,z
     """Transform reciprocal lattice vectors to a 2D-oriented coordinate system."""
+    if index is None:
+        index = (0, 1)
+    if len(index) != 2 or len(set(index)) != 2 or not all(isinstance(i, int) and i in {0, 1, 2} for i in index):
+        raise ValueError("index must contain two distinct integer axes from {0, 1, 2}.")
     rev_latt = np.asarray(rev_latt)
     if rev_latt.shape != (3, 3):
         log.error("Error! rev_latt must be a 3x3 array!")
-        raise ValueError
+        raise ValueError("rev_latt must be a 3x3 array.")
 
     index_left = [0, 1, 2]
     for i in index:

@@ -24,12 +24,18 @@ def sample(
     symm_prec: float = 1e-8,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Sample and optionally symmetry-reduce k-points for a crystal structure."""
-    assert isinstance(structure, Atoms)
-    assert scheme == "mp"
+    if not isinstance(structure, Atoms):
+        raise TypeError("structure must be an ase.Atoms instance.")
+    if scheme != "mp":
+        raise ValueError("Only scheme='mp' is supported.")
     if meshgrid is not None:
-        assert isinstance(meshgrid, (list, tuple)) and len(meshgrid) == 3
+        if not isinstance(meshgrid, (list, tuple)) or len(meshgrid) != 3:
+            raise ValueError("meshgrid must be a list or tuple of 3 positive integers.")
     if meshspacing is not None:
-        assert isinstance(meshspacing, (list, tuple)) and len(meshspacing) == 3
+        if not isinstance(meshspacing, (list, tuple)) or len(meshspacing) != 3:
+            raise ValueError("meshspacing must be a list or tuple of 3 positive values.")
+    if not np.isfinite(symm_prec) or symm_prec <= 0:
+        raise ValueError("symm_prec must be positive and finite.")
     if meshgrid is not None and meshspacing is not None:
         log.warning("Both meshgrid and meshspacing are provided. meshspacing will take precedence.")
 
