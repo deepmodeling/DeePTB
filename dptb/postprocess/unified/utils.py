@@ -1,6 +1,6 @@
 import numpy as np
 import logging
-from dptb.utils.constants import Boltzmann, eV2J
+from dptb.utils.constants import kB_eV_per_K
 
 log = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ def calculate_fermi_level(eigenvalues: np.ndarray, total_electrons: float, spind
 
     # calculate boundaries
     min_Ef, max_Ef = eigenvalues.min(), eigenvalues.max()
-    kT = Boltzmann / eV2J * temperature
+    kT = kB_eV_per_K * temperature
     
     # Expand search range to ensure Ef is within bounds even if it's in the band gap
     drange = kT * np.sqrt(-np.log(q_tol * 1e-2))

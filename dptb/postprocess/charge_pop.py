@@ -210,6 +210,7 @@ class Mulliken(ElecStruCal):
         self.wk = None  # Initialize wk to None
         self.pbc = None  # Initialize pbc to None
         self.estimated_E_fermi = None # Initialize estimated_E_fermi to None
+        self.elec_bandE = None
         self.mul_charge = None
         self.delta_charge = None
         self.per_atom_norbs = None

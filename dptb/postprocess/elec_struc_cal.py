@@ -8,7 +8,7 @@ import logging
 log = logging.getLogger(__name__)
 from dptb.data import AtomicData, AtomicDataDict
 from dptb.nn.energy import Eigenvalues, Eigh
-from dptb.utils.constants import Boltzmann,eV2J
+from dptb.utils.constants import kB_eV_per_K
 from dptb.utils.occupy import calculate_fermi_level, ffd, dffd, fgau
 from dptb.utils.ksampling import sample as ksampling
 from dptb.postprocess.common import load_data_for_model
@@ -355,7 +355,7 @@ class ElecStruCal(object):
         
         # calculate boundaries
         min_Ef, max_Ef = eigenvalues.min(), eigenvalues.max()
-        kT = Boltzmann/eV2J * temp
+        kT = kB_eV_per_K * temp
         drange = kT*np.sqrt(-np.log(q_tol*1e-2))
         min_Ef = min_Ef - drange
         max_Ef = max_Ef + drange
@@ -593,10 +593,7 @@ class ElecStruCal(object):
         nspin = 1 #TODO: consider nspin=2 for non-collinear cases in future
         eigs_3d = eigenvalues.reshape(nspin, nk, nbands)
 
-        # Convert temperature to sigma (smearing width in eV)
-        # Boltzmann is in J/K, eV2J converts eV to J
-        # So Boltzmann/eV2J gives Boltzmann constant in eV/K
-        sigma = Boltzmann / eV2J * temp  # kT in eV
+        sigma = kB_eV_per_K * temp  # kT in eV
 
         # Map smearing method names to calculate_fermi_level convention
         method_map = {
@@ -1045,7 +1042,7 @@ class ElecStruCal(object):
 
         # Calculate total energy
         fermi_prop = cls.fermi_dirac_smearing(  E = eigvals,
-                                                kT= Boltzmann * Temp, 
+                                                kT= kB_eV_per_K * Temp,
                                                 mu= E_fermi) # (nk, nstate)  
         elec_totE = spindeg * (wk.reshape(-1,1) * (fermi_prop * eigvals)).sum() # with spin degeneracy
         return elec_totE
