@@ -13,6 +13,13 @@ import torch
 from typing import Tuple
 
 
+def _validate_x_boundary(x_boundary: float) -> float:
+    dx = float(x_boundary)
+    if not torch.isfinite(torch.tensor(dx)) or dx <= 1e-12:
+        raise ValueError("x_boundary must be positive and finite.")
+    return dx
+
+
 class Poly5ToZero:
     """
     5th-order polynomial decay to zero with C² continuity.
@@ -88,7 +95,7 @@ class Poly5ToZero:
         # ee = -15 * y0 + 7 * dx1 - 1.0 * dx2
         # ff =   6 * y0 - 3 * dx1 + 0.5 * dx2
 
-        dx = x_boundary
+        dx = _validate_x_boundary(x_boundary)
         dx1 = fp * dx                    # [n_channels]
         dx2 = fpp * dx * dx              # [n_channels]
 
@@ -97,7 +104,6 @@ class Poly5ToZero:
         ff = 6.0 * f - 3.0 * dx1 + 0.5 * dx2    # [n_channels]
 
         # Normalize query points
-        assert dx > 1e-12, "x_boundary must be positive and non-zero."
         inv_dx = 1.0 / dx
         xr = x * inv_dx  # [n_query]
 
@@ -143,7 +149,7 @@ class Poly5ToZero:
         The polynomial is: p(xr) = (dd + ee*xr + ff*xr²) * xr³
         where xr = x / x_boundary is the normalized coordinate.
         """
-        dx = x_boundary
+        dx = _validate_x_boundary(x_boundary)
         dx1 = fp * dx
         dx2 = fpp * dx * dx
 
@@ -181,6 +187,7 @@ class Poly5ToZero:
         """
         dd, ee, ff = self.compute_coefficients(x_boundary, f, fp, fpp)
 
+        x_boundary = _validate_x_boundary(x_boundary)
         inv_dx = 1.0 / x_boundary
         xr = x * inv_dx  # [n_query]
 

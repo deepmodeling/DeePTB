@@ -49,6 +49,10 @@ class NevillePolyInterp:
     """
 
     def __init__(self, n_points: int = 8, n_right: int = 4):
+        if not isinstance(n_points, int) or n_points < 2:
+            raise ValueError("n_points must be an integer greater than or equal to 2.")
+        if not isinstance(n_right, int) or n_right < 0 or n_right > n_points:
+            raise ValueError("n_right must be an integer between 0 and n_points.")
         self.n_points = n_points
         self.n_right = n_right
 
@@ -81,12 +85,28 @@ class NevillePolyInterp:
         Query points outside the grid range will still be interpolated
         (extrapolation), but results may be inaccurate.
         """
+        if x.ndim != 1:
+            raise ValueError("x must be a 1D tensor.")
+        if xq.ndim != 1:
+            raise ValueError("xq must be a 1D tensor.")
+        if y.ndim != 2:
+            raise ValueError("y must be a 2D tensor with shape [n_channels, n_grid].")
         n_grid = x.shape[0]
         n_channels = y.shape[0]
         n_query = xq.shape[0]
+        if y.shape[1] != n_grid:
+            raise ValueError("y.shape[1] must match x.shape[0].")
+        if n_grid < self.n_points:
+            raise ValueError("x must contain at least n_points grid points.")
+        if not torch.isfinite(x).all():
+            raise ValueError("x must contain only finite values.")
+        dx = x[1:] - x[:-1]
+        if not (dx > 0).all():
+            raise ValueError("x must be strictly increasing.")
+        if not torch.allclose(dx, dx[0].expand_as(dx), rtol=1e-4, atol=1e-12):
+            raise ValueError("x must be uniformly spaced.")
 
         # Grid spacing (assumes uniform grid)
-        assert n_grid > 1, "Grid x must have at least two points."
         grid_spacing = (x[-1] - x[0]) / (n_grid - 1)
         x_min = x[0]
 
@@ -180,6 +200,8 @@ class NevillePolyInterp:
                 # Wait, this is getting confusing. Let me just match the array access:
                 # Fortran ii=1: cc(2)-dd(1) -> Python ii=0: cc[1]-dd[0] ✓
                 x_diff = x_local[ii] - x_local[ii + mm]
+                if torch.abs(x_diff) <= torch.finfo(x_local.dtype).eps:
+                    raise ValueError("Interpolation grid contains duplicate or indistinguishable local points.")
                 r_tmp = (cc[:, ii + 1] - dd[:, ii]) / x_diff
 
                 cc[:, ii] = (x_local[ii] - xq_val) * r_tmp
@@ -231,11 +253,23 @@ class NevillePolyInterp:
         fpp : torch.Tensor
             Second derivative at xq [n_channels].
         """
+        if not torch.isfinite(torch.tensor(delta_r)) or delta_r <= 0:
+            raise ValueError("delta_r must be positive and finite.")
+        original_dtype = y.dtype
+        if y.dtype == torch.float32:
+            x_eval = x.to(torch.float64)
+            y_eval = y.to(torch.float64)
+            xq_dtype = torch.float64
+        else:
+            x_eval = x
+            y_eval = y
+            xq_dtype = x.dtype
+
         # Evaluate at xq - delta, xq, xq + delta
         xq_tensor = torch.tensor([xq - delta_r, xq, xq + delta_r],
-                                  dtype=x.dtype, device=x.device)
+                                  dtype=xq_dtype, device=x.device)
 
-        vals = self(x, y, xq_tensor)  # [n_channels, 3]
+        vals = self(x_eval, y_eval, xq_tensor)  # [n_channels, 3]
 
         f_minus = vals[:, 0]
         f_val = vals[:, 1]
@@ -245,4 +279,4 @@ class NevillePolyInterp:
         fp = (f_plus - f_minus) / (2.0 * delta_r)
         fpp = (f_plus + f_minus - 2.0 * f_val) / (delta_r * delta_r)
 
-        return f_val, fp, fpp
+        return f_val.to(original_dtype), fp.to(original_dtype), fpp.to(original_dtype)

@@ -12,7 +12,9 @@ published by the Free Software Foundation, either version 3 of
 the License, or (at your option) any later version.
 
 Modifications in this version:
-- [Describe your changes here, e.g., adjusted arguments / optimized loop]
+- Adapted geometry inputs to DeePTB AtomicDataDict and torch tensors.
+- Added helpers for building periodic Coulomb matrices used by DFTB-SCC.
+- Preserved Ewald summation formulas from the TBMaLT implementation.
 """
 
 
@@ -61,10 +63,12 @@ class Periodicity_(object):
         assert AtomicDataDict.CELL_KEY in data.keys(), "Cell information is missing in data."
 
         self.lattice = data[AtomicDataDict.CELL_KEY] / Bohr2Ang
-        self.reciprocal_lattice = torch.from_numpy(
-            2 * np.pi * np.mat(self.lattice.cpu().numpy()).I.T
-            ).to(self.lattice.dtype).to(self.lattice.device)
+        self.reciprocal_lattice = 2 * np.pi * torch.linalg.inv(self.lattice).transpose(-1, -2)
         self.pbc = self.lattice.ne(0).any(-1)
+
+    def get_cell_lengths(self) -> Tensor:
+        """Get lattice vector lengths."""
+        return torch.linalg.norm(self.lattice, dim=-1)
 
     @property
     def cellvol(self) -> Tensor:
@@ -246,7 +250,7 @@ def pack(tensors: Sliceable, axis: int = 0,
     Examples:
         Multiple tensors can be packed into a single tensor like so:
 
-        >>> from tbmalt.common.batch import pack
+        >>> from dptb.utils.ewald_sum import pack
         >>> import torch
         >>> a, b, c = torch.rand(2,2), torch.rand(3,3), torch.rand(4,4)
         >>> abc_packed_a = pack([a, b, c])
@@ -337,14 +341,13 @@ def build_coulomb_matrix(geometry: Geometry_, **kwargs):
         nsearchiter: Maximum of iteration for searching alpha, maxg and maxr.
 
     Examples:
-        >>> from tbmalt import Geometry
-        >>> from tbmalt.physics.dftb.coulomb import build_coulomb_matrix
+        >>> from dptb.utils.ewald_sum import Geometry_, build_coulomb_matrix
         >>> import torch
+        >>> from dptb.data import AtomicDataDict
         >>> cell = torch.tensor([[2., 0., 0.], [0., 4., 0.], [0., 0., 2.]])
         >>> pos = torch.tensor([[0., 0., 0.], [0., 2., 0.]])
-        >>> num = torch.tensor([1, 1])
-        >>> cutoff = torch.tensor([9.98])
-        >>> system = Geometry(num, pos, cell, units='a', cutoff=cutoff)
+        >>> data = {AtomicDataDict.CELL_KEY: cell, AtomicDataDict.POSITIONS_KEY: pos}
+        >>> system = Geometry_(data)
         >>> invrmat = build_coulomb_matrix(system, method='search')
         >>> print(invrmat)
         tensor([[-0.4778, -0.2729],
@@ -563,7 +566,7 @@ class Ewald(ABC):
                 self._n_batch, dim=0) * (2.0 * self.alpha / np.sqrt(np.pi)
                                          ).unsqueeze(-1).unsqueeze(-1)
 
-        # TODO: only eqald_r is an issue here
+        # TODO: only ewald_r is an issue here
         invr = self.ewald_r + self.ewald_g - extra
         invr[self.mask_g] = 0
 
@@ -824,7 +827,7 @@ class Ewald(ABC):
             if iiter > self.nsearchiter:
                 ierror = 3
         if ierror != 0:
-            raise ValueError('Fail to get maxg for Ewald sum.')
+            raise ValueError('Fail to get maxr for Ewald sum.')
 
         return xx
 

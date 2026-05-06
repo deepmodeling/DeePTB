@@ -22,6 +22,7 @@ dtype_dict = {"float32": torch.float32, "float64": torch.float64}
 # k = Boltzmann # k is the Boltzmann constant in old NEGF module
 Coulomb = 6.24150974e18 # in the unit of eV*Angstrom
 eV2J = 1.6021766208e-19 # in the unit of J
+kB_eV_per_K = Boltzmann / eV2J # Boltzmann constant in eV/K
 
 
 # bond integral index in DFTB sk files. specific.
