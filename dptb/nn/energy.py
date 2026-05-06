@@ -346,7 +346,17 @@ class Eigh(nn.Module):
         self.s_out_field = s_out_field
 
 
-    def forward(self, data: AtomicDataDict.Type, nk: Optional[int]=None) -> AtomicDataDict.Type:
+    def forward(self,
+                data: AtomicDataDict.Type,
+                nk: Optional[int]=None,
+                eig_solver: str='torch') -> AtomicDataDict.Type:
+        if eig_solver is None:
+            eig_solver = 'torch'
+            log.warning("eig_solver is not set, using default 'torch'.")
+        if eig_solver not in ['torch', 'numpy']:
+            log.error(f"eig_solver should be 'torch' or 'numpy', but got {eig_solver}.")
+            raise ValueError
+
         kpoints = data[AtomicDataDict.KPOINT_KEY]
         if kpoints.is_nested:
             nested = True
@@ -362,21 +372,41 @@ class Eigh(nn.Module):
         for i in range(int(np.ceil(num_k / nk))):
             data[AtomicDataDict.KPOINT_KEY] = kpoints[i*nk:(i+1)*nk]
             data = self.h2k(data)
+            chklowtinv = None
+            chklowtinv_np = None
+            h_transformed_np = None
             if self.overlap:
                 data = self.s2k(data)
-                chklowt = torch.linalg.cholesky(data[self.s_out_field])
-                chklowtinv = torch.linalg.inv(chklowt)
-                h_transformed = (
-                    chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj()
-                )
+                if eig_solver == 'torch':
+                    chklowt = torch.linalg.cholesky(data[self.s_out_field])
+                    chklowtinv = torch.linalg.inv(chklowt)
+                    h_transformed = (
+                        chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj()
+                    )
+                elif eig_solver == 'numpy':
+                    s_np = data[self.s_out_field].detach().cpu().numpy()
+                    h_np = data[self.h_out_field].detach().cpu().numpy()
+                    chklowt_np = np.linalg.cholesky(s_np)
+                    chklowtinv_np = np.linalg.inv(chklowt_np)
+                    h_transformed_np = chklowtinv_np @ h_np @ np.transpose(chklowtinv_np,(0,2,1)).conj()
             else:
                 h_transformed = data[self.h_out_field]
 
-            eigval, eigvec = torch.linalg.eigh(h_transformed)
-            if self.overlap:
-                eigvec = torch.transpose(
-                    torch.transpose(chklowtinv,dim0=1,dim1=2).conj() @ eigvec,
-                    dim0=1,dim1=2)
+            if eig_solver == 'torch':
+                eigval, eigvec = torch.linalg.eigh(h_transformed)
+                if self.overlap:
+                    eigvec = torch.transpose(
+                        torch.transpose(chklowtinv,dim0=1,dim1=2).conj() @ eigvec,
+                        dim0=1,dim1=2)
+            elif eig_solver == 'numpy':
+                if h_transformed_np is None:
+                    h_transformed_np = data[self.h_out_field].detach().cpu().numpy()
+                eigval_np, eigvec_np = np.linalg.eigh(h_transformed_np)
+                if self.overlap:
+                    eigvec_np = np.transpose(chklowtinv_np,(0,2,1)).conj() @ eigvec_np
+                    eigvec_np = np.transpose(eigvec_np, (0,2,1))
+                eigval = torch.from_numpy(eigval_np).to(dtype=self.h2k.dtype, device=self.h2k.device)
+                eigvec = torch.from_numpy(eigvec_np).to(dtype=data[self.h_out_field].dtype, device=self.h2k.device)
 
             eigvecs.append(eigvec)
             eigvals.append(eigval)

@@ -72,13 +72,20 @@ class HamiltonianCalculator(ABC):
         pass
     
     @abstractmethod
-    def get_eigenstates(self, atomic_data: dict) -> Tuple[dict, torch.Tensor, torch.Tensor]:
+    def get_eigenstates(
+        self,
+        atomic_data: dict,
+        nk: Optional[int] = None,
+        solver: Optional[str] = None,
+    ) -> Tuple[dict, torch.Tensor, torch.Tensor]:
         """
         Calculate eigenvalues and eigenvectors.
-        
+
         Args:
             atomic_data: The input atomic data dictionary.
-            
+            nk: Optional k-point chunk size.
+            solver: Optional eigensolver, "torch" or "numpy".
+
         Returns:
             Tuple of (updated atomic_data, eigenvalues, eigenvectors).
             Eigenvectors shape: [Batch, Nk, Norb, Norb] (if batched) or [Nk, Norb, Norb]
@@ -240,23 +247,26 @@ class DeePTBAdapter(HamiltonianCalculator):
         eigs = atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0] # atomic_data is usually batched, take 0
         return atomic_data, eigs
 
-    def get_eigenstates(self, atomic_data: dict, nk: Optional[int]=None) -> Tuple[dict, torch.Tensor, torch.Tensor]:
+    def get_eigenstates(self,
+                        atomic_data: dict,
+                        nk: Optional[int]=None,
+                        solver: Optional[str]=None) -> Tuple[dict, torch.Tensor, torch.Tensor]:
         # 1. Get Hamiltonian
         atomic_data = self.model_forward(atomic_data)
-        
+
         # 2. Verify Overlap logic
         if self.overlap:
              if atomic_data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is None:
                  raise RuntimeError("Overlap model but no overlap in output.")
 
         # 3. Solve Eigenvalues + Eigenvectors
-        atomic_data = self.eigh_solver(data=atomic_data, nk=nk)
-        
+        atomic_data = self.eigh_solver(data=atomic_data, nk=nk, eig_solver=solver)
+
         eigs = atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0]
-        vecs = atomic_data[AtomicDataDict.EIGENVECTOR_KEY] # Usually not nested? Check nn/energy.py 
+        vecs = atomic_data[AtomicDataDict.EIGENVECTOR_KEY] # Usually not nested? Check nn/energy.py
         # In Eigh.forward: data[self.eigvec_field] = torch.cat(eigvecs, dim=0) -> [Summary_Nk, Norb, Norb]
         # It is NOT nested in current implementation of Eigh.
-        
+
         return atomic_data, eigs, vecs
     
     def get_hk(self, atomic_data: dict, k_points: Optional[Union[torch.Tensor, np.ndarray, list]] = None, with_derivative: bool = False) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
