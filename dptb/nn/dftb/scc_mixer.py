@@ -674,8 +674,9 @@ class DIISMixer(SCCMixer):
         self.n_generations = n_generations
         self.m_prev_vector = n_generations
         self.init_mix_param = init_mix_param
-        self.from_start = from_start
+        self.initial_alpha = alpha
         self.alpha = alpha
+        self.from_start = from_start
         self.use_gradient = alpha > 0
 
         # State variables (initialized in reset)
@@ -700,6 +701,7 @@ class DIISMixer(SCCMixer):
         self.n_elem = n_elem
         self.i_prev_vector = 0
         self.indx = 0
+        self.alpha = self.initial_alpha
 
         # Allocate storage arrays
         self.prev_q_input = np.zeros((n_elem, self.m_prev_vector))
@@ -814,6 +816,7 @@ class DIISMixer(SCCMixer):
                 self.alpha = 1.5 * self.alpha  # Mix in more gradient
             else:
                 self.alpha = 0.5 * self.alpha  # Mix in less gradient
+            self.alpha = np.clip(self.alpha, 0.0, 1.0)
 
             # Build DIIS estimated gradient
             self.delta_r[:] = 0.0

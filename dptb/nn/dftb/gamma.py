@@ -39,7 +39,7 @@ def calculate_expgamma(
     Tuple[torch.Tensor, torch.Tensor]
         A tuple containing (expGamma, expGamma_onsite), where expGamma is the
         exponential gamma for edges and expGamma_onsite is for onsite terms.
-        Shape of expGamma is [num_edges] and expGamma_onsite is [num_atom_types].
+        Shape of expGamma is [num_edges] and expGamma_onsite is [num_atoms].
         
     Raises
     ------
@@ -49,8 +49,10 @@ def calculate_expgamma(
         If any edge length is negative or zero (less than or equal to minvalues).
     """
     # Convert inputs to float64 for numerical precision in SCC calculations
-    highest_occu_Us_dp = highest_occu_Us.to(dtype=torch.float64)
+    highest_occu_Us_dp = highest_occu_Us.to(dtype=torch.float64, device=edge_lengths.device)
     edge_lengths_dp = edge_lengths.to(dtype=torch.float64)
+    edge_atom_types = edge_atom_types.to(device=edge_lengths.device)
+    node_atom_types = node_atom_types.to(device=edge_lengths.device)
 
     # Get Hubbard U values for each atom in the edges
     Ua = highest_occu_Us_dp[edge_atom_types[0]].reshape(-1) # shape: [num_edges]
@@ -66,7 +68,7 @@ def calculate_expgamma(
 
 
     # Initialize expGamma for each edge
-    expGamma = torch.zeros([edge_atom_types.shape[1]], dtype=torch.float64) # shape: [num_edges]
+    expGamma = torch.zeros([edge_atom_types.shape[1]], dtype=torch.float64, device=edge_lengths_dp.device) # shape: [num_edges]
     
     # Identify edges where Ua ≈ Ub (same atom type or very close U values)
     equ_u_mask = torch.abs(Ua - Ub) < minvalues
@@ -114,7 +116,7 @@ def calculate_expgamma(
 def get_expgamma(
                 data: AtomicDataDict,
                 idp: OrbitalMapper,
-                skp:  SKParam) -> torch.Tensor:
+                skp:  SKParam) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Calculates the expGamma and expGamma_onsite tensors for a given atomic data input.
     Args:

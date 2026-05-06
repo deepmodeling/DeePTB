@@ -179,6 +179,8 @@ class HoppingIntpSmooth(BaseHopping):
         elif len(rij.shape) == 2:
             assert rij.shape[0] == self.num_ingrls, \
                 f"Expected rij shape [num_ingrls, n_edges], got {rij.shape}"
+            if not torch.allclose(rij, rij[0].expand_as(rij)):
+                raise ValueError("Expected all rows of 2D rij to contain the same bond distances.")
             # Take first row (all rows should be same for uniform query)
             rij_1d = rij[0]
         else:

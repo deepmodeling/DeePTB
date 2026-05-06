@@ -140,6 +140,9 @@ class DFTBPlusInterp1D:
         elif y is None:
             raise ValueError("y must be provided either at init or call time")
 
+        x = self.x.to(dtype=y.dtype, device=y.device)
+        xq = xq.to(dtype=y.dtype, device=y.device)
+
         n_channels = y.shape[0]
         n_query = xq.shape[0]
 
@@ -161,12 +164,12 @@ class DFTBPlusInterp1D:
         # Region 2: Grid interpolation
         if mask_grid.any():
             xq_grid = xq[mask_grid]
-            result[:, mask_grid] = self.poly_interp(self.x, y, xq_grid)
+            result[:, mask_grid] = self.poly_interp(x, y, xq_grid)
 
         # Region 3: Decay zone
         if mask_decay.any():
             xq_decay = xq[mask_decay]
-            result[:, mask_decay] = self._compute_decay(xq_decay, y)
+            result[:, mask_decay] = self._compute_decay(xq_decay, y, x)
 
         # Region 4: Above cutoff -> zero (already initialized)
 
@@ -175,7 +178,8 @@ class DFTBPlusInterp1D:
     def _compute_decay(
         self,
         xq: torch.Tensor,
-        y: torch.Tensor
+        y: torch.Tensor,
+        x: torch.Tensor,
     ) -> torch.Tensor:
         """
         Compute values in the decay zone using poly5ToZero.
@@ -208,9 +212,9 @@ class DFTBPlusInterp1D:
         # y2 = polyInterUniform(xa, yb, xa(8) + deltaR)
         xq_deriv = torch.tensor(
             [self.x_max - self.delta_r_ang, self.x_max + self.delta_r_ang],
-            dtype=self.x.dtype, device=self.x.device
+            dtype=x.dtype, device=x.device
         )
-        vals_deriv = self.poly_interp(self.x, y, xq_deriv)  # [n_channels, 2]
+        vals_deriv = self.poly_interp(x, y, xq_deriv)  # [n_channels, 2]
         f_minus = vals_deriv[:, 0]  # y0
         f_plus = vals_deriv[:, 1]   # y2
 
