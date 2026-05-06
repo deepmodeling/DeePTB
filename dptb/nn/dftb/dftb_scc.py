@@ -1,10 +1,10 @@
 from dptb.postprocess.charge_pop import Mulliken
 from dptb.nn.dftb.sk_param import SKParam
+from dptb.nn.dftb.scc_params import SCCParams
 from dptb.data import  AtomicDataDict,AtomicData
 from dptb.nn.dftbsk import DFTBSK
 from ase.io import read
 import ase
-import os
 import numpy as np
 import torch
 import logging
@@ -18,152 +18,38 @@ from dptb.nn.dftb.scc_mixer import SCCMixer, get_mixer
 log = logging.getLogger(__name__)
 
 
-class DFTBSCC(object):
-    '''
-    DFTB Self-Consistent Charge (SCC) calculator.
-
-    This class implements the self-consistent charge extension to the
-    Density Functional Tight Binding (DFTB) method. It performs iterative
-    calculations to achieve charge self-consistency by including charge
-    fluctuation effects through a Coulomb interaction term.
-
-    The SCC-DFTB method improves upon standard DFTB by better describing
-    charge transfer and polar systems through a second-order expansion of
-    the DFT energy with respect to charge density fluctuations.
-
-    Attributes
-    ----------
-    model : DFTBSK
-        DFTB Slater-Koster tight-binding model for Hamiltonian construction
-    skp : SKParam
-        Slater-Koster parameter handler containing interaction parameters
-    r_max : dict
-        Maximum interaction radius for each element type
-    mulliken : Mulliken
-        Mulliken population analysis calculator for charge distribution
-    overlap : bool
-        Whether to use overlap matrix in calculations
-    h2k : HR2HK
-        Hamiltonian real-space to k-space transformation operator
-    s2k : HR2HK
-        Overlap matrix real-space to k-space transformation operator
-    atomic_numbers : np.ndarray
-        Atomic numbers of atoms in the system
-    elec_totE : torch.Tensor
-        Total electronic energy including SCC corrections
-    elec_H0_bandE : torch.Tensor
-        Band energy from non-SCC Hamiltonian (H0)
-    elec_bandE : torch.Tensor
-        Band energy including SCC corrections
-    E_fermi : float
-        Fermi energy level
-    mulcharge_old : np.ndarray
-        Mulliken charges from previous iteration
-    scc_shift : torch.Tensor
-        Self-consistent charge potential shift
-    scc_shift_energy : torch.Tensor
-        Energy contribution from SCC corrections
-    data : AtomicDataDict
-        Atomic data dictionary containing all calculated quantities
-    expGamma : torch.Tensor
-        Exponential gamma function for Coulomb interactions
-    expGamma_onsite : torch.Tensor
-        On-site exponential gamma function
-    inv_r : torch.Tensor
-        Inverse distance matrix between atoms
-    Gamma : torch.Tensor
-        Coulomb interaction matrix
-
-    References
-    ----------
-    Elstner, M., et al. "Self-consistent-charge density-functional
-    tight-binding method for simulations of complex materials properties."
-    Physical Review B 58.11 (1998): 7260.
-    '''
+class SKSCC(object):
+    '''Generic SK self-consistent charge (SCC) engine.'''
 
     def __init__(self,
-                 model: DFTBSK = None,
-                 basis: dict = None,
-                 sk_path: str = None,
-                 smooth_ski: bool = False,
+                 model,
+                 params: SCCParams,
                  overlap: bool = True,
                  scc_dtype: torch.dtype = torch.float64) -> None:
-        '''
-        Initialize the DFTB-SCC calculator.
+        if model is None:
+            raise ValueError("SKSCC requires a pre-initialized SK model.")
+        if params is None:
+            raise ValueError("SKSCC requires prepared SCCParams.")
+        if not isinstance(params, SCCParams):
+            raise TypeError("params must be an SCCParams instance.")
+        if params.r_max is None:
+            raise ValueError("SCCParams.r_max is required for SCC graph construction.")
+        if overlap and not getattr(model, "overlap", False):
+            raise ValueError("SKSCC requires a model initialized with overlap=True when overlap=True.")
 
-        Parameters
-        ----------
-        model : DFTBSK, optional
-            Pre-initialized DFTBSK model to use for Hamiltonian construction.
-            If provided, this model will be used instead of creating a new one
-            from the sk_path and basis.
-        basis : dict, optional
-            Dictionary mapping element symbols to their basis orbital labels.
-            For example: {'C': ['2s', '2p'], 'H': ['1s']}
-        sk_path : str, optional
-            Path to the directory containing Slater-Koster parameter files.
-            These files should follow the DFTB+ format and contain the
-            two-center integrals for each element pair.
-        smooth_ski : bool, optional
-            Whether to use smooth SK integral interpolation. When True,
-            uses the HoppingIntpSmooth interpolation scheme (DFTB+ compatible)
-            for SK integrals with smooth polynomial cutoff. Default is False.
-        overlap : bool, optional
-            Whether to use overlap matrix in the calculation. When True,
-            solves the generalized eigenvalue problem. Default is True.
-        scc_dtype : torch.dtype, optional
-            Data type for SCC calculations. Use torch.float32 for single
-            precision or torch.float64 for double precision. Default is
-            torch.float64 for numerical accuracy in self-consistent cycles.
-        '''
-
-        # Store dtype and derive complex dtype
         self.scc_dtype = scc_dtype
         self.scc_cdtype = torch.complex128 if scc_dtype == torch.float64 else torch.complex64
-
-        if model is None:
-            assert sk_path is not None, "Either model or sk_path must be provided."
-            assert basis is not None, "Basis must be provided when initializing model from sk_path."
-            log.info(f"Initializing DFTBSK model from skpath {sk_path}.")
-            model = DFTBSK(basis=basis,
-                           skdata=sk_path,
-                           overlap=overlap,
-                           smooth_ski = smooth_ski,
-                           dtype=scc_dtype)
-        else:
-            log.info("Using provided DFTBSK model for DFTBSCC.")
-            assert isinstance(model, DFTBSK), "model must be an instance of DFTBSK."
-            if basis is not None:
-                assert model.basis == basis, "Provided basis does not match model's basis."
-            else:
-                basis = model.basis
-            if sk_path is not None:
-                log.warning("sk_path is ignored when a model is provided.")
-            sk_path = model.model_options['dftbsk']['skdata']
-            if not os.path.isdir(sk_path):
-                raise ValueError(f"Could not find a valid directory at inherent"
-                                 f" model_options skdata: {sk_path}")
-
-        skp = SKParam(basis=basis, skdata=sk_path, cal_rcuts=True, dtype=scc_dtype)
-        # calculate r_max for each element from bond_r_max
-        r_max = {}
-        for el in skp.idp_sk.basis.keys():
-            r_max[el] = max(v for k, v in skp.bond_r_max.items() if el in k.split('-'))
-
-        mulliken = Mulliken(model=model,
-                            device='cpu', 
-                            eig_method='eigh')
-        
-        # DFTBSCC core attributes
         self.model = model
-        self.r_max = r_max
-        self.skp = skp
-        self.mulliken = mulliken
+        self.r_max = params.r_max
+        self.skp = params
+        self.scc_params = params
+        self.mulliken = Mulliken(model=model,
+                                 device=model.device,
+                                 eig_method='eigh')
         self.overlap = overlap
 
-        # Initialize per-calculation state variables
         self.reset()
-        
+
         self.h2k = HR2HK(
             idp = model.idp,
             edge_field = AtomicDataDict.EDGE_FEATURES_KEY,
@@ -487,7 +373,7 @@ class DFTBSCC(object):
     def get_total_energy(self,
                          data: Union[ase.Atoms, str],
                          nel_atom: dict,
-                         sigma_rep: dict,
+                         sigma_rep: dict = None,
                          kmeshgrid: Optional[List[int]] = None,
                          kmeshspacing: Optional[List[float]] = None,
                          kgamma_center: bool = True,
@@ -619,6 +505,13 @@ class DFTBSCC(object):
             mixer_options=mixer_options
         )
 
+        if sigma_rep is None:
+            repulsive = getattr(self.scc_params, "repulsive", None)
+            if isinstance(repulsive, dict):
+                sigma_rep = repulsive.get("sigma_rep")
+        if sigma_rep is None:
+            raise ValueError("Repulsive parameters are required for total energy. run_iters() can be used for electronic SCC without repulsive parameters.")
+
         # Step 3: Calculate repulsive energy
         _, _, total_rep_energy = calculate_atomic_rep(
             data=self.data,
@@ -632,7 +525,6 @@ class DFTBSCC(object):
 
         return total_energy.item()
         
-
 
     def cal_scc_hk(self,
                    data: AtomicDataDict,
@@ -847,4 +739,24 @@ class DFTBSCC(object):
     #                 ovp_R0_all[slice_i, slice_j] = ovp_R_dict[block_idx].T.conj()
     #             else:
     #                 ovp_R0_all[slice_i, slice_j] = ovp_R_dict[block_idx]
-    #     return ovp_R0_all
+
+
+class DFTBSCC(SKSCC):
+    def __init__(self,
+                 basis: dict,
+                 sk_path: str,
+                 smooth_ski: bool = False,
+                 overlap: bool = True,
+                 scc_dtype: torch.dtype = torch.float64) -> None:
+        log.warning("DFTBSCC(basis=..., sk_path=...) is a compatibility wrapper; use SKSCC(model=..., params=...) for new code.")
+        model = DFTBSK(basis=basis,
+                       skdata=sk_path,
+                       overlap=overlap,
+                       smooth_ski=smooth_ski,
+                       dtype=scc_dtype)
+        skp = SKParam(basis=basis, skdata=sk_path, cal_rcuts=True, dtype=scc_dtype)
+        params = SCCParams.from_skparam(skp)
+        super().__init__(model=model,
+                         params=params,
+                         overlap=overlap,
+                         scc_dtype=scc_dtype)

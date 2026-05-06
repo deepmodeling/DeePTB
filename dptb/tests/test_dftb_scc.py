@@ -1,7 +1,11 @@
 import torch
 import os
 from pathlib import Path
-from dptb.nn.dftb.dftb_scc import DFTBSCC
+from dptb.nn.dftb.dftb_scc import DFTBSCC, SKSCC
+from dptb.nn.dftb.scc_params import SCCParams
+from dptb.nn.dftb.sk_param import SKParam
+from dptb.nn.dftbsk import DFTBSK
+from dptb.nn.nnsk import NNSK
 import pytest
 import numpy as np
 
@@ -39,6 +43,100 @@ STRUCT_FILE_BY_STRUCT = {
 ELECTRONIC_ENERGY_ATOL = 1e-2  # require the electronic energies to match within 10 meV
 
 
+def test_dftbscc_explicit_dftbsk_and_scc_params(rootdir=rootdir):
+    sk_path = os.path.join(rootdir, 'dftb')
+    basis = {'B': ['2s', '2p'], 'N': ['2s', '2p']}
+    model = DFTBSK(basis=basis, skdata=sk_path, overlap=True, dtype=torch.float64)
+    skp = SKParam(basis=basis, skdata=sk_path, cal_rcuts=True, dtype=torch.float64)
+    scc_params = SCCParams.from_skparam(skp)
+
+    scc = SKSCC(model=model, params=scc_params, overlap=True)
+
+    assert scc.model is model
+    assert scc.scc_params is scc_params
+    assert scc.r_max == scc_params.r_max
+
+
+def test_dftbscc_nnsk_scc_options_init():
+    basis = {"H": ["1s"]}
+    model = NNSK(basis=basis, overlap=True, hopping={"method": "powerlaw", "rs": 3.0, "w": 0.2})
+
+    params = SCCParams.from_options(
+        basis=basis,
+        idp_sk=model.idp_sk,
+        options={
+            "hubbard_u": {"H": {"1s": 10.0}},
+            "occupation": {"H": {"1s": 1}},
+            "mass": {"H": 1.008},
+            "use_database": False,
+        },
+        model=model,
+    )
+    scc = SKSCC(model=model, params=params)
+
+    assert scc.scc_params.skdict["HubdU"][0, 0, 0] == 10.0
+    assert scc.r_max == {"H": 3.0}
+
+
+def test_dftbscc_nnsk_database_and_overlap_checks():
+    basis = {"H": ["1s"]}
+    model = NNSK(basis=basis, overlap=True, hopping={"method": "powerlaw", "rs": 3.0, "w": 0.2})
+    params = SCCParams.from_options(basis=basis, idp_sk=model.idp_sk, options={"use_database": True}, model=model)
+    scc = SKSCC(model=model, params=params)
+    assert scc.scc_params.skdict["HubdU"][0, 0, 0] > 0
+
+    model_without_overlap = NNSK(basis=basis, overlap=False, hopping={"method": "powerlaw", "rs": 3.0, "w": 0.2})
+    with pytest.raises(ValueError, match="overlap=True"):
+        SKSCC(model=model_without_overlap, params=params)
+
+
+def test_skscc_and_dftbscc_wrapper_hbn_equivalent(rootdir=rootdir):
+    sk_path = os.path.join(rootdir, 'dftb')
+    struct = os.path.join(rootdir, 'hBN/hBN.vasp')
+    basis = {'B': ['2s', '2p'], 'N': ['2s', '2p']}
+    atomic_data_options = {"r_max": {'B': 6.349479778742587, 'N': 5.366822193937187}}
+    run_options = {
+        "data": struct,
+        "nel_atom": {'B': 3, 'N': 5},
+        "kmeshgrid": [20, 20, 1],
+        "kgamma_center": True,
+        "krotational_symmetry": True,
+        "ktime_inversion_symmetry": True,
+        "AtomicData_options": atomic_data_options,
+        "mix_rate": 0.25,
+        "max_iter": 1000,
+        "smearing_method": 'Fermi-Dirac',
+    }
+
+    model = DFTBSK(basis=basis, skdata=sk_path, overlap=True, dtype=torch.float64)
+    skp = SKParam(basis=basis, skdata=sk_path, cal_rcuts=True, dtype=torch.float64)
+    scc = SKSCC(model=model, params=SCCParams.from_skparam(skp), overlap=True)
+    wrapper = DFTBSCC(basis=basis, sk_path=sk_path, overlap=True)
+
+    scc.run_iters(**run_options)
+    wrapper.run_iters(**run_options)
+
+    assert torch.allclose(scc.elec_totE, wrapper.elec_totE, atol=1e-10)
+    assert np.allclose(scc.mulliken.mul_charge, wrapper.mulliken.mul_charge, atol=1e-10)
+
+def test_skscc_get_total_energy_requires_repulsive_params(rootdir=rootdir):
+    sk_path = os.path.join(rootdir, 'dftb')
+    basis = {'B': ['2s', '2p'], 'N': ['2s', '2p']}
+    model = DFTBSK(basis=basis, skdata=sk_path, overlap=True, dtype=torch.float64)
+    skp = SKParam(basis=basis, skdata=sk_path, cal_rcuts=True, dtype=torch.float64)
+    scc = SKSCC(model=model, params=SCCParams.from_skparam(skp), overlap=True)
+
+    with pytest.raises(ValueError, match="Repulsive parameters are required"):
+        scc.get_total_energy(
+            data=os.path.join(rootdir, 'hBN/hBN.vasp'),
+            nel_atom={'B': 3, 'N': 5},
+            kmeshgrid=[1, 1, 1],
+            AtomicData_options={"r_max": {'B': 6.349479778742587, 'N': 5.366822193937187}},
+            max_iter=1,
+        )
+
+
+
 def test_dftbscc_hBN(rootdir = rootdir):
 
 
@@ -65,7 +163,7 @@ def test_dftbscc_hBN(rootdir = rootdir):
                     mix_rate = 0.25,
                     max_iter = 1000,
                     smearing_method = 'Fermi-Dirac')
-    
+
     per_atom_charge_ref = [5,3]
     delta_charge_ref = np.array([ 0.22519684, -0.22519661])
     mulliken_ref = np.array([5.22519684, 2.77480339])
@@ -98,7 +196,7 @@ def test_dftbscc_hBN(rootdir = rootdir):
     assert torch.allclose(dftbscc.expGamma_onsite, expGamma_onsite_ref, atol=1e-4)
     assert torch.allclose(dftbscc.inv_r, inv_r_ref, atol=1e-4)
     assert torch.allclose(expGamma_sorted, expGamma_ref_sorted, atol=1e-4)
-    assert sum(np.array(dftbscc.mulliken.per_atom_charge) - np.array(per_atom_charge_ref)) < 1e-5
+    assert np.allclose(dftbscc.mulliken.per_atom_charge, per_atom_charge_ref, atol=1e-5)
     assert np.allclose(dftbscc.mulliken.delta_charge, delta_charge_ref, atol=1e-5)
 
 
@@ -233,7 +331,7 @@ def test_dftbscc_CH4(rootdir = rootdir):
         [13.1925,  6.4515,  7.9194, -2.0428,  7.3191],
         [13.1925,  6.4515,  7.9194,  7.3191, -2.0428]], dtype=torch.float64)
         
-    assert sum(np.array(dftbscc.mulliken.per_atom_charge) - np.array(per_atom_charge_ref)) < 1e-5
+    assert np.allclose(dftbscc.mulliken.per_atom_charge, per_atom_charge_ref, atol=1e-5)
     # Tolerances slightly relaxed to accommodate double precision changes
     assert np.allclose(dftbscc.mulliken.delta_charge, delta_charge_ref, atol=5e-5)
     assert np.allclose(dftbscc.mulliken.mul_charge, mulliken_ref, atol=5e-5)

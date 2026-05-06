@@ -479,10 +479,9 @@ class SKParam:
         """
 
         if idp_sk is None:
-            idp_sk = cls.idp_sk
-        else:
-            assert isinstance(idp_sk, OrbitalMapper), "idp_sk must be an instance of OrbitalMapper"
-            log.info("The provided idp_sk is used for mapping bond types and orbital pairs.")
+            raise ValueError("idp_sk must be provided for formatted_to_skdict.")
+        assert isinstance(idp_sk, OrbitalMapper), "idp_sk must be an instance of OrbitalMapper"
+        log.info("The provided idp_sk is used for mapping bond types and orbital pairs.")
 
         assert isinstance(formatted_skdict, dict), "formatted_skdict must be a dict"
         assert isinstance(formatted_skdict['Hopping'], torch.Tensor)
@@ -621,7 +620,7 @@ class SKParam:
         float_precision: int = 6,
         add_rep: bool = False,
         **kwargs
-    ) -> dict:
+    ) -> None:
         """
         Write .skf files from a formatted skdict. This function reconstructs the raw skdict
         (per-bond distances and NumHvals-integral order) and writes one file per bond type.
@@ -646,13 +645,6 @@ class SKParam:
             - 'r_min' (float): minimum distance for the repulsive potential, in Angstrom
             - 'r_max' (float): maximum distance for the repulsive potential, in Angstrom
             - 'num_points' (int): number of points to sample for the repulsive potential curve
-
-        Returns:
-        --------
-        - skdict (dict): the reconstructed raw skdict used for writing with shapes per bond:
-            - 'Distance': 1D tensor of length ngrid (Angstrom)
-            - 'Hopping' : tensor [NumHvals, ngrid] (eV)
-            - 'Overlap' : tensor [NumHvals, ngrid] (unitless)
         """
         assert idp_sk is not None or basis is not None, "Provide idp_sk or basis"
         if idp_sk is None:
