@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import os
 import h5py
-from typing import Union, Optional, List, Dict
+from typing import Union, Optional, List, Dict, Tuple
 import ase
 from ase.io import read
 import logging
@@ -57,6 +57,10 @@ class TBSystem:
         self._efermi = None
         self.has_bands = False
         self.has_dos = False
+        self._scc = None
+        self._scc_run_options = None
+        self._scc_state = None
+        self._use_scc = False
         
         self._atomic_data = self.set_atoms(data, override_overlap)
 
@@ -140,6 +144,21 @@ class TBSystem:
             self._optical_conductivity = ACAccessor(self)
         return self._optical_conductivity
 
+    @property
+    def scc(self):
+        """Access the configured SCC engine, if any."""
+        return self._scc
+
+    @property
+    def scc_state(self) -> Optional[dict]:
+        """Access cached SCC convergence state."""
+        return self._scc_state
+
+    @property
+    def has_scc(self) -> bool:
+        """Whether SCC has been configured on this system."""
+        return self._scc is not None
+
 
     def set_atoms(self,struct: Optional[Union[AtomicData, ase.Atoms, str]] = None, override_overlap: Optional[str] = None) -> AtomicDataDict:
         """Set the atomic structure."""
@@ -149,6 +168,7 @@ class TBSystem:
         # Reset state flags
         self.has_bands=False
         self.has_dos=False
+        self._scc_state = None
         
         atomic_options = self._calculator.cutoffs        
         if isinstance(struct, str):
@@ -187,6 +207,176 @@ class TBSystem:
         self._atom_orbs, self._atomic_symbols = self.get_atom_orbs()
         
         return self._atomic_data
+
+    def enable_scc(self,
+                   params,
+                   nel_atom: Dict[str, int],
+                   overlap: Optional[bool] = None,
+                   scc_dtype: torch.dtype = torch.float64,
+                   **run_options):
+        """
+        Configure SCC as an optional electronic-state refinement for this system.
+
+        TBSystem remains a scheduler: the SCC implementation is delegated to
+        SKSCC, while TBSystem stores the converged SCC state for downstream
+        band/DOS/export/electron-phonon style workflows.
+        """
+        from dptb.nn.dftb.dftb_scc import SKSCC
+        from dptb.nn.dftb.scc_params import SCCParams
+
+        if not isinstance(params, SCCParams):
+            raise TypeError("params must be an SCCParams instance.")
+        if nel_atom is None:
+            raise ValueError("nel_atom is required to enable SCC.")
+
+        self._scc = SKSCC(
+            model=self.model,
+            params=params,
+            overlap=overlap,
+            scc_dtype=scc_dtype,
+        )
+        self._scc_run_options = {
+            "nel_atom": nel_atom,
+            **run_options,
+        }
+        self._scc_state = None
+        self._use_scc = True
+        return self
+
+    def disable_scc(self):
+        """Disable SCC for subsequent TBSystem calculations without discarding the engine."""
+        self._use_scc = False
+        return self
+
+    def run_scc(self, **run_options):
+        """Run SCC iterations and cache the converged charge/Hamiltonian state."""
+        if self._scc is None or self._scc_run_options is None:
+            raise RuntimeError("SCC is not configured. Call enable_scc(...) first.")
+
+        options = {**self._scc_run_options, **run_options}
+        options.setdefault("AtomicData_options", {"r_max": self._scc.r_max})
+
+        self._scc.run_iters(data=self.atoms, **options)
+        self._scc_state = {
+            "is_converged": self._scc.is_converged,
+            "scc_shift": self._scc.scc_shift,
+            "mulliken_charge": None if self._scc.mulliken.mul_charge is None else self._scc.mulliken.mul_charge.copy(),
+            "delta_charge": None if self._scc.mulliken.delta_charge is None else self._scc.mulliken.delta_charge.copy(),
+            "E_fermi": self._scc.E_fermi,
+            "elec_totE": self._scc.elec_totE,
+        }
+        if self._scc.E_fermi is not None:
+            self.set_efermi(self._scc.E_fermi)
+        return self._scc_state
+
+    def _resolve_use_scc(self, use_scc: Optional[bool]) -> bool:
+        if use_scc is None:
+            return self._use_scc and self._scc_state is not None
+        return use_scc
+
+    def _prepare_kpoint_data(self,
+                             atomic_data: Optional[dict] = None,
+                             k_points: Optional[Union[torch.Tensor, np.ndarray, list]] = None) -> AtomicDataDict:
+        data = (self._atomic_data if atomic_data is None else atomic_data).copy()
+        if k_points is not None:
+            if not isinstance(k_points, torch.Tensor):
+                k_points = torch.as_tensor(k_points, dtype=self.calculator.dtype, device=self.calculator.device)
+            else:
+                k_points = k_points.to(dtype=self.calculator.dtype, device=self.calculator.device)
+            if k_points.dim() == 2:
+                data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([k_points])
+            else:
+                data[AtomicDataDict.KPOINT_KEY] = k_points
+        assert data.get(AtomicDataDict.KPOINT_KEY) is not None, "No kpoints found. Please provide k_points."
+        return data
+
+    def get_hk(self,
+               atomic_data: Optional[dict] = None,
+               k_points: Optional[Union[torch.Tensor, np.ndarray, list]] = None,
+               use_scc: Optional[bool] = None,
+               with_derivative: bool = False) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """
+        Return the effective H(k), optionally including the converged SCC shift.
+
+        When ``use_scc`` is true, SCC must have been run already. The returned
+        Hamiltonian is ``H0(k) + H_SCC(k)`` and can be reused by downstream
+        postprocessing tasks.
+        """
+        if not self._resolve_use_scc(use_scc):
+            data = self._atomic_data if atomic_data is None else atomic_data
+            return self.calculator.get_hk(data, k_points=k_points, with_derivative=with_derivative)
+
+        if with_derivative:
+            raise NotImplementedError("SCC-corrected H(k) derivatives are not implemented in TBSystem.")
+        if self._scc is None or self._scc_state is None:
+            raise RuntimeError("SCC has not been run. Call enable_scc(...) and run_scc(...) first.")
+
+        data = self._prepare_kpoint_data(atomic_data=atomic_data, k_points=k_points)
+        data = self.model(data)
+        data = self._scc.h2k(data)
+        sk = None
+        if self._scc.overlap:
+            data = self._scc.s2k(data)
+            sk = data[AtomicDataDict.OVERLAP_KEY]
+        scc_hk = self._scc.cal_scc_hk(
+            data=data,
+            per_atom_indices=self._scc.mulliken.per_atom_indices,
+            scc_shift=self._scc.scc_shift,
+        )
+        hk = data[AtomicDataDict.HAMILTONIAN_KEY].clone().to(dtype=self._scc.scc_cdtype) + scc_hk
+        data[AtomicDataDict.HAMILTONIAN_KEY] = hk
+        self._last_effective_data = data
+        return hk, sk
+
+    def get_eigenvalues(self,
+                        atomic_data: Optional[dict] = None,
+                        k_points: Optional[Union[torch.Tensor, np.ndarray, list]] = None,
+                        use_scc: Optional[bool] = None,
+                        nk: Optional[int] = None,
+                        solver: Optional[str] = None) -> Tuple[dict, torch.Tensor]:
+        """Calculate eigenvalues using either bare-model or SCC-corrected H(k)."""
+        if not self._resolve_use_scc(use_scc):
+            data = self._atomic_data if atomic_data is None else atomic_data
+            if k_points is not None:
+                data = self._prepare_kpoint_data(data, k_points)
+            return self.calculator.get_eigenvalues(data, nk=nk, solver=solver)
+
+        hk, sk = self.get_hk(atomic_data=atomic_data, k_points=k_points, use_scc=True)
+        eigvecs, eigvals = self._scc.eigh_solver(
+            H_mat=hk,
+            overlap=self._scc.overlap,
+            overlap_mat=sk,
+        )
+        data = self._last_effective_data
+        eigval = torch.cat(eigvals, dim=0)
+        data[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.nested.as_nested_tensor([eigval])
+        return data, eigval
+
+    def get_eigenstates(self,
+                        atomic_data: Optional[dict] = None,
+                        k_points: Optional[Union[torch.Tensor, np.ndarray, list]] = None,
+                        use_scc: Optional[bool] = None,
+                        nk: Optional[int] = None,
+                        solver: Optional[str] = None) -> Tuple[dict, torch.Tensor, torch.Tensor]:
+        """Calculate eigenvalues/eigenvectors using bare or SCC-corrected H(k)."""
+        if not self._resolve_use_scc(use_scc):
+            data = self._atomic_data if atomic_data is None else atomic_data
+            if k_points is not None:
+                data = self._prepare_kpoint_data(data, k_points)
+            return self.calculator.get_eigenstates(data, nk=nk, solver=solver)
+
+        hk, sk = self.get_hk(atomic_data=atomic_data, k_points=k_points, use_scc=True)
+        eigvecs, eigvals = self._scc.eigh_solver(
+            H_mat=hk,
+            overlap=self._scc.overlap,
+            overlap_mat=sk,
+        )
+        data = self._last_effective_data
+        eigval = torch.cat(eigvals, dim=0)
+        eigvec = torch.cat(eigvecs, dim=0)
+        data[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.nested.as_nested_tensor([eigval])
+        data[AtomicDataDict.EIGENVECTOR_KEY] = eigvec
+        return data, eigval, eigvec
 
     def get_atom_orbs(self):
         orbs_per_type = self.calculator.get_orbital_info()
@@ -238,9 +428,9 @@ class TBSystem:
         k_tensor = torch.as_tensor(kpoints, 
                                    dtype=self.calculator.dtype, 
                                    device=self.calculator.device)
-        data = self._atomic_data.copy()             
+        data = self._atomic_data.copy()
         data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([k_tensor])
-        data, eigs = self.calculator.get_eigenvalues(data)
+        data, eigs = self.get_eigenvalues(data)
 
         calculated_efermi = self.estimate_efermi_e(
                         eigenvalues=eigs.detach().numpy(),

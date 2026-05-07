@@ -166,7 +166,7 @@ class DosAccessor:
         calc_pdos = self._config.get('pdos', False)
         
         if calc_pdos:
-            data, eigs, vecs = self._system.calculator.get_eigenstates(data)
+            data, eigs, vecs = self._system.get_eigenstates(data)
             # vecs: [Nk, Norb, Norb] (assuming 1 batch)
             # eigs: [Nk, Norb]
             
@@ -184,7 +184,7 @@ class DosAccessor:
                     vecs = vecs.transpose(-2, -1)
                     
         else:
-            data, eigs = self._system.calculator.get_eigenvalues(data)
+            data, eigs = self._system.get_eigenvalues(data)
             vecs = None
         
         eigenvalues = eigs.detach().cpu().numpy() # [Nk, Nb]

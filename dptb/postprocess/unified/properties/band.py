@@ -232,7 +232,7 @@ class BandAccessor:
         data = self._system._atomic_data
         
         # Calculate
-        data, eigs = self._system.calculator.get_eigenvalues(data)
+        data, eigs = self._system.get_eigenvalues(data)
         
         # Extract results
         eigenvalues = eigs.detach().cpu().numpy() # [Nk, Nb]
@@ -268,4 +268,3 @@ class BandAccessor:
     def save(self, path: str):
         """Save the computed band structure."""
         return self.band_data.export(path)
-
