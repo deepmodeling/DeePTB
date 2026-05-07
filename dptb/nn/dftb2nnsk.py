@@ -81,6 +81,7 @@ class DFTB2NNSK(nn.Module):
         self.best_loss = float("inf")
         self.train_options = train_options
         self.output = output
+        os.makedirs(self.output, exist_ok=True)
         self.seed = seed 
         setup_seed(seed)
        

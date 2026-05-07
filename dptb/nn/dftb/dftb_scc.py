@@ -687,6 +687,8 @@ class SKSCC(object):
 
 
         '''
+        # TODO: Share this generalized eigensolver with dptb.nn.energy.Eigh so
+        # eigenvector shape conventions stay consistent across postprocess and SCC.
 
         if overlap and overlap_mat is None:
             raise ValueError("Overlap matrix must be provided when overlap is True.")
@@ -700,9 +702,7 @@ class SKSCC(object):
                 )
         eigval, eigvec = torch.linalg.eigh(H_mat)
         if overlap:
-            eigvec = torch.transpose(
-                torch.transpose(chklowtinv,dim0=1,dim1=2).conj() @ eigvec,
-                dim0=1,dim1=2)
+            eigvec = torch.transpose(chklowtinv,dim0=1,dim1=2).conj() @ eigvec
                         
         eigvecs.append(eigvec)
         eigvals.append(eigval)

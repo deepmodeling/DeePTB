@@ -375,7 +375,7 @@ class Mulliken(ElecStruCal):
         Args:
             per_atom_norbs (List[int]): Number of orbitals per atom.
             per_atom_indices (np.ndarray): Indices marking the start and end of orbitals for each atom.
-            eigenvectors (np.ndarray): Eigenvectors for each k-point, shape (nk, nstate, norb).
+            eigenvectors (np.ndarray): Eigenvectors for each k-point, shape (nk, norb, nstate).
             overlap_np (np.ndarray): Overlap matrices for each k-point (numpy array, complex128).
             occ (np.ndarray): Occupation numbers for each k-point and state, shape (nk, nstate).
                 Note: occ already includes the spin degeneracy factor (spindeg * f_n),
@@ -393,7 +393,7 @@ class Mulliken(ElecStruCal):
         # where occ_n = spindeg * f_n (includes spin degeneracy factor)
         # This avoids computing full (nk, norb, norb) DM and Rho_S matrices
 
-        V = eigenvectors.transpose(0, 2, 1)  # (nk, norb, nstate)
+        V = eigenvectors  # (nk, norb, nstate)
         SV = overlap_np @ V                   # (nk, norb, nstate) - S @ C
 
         # Direct diagonal computation using Numba JIT if available
