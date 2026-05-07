@@ -384,8 +384,6 @@ def _infer_r_max_from_model(model):
                 parts = key.split("-")
                 if symbol in parts:
                     values.append(float(value))
-                elif len(parts) == 1 and parts[0] == symbol:
-                    values.append(float(value))
             if values:
                 r_max[symbol] = max(values)
         if len(r_max) == len(basis):

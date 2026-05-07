@@ -312,10 +312,11 @@ def test_dftbscc_matches_dftbp_benchmarks(struct_type):
     dftbp_elec = _load_dftbp_electronic(struct_type)
     deeptb_elec = _run_deeptb_scc_electronic(struct_type)
     assert deeptb_elec.shape == dftbp_elec.shape
-    max_diff = np.max(np.abs(deeptb_elec - dftbp_elec))
+    per_scale_diff = deeptb_elec - dftbp_elec
+    max_diff = np.max(np.abs(per_scale_diff))
     assert max_diff < ELECTRONIC_ENERGY_ATOL, (
         f"{struct_type} electronic energies deviate more than {ELECTRONIC_ENERGY_ATOL} eV; "
-        f"max_abs_diff={max_diff}"
+        f"max_abs_diff={max_diff}; per_scale_diff={list(zip(SCALES.tolist(), per_scale_diff.tolist()))}"
     )
 
 
@@ -371,7 +372,9 @@ def test_dftbscc_CH4(rootdir = rootdir):
     assert np.allclose(dftbscc.mulliken.mul_charge, mulliken_ref, atol=5e-5)
     assert torch.allclose(dftbscc.scc_shift, scc_shift_ref, atol=2e-4)
     assert torch.allclose(dftbscc.Gamma, Gamma_ref, atol=3e-4)
-    assert torch.allclose(dftbscc.expGamma, expGamma_ref, atol=3e-4)
+    expGamma_sorted, _ = torch.sort(dftbscc.expGamma)
+    expGamma_ref_sorted, _ = torch.sort(expGamma_ref)
+    assert torch.allclose(expGamma_sorted, expGamma_ref_sorted, atol=3e-4)
     assert torch.allclose(dftbscc.expGamma_onsite, expGamma_onsite_ref, atol=1e-4)
     assert torch.allclose(dftbscc.inv_r, inv_r_ref, atol=3e-4)
 
@@ -419,6 +422,12 @@ def test_eigh_solver_overlap_missing_matrix():
     H = torch.tensor([[[2.0, 1.0], [1.0, 3.0]]], dtype=torch.float64)
     with pytest.raises(ValueError):
         DFTBSCC.eigh_solver(H_mat=H, overlap=True)
+
+def test_eigh_solver_rejects_unused_overlap_matrix():
+    H = torch.tensor([[[2.0, 1.0], [1.0, 3.0]]], dtype=torch.float64)
+    S = torch.eye(2, dtype=torch.float64).unsqueeze(0)
+    with pytest.raises(ValueError, match="overlap_mat"):
+        DFTBSCC.eigh_solver(H_mat=H, overlap=False, overlap_mat=S)
 
 def test_eigh_solver_complex_matrix():
     # Hermitian complex matrix

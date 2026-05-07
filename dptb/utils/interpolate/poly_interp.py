@@ -165,7 +165,7 @@ class NevillePolyInterp:
         torch.Tensor
             Interpolated values [n_channels].
         """
-        n_channels, nn = y_local.shape
+        _, nn = y_local.shape
 
         # Initialize C and D tableaux
         cc = y_local.clone()  # [n_channels, nn]

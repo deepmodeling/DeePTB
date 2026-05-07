@@ -10,6 +10,8 @@ from dptb.utils.ksampling import sample as ksampling
 
 log = logging.getLogger(__name__)
 
+CHARGE_CONSERVATION_TOL = 5e-2
+
 # Try to import numba for accelerated bincount summation
 try:
     from numba import njit, prange
@@ -343,9 +345,9 @@ class Mulliken(ElecStruCal):
         # assert abs(sum(mul_charge)-sum(per_atom_charge)) < 1e-3, f"Charge conservation check failed: mulliken charge {sum(mul_charge)} != total valence electrons {sum(per_atom_charge)}."
         # assert abs(np.sum(delta_charge)) < 1e-3, "Charge conservation check failed: sum of charge fluctuations is not zero."
 
-        if abs(np.sum(mul_charge) - sum(per_atom_charge)) > 5e-2:
+        if abs(np.sum(mul_charge) - sum(per_atom_charge)) > CHARGE_CONSERVATION_TOL:
             log.warning(f"Charge conservation check failed: mulliken charge {sum(mul_charge)} != total valence electrons {sum(per_atom_charge)}.")
-        if abs(np.sum(delta_charge)) > 5e-2:
+        if abs(np.sum(delta_charge)) > CHARGE_CONSERVATION_TOL:
             log.warning("Charge conservation check failed: sum of charge fluctuations is not zero.")
 
         return data

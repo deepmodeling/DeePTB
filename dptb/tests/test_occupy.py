@@ -142,6 +142,7 @@ class TestSmearingFunctions:
         np.testing.assert_allclose(fcold(x), expected, rtol=1e-12, atol=1e-12)
 
 
+class TestEntropyFunctions:
     """Test entropy contribution functions."""
 
     def test_sgau_properties(self):

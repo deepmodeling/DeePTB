@@ -159,7 +159,7 @@ class Repcurve(object):
             si = float(self.sigma_rep[sym_i])
             sj = float(self.sigma_rep[sym_j])
         except KeyError as e:
-            raise KeyError(f" Element not found in sigma_rep.") from e
+            raise KeyError(f"Element not found in sigma_rep for pair ({sym_i!r}, {sym_j!r}): {e}") from e
         # sqrt(si^2 + sj^2)
         return torch.sqrt(torch.tensor(si * si + sj * sj, dtype=self.dtype, device=self.device))
 
@@ -168,7 +168,7 @@ class Repcurve(object):
             Zi = int(self.atomic_numbers[sym_i])
             Zj = int(self.atomic_numbers[sym_j])
         except Exception as e:
-            raise KeyError(f" Element not found in symbol_to_Z.") from e
+            raise KeyError(f"Element not found in symbol_to_Z for pair ({sym_i!r}, {sym_j!r}): {e}") from e
         return Zi, Zj
 
     @staticmethod
@@ -187,7 +187,7 @@ class Repcurve(object):
     def gamma_for_pair(self, sym_i: str, sym_j: str) -> torch.Tensor:
         # gamma = Bohr2Ang / sqrt(sigma_i^2 + sigma_j^2), sigma unit: angstrom
         sigma_pair = self._get_sigma_pair(sym_i, sym_j)  # angstrom
-        return torch.tensor(Bohr2Ang / sigma_pair, dtype=self.dtype, device=self.device)   # 1/Bohr
+        return (Bohr2Ang / sigma_pair).to(dtype=self.dtype, device=self.device)   # 1/Bohr
 
     def sample_r(self, r_min: float | None = None, r_max: float | None = None, num_points: int | None = None) -> torch.Tensor:
         rmin = float(self.r_min if r_min is None else r_min)

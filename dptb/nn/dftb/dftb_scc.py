@@ -11,7 +11,6 @@ import logging
 from typing import Union, Optional, List, Dict, Any
 from dptb.nn.hr2hk import HR2HK
 from dptb.nn.dftb.gamma import get_expgamma, get_inv_r, get_Gamma
-# from dptb.utils.constants import Bohr2Ang, Harte2eV
 from dptb.nn.dftb.interp import calculate_atomic_rep
 from dptb.nn.dftb.scc_mixer import SCCMixer, get_mixer
 
@@ -704,6 +703,8 @@ class SKSCC(object):
 
         if overlap and overlap_mat is None:
             raise ValueError("Overlap matrix must be provided when overlap is True.")
+        if not overlap and overlap_mat is not None:
+            raise ValueError("overlap_mat was provided but overlap is False.")
 
         eigvecs, eigvals = [],[]
         if overlap:
@@ -720,39 +721,6 @@ class SKSCC(object):
         eigvals.append(eigval)
 
         return eigvecs, eigvals
-
-    # @staticmethod
-    # def cal_ovp_r0(data: AtomicDataDict,
-    #                model: DFTBSK) -> AtomicDataDict:
-        
-    #     from dptb.data.interfaces.ham_to_feature import feature_to_block
-    #     ovp_R_dict = feature_to_block(data=data, idp=model.idp, overlap=True)       
-        
-    #     atom_id_to_indices = {}
-    #     ist = 0
-    #     for idx in data[AtomicDataDict.ATOM_TYPE_KEY].flatten():
-    #         onsite_idx  = str(idx.item()) + '_' + str(idx.item()) + '_0_0_0'
-    #         assert onsite_idx in ovp_R_dict, f"Onsite block {onsite_idx} not found in ovp_R_dict."
-    #         atom_id_to_indices[idx.item()] = slice(ist, ist+ ovp_R_dict[onsite_idx].shape[0])
-    #         ist += ovp_R_dict[onsite_idx].shape[0]
-
-    #     ovp_R0_all = torch.zeros((ist, ist), dtype=torch.complex64)
-
-    #     for iatom_id in atom_id_to_indices.keys():
-    #         for jatom_id in atom_id_to_indices.keys():
-
-    #             block_idx =  '_'.join(map(str, map(int, [iatom_id, jatom_id] \
-    #                             + list(torch.zeros_like(data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][0]).cpu().numpy()))))
-    #             slice_i = atom_id_to_indices[int(block_idx.split('_')[0])]
-    #             slice_j = atom_id_to_indices[int(block_idx.split('_')[1])] 
-
-    #             if block_idx not in ovp_R_dict.keys():
-    #                 block_idx =  '_'.join(map(str, map(int, [jatom_id, iatom_id] \
-    #                             + list(torch.zeros_like(data[AtomicDataDict.EDGE_CELL_SHIFT_KEY][0]).cpu().numpy()))))
-    #                 assert block_idx in ovp_R_dict.keys(), f"Block {block_idx} not found in ovp_R."
-    #                 ovp_R0_all[slice_i, slice_j] = ovp_R_dict[block_idx].T.conj()
-    #             else:
-    #                 ovp_R0_all[slice_i, slice_j] = ovp_R_dict[block_idx]
 
 
 class DFTBSCC(SKSCC):
