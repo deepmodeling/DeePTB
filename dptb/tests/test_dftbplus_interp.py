@@ -584,7 +584,7 @@ class TestDFTBPlusBoundaryConditions:
     """
     Tests for DFTB+ boundary conditions matching.
 
-    These tests verify that UniSK matches DFTB+ behavior exactly at region boundaries:
+    These tests verify that DeePTB matches DFTB+ behavior exactly at region boundaries:
     - At x_max: uses decay region (raw table value), not grid interpolation
     - At x_cutoff: returns zero, not decay value
 

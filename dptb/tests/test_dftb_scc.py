@@ -17,7 +17,7 @@ SCALES = np.array([0.85, 0.90, 0.95, 1.00, 1.05, 1.10, 1.15], dtype=float)
 BENCHMARK_STRUCT_ROOT = rootdir / "dftb" / "structs_eos"
 DFTBP_ROOT = BENCHMARK_STRUCT_ROOT / "dftbp_results"
 SK_PATH = rootdir / "dftb"
-UNISK_BENCHMARK_SETUP = {
+DFTB_SCC_BENCHMARK_SETUP = {
     "basis": {"C": ["2s", "2p"]},
     "nel_atom": {"C": 4},
     "sigma_rep": {"C": 0.561},
@@ -276,31 +276,31 @@ def _load_dftbp_electronic(struct_type: str):
     return data[:, 3]
 
 
-def _run_unisk_electronic(struct_type: str):
+def _run_deeptb_scc_electronic(struct_type: str):
     struct_paths = _benchmark_struct_paths(struct_type)
     results = []
     for path in struct_paths:
         dftbscc = DFTBSCC(
-            basis=UNISK_BENCHMARK_SETUP["basis"],
+            basis=DFTB_SCC_BENCHMARK_SETUP["basis"],
             sk_path=str(SK_PATH),
-            overlap=UNISK_BENCHMARK_SETUP["overlap"],
-            smooth_ski=UNISK_BENCHMARK_SETUP["smooth_ski"],
+            overlap=DFTB_SCC_BENCHMARK_SETUP["overlap"],
+            smooth_ski=DFTB_SCC_BENCHMARK_SETUP["smooth_ski"],
         )
         dftbscc.get_total_energy(
             data=str(path),
-            nel_atom=UNISK_BENCHMARK_SETUP["nel_atom"],
-            sigma_rep=UNISK_BENCHMARK_SETUP["sigma_rep"],
+            nel_atom=DFTB_SCC_BENCHMARK_SETUP["nel_atom"],
+            sigma_rep=DFTB_SCC_BENCHMARK_SETUP["sigma_rep"],
             kmeshgrid=KPOINTS_BY_STRUCT[struct_type],
             kgamma_center=True,
             krotational_symmetry=False,
             ktime_inversion_symmetry=True,
-            tol=UNISK_BENCHMARK_SETUP["tol"],
-            mix_rate=UNISK_BENCHMARK_SETUP["mix_rate"],
-            max_iter=UNISK_BENCHMARK_SETUP["max_iter"],
-            Temp=UNISK_BENCHMARK_SETUP["Temp"],
-            AtomicData_options=UNISK_BENCHMARK_SETUP["AtomicData_options"],
-            smearing_method=UNISK_BENCHMARK_SETUP["smearing_method"],
-            mixer=UNISK_BENCHMARK_SETUP["mixer"],
+            tol=DFTB_SCC_BENCHMARK_SETUP["tol"],
+            mix_rate=DFTB_SCC_BENCHMARK_SETUP["mix_rate"],
+            max_iter=DFTB_SCC_BENCHMARK_SETUP["max_iter"],
+            Temp=DFTB_SCC_BENCHMARK_SETUP["Temp"],
+            AtomicData_options=DFTB_SCC_BENCHMARK_SETUP["AtomicData_options"],
+            smearing_method=DFTB_SCC_BENCHMARK_SETUP["smearing_method"],
+            mixer=DFTB_SCC_BENCHMARK_SETUP["mixer"],
         )
         results.append(float(dftbscc.elec_totE))
     return np.array(results, dtype=float)
@@ -308,11 +308,11 @@ def _run_unisk_electronic(struct_type: str):
 
 @pytest.mark.parametrize("struct_type", ["BCC", "GRAPHENE", "DIMER"])
 def test_dftbscc_matches_dftbp_benchmarks(struct_type):
-    """Benchmark UniSK SCC electronic energies against DFTB+ references."""
+    """Benchmark DeePTB SCC electronic energies against DFTB+ references."""
     dftbp_elec = _load_dftbp_electronic(struct_type)
-    unisk_elec = _run_unisk_electronic(struct_type)
-    assert unisk_elec.shape == dftbp_elec.shape
-    max_diff = np.max(np.abs(unisk_elec - dftbp_elec))
+    deeptb_elec = _run_deeptb_scc_electronic(struct_type)
+    assert deeptb_elec.shape == dftbp_elec.shape
+    max_diff = np.max(np.abs(deeptb_elec - dftbp_elec))
     assert max_diff < ELECTRONIC_ENERGY_ATOL, (
         f"{struct_type} electronic energies deviate more than {ELECTRONIC_ENERGY_ATOL} eV; "
         f"max_abs_diff={max_diff}"
@@ -853,7 +853,7 @@ def test_smooth_ski_CH4(rootdir=rootdir):
     assert dftbscc.scc_shift_energy is not None, "scc_shift_energy should not be None after convergence"
     assert dftbscc.E_fermi is not None, "E_fermi should not be None after convergence"
 
-    # Reference values from current UniSK version with smooth_ski=True
+    # Reference values from DeePTB SCC with smooth_ski=True
     elec_totE_ref = torch.tensor([-90.7844], dtype=torch.float64)
     elec_H0_bandE_ref = torch.tensor([-90.8235], dtype=torch.float64)
     scc_shift_energy_ref = torch.tensor(0.03902681, dtype=torch.float64)

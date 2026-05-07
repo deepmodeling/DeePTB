@@ -39,7 +39,7 @@ class DFTBPlusInterp1D:
     ----------
     x : torch.Tensor
         Grid points with shape [n_grid]. Must be uniformly spaced.
-        Units should be Angstrom (matching UniSK convention).
+        Units should be Angstrom (matching the DFTB+ interpolation convention).
     y : torch.Tensor, optional
         Values at grid points with shape [n_channels, n_grid].
         If provided at init, will be used for all interpolation calls.
