@@ -18,6 +18,13 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class SCCParams:
+    """Container for SCC-only physical parameters.
+
+    The ``skdict`` here is intentionally not the full SK parameter dictionary
+    used by ``SKParam``. It only stores the SCC physical-parameter tensors:
+    ``HubdU``, ``Occu``, ``Mass``, and ``Highest_Occu_U``.
+    """
+
     idp_sk: OrbitalMapper
     basis: Dict[str, Union[str, list]]
     skdict: Dict[str, torch.Tensor]
@@ -115,7 +122,6 @@ class SCCParams:
         metadata_hubbard = (metadata or {}).get("hubbard_u", {}) or {}
         metadata_occupation = (metadata or {}).get("occupation", {}) or {}
         metadata_mass = (metadata or {}).get("mass", {}) or {}
-        metadata_onsite_e = (metadata or {}).get("onsite_e", {}) or {}
         metadata_highest_occu_u = (metadata or {}).get("highest_occu_u", {}) or {}
 
         for symbol, type_idx in idp_sk.chemical_symbol_to_type.items():
@@ -192,7 +198,7 @@ class SCCParams:
             onsite_e = _resolve_onsite_energies(
                 idp_sk=idp_sk,
                 explicit=explicit_onsite_e,
-                metadata=metadata_onsite_e,
+                metadata={},
                 dtype=dtype,
                 device=device,
                 use_database=use_database,

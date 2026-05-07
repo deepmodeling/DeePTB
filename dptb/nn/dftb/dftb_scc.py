@@ -217,6 +217,9 @@ class SKSCC(object):
 
         '''
 
+        if max_iter < 1:
+            raise ValueError(f"max_iter must be >= 1, got {max_iter}.")
+
         # Reset per-calculation state to allow instance reuse across structures
         self.reset()
 
@@ -228,6 +231,10 @@ class SKSCC(object):
             structase = read(data)
         elif isinstance(data, ase.Atoms):
             structase = data
+        elif isinstance(data, AtomicData):
+            structase = data.to("cpu").to_ase()
+        else:
+            raise TypeError(f"data must be a str, ase.Atoms, or AtomicData; got {type(data)}.")
         assert isinstance(structase, ase.Atoms), "Input data must be an ASE Atoms object or a valid file path."
         self.atomic_numbers = structase.get_atomic_numbers()
 

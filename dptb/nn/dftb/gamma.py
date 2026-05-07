@@ -122,7 +122,7 @@ def get_expgamma(
     Args:
         data (AtomicDataDict): Dictionary containing atomic data, including edge types, edge lengths, and atom types.
         idp (OrbitalMapper): Mapper object for transforming and untransforming bond and atom indices.
-        skp (SKParam): Object containing Slater-Koster parameters, including 'Highest_Occu_U'.
+        skp (SKParam or SCCParams): Object containing 'Highest_Occu_U'.
     Returns:
         Tuple[torch.Tensor, torch.Tensor]: 
             - expGamma: Tensor of expGamma values for each edge.

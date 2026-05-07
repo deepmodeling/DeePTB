@@ -11,6 +11,7 @@ Tests cover:
 import pytest
 import torch
 import numpy as np
+from scipy.interpolate import CubicSpline
 
 
 class TestNevillePolyInterp:
@@ -475,6 +476,26 @@ class TestDFTBSKInterpMethod:
                 overlap=True,
                 interp_method='invalid_method',
             )
+
+
+class TestRepcurve:
+    """Tests for repulsive curve utilities."""
+
+    def test_interp_cubic_spline_accepts_torch_tensors(self):
+        from dptb.nn.dftb.interp import Repcurve
+
+        repcurve = Repcurve(
+            element_symbols=["H"],
+            sigma_rep={"H": 0.5},
+            dtype=torch.float64,
+        )
+        r = torch.linspace(0.3, 2.0, 16, dtype=torch.float64)
+
+        spline = repcurve.interp_cubic_spline("H", "H", r=r)
+
+        assert isinstance(spline, CubicSpline)
+        assert isinstance(spline.x, np.ndarray)
+        assert np.allclose(spline.x, r.numpy())
 
 
 class TestGradientFlow:

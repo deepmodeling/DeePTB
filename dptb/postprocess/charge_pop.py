@@ -278,6 +278,8 @@ class Mulliken(ElecStruCal):
                 structase = data
             elif isinstance(data, AtomicData):
                 structase = data.to("cpu").to_ase()
+            else:
+                raise TypeError(f"data must be a str, ase.Atoms, or AtomicData; got {type(data)}.")
             self.structase = structase
         assert isinstance(self.structase, ase.Atoms), "structase should be an ase.Atoms object."
         self.pbc = self.structase.pbc

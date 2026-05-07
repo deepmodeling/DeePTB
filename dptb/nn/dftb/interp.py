@@ -303,8 +303,12 @@ class Repcurve(object):
                 mask &= (r_t <= float(rcut_max))
             r_t, v_t = r_t[mask], v_t[mask]
 
-        # return Interp1D(x = r_t, y = v_t, method='cspline')
-        return interpolate.CubicSpline(r_t, v_t, bc_type=bc_type)
+        # SciPy spline constructors operate on CPU-backed NumPy arrays.
+        return interpolate.CubicSpline(
+            r_t.detach().cpu().numpy(),
+            v_t.detach().cpu().numpy(),
+            bc_type=bc_type,
+        )
 
     def write_rep_to_skfile(self,out_dir: str, element_symbols: list[str] | None = None):
         """

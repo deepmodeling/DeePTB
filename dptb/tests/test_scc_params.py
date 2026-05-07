@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import torch
 import pytest
 
@@ -7,6 +9,9 @@ from dptb.nn.dftb.sk_param import SKParam
 from dptb.nn.nnsk import NNSK
 from dptb.utils.constants import Harte2eV
 from dptb.nn.sktb.HubbardUDB import Hubbard_U_dict
+
+
+ROOTDIR = Path(__file__).resolve().parent / "data"
 
 
 def test_scc_params_manual_options():
@@ -208,7 +213,7 @@ def test_scc_params_metadata_roundtrip_persists_highest_occu_u_not_onsite_e():
 
 
 def test_scc_params_from_skparam_preserves_shapes():
-    skdata = "dptb/tests/data/dftb"
+    skdata = str(ROOTDIR / "dftb")
     skp = SKParam(basis={"C": ["2s", "2p"]}, skdata=skdata, cal_rcuts=True)
     params = SCCParams.from_skparam(skp)
     assert params.skdict["HubdU"].shape == skp.skdict["HubdU"].shape
