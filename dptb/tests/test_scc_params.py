@@ -21,6 +21,7 @@ def test_scc_params_manual_options():
         options={
             "hubbard_u": {"C": {"2s": 12.0, "2p": 9.0}, "H": {"1s": 10.0}},
             "occupation": {"C": {"2s": 2, "2p": 2}, "H": {"1s": 1}},
+            "onsite_e": {"C": {"2s": -0.5, "2p": 0.1}, "H": {"1s": -0.2}},
             "mass": {"C": 12.011, "H": 1.008},
             "r_max": {"C": 4.0, "H": 3.0},
             "use_database": False,
@@ -52,6 +53,7 @@ def test_scc_params_highest_occu_u_uses_highest_occupied_onsite_level():
         options={
             "hubbard_u": {"B": {"2s": 12.0, "2p": 8.0}},
             "occupation": {"B": {"2s": 2, "2p": 1}},
+            "onsite_e": {"B": {"2s": -0.7, "2p": 0.2}},
             "mass": {"B": 10.81},
             "r_max": {"B": 3.0},
             "use_database": False,
@@ -60,9 +62,30 @@ def test_scc_params_highest_occu_u_uses_highest_occupied_onsite_level():
     )
 
     bidx = idp.chemical_symbol_to_type["B"]
-    pidx = idp.skonsite_maps["1p-1p"]
-    assert params.skdict["OnsiteE"][bidx, pidx, 0] > params.skdict["OnsiteE"][bidx, idp.skonsite_maps["1s-1s"], 0]
     assert params.skdict["Highest_Occu_U"][bidx, 0, 0] == 8.0
+
+
+def test_scc_params_highest_occu_u_option_skips_onsite_e():
+    basis = {"B": ["2s", "2p"]}
+    idp = OrbitalMapper(basis, method="sktb")
+    idp.get_orbpair_maps()
+    idp.get_skonsite_maps()
+
+    params = SCCParams.from_options(
+        basis=basis,
+        idp_sk=idp,
+        options={
+            "hubbard_u": {"B": {"2s": 12.0, "2p": 8.0}},
+            "occupation": {"B": {"2s": 2, "2p": 1}},
+            "highest_occu_u": {"B": 6.5},
+            "mass": {"B": 10.81},
+            "r_max": {"B": 3.0},
+            "use_database": False,
+        },
+        dtype=torch.float64,
+    )
+
+    assert params.skdict["Highest_Occu_U"][idp.chemical_symbol_to_type["B"], 0, 0] == 6.5
 
 
 def test_scc_params_database_converts_hubbard_u():
@@ -92,11 +115,17 @@ def test_scc_params_missing_without_database_raises():
     idp.get_orbpair_maps()
     idp.get_skonsite_maps()
 
-    with pytest.raises(ValueError, match="Missing required SCC parameters"):
+    with pytest.raises(ValueError, match="Missing onsite_e values"):
         SCCParams.from_options(
             basis=basis,
             idp_sk=idp,
-            options={"use_database": False, "r_max": {"H": 3.0}},
+            options={
+                "hubbard_u": {"H": {"1s": 10.0}},
+                "occupation": {"H": {"1s": 1}},
+                "mass": {"H": 1.008},
+                "use_database": False,
+                "r_max": {"H": 3.0},
+            },
         )
 
 
@@ -106,6 +135,7 @@ def test_scc_params_metadata_priority():
     model.scc_metadata = {
         "hubbard_u": {"H": {"1s": 8.0}},
         "occupation": {"H": {"1s": 1}},
+        "highest_occu_u": {"H": 8.0},
         "mass": {"H": 1.5},
     }
 
@@ -135,6 +165,7 @@ def test_scc_params_from_model_uses_model_options_scc():
         "scc": {
             "hubbard_u": {"H": {"1s": 7.0}},
             "occupation": {"H": {"1s": 1}},
+            "highest_occu_u": {"H": 7.0},
             "mass": {"H": 1.2},
             "r_max": {"H": 3.1},
         }
@@ -144,8 +175,36 @@ def test_scc_params_from_model_uses_model_options_scc():
 
     assert params is not None
     assert params.skdict["HubdU"][0, 0, 0] == 7.0
+    assert params.skdict["Highest_Occu_U"][0, 0, 0] == 7.0
     assert params.skdict["Mass"][0, 0] == 1.2
     assert params.r_max == {"H": 3.1}
+
+
+def test_scc_params_metadata_roundtrip_persists_highest_occu_u_not_onsite_e():
+    basis = {"B": ["2s", "2p"]}
+    idp = OrbitalMapper(basis, method="sktb")
+    idp.get_orbpair_maps()
+    idp.get_skonsite_maps()
+
+    params = SCCParams.from_options(
+        basis=basis,
+        idp_sk=idp,
+        options={
+            "hubbard_u": {"B": {"2s": 12.0, "2p": 8.0}},
+            "occupation": {"B": {"2s": 2, "2p": 1}},
+            "onsite_e": {"B": {"2s": -0.7, "2p": 0.2}},
+            "mass": {"B": 10.81},
+            "r_max": {"B": 3.0},
+            "use_database": False,
+        },
+        dtype=torch.float64,
+    )
+
+    metadata = params.to_metadata()
+
+    assert "highest_occu_u" in metadata
+    assert "onsite_e" not in metadata
+    assert metadata["highest_occu_u"]["B"] == 8.0
 
 
 def test_scc_params_from_skparam_preserves_shapes():

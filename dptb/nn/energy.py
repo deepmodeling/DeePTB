@@ -395,16 +395,13 @@ class Eigh(nn.Module):
             if eig_solver == 'torch':
                 eigval, eigvec = torch.linalg.eigh(h_transformed)
                 if self.overlap:
-                    eigvec = torch.transpose(
-                        torch.transpose(chklowtinv,dim0=1,dim1=2).conj() @ eigvec,
-                        dim0=1,dim1=2)
+                    eigvec = torch.transpose(chklowtinv, dim0=1, dim1=2).conj() @ eigvec
             elif eig_solver == 'numpy':
                 if h_transformed_np is None:
                     h_transformed_np = data[self.h_out_field].detach().cpu().numpy()
                 eigval_np, eigvec_np = np.linalg.eigh(h_transformed_np)
                 if self.overlap:
                     eigvec_np = np.transpose(chklowtinv_np,(0,2,1)).conj() @ eigvec_np
-                    eigvec_np = np.transpose(eigvec_np, (0,2,1))
                 eigval = torch.from_numpy(eigval_np).to(dtype=self.h2k.dtype, device=self.h2k.device)
                 eigvec = torch.from_numpy(eigvec_np).to(dtype=data[self.h_out_field].dtype, device=self.h2k.device)
 

@@ -317,7 +317,10 @@ class DFTBSK(torch.nn.Module):
         )
 
         if f["config"]["common_options"]["basis"] == common_options["basis"]:
-            model.load_state_dict(f["model_state_dict"])
+            state_dict = f["model_state_dict"]
+            if "mass" not in state_dict:
+                state_dict["mass"] = model.mass
+            model.load_state_dict(state_dict)
         else:
             log.warning("The basis in the input json is different from the basis in the model ckpt, the model state is not loaded.")
 

@@ -13,9 +13,11 @@ from scipy import interpolate
 
 
 
-def calculate_atomic_rep(data: AtomicDataDict, 
-                         idp_sk: OrbitalMapper, 
-                         sigma_rep: dict):
+def calculate_atomic_rep(data: AtomicDataDict,
+                         idp_sk: OrbitalMapper,
+                         sigma_rep: dict,
+                         dtype: torch.dtype = None,
+                         device: Union[torch.device, str, None] = None):
     """
     Calculate repulsive term and return node energy and total repulsive energy.
 
@@ -42,9 +44,16 @@ def calculate_atomic_rep(data: AtomicDataDict,
     total_rep_energy : torch.Tensor
         Total repulsive energy (scalar).
     """
+    if device is None:
+        device = data[AtomicDataDict.EDGE_LENGTH_KEY].device
+    else:
+        device = torch.device(device)
+    if dtype is None:
+        dtype = data[AtomicDataDict.EDGE_LENGTH_KEY].dtype
+
     # Convert atom dictionary to tensor
     chemical_symbol_to_type = idp_sk.chemical_symbol_to_type
-    sigma_tensor = atom_dict_to_atomic_tensor(chemical_symbol_to_type, sigma_rep)
+    sigma_tensor = atom_dict_to_atomic_tensor(chemical_symbol_to_type, sigma_rep, dtype=dtype, device=device)
     
     # Get edge indices and atom types
     edge_index = data[AtomicDataDict.EDGE_TYPE_KEY].flatten()
@@ -71,24 +80,30 @@ def calculate_atomic_rep(data: AtomicDataDict,
     return pot_edge, node_rep_energy.reshape([-1, 1]), total_rep_energy
 
 
-def atom_dict_to_atomic_tensor(chemical_symbol_to_type, sigma_dict):
+def atom_dict_to_atomic_tensor(chemical_symbol_to_type, sigma_dict, dtype: torch.dtype = None, device: Union[torch.device, str, None] = None):
     """
     Convert atom dictionary to tensor representation.
-    
+
     Parameters:
     -----------
     chemical_symbol_to_type : dict
         Mapping from chemical symbols to type indices.
     sigma_dict : dict
         Dictionary of atomic sigma values.
-    
+
     Returns:
     --------
     sigma_tensors : torch.Tensor
         Tensor representation of atomic sigma values.
     """
+    if dtype is None:
+        dtype = torch.get_default_dtype()
+    if device is None:
+        device = torch.device("cpu")
+    else:
+        device = torch.device(device)
     len_types_in_model = len(chemical_symbol_to_type)
-    sigma_tensors = torch.zeros(len_types_in_model, dtype=torch.float32)
+    sigma_tensors = torch.zeros(len_types_in_model, dtype=dtype, device=device)
     for isym, ind in chemical_symbol_to_type.items():
         sigma_tensors[ind] = sigma_dict[isym]
     return sigma_tensors

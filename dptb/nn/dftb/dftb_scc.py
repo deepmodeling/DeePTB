@@ -516,7 +516,9 @@ class SKSCC(object):
         _, _, total_rep_energy = calculate_atomic_rep(
             data=self.data,
             idp_sk=self.model.idp_sk,
-            sigma_rep=sigma_rep
+            sigma_rep=sigma_rep,
+            dtype=self.model.dtype,
+            device=self.model.device,
         )
         self.total_rep_energy = total_rep_energy
         # Step 4: Sum electronic and repulsive energies

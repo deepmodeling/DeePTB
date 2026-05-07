@@ -111,18 +111,12 @@ class SCCParams:
         explicit_occupation = options.get("occupation", {}) or {}
         explicit_mass = options.get("mass", {}) or {}
         explicit_onsite_e = options.get("onsite_e", {}) or {}
+        explicit_highest_occu_u = options.get("highest_occu_u", {}) or {}
         metadata_hubbard = (metadata or {}).get("hubbard_u", {}) or {}
         metadata_occupation = (metadata or {}).get("occupation", {}) or {}
         metadata_mass = (metadata or {}).get("mass", {}) or {}
         metadata_onsite_e = (metadata or {}).get("onsite_e", {}) or {}
-
-        onsite_e = _resolve_onsite_energies(
-            idp_sk=idp_sk,
-            explicit=explicit_onsite_e,
-            metadata=metadata_onsite_e,
-            dtype=dtype,
-            device=device,
-        )
+        metadata_highest_occu_u = (metadata or {}).get("highest_occu_u", {}) or {}
 
         for symbol, type_idx in idp_sk.chemical_symbol_to_type.items():
             for orb in idp_sk.basis[symbol]:
@@ -187,7 +181,23 @@ class SCCParams:
         if missing:
             raise ValueError("Missing required SCC parameters (" + "; ".join(missing) + ").")
 
-        highest_occu_u = _highest_occupied_hubbard_u(hubbard_u, occupation, onsite_e, dtype=dtype, device=device)
+        highest_occu_u = _resolve_highest_occu_u(
+            idp_sk=idp_sk,
+            explicit=explicit_highest_occu_u,
+            metadata=metadata_highest_occu_u,
+            dtype=dtype,
+            device=device,
+        )
+        if highest_occu_u is None:
+            onsite_e = _resolve_onsite_energies(
+                idp_sk=idp_sk,
+                explicit=explicit_onsite_e,
+                metadata=metadata_onsite_e,
+                dtype=dtype,
+                device=device,
+                use_database=use_database,
+            )
+            highest_occu_u = _highest_occupied_hubbard_u(hubbard_u, occupation, onsite_e, dtype=dtype, device=device)
         r_max = options.get("r_max")
         if r_max is None and metadata is not None:
             r_max = metadata.get("r_max")
@@ -200,7 +210,6 @@ class SCCParams:
             "HubdU": hubbard_u,
             "Occu": occupation,
             "Mass": mass,
-            "OnsiteE": onsite_e,
             "Highest_Occu_U": highest_occu_u,
         }
         repulsive = options.get("repulsive")
@@ -211,17 +220,24 @@ class SCCParams:
     def to_metadata(self) -> dict:
         hubbard_u = {}
         occupation = {}
+        highest_occu_u = {}
         mass = {}
         for symbol, type_idx in self.idp_sk.chemical_symbol_to_type.items():
             hubbard_u[symbol] = {}
             occupation[symbol] = {}
+            highest_occu_u[symbol] = float(self.skdict["Highest_Occu_U"][type_idx, 0, 0].detach().cpu())
             for orb in self.idp_sk.basis[symbol]:
                 full_orb = self.idp_sk.basis_to_full_basis[symbol][orb]
                 onsite_idx = self.idp_sk.skonsite_maps[f"{full_orb}-{full_orb}"]
                 hubbard_u[symbol][full_orb] = float(self.skdict["HubdU"][type_idx, onsite_idx, 0].detach().cpu())
                 occupation[symbol][full_orb] = float(self.skdict["Occu"][type_idx, onsite_idx, 0].detach().cpu())
             mass[symbol] = float(self.skdict["Mass"][type_idx, 0].detach().cpu())
-        metadata = {"hubbard_u": hubbard_u, "occupation": occupation, "mass": mass}
+        metadata = {
+            "hubbard_u": hubbard_u,
+            "occupation": occupation,
+            "highest_occu_u": highest_occu_u,
+            "mass": mass,
+        }
         if self.r_max is not None:
             metadata["r_max"] = self.r_max
         if self.repulsive is not None:
@@ -273,6 +289,24 @@ def _resolve_element_value(symbol, explicit, metadata, database, use_database):
     return None, None
 
 
+def _resolve_highest_occu_u(idp_sk, explicit, metadata, dtype, device):
+    if not explicit and not metadata:
+        return None
+    values = torch.zeros([idp_sk.num_types, 1, 1], dtype=dtype, device=device)
+    missing = []
+    for symbol, type_idx in idp_sk.chemical_symbol_to_type.items():
+        value = _element_get(explicit, symbol)
+        if value is None:
+            value = _element_get(metadata, symbol)
+        if value is None:
+            missing.append(symbol)
+        else:
+            values[type_idx, 0, 0] = float(value)
+    if missing:
+        raise ValueError("Missing highest_occu_u values required for SCC metadata/options (" + ", ".join(missing) + ").")
+    return values
+
+
 def _nested_get(values, symbol, orbital):
     if not isinstance(values, dict):
         return None
@@ -291,7 +325,7 @@ def _element_get(values, symbol):
     return value
 
 
-def _resolve_onsite_energies(idp_sk, explicit, metadata, dtype, device):
+def _resolve_onsite_energies(idp_sk, explicit, metadata, dtype, device, use_database):
     onsite_e = torch.zeros([idp_sk.num_types, idp_sk.n_onsite_Es, 1], dtype=dtype, device=device)
     missing = []
     for symbol, type_idx in idp_sk.chemical_symbol_to_type.items():
@@ -306,7 +340,7 @@ def _resolve_onsite_energies(idp_sk, explicit, metadata, dtype, device):
                 explicit=explicit,
                 metadata=metadata,
                 database=onsite_energy_database,
-                use_database=True,
+                use_database=use_database,
             )
             if value is None:
                 missing.append(f"{symbol}.{full_orb}")

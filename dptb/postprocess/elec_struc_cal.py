@@ -59,24 +59,26 @@ class ElecStruCal(object):
         if not self.model.transform:
             log.error('The model.transform is not True, please check the model.')
             raise RuntimeError('The model.transform is not True, please check the model.')
-        
+
+        self.eig_solver = self._make_eig_solver(with_overlap=self.overlap)
+
+    def _make_eig_solver(self, with_overlap: bool = False):
         solver_cls = {
-            'eigvalsh': Eigenvalues, # eigenvalues only
-            'eigh': Eigh, # eigenvalues and eigenvectors
+            'eigvalsh': Eigenvalues,
+            'eigh': Eigh,
         }[self.eig_method]
-        
         solver_kwargs = {
-            'idp': model.idp,
+            'idp': self.model.idp,
             'device': self.device,
-            'dtype': model.dtype,
+            'dtype': self.model.dtype,
         }
-        if self.overlap:
+        if with_overlap:
             solver_kwargs.update({
                 's_edge_field': AtomicDataDict.EDGE_OVERLAP_KEY,
                 's_node_field': AtomicDataDict.NODE_OVERLAP_KEY,
                 's_out_field': AtomicDataDict.OVERLAP_KEY,
             })
-        self.eig_solver = solver_cls(**solver_kwargs)
+        return solver_cls(**solver_kwargs)
 
     def get_data(self,
                  data: Union[AtomicData, ase.Atoms, str],
@@ -105,20 +107,6 @@ class ElecStruCal(object):
             the loaded AtomicData object.
         
         '''
-        if override_overlap is not None and not self.overlap:
-            solver_cls = {
-                'eigvalsh': Eigenvalues,
-                'eigh': Eigh,
-            }[self.eig_method]
-            self.eig_solver = solver_cls(
-                idp=self.model.idp,
-                device=self.device,
-                s_edge_field=AtomicDataDict.EDGE_OVERLAP_KEY,
-                s_node_field=AtomicDataDict.NODE_OVERLAP_KEY,
-                s_out_field=AtomicDataDict.OVERLAP_KEY,
-                dtype=self.model.dtype,
-            )
-
         return load_data_for_model(
             data=data,
             model=self.model,
@@ -173,10 +161,10 @@ class ElecStruCal(object):
             data[AtomicDataDict.NODE_OVERLAP_KEY] = override_overlap_node
         if self.overlap or isinstance(override_overlap, str):
             assert data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is not None
-        if isinstance(self.eig_solver, Eigh):
-            data = self.eig_solver(data)
-        else:
-            data = self.eig_solver(data, eig_solver=eig_solver)
+        eig_solver_obj = self.eig_solver
+        if override_overlap is not None and not self.overlap:
+            eig_solver_obj = self._make_eig_solver(with_overlap=True)
+        data = eig_solver_obj(data, eig_solver=eig_solver)
         
         # if self.eig_method == 'eigh', the eigenvectors are calculated.
         # The eigenvectors are stored in data[AtomicDataDict.EIGENVECTOR_KEY].detach().cpu().numpy()

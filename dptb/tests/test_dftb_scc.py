@@ -67,6 +67,7 @@ def test_dftbscc_nnsk_scc_options_init():
         options={
             "hubbard_u": {"H": {"1s": 10.0}},
             "occupation": {"H": {"1s": 1}},
+            "highest_occu_u": {"H": 10.0},
             "mass": {"H": 1.008},
             "use_database": False,
         },

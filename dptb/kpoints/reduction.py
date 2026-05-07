@@ -342,12 +342,16 @@ def _reduce_by_symmetry_direct(k: np.ndarray,
             continue
         ki = k[i]
         for op in symm_ops:
+            alive = wk[i + 1:] > 0
+            if not np.any(alive):
+                break
             # Compute periodic distance: wrap to [-0.5, 0.5) for minimum distance
-            dk = np.dot(ki, op) - k[i + 1:]
+            dk = np.dot(ki, op) - k[i + 1:][alive]
             dk = _wrap_to_bz(dk)
             dk = np.linalg.norm(dk, axis=1)
             if np.any(dk < symm_prec):
-                j = np.argmin(dk) + i + 1 # if exits multiple minima, take the first one
+                alive_idx = np.flatnonzero(alive) + i + 1
+                j = alive_idx[np.argmin(dk)] # if exits multiple minima, take the first one
                 wk[j] += wk[i]
                 wk[i] = 0
                 break  # once found one, stop searching

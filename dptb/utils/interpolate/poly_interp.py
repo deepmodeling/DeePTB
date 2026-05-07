@@ -115,11 +115,11 @@ class NevillePolyInterp:
 
         # Process each query point
         for iq in range(n_query):
-            xq_val = xq[iq].item()
+            xq_val = xq[iq]
 
             # Find grid index (use floor to match DFTB+ exactly)
             # DFTB+: ind = floor(rr / dist)
-            ind = math.floor((xq_val - x_min.item()) / grid_spacing.item())
+            ind = math.floor(((xq_val - x_min) / grid_spacing).item())
 
             # Select interpolation points centered around query
             # iLast = min(n_grid, ind + n_right)
@@ -146,7 +146,7 @@ class NevillePolyInterp:
         self,
         x_local: torch.Tensor,
         y_local: torch.Tensor,
-        xq_val: float
+        xq_val: torch.Tensor
     ) -> torch.Tensor:
         """
         Neville's algorithm vectorized over channels.

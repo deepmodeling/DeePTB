@@ -83,8 +83,7 @@ def test_eigh_numpy_overlap_matches_torch_and_preserves_orientation():
 
     assert torch.allclose(vals_numpy, vals_torch, atol=1e-12)
     assert vecs_numpy.shape == torch_out[AtomicDataDict.EIGENVECTOR_KEY].shape
-    x = vecs_numpy.transpose(-1, -2)
-    residual = H @ x - S @ x @ torch.diag_embed(vals_numpy)
+    residual = H @ vecs_numpy - S @ vecs_numpy @ torch.diag_embed(vals_numpy)
     assert torch.allclose(residual, torch.zeros_like(residual), atol=1e-12)
 
 

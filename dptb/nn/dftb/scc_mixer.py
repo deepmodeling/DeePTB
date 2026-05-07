@@ -812,7 +812,7 @@ class DIISMixer(SCCMixer):
         # Apply gDIIS gradient modification if enabled
         if self.use_gradient and self.delta_r is not None:
             # Check if old DIIS gradient points in same direction as current
-            if np.abs(np.dot(self.delta_r, q_diff)) > 0:
+            if np.dot(self.delta_r, q_diff) > 0:
                 self.alpha = 1.5 * self.alpha  # Mix in more gradient
             else:
                 self.alpha = 0.5 * self.alpha  # Mix in less gradient

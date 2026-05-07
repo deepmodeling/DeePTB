@@ -124,7 +124,7 @@ class TestSmearingFunctions:
         expected = -f * np.log(f) - (1 - f) * np.log(1 - f)
         np.testing.assert_allclose(sfd(x), expected, rtol=1e-12, atol=1e-12)
 
-
+    def test_fmp1_matches_closed_form(self):
         """Test Methfessel-Paxton order 1 formula away from the Fermi level."""
         x = np.array([-2.0, -1.0, -0.5, 0.5, 1.0, 2.0])
         expected = 0.5 * (1 - erf(x)) - 0.5 / np.sqrt(np.pi) * x * np.exp(-x**2)

@@ -563,7 +563,7 @@ class SKParam:
                 vals = []
                 for idx in (s_idx, p_idx, d_idx):
                     if idx is None:
-                        vals.append(torch.tensor([0.0], dtype=tensor3d.dtype, device=tensor3d.device))
+                        vals.append(tensor3d.new_tensor(0.0))
                     else:
                         vals.append(tensor3d[t_idx, idx, 0])
                 return torch.stack(vals).flatten()  # [Es, Ep, Ed] in s,p,d order
