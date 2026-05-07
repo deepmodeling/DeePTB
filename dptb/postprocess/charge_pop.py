@@ -198,11 +198,15 @@ class Mulliken(ElecStruCal):
                  model:torch.nn.Module,
                  results_path: str=None,
                  device: str='cpu',
-                 eig_method: str = 'eigh'):
+                 eig_method: str = 'eigh',
+                 overlap: Optional[bool] = None):
 
         super().__init__(model=model,
                          device=device,
                          eig_method=eig_method)
+        if overlap is not None:
+            self.overlap = overlap
+            self.eig_solver = self._make_eig_solver(with_overlap=self.overlap)
         self.results_path = results_path
         self.smearing_method = None  # Default smearing method
         self.structase = None  # Initialize structase to None
@@ -313,10 +317,15 @@ class Mulliken(ElecStruCal):
         per_atom_norbs, per_atom_charge, per_atom_indices = self.per_atom_norb(nel_atom)
 
         # calculate Mulliken charge
+        if self.overlap:
+            overlap_np = data[AtomicDataDict.OVERLAP_KEY].detach().cpu().to(torch.complex128).numpy()
+        else:
+            overlap_np = None
+
         mul_charge = self.cal_mul_charge(   per_atom_norbs = per_atom_norbs,
                                             per_atom_indices = per_atom_indices,
                                             eigenvectors = data[AtomicDataDict.EIGENVECTOR_KEY].detach().cpu().to(torch.complex128).numpy(),
-                                            overlap_np = data[AtomicDataDict.OVERLAP_KEY].detach().cpu().to(torch.complex128).numpy(),
+                                            overlap_np = overlap_np,
                                             occ = occ,
                                             wk = self.wk)
 
@@ -364,7 +373,7 @@ class Mulliken(ElecStruCal):
                        per_atom_norbs: List[int],
                        per_atom_indices: np.ndarray,
                        eigenvectors: np.ndarray,
-                       overlap_np: np.ndarray,
+                       overlap_np: Optional[np.ndarray],
                        occ: np.ndarray,
                        wk: np.ndarray) -> np.ndarray:
         """
@@ -378,7 +387,8 @@ class Mulliken(ElecStruCal):
             per_atom_norbs (List[int]): Number of orbitals per atom.
             per_atom_indices (np.ndarray): Indices marking the start and end of orbitals for each atom.
             eigenvectors (np.ndarray): Eigenvectors for each k-point, shape (nk, norb, nstate).
-            overlap_np (np.ndarray): Overlap matrices for each k-point (numpy array, complex128).
+            overlap_np (np.ndarray or None): Overlap matrices for each k-point
+                (numpy array, complex128). If None, uses the orthogonal limit S = I.
             occ (np.ndarray): Occupation numbers for each k-point and state, shape (nk, nstate).
                 Note: occ already includes the spin degeneracy factor (spindeg * f_n),
                 where f_n is the occupation probability in [0, 1].
@@ -396,7 +406,7 @@ class Mulliken(ElecStruCal):
         # This avoids computing full (nk, norb, norb) DM and Rho_S matrices
 
         V = eigenvectors  # (nk, norb, nstate)
-        SV = overlap_np @ V                   # (nk, norb, nstate) - S @ C
+        SV = V if overlap_np is None else overlap_np @ V  # (nk, norb, nstate) - S @ C
 
         # Direct diagonal computation using Numba JIT if available
         # Uses parallel kernel over k-points for acceleration

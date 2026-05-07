@@ -6,6 +6,7 @@ from dptb.nn.dftb.scc_params import SCCParams
 from dptb.nn.dftb.sk_param import SKParam
 from dptb.nn.dftbsk import DFTBSK
 from dptb.nn.nnsk import NNSK
+from dptb.data import AtomicDataDict
 import pytest
 import numpy as np
 
@@ -87,8 +88,40 @@ def test_dftbscc_nnsk_database_and_overlap_checks():
     assert scc.scc_params.skdict["HubdU"][0, 0, 0] > 0
 
     model_without_overlap = NNSK(basis=basis, overlap=False, hopping={"method": "powerlaw", "rs": 3.0, "w": 0.2})
+    orthogonal_scc = SKSCC(model=model_without_overlap, params=params)
+    assert orthogonal_scc.overlap is False
+    assert orthogonal_scc.mulliken.overlap is False
+
     with pytest.raises(ValueError, match="overlap=True"):
-        SKSCC(model=model_without_overlap, params=params)
+        SKSCC(model=model_without_overlap, params=params, overlap=True)
+
+
+def test_skscc_can_force_orthogonal_mode_for_overlap_model():
+    basis = {"H": ["1s"]}
+    model = NNSK(basis=basis, overlap=True, hopping={"method": "powerlaw", "rs": 3.0, "w": 0.2})
+    params = SCCParams.from_options(basis=basis, idp_sk=model.idp_sk, options={"use_database": True}, model=model)
+
+    scc = SKSCC(model=model, params=params, overlap=False)
+
+    assert scc.overlap is False
+    assert scc.mulliken.overlap is False
+
+
+def test_skscc_cal_scc_hk_orthogonal_has_diagonal_correction_only():
+    basis = {"H": ["1s"]}
+    model = NNSK(basis=basis, overlap=False, hopping={"method": "powerlaw", "rs": 3.0, "w": 0.2})
+    params = SCCParams.from_options(basis=basis, idp_sk=model.idp_sk, options={"use_database": True}, model=model)
+    scc = SKSCC(model=model, params=params)
+    data = {
+        AtomicDataDict.HAMILTONIAN_KEY: torch.zeros((1, 3, 3), dtype=torch.float64),
+    }
+    per_atom_indices = np.array([0, 1, 3])
+    scc_shift = torch.tensor([2.0, 4.0], dtype=torch.float64)
+
+    scc_hk = scc.cal_scc_hk(data=data, per_atom_indices=per_atom_indices, scc_shift=scc_shift)
+
+    expected = torch.diag(torch.tensor([2.0, 4.0, 4.0], dtype=torch.complex128)).unsqueeze(0)
+    assert torch.allclose(scc_hk, expected)
 
 
 def test_skscc_and_dftbscc_wrapper_hbn_equivalent(rootdir=rootdir):

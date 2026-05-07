@@ -59,6 +59,39 @@ def test_get_mulcharge(rootdir = rootdir):
     assert np.array_equal(mulliken.per_atom_indices, mul_per_atom_indices_ref)
 
 
+def test_cal_mul_charge_orthogonal_limit(rootdir=rootdir):
+    sk_path = os.path.join(rootdir, 'dftb')
+    basis = {'B': ['2s', '2p'], "N": ["2s", "2p"]}
+    model = DFTBSK(basis=basis, skdata=sk_path, overlap=False)
+    mulliken = Mulliken(model=model, device='cpu', eig_method='eigh', overlap=False)
+    eigenvectors = np.array(
+        [
+            [[1.0, 0.0], [0.0, 1.0], [0.5, 0.5]],
+            [[0.6, 0.8], [1.0, 0.0], [0.0, 1.0]],
+        ],
+        dtype=np.complex128,
+    )
+    occ = np.array([[2.0, 0.5], [1.5, 0.25]], dtype=np.float64)
+    wk = np.array([0.4, 0.6], dtype=np.float64)
+    per_atom_indices = np.array([0, 2, 3])
+
+    mul_charge = mulliken.cal_mul_charge(
+        per_atom_norbs=[2, 1],
+        per_atom_indices=per_atom_indices,
+        eigenvectors=eigenvectors,
+        overlap_np=None,
+        occ=occ,
+        wk=wk,
+    )
+
+    diag_vals = np.real(np.sum(np.conj(eigenvectors) * eigenvectors * occ[:, None, :], axis=2))
+    expected_trace = np.stack(
+        [diag_vals[:, 0] + diag_vals[:, 1], diag_vals[:, 2]],
+        axis=1,
+    )
+    assert np.allclose(mul_charge, wk @ expected_trace)
+
+
 def test_direct_diag_rhos():
     """Test direct_diag_rhos computes correct diagonal values of Rho_S."""
     np.random.seed(42)

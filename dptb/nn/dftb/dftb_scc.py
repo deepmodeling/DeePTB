@@ -24,7 +24,7 @@ class SKSCC(object):
     def __init__(self,
                  model,
                  params: SCCParams,
-                 overlap: bool = True,
+                 overlap: Optional[bool] = None,
                  scc_dtype: torch.dtype = torch.float64) -> None:
         if model is None:
             raise ValueError("SKSCC requires a pre-initialized SK model.")
@@ -34,7 +34,10 @@ class SKSCC(object):
             raise TypeError("params must be an SCCParams instance.")
         if params.r_max is None:
             raise ValueError("SCCParams.r_max is required for SCC graph construction.")
-        if overlap and not getattr(model, "overlap", False):
+        model_has_overlap = hasattr(model, "overlap")
+        if overlap is None:
+            overlap = model_has_overlap
+        if overlap and not model_has_overlap:
             raise ValueError("SKSCC requires a model initialized with overlap=True when overlap=True.")
 
         self.scc_dtype = scc_dtype
@@ -45,7 +48,8 @@ class SKSCC(object):
         self.scc_params = params
         self.mulliken = Mulliken(model=model,
                                  device=model.device,
-                                 eig_method='eigh')
+                                 eig_method='eigh',
+                                 overlap=overlap)
         self.overlap = overlap
 
         self.reset()
@@ -59,15 +63,16 @@ class SKSCC(object):
             device = model.device,
             )
 
-        self.s2k = HR2HK(
-            idp = model.idp,
-            overlap = True,
-            edge_field = AtomicDataDict.EDGE_OVERLAP_KEY,
-            node_field = AtomicDataDict.NODE_OVERLAP_KEY,
-            out_field = AtomicDataDict.OVERLAP_KEY,
-            dtype = self.scc_dtype,
-            device = model.device,
-            )
+        if self.overlap:
+            self.s2k = HR2HK(
+                idp = model.idp,
+                overlap = True,
+                edge_field = AtomicDataDict.EDGE_OVERLAP_KEY,
+                node_field = AtomicDataDict.NODE_OVERLAP_KEY,
+                out_field = AtomicDataDict.OVERLAP_KEY,
+                dtype = self.scc_dtype,
+                device = model.device,
+                )
 
     def reset(self) -> None:
         '''
@@ -560,10 +565,10 @@ class SKSCC(object):
         Parameters
         ----------
         data : AtomicDataDict
-            Atomic data dictionary containing Hamiltonian and overlap matrices.
-            Must include keys:
-            - AtomicDataDict.HAMILTONIAN_KEY: k-space Hamiltonian
-            - AtomicDataDict.OVERLAP_KEY: k-space overlap matrix
+            Atomic data dictionary containing the k-space Hamiltonian. When
+            ``self.overlap`` is True, it must also contain the k-space overlap
+            matrix. When ``self.overlap`` is False, the SCC correction is
+            evaluated in the orthogonal limit S = I.
         per_atom_indices : np.ndarray
             Cumulative indices marking orbital boundaries for each atom.
             Shape: (n_atoms + 1,). For example, if atoms have [2, 3, 4]
@@ -581,7 +586,8 @@ class SKSCC(object):
         '''
 
         assert AtomicDataDict.HAMILTONIAN_KEY in data, "Hamiltonian key not found in data."
-        assert AtomicDataDict.OVERLAP_KEY in data, "Overlap key not found in data."
+        if self.overlap:
+            assert AtomicDataDict.OVERLAP_KEY in data, "Overlap key not found in data."
         assert per_atom_indices is not None, "per_atom_indices must be provided."
         assert scc_shift is not None, "scc_shift must be provided."
 
@@ -597,9 +603,6 @@ class SKSCC(object):
 
         # Get shift value for each orbital based on its parent atom
         shift_per_orb = scc_shift[orb2atom]  # (norb,)
-
-        # Get overlap matrix in specified precision for numerical accuracy
-        overlap_data = data[AtomicDataDict.OVERLAP_KEY].to(dtype=self.scc_cdtype)
 
         # Create index arrays for vectorized operations
         idx = torch.arange(norb, device=device)
@@ -636,10 +639,12 @@ class SKSCC(object):
         # Fill diagonal elements (coefficient only, no overlap multiplication)
         scc_HK[:, idx, idx] = coeff[idx, idx]
 
-        # Fill off-diagonal upper triangle elements (coefficient * overlap)
-        # Get row and column indices for strict upper triangle
-        row_idx, col_idx = torch.where(upper_tri_off_diag)
-        scc_HK[:, row_idx, col_idx] = overlap_data[:, row_idx, col_idx] * coeff[row_idx, col_idx]
+        if self.overlap:
+            # Fill off-diagonal upper triangle elements (coefficient * overlap)
+            # Get row and column indices for strict upper triangle
+            overlap_data = data[AtomicDataDict.OVERLAP_KEY].to(dtype=self.scc_cdtype)
+            row_idx, col_idx = torch.where(upper_tri_off_diag)
+            scc_HK[:, row_idx, col_idx] = overlap_data[:, row_idx, col_idx] * coeff[row_idx, col_idx]
 
         # Symmetrize: add conjugate transpose to make Hermitian
         # This doubles the diagonal and fills the lower triangle
