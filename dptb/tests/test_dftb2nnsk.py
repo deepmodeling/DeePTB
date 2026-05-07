@@ -31,6 +31,7 @@ class TestDFTB2NNSK:
             basis={"B":["2s"], "N": ["2s"]}, 
             skdata=os.path.join(rootdir, "slakos"),
             train_options=train_ops,
+            output=os.path.join(rootdir, "..", "test_temp"),
             rs=6.0,
             w=1.0,
             method="powerlaw"
