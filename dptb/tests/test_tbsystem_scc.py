@@ -75,12 +75,13 @@ def test_tbsystem_returns_scc_corrected_hk_for_dftbsk():
     basis = {"B": ["2s", "2p"], "N": ["2s", "2p"]}
     skp = SKParam(basis=basis, skdata=str(sk_path), cal_rcuts=True, dtype=torch.float64)
     params = SCCParams.from_skparam(skp)
+    r_max = 5.0
     model = DFTBSK(
         basis=basis,
         skdata=str(sk_path),
         overlap=True,
         dtype=torch.float32,
-        r_max=params.r_max,
+        r_max=r_max,
     )
     system = TBSystem(data=str(struct), calculator=model)
 
@@ -92,7 +93,7 @@ def test_tbsystem_returns_scc_corrected_hk_for_dftbsk():
         kgamma_center=True,
         krotational_symmetry=False,
         ktime_inversion_symmetry=True,
-        AtomicData_options={"r_max": params.r_max},
+        AtomicData_options={"r_max": r_max},
         max_iter=5,
         mix_rate=0.25,
         Temp=0.1,

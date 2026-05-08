@@ -52,7 +52,6 @@ class DFTBSK(torch.nn.Module):
         Number of interpolation points for smooth_intp method. Default is 8.
     r_max : float or dict, optional
         Hamiltonian cutoff stored in model metadata for downstream calculators.
-        If None and SK files are read directly, it is inferred from the SK grid.
     """
     name = "dftbsk"
     def __init__(
@@ -133,7 +132,7 @@ class DFTBSK(torch.nn.Module):
             )
 
         if num_xgrid == -1:
-            skparams = SKParam(basis=self.basis, skdata=skdata, cal_rcuts=True, dtype=self.dtype, device=self.device)
+            skparams = SKParam(basis=self.basis, skdata=skdata, dtype=self.dtype, device=self.device)
          
             distance_param = skparams.skdict['Distance']
             hopping_param = skparams.skdict['Hopping']
@@ -141,8 +140,6 @@ class DFTBSK(torch.nn.Module):
             mass_param = skparams.skdict['Mass']
             if overlap:
                 overlap_param = skparams.skdict['Overlap']
-            if r_max is None and skparams.bond_r_max is not None:
-                self.model_options["dftbsk"]["r_max"] = max(skparams.bond_r_max.values())
 
             assert hopping_param.shape == (len(self.idp_sk.bond_types), self.idp_sk.reduced_matrix_element, len(distance_param)), "The hopping param shape is not correct."
             
