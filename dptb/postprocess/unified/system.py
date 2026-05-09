@@ -271,7 +271,7 @@ class TBSystem:
 
     def _resolve_use_scc(self, use_scc: Optional[bool]) -> bool:
         if use_scc is None:
-            return self._use_scc and self._scc_state is not None
+            return self._use_scc
         return use_scc
 
     def _prepare_kpoint_data(self,

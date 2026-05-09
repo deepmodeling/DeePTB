@@ -66,6 +66,34 @@ def test_tbsystem_returns_scc_corrected_hk_for_orthogonal_nnsk():
     assert np.allclose(band_data.eigenvalues, eigs.detach().cpu().numpy())
 
 
+def test_tbsystem_enable_scc_requires_run_before_default_use():
+    ckpt = ROOT / "examples" / "hBN_dftb" / "nnsk" / "checkpoint" / "nnsk.ep500.pth"
+    struct = ROOT / "examples" / "dftb_scc" / "hBN_scc" / "data" / "struct.vasp"
+    sk_path = ROOT / "examples" / "dftb_scc" / "hBN_scc" / "slakos"
+    if not ckpt.exists() or not struct.exists() or not sk_path.exists():
+        pytest.skip("hBN NNSK-SCC example data is not available.")
+
+    model = build_model(str(ckpt))
+    system = TBSystem(data=str(struct), calculator=model)
+    skp = SKParam(basis=model.basis, skdata=str(sk_path), cal_rcuts=True, dtype=torch.float64)
+    params = SCCParams.from_skparam(skp)
+
+    system.enable_scc(
+        params=params,
+        nel_atom={"B": 3, "N": 5},
+        kmeshgrid=[2, 2, 1],
+        AtomicData_options={"r_max": system.calculator.cutoffs["r_max"]},
+    )
+
+    k_points = np.array([[0.0, 0.0, 0.0]], dtype=float)
+    with pytest.raises(RuntimeError, match="SCC has not been run"):
+        system.get_hk(k_points=k_points)
+
+    hk_bare, sk_bare = system.get_hk(k_points=k_points, use_scc=False)
+    assert hk_bare is not None
+    assert sk_bare is None
+
+
 def test_tbsystem_returns_scc_corrected_hk_for_dftbsk():
     struct = ROOT / "examples" / "dftb_scc" / "hBN_scc" / "data" / "struct.vasp"
     sk_path = ROOT / "examples" / "dftb_scc" / "hBN_scc" / "slakos"
