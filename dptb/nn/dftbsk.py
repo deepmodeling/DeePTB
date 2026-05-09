@@ -232,12 +232,12 @@ class DFTBSK(torch.nn.Module):
         device: Union[str, torch.device]=None,
         transform: bool=True,
         interp_method: InterpMethod=None,
-            smooth_ski: bool=False,
-            dist_fudge: float=None,
-            n_interp_points: int=None,
-            r_max: Union[float, Dict, None]=None,
-            **kwargs,
-            ):
+        smooth_ski: bool=False,
+        dist_fudge: float=None,
+        n_interp_points: int=None,
+        r_max: Union[float, Dict, None]=None,
+        **kwargs,
+        ):
         """
         Load a DFTBSK model from a checkpoint file.
 

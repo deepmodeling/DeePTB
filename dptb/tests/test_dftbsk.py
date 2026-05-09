@@ -62,6 +62,10 @@ class TestDFTBSK:
         assert model.onsite_fn.functype == 'dftb'
         assert model.hopping_fn.functype == 'dftb'
 
+    def test_dftbsk_stores_r_max_metadata(self):
+        model = DFTBSK(**self.common_options, **self.model_options['dftbsk'], r_max=5.0)
+        assert model.model_options["dftbsk"]["r_max"] == 5.0
+
     def test_forward_dftbsk(self):
         model = DFTBSK(**self.common_options, **self.model_options['dftbsk'], transform=False)
         data = model(self.batch)
@@ -113,6 +117,5 @@ class TestDFTBSK:
 
         assert AtomicDataDict.NODE_SOC_SWITCH_KEY in data
         assert not data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all()
-
 
 

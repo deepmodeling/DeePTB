@@ -1,5 +1,5 @@
-import pytest
 import torch
+import pytest
 from dptb.nn.nnsk import NNSK
 from dptb.nn.deeptb import NNENV, MIX
 from dptb.utils.tools import j_must_have
@@ -141,6 +141,37 @@ def test_build_dftbsk_from_scratch():
     }
     model = build_model(None, model_options, common_options)
     assert model.name == 'dftbsk'
+
+@pytest.mark.parametrize(
+    "r_max",
+    [
+        5.0,
+        {"B": 6.349479778742587, "N": 5.366822193937187},
+        {"B-B": 6.349479778742587, "B-N": 5.858150986339887, "N-B": 5.858150986339887, "N-N": 5.366822193937187},
+    ],
+)
+def test_build_dftbsk_from_scratch_with_r_max(r_max):
+    skdatapath = f"{rootdir}/../../../../examples/hBN_dftb/slakos"
+    common_options = {
+        "basis": {
+            "B": ["2s", "2p"],
+            "N": ["2s", "2p"]
+        },
+        "device": "cpu",
+        "dtype": "float32",
+        "overlap": True,
+        "seed": 3982377700
+    }
+    r_max = {"B": 6.349479778742587, "N": 5.366822193937187}
+    model_options = {
+    "dftbsk": {
+            "skdata": skdatapath,
+            "r_max": r_max,
+        }
+    }
+    model = build_model(None, model_options, common_options)
+    assert model.name == 'dftbsk'
+    assert model.model_options["dftbsk"]["r_max"] == r_max
 
 def test_build_model_MIX_dftbsk_from_scratch():
     skdatapath = f"{rootdir}/../../../../examples/hBN_dftb/slakos"
