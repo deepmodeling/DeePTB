@@ -202,7 +202,7 @@ class DeePTBAdapter(HamiltonianCalculator):
 
         return Hblocks, Sblocks 
     
-    def get_hR(self, atomic_data):
+    def features_to_hR(self, atomic_data):
                 # Initialize hR converters
         h2R = Hr2HR(
             idp=self.model.idp,
@@ -221,13 +221,16 @@ class DeePTBAdapter(HamiltonianCalculator):
                 dtype=self.model.dtype,
                 device=self.device
             )
-        atomic_data = self.model_forward(atomic_data)
         h_container = h2R(atomic_data)
         if self.overlap:
             s_container = s2R(atomic_data)
         else:
             s_container = None
         return h_container, s_container
+
+    def get_hR(self, atomic_data):
+        atomic_data = self.model_forward(atomic_data)
+        return self.features_to_hR(atomic_data)
     
     def get_eigenvalues(self, 
                         atomic_data: dict, 

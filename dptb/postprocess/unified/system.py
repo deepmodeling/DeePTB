@@ -2,7 +2,9 @@ import numpy as np
 import torch
 import os
 import h5py
-from typing import Union, Optional, List, Dict, Tuple
+import re
+from dataclasses import dataclass
+from typing import Any, Union, Optional, List, Dict, Tuple
 import ase
 from ase.io import read
 import logging
@@ -12,12 +14,26 @@ from dptb.nn.build import build_model
 from dptb.postprocess.unified.properties.band import BandAccessor
 from dptb.postprocess.unified.properties.dos import DosAccessor
 from dptb.postprocess.unified.properties.optical_conductivity import ACAccessor
-from dptb.utils.constants import atomic_num_dict_r
+from dptb.utils.constants import atomic_num_dict_r, anglrMId
 from dptb.postprocess.unified.utils import calculate_fermi_level
 from dptb.utils.make_kpoints import kmesh_sampling
 from dptb.postprocess.unified.properties.export import ExportAccessor
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class SCCState:
+    is_converged: bool
+    scc_shift: torch.Tensor
+    mulliken_charge: Optional[np.ndarray]
+    delta_charge: Optional[np.ndarray]
+    E_fermi: Any
+    elec_totE: Any
+
+    def __getitem__(self, key: str):
+        return getattr(self, key)
+
 
 class TBSystem:
     """
@@ -150,7 +166,7 @@ class TBSystem:
         return self._scc
 
     @property
-    def scc_state(self) -> Optional[dict]:
+    def scc_state(self) -> Optional[SCCState]:
         """Access cached SCC convergence state."""
         return self._scc_state
 
@@ -257,22 +273,29 @@ class TBSystem:
         options.setdefault("AtomicData_options", {"r_max": self._scc.r_max})
 
         self._scc.run_iters(data=self.atoms, **options)
-        self._scc_state = {
-            "is_converged": self._scc.is_converged,
-            "scc_shift": self._scc.scc_shift,
-            "mulliken_charge": None if self._scc.mulliken.mul_charge is None else self._scc.mulliken.mul_charge.copy(),
-            "delta_charge": None if self._scc.mulliken.delta_charge is None else self._scc.mulliken.delta_charge.copy(),
-            "E_fermi": self._scc.E_fermi,
-            "elec_totE": self._scc.elec_totE,
-        }
+        self._scc_state = SCCState(
+            is_converged=self._scc.is_converged,
+            scc_shift=self._scc.scc_shift,
+            mulliken_charge=None if self._scc.mulliken.mul_charge is None else self._scc.mulliken.mul_charge.copy(),
+            delta_charge=None if self._scc.mulliken.delta_charge is None else self._scc.mulliken.delta_charge.copy(),
+            E_fermi=self._scc.E_fermi,
+            elec_totE=self._scc.elec_totE,
+        )
         if self._scc.E_fermi is not None:
             self.set_efermi(self._scc.E_fermi)
         return self._scc_state
 
     def _resolve_use_scc(self, use_scc: Optional[bool]) -> bool:
-        if use_scc is None:
-            return self._use_scc
-        return use_scc
+        if use_scc is not None:
+            return use_scc
+        return self._use_scc and self._scc_state is not None
+
+    def _require_scc_state(self) -> SCCState:
+        if self._scc is None:
+            raise RuntimeError("SCC is not configured. Call enable_scc(...) first.")
+        if self._scc_state is None:
+            raise RuntimeError("SCC has not been run. Call run_scc(...) first.")
+        return self._scc_state
 
     def _prepare_kpoint_data(self,
                              atomic_data: Optional[dict] = None,
@@ -290,27 +313,10 @@ class TBSystem:
         assert data.get(AtomicDataDict.KPOINT_KEY) is not None, "No kpoints found. Please provide k_points."
         return data
 
-    def get_hk(self,
-               atomic_data: Optional[dict] = None,
-               k_points: Optional[Union[torch.Tensor, np.ndarray, list]] = None,
-               use_scc: Optional[bool] = None,
-               with_derivative: bool = False) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        """
-        Return the effective H(k), optionally including the converged SCC shift.
-
-        When ``use_scc`` is true, SCC must have been run already. The returned
-        Hamiltonian is ``H0(k) + H_SCC(k)`` and can be reused by downstream
-        postprocessing tasks.
-        """
-        if not self._resolve_use_scc(use_scc):
-            data = self._atomic_data if atomic_data is None else atomic_data
-            return self.calculator.get_hk(data, k_points=k_points, with_derivative=with_derivative)
-
-        if with_derivative:
-            raise NotImplementedError("SCC-corrected H(k) derivatives are not implemented in TBSystem.")
-        if self._scc is None or self._scc_state is None:
-            raise RuntimeError("SCC has not been run. Call enable_scc(...) and run_scc(...) first.")
-
+    def _get_scc_hk_data(self,
+                         atomic_data: Optional[dict] = None,
+                         k_points: Optional[Union[torch.Tensor, np.ndarray, list]] = None) -> Tuple[dict, torch.Tensor, Optional[torch.Tensor]]:
+        scc_state = self._require_scc_state()
         data = self._prepare_kpoint_data(atomic_data=atomic_data, k_points=k_points)
         data = self.model(data)
         data = self._scc.h2k(data)
@@ -321,11 +327,31 @@ class TBSystem:
         scc_hk = self._scc.cal_scc_hk(
             data=data,
             per_atom_indices=self._scc.mulliken.per_atom_indices,
-            scc_shift=self._scc.scc_shift,
+            scc_shift=scc_state.scc_shift,
         )
         hk = data[AtomicDataDict.HAMILTONIAN_KEY].clone().to(dtype=self._scc.scc_cdtype) + scc_hk
         data[AtomicDataDict.HAMILTONIAN_KEY] = hk
-        self._last_effective_data = data
+        return data, hk, sk
+
+    def get_hk(self,
+               atomic_data: Optional[dict] = None,
+               k_points: Optional[Union[torch.Tensor, np.ndarray, list]] = None,
+               use_scc: Optional[bool] = None,
+               with_derivative: bool = False) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """
+        Return the H(k), optionally including the converged SCC shift.
+
+        ``use_scc=None`` follows the TBSystem state: once SCC is enabled and run,
+        downstream calls use the SCC-corrected Hamiltonian by default. Pass
+        ``use_scc=True`` or ``False`` to force either branch explicitly.
+        """
+        if not self._resolve_use_scc(use_scc):
+            data = self._atomic_data if atomic_data is None else atomic_data
+            return self.calculator.get_hk(data, k_points=k_points, with_derivative=with_derivative)
+
+        if with_derivative:
+            raise NotImplementedError("SCC-corrected H(k) derivatives are not implemented in TBSystem.")
+        _, hk, sk = self._get_scc_hk_data(atomic_data=atomic_data, k_points=k_points)
         return hk, sk
 
     def get_eigenvalues(self,
@@ -341,13 +367,12 @@ class TBSystem:
                 data = self._prepare_kpoint_data(data, k_points)
             return self.calculator.get_eigenvalues(data, nk=nk, solver=solver)
 
-        hk, sk = self.get_hk(atomic_data=atomic_data, k_points=k_points, use_scc=True)
+        data, hk, sk = self._get_scc_hk_data(atomic_data=atomic_data, k_points=k_points)
         eigvecs, eigvals = self._scc.eigh_solver(
             H_mat=hk,
             overlap=self._scc.overlap,
             overlap_mat=sk,
         )
-        data = self._last_effective_data
         eigval = torch.cat(eigvals, dim=0)
         data[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.nested.as_nested_tensor([eigval])
         return data, eigval
@@ -365,13 +390,12 @@ class TBSystem:
                 data = self._prepare_kpoint_data(data, k_points)
             return self.calculator.get_eigenstates(data, nk=nk, solver=solver)
 
-        hk, sk = self.get_hk(atomic_data=atomic_data, k_points=k_points, use_scc=True)
+        data, hk, sk = self._get_scc_hk_data(atomic_data=atomic_data, k_points=k_points)
         eigvecs, eigvals = self._scc.eigh_solver(
             H_mat=hk,
             overlap=self._scc.overlap,
             overlap_mat=sk,
         )
-        data = self._last_effective_data
         eigval = torch.cat(eigvals, dim=0)
         eigvec = torch.cat(eigvecs, dim=0)
         data[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.nested.as_nested_tensor([eigval])
@@ -516,14 +540,53 @@ class TBSystem:
             self.has_dos = True
             return self._dos
 
-    def get_hR(self):
+    def _add_scc_to_realspace_features(self, data: AtomicDataDict, scc_shift: torch.Tensor) -> AtomicDataDict:
+        node_features = data[AtomicDataDict.NODE_FEATURES_KEY].clone()
+        edge_features = data[AtomicDataDict.EDGE_FEATURES_KEY].clone()
+        shift = scc_shift.to(device=node_features.device, dtype=node_features.dtype)
+
+        if self._scc.overlap:
+            if AtomicDataDict.NODE_OVERLAP_KEY not in data or AtomicDataDict.EDGE_OVERLAP_KEY not in data:
+                raise RuntimeError("Overlap SCC requires node and edge overlap features to build H(R).")
+            node_overlap = data[AtomicDataDict.NODE_OVERLAP_KEY].to(device=node_features.device, dtype=node_features.dtype)
+            edge_overlap = data[AtomicDataDict.EDGE_OVERLAP_KEY].to(device=edge_features.device, dtype=edge_features.dtype)
+            edge_shift = scc_shift.to(device=edge_features.device, dtype=edge_features.dtype)
+            edge_index = data[AtomicDataDict.EDGE_INDEX_KEY]
+            edge_coeff = 0.5 * (edge_shift[edge_index[0]] + edge_shift[edge_index[1]])
+            data[AtomicDataDict.NODE_FEATURES_KEY] = node_features + node_overlap * shift[:, None]
+            data[AtomicDataDict.EDGE_FEATURES_KEY] = edge_features + edge_overlap * edge_coeff[:, None]
+            return data
+
+        idp = self.model.idp
+        idp.get_orbpair_maps()
+        for iorb in idp.full_basis:
+            lval = anglrMId[re.findall(r"[a-zA-Z]+", iorb)[0]]
+            norb = 2 * lval + 1
+            orbpair = f"{iorb}-{iorb}"
+            orb_slice = idp.orbpair_maps[orbpair]
+            diag = torch.eye(norb, device=node_features.device, dtype=node_features.dtype).reshape(-1)
+            node_features[:, orb_slice] = node_features[:, orb_slice] + shift[:, None] * diag[None, :]
+        data[AtomicDataDict.NODE_FEATURES_KEY] = node_features
+        data[AtomicDataDict.EDGE_FEATURES_KEY] = edge_features
+        return data
+
+    def _get_scc_hR_data(self):
+        scc_state = self._require_scc_state()
+        data = self._atomic_data.copy()
+        data = self.calculator.model_forward(data)
+        data = self._add_scc_to_realspace_features(data, scc_state.scc_shift)
+        return self.calculator.features_to_hR(data)
+
+    def get_hR(self, use_scc: Optional[bool] = None):
         """
         Get the Hamiltonian (and Overlap) as vbcsr.ImageContainer.
-        
+
         Returns:
              Tuple of (H_container, S_container). S_container can be None.
         """
-        return self._calculator.get_hR(self._atomic_data)
+        if not self._resolve_use_scc(use_scc):
+            return self._calculator.get_hR(self._atomic_data)
+        return self._get_scc_hR_data()
 
 
     def to_pardiso(self, output_dir: Optional[str] = "pardiso_input"):
