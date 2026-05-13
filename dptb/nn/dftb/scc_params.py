@@ -22,7 +22,7 @@ class SCCParams:
 
     The ``skdict`` here is intentionally not the full SK parameter dictionary
     used by ``SKParam``. It only stores the SCC physical-parameter tensors:
-    ``HubdU``, ``Occu``, ``Mass``, and ``Highest_Occu_U``.
+    ``HubdU``, ``Occu``, ``Mass``, and ``Atom_U``.
     """
 
     idp_sk: OrbitalMapper
@@ -35,17 +35,25 @@ class SCCParams:
     repulsive: Optional[dict] = None
 
     @classmethod
-    def from_skparam(cls, skp: SKParam) -> "SCCParams":
+    def from_skparam(cls, skp: SKParam, hubbard_u_mode: str = "dftb_atom") -> "SCCParams":
         r_max = None
         if skp.bond_r_max is not None:
             r_max = {}
             for el in skp.idp_sk.basis.keys():
                 r_max[el] = max(v for k, v in skp.bond_r_max.items() if el in k.split('-'))
 
+        skdict = {key: skp.skdict[key] for key in ["HubdU", "Occu", "Mass"]}
+        if hubbard_u_mode == "dftb_atom":
+            skdict["Atom_U"] = _dftb_atom_hubbard_u(skdict["HubdU"])
+        elif hubbard_u_mode == "highest_occupied":
+            skdict["Atom_U"] = skp.skdict["Highest_Occu_U"].clone()
+        else:
+            raise ValueError("hubbard_u_mode must be either 'dftb_atom' or 'highest_occupied'.")
+
         return cls(
             idp_sk=skp.idp_sk,
             basis=skp.idp_sk.basis,
-            skdict={key: skp.skdict[key] for key in ["HubdU", "Occu", "Mass", "Highest_Occu_U"]},
+            skdict=skdict,
             r_max=r_max,
             bond_r_max=skp.bond_r_max,
             bond_r_min=skp.bond_r_min,
@@ -99,6 +107,9 @@ class SCCParams:
             dtype = getattr(torch, dtype)
         options = copy.deepcopy(options) if options is not None else {}
         use_database = options.get("use_database", True)
+        hubbard_u_mode = options.get("hubbard_u_mode", "dftb_atom")
+        if hubbard_u_mode not in {"dftb_atom", "highest_occupied"}:
+            raise ValueError("hubbard_u_mode must be either 'dftb_atom' or 'highest_occupied'.")
         metadata = None
         if model is not None:
             model_options = getattr(model, "model_options", None) or {}
@@ -118,11 +129,11 @@ class SCCParams:
         explicit_occupation = options.get("occupation", {}) or {}
         explicit_mass = options.get("mass", {}) or {}
         explicit_onsite_e = options.get("onsite_e", {}) or {}
-        explicit_highest_occu_u = options.get("highest_occu_u", {}) or {}
+        explicit_atom_u = options.get("atom_hubbard_u", options.get("highest_occu_u", {})) or {}
         metadata_hubbard = (metadata or {}).get("hubbard_u", {}) or {}
         metadata_occupation = (metadata or {}).get("occupation", {}) or {}
         metadata_mass = (metadata or {}).get("mass", {}) or {}
-        metadata_highest_occu_u = (metadata or {}).get("highest_occu_u", {}) or {}
+        metadata_atom_u = (metadata or {}).get("atom_hubbard_u", (metadata or {}).get("highest_occu_u", {})) or {}
 
         for symbol, type_idx in idp_sk.chemical_symbol_to_type.items():
             for orb in idp_sk.basis[symbol]:
@@ -187,23 +198,26 @@ class SCCParams:
         if missing:
             raise ValueError("Missing required SCC parameters (" + "; ".join(missing) + ").")
 
-        highest_occu_u = _resolve_highest_occu_u(
+        atom_u = _resolve_atom_u(
             idp_sk=idp_sk,
-            explicit=explicit_highest_occu_u,
-            metadata=metadata_highest_occu_u,
+            explicit=explicit_atom_u,
+            metadata=metadata_atom_u,
             dtype=dtype,
             device=device,
         )
-        if highest_occu_u is None:
-            onsite_e = _resolve_onsite_energies(
-                idp_sk=idp_sk,
-                explicit=explicit_onsite_e,
-                metadata={},
-                dtype=dtype,
-                device=device,
-                use_database=use_database,
-            )
-            highest_occu_u = _highest_occupied_hubbard_u(hubbard_u, occupation, onsite_e, dtype=dtype, device=device)
+        if atom_u is None:
+            if hubbard_u_mode == "dftb_atom":
+                atom_u = _dftb_atom_hubbard_u(hubbard_u)
+            else:
+                onsite_e = _resolve_onsite_energies(
+                    idp_sk=idp_sk,
+                    explicit=explicit_onsite_e,
+                    metadata={},
+                    dtype=dtype,
+                    device=device,
+                    use_database=use_database,
+                )
+                atom_u = _highest_occupied_hubbard_u(hubbard_u, occupation, onsite_e, dtype=dtype, device=device)
         r_max = options.get("r_max")
         if r_max is None and metadata is not None:
             r_max = metadata.get("r_max")
@@ -216,7 +230,7 @@ class SCCParams:
             "HubdU": hubbard_u,
             "Occu": occupation,
             "Mass": mass,
-            "Highest_Occu_U": highest_occu_u,
+            "Atom_U": atom_u,
         }
         repulsive = options.get("repulsive")
         if repulsive is None and metadata is not None:
@@ -226,12 +240,13 @@ class SCCParams:
     def to_metadata(self) -> dict:
         hubbard_u = {}
         occupation = {}
-        highest_occu_u = {}
+        atom_u = {}
         mass = {}
+        atom_u_tensor = _get_atom_u_tensor(self.skdict)
         for symbol, type_idx in self.idp_sk.chemical_symbol_to_type.items():
             hubbard_u[symbol] = {}
             occupation[symbol] = {}
-            highest_occu_u[symbol] = float(self.skdict["Highest_Occu_U"][type_idx, 0, 0].detach().cpu())
+            atom_u[symbol] = float(atom_u_tensor[type_idx, 0, 0].detach().cpu())
             for orb in self.idp_sk.basis[symbol]:
                 full_orb = self.idp_sk.basis_to_full_basis[symbol][orb]
                 onsite_idx = self.idp_sk.skonsite_maps[f"{full_orb}-{full_orb}"]
@@ -241,7 +256,7 @@ class SCCParams:
         metadata = {
             "hubbard_u": hubbard_u,
             "occupation": occupation,
-            "highest_occu_u": highest_occu_u,
+            "atom_hubbard_u": atom_u,
             "mass": mass,
         }
         if self.r_max is not None:
@@ -295,7 +310,7 @@ def _resolve_element_value(symbol, explicit, metadata, database, use_database):
     return None, None
 
 
-def _resolve_highest_occu_u(idp_sk, explicit, metadata, dtype, device):
+def _resolve_atom_u(idp_sk, explicit, metadata, dtype, device):
     if not explicit and not metadata:
         return None
     values = torch.zeros([idp_sk.num_types, 1, 1], dtype=dtype, device=device)
@@ -309,7 +324,7 @@ def _resolve_highest_occu_u(idp_sk, explicit, metadata, dtype, device):
         else:
             values[type_idx, 0, 0] = float(value)
     if missing:
-        raise ValueError("Missing highest_occu_u values required for SCC metadata/options (" + ", ".join(missing) + ").")
+        raise ValueError("Missing atom_hubbard_u values required for SCC metadata/options (" + ", ".join(missing) + ").")
     return values
 
 
@@ -353,7 +368,7 @@ def _resolve_onsite_energies(idp_sk, explicit, metadata, dtype, device, use_data
             else:
                 onsite_e[type_idx, onsite_idx, 0] = value
     if missing:
-        raise ValueError("Missing onsite_e values required to identify Highest_Occu_U (" + ", ".join(missing) + ").")
+        raise ValueError("Missing onsite_e values required to identify highest-occupied atom Hubbard U (" + ", ".join(missing) + ").")
     return onsite_e
 
 
@@ -361,9 +376,20 @@ def _highest_occupied_hubbard_u(hubbard_u, occupation, onsite_e, dtype, device):
     mask = occupation > 0
     score = torch.where(mask, onsite_e, torch.tensor(float('-inf'), dtype=dtype, device=device))
     max_indices = torch.argmax(score, dim=1, keepdim=True)
-    highest_occu_u = torch.gather(hubbard_u, 1, max_indices)
+    atom_u = torch.gather(hubbard_u, 1, max_indices)
     valid_rows_mask = mask.any(dim=1, keepdim=True)
-    return highest_occu_u * valid_rows_mask.to(dtype=dtype)
+    return atom_u * valid_rows_mask.to(dtype=dtype)
+
+
+def _dftb_atom_hubbard_u(hubbard_u):
+    """DFTB+ atom-resolved SCC uses the first shell Hubbard U for all shells."""
+    return hubbard_u[:, 0:1, :].clone()
+
+
+def _get_atom_u_tensor(skdict):
+    if "Atom_U" in skdict:
+        return skdict["Atom_U"]
+    return skdict["Highest_Occu_U"]
 
 
 def _infer_r_max_from_model(model):

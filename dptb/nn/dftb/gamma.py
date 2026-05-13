@@ -6,9 +6,8 @@ from dptb.data.transforms import OrbitalMapper
 from dptb.nn.dftb.sk_param import SKParam
 from dptb.utils.ewald_sum import build_coulomb_matrix, Geometry_
 
-#def calculate_expgamma(highest_occu_Us, edge_lengths, edge_atom_types, node_atom_types, minvalues=1e-6) -> Tuple[torch.Tensor, torch.Tensor]:
 def calculate_expgamma(
-    highest_occu_Us: torch.Tensor,
+    atom_us: torch.Tensor,
     edge_lengths: torch.Tensor,
     edge_atom_types: torch.Tensor,
     node_atom_types: torch.Tensor,
@@ -19,8 +18,8 @@ def calculate_expgamma(
     
     Parameters
     ----------
-    highest_occu_Us : torch.Tensor
-        Tensor containing the highest occupation U values for each atom type.
+    atom_us : torch.Tensor
+        Tensor containing the atom-resolved Hubbard U values for each atom type.
         Shape should be [num_atom_types, 1, 1].
     edge_lengths : torch.Tensor
         Tensor containing the lengths of edges between atoms.
@@ -49,17 +48,17 @@ def calculate_expgamma(
         If any edge length is negative or zero (less than or equal to minvalues).
     """
     # Convert inputs to float64 for numerical precision in SCC calculations
-    highest_occu_Us_dp = highest_occu_Us.to(dtype=torch.float64, device=edge_lengths.device)
+    atom_us_dp = atom_us.to(dtype=torch.float64, device=edge_lengths.device)
     edge_lengths_dp = edge_lengths.to(dtype=torch.float64)
     edge_atom_types = edge_atom_types.to(device=edge_lengths.device)
     node_atom_types = node_atom_types.to(device=edge_lengths.device)
 
     # Get Hubbard U values for each atom in the edges
-    Ua = highest_occu_Us_dp[edge_atom_types[0]].reshape(-1) # shape: [num_edges]
-    Ub = highest_occu_Us_dp[edge_atom_types[1]].reshape(-1) # shape: [num_edges]
+    Ua = atom_us_dp[edge_atom_types[0]].reshape(-1) # shape: [num_edges]
+    Ub = atom_us_dp[edge_atom_types[1]].reshape(-1) # shape: [num_edges]
 
     # Check for very small U values which could cause numerical issues
-    err_index = torch.where(highest_occu_Us_dp.flatten() < minvalues)[0]
+    err_index = torch.where(atom_us_dp.flatten() < minvalues)[0]
     if len(err_index) > 0:
         raise ValueError("Failure in short-range gamma, U too small for atom number")
 
@@ -107,7 +106,7 @@ def calculate_expgamma(
     # Convert expGamma from Hartree to eV
     expGamma = expGamma * Harte2eV
     # unit: eV
-    expGamma_onsite = highest_occu_Us_dp[node_atom_types.flatten()].reshape(-1) # shape: [num_atom_types]
+    expGamma_onsite = atom_us_dp[node_atom_types.flatten()].reshape(-1) # shape: [num_atom_types]
 
     return expGamma, expGamma_onsite
 
@@ -122,7 +121,7 @@ def get_expgamma(
     Args:
         data (AtomicDataDict): Dictionary containing atomic data, including edge types, edge lengths, and atom types.
         idp (OrbitalMapper): Mapper object for transforming and untransforming bond and atom indices.
-        skp (SKParam or SCCParams): Object containing 'Highest_Occu_U'.
+        skp (SKParam or SCCParams): Object containing atom-resolved Hubbard U.
     Returns:
         Tuple[torch.Tensor, torch.Tensor]: 
             - expGamma: Tensor of expGamma values for each edge.
@@ -133,7 +132,8 @@ def get_expgamma(
     edge_number = idp.untransform_bond(edge_index).T
     edge_atom_types = idp.transform_atom(edge_number.flatten()).reshape(2, -1)
 
-    expGamma, expGamma_onsite = calculate_expgamma( highest_occu_Us=skp.skdict['Highest_Occu_U'],
+    atom_u = skp.skdict.get("Atom_U", skp.skdict.get("Highest_Occu_U"))
+    expGamma, expGamma_onsite = calculate_expgamma( atom_us=atom_u,
                                                     edge_lengths=data[AtomicDataDict.EDGE_LENGTH_KEY],
                                                     edge_atom_types=edge_atom_types,
                                                     node_atom_types=data[AtomicDataDict.ATOM_TYPE_KEY])

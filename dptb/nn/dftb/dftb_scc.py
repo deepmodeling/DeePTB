@@ -635,15 +635,13 @@ class SKSCC(object):
         # Initialize scc_HK for upper triangle computation
         scc_HK = torch.zeros((nk, norb, norb), dtype=self.scc_cdtype, device=device)
 
-        # Fill diagonal elements (coefficient only, no overlap multiplication)
-        scc_HK[:, idx, idx] = coeff[idx, idx]
-
         if self.overlap:
-            # Fill off-diagonal upper triangle elements (coefficient * overlap)
-            # Get row and column indices for strict upper triangle
             overlap_data = data[AtomicDataDict.OVERLAP_KEY].to(dtype=self.scc_cdtype)
+            scc_HK[:, idx, idx] = overlap_data[:, idx, idx] * coeff[idx, idx]
             row_idx, col_idx = torch.where(upper_tri_off_diag)
             scc_HK[:, row_idx, col_idx] = overlap_data[:, row_idx, col_idx] * coeff[row_idx, col_idx]
+        else:
+            scc_HK[:, idx, idx] = coeff[idx, idx]
 
         # Symmetrize: add conjugate transpose to make Hermitian
         # This doubles the diagonal and fills the lower triangle

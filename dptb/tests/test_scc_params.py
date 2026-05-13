@@ -42,11 +42,11 @@ def test_scc_params_manual_options():
     pidx = idp.skonsite_maps["1p-1p"]
     assert params.skdict["HubdU"][cidx, sidx, 0] == 12.0
     assert params.skdict["HubdU"][cidx, pidx, 0] == 9.0
-    assert params.skdict["Highest_Occu_U"][cidx, 0, 0] == 9.0
+    assert params.skdict["Atom_U"][cidx, 0, 0] == 12.0
 
 
 
-def test_scc_params_highest_occu_u_uses_highest_occupied_onsite_level():
+def test_scc_params_atom_u_uses_highest_occupied_onsite_level_when_requested():
     basis = {"B": ["2s", "2p"]}
     idp = OrbitalMapper(basis, method="sktb")
     idp.get_orbpair_maps()
@@ -62,15 +62,16 @@ def test_scc_params_highest_occu_u_uses_highest_occupied_onsite_level():
             "mass": {"B": 10.81},
             "r_max": {"B": 3.0},
             "use_database": False,
+            "hubbard_u_mode": "highest_occupied",
         },
         dtype=torch.float64,
     )
 
     bidx = idp.chemical_symbol_to_type["B"]
-    assert params.skdict["Highest_Occu_U"][bidx, 0, 0] == 8.0
+    assert params.skdict["Atom_U"][bidx, 0, 0] == 8.0
 
 
-def test_scc_params_highest_occu_u_option_skips_onsite_e():
+def test_scc_params_atom_u_option_skips_onsite_e():
     basis = {"B": ["2s", "2p"]}
     idp = OrbitalMapper(basis, method="sktb")
     idp.get_orbpair_maps()
@@ -82,7 +83,7 @@ def test_scc_params_highest_occu_u_option_skips_onsite_e():
         options={
             "hubbard_u": {"B": {"2s": 12.0, "2p": 8.0}},
             "occupation": {"B": {"2s": 2, "2p": 1}},
-            "highest_occu_u": {"B": 6.5},
+            "atom_hubbard_u": {"B": 6.5},
             "mass": {"B": 10.81},
             "r_max": {"B": 3.0},
             "use_database": False,
@@ -90,7 +91,7 @@ def test_scc_params_highest_occu_u_option_skips_onsite_e():
         dtype=torch.float64,
     )
 
-    assert params.skdict["Highest_Occu_U"][idp.chemical_symbol_to_type["B"], 0, 0] == 6.5
+    assert params.skdict["Atom_U"][idp.chemical_symbol_to_type["B"], 0, 0] == 6.5
 
 
 def test_scc_params_database_converts_hubbard_u():
@@ -114,6 +115,29 @@ def test_scc_params_database_converts_hubbard_u():
     assert params.skdict["Mass"][idp.chemical_symbol_to_type["C"], 0] > 12.0
 
 
+def test_scc_params_metadata_persists_default_atom_u():
+    basis = {"C": ["2s", "2p"]}
+    idp = OrbitalMapper(basis, method="sktb")
+    idp.get_orbpair_maps()
+    idp.get_skonsite_maps()
+
+    params = SCCParams.from_options(
+        basis=basis,
+        idp_sk=idp,
+        options={
+            "hubbard_u": {"C": {"2s": 12.0, "2p": 9.0}},
+            "occupation": {"C": {"2s": 2, "2p": 2}},
+            "mass": {"C": 12.011},
+            "r_max": {"C": 4.0},
+            "use_database": False,
+        },
+        dtype=torch.float64,
+    )
+
+    metadata = params.to_metadata()
+    assert metadata["atom_hubbard_u"]["C"] == 12.0
+
+
 def test_scc_params_missing_without_database_raises():
     basis = {"H": ["1s"]}
     idp = OrbitalMapper(basis, method="sktb")
@@ -130,6 +154,7 @@ def test_scc_params_missing_without_database_raises():
                 "mass": {"H": 1.008},
                 "use_database": False,
                 "r_max": {"H": 3.0},
+                "hubbard_u_mode": "highest_occupied",
             },
         )
 
@@ -140,7 +165,7 @@ def test_scc_params_metadata_priority():
     model.scc_metadata = {
         "hubbard_u": {"H": {"1s": 8.0}},
         "occupation": {"H": {"1s": 1}},
-        "highest_occu_u": {"H": 8.0},
+        "atom_hubbard_u": {"H": 8.0},
         "mass": {"H": 1.5},
     }
 
@@ -170,7 +195,7 @@ def test_scc_params_from_model_uses_model_options_scc():
         "scc": {
             "hubbard_u": {"H": {"1s": 7.0}},
             "occupation": {"H": {"1s": 1}},
-            "highest_occu_u": {"H": 7.0},
+            "atom_hubbard_u": {"H": 7.0},
             "mass": {"H": 1.2},
             "r_max": {"H": 3.1},
         }
@@ -180,12 +205,12 @@ def test_scc_params_from_model_uses_model_options_scc():
 
     assert params is not None
     assert params.skdict["HubdU"][0, 0, 0] == 7.0
-    assert params.skdict["Highest_Occu_U"][0, 0, 0] == 7.0
+    assert params.skdict["Atom_U"][0, 0, 0] == 7.0
     assert params.skdict["Mass"][0, 0] == 1.2
     assert params.r_max == {"H": 3.1}
 
 
-def test_scc_params_metadata_roundtrip_persists_highest_occu_u_not_onsite_e():
+def test_scc_params_metadata_roundtrip_persists_nondefault_atom_u_not_onsite_e():
     basis = {"B": ["2s", "2p"]}
     idp = OrbitalMapper(basis, method="sktb")
     idp.get_orbpair_maps()
@@ -201,15 +226,16 @@ def test_scc_params_metadata_roundtrip_persists_highest_occu_u_not_onsite_e():
             "mass": {"B": 10.81},
             "r_max": {"B": 3.0},
             "use_database": False,
+            "hubbard_u_mode": "highest_occupied",
         },
         dtype=torch.float64,
     )
 
     metadata = params.to_metadata()
 
-    assert "highest_occu_u" in metadata
+    assert "atom_hubbard_u" in metadata
     assert "onsite_e" not in metadata
-    assert metadata["highest_occu_u"]["B"] == 8.0
+    assert metadata["atom_hubbard_u"]["B"] == 8.0
 
 
 def test_scc_params_from_skparam_preserves_shapes():
@@ -217,6 +243,8 @@ def test_scc_params_from_skparam_preserves_shapes():
     skp = SKParam(basis={"C": ["2s", "2p"]}, skdata=skdata, cal_rcuts=True)
     params = SCCParams.from_skparam(skp)
     assert params.skdict["HubdU"].shape == skp.skdict["HubdU"].shape
-    assert params.skdict["Highest_Occu_U"].shape == skp.skdict["Highest_Occu_U"].shape
-    assert torch.allclose(params.skdict["Highest_Occu_U"], skp.skdict["Highest_Occu_U"])
+    assert params.skdict["Atom_U"].shape == skp.skdict["Highest_Occu_U"].shape
+    assert torch.allclose(params.skdict["Atom_U"], skp.skdict["HubdU"][:, 0:1, :])
+    legacy_params = SCCParams.from_skparam(skp, hubbard_u_mode="highest_occupied")
+    assert torch.allclose(legacy_params.skdict["Atom_U"], skp.skdict["Highest_Occu_U"])
     assert params.r_max["C"] > 0
