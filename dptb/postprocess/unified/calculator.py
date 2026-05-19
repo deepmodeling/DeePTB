@@ -59,12 +59,17 @@ class HamiltonianCalculator(ABC):
         pass
         
     @abstractmethod
-    def get_eigenvalues(self, atomic_data: dict) -> Tuple[dict, torch.Tensor]:
+    def get_eigenvalues(
+        self,
+        atomic_data: dict,
+        **kwargs,
+    ) -> Tuple[dict, torch.Tensor]:
         """
         Calculate eigenvalues for the given atomic data.
         
         Args:
             atomic_data: The input atomic data dictionary.
+            **kwargs: Implementation-specific eigenvalue solver options.
             
         Returns:
             A tuple containing the updated atomic data and the eigenvalues tensor.
@@ -72,12 +77,17 @@ class HamiltonianCalculator(ABC):
         pass
     
     @abstractmethod
-    def get_eigenstates(self, atomic_data: dict) -> Tuple[dict, torch.Tensor, torch.Tensor]:
+    def get_eigenstates(
+        self,
+        atomic_data: dict,
+        **kwargs,
+    ) -> Tuple[dict, torch.Tensor, torch.Tensor]:
         """
         Calculate eigenvalues and eigenvectors.
         
         Args:
             atomic_data: The input atomic data dictionary.
+            **kwargs: Implementation-specific eigenstate solver options.
             
         Returns:
             Tuple of (updated atomic_data, eigenvalues, eigenvectors).
