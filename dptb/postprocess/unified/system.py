@@ -81,6 +81,63 @@ class TBSystem:
                 solver_kwargs[key] = kwargs.pop(key)
         return solver_kwargs
 
+    @staticmethod
+    def _eigen_cache_key(solver_kwargs: dict) -> dict:
+        return {key: value for key, value in solver_kwargs.items() if key != "nk"}
+
+    @classmethod
+    def _normalize_cache_value(cls, value):
+        if isinstance(value, np.ndarray):
+            return cls._normalize_cache_value(value.tolist())
+        if isinstance(value, dict):
+            return tuple(
+                (key, cls._normalize_cache_value(item))
+                for key, item in sorted(value.items())
+            )
+        if isinstance(value, (list, tuple)):
+            return tuple(cls._normalize_cache_value(item) for item in value)
+        return value
+
+    @staticmethod
+    def _cache_matches(last_key: Optional[dict], requested_key: dict) -> bool:
+        if last_key is None:
+            return False
+        return all(last_key.get(key) == value for key, value in requested_key.items())
+
+    @classmethod
+    def _band_cache_key(cls, solver_kwargs: dict, kpath_config: Optional[dict] = None) -> dict:
+        cache_key = {"solver": cls._eigen_cache_key(solver_kwargs)}
+        if kpath_config is not None:
+            cache_key["kpath_config"] = cls._normalize_cache_value(kpath_config)
+        return cache_key
+
+    @classmethod
+    def _dos_cache_key(
+        cls,
+        solver_kwargs: dict,
+        kmesh: Optional[Union[list, np.ndarray]] = None,
+        is_gamma_center: Optional[bool] = True,
+        erange: Optional[Union[list, np.ndarray]] = None,
+        npts: Optional[int] = 100,
+        smearing: Optional[str] = 'gaussian',
+        sigma: Optional[float] = 0.05,
+        pdos: Optional[bool] = False,
+        extra_kwargs: Optional[dict] = None,
+    ) -> dict:
+        cache_key = {"solver": cls._eigen_cache_key(solver_kwargs)}
+        if kmesh is not None:
+            cache_key["dos_config"] = cls._normalize_cache_value({
+                "kmesh": kmesh,
+                "is_gamma_center": is_gamma_center,
+                "erange": erange,
+                "npts": npts,
+                "smearing": smearing,
+                "sigma": sigma,
+                "pdos": pdos,
+                "extra_kwargs": extra_kwargs or {},
+            })
+        return cache_key
+
     @property
     def calculator(self) -> HamiltonianCalculator:
         """Access the calculator."""
@@ -336,13 +393,14 @@ class TBSystem:
         # 计算能带，返回 bands
         # bands 应该是一个类，也有属性。bands.kpoints, bands.eigenvalues, bands.klabels, bands.kticks, 也有函数 bands.plot()
         solver_kwargs = self._pop_solver_kwargs(kwargs, "TBSystem.get_bands")
+        cache_key = self._band_cache_key(solver_kwargs, kpath_config)
         if kwargs:
             log.warning(f"Ignoring unsupported get_bands options: {sorted(kwargs)}")
 
         if (
             self.has_bands
             and reuse
-            and getattr(self, "_last_band_solver_kwargs", None) == solver_kwargs
+            and self._cache_matches(getattr(self, "_last_band_cache_key", None), cache_key)
         ):
             return self._bands
         else:
@@ -353,7 +411,7 @@ class TBSystem:
             elif kpath_config is not None:
                 self._bands.set_kpath(**kpath_config)
             self._bands.compute(**solver_kwargs)
-            self._last_band_solver_kwargs = dict(solver_kwargs)
+            self._last_band_cache_key = self._band_cache_key(solver_kwargs, kpath_config)
             self.has_bands = True
             return self._bands
 
@@ -365,15 +423,41 @@ class TBSystem:
         """
         # 计算态密度，返回 dos
         # dos 应该是一个类，也有属性。dos.kmesh, dos.eigenvalues, dos.klabels, dos.kticks, 也有函数 dos.plot()
-        if self.has_dos and reuse:
+        solver_kwargs = self._pop_solver_kwargs(kwargs, "TBSystem.get_dos")
+        cache_key = self._dos_cache_key(
+            solver_kwargs=solver_kwargs,
+            kmesh=kmesh,
+            is_gamma_center=is_gamma_center,
+            erange=erange,
+            npts=npts,
+            smearing=smearing,
+            sigma=sigma,
+            pdos=pdos,
+            extra_kwargs=kwargs,
+        )
+        if (
+            self.has_dos
+            and reuse
+            and self._cache_matches(getattr(self, "_last_dos_cache_key", None), cache_key)
+        ):
             return  self._dos
         else:
             assert kmesh is not None, "kmesh must be provided."
-            solver_kwargs = self._pop_solver_kwargs(kwargs, "TBSystem.get_dos")
             self._dos = DosAccessor(self)
             self._dos.set_kpoints(kmesh=kmesh,is_gamma_center=is_gamma_center)
             self._dos.set_dos_config(erange=erange, npts=npts, smearing=smearing, sigma=sigma, pdos=pdos, **kwargs)
             self._dos.compute(**solver_kwargs)
+            self._last_dos_cache_key = self._dos_cache_key(
+                solver_kwargs=solver_kwargs,
+                kmesh=kmesh,
+                is_gamma_center=is_gamma_center,
+                erange=erange,
+                npts=npts,
+                smearing=smearing,
+                sigma=sigma,
+                pdos=pdos,
+                extra_kwargs=kwargs,
+            )
             self.has_dos = True
             return self._dos
 
