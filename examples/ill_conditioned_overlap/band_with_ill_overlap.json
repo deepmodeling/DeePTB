@@ -20,10 +20,10 @@
         "E_fermi": 0.0,
         "emin": -7,
         "emax": 18,
-        "override_overlap": "./data/Si64.0/overlaps.h5",
+        "override_overlap": "../e3/data/Si64.0/overlaps.h5",
         "eig_solver": "torch",
         "ill_threshold": 5e-4,
         "ill_pad_value": 10000.0
     },
-    "device": "cuda"
+    "device": "cpu"
 }

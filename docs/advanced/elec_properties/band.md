@@ -59,6 +59,10 @@ kpath_kwargs = {
 
 ## Ill-conditioned overlap handling
 
+A complete runnable example is available under
+`examples/ill_conditioned_overlap/`, including a `dptb run` JSON file and a
+`TBSystem` notebook.
+
 For non-orthogonal models, DeePTB solves the generalized eigenvalue problem
 `H(k)c = E S(k)c`. This requires the overlap matrix `S(k)` to be positive
 definite. Large or redundant local basis sets can make `S(k)` nearly singular,
