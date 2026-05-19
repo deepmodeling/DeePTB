@@ -3,7 +3,7 @@ name = "dptb"
 dynamic = ["version"]
 description = "A unified deep learning package for electronic structure models including tight-binding, KS Hamiltonian and density matrix models"
 readme = "README.md"
-license = "LGPL-3.0-or-later"
+license = "LGPL-3.0-only"
 license-files = ["LICENSE"]
 requires-python = ">=3.9,<=3.12.9"
 authors = [
@@ -60,7 +60,7 @@ Repository = "https://github.com/deepmodeling/DeePTB"
 Documentation = "https://deeptb.readthedocs.io"
 
 [build-system]
-requires = ["setuptools>=77.0.3", "setuptools>=77.0.3-scm>=8"]
+requires = ["setuptools>=77.0.3", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
