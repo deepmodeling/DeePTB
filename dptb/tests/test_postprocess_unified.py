@@ -7,6 +7,7 @@ import numpy as np
 from dptb.postprocess.unified.system import TBSystem
 from dptb.postprocess.unified.properties.band import BandStructureData
 from dptb.postprocess.unified.properties.dos import DosData
+from dptb.postprocess.unified.utils import calculate_fermi_level
 from dptb.data import AtomicDataDict
 
 # Paths to example data
@@ -95,6 +96,32 @@ def test_dos_calculation(silicon_system):
     if os.path.exists(plot_file):
         os.remove(plot_file)
 
+def test_calculate_fermi_level_ignores_invalid_padding():
+    eigenvalues = np.array([[0.0, 1.0], [0.0, 1.0]])
+    padded_eigenvalues = np.array([[0.0, 1.0, 1e4], [0.0, 1.0, 1e4]])
+    valid_mask = np.array([[True, True, False], [True, True, False]])
+
+    reference = calculate_fermi_level(
+        eigenvalues=eigenvalues,
+        total_electrons=2,
+        spindeg=2,
+        weights=np.array([0.5, 0.5]),
+    )
+    masked = calculate_fermi_level(
+        eigenvalues=padded_eigenvalues,
+        total_electrons=2,
+        spindeg=2,
+        weights=np.array([0.5, 0.5]),
+        eigenvalue_valid_mask=valid_mask,
+    )
+
+    assert abs(reference - masked) < 1e-10
+
+def test_get_efermi_accepts_solver_kwargs(silicon_system):
+    silicon_system.set_electrons({"Si": 4})
+    efermi = silicon_system.get_efermi(kmesh=[2, 2, 2], solver="torch")
+    assert np.isfinite(efermi)
+
 def test_get_hamiltonian_gethk(silicon_system):
     """Test getting Hamiltonian H(k) at specific k-points."""
     tbsys = silicon_system
@@ -151,4 +178,3 @@ def test_get_hopping_gethr(silicon_system):
         assert len(hr_blocks) > 0
     elif isinstance(hr_blocks, torch.Tensor):
          assert hr_blocks.numel() > 0
-

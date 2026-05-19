@@ -63,10 +63,14 @@ class Band(ElecStruCal):
         override_overlap = kpath_kwargs.get("override_overlap", None)       
 
         eig_solver = kpath_kwargs.get("eig_solver", None)
+        ill_threshold = kpath_kwargs.get("ill_threshold", None)
+        ill_pad_value = kpath_kwargs.get("ill_pad_value", 1e4)
         
         data, eigenvalues = self.get_eigs(data=data, klist=klist, pbc=pbc, 
                                           AtomicData_options=AtomicData_options, 
-                                          override_overlap=override_overlap, eig_solver=eig_solver)
+                                          override_overlap=override_overlap, eig_solver=eig_solver,
+                                          ill_threshold=ill_threshold,
+                                          ill_pad_value=ill_pad_value)
         
         nel_atom = kpath_kwargs.get('nel_atom', None)
 
@@ -189,4 +193,3 @@ class Band(ElecStruCal):
             plt.show()
         else:
             plt.close()
-

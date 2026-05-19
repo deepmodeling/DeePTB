@@ -234,19 +234,38 @@ class TBSystem:
                          q_tol: float = 1e-5,
                          **kwargs):
         # get efermi from scratch.
+        solver_kwargs = {
+            key: kwargs.pop(key)
+            for key in ("nk", "solver", "ill_threshold", "ill_pad_value")
+            if key in kwargs
+        }
+        efermi_kwargs = {
+            key: kwargs.pop(key)
+            for key in ("k_weights",)
+            if key in kwargs
+        }
+        if kwargs:
+            log.warning(f"Ignoring unsupported get_efermi options: {sorted(kwargs)}")
+
         kpoints = kmesh_sampling(kmesh, is_gamma_center=is_gamma_center)
         k_tensor = torch.as_tensor(kpoints, 
                                    dtype=self.calculator.dtype, 
                                    device=self.calculator.device)
         data = self._atomic_data.copy()             
         data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([k_tensor])
-        data, eigs = self.calculator.get_eigenvalues(data)
+        data, eigs = self.calculator.get_eigenvalues(data, **solver_kwargs)
+
+        eigs_valid_mask = data.get(AtomicDataDict.EIGENVALUE_VALID_MASK_KEY)
+        if eigs_valid_mask is not None:
+            eigs_valid_mask = eigs_valid_mask[0].detach().cpu().numpy()
 
         calculated_efermi = self.estimate_efermi_e(
                         eigenvalues=eigs.detach().numpy(),
                         temperature = temperature,
                         smearing_method=smearing_method,
-                        q_tol  = q_tol, **kwargs)
+                        q_tol=q_tol,
+                        eigenvalue_valid_mask=eigs_valid_mask,
+                        **efermi_kwargs)
         
         self.set_efermi(efermi = calculated_efermi)
 
@@ -256,7 +275,8 @@ class TBSystem:
                          k_weights=None,
                          temperature: float = 300,
                          smearing_method: str = 'FD',
-                         q_tol: float = 1e-5) -> float:
+                         q_tol: float = 1e-5,
+                         eigenvalue_valid_mask: np.ndarray = None) -> float:
         """
         Calculate Fermi level from eigenvalues. 
         This is give a freedom that parse eigenvlues from outside calculation, such as band and dos calculations
@@ -290,7 +310,8 @@ class TBSystem:
             weights=k_weights,
             temperature=temperature,
             smearing_method=smearing_method,
-            q_tol=q_tol
+            q_tol=q_tol,
+            eigenvalue_valid_mask=eigenvalue_valid_mask,
         )    
         
 
@@ -301,9 +322,16 @@ class TBSystem:
             return self._bands
         else:
             assert kpath_config is not None, "kpath_config must be provided if bands not calculated."
+            solver_kwargs = {
+                key: kwargs.pop(key)
+                for key in ("solver", "ill_threshold", "ill_pad_value")
+                if key in kwargs
+            }
+            if kwargs:
+                log.warning(f"Ignoring unsupported get_bands options: {sorted(kwargs)}")
             self._bands = BandAccessor(self)
             self._bands.set_kpath(**kpath_config)
-            self._bands.compute()
+            self._bands.compute(**solver_kwargs)
             self.has_bands = True
             return self._bands
 
@@ -319,10 +347,15 @@ class TBSystem:
             return  self._dos
         else:
             assert kmesh is not None, "kmesh must be provided."
+            solver_kwargs = {
+                key: kwargs.pop(key)
+                for key in ("solver", "ill_threshold", "ill_pad_value")
+                if key in kwargs
+            }
             self._dos = DosAccessor(self)
             self._dos.set_kpoints(kmesh=kmesh,is_gamma_center=is_gamma_center)
             self._dos.set_dos_config(erange=erange, npts=npts, smearing=smearing, sigma=sigma, pdos=pdos, **kwargs)
-            self._dos.compute()
+            self._dos.compute(**solver_kwargs)
             self.has_dos = True
             return self._dos
 

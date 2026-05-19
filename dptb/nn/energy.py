@@ -70,14 +70,17 @@ class Eigenvalues(nn.Module):
     def forward(self, 
                 data: AtomicDataDict.Type, 
                 nk: Optional[int]=None,
-                eig_solver: str='torch') -> AtomicDataDict.Type:
+                eig_solver: str='torch',
+                ill_threshold: Optional[float]=None,
+                ill_pad_value: float=1e4) -> AtomicDataDict.Type:
 
         if eig_solver is None:
             eig_solver = 'torch'
             log.warning("eig_solver is not set, using default 'torch'.")
         if eig_solver not in ['torch', 'numpy']:
-            log.error(f"eig_solver should be 'torch' or 'numpy', but got {eig_solver}.")
-            raise ValueError        
+            msg = f"eig_solver should be 'torch' or 'numpy', but got {eig_solver}."
+            log.error(msg)
+            raise ValueError(msg)
 
         kpoints = data[AtomicDataDict.KPOINT_KEY]
         if kpoints.is_nested:
@@ -88,35 +91,207 @@ class Eigenvalues(nn.Module):
             nested = False
         num_k = kpoints.shape[0]
         eigvals = []
+        eigval_masks = []
         if nk is None:
             nk = num_k
+
         for i in range(int(np.ceil(num_k / nk))):
             data[AtomicDataDict.KPOINT_KEY] = kpoints[i*nk:(i+1)*nk]
             data = self.h2k(data)
             h_transformed_np = None
+
+            batch_eigvals_torch = None
+            batch_eigvals_np = None
+            batch_mask = None
+
             if self.overlap:
                 data = self.s2k(data)
                 if eig_solver == 'torch':
-                    chklowt = torch.linalg.cholesky(data[self.s_out_field])
-                    chklowtinv = torch.linalg.inv(chklowt)
-                    data[self.h_out_field] = (chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj())
+                    if ill_threshold is None:
+                        chklowt = torch.linalg.cholesky(data[self.s_out_field])
+                        chklowtinv = torch.linalg.inv(chklowt)
+                        data[self.h_out_field] = (chklowtinv @ data[self.h_out_field] @ torch.transpose(chklowtinv,dim0=1,dim1=2).conj())
+                    else:
+                        S_k = data[self.s_out_field]
+                        H_k = data[self.h_out_field]
+                        egval_S, egvec_S = torch.linalg.eigh(S_k)
+                        B = S_k.shape[0]
+                        num_orbitals = H_k.shape[-1]
+                        real_dtype = torch.float32 if H_k.dtype in [torch.complex64, torch.float32] else torch.float64
+
+                        processed_eigvals_list = []
+                        processed_mask_list = []
+                        for k_idx in range(B):
+                            healthy_mask = egval_S[k_idx] > ill_threshold
+                            n_healthy = int(healthy_mask.sum().item())
+                            abs_k_idx = i * nk + k_idx
+                            min_s = float(egval_S[k_idx].min().detach().cpu().item())
+
+                            if n_healthy == 0:
+                                log.warning(
+                                    "All overlap eigenvalues are below ill_threshold=%s at k-point %s "
+                                    "(min eig(S)=%s); returning padded eigenvalues.",
+                                    ill_threshold, abs_k_idx, min_s,
+                                )
+                                egval = torch.full((num_orbitals,), ill_pad_value, dtype=real_dtype, device=H_k.device)
+                                processed_eigvals_list.append(egval)
+                                processed_mask_list.append(torch.zeros((num_orbitals,), dtype=torch.bool, device=H_k.device))
+                                continue
+
+                            if healthy_mask.all():
+                                log.debug(
+                                    "All overlap eigenvalues are healthy at k-point %s (ill_threshold=%s); using standard Cholesky and validity mask all ones.",
+                                    abs_k_idx, ill_threshold,
+                                )
+                                L = torch.linalg.cholesky(S_k[k_idx])
+                                L_inv = torch.linalg.inv(L)
+                                H_transformed = L_inv @ H_k[k_idx] @ L_inv.conj().T
+                                egval = torch.linalg.eigvalsh(H_transformed)
+                                processed_eigvals_list.append(egval)
+                                processed_mask_list.append(torch.ones((num_orbitals,), dtype=torch.bool, device=H_k.device))
+                                continue
+
+                            log.warning(
+                                "Projecting out %s/%s overlap modes at k-point %s "
+                                "(min eig(S)=%s, ill_threshold=%s).",
+                                num_orbitals - n_healthy, num_orbitals, abs_k_idx, min_s, ill_threshold,
+                            )
+                            U_sel = egvec_S[k_idx][:, healthy_mask]
+                            eval_sel = egval_S[k_idx, healthy_mask]
+
+                            H_proj = U_sel.conj().T @ H_k[k_idx] @ U_sel
+                            S_proj = torch.diag(eval_sel).to(dtype=H_proj.dtype, device=H_proj.device)
+
+                            L = torch.linalg.cholesky(S_proj)
+                            L_inv = torch.linalg.inv(L)
+                            H_transformed = L_inv @ H_proj @ L_inv.conj().T
+                            egval_proj = torch.linalg.eigvalsh(H_transformed)
+
+                            num_projected_out = num_orbitals - egval_proj.shape[0]
+                            if num_projected_out > 0:
+                                padding = torch.full((num_projected_out,), ill_pad_value, dtype=egval_proj.dtype, device=egval_proj.device)
+                                egval = torch.cat([egval_proj, padding], dim=0)
+                                mask = torch.cat([
+                                    torch.ones((egval_proj.shape[0],), dtype=torch.bool, device=H_k.device),
+                                    torch.zeros((num_projected_out,), dtype=torch.bool, device=H_k.device),
+                                ], dim=0)
+                            else:
+                                egval = egval_proj
+                                mask = torch.ones((num_orbitals,), dtype=torch.bool, device=H_k.device)
+
+                            processed_eigvals_list.append(egval)
+                            processed_mask_list.append(mask)
+                        batch_eigvals_torch = torch.stack(processed_eigvals_list, dim=0)
+                        batch_mask = torch.stack(processed_mask_list, dim=0)
+
                 elif eig_solver == 'numpy':
-                    s_np = data[self.s_out_field].detach().cpu().numpy()
-                    h_np = data[self.h_out_field].detach().cpu().numpy()
-                    chklowt = np.linalg.cholesky(s_np)
-                    chklowtinv = np.linalg.inv(chklowt)
-                    h_transformed_np = chklowtinv @ h_np @ np.transpose(chklowtinv,(0,2,1)).conj()
+                    if ill_threshold is None:
+                        s_np = data[self.s_out_field].detach().cpu().numpy()
+                        h_np = data[self.h_out_field].detach().cpu().numpy()
+                        chklowt = np.linalg.cholesky(s_np)
+                        chklowtinv = np.linalg.inv(chklowt)
+                        h_transformed_np = chklowtinv @ h_np @ np.transpose(chklowtinv,(0,2,1)).conj()
+                    else:
+                        s_np = data[self.s_out_field].detach().cpu().numpy()
+                        h_np = data[self.h_out_field].detach().cpu().numpy()
+                        egval_S, egvec_S = np.linalg.eigh(s_np)
+                        B = s_np.shape[0]
+                        num_orbitals = h_np.shape[-1]
+                        real_dtype = np.float32 if h_np.dtype in [np.complex64, np.float32] else np.float64
+
+                        processed_eigvals_list = []
+                        processed_mask_list = []
+                        for k_idx in range(B):
+                            healthy_mask = egval_S[k_idx] > ill_threshold
+                            n_healthy = int(healthy_mask.sum())
+                            abs_k_idx = i * nk + k_idx
+                            min_s = float(egval_S[k_idx].min())
+
+                            if n_healthy == 0:
+                                log.warning(
+                                    "All overlap eigenvalues are below ill_threshold=%s at k-point %s "
+                                    "(min eig(S)=%s); returning padded eigenvalues.",
+                                    ill_threshold, abs_k_idx, min_s,
+                                )
+                                egval = np.full((num_orbitals,), ill_pad_value, dtype=real_dtype)
+                                processed_eigvals_list.append(egval)
+                                processed_mask_list.append(np.zeros((num_orbitals,), dtype=bool))
+                                continue
+
+                            if healthy_mask.all():
+                                log.debug(
+                                    "All overlap eigenvalues are healthy at k-point %s (ill_threshold=%s); using standard Cholesky and validity mask all ones.",
+                                    abs_k_idx, ill_threshold,
+                                )
+                                L = np.linalg.cholesky(s_np[k_idx])
+                                L_inv = np.linalg.inv(L)
+                                H_transformed = L_inv @ h_np[k_idx] @ L_inv.conj().T
+                                egval = np.linalg.eigvalsh(H_transformed)
+                                processed_eigvals_list.append(egval)
+                                processed_mask_list.append(np.ones((num_orbitals,), dtype=bool))
+                                continue
+
+                            log.warning(
+                                "Projecting out %s/%s overlap modes at k-point %s "
+                                "(min eig(S)=%s, ill_threshold=%s).",
+                                num_orbitals - n_healthy, num_orbitals, abs_k_idx, min_s, ill_threshold,
+                            )
+                            U_sel = egvec_S[k_idx][:, healthy_mask]
+                            eval_sel = egval_S[k_idx, healthy_mask]
+
+                            H_proj = U_sel.conj().T @ h_np[k_idx] @ U_sel
+                            S_proj = np.diag(eval_sel).astype(H_proj.dtype)
+
+                            L = np.linalg.cholesky(S_proj)
+                            L_inv = np.linalg.inv(L)
+                            H_transformed = L_inv @ H_proj @ L_inv.conj().T
+                            egval_proj = np.linalg.eigvalsh(H_transformed)
+
+                            num_projected_out = num_orbitals - egval_proj.shape[0]
+                            if num_projected_out > 0:
+                                padding = np.full((num_projected_out,), ill_pad_value, dtype=egval_proj.dtype)
+                                egval = np.concatenate([egval_proj, padding], axis=0)
+                                mask = np.concatenate([
+                                    np.ones((egval_proj.shape[0],), dtype=bool),
+                                    np.zeros((num_projected_out,), dtype=bool),
+                                ], axis=0)
+                            else:
+                                egval = egval_proj
+                                mask = np.ones((num_orbitals,), dtype=bool)
+
+                            processed_eigvals_list.append(egval)
+                            processed_mask_list.append(mask)
+                        batch_eigvals_np = np.stack(processed_eigvals_list, axis=0)
+                        batch_mask = torch.from_numpy(np.stack(processed_mask_list, axis=0)).to(device=self.h2k.device)
+
+            else:
+                if ill_threshold is not None:
+                    abs_k_start = i * nk
+                    log.debug(
+                        "ill_threshold=%s provided but ignored for k-point batch starting at %s because overlap is disabled.",
+                        ill_threshold, abs_k_start,
+                    )
 
             if eig_solver == 'torch':
-                eigvals.append(torch.linalg.eigvalsh(data[self.h_out_field]))
+                if batch_eigvals_torch is not None:
+                    eigvals.append(batch_eigvals_torch)
+                else:
+                    eigvals.append(torch.linalg.eigvalsh(data[self.h_out_field]))
             elif eig_solver == 'numpy':
-                if h_transformed_np is None:
-                    h_transformed_np = data[self.h_out_field].detach().cpu().numpy()
-                eigvals_np = np.linalg.eigvalsh(a=h_transformed_np)
+                if batch_eigvals_np is not None:
+                    eigvals_np = batch_eigvals_np
+                else:
+                    if h_transformed_np is None:
+                        h_transformed_np = data[self.h_out_field].detach().cpu().numpy()
+                    eigvals_np = np.linalg.eigvalsh(a=h_transformed_np)
                 # Preserve dtype by converting to the Hamiltonian's original dtype
                 eigvals.append(torch.from_numpy(eigvals_np).to(dtype=self.h2k.dtype, device=self.h2k.device))
+            if batch_mask is not None:
+                eigval_masks.append(batch_mask)
 
         data[self.out_field] = torch.nested.as_nested_tensor([torch.cat(eigvals, dim=0)])
+        if eigval_masks:
+            data[AtomicDataDict.EIGENVALUE_VALID_MASK_KEY] = torch.nested.as_nested_tensor([torch.cat(eigval_masks, dim=0)])
         if nested:
             data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([kpoints])
         else:
