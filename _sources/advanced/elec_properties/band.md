@@ -56,3 +56,94 @@ kpath_kwargs = {
     "klabels" = ["G", "M", "K", "G"]
 }
 ```
+
+## Ill-conditioned overlap handling
+
+A complete runnable example is available under
+`examples/ill_conditioned_overlap/`, including a `dptb run` JSON file and a
+`TBSystem` notebook.
+
+For non-orthogonal models, DeePTB solves the generalized eigenvalue problem
+`H(k)c = E S(k)c`. This requires the overlap matrix `S(k)` to be positive
+definite. Large or redundant local basis sets can make `S(k)` nearly singular,
+especially in band/DOS post-processing. In that case the default Cholesky
+solver fails fast, which is still the recommended behavior during training.
+
+For inference or post-processing, you can explicitly enable a canonical
+orthogonalization fallback by setting `ill_threshold`. DeePTB then removes
+overlap modes with eigenvalues below this threshold and solves the projected
+problem. The removed bands are padded with `ill_pad_value` to keep the usual
+dense band array shape, and a valid-eigenvalue mask is stored in the returned
+data under `eigenvalue_valid_mask`.
+
+Example for the band JSON used by `dptb run`:
+
+```json
+{
+    "task_options": {
+        "task": "band",
+        "kline_type": "abacus",
+        "kpath": [
+            [0.0, 0.0, 0.0, 30],
+            [0.5, 0.0, 0.0, 30],
+            [0.0, 0.0, 0.0, 1]
+        ],
+        "klabels": ["G", "X", "G"],
+        "override_overlap": "./overlaps.h5",
+        "eig_solver": "torch",
+        "ill_threshold": 5e-4,
+        "ill_pad_value": 10000.0
+    }
+}
+```
+
+The same option works with the Python band API:
+
+```python
+from dptb.nn.build import build_model
+from dptb.postprocess.bandstructure.band import Band
+
+model = build_model(checkpoint="model.pth")
+band = Band(model=model, device=model.device)
+
+kpath_kwargs = {
+    "kline_type": "abacus",
+    "kpath": [[0.0, 0.0, 0.0, 30], [0.5, 0.0, 0.0, 1]],
+    "klabels": ["G", "X"],
+    "override_overlap": "overlaps.h5",
+    "eig_solver": "torch",
+    "ill_threshold": 5e-4,
+}
+
+band_status = band.get_bands(
+    data="structure.vasp",
+    kpath_kwargs=kpath_kwargs,
+)
+eigenvalues = band_status["eigenvalues"]
+```
+
+Or through the unified `TBSystem` interface:
+
+```python
+from dptb.postprocess.unified.system import TBSystem
+
+system = TBSystem(
+    data="structure.vasp",
+    calculator="model.pth",
+    override_overlap="overlaps.h5",
+)
+
+bands = system.get_bands(
+    kpath_config={
+        "method": "abacus",
+        "kpath": [[0.0, 0.0, 0.0, 30], [0.5, 0.0, 0.0, 1]],
+        "klabels": ["G", "X"],
+    },
+    ill_threshold=5e-4,
+)
+```
+
+Use this option only when the ill-conditioned overlap comes from near-linear
+dependencies in a non-orthogonal basis. If many modes are projected out, the
+basis, overlap source, or model should be checked instead of increasing the
+threshold blindly.
