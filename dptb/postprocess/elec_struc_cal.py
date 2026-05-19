@@ -122,7 +122,9 @@ class ElecStruCal(object):
                  pbc:Union[bool,list]=None,
                  AtomicData_options:dict=None,
                  override_overlap:Optional[str]=None,
-                 eig_solver:Optional[str]=None):
+                 eig_solver:Optional[str]=None,
+                 ill_threshold:Optional[float]=None,
+                 ill_pad_value:float=1e4):
         '''This function calculates eigenvalues for Hk at specified k-points.
         
         Parameters
@@ -136,6 +138,10 @@ class ElecStruCal(object):
             The `AtomicData_options` parameter is a dictionary that contains options for configuring the
         `AtomicData` object.
         override_overlap : the path for overlap.h5 to use and override overlap matrix from model.
+        ill_threshold : optional float
+            If set, project out overlap modes whose eigenvalues are below this threshold.
+        ill_pad_value : float
+            Padding value used for projected-out eigenvalues to preserve the dense band shape.
         
         Returns
         -------
@@ -157,14 +163,21 @@ class ElecStruCal(object):
             data[AtomicDataDict.NODE_OVERLAP_KEY] = override_overlap_node
         if self.overlap or isinstance(override_overlap, str):
             assert data.get(AtomicDataDict.EDGE_OVERLAP_KEY) is not None
-        data = self.eigv(data, eig_solver=eig_solver)
+        data = self.eigv(
+            data,
+            eig_solver=eig_solver,
+            ill_threshold=ill_threshold,
+            ill_pad_value=ill_pad_value,
+        )
 
         return data, data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy()
 
     def get_fermi_level(self, data: Union[AtomicData, ase.Atoms, str], nel_atom: dict, \
                         meshgrid: list = None, klist: np.ndarray=None, pbc:Union[bool,list]=None,
                         AtomicData_options:dict=None, q_tol:float=1e-10, smearing_method:str='FD', 
-                        temp:float=300,eig_solver:Optional[str]='torch'):
+                        temp:float=300,eig_solver:Optional[str]='torch',
+                        ill_threshold:Optional[float]=None,
+                        ill_pad_value:float=1e4):
         '''This function calculates the Fermi level based on provided data with iteration method, electron counts per atom, and
         optional parameters like specific k-points and eigenvalues.
         
@@ -227,7 +240,9 @@ class ElecStruCal(object):
         if not AtomicDataDict.ENERGY_EIGENVALUE_KEY in data:
             data, eigs = self.get_eigs(data=data, klist=klist, pbc=pbc, 
                                        AtomicData_options=AtomicData_options,
-                                       eig_solver=eig_solver) 
+                                       eig_solver=eig_solver,
+                                       ill_threshold=ill_threshold,
+                                       ill_pad_value=ill_pad_value) 
             log.info('Getting eigenvalues from the model.')
         else:
             log.info('The eigenvalues are already in data. will use them.')

@@ -150,7 +150,12 @@ class DosAccessor:
         })
 
 
-    def compute(self):
+    def compute(
+        self,
+        solver: Optional[str] = None,
+        ill_threshold: Optional[float] = None,
+        ill_pad_value: float = 1e4,
+    ):
         """
         Calculate DOS based on the stored configuration.
         """
@@ -166,6 +171,8 @@ class DosAccessor:
         calc_pdos = self._config.get('pdos', False)
         
         if calc_pdos:
+            if ill_threshold is not None:
+                log.warning("ill_threshold is ignored for PDOS because eigenvector fallback is not implemented.")
             data, eigs, vecs = self._system.calculator.get_eigenstates(data)
             # vecs: [Nk, Norb, Norb] (assuming 1 batch)
             # eigs: [Nk, Norb]
@@ -184,7 +191,12 @@ class DosAccessor:
                     vecs = vecs.transpose(-2, -1)
                     
         else:
-            data, eigs = self._system.calculator.get_eigenvalues(data)
+            data, eigs = self._system.calculator.get_eigenvalues(
+                data,
+                solver=solver,
+                ill_threshold=ill_threshold,
+                ill_pad_value=ill_pad_value,
+            )
             vecs = None
         
         eigenvalues = eigs.detach().cpu().numpy() # [Nk, Nb]

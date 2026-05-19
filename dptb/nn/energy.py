@@ -71,14 +71,16 @@ class Eigenvalues(nn.Module):
                 data: AtomicDataDict.Type, 
                 nk: Optional[int]=None,
                 eig_solver: str='torch',
-                ill_threshold: Optional[float]=1e-5) -> AtomicDataDict.Type:
+                ill_threshold: Optional[float]=None,
+                ill_pad_value: float=1e4) -> AtomicDataDict.Type:
 
         if eig_solver is None:
             eig_solver = 'torch'
             log.warning("eig_solver is not set, using default 'torch'.")
         if eig_solver not in ['torch', 'numpy']:
-            log.error(f"eig_solver should be 'torch' or 'numpy', but got {eig_solver}.")
-            raise ValueError
+            msg = f"eig_solver should be 'torch' or 'numpy', but got {eig_solver}."
+            log.error(msg)
+            raise ValueError(msg)
 
         kpoints = data[AtomicDataDict.KPOINT_KEY]
         if kpoints.is_nested:
@@ -89,6 +91,7 @@ class Eigenvalues(nn.Module):
             nested = False
         num_k = kpoints.shape[0]
         eigvals = []
+        eigval_masks = []
         if nk is None:
             nk = num_k
 
@@ -99,6 +102,7 @@ class Eigenvalues(nn.Module):
 
             batch_eigvals_torch = None
             batch_eigvals_np = None
+            batch_mask = None
 
             if self.overlap:
                 data = self.s2k(data)
@@ -116,13 +120,22 @@ class Eigenvalues(nn.Module):
                         real_dtype = torch.float32 if H_k.dtype in [torch.complex64, torch.float32] else torch.float64
 
                         processed_eigvals_list = []
+                        processed_mask_list = []
                         for k_idx in range(B):
                             healthy_mask = egval_S[k_idx] > ill_threshold
                             n_healthy = int(healthy_mask.sum().item())
+                            abs_k_idx = i * nk + k_idx
+                            min_s = float(egval_S[k_idx].min().detach().cpu().item())
 
                             if n_healthy == 0:
-                                egval = torch.full((num_orbitals,), 1e4, dtype=real_dtype, device=H_k.device)
+                                log.warning(
+                                    "All overlap eigenvalues are below ill_threshold=%s at k-point %s "
+                                    "(min eig(S)=%s); returning padded eigenvalues.",
+                                    ill_threshold, abs_k_idx, min_s,
+                                )
+                                egval = torch.full((num_orbitals,), ill_pad_value, dtype=real_dtype, device=H_k.device)
                                 processed_eigvals_list.append(egval)
+                                processed_mask_list.append(torch.zeros((num_orbitals,), dtype=torch.bool, device=H_k.device))
                                 continue
 
                             if healthy_mask.all():
@@ -131,9 +144,15 @@ class Eigenvalues(nn.Module):
                                 H_transformed = L_inv @ H_k[k_idx] @ L_inv.conj().T
                                 egval = torch.linalg.eigvalsh(H_transformed)
                                 processed_eigvals_list.append(egval)
+                                processed_mask_list.append(torch.ones((num_orbitals,), dtype=torch.bool, device=H_k.device))
                                 continue
 
-                            U_sel = egvec_S[k_idx, :, healthy_mask]
+                            log.warning(
+                                "Projecting out %s/%s overlap modes at k-point %s "
+                                "(min eig(S)=%s, ill_threshold=%s).",
+                                num_orbitals - n_healthy, num_orbitals, abs_k_idx, min_s, ill_threshold,
+                            )
+                            U_sel = egvec_S[k_idx][:, healthy_mask]
                             eval_sel = egval_S[k_idx, healthy_mask]
 
                             H_proj = U_sel.conj().T @ H_k[k_idx] @ U_sel
@@ -146,13 +165,20 @@ class Eigenvalues(nn.Module):
 
                             num_projected_out = num_orbitals - egval_proj.shape[0]
                             if num_projected_out > 0:
-                                padding = torch.full((num_projected_out,), 1e4, dtype=egval_proj.dtype, device=egval_proj.device)
+                                padding = torch.full((num_projected_out,), ill_pad_value, dtype=egval_proj.dtype, device=egval_proj.device)
                                 egval = torch.cat([egval_proj, padding], dim=0)
+                                mask = torch.cat([
+                                    torch.ones((egval_proj.shape[0],), dtype=torch.bool, device=H_k.device),
+                                    torch.zeros((num_projected_out,), dtype=torch.bool, device=H_k.device),
+                                ], dim=0)
                             else:
                                 egval = egval_proj
+                                mask = torch.ones((num_orbitals,), dtype=torch.bool, device=H_k.device)
 
                             processed_eigvals_list.append(egval)
+                            processed_mask_list.append(mask)
                         batch_eigvals_torch = torch.stack(processed_eigvals_list, dim=0)
+                        batch_mask = torch.stack(processed_mask_list, dim=0)
 
                 elif eig_solver == 'numpy':
                     if ill_threshold is None:
@@ -170,13 +196,22 @@ class Eigenvalues(nn.Module):
                         real_dtype = np.float32 if h_np.dtype in [np.complex64, np.float32] else np.float64
 
                         processed_eigvals_list = []
+                        processed_mask_list = []
                         for k_idx in range(B):
                             healthy_mask = egval_S[k_idx] > ill_threshold
                             n_healthy = int(healthy_mask.sum())
+                            abs_k_idx = i * nk + k_idx
+                            min_s = float(egval_S[k_idx].min())
 
                             if n_healthy == 0:
-                                egval = np.full((num_orbitals,), 1e4, dtype=real_dtype)
+                                log.warning(
+                                    "All overlap eigenvalues are below ill_threshold=%s at k-point %s "
+                                    "(min eig(S)=%s); returning padded eigenvalues.",
+                                    ill_threshold, abs_k_idx, min_s,
+                                )
+                                egval = np.full((num_orbitals,), ill_pad_value, dtype=real_dtype)
                                 processed_eigvals_list.append(egval)
+                                processed_mask_list.append(np.zeros((num_orbitals,), dtype=bool))
                                 continue
 
                             if healthy_mask.all():
@@ -185,9 +220,15 @@ class Eigenvalues(nn.Module):
                                 H_transformed = L_inv @ h_np[k_idx] @ L_inv.conj().T
                                 egval = np.linalg.eigvalsh(H_transformed)
                                 processed_eigvals_list.append(egval)
+                                processed_mask_list.append(np.ones((num_orbitals,), dtype=bool))
                                 continue
 
-                            U_sel = egvec_S[k_idx, :, healthy_mask]
+                            log.warning(
+                                "Projecting out %s/%s overlap modes at k-point %s "
+                                "(min eig(S)=%s, ill_threshold=%s).",
+                                num_orbitals - n_healthy, num_orbitals, abs_k_idx, min_s, ill_threshold,
+                            )
+                            U_sel = egvec_S[k_idx][:, healthy_mask]
                             eval_sel = egval_S[k_idx, healthy_mask]
 
                             H_proj = U_sel.conj().T @ h_np[k_idx] @ U_sel
@@ -200,13 +241,20 @@ class Eigenvalues(nn.Module):
 
                             num_projected_out = num_orbitals - egval_proj.shape[0]
                             if num_projected_out > 0:
-                                padding = np.full((num_projected_out,), 1e4, dtype=egval_proj.dtype)
+                                padding = np.full((num_projected_out,), ill_pad_value, dtype=egval_proj.dtype)
                                 egval = np.concatenate([egval_proj, padding], axis=0)
+                                mask = np.concatenate([
+                                    np.ones((egval_proj.shape[0],), dtype=bool),
+                                    np.zeros((num_projected_out,), dtype=bool),
+                                ], axis=0)
                             else:
                                 egval = egval_proj
+                                mask = np.ones((num_orbitals,), dtype=bool)
 
                             processed_eigvals_list.append(egval)
+                            processed_mask_list.append(mask)
                         batch_eigvals_np = np.stack(processed_eigvals_list, axis=0)
+                        batch_mask = torch.from_numpy(np.stack(processed_mask_list, axis=0)).to(device=self.h2k.device)
 
             if eig_solver == 'torch':
                 if batch_eigvals_torch is not None:
@@ -222,8 +270,12 @@ class Eigenvalues(nn.Module):
                     eigvals_np = np.linalg.eigvalsh(a=h_transformed_np)
                 # Preserve dtype by converting to the Hamiltonian's original dtype
                 eigvals.append(torch.from_numpy(eigvals_np).to(dtype=self.h2k.dtype, device=self.h2k.device))
+            if batch_mask is not None:
+                eigval_masks.append(batch_mask)
 
         data[self.out_field] = torch.nested.as_nested_tensor([torch.cat(eigvals, dim=0)])
+        if eigval_masks:
+            data[AtomicDataDict.EIGENVALUE_VALID_MASK_KEY] = torch.nested.as_nested_tensor([torch.cat(eigval_masks, dim=0)])
         if nested:
             data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([kpoints])
         else:

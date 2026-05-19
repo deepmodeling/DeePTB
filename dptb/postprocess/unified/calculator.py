@@ -225,7 +225,9 @@ class DeePTBAdapter(HamiltonianCalculator):
     def get_eigenvalues(self, 
                         atomic_data: dict, 
                         nk: Optional[int]=None,
-                        solver: Optional[str]=None) -> Tuple[dict, torch.Tensor]:
+                        solver: Optional[str]=None,
+                        ill_threshold: Optional[float]=None,
+                        ill_pad_value: float=1e4) -> Tuple[dict, torch.Tensor]:
         # 1. Get Hamiltonian
         atomic_data = self.model_forward(atomic_data)
         
@@ -235,7 +237,13 @@ class DeePTBAdapter(HamiltonianCalculator):
                  raise RuntimeError("Overlap model but no overlap in output.")
                  
         # 3. Solve Eigenvalues
-        atomic_data = self.eigv_solver(data=atomic_data,nk=nk, eig_solver=solver)
+        atomic_data = self.eigv_solver(
+            data=atomic_data,
+            nk=nk,
+            eig_solver=solver,
+            ill_threshold=ill_threshold,
+            ill_pad_value=ill_pad_value,
+        )
         
         eigs = atomic_data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0] # atomic_data is usually batched, take 0
         return atomic_data, eigs

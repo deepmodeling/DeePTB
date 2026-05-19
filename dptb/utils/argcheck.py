@@ -1252,6 +1252,8 @@ def band():
     doc_num_in_line = "the number of kpoints in each line path, only used for kline_type is vasp."
     doc_override_overlap = "overlap file path to be input to override overlap matrix."
     doc_eig_solver = "the eigenvalue solver to be used."
+    doc_ill_threshold = "optional threshold for projecting out ill-conditioned overlap modes during band postprocess."
+    doc_ill_pad_value = "padding value for projected-out eigenvalues when ill_threshold is enabled."
     return [
         Argument("kline_type", str, optional=False, doc=doc_kline_type),
         Argument("kpath", [str,list], optional=False, doc=doc_kpath),
@@ -1265,7 +1267,9 @@ def band():
         Argument("ref_band", [str, None], optional=True, default=None, doc=doc_ref_band),
         Argument("nel_atom", [dict,None], optional=True, default=None, doc=doc_nel_atom),
         Argument("override_overlap", [str, None], optional=True, default=None, doc=doc_override_overlap),
-        Argument("eig_solver", [str, None], optional=True, default=None, doc=doc_eig_solver)
+        Argument("eig_solver", [str, None], optional=True, default=None, doc=doc_eig_solver),
+        Argument("ill_threshold", [float, int, None], optional=True, default=None, doc=doc_ill_threshold),
+        Argument("ill_pad_value", [float, int], optional=True, default=1e4, doc=doc_ill_pad_value)
     ]
 
 

@@ -221,7 +221,12 @@ class BandAccessor:
         k_tensor = torch.as_tensor(self._k_points, dtype=self._system._calculator.dtype, device=self._system._calculator.device)
         self._system._atomic_data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([k_tensor])
         
-    def compute(self):
+    def compute(
+        self,
+        solver: Optional[str] = None,
+        ill_threshold: Optional[float] = None,
+        ill_pad_value: float = 1e4,
+    ):
         """
         Compute the band structure using the configured K-path and store result in system.
         """
@@ -232,7 +237,12 @@ class BandAccessor:
         data = self._system._atomic_data
         
         # Calculate
-        data, eigs = self._system.calculator.get_eigenvalues(data)
+        data, eigs = self._system.calculator.get_eigenvalues(
+            data,
+            solver=solver,
+            ill_threshold=ill_threshold,
+            ill_pad_value=ill_pad_value,
+        )
         
         # Extract results
         eigenvalues = eigs.detach().cpu().numpy() # [Nk, Nb]
@@ -268,4 +278,3 @@ class BandAccessor:
     def save(self, path: str):
         """Save the computed band structure."""
         return self.band_data.export(path)
-

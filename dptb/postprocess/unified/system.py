@@ -240,7 +240,7 @@ class TBSystem:
                                    device=self.calculator.device)
         data = self._atomic_data.copy()             
         data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([k_tensor])
-        data, eigs = self.calculator.get_eigenvalues(data)
+        data, eigs = self.calculator.get_eigenvalues(data, **kwargs)
 
         calculated_efermi = self.estimate_efermi_e(
                         eigenvalues=eigs.detach().numpy(),
@@ -303,7 +303,7 @@ class TBSystem:
             assert kpath_config is not None, "kpath_config must be provided if bands not calculated."
             self._bands = BandAccessor(self)
             self._bands.set_kpath(**kpath_config)
-            self._bands.compute()
+            self._bands.compute(**kwargs)
             self.has_bands = True
             return self._bands
 
@@ -319,10 +319,15 @@ class TBSystem:
             return  self._dos
         else:
             assert kmesh is not None, "kmesh must be provided."
+            solver_kwargs = {
+                key: kwargs.pop(key)
+                for key in ("solver", "ill_threshold", "ill_pad_value")
+                if key in kwargs
+            }
             self._dos = DosAccessor(self)
             self._dos.set_kpoints(kmesh=kmesh,is_gamma_center=is_gamma_center)
             self._dos.set_dos_config(erange=erange, npts=npts, smearing=smearing, sigma=sigma, pdos=pdos, **kwargs)
-            self._dos.compute()
+            self._dos.compute(**solver_kwargs)
             self.has_dos = True
             return self._dos
 
