@@ -247,6 +247,9 @@ class ElecStruCal(object):
         else:
             log.info('The eigenvalues are already in data. will use them.')
             eigs = data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy()
+        eigs_valid_mask = data.get(AtomicDataDict.EIGENVALUE_VALID_MASK_KEY)
+        if eigs_valid_mask is not None:
+            eigs_valid_mask = eigs_valid_mask[0].detach().cpu().numpy()
         
         if nel_atom is not None:
             atomtype_list = data[AtomicDataDict.ATOM_TYPE_KEY].flatten().tolist()
@@ -256,8 +259,16 @@ class ElecStruCal(object):
                 spindeg = 1
             else:
                 spindeg = 2
-            E_fermi = self.cal_E_fermi(eigs, total_nel, spindeg, wk, 
-                                       q_tol= q_tol, smearing_method = smearing_method,temp=temp)
+            E_fermi = self.cal_E_fermi(
+                eigs,
+                total_nel,
+                spindeg,
+                wk,
+                q_tol=q_tol,
+                smearing_method=smearing_method,
+                temp=temp,
+                eigenvalue_valid_mask=eigs_valid_mask,
+            )
             log.info(f'Estimated E_fermi: {E_fermi} based on the valence electrons setting nel_atom : {nel_atom} .')
         else:
             E_fermi = None
@@ -269,7 +280,8 @@ class ElecStruCal(object):
     
     @classmethod
     def cal_E_fermi(cls,eigenvalues: np.ndarray, total_electrons: int, spindeg: int=2,wk: np.ndarray=None,
-                    q_tol:float=1e-10,smearing_method:str='FD',temp:float=300):
+                    q_tol:float=1e-10,smearing_method:str='FD',temp:float=300,
+                    eigenvalue_valid_mask: np.ndarray=None):
         '''This  function calculates the Fermi energy using iteration algorithm.
 
             In this version, the function calculates the Fermi energy in the case of spin-degeneracy. 
@@ -313,8 +325,23 @@ class ElecStruCal(object):
         log.info('Calculating Fermi energy in the case of spin-degeneracy.')
             
         
+        if eigenvalue_valid_mask is not None:
+            eigenvalue_valid_mask = np.asarray(eigenvalue_valid_mask, dtype=bool)
+            if eigenvalue_valid_mask.shape != eigenvalues.shape:
+                raise ValueError(
+                    "eigenvalue_valid_mask should have the same shape as eigenvalues, "
+                    f"got {eigenvalue_valid_mask.shape} and {eigenvalues.shape}."
+                )
+            valid_eigenvalues = eigenvalues[eigenvalue_valid_mask]
+            if valid_eigenvalues.size == 0:
+                raise ValueError("No valid eigenvalues are available to calculate Fermi energy.")
+            occupation_mask = eigenvalue_valid_mask.astype(eigenvalues.dtype)
+        else:
+            valid_eigenvalues = eigenvalues
+            occupation_mask = 1.0
+
         # calculate boundaries
-        min_Ef, max_Ef = eigenvalues.min(), eigenvalues.max()
+        min_Ef, max_Ef = valid_eigenvalues.min(), valid_eigenvalues.max()
         kT = Boltzmann/eV2J * temp
         drange = kT*np.sqrt(-np.log(q_tol*1e-2))
         min_Ef = min_Ef - drange
@@ -333,9 +360,9 @@ class ElecStruCal(object):
             # Calculate guessed charge
             wk = wk.reshape(-1,1)
             if smearing_method == 'FD':
-                q_cal = (wk * cls.fermi_dirac_smearing(eigenvalues,kT=kT, mu=Ef)).sum()
+                q_cal = (wk * cls.fermi_dirac_smearing(eigenvalues,kT=kT, mu=Ef) * occupation_mask).sum()
             elif smearing_method == 'Gaussian':
-                q_cal = (wk * cls.Gaussian_smearing(eigenvalues,sigma = kT, mu=Ef)).sum()
+                q_cal = (wk * cls.Gaussian_smearing(eigenvalues,sigma = kT, mu=Ef) * occupation_mask).sum()
             else:
                 raise ValueError(f'Unknown smearing method: {smearing_method}')
 

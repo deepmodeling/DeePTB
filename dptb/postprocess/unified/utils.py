@@ -28,7 +28,8 @@ def gaussian_smearing(E, sigma=0.025852, mu=0.0):
 
 def calculate_fermi_level(eigenvalues: np.ndarray, total_electrons: float, spindeg: int = 2,
                           weights: np.ndarray = None, q_tol: float = 1e-10,
-                          smearing_method: str = 'FD', temperature: float = 300):
+                          smearing_method: str = 'FD', temperature: float = 300,
+                          eigenvalue_valid_mask: np.ndarray = None):
     """
     Calculates the Fermi energy using iteration algorithm (Bisection method).
 
@@ -62,8 +63,23 @@ def calculate_fermi_level(eigenvalues: np.ndarray, total_electrons: float, spind
     
     log.info(f"Calculating Fermi energy. Target electrons per spin channel: {target_electrons}")
 
+    if eigenvalue_valid_mask is not None:
+        eigenvalue_valid_mask = np.asarray(eigenvalue_valid_mask, dtype=bool)
+        if eigenvalue_valid_mask.shape != eigenvalues.shape:
+            raise ValueError(
+                "eigenvalue_valid_mask should have the same shape as eigenvalues, "
+                f"got {eigenvalue_valid_mask.shape} and {eigenvalues.shape}."
+            )
+        valid_eigenvalues = eigenvalues[eigenvalue_valid_mask]
+        if valid_eigenvalues.size == 0:
+            raise ValueError("No valid eigenvalues are available to calculate Fermi energy.")
+        occupation_mask = eigenvalue_valid_mask.astype(eigenvalues.dtype)
+    else:
+        valid_eigenvalues = eigenvalues
+        occupation_mask = 1.0
+
     # calculate boundaries
-    min_Ef, max_Ef = eigenvalues.min(), eigenvalues.max()
+    min_Ef, max_Ef = valid_eigenvalues.min(), valid_eigenvalues.max()
     kT = Boltzmann / eV2J * temperature
     
     # Expand search range to ensure Ef is within bounds even if it's in the band gap
@@ -108,7 +124,7 @@ def calculate_fermi_level(eigenvalues: np.ndarray, total_electrons: float, spind
 
         # q_cal is weighted sum of occupation
         # weights broadcasted against occupation
-        q_cal = (weights * occupation).sum()
+        q_cal = (weights * occupation * occupation_mask).sum()
 
         if abs(q_cal - target_electrons) < q_tol:
             log.info(f'Fermi energy converged after {icounter} iterations. Ef = {Ef:.6f} eV')
