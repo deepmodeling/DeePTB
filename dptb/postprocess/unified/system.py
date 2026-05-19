@@ -124,9 +124,9 @@ class TBSystem:
         pdos: Optional[bool] = False,
         extra_kwargs: Optional[dict] = None,
     ) -> dict:
-        cache_key = {"solver": cls._eigen_cache_key(solver_kwargs)}
-        if kmesh is not None:
-            cache_key["dos_config"] = cls._normalize_cache_value({
+        return {
+            "solver": cls._eigen_cache_key(solver_kwargs),
+            "dos_config": cls._normalize_cache_value({
                 "kmesh": kmesh,
                 "is_gamma_center": is_gamma_center,
                 "erange": erange,
@@ -135,8 +135,8 @@ class TBSystem:
                 "sigma": sigma,
                 "pdos": pdos,
                 "extra_kwargs": extra_kwargs or {},
-            })
-        return cache_key
+            }),
+        }
 
     @property
     def calculator(self) -> HamiltonianCalculator:
