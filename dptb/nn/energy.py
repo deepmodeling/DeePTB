@@ -139,6 +139,10 @@ class Eigenvalues(nn.Module):
                                 continue
 
                             if healthy_mask.all():
+                                log.debug(
+                                    "All overlap eigenvalues are healthy at k-point %s (ill_threshold=%s); using standard Cholesky and validity mask all ones.",
+                                    abs_k_idx, ill_threshold,
+                                )
                                 L = torch.linalg.cholesky(S_k[k_idx])
                                 L_inv = torch.linalg.inv(L)
                                 H_transformed = L_inv @ H_k[k_idx] @ L_inv.conj().T
@@ -215,6 +219,10 @@ class Eigenvalues(nn.Module):
                                 continue
 
                             if healthy_mask.all():
+                                log.debug(
+                                    "All overlap eigenvalues are healthy at k-point %s (ill_threshold=%s); using standard Cholesky and validity mask all ones.",
+                                    abs_k_idx, ill_threshold,
+                                )
                                 L = np.linalg.cholesky(s_np[k_idx])
                                 L_inv = np.linalg.inv(L)
                                 H_transformed = L_inv @ h_np[k_idx] @ L_inv.conj().T
@@ -255,6 +263,14 @@ class Eigenvalues(nn.Module):
                             processed_mask_list.append(mask)
                         batch_eigvals_np = np.stack(processed_eigvals_list, axis=0)
                         batch_mask = torch.from_numpy(np.stack(processed_mask_list, axis=0)).to(device=self.h2k.device)
+
+            else:
+                if ill_threshold is not None:
+                    abs_k_start = i * nk
+                    log.debug(
+                        "ill_threshold=%s provided but ignored for k-point batch starting at %s because overlap is disabled.",
+                        ill_threshold, abs_k_start,
+                    )
 
             if eig_solver == 'torch':
                 if batch_eigvals_torch is not None:

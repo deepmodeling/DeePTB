@@ -322,9 +322,16 @@ class TBSystem:
             return self._bands
         else:
             assert kpath_config is not None, "kpath_config must be provided if bands not calculated."
+            solver_kwargs = {
+                key: kwargs.pop(key)
+                for key in ("solver", "ill_threshold", "ill_pad_value")
+                if key in kwargs
+            }
+            if kwargs:
+                log.warning(f"Ignoring unsupported get_bands options: {sorted(kwargs)}")
             self._bands = BandAccessor(self)
             self._bands.set_kpath(**kpath_config)
-            self._bands.compute(**kwargs)
+            self._bands.compute(**solver_kwargs)
             self.has_bands = True
             return self._bands
 
