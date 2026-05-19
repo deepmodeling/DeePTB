@@ -223,6 +223,7 @@ class BandAccessor:
         
     def compute(
         self,
+        nk: Optional[int] = None,
         solver: Optional[str] = None,
         ill_threshold: Optional[float] = None,
         ill_pad_value: float = 1e4,
@@ -239,6 +240,7 @@ class BandAccessor:
         # Calculate
         data, eigs = self._system.calculator.get_eigenvalues(
             data,
+            nk=nk,
             solver=solver,
             ill_threshold=ill_threshold,
             ill_pad_value=ill_pad_value,

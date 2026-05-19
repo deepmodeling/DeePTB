@@ -122,6 +122,230 @@ def test_get_efermi_accepts_solver_kwargs(silicon_system):
     efermi = silicon_system.get_efermi(kmesh=[2, 2, 2], solver="torch")
     assert np.isfinite(efermi)
 
+def test_get_efermi_accepts_eig_solver_alias(silicon_system):
+    silicon_system.set_electrons({"Si": 4})
+    efermi = silicon_system.get_efermi(kmesh=[2, 2, 2], eig_solver="torch", nk=2)
+    assert np.isfinite(efermi)
+
+def test_get_bands_forwards_nk_and_eig_solver_alias(silicon_system, monkeypatch):
+    captured = {}
+
+    def fake_get_eigenvalues(data, **kwargs):
+        captured.update(kwargs)
+        kpoints = data[AtomicDataDict.KPOINT_KEY]
+        num_k = kpoints[0].shape[0] if kpoints.is_nested else kpoints.shape[0]
+        num_orb = len(silicon_system.atom_orbs)
+        eigs = torch.zeros((num_k, num_orb), dtype=silicon_system.calculator.dtype)
+        return data, eigs
+
+    monkeypatch.setattr(silicon_system.calculator, "get_eigenvalues", fake_get_eigenvalues)
+    bands = silicon_system.get_bands(
+        kpath_config={
+            "method": "abacus",
+            "kpath": [[0.0, 0.0, 0.0, 4], [0.5, 0.0, 0.5, 1]],
+            "klabels": ["G", "X"],
+        },
+        reuse=False,
+        eig_solver="torch",
+        nk=2,
+    )
+
+    assert isinstance(bands.band_data, BandStructureData)
+    assert captured["solver"] == "torch"
+    assert captured["nk"] == 2
+
+def test_get_dos_forwards_nk_and_eig_solver_alias(silicon_system, monkeypatch):
+    captured = {}
+
+    def fake_get_eigenvalues(data, **kwargs):
+        captured.update(kwargs)
+        kpoints = data[AtomicDataDict.KPOINT_KEY]
+        num_k = kpoints[0].shape[0] if kpoints.is_nested else kpoints.shape[0]
+        num_orb = len(silicon_system.atom_orbs)
+        eigs = torch.zeros((num_k, num_orb), dtype=silicon_system.calculator.dtype)
+        return data, eigs
+
+    monkeypatch.setattr(silicon_system.calculator, "get_eigenvalues", fake_get_eigenvalues)
+    dos = silicon_system.get_dos(
+        kmesh=[1, 1, 1],
+        erange=[-1, 1],
+        npts=10,
+        pdos=False,
+        reuse=False,
+        eig_solver="numpy",
+        nk=1,
+    )
+
+    assert isinstance(dos.dos_data, DosData)
+    assert captured["solver"] == "numpy"
+    assert captured["nk"] == 1
+
+def test_get_dos_recomputes_when_solver_changes(silicon_system, monkeypatch):
+    calls = []
+
+    def fake_get_eigenvalues(data, **kwargs):
+        calls.append(dict(kwargs))
+        kpoints = data[AtomicDataDict.KPOINT_KEY]
+        num_k = kpoints[0].shape[0] if kpoints.is_nested else kpoints.shape[0]
+        num_orb = len(silicon_system.atom_orbs)
+        eigs = torch.zeros((num_k, num_orb), dtype=silicon_system.calculator.dtype)
+        return data, eigs
+
+    monkeypatch.setattr(silicon_system.calculator, "get_eigenvalues", fake_get_eigenvalues)
+
+    dos_kwargs = {
+        "kmesh": [1, 1, 1],
+        "erange": [-1, 1],
+        "npts": 10,
+        "pdos": False,
+    }
+    silicon_system.get_dos(**dos_kwargs, solver="torch", nk=1, reuse=False)
+    silicon_system.get_dos(**dos_kwargs, solver="numpy", nk=1)
+    silicon_system.get_dos(**dos_kwargs, solver="numpy", nk=2)
+
+    assert len(calls) == 2
+    assert calls[0]["solver"] == "torch"
+    assert calls[0]["nk"] == 1
+    assert calls[1]["solver"] == "numpy"
+    assert calls[1]["nk"] == 1
+
+def test_get_bands_reuses_when_only_nk_changes(silicon_system, monkeypatch):
+    calls = []
+
+    def fake_get_eigenvalues(data, **kwargs):
+        calls.append(dict(kwargs))
+        kpoints = data[AtomicDataDict.KPOINT_KEY]
+        num_k = kpoints[0].shape[0] if kpoints.is_nested else kpoints.shape[0]
+        num_orb = len(silicon_system.atom_orbs)
+        eigs = torch.zeros((num_k, num_orb), dtype=silicon_system.calculator.dtype)
+        return data, eigs
+
+    monkeypatch.setattr(silicon_system.calculator, "get_eigenvalues", fake_get_eigenvalues)
+    kpath_config = {
+        "method": "abacus",
+        "kpath": [[0.0, 0.0, 0.0, 4], [0.5, 0.0, 0.5, 1]],
+        "klabels": ["G", "X"],
+    }
+
+    silicon_system.get_bands(kpath_config=kpath_config, solver="torch", nk=1, reuse=False)
+    silicon_system.get_bands(kpath_config=kpath_config, solver="torch", nk=2)
+
+    assert len(calls) == 1
+    assert calls[0]["solver"] == "torch"
+    assert calls[0]["nk"] == 1
+
+def test_get_bands_recomputes_when_kpath_changes(silicon_system, monkeypatch):
+    calls = []
+
+    def fake_get_eigenvalues(data, **kwargs):
+        calls.append(dict(kwargs))
+        kpoints = data[AtomicDataDict.KPOINT_KEY]
+        num_k = kpoints[0].shape[0] if kpoints.is_nested else kpoints.shape[0]
+        num_orb = len(silicon_system.atom_orbs)
+        eigs = torch.zeros((num_k, num_orb), dtype=silicon_system.calculator.dtype)
+        return data, eigs
+
+    monkeypatch.setattr(silicon_system.calculator, "get_eigenvalues", fake_get_eigenvalues)
+    first_kpath = {
+        "method": "abacus",
+        "kpath": [[0.0, 0.0, 0.0, 4], [0.5, 0.0, 0.5, 1]],
+        "klabels": ["G", "X"],
+    }
+    second_kpath = {
+        "method": "abacus",
+        "kpath": [[0.0, 0.0, 0.0, 3], [0.5, 0.5, 0.0, 1]],
+        "klabels": ["G", "M"],
+    }
+
+    silicon_system.get_bands(kpath_config=first_kpath, solver="torch", nk=1, reuse=False)
+    silicon_system.get_bands(kpath_config=second_kpath, solver="torch", nk=2)
+
+    assert len(calls) == 2
+
+def test_get_dos_reuses_when_only_nk_changes(silicon_system, monkeypatch):
+    calls = []
+
+    def fake_get_eigenvalues(data, **kwargs):
+        calls.append(dict(kwargs))
+        kpoints = data[AtomicDataDict.KPOINT_KEY]
+        num_k = kpoints[0].shape[0] if kpoints.is_nested else kpoints.shape[0]
+        num_orb = len(silicon_system.atom_orbs)
+        eigs = torch.zeros((num_k, num_orb), dtype=silicon_system.calculator.dtype)
+        return data, eigs
+
+    monkeypatch.setattr(silicon_system.calculator, "get_eigenvalues", fake_get_eigenvalues)
+    dos_kwargs = {
+        "kmesh": [1, 1, 1],
+        "erange": [-1, 1],
+        "npts": 10,
+        "pdos": False,
+    }
+
+    silicon_system.get_dos(**dos_kwargs, solver="torch", nk=1, reuse=False)
+    silicon_system.get_dos(**dos_kwargs, solver="torch", nk=2)
+
+    assert len(calls) == 1
+    assert calls[0]["solver"] == "torch"
+    assert calls[0]["nk"] == 1
+
+def test_get_dos_recomputes_when_kmesh_changes(silicon_system, monkeypatch):
+    calls = []
+
+    def fake_get_eigenvalues(data, **kwargs):
+        calls.append(dict(kwargs))
+        kpoints = data[AtomicDataDict.KPOINT_KEY]
+        num_k = kpoints[0].shape[0] if kpoints.is_nested else kpoints.shape[0]
+        num_orb = len(silicon_system.atom_orbs)
+        eigs = torch.zeros((num_k, num_orb), dtype=silicon_system.calculator.dtype)
+        return data, eigs
+
+    monkeypatch.setattr(silicon_system.calculator, "get_eigenvalues", fake_get_eigenvalues)
+    dos_kwargs = {
+        "erange": [-1, 1],
+        "npts": 10,
+        "pdos": False,
+    }
+
+    silicon_system.get_dos(kmesh=[1, 1, 1], **dos_kwargs, solver="torch", nk=1, reuse=False)
+    silicon_system.get_dos(kmesh=[2, 1, 1], **dos_kwargs, solver="torch", nk=2)
+
+    assert len(calls) == 2
+
+def test_get_dos_does_not_reuse_when_config_changes_without_kmesh(silicon_system, monkeypatch):
+    calls = []
+
+    def fake_get_eigenvalues(data, **kwargs):
+        calls.append(dict(kwargs))
+        kpoints = data[AtomicDataDict.KPOINT_KEY]
+        num_k = kpoints[0].shape[0] if kpoints.is_nested else kpoints.shape[0]
+        num_orb = len(silicon_system.atom_orbs)
+        eigs = torch.zeros((num_k, num_orb), dtype=silicon_system.calculator.dtype)
+        return data, eigs
+
+    monkeypatch.setattr(silicon_system.calculator, "get_eigenvalues", fake_get_eigenvalues)
+
+    silicon_system.get_dos(
+        kmesh=[1, 1, 1],
+        erange=[-1, 1],
+        npts=10,
+        pdos=False,
+        solver="torch",
+        reuse=False,
+    )
+    with pytest.raises(AssertionError, match="kmesh must be provided"):
+        silicon_system.get_dos(
+            erange=[-2, 2],
+            npts=10,
+            pdos=False,
+            solver="torch",
+        )
+
+    assert len(calls) == 1
+
+def test_solver_and_eig_solver_conflict_raises(silicon_system):
+    with pytest.raises(ValueError, match="solver and eig_solver"):
+        silicon_system.get_bands(solver="torch", eig_solver="numpy")
+
 def test_get_hamiltonian_gethk(silicon_system):
     """Test getting Hamiltonian H(k) at specific k-points."""
     tbsys = silicon_system
