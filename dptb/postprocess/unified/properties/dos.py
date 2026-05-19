@@ -152,6 +152,7 @@ class DosAccessor:
 
     def compute(
         self,
+        nk: Optional[int] = None,
         solver: Optional[str] = None,
         ill_threshold: Optional[float] = None,
         ill_pad_value: float = 1e4,
@@ -171,9 +172,11 @@ class DosAccessor:
         calc_pdos = self._config.get('pdos', False)
         
         if calc_pdos:
+            if solver is not None:
+                log.warning("solver is ignored for PDOS because eigenvector solver selection is not implemented.")
             if ill_threshold is not None:
                 log.warning("ill_threshold is ignored for PDOS because eigenvector fallback is not implemented.")
-            data, eigs, vecs = self._system.calculator.get_eigenstates(data)
+            data, eigs, vecs = self._system.calculator.get_eigenstates(data, nk=nk)
             # vecs: [Nk, Norb, Norb] (assuming 1 batch)
             # eigs: [Nk, Norb]
             
@@ -193,6 +196,7 @@ class DosAccessor:
         else:
             data, eigs = self._system.calculator.get_eigenvalues(
                 data,
+                nk=nk,
                 solver=solver,
                 ill_threshold=ill_threshold,
                 ill_pad_value=ill_pad_value,

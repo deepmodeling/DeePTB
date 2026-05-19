@@ -60,6 +60,27 @@ class TBSystem:
         
         self._atomic_data = self.set_atoms(data, override_overlap)
 
+    @staticmethod
+    def _pop_solver_kwargs(kwargs: dict, context: str) -> dict:
+        solver = kwargs.pop("solver", None)
+        eig_solver = kwargs.pop("eig_solver", None)
+        if solver is not None and eig_solver is not None and solver != eig_solver:
+            raise ValueError(
+                f"solver and eig_solver were both provided to {context} with different values: "
+                f"{solver!r} != {eig_solver!r}."
+            )
+        if solver is None and eig_solver is not None:
+            log.warning("eig_solver is accepted for compatibility in %s; prefer solver.", context)
+            solver = eig_solver
+
+        solver_kwargs = {}
+        if solver is not None:
+            solver_kwargs["solver"] = solver
+        for key in ("nk", "ill_threshold", "ill_pad_value"):
+            if key in kwargs:
+                solver_kwargs[key] = kwargs.pop(key)
+        return solver_kwargs
+
     @property
     def calculator(self) -> HamiltonianCalculator:
         """Access the calculator."""
@@ -234,11 +255,7 @@ class TBSystem:
                          q_tol: float = 1e-5,
                          **kwargs):
         # get efermi from scratch.
-        solver_kwargs = {
-            key: kwargs.pop(key)
-            for key in ("nk", "solver", "ill_threshold", "ill_pad_value")
-            if key in kwargs
-        }
+        solver_kwargs = self._pop_solver_kwargs(kwargs, "TBSystem.get_efermi")
         efermi_kwargs = {
             key: kwargs.pop(key)
             for key in ("k_weights",)
@@ -318,20 +335,25 @@ class TBSystem:
     def get_bands(self, kpath_config: Optional[dict] = None, reuse: Optional[bool]=True, **kwargs):
         # 计算能带，返回 bands
         # bands 应该是一个类，也有属性。bands.kpoints, bands.eigenvalues, bands.klabels, bands.kticks, 也有函数 bands.plot()
-        if self.has_bands and reuse:
+        solver_kwargs = self._pop_solver_kwargs(kwargs, "TBSystem.get_bands")
+        if kwargs:
+            log.warning(f"Ignoring unsupported get_bands options: {sorted(kwargs)}")
+
+        if (
+            self.has_bands
+            and reuse
+            and getattr(self, "_last_band_solver_kwargs", None) == solver_kwargs
+        ):
             return self._bands
         else:
-            assert kpath_config is not None, "kpath_config must be provided if bands not calculated."
-            solver_kwargs = {
-                key: kwargs.pop(key)
-                for key in ("solver", "ill_threshold", "ill_pad_value")
-                if key in kwargs
-            }
-            if kwargs:
-                log.warning(f"Ignoring unsupported get_bands options: {sorted(kwargs)}")
-            self._bands = BandAccessor(self)
-            self._bands.set_kpath(**kpath_config)
+            if not (self.has_bands and reuse):
+                assert kpath_config is not None, "kpath_config must be provided if bands not calculated."
+                self._bands = BandAccessor(self)
+                self._bands.set_kpath(**kpath_config)
+            elif kpath_config is not None:
+                self._bands.set_kpath(**kpath_config)
             self._bands.compute(**solver_kwargs)
+            self._last_band_solver_kwargs = dict(solver_kwargs)
             self.has_bands = True
             return self._bands
 
@@ -347,11 +369,7 @@ class TBSystem:
             return  self._dos
         else:
             assert kmesh is not None, "kmesh must be provided."
-            solver_kwargs = {
-                key: kwargs.pop(key)
-                for key in ("solver", "ill_threshold", "ill_pad_value")
-                if key in kwargs
-            }
+            solver_kwargs = self._pop_solver_kwargs(kwargs, "TBSystem.get_dos")
             self._dos = DosAccessor(self)
             self._dos.set_kpoints(kmesh=kmesh,is_gamma_center=is_gamma_center)
             self._dos.set_dos_config(erange=erange, npts=npts, smearing=smearing, sigma=sigma, pdos=pdos, **kwargs)
