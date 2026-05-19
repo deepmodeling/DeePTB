@@ -57,12 +57,86 @@ class TBSystem:
         self._efermi = None
         self.has_bands = False
         self.has_dos = False
-        self._atoms: Optional[ase.Atoms] = None
-        self._atomic_data: Optional[AtomicDataDict] = None 
-        self._atom_orbs = None
-        self._atomic_symbols = None
         
-        self.set_atoms(data, override_overlap)
+        self._atomic_data = self.set_atoms(data, override_overlap)
+
+    @staticmethod
+    def _pop_solver_kwargs(kwargs: dict, context: str) -> dict:
+        solver = kwargs.pop("solver", None)
+        eig_solver = kwargs.pop("eig_solver", None)
+        if solver is not None and eig_solver is not None and solver != eig_solver:
+            raise ValueError(
+                f"solver and eig_solver were both provided to {context} with different values: "
+                f"{solver!r} != {eig_solver!r}."
+            )
+        if solver is None and eig_solver is not None:
+            log.warning("eig_solver is accepted for compatibility in %s; prefer solver.", context)
+            solver = eig_solver
+
+        solver_kwargs = {}
+        if solver is not None:
+            solver_kwargs["solver"] = solver
+        for key in ("nk", "ill_threshold", "ill_pad_value"):
+            if key in kwargs:
+                solver_kwargs[key] = kwargs.pop(key)
+        return solver_kwargs
+
+    @staticmethod
+    def _eigen_cache_key(solver_kwargs: dict) -> dict:
+        return {key: value for key, value in solver_kwargs.items() if key != "nk"}
+
+    @classmethod
+    def _normalize_cache_value(cls, value):
+        if isinstance(value, np.ndarray):
+            return cls._normalize_cache_value(value.tolist())
+        if isinstance(value, dict):
+            return tuple(
+                (key, cls._normalize_cache_value(item))
+                for key, item in sorted(value.items())
+            )
+        if isinstance(value, (list, tuple)):
+            return tuple(cls._normalize_cache_value(item) for item in value)
+        return value
+
+    @staticmethod
+    def _cache_matches(last_key: Optional[dict], requested_key: dict) -> bool:
+        if last_key is None:
+            return False
+        return all(last_key.get(key) == value for key, value in requested_key.items())
+
+    @classmethod
+    def _band_cache_key(cls, solver_kwargs: dict, kpath_config: Optional[dict] = None) -> dict:
+        cache_key = {"solver": cls._eigen_cache_key(solver_kwargs)}
+        if kpath_config is not None:
+            cache_key["kpath_config"] = cls._normalize_cache_value(kpath_config)
+        return cache_key
+
+    @classmethod
+    def _dos_cache_key(
+        cls,
+        solver_kwargs: dict,
+        kmesh: Optional[Union[list, np.ndarray]] = None,
+        is_gamma_center: Optional[bool] = True,
+        erange: Optional[Union[list, np.ndarray]] = None,
+        npts: Optional[int] = 100,
+        smearing: Optional[str] = 'gaussian',
+        sigma: Optional[float] = 0.05,
+        pdos: Optional[bool] = False,
+        extra_kwargs: Optional[dict] = None,
+    ) -> dict:
+        return {
+            "solver": cls._eigen_cache_key(solver_kwargs),
+            "dos_config": cls._normalize_cache_value({
+                "kmesh": kmesh,
+                "is_gamma_center": is_gamma_center,
+                "erange": erange,
+                "npts": npts,
+                "smearing": smearing,
+                "sigma": sigma,
+                "pdos": pdos,
+                "extra_kwargs": extra_kwargs or {},
+            }),
+        }
 
     @property
     def calculator(self) -> HamiltonianCalculator:
@@ -84,6 +158,14 @@ class TBSystem:
         """Return the ASE Atoms object representing the system."""
         return self._atoms
     
+    @property
+    def atom_orbs(self):
+        return self._atom_orbs
+    
+    @property
+    def atomic_symbols(self):
+        return self._atomic_symbols
+
     @property
     def total_electrons(self):
         if self._total_electrons is None:
@@ -137,35 +219,30 @@ class TBSystem:
         return self._optical_conductivity
 
 
-    def set_atoms(self, atoms: Optional[Union[AtomicData, ase.Atoms, str]] = None, override_overlap: Optional[str] = None) -> AtomicDataDict:
-        """
-        Set the atomic structure and generate inputs.
-        """
-        if atoms is None:
+    def set_atoms(self,struct: Optional[Union[AtomicData, ase.Atoms, str]] = None, override_overlap: Optional[str] = None) -> AtomicDataDict:
+        """Set the atomic structure."""
+        if struct is None:
             return self._atomic_data
         
-        # Reset state
+        # Reset state flags
         self.has_bands=False
         self.has_dos=False
         
-        # 1. Establish Physical Structure (ASE Atoms)
-        if isinstance(atoms, str):
-            self._atoms = read(atoms)
-        elif isinstance(atoms, ase.Atoms):
-            self._atoms = atoms
-        elif isinstance(atoms, AtomicData):
-            log.info('The data is already an instance of AtomicData. Reconstructing Atoms from it.')
-            self._atoms = atoms.to("cpu").to_ase() 
+        atomic_options = self._calculator.cutoffs        
+        if isinstance(struct, str):
+            self._atoms = read(struct)
+            data_obj = AtomicData.from_ase(self._atoms, **atomic_options)
+        elif isinstance(struct, ase.Atoms):
+            self._atoms = struct
+            data_obj = AtomicData.from_ase(struct, **atomic_options)
+        elif isinstance(struct, AtomicData):
+            log.info('The data is already an instance of AtomicData. Then the data is used directly.')
+            data_obj = struct
+            self._atoms = struct.to("cpu").to_ase()
         else:
             raise ValueError('data should be either a string, ase.Atoms, or AtomicData')
-
-        log.info("Generating AtomicData inputs...")
         
-        # 2. Generate AtomicData
-        atomic_options = self._calculator.cutoffs
-        data_obj = AtomicData.from_ase(self._atoms, **atomic_options)
-        
-        # 3. Handle Overlap Override
+        # Handle Overlap Override
         overlap_flag = hasattr(self._calculator.model, 'overlap')
         
         if isinstance(override_overlap, str):
@@ -183,39 +260,22 @@ class TBSystem:
                     
                 block_to_feature(data_obj, self._calculator.model.idp, blocks=False, overlap_blocks=overlaps)
         
-        # 4. Finalize
         data_obj = AtomicData.to_AtomicDataDict(data_obj.to(self._calculator.device))
         self._atomic_data = self._calculator.model.idp(data_obj)
-        
-        self._atomic_symbols = self._atoms.get_chemical_symbols()
-        self._atom_orbs = self.get_atom_orbs()
+        self._atom_orbs, self._atomic_symbols = self.get_atom_orbs()
         
         return self._atomic_data
 
-    @property
-    def atomic_symbols(self):
-        return self._atomic_symbols
-
-    @property
-    def atom_orbs(self):
-        return self._atom_orbs
-
     def get_atom_orbs(self):
-        """
-        Get flattened list of all orbitals in the system.
-        Delegates orbital expansion rules to the calculator.
-        """
         orbs_per_type = self.calculator.get_orbital_info()
-        atom_orbs = []
-        
-        for i, symbol in enumerate(self.atomic_symbols):
-            if symbol in orbs_per_type:
-                for orb in orbs_per_type[symbol]:
-                     atom_orbs.append(f"{symbol}{i+1}_{orb}")
-            else:
-                log.warning(f"Atom {symbol} not found in model basis/orbital info.")
-                
-        return atom_orbs
+        atomic_numbers = self.model.idp.untransform(self._atomic_data['atom_types']).numpy().flatten()
+        atomic_symbols = [atomic_num_dict_r[i] for i in atomic_numbers]
+        atom_orbs=[]
+        for i in range(len(atomic_symbols)):
+            iatype=atomic_symbols[i]
+            for iorb in orbs_per_type[iatype]:
+                atom_orbs.append(f"{i}-{iatype}-{iorb}")
+        return atom_orbs, atomic_symbols
     
     def set_electrons(self, nel_atom: Dict[str, int]) -> float:
         """
@@ -252,19 +312,34 @@ class TBSystem:
                          q_tol: float = 1e-5,
                          **kwargs):
         # get efermi from scratch.
+        solver_kwargs = self._pop_solver_kwargs(kwargs, "TBSystem.get_efermi")
+        efermi_kwargs = {
+            key: kwargs.pop(key)
+            for key in ("k_weights",)
+            if key in kwargs
+        }
+        if kwargs:
+            log.warning(f"Ignoring unsupported get_efermi options: {sorted(kwargs)}")
+
         kpoints = kmesh_sampling(kmesh, is_gamma_center=is_gamma_center)
         k_tensor = torch.as_tensor(kpoints, 
                                    dtype=self.calculator.dtype, 
                                    device=self.calculator.device)
         data = self._atomic_data.copy()             
         data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([k_tensor])
-        data, eigs = self.calculator.get_eigenvalues(data)
+        data, eigs = self.calculator.get_eigenvalues(data, **solver_kwargs)
+
+        eigs_valid_mask = data.get(AtomicDataDict.EIGENVALUE_VALID_MASK_KEY)
+        if eigs_valid_mask is not None:
+            eigs_valid_mask = eigs_valid_mask[0].detach().cpu().numpy()
 
         calculated_efermi = self.estimate_efermi_e(
                         eigenvalues=eigs.detach().numpy(),
                         temperature = temperature,
                         smearing_method=smearing_method,
-                        q_tol  = q_tol, **kwargs)
+                        q_tol=q_tol,
+                        eigenvalue_valid_mask=eigs_valid_mask,
+                        **efermi_kwargs)
         
         self.set_efermi(efermi = calculated_efermi)
 
@@ -274,7 +349,8 @@ class TBSystem:
                          k_weights=None,
                          temperature: float = 300,
                          smearing_method: str = 'FD',
-                         q_tol: float = 1e-5) -> float:
+                         q_tol: float = 1e-5,
+                         eigenvalue_valid_mask: np.ndarray = None) -> float:
         """
         Calculate Fermi level from eigenvalues. 
         This is give a freedom that parse eigenvlues from outside calculation, such as band and dos calculations
@@ -308,20 +384,34 @@ class TBSystem:
             weights=k_weights,
             temperature=temperature,
             smearing_method=smearing_method,
-            q_tol=q_tol
+            q_tol=q_tol,
+            eigenvalue_valid_mask=eigenvalue_valid_mask,
         )    
         
 
     def get_bands(self, kpath_config: Optional[dict] = None, reuse: Optional[bool]=True, **kwargs):
         # 计算能带，返回 bands
         # bands 应该是一个类，也有属性。bands.kpoints, bands.eigenvalues, bands.klabels, bands.kticks, 也有函数 bands.plot()
-        if self.has_bands and reuse:
+        solver_kwargs = self._pop_solver_kwargs(kwargs, "TBSystem.get_bands")
+        cache_key = self._band_cache_key(solver_kwargs, kpath_config)
+        if kwargs:
+            log.warning(f"Ignoring unsupported get_bands options: {sorted(kwargs)}")
+
+        if (
+            self.has_bands
+            and reuse
+            and self._cache_matches(getattr(self, "_last_band_cache_key", None), cache_key)
+        ):
             return self._bands
         else:
-            assert kpath_config is not None, "kpath_config must be provided if bands not calculated."
-            self._bands = BandAccessor(self)
-            self._bands.set_kpath(**kpath_config)
-            self._bands.compute()
+            if not (self.has_bands and reuse):
+                assert kpath_config is not None, "kpath_config must be provided if bands not calculated."
+                self._bands = BandAccessor(self)
+                self._bands.set_kpath(**kpath_config)
+            elif kpath_config is not None:
+                self._bands.set_kpath(**kpath_config)
+            self._bands.compute(**solver_kwargs)
+            self._last_band_cache_key = self._band_cache_key(solver_kwargs, kpath_config)
             self.has_bands = True
             return self._bands
 
@@ -333,27 +423,65 @@ class TBSystem:
         """
         # 计算态密度，返回 dos
         # dos 应该是一个类，也有属性。dos.kmesh, dos.eigenvalues, dos.klabels, dos.kticks, 也有函数 dos.plot()
-        if self.has_dos and reuse:
+        solver_kwargs = self._pop_solver_kwargs(kwargs, "TBSystem.get_dos")
+        cache_key = self._dos_cache_key(
+            solver_kwargs=solver_kwargs,
+            kmesh=kmesh,
+            is_gamma_center=is_gamma_center,
+            erange=erange,
+            npts=npts,
+            smearing=smearing,
+            sigma=sigma,
+            pdos=pdos,
+            extra_kwargs=kwargs,
+        )
+        if (
+            self.has_dos
+            and reuse
+            and self._cache_matches(getattr(self, "_last_dos_cache_key", None), cache_key)
+        ):
             return  self._dos
         else:
             assert kmesh is not None, "kmesh must be provided."
             self._dos = DosAccessor(self)
             self._dos.set_kpoints(kmesh=kmesh,is_gamma_center=is_gamma_center)
             self._dos.set_dos_config(erange=erange, npts=npts, smearing=smearing, sigma=sigma, pdos=pdos, **kwargs)
-            self._dos.compute()
+            self._dos.compute(**solver_kwargs)
+            self._last_dos_cache_key = self._dos_cache_key(
+                solver_kwargs=solver_kwargs,
+                kmesh=kmesh,
+                is_gamma_center=is_gamma_center,
+                erange=erange,
+                npts=npts,
+                smearing=smearing,
+                sigma=sigma,
+                pdos=pdos,
+                extra_kwargs=kwargs,
+            )
             self.has_dos = True
             return self._dos
 
-
-    def to_pardiso_debug(self, output_dir: Optional[str] = "pardiso_input"):
+    def get_hR(self):
         """
-        Export system data for Pardiso/Julia (Legacy Text Format for Debugging).
+        Get the Hamiltonian (and Overlap) as vbcsr.ImageContainer.
+        
+        Returns:
+             Tuple of (H_container, S_container). S_container can be None.
+        """
+        return self._calculator.get_hR(self._atomic_data)
+
+
+    def to_pardiso(self, output_dir: Optional[str] = "pardiso_input"):
+        """
+        Export system data for Pardiso/Julia band structure calculation.
 
         The following files will be generated in the output directory:
         - predicted_hamiltonians.h5: Hamiltonian matrix elements.
         - predicted_overlaps.h5: Overlap matrix elements (if applicable).
-        - structure.json: Atomic structure and basis information.
-        - *.dat: Legacy text files (positions.dat, basis.dat, etc.)
+        - atomic_numbers.dat: Atomic numbers of the system.
+        - positions.dat: Atomic positions (Cartesian).
+        - cell.dat: Unit cell vectors.
+        - basis.dat: Basis set information.
 
         Parameters
         ----------
@@ -378,7 +506,7 @@ class TBSystem:
         if sr is not None:
             self._save_h5([sr], "predicted_overlaps.h5", output_dir)
             
-        # --- Legacy Export (for sparse_calc_npy_print.jl) ---
+        # Save auxiliary files
         with open(os.path.join(output_dir, "atomic_numbers.dat"), "w") as f:
             for z in self.atoms.get_atomic_numbers():
                 f.write(f"{z}\n")
@@ -393,6 +521,7 @@ class TBSystem:
         
         # basis.dat
         basis_str_dict = {}
+        # Access basis info from model
         basis_info = self.model.idp.basis
         
         for elem, orbitals in basis_info.items():
@@ -412,8 +541,86 @@ class TBSystem:
             
         with open(os.path.join(output_dir, "basis.dat"), "w") as f:
             f.write(str(basis_str_dict))
+            
+        log.info("Successfully saved all Pardiso data.")
 
-        log.info("Successfully saved all Pardiso data (Legacy Text Format).")
+    def to_pardiso_debug(self, output_dir: Optional[str] = "pardiso_input"):
+        """
+        Export legacy Pardiso text/HDF5 inputs for debugging and backwards compatibility.
+        """
+        self.to_pardiso(output_dir=output_dir)
+
+    def to_pardiso_json(self, output_dir: Optional[str] = "pardiso_input"):
+        """
+        Export system data for the modular Pardiso/Julia backend.
+
+        The following files will be generated in the output directory:
+        - predicted_hamiltonians.h5: Hamiltonian matrix elements.
+        - predicted_overlaps.h5: Overlap matrix elements (if applicable).
+        - structure.json: Structure and basis information.
+        """
+        import json
+        import dptb
+
+        os.makedirs(output_dir, exist_ok=True)
+        log.info(f"Exporting Pardiso JSON data to: {os.path.abspath(output_dir)}")
+
+        hr, sr = self.calculator.get_hr(self.data)
+        hr = self._symmetrize_hamiltonian(hr)
+        if sr is not None:
+            sr = self._symmetrize_hamiltonian(sr)
+
+        self._save_h5([hr], "predicted_hamiltonians.h5", output_dir)
+        if sr is not None:
+            self._save_h5([sr], "predicted_overlaps.h5", output_dir)
+
+        symbols = self.atoms.get_chemical_symbols()
+        structure = {
+            "cell": self.atoms.get_cell().array.tolist(),
+            "pbc": self.atoms.get_pbc().tolist(),
+            "nsites": len(self.atoms),
+            "symbols": symbols,
+            "chemical_formula": self.atoms.get_chemical_formula(mode="reduce"),
+            "positions": self.atoms.get_positions().tolist(),
+        }
+
+        basis = self.model.idp.basis
+        l_map = {"s": 1, "p": 3, "d": 5, "f": 7}
+        orbital_counts = {}
+        for elem, orbs in basis.items():
+            norb = 0
+            for orb in orbs:
+                for orb_type, count in l_map.items():
+                    if orb_type in orb:
+                        norb += count
+                        break
+            orbital_counts[elem] = norb
+
+        spinful = hasattr(self.model, "soc_param")
+        spin_multiplier = 2 if spinful else 1
+        site_norbits = [orbital_counts[s] * spin_multiplier for s in symbols]
+        basis_info = {
+            "basis": basis,
+            "orbital_counts": orbital_counts,
+            "site_norbits": site_norbits,
+            "total_orbitals": int(np.sum(site_norbits)),
+            "spinful": spinful,
+        }
+
+        structure_data = {
+            "basis_info": basis_info,
+            "structure": structure,
+            "meta": {
+                "version": "1.0",
+                "generator": f"DeePTB {dptb.__version__}",
+            },
+        }
+
+        json_path = os.path.join(output_dir, "structure.json")
+        with open(json_path, "w") as f:
+            json.dump(structure_data, f, indent=2)
+
+        log.info("Successfully saved all Pardiso JSON data.")
 
     def _save_h5(self, h_dict, fname, output_dir):
         """
@@ -468,155 +675,3 @@ class TBSystem:
                 else:
                     h_dict[rev_key] = block.T.conj()
         return h_dict
-
-    def to_pardiso(self, output_dir: Optional[str] = "pardiso_input"):
-        """
-        Export system data for Pardiso/Julia (Standard JSON Format).
-
-        The following files will be generated in the output directory:
-        - predicted_hamiltonians.h5: Hamiltonian matrix elements (DFT-compatible format).
-        - predicted_overlaps.h5: Overlap matrix elements (if applicable).
-        - structure.json: Structure and basis information (pre-computed for Julia).
-
-        The JSON file contains pre-computed data that Julia can directly use:
-        - site_norbits: Number of orbitals per atom (computed from model.idp.atom_norb)
-        - norbits: Total number of orbitals
-        - All structure information in standard format
-
-        This eliminates the need for Julia to:
-        - Parse text files
-        - Convert atomic numbers to symbols
-        - Count orbitals from basis strings
-
-        Parameters
-        ----------
-        output_dir : str, optional
-            Output directory path. Default is "pardiso_input".
-
-        Returns
-        -------
-        None
-        """
-        import json
-
-        os.makedirs(output_dir, exist_ok=True)
-        log.info(f"Exporting Pardiso data (NEW format) to: {os.path.abspath(output_dir)}")
-
-        # Calculate Hr and Sr
-        hr, sr = self.calculator.get_hr(self.data)
-        hr = self._symmetrize_hamiltonian(hr)
-        if sr is not None:
-            sr = self._symmetrize_hamiltonian(sr)
-
-        # Save HDF5 (keep DFT-compatible format)
-        self._save_h5([hr], "predicted_hamiltonians.h5", output_dir)
-        if sr is not None:
-            self._save_h5([sr], "predicted_overlaps.h5", output_dir)
-
-        # Save structure information in JSON format (DeePTB Schema v1.0)
-        
-        # 1. Structure (Geometry)
-        import dptb
-        symbols = self.atoms.get_chemical_symbols()
-        
-        structure = {
-            'cell': self.atoms.get_cell().array.tolist(),
-            'pbc': self.atoms.get_pbc().tolist(),
-            'nsites': len(self.atoms),
-            'chemical_formula': self.atoms.get_chemical_formula(mode='reduce'),
-            'positions': self.atoms.get_positions().tolist(),
-        }
-        
-        # 2. Basis Info (Model/Physics)
-        basis = self.model.idp.basis
-        l_map = {'s': 1, 'p': 3, 'd': 5, 'f': 7}
-        orbital_counts = {}
-        
-        # Pre-calculate orbitals per element
-        for elem, orbs in basis.items():
-            norb = 0
-            for orb in orbs:
-                orb_type = orb[-1] 
-                for t in l_map:
-                    if t in orb:
-                        norb += l_map[t]
-                        break
-            orbital_counts[elem] = norb
-
-        # Compute total orbitals
-        total_orbitals = 0
-        for s in symbols:
-             if s in orbital_counts:
-                 total_orbitals += orbital_counts[s]
-            
-        basis_info = {
-            'basis': basis,
-            'orbital_counts': orbital_counts,
-            'total_orbitals': total_orbitals,
-            'spinful': hasattr(self.model, 'soc_param'),
-        }
-
-        structure_data = {
-            'basis_info': basis_info,
-            'structure': structure,
-            'meta': {
-                'version': '1.0',
-                'generator': f"DeePTB {dptb.__version__}"
-            }
-        }
-
-        json_path = os.path.join(output_dir, "structure.json")
-        self._save_formatted_json(structure_data, json_path)
-
-        log.info(f"Successfully saved all Pardiso data (NEW format).")
-        log.info(f"  - Hamiltonian blocks: {len(hr)}")
-        log.info(f"  - Structure: {len(self.atoms)} atoms, {basis_info['total_orbitals']} orbitals")
-        log.info(f"  - Files: predicted_hamiltonians.h5, predicted_overlaps.h5, structure.json")
-
-    def _save_formatted_json(self, data, path):
-        """
-        Save JSON with compact formatting for numeric arrays.
-        Collapses innermost lists (like vectors) to single lines.
-        """
-        import json
-        import re
-        
-        text = json.dumps(data, indent=2)
-        
-        # Regex to collapse short lists (innermost lists not containing other lists/dicts)
-        # Collapse lists (arrays)
-        def collapse_list(match):
-            content = match.group(1)
-            tokens = [token.strip() for token in content.split(',') if token.strip()]
-            
-            # Try to format as aligned floats
-            try:
-                if not tokens: return "[]"
-                # Check if numbers
-                floats = [float(t) for t in tokens]
-                # Use fixed width for alignment (e.g. positions matrix)
-                # {:>18.12f} aligns decimal points
-                formatted = [f"{x:>18.12f}" for x in floats]
-                compact = "[" + ", ".join(formatted) + "]"
-                return compact
-            except ValueError:
-                # Fallback for non-numbers (e.g. strings)
-                compact = "[" + ", ".join(tokens) + "]"
-                return compact
-
-        text = re.sub(r'\[([^\[\]\{\}]*)\]', collapse_list, text)
-
-        # Collapse simple dictionaries (like orbital_counts)
-        # Matches { ... } where ... contains no { } [ ]
-        def collapse_dict(match):
-             content = match.group(1)
-             # Basic token cleaning
-             items = [token.strip() for token in content.split(',') if token.strip()]
-             compact = "{" + ", ".join(items) + "}"
-             return compact
-             
-        text = re.sub(r'\{([^{}\[\]]*)\}', collapse_dict, text)
-        
-        with open(path, 'w') as f:
-            f.write(text)
-

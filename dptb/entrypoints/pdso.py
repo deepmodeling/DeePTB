@@ -73,7 +73,7 @@ def pdso(
             
             # Export Data
             log.info(f"Exporting data to {output_path}...")
-            tbsys.to_pardiso(output_dir=output_path)
+            tbsys.to_pardiso_json(output_dir=output_path)
             
             # Set input_dir to the exported directory
             input_data_dir = output_path

@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from copy import deepcopy
 
 import torch
 from torch._C import _LinAlgError
@@ -140,6 +141,27 @@ def test_band_false_overlap():
         raise RuntimeError("false_overlap function normally.")
 
 
+def test_band_false_overlap_with_ill_threshold():
+    jdata = deepcopy(normal_jdata)
+    jdata["task_options"]["override_overlap"] = f"{rootdir}/e3_band/false_overlaps.h5"
+    jdata["task_options"]["ill_threshold"] = 1e-5
+
+    bcal = Band(model=model,
+                use_gui=False,
+                results_path="./",
+                device=model.device)
+
+    jdata["task_options"]["eig_solver"] = 'torch'
+    eigenstatus = bcal.get_bands(data=dataset[0],
+                                 kpath_kwargs=jdata["task_options"])
+    assert np.isfinite(eigenstatus["eigenvalues"]).all()
+
+    jdata["task_options"]["eig_solver"] = 'numpy'
+    eigenstatus = bcal.get_bands(data=dataset[0],
+                                 kpath_kwargs=jdata["task_options"])
+    assert np.isfinite(eigenstatus["eigenvalues"]).all()
+
+
 
 def test_band_override_overlap():
     jdata = normal_jdata
@@ -206,6 +228,5 @@ def test_band_override_overlap():
     eigenstatus = bcal.get_bands(data=dataset[0],
                                  kpath_kwargs=jdata["task_options"])
     assert np.allclose(eigenstatus["eigenvalues"][0], expected_value_k1, atol=1e-4)
-
 
 

@@ -56,6 +56,22 @@ def float2comlex(dtype):
         raise ValueError("the dtype is not supported! now only float64, float32 is supported!")
     return cdtype
 
+def tdtype2ndtype(dtype):
+    if isinstance(dtype, str):
+        dtype =  getattr(torch, dtype)
+    
+    if dtype is torch.float32:
+        ndtype = np.float32
+    elif dtype is torch.float64:
+        ndtype = np.float64
+    elif dtype is torch.complex64:
+        ndtype = np.complex64
+    elif dtype is torch.complex128:
+        ndtype = np.complex128
+    else:
+        raise ValueError("the dtype is not supported! now only float64, float32, complex64, complex128 is supported!")
+    return ndtype
+
 
 def flatten_dict(dictionary):
     queue = list(dictionary.items())

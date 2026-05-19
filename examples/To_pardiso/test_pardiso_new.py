@@ -39,7 +39,7 @@ def test_to_pardiso_new():
     print("Exporting with to_pardiso (JSON + legacy format)...")
     print("="*70)
     # Using the new method explicitely
-    tbsys.to_pardiso(output_dir=output_dir_new)
+    tbsys.to_pardiso_json(output_dir=output_dir_new)
     print()
 
     # Verify JSON structure

@@ -69,19 +69,21 @@ function load_structure_json(input_dir::String)
     struc = data["structure"]
     basis = data["basis_info"]
     
-    # Expand symbols
-    symbols = expand_species(struc["chemical_formula"])
-    
-    # Get pre-calculated counts
-    orb_counts = basis["orbital_counts"]
-    spinful = basis["spinful"]
-    site_norbits = [orb_counts[sym] * (1 + spinful) for sym in symbols]
+    # Prefer explicit per-site symbols and orbital counts from the JSON schema.
+    # Falling back to chemical_formula loses site ordering for mixed-element structures.
+    symbols = haskey(struc, "symbols") ? String.(struc["symbols"]) : expand_species(struc["chemical_formula"])
+    site_norbits = haskey(basis, "site_norbits") ? Int.(basis["site_norbits"]) : begin
+        orb_counts = basis["orbital_counts"]
+        spinful = basis["spinful"]
+        [orb_counts[sym] * (1 + spinful) for sym in symbols]
+    end
+    norbits = haskey(basis, "total_orbitals") ? Int(basis["total_orbitals"]) : sum(site_norbits)
 
     structure = Dict{String, Any}(
         "cell" => permutedims(hcat(struc["cell"]...)),
         "positions" => permutedims(hcat(struc["positions"]...)),
         "site_norbits" => site_norbits,
-        "norbits" => basis["total_orbitals"],
+        "norbits" => norbits,
         "symbols" => symbols,
         "natoms" => struc["nsites"],
         "spinful" => basis["spinful"],

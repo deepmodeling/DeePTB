@@ -74,8 +74,7 @@ class TestOpticalConductivity(unittest.TestCase):
         diff_real = torch.abs(sigma.real - ref_sig_real).max()
         self.assertLess(diff_real, 1e-4)
         # Compare imaginary part to reference
-        diff_imag = torch.abs(sigma.imag - ref_sig_imag).max()
-        self.assertLess(diff_imag, 1e-4)
+        torch.testing.assert_close(sigma.imag, ref_sig_imag, atol=1e-4, rtol=1e-5)
         
         # Real part (absorption) should be non-negative
         # allowing for small numerical noise, but generally >= 0

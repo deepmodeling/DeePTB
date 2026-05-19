@@ -88,7 +88,7 @@ def test_to_pardiso_debug():
 
 
 def test_to_pardiso_json():
-    """Test the new standard to_pardiso export (JSON format)."""
+    """Test the modular Pardiso JSON export."""
     OUTPUT_DIR_JSON = os.path.join(TEST_DATA_DIR, "output_json")
     if os.path.exists(OUTPUT_DIR_JSON):
         shutil.rmtree(OUTPUT_DIR_JSON)
@@ -96,7 +96,7 @@ def test_to_pardiso_json():
     assert os.path.exists(MODEL_PATH), f"Model file not found: {MODEL_PATH}"
     
     tbsys = TBSystem(data=STRU_PATH, calculator=MODEL_PATH)
-    tbsys.to_pardiso(output_dir=OUTPUT_DIR_JSON)
+    tbsys.to_pardiso_json(output_dir=OUTPUT_DIR_JSON)
     
     # 1. Verify structure.json exists
     json_path = os.path.join(OUTPUT_DIR_JSON, "structure.json")
@@ -112,18 +112,15 @@ def test_to_pardiso_json():
     
     # Check Structure Data
     assert data["structure"]["nsites"] == len(tbsys.atoms), "Atom count mismatch in JSON"
+    assert data["structure"]["symbols"] == tbsys.atoms.get_chemical_symbols(), "Symbols mismatch in JSON"
     assert np.allclose(data["structure"]["positions"], tbsys.atoms.get_positions()), "Positions mismatch in JSON"
     
     # Check Basis Data
     total_orbitals = data["basis_info"]["total_orbitals"]
-    expected_orbitals = 0
-    # Note: Test model/system might not verify simple orbital sum if spin is involved, 
-    # but let's check basic consistency.
-    # The example data min.vasp (84 atoms) + nnsk model usually implies 756 orbitals (if non-spinful C=9 * 84)
-    # or similar.
-    # We can check if 'spinful' key matches model.
     has_soc = hasattr(tbsys.model, 'soc_param')
     assert data["basis_info"]["spinful"] == has_soc, "Spinful flag mismatch"
+    assert len(data["basis_info"]["site_norbits"]) == len(tbsys.atoms), "site_norbits length mismatch"
+    assert total_orbitals == sum(data["basis_info"]["site_norbits"]), "Total orbital count mismatch"
     
     # Check Files
     assert os.path.exists(os.path.join(OUTPUT_DIR_JSON, "predicted_hamiltonians.h5"))

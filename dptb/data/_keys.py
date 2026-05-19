@@ -45,6 +45,7 @@ ATOMIC_NUMBERS_KEY: Final[str] = "atomic_numbers"
 ATOM_TYPE_KEY: Final[str] = "atom_types"
 # [n_batch, n_kpoint, n_orb]
 ENERGY_EIGENVALUE_KEY: Final[str] = "eigenvalue"
+EIGENVALUE_VALID_MASK_KEY: Final[str] = "eigenvalue_valid_mask"
 EIGENVECTOR_KEY: Final[str] = "eigenvector"
 
 # [n_batch, 2]
