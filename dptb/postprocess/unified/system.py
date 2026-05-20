@@ -585,7 +585,7 @@ class TBSystem:
         }
 
         basis = self.model.idp.basis
-        l_map = {"s": 1, "p": 3, "d": 5, "f": 7}
+        l_map = {"s": 1, "p": 3, "d": 5, "f": 7, "g": 9}
         orbital_counts = {}
         for elem, orbs in basis.items():
             norb = 0

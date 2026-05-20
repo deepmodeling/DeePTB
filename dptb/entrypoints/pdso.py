@@ -57,6 +57,9 @@ def pdso(
     config_path = os.path.abspath(INPUT)
     output_path = os.path.abspath(output_dir)
     results_path = os.path.join(output_path, "results")
+    if not os.path.isfile(config_path):
+        log.error(f"Configuration file not found: {config_path}")
+        sys.exit(1)
     
     # Ensure output directories exist
     os.makedirs(output_path, exist_ok=True)

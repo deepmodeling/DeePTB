@@ -96,8 +96,10 @@ def test_to_pardiso_json():
         print("Julia backend run successfully!")
     except subprocess.CalledProcessError as e:
         print(f"Julia execution failed with code {e.returncode}")
+        raise
     except FileNotFoundError:
-        print("Julia executable not found. Skipping execution.")
+        print("Julia executable not found.")
+        raise
 
 
 if __name__ == "__main__":
