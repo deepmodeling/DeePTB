@@ -197,7 +197,7 @@ Installing **DeePTB** is straightforward with UV, a fast Python package manager.
   **Manual Installation**:
   1. Install Julia:
      ```bash
-     # Linux/macOS
+     # Linux (macOS can install Julia, but the Pardiso backend is not supported)
      curl -fsSL https://install.julialang.org | sh
      ```
   2. Install required packages:

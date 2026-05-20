@@ -8,9 +8,17 @@ Pkg.status("Pardiso")
 
 # Try to find the MKL library file explicitly
 using MKL_jll
+using Libdl
 # Older JLLs use LIBPATH
-mkl_path = joinpath(MKL_jll.LIBPATH[], "libmkl_rt.dylib")
+mkl_path = joinpath(MKL_jll.LIBPATH[], "libmkl_rt." * Libdl.dlext)
 println("MKL JLL Path reported: ", mkl_path)
+
+function mkl_pardiso_loaded()
+    if isdefined(Pardiso, :MKL_PARDISO_LOADED)
+        return getfield(Pardiso, :MKL_PARDISO_LOADED)[]
+    end
+    return false
+end
 
 # Check if file exists
 if isfile(mkl_path)
@@ -23,8 +31,8 @@ end
 println("\n--- Attempting to load Pardiso ---")
 using Pardiso
 
-# Check if we can force MKL
-println("Current backend: ", Pardiso.get_solver_type())
+# Check whether Pardiso.jl has loaded MKL Pardiso.
+println("MKL Pardiso loaded: ", mkl_pardiso_loaded())
 
 try
     println("Initializing MKLPardisoSolver...")
@@ -35,9 +43,8 @@ catch e
 end
 
 # Attempt 2: Manually loading the library (dlopen) if the above failed
-if !Pardiso.MKL_PARDISO_LOADED
+if !mkl_pardiso_loaded()
     println("\n--- Attempting manual dlopen of MKL ---")
-    using Libdl
     try
         Libdl.dlopen(mkl_path, Libdl.RTLD_GLOBAL)
         println("dlopen success.")

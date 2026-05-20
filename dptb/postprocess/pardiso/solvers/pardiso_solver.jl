@@ -61,15 +61,21 @@ function solve_eigen_k_pardiso(H_k, S_k, fermi_level, num_band, max_iter, out_wf
     if ill_project
         lm, ps = make_shift_invert_map(Hermitian(H_k) - fermi_level * Hermitian(S_k), Hermitian(S_k))
 
-        if out_wfc
-            egval_inv, egvec_sub = eigs(lm, nev=num_band, which=:LM, ritzvec=true, maxiter=max_iter)
-        else
-            egval_inv = eigs(lm, nev=num_band, which=:LM, ritzvec=false, maxiter=max_iter)[1]
-            egvec_sub = zeros(default_dtype, size(H_k, 1), 0)
+        try
+            if out_wfc
+                egval_inv, egvec_sub = eigs(lm, nev=num_band, which=:LM, ritzvec=true, maxiter=max_iter)
+            else
+                egval_inv = eigs(lm, nev=num_band, which=:LM, ritzvec=false, maxiter=max_iter)[1]
+                egvec_sub = zeros(default_dtype, size(H_k, 1), 0)
+            end
+        finally
+            try
+                set_phase!(ps, Pardiso.RELEASE_ALL)
+                pardiso(ps)
+            catch release_error
+                @warn "Failed to release Pardiso resources" exception=release_error
+            end
         end
-
-        set_phase!(ps, Pardiso.RELEASE_ALL)
-        pardiso(ps)
 
         egval = real(1 ./ egval_inv) .+ fermi_level
 
@@ -101,17 +107,23 @@ function solve_eigen_k_pardiso(H_k, S_k, fermi_level, num_band, max_iter, out_wf
     else
         lm, ps = make_shift_invert_map(Hermitian(H_k) - fermi_level * Hermitian(S_k), Hermitian(S_k))
 
-        if out_wfc
-            egval_inv, egvec = eigs(lm, nev=num_band, which=:LM, ritzvec=true, maxiter=max_iter)
-            egval = real(1 ./ egval_inv) .+ fermi_level
-        else
-            egval_inv = eigs(lm, nev=num_band, which=:LM, ritzvec=false, maxiter=max_iter)[1]
-            egval = real(1 ./ egval_inv) .+ fermi_level
-            egvec = zeros(default_dtype, size(H_k, 1), 0)
+        try
+            if out_wfc
+                egval_inv, egvec = eigs(lm, nev=num_band, which=:LM, ritzvec=true, maxiter=max_iter)
+                egval = real(1 ./ egval_inv) .+ fermi_level
+            else
+                egval_inv = eigs(lm, nev=num_band, which=:LM, ritzvec=false, maxiter=max_iter)[1]
+                egval = real(1 ./ egval_inv) .+ fermi_level
+                egvec = zeros(default_dtype, size(H_k, 1), 0)
+            end
+        finally
+            try
+                set_phase!(ps, Pardiso.RELEASE_ALL)
+                pardiso(ps)
+            catch release_error
+                @warn "Failed to release Pardiso resources" exception=release_error
+            end
         end
-
-        set_phase!(ps, Pardiso.RELEASE_ALL)
-        pardiso(ps)
     end
 
     perm = sortperm(egval)

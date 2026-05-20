@@ -202,7 +202,7 @@ Configuration validation is in `dptb/utils/config_check.py` and `dptb/utils/argc
 
 ### Cutoff Radii
 
-- Multiple cutoff types: `r_max` (bond), `er_max` (environment), `oer_max` (overlap environment)
+- Multiple cutoff types: `r_max` (bond), `er_max` (environment), `oer_max` (onsite environment)
 - Can be global or per-bond-type
 - Collection logic in `dptb/utils/argcheck.py:collect_cutoffs()`
 

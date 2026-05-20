@@ -93,7 +93,7 @@ function run_dos_calculation(config, H_R, S_R, structure, output_dir, solver_opt
         
         open(joinpath(output_dir, "dos.dat"), "w") do f
             for (ω, d) in zip(ωlist, dos)
-                @printf(f, "%12.6f  %12.6f\\n", ω - fermi_level, d)
+                @printf(f, "%12.6f  %12.6f\n", ω - fermi_level, d)
             end
         end
         log_message("Generated dos.dat")

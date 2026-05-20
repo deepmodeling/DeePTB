@@ -26,6 +26,7 @@ packages = [
 ]
 
 # Install packages
+failed_packages = String[]
 for pkg in packages
     println("\nInstalling $pkg...")
     try
@@ -34,7 +35,12 @@ for pkg in packages
     catch e
         println("✗ Failed to install $pkg")
         println("  Error: $e")
+        push!(failed_packages, pkg)
     end
+end
+
+if !isempty(failed_packages)
+    error("Failed to install packages: $(join(failed_packages, ", "))")
 end
 
 println("\n" * "=" ^ 60)

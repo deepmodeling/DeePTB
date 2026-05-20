@@ -4,6 +4,8 @@
 
 set -e  # Exit on error
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 echo "========================================="
 echo "DeePTB Pardiso Backend Setup"
 echo "========================================="
@@ -70,7 +72,7 @@ echo ""
 echo "Installing required Julia packages..."
 echo "========================================="
 
-julia install_julia_packages.jl
+julia "$SCRIPT_DIR/install_julia_packages.jl"
 
 echo ""
 echo "========================================="

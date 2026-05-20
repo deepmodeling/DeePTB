@@ -11,7 +11,7 @@ This directory contains complete examples for using DeePTB's Pardiso backend for
 
 ### Notebooks
 - **`pardiso_tutorial.ipynb`** ⭐: **Complete tutorial** covering:
-  - Python API usage (`to_pardiso()`)
+  - Python API usage (`to_pardiso_json()`)
   - CLI integration (`dptb pdso`)
   - Manual Julia execution
   - Result visualization
@@ -57,7 +57,7 @@ from dptb.postprocess.unified.system import TBSystem
 tbsys = TBSystem(data="min.vasp", calculator="nnsk.iter_ovp0.000.pth")
 
 # Export
-tbsys.to_pardiso(output_dir="pardiso_data")
+tbsys.to_pardiso_json(output_dir="pardiso_data")
 
 # Run Julia backend
 import subprocess
@@ -86,7 +86,7 @@ Open `pardiso_tutorial.ipynb` in Jupyter for a complete walkthrough.
       [0.0, 0.0, 0.0, 100],
       [0.0, 0.0, 0.5, 1]
     ],
-    "klabels": ["Γ", "Z"],
+    "klabels": ["G", "Z"],
     "E_fermi": -9.03841,
     "emin": -2,
     "emax": 2
@@ -138,7 +138,7 @@ julia main.jl --input_dir data --output_dir results --config band.json --ill_pro
 ## Troubleshooting
 
 **Issue**: `structure.json not found`
-- **Solution**: Run `tbsys.to_pardiso()` first
+- **Solution**: Run `tbsys.to_pardiso_json()` first
 
 **Issue**: Eigenvalues don't converge
 - **Solution**: Increase `max_iter` in config or adjust `E_fermi`

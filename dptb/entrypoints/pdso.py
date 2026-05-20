@@ -1,22 +1,22 @@
-import argparse
 import subprocess
 import logging
 import os
 import sys
-import shutil
 from pathlib import Path
+from typing import Optional
 from dptb.postprocess.unified.system import TBSystem
+from dptb.utils.loggers import set_log_handles
 
 log = logging.getLogger(__name__)
 
 def pdso(
         INPUT: str,
-        init_model: str = None,
-        structure: str = None,
-        data_dir: str = None,
+        init_model: Optional[str] = None,
+        structure: Optional[str] = None,
+        data_dir: Optional[str] = None,
         output_dir: str = "./",
         log_level: int = 20,
-        log_path: str = None,
+        log_path: Optional[str] = None,
         ill_project: bool = True,
         ill_threshold: float = 5e-4,
         **kwargs
@@ -49,6 +49,9 @@ def pdso(
     1. Full Flow: init_model + structure -> Export -> Julia
     2. Run Only: data_dir -> Julia
     """
+    set_log_handles(log_level, Path(log_path) if log_path else None)
+    if kwargs:
+        log.debug("Ignoring additional pdso options: %s", sorted(kwargs))
     
     # 1. Determine Paths
     config_path = os.path.abspath(INPUT)
@@ -78,8 +81,8 @@ def pdso(
             # Set input_dir to the exported directory
             input_data_dir = output_path
             
-        except Exception as e:
-            log.exception(f"Export failed: {e}")
+        except Exception:
+            log.exception("Export failed")
             sys.exit(1)
             
     # 3. Run Only Phase (if data_dir provided)

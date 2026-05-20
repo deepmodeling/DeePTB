@@ -1,8 +1,8 @@
 """
-Test script for the new to_pardiso_new method with JSON format.
+Test script for the modular to_pardiso_json method.
 
 This script demonstrates:
-1. Using to_pardiso_new to export data
+1. Using to_pardiso_json to export data
 2. Comparing old vs new file formats
 3. Verifying JSON structure
 """
@@ -11,13 +11,14 @@ import os
 import sys
 import json
 import numpy as np
+from pathlib import Path
 
 # Add DeePTB to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.getcwd())))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from dptb.postprocess.unified.system import TBSystem
 
-def test_to_pardiso_new():
-    """Test the new to_pardiso method."""
+def test_to_pardiso_json():
+    """Test the modular Pardiso JSON export."""
 
     # Setup paths (relative to this script)
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -33,10 +34,10 @@ def test_to_pardiso_new():
     print(f"System Info: {tbsys.atoms}")
     print()
 
-    # Export using NEW method (integrated into to_pardiso)
+    # Export using modular JSON method
     output_dir_new = os.path.join(root_dir, "output_new")
     print("="*70)
-    print("Exporting with to_pardiso (JSON + legacy format)...")
+    print("Exporting with to_pardiso_json...")
     print("="*70)
     # Using the new method explicitely
     tbsys.to_pardiso_json(output_dir=output_dir_new)
@@ -100,4 +101,4 @@ def test_to_pardiso_new():
 
 
 if __name__ == "__main__":
-    test_to_pardiso_new()
+    test_to_pardiso_json()

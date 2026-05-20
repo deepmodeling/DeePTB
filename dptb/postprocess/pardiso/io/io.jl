@@ -10,6 +10,28 @@ using DelimitedFiles
 
 export load_structure, load_matrix_hdf5
 
+const ELEMENT_SYMBOLS = [
+    "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne",
+    "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar", "K", "Ca",
+    "Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn",
+    "Ga", "Ge", "As", "Se", "Br", "Kr", "Rb", "Sr", "Y", "Zr",
+    "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd", "In", "Sn",
+    "Sb", "Te", "I", "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd",
+    "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb",
+    "Lu", "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg",
+    "Tl", "Pb", "Bi", "Po", "At", "Rn", "Fr", "Ra", "Ac", "Th",
+    "Pa", "U", "Np", "Pu", "Am", "Cm", "Bk", "Cf", "Es", "Fm",
+    "Md", "No", "Lr", "Rf", "Db", "Sg", "Bh", "Hs", "Mt", "Ds",
+    "Rg", "Cn", "Nh", "Fl", "Mc", "Lv", "Ts", "Og"
+]
+
+function element_symbol(z::Integer)
+    if 1 <= z <= length(ELEMENT_SYMBOLS)
+        return ELEMENT_SYMBOLS[z]
+    end
+    error("Unsupported atomic number in legacy Pardiso input: $z")
+end
+
 """
     load_structure(input_dir::String; spinful::Bool=false)
 
@@ -114,17 +136,6 @@ function load_structure_dat(input_dir::String, spinful::Bool)
     basis_str = replace(read(joinpath(input_dir, "basis.dat"), String), "'" => "\"")
     basis_dict = JSON.parse(basis_str)
     
-    # Helper map (same as in legacy script)
-    z_to_symbol = Dict(
-        1=>"H", 2=>"He", 3=>"Li", 4=>"Be", 5=>"B", 6=>"C", 7=>"N", 8=>"O", 9=>"F", 10=>"Ne",
-        11=>"Na", 12=>"Mg", 13=>"Al", 14=>"Si", 15=>"P", 16=>"S", 17=>"Cl", 18=>"Ar", 19=>"K", 20=>"Ca",
-        21=>"Sc", 22=>"Ti", 23=>"V", 24=>"Cr", 25=>"Mn", 26=>"Fe", 27=>"Co", 28=>"Ni", 29=>"Cu", 30=>"Zn",
-        31=>"Ga", 32=>"Ge", 33=>"As", 34=>"Se", 35=>"Br", 36=>"Kr", 37=>"Rb", 38=>"Sr", 39=>"Y", 40=>"Zr",
-        41=>"Nb", 42=>"Mo", 43=>"Tc", 44=>"Ru", 45=>"Rh", 46=>"Pd", 47=>"Ag", 48=>"Cd", 49=>"In", 50=>"Sn",
-        51=>"Sb", 52=>"Te", 53=>"I", 54=>"Xe", 55=>"Cs", 56=>"Ba", 72=>"Hf", 73=>"Ta", 74=>"W", 75=>"Re", 
-        76=>"Os", 77=>"Ir", 78=>"Pt", 79=>"Au", 80=>"Hg", 81=>"Tl", 82=>"Pb", 83=>"Bi", 84=>"Po"
-    )
-    
     l_map = Dict('s'=>0, 'p'=>1, 'd'=>2, 'f'=>3, 'g'=>4)
     function count_orbitals(basis)
         total = 0
@@ -136,7 +147,7 @@ function load_structure_dat(input_dir::String, spinful::Bool)
         return total
     end
 
-    symbols = [z_to_symbol[z] for z in atomic_numbers]
+    symbols = [element_symbol(z) for z in atomic_numbers]
     site_norbits = [count_orbitals(basis_dict[sym]) * (1 + spinful) for sym in symbols]
     norbits = sum(site_norbits)
     
