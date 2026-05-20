@@ -61,6 +61,7 @@ function solve_eigen_k_pardiso(H_k, S_k, fermi_level, num_band, max_iter, out_wf
     if ill_project
         lm, ps = make_shift_invert_map(Hermitian(H_k) - fermi_level * Hermitian(S_k), Hermitian(S_k))
 
+        local egval_inv, egvec_sub
         try
             if out_wfc
                 egval_inv, egvec_sub = eigs(lm, nev=num_band, which=:LM, ritzvec=true, maxiter=max_iter)
@@ -107,6 +108,7 @@ function solve_eigen_k_pardiso(H_k, S_k, fermi_level, num_band, max_iter, out_wf
     else
         lm, ps = make_shift_invert_map(Hermitian(H_k) - fermi_level * Hermitian(S_k), Hermitian(S_k))
 
+        local egval_inv, egval, egvec
         try
             if out_wfc
                 egval_inv, egvec = eigs(lm, nev=num_band, which=:LM, ritzvec=true, maxiter=max_iter)
