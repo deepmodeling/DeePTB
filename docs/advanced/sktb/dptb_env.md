@@ -148,7 +148,7 @@ and that is controlled by parameters in `nnsk` keyword in the `model_options` se
 - `rs` (angstrom unit): $r_{skc}$ it controls the cutoff of the decay weight of each bond.
 - `w`: $\omega$, it decides the smoothness of the decay.
 
-![fs](../img/fs.png)
+![fs](../../img/fs.png)
 
 As is shown in the above figure, this smoothing function will decay centred at $r_{skc}$. According to the smoothness $\omega$, this function has different smoothness. Here, to take more neighbours' terms into consideration while retaining the stability of fitting, we first set the $r_{skc}$ at the first-nearest neighbour distance, this decay function can suppress the newly included second and third neighbour terms, which brings no abrupt changes to the predicted hamiltonians.
 
@@ -219,4 +219,3 @@ We can use the converged model to predict the bandstructure, calculating propert
 <img src="https://raw.githubusercontent.com/deepmodeling/DeePTB/main/docs/img/silicon_band_dptb.png" alt="band_dptb" width="500"/>
 
 Now you know how to train a **DeePTB** model, congratulations!
-
