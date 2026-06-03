@@ -41,7 +41,7 @@ jobs:
 
       - name: Generate review plan
         run: |
-          python scripts/ci/pr_review_plan.py --stdin < changed-files.txt > pr-review-plan.md
+          python scripts/ci/pr_review_plan.py --stdin --format github-comment < changed-files.txt > pr-review-plan.md
 
       - name: Comment review plan
         uses: actions/github-script@v7
@@ -53,6 +53,7 @@ jobs:
             const body = [
               marker,
               "This advisory review plan was generated from changed file names using trusted base-branch code.",
+              "此审查计划由受信任的 base 分支代码根据变更文件名生成，仅作为维护者辅助。",
               "",
               plan,
             ].join("\n");

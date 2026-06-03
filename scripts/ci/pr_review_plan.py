@@ -21,6 +21,34 @@ RISK_LABELS = {
     Risk.HIGH: "High",
 }
 
+RISK_LABELS_ZH = {
+    Risk.LOW: "低",
+    Risk.MEDIUM: "中",
+    Risk.HIGH: "高",
+}
+
+AREA_NAMES_ZH = {
+    "AtomicDataDict contract": "AtomicDataDict 契约",
+    "Orbital indexing": "轨道索引",
+    "Hamiltonian expansion": "Hamiltonian 展开",
+    "Model assembly": "模型构建",
+    "Config schema": "配置 schema",
+    "Training behavior": "训练行为",
+    "Loss behavior": "loss 行为",
+    "Embedding and prediction": "embedding 与 prediction",
+    "Dataset backends": "数据集后端",
+    "CLI entrypoints": "CLI 入口",
+    "Postprocess and export": "后处理与导出",
+    "Plugins": "插件",
+    "GitHub Actions and CI": "GitHub Actions 与 CI",
+    "Tests": "测试",
+    "Examples and configs": "示例与配置",
+    "Documentation": "文档",
+    "Issue templates": "issue 模板",
+    "Packaging metadata": "打包元数据",
+    "Maintenance governance": "维护治理",
+}
+
 
 @dataclass(frozen=True)
 class AreaRule:
@@ -262,6 +290,18 @@ def ai_prompt_suggestions(risk: Risk) -> list[str]:
     ]
 
 
+def ai_prompt_suggestions_bilingual(risk: Risk) -> list[str]:
+    if risk == Risk.LOW:
+        return [
+            "Optional: run the Test Gap Review Prompt if examples, docs commands, or test markers changed. / "
+            "可选：如果示例、文档命令或测试 marker 有变更，运行测试缺口审查 prompt。",
+        ]
+    return [
+        "Run the Maintainer Review Prompt. / 运行维护者审查 prompt。",
+        "Run the Test Gap Review Prompt. / 运行测试缺口审查 prompt。",
+    ]
+
+
 def maintainer_focus(risk: Risk, matched: list[tuple[AreaRule, list[str]]], paths: list[str]) -> list[str]:
     focus = [f"{rule.name}: {rule.focus}" for rule, _ in matched]
     if any(path.startswith("dptb/data/") for path in paths) and any(
@@ -292,6 +332,52 @@ def hold_conditions(risk: Risk) -> list[str]:
     return holds
 
 
+def format_area(rule: AreaRule, files: list[str], limit: int = 5) -> str:
+    preview = ", ".join(files[:limit])
+    suffix = "" if len(files) <= limit else f", ... ({len(files)} files)"
+    return f"- **{rule.name}** ({RISK_LABELS[rule.risk]}): {preview}{suffix}"
+
+
+def risk_reasons(
+    risk: Risk,
+    matched: list[tuple[AreaRule, list[str]]],
+    unmatched: list[str],
+    paths: list[str],
+) -> list[str]:
+    reasons: list[str] = []
+    for rule, _ in matched:
+        if rule.risk == Risk.HIGH:
+            zh_name = AREA_NAMES_ZH.get(rule.name, rule.name)
+            reasons.append(f"{rule.name} changed. / {zh_name} 有变更。")
+
+    if risk == Risk.HIGH and not reasons:
+        reasons.append("High-risk areas changed. / 高风险区域有变更。")
+
+    for rule, _ in matched:
+        if rule.risk == Risk.MEDIUM and len(reasons) < 4:
+            zh_name = AREA_NAMES_ZH.get(rule.name, rule.name)
+            reasons.append(f"{rule.name} changed. / {zh_name} 有变更。")
+
+    if has_any(paths, prefixes=("examples/",)):
+        reasons.append("Examples and configs changed. / 示例和配置有变更。")
+    if has_any(paths, prefixes=("docs/",), exact=("README.md",)):
+        reasons.append("Documentation changed. / 文档有变更。")
+    if unmatched:
+        reasons.append(
+            "Some files are unclassified by current `risk_map.md`. / "
+            "部分文件尚未被当前风险地图覆盖。"
+        )
+
+    if not reasons:
+        reasons.append("No mapped high-risk area was detected. / 未发现已映射的高风险区域。")
+
+    deduped: list[str] = []
+    for reason in reasons:
+        if reason not in deduped:
+            deduped.append(reason)
+    return deduped[:5]
+
+
 def render_plan(paths: list[str]) -> str:
     risk, matched, unmatched = classify(paths)
     lines: list[str] = [
@@ -305,16 +391,14 @@ def render_plan(paths: list[str]) -> str:
 
     if matched:
         for rule, files in matched:
-            preview = ", ".join(files[:5])
-            suffix = "" if len(files) <= 5 else f", ... ({len(files)} files)"
-            lines.append(f"- **{rule.name}** ({RISK_LABELS[rule.risk]}): {preview}{suffix}")
+            lines.append(format_area(rule, files))
     else:
         lines.append("- No mapped DeePTB risk area matched. Review scope manually.")
 
     if unmatched:
         preview = ", ".join(unmatched[:8])
         suffix = "" if len(unmatched) <= 8 else f", ... ({len(unmatched)} files)"
-        lines.append(f"- **Unmapped files**: {preview}{suffix}")
+        lines.append(f"- **Unclassified by current risk_map.md**: {preview}{suffix}")
 
     sections = (
         ("Required Maintainer Focus", maintainer_focus(risk, matched, paths)),
@@ -337,6 +421,97 @@ def render_plan(paths: list[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_github_comment_plan(paths: list[str]) -> str:
+    risk, matched, unmatched = classify(paths)
+    reasons = risk_reasons(risk, matched, unmatched, paths)
+    focus = maintainer_focus(risk, matched, paths)
+    checks = suggested_checks(risk, paths)
+    holds = hold_conditions(risk)
+
+    lines: list[str] = [
+        "## DeePTB PR Review Plan / DeePTB PR 审查计划",
+        "",
+        f"**Risk / 风险等级: {RISK_LABELS[risk]} ({RISK_LABELS_ZH[risk]})** · "
+        f"**Changed files / 变更文件: {len(paths)}**",
+        "",
+        "## Why / 风险来源",
+        "",
+    ]
+    lines.extend(f"- {reason}" for reason in reasons)
+
+    lines.extend(
+        [
+            "",
+            "## Recommended Review / 建议审查重点",
+            "",
+        ]
+    )
+    lines.extend(f"- {item}" for item in ai_prompt_suggestions_bilingual(risk))
+    if risk == Risk.HIGH:
+        lines.append(
+            "- Focus human review on config/API/data/checkpoint compatibility. / "
+            "人工重点看配置、API、数据和 checkpoint 兼容性。"
+        )
+    else:
+        lines.append(
+            "- Confirm the changed behavior matches the PR scope. / "
+            "确认变更行为和 PR 范围一致。"
+        )
+
+    lines.extend(
+        [
+            "",
+            "<details>",
+            "<summary>Detailed risk areas</summary>",
+            "",
+        ]
+    )
+    if matched:
+        lines.extend(format_area(rule, files) for rule, files in matched)
+    else:
+        lines.append("- No mapped DeePTB risk area matched. Review scope manually.")
+    if unmatched:
+        preview = ", ".join(unmatched[:20])
+        suffix = "" if len(unmatched) <= 20 else f", ... ({len(unmatched)} files)"
+        lines.append(f"- **Unclassified by current risk_map.md**: {preview}{suffix}")
+    lines.extend(["", "</details>"])
+
+    lines.extend(
+        [
+            "",
+            "<details>",
+            "<summary>Human review focus</summary>",
+            "",
+        ]
+    )
+    lines.extend(f"- {item}" for item in focus)
+    lines.extend(["", "</details>"])
+
+    lines.extend(
+        [
+            "",
+            "<details>",
+            "<summary>Local commands and hold conditions</summary>",
+            "",
+            "Suggested local commands:",
+            "",
+        ]
+    )
+    lines.extend(f"- `{check}`" for check in checks)
+    lines.extend(["", "Hold conditions:", ""])
+    lines.extend(f"- {item}" for item in holds)
+    lines.extend(
+        [
+            "",
+            "</details>",
+            "",
+            "_Advisory only. / 仅作为审查辅助。_",
+        ]
+    )
+
+    return "\n".join(lines) + "\n"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Generate an advisory DeePTB PR review plan from changed files."
@@ -352,6 +527,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Read newline-separated changed files from stdin.",
     )
+    parser.add_argument(
+        "--format",
+        choices=("cli", "github-comment"),
+        default="cli",
+        help="Output format. Default keeps the detailed CLI-style Markdown.",
+    )
     return parser.parse_args()
 
 
@@ -365,7 +546,10 @@ def main() -> int:
         )
         return 2
 
-    print(render_plan(paths), end="")
+    if args.format == "github-comment":
+        print(render_github_comment_plan(paths), end="")
+    else:
+        print(render_plan(paths), end="")
     return 0
 
 

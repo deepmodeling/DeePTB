@@ -4,6 +4,10 @@ on:
   pull_request:
     paths-ignore:
       - 'docs/**'
+      - '.github/workflows/pr_review_plan.yml'
+      - '.github/workflows/pr_review_plan_comment.yml'
+      - '.github/workflows/repository_hygiene.yml'
+      - 'scripts/ci/**'
       
 jobs: 
   build:
