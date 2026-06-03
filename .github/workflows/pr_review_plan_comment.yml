@@ -16,7 +16,8 @@ jobs:
       - name: Checkout trusted base code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          # Keep the workflow and helper script versions in sync while avoiding fork code.
+          ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
