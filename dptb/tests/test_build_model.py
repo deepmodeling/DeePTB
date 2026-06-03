@@ -9,6 +9,8 @@ from pathlib import Path
 from dptb.data.transforms import OrbitalMapper
 
 
+pytestmark = pytest.mark.smoke
+
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data/out")
 
 
