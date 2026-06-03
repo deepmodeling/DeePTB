@@ -1,4 +1,5 @@
-"""
+# Pardiso Architecture
+
 Proposed architecture for Pardiso integration.
 
 This document outlines a better design for integrating high-performance
@@ -209,4 +210,3 @@ dptb.set_backend('pardiso')
 tbsys = TBSystem(data, calculator)
 bands = tbsys.band.compute(kpath)  # Automatically fast!
 ```
-"""
