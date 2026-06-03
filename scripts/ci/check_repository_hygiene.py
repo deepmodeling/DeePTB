@@ -74,7 +74,11 @@ def check_docs_index() -> list[str]:
     if not index_path.is_file():
         return ["docs/index.rst: required docs index is missing"]
 
-    content = index_path.read_text(encoding="utf-8")
+    try:
+        content = index_path.read_text(encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001 - report any read failure.
+        return [f"docs/index.rst: unreadable ({type(exc).__name__}: {exc})"]
+
     for entry in REQUIRED_DOCS_INDEX_ENTRIES:
         if entry not in content:
             errors.append(f"docs/index.rst: missing toctree entry '{entry}'")
@@ -90,7 +94,11 @@ def check_maintenance_index() -> list[str]:
     if not index_path.is_file():
         return ["docs/maintenance/index.md: required maintenance index is missing"]
 
-    content = index_path.read_text(encoding="utf-8")
+    try:
+        content = index_path.read_text(encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001 - report any read failure.
+        return [f"docs/maintenance/index.md: unreadable ({type(exc).__name__}: {exc})"]
+
     for entry in REQUIRED_MAINTENANCE_INDEX_ENTRIES:
         if entry not in content:
             errors.append(f"docs/maintenance/index.md: missing toctree entry '{entry}'")

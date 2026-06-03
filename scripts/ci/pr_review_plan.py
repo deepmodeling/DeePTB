@@ -226,7 +226,7 @@ def suggested_checks(risk: Risk, paths: list[str]) -> list[str]:
     if touches_docs_or_examples:
         checks.append("python scripts/ci/check_repository_hygiene.py")
     if touches_docs:
-        checks.append("uv run python -m sphinx -b html docs /private/tmp/deeptb-docs-check")
+        checks.append("uv run python -m sphinx -b html docs docs/_build/pr-review-plan-html")
 
     if risk == Risk.HIGH:
         checks.append("uv run pytest ./dptb/tests -m regression")
