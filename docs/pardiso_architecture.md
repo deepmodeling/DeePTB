@@ -16,16 +16,18 @@ eigensolvers (like Pardiso) into DeePTB's postprocessing workflow.
 ### Phase 1: Modular Julia Backend (Current PR)
 
 ```
-dptb/postprocess/julia/
+dptb/postprocess/pardiso/
 ├── io/
-│   ├── load_structure.jl    # Read structure.json
-│   └── load_hamiltonian.jl  # Read H5 files
+│   └── io.jl                # Read structure.json/legacy .dat files and H5 matrices
 ├── solvers/
-│   ├── pardiso_solver.jl    # Pardiso eigenvalue solver
-│   └── solver_utils.jl      # Common utilities
+│   ├── dense_solver.jl      # Dense LAPACK solver
+│   └── pardiso_solver.jl    # Pardiso eigenvalue solver
 ├── tasks/
 │   ├── band_calculation.jl  # Band structure task
 │   └── dos_calculation.jl   # DOS task
+├── utils/
+│   ├── hamiltonian.jl       # H(R) -> H(k)
+│   └── kpoints.jl           # K-point generation
 └── main.jl                  # Entry point (calls tasks)
 ```
 
@@ -158,8 +160,8 @@ bands = tbsys.band.compute(kpath, solver='pardiso')
 ### Immediate (Current PR)
 1. ✅ Optimize data format (JSON instead of text files)
 2. ✅ Use OrbitalMapper.atom_norb (avoid recomputation)
-3. 🔲 Modularize Julia script
-4. 🔲 Add Julia unit tests
+3. ✅ Modularize Julia script
+4. ✅ Add Python export tests and lightweight Julia-load coverage
 
 ### Short-term (Next PR)
 1. Create `dptb/postprocess/unified/solvers/` module
@@ -193,9 +195,9 @@ bands = tbsys.band.compute(kpath, solver='pardiso')
 ```python
 # Current workflow (after Phase 1)
 tbsys = TBSystem(data, calculator)
-tbsys.export_for_julia('pardiso_input')
-# Run Julia script manually
-# Load results manually
+tbsys.to_pardiso_json("pardiso_input")
+# Run `dptb pdso` or call dptb/postprocess/pardiso/main.jl manually.
+# Band results are written to bandstructure.h5/bands.dat.
 
 # After Phase 2
 tbsys = TBSystem(data, calculator)

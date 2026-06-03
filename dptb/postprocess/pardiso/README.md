@@ -78,8 +78,8 @@ from dptb.postprocess.unified.system import TBSystem
 # Initialize system
 tbsys = TBSystem(data="structure.vasp", calculator="model.pth")
 
-# Export for Julia (Standard JSON format)
-tbsys.to_pardiso(output_dir="pardiso_input")
+# Export for Julia (recommended JSON format)
+tbsys.to_pardiso_json(output_dir="pardiso_input")
 
 # Or use CLI integration
 from dptb.entrypoints.pdso import pdso
@@ -90,9 +90,8 @@ pdso(
     output_dir="./output"
 )
 
-# Load results
-import numpy as np
-band_data = np.load("output/results/bandstructure.npy", allow_pickle=True).item()
+# Band results are written to output/results/bandstructure.h5 and bands.dat.
+# DOS results are written to output/results/egvals.dat and dos.dat.
 ```
 
 ## Module Documentation
@@ -129,11 +128,20 @@ band_data = np.load("output/results/bandstructure.npy", allow_pickle=True).item(
 **Functions:**
 - `run_band_calculation(config, H_R, S_R, structure, ...)`: Main band calculation
 - `parse_kpath_abacus(kpath_config, lat, labels)`: Parse k-path
-- `save_bandstructure_npy(...)`: Export to NPY format
+- `save_bandstructure_h5(...)`: Export to HDF5 format
 
 **Outputs:**
-- `EIGENVAL`: VASP-format eigenvalues
-- `bandstructure.npy`: NumPy format for Python visualization
+- `bandstructure.h5`: HDF5 band structure data
+- `bands.dat`: Text format band data
+
+### tasks/dos_calculation.jl
+
+**Functions:**
+- `run_dos_calculation(config, H_R, S_R, structure, ...)`: Main DOS calculation
+
+**Outputs:**
+- `egvals.dat`: Eigenvalues on the DOS k-mesh
+- `dos.dat`: Text DOS data when `epsilon` and `omegas` are configured
 
 ## Configuration File Format
 
@@ -141,9 +149,10 @@ band_data = np.load("output/results/bandstructure.npy", allow_pickle=True).item(
 {
   "task_options": {
     "task": "band",
+    "eig_solver": "numpy",
     "kline_type": "abacus",
     "kpath": [
-      [0.0, 0.0, 0.0, 100],
+      [0.0, 0.0, 0.0, 30],
       [0.0, 0.0, 0.5, 1]
     ],
     "klabels": ["G", "Z"],
@@ -158,9 +167,11 @@ band_data = np.load("output/results/bandstructure.npy", allow_pickle=True).item(
 }
 ```
 
+Use `"eig_solver": "numpy"` or `"dense"` for the portable LAPACK solver. Omit it or set `"eig_solver": "pardiso"` to use the MKL Pardiso path on supported Linux systems.
+
 ## Performance Tips
 
-1. **Caching**: Sparse matrices are cached in `sparse_matrix.jld` for faster subsequent runs
+1. **Caching**: Sparse matrices are cached in `sparse_matrices.jld` for faster subsequent runs
 2. **Ill-conditioning**: Enable `--ill_project` for systems with near-singular overlap matrices
 3. **Convergence**: Increase `max_iter` if eigenvalues don't converge
 4. **Memory**: For very large systems (>10000 orbitals), consider reducing `num_band`
@@ -179,11 +190,10 @@ band_data = np.load("output/results/bandstructure.npy", allow_pickle=True).item(
 
 ## Future Enhancements
 
-1. **DOS calculation**: Add `tasks/dos_calculation.jl`
-2. **Optical properties**: Add `tasks/optical_calculation.jl`
-3. **PyJulia integration**: Direct Python-Julia calls (no file I/O)
-4. **Parallel k-points**: Distribute k-point calculations
-5. **GPU support**: Add cuSOLVER backend
+1. **Optical properties**: Add `tasks/optical_calculation.jl`
+2. **PyJulia integration**: Direct Python-Julia calls (no file I/O)
+3. **Parallel k-points**: Distribute k-point calculations
+4. **GPU support**: Add cuSOLVER backend
 
 ## Dependencies
 
@@ -196,10 +206,10 @@ Pkg.add(["JSON", "HDF5", "ArgParse", "Pardiso", "Arpack", "LinearMaps", "JLD", "
 ## Troubleshooting
 
 **Issue**: `structure.json not found`
-- **Solution**: Run `tbsys.to_pardiso()` first to export data, or ensure legacy `.dat` files are present
+- **Solution**: Run `tbsys.to_pardiso_json()` first to export data, or ensure legacy `.dat` files are present
 
 **Issue**: Eigenvalues don't converge
-- **Solution**: Increase `max_iter` or adjust `E_fermi` closer to actual Fermi level
+- **Solution**: Increase `max_iter`, adjust `E_fermi` closer to the target energy, or use `"eig_solver": "numpy"` for a dense-solver sanity check
 
 **Issue**: Ill-conditioned overlap matrix
 - **Solution**: Enable `--ill_project` and adjust `--ill_threshold`
