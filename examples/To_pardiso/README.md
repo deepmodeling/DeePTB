@@ -1,13 +1,14 @@
 # DeePTB Pardiso Integration - Example Directory
 
-This directory contains complete examples for using DeePTB's Pardiso backend for high-performance band structure calculations.
+This directory contains examples for using DeePTB's Pardiso backend for band structure and density-of-states calculations.
 
 ## Files
 
 ### Data Files
 - `min.vasp`: Example structure file (C84 fullerene)
 - `nnsk.iter_ovp0.000.pth`: Pre-trained DeePTB model
-- `band_new.json`: Configuration file for band structure calculation
+- `band.json`: Configuration file for band structure calculation
+- `dos.json`: Configuration file for density-of-states calculation
 
 ### Notebooks
 - **`pardiso_tutorial.ipynb`** ⭐: **Complete tutorial** covering:
@@ -29,7 +30,7 @@ This directory contains complete examples for using DeePTB's Pardiso backend for
 
 ```bash
 dptb pdso \
-  band_new.json \
+  band.json \
   -i nnsk.iter_ovp0.000.pth \
   -stu min.vasp \
   -o ./output
@@ -38,7 +39,7 @@ dptb pdso \
 With custom solver parameters:
 ```bash
 dptb pdso \
-  band_new.json \
+  band.json \
   -i nnsk.iter_ovp0.000.pth \
   -stu min.vasp \
   -o ./output \
@@ -47,6 +48,23 @@ dptb pdso \
 ```
 
 Results will be in `./output/results/`.
+
+To calculate DOS instead of bands:
+```bash
+dptb pdso \
+  dos.json \
+  -i nnsk.iter_ovp0.000.pth \
+  -stu min.vasp \
+  -o ./output_dos
+```
+
+To reuse an existing Pardiso export directory without re-running DeePTB:
+```bash
+dptb pdso \
+  band.json \
+  -d ./output \
+  -o ./rerun_output
+```
 
 ### Option 2: Using Python API
 
@@ -65,7 +83,7 @@ subprocess.run([
     "julia", "../../dptb/postprocess/pardiso/main.jl",
     "--input_dir", "pardiso_data",
     "--output_dir", "results",
-    "--config", "band_new.json"
+    "--config", "band.json"
 ])
 ```
 
@@ -75,15 +93,16 @@ Open `pardiso_tutorial.ipynb` in Jupyter for a complete walkthrough.
 
 ## Configuration File Format
 
-`band_new.json` example:
+`band.json` example:
 
 ```json
 {
   "task_options": {
     "task": "band",
+    "eig_solver": "numpy",
     "kline_type": "abacus",
     "kpath": [
-      [0.0, 0.0, 0.0, 100],
+      [0.0, 0.0, 0.0, 30],
       [0.0, 0.0, 0.5, 1]
     ],
     "klabels": ["G", "Z"],
@@ -97,6 +116,26 @@ Open `pardiso_tutorial.ipynb` in Jupyter for a complete walkthrough.
 }
 ```
 
+`dos.json` uses the same export format with `task: "dos"` and a Monkhorst-Pack-style `kmesh`:
+
+```json
+{
+  "task_options": {
+    "task": "dos",
+    "eig_solver": "numpy",
+    "kmesh": [1, 1, 1],
+    "fermi_level": -9.03841,
+    "epsilon": 0.05,
+    "omegas": [-2.0, 2.0, 401]
+  },
+  "num_band": 30,
+  "max_iter": 400,
+  "isspinful": "false"
+}
+```
+
+The example configs use `"eig_solver": "numpy"` so they run on machines without MKL/Pardiso. On Linux systems with MKL/Pardiso available, remove this field or set it to `"pardiso"` to use the Pardiso eigensolver path.
+
 ## Output Files
 
 After running the workflow, you'll get:
@@ -107,9 +146,10 @@ After running the workflow, you'll get:
 - `predicted_overlaps.h5`: Overlap matrix blocks
 
 ### Results Directory (`results/`)
-- `bandstructure.npy`: Band structure data (NumPy format)
-- `EIGENVAL`: Eigenvalues in VASP format
-- `bands.dat`: Text format band data
+- `bandstructure.h5`: Band structure data (HDF5 format, band task)
+- `bands.dat`: Text format band data (band task)
+- `egvals.dat`: Eigenvalues on the DOS k-mesh (DOS task)
+- `dos.dat`: Text format DOS data when `epsilon` and `omegas` are configured (DOS task)
 
 ## Advanced Usage
 
@@ -125,10 +165,12 @@ The Julia backend will automatically detect and load these files if `structure.j
 
 ### Performance Tuning
 
-Edit `band_new.json`:
+Edit `band.json` or `dos.json`:
 - `num_band`: Number of bands to calculate (default: 30)
 - `max_iter`: Maximum iterations for eigenvalue solver (default: 400)
-- `emin`, `emax`: Energy window for band structure
+- `emin`, `emax`: Plotting energy window for band structure
+- `kmesh`: K-point mesh for DOS calculations
+- `epsilon`, `omegas`: Gaussian broadening and energy grid for DOS output
 
 For ill-conditioned systems, run Julia with:
 ```bash
