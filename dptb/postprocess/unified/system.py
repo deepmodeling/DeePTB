@@ -80,6 +80,84 @@ class TBSystem:
         
         self._atomic_data = self.set_atoms(data, override_overlap)
 
+    @staticmethod
+    def _pop_solver_kwargs(kwargs: dict, context: str) -> dict:
+        solver = kwargs.pop("solver", None)
+        eig_solver = kwargs.pop("eig_solver", None)
+        if solver is not None and eig_solver is not None and solver != eig_solver:
+            raise ValueError(
+                f"solver and eig_solver were both provided to {context} with different values: "
+                f"{solver!r} != {eig_solver!r}."
+            )
+        if solver is None and eig_solver is not None:
+            log.warning("eig_solver is accepted for compatibility in %s; prefer solver.", context)
+            solver = eig_solver
+
+        solver_kwargs = {}
+        if solver is not None:
+            solver_kwargs["solver"] = solver
+        for key in ("nk", "ill_threshold", "ill_pad_value"):
+            if key in kwargs:
+                solver_kwargs[key] = kwargs.pop(key)
+        return solver_kwargs
+
+    @staticmethod
+    def _eigen_cache_key(solver_kwargs: dict) -> dict:
+        return {key: value for key, value in solver_kwargs.items() if key != "nk"}
+
+    @classmethod
+    def _normalize_cache_value(cls, value):
+        if isinstance(value, np.ndarray):
+            return cls._normalize_cache_value(value.tolist())
+        if isinstance(value, dict):
+            return tuple(
+                (key, cls._normalize_cache_value(item))
+                for key, item in sorted(value.items())
+            )
+        if isinstance(value, (list, tuple)):
+            return tuple(cls._normalize_cache_value(item) for item in value)
+        return value
+
+    @staticmethod
+    def _cache_matches(last_key: Optional[dict], requested_key: dict) -> bool:
+        if last_key is None:
+            return False
+        return all(last_key.get(key) == value for key, value in requested_key.items())
+
+    @classmethod
+    def _band_cache_key(cls, solver_kwargs: dict, kpath_config: Optional[dict] = None) -> dict:
+        cache_key = {"solver": cls._eigen_cache_key(solver_kwargs)}
+        if kpath_config is not None:
+            cache_key["kpath_config"] = cls._normalize_cache_value(kpath_config)
+        return cache_key
+
+    @classmethod
+    def _dos_cache_key(
+        cls,
+        solver_kwargs: dict,
+        kmesh: Optional[Union[list, np.ndarray]] = None,
+        is_gamma_center: Optional[bool] = True,
+        erange: Optional[Union[list, np.ndarray]] = None,
+        npts: Optional[int] = 100,
+        smearing: Optional[str] = 'gaussian',
+        sigma: Optional[float] = 0.05,
+        pdos: Optional[bool] = False,
+        extra_kwargs: Optional[dict] = None,
+    ) -> dict:
+        return {
+            "solver": cls._eigen_cache_key(solver_kwargs),
+            "dos_config": cls._normalize_cache_value({
+                "kmesh": kmesh,
+                "is_gamma_center": is_gamma_center,
+                "erange": erange,
+                "npts": npts,
+                "smearing": smearing,
+                "sigma": sigma,
+                "pdos": pdos,
+                "extra_kwargs": extra_kwargs or {},
+            }),
+        }
+
     @property
     def calculator(self) -> HamiltonianCalculator:
         """Access the calculator."""
@@ -359,13 +437,24 @@ class TBSystem:
                         k_points: Optional[Union[torch.Tensor, np.ndarray, list]] = None,
                         use_scc: Optional[bool] = None,
                         nk: Optional[int] = None,
-                        solver: Optional[str] = None) -> Tuple[dict, torch.Tensor]:
+                        solver: Optional[str] = None,
+                        ill_threshold: Optional[float] = None,
+                        ill_pad_value: float = 1e4) -> Tuple[dict, torch.Tensor]:
         """Calculate eigenvalues using either bare-model or SCC-corrected H(k)."""
         if not self._resolve_use_scc(use_scc):
             data = self._atomic_data if atomic_data is None else atomic_data
             if k_points is not None:
                 data = self._prepare_kpoint_data(data, k_points)
-            return self.calculator.get_eigenvalues(data, nk=nk, solver=solver)
+            return self.calculator.get_eigenvalues(
+                data,
+                nk=nk,
+                solver=solver,
+                ill_threshold=ill_threshold,
+                ill_pad_value=ill_pad_value,
+            )
+
+        if ill_threshold is not None:
+            log.warning("ill_threshold is ignored for SCC eigenvalues because SCC fallback projection is not implemented.")
 
         data, hk, sk = self._get_scc_hk_data(atomic_data=atomic_data, k_points=k_points)
         eigvecs, eigvals = self._scc.eigh_solver(
@@ -448,19 +537,34 @@ class TBSystem:
                          q_tol: float = 1e-5,
                          **kwargs):
         # get efermi from scratch.
+        solver_kwargs = self._pop_solver_kwargs(kwargs, "TBSystem.get_efermi")
+        efermi_kwargs = {
+            key: kwargs.pop(key)
+            for key in ("k_weights",)
+            if key in kwargs
+        }
+        if kwargs:
+            log.warning(f"Ignoring unsupported get_efermi options: {sorted(kwargs)}")
+
         kpoints = kmesh_sampling(kmesh, is_gamma_center=is_gamma_center)
         k_tensor = torch.as_tensor(kpoints, 
                                    dtype=self.calculator.dtype, 
                                    device=self.calculator.device)
         data = self._atomic_data.copy()
         data[AtomicDataDict.KPOINT_KEY] = torch.nested.as_nested_tensor([k_tensor])
-        data, eigs = self.get_eigenvalues(data)
+        data, eigs = self.get_eigenvalues(data, **solver_kwargs)
+
+        eigs_valid_mask = data.get(AtomicDataDict.EIGENVALUE_VALID_MASK_KEY)
+        if eigs_valid_mask is not None:
+            eigs_valid_mask = eigs_valid_mask[0].detach().cpu().numpy()
 
         calculated_efermi = self.estimate_efermi_e(
                         eigenvalues=eigs.detach().numpy(),
                         temperature = temperature,
                         smearing_method=smearing_method,
-                        q_tol  = q_tol, **kwargs)
+                        q_tol=q_tol,
+                        eigenvalue_valid_mask=eigs_valid_mask,
+                        **efermi_kwargs)
         
         self.set_efermi(efermi = calculated_efermi)
 
@@ -470,7 +574,8 @@ class TBSystem:
                          k_weights=None,
                          temperature: float = 300,
                          smearing_method: str = 'FD',
-                         q_tol: float = 1e-5) -> float:
+                         q_tol: float = 1e-5,
+                         eigenvalue_valid_mask: np.ndarray = None) -> float:
         """
         Calculate Fermi level from eigenvalues. 
         This is give a freedom that parse eigenvlues from outside calculation, such as band and dos calculations
@@ -504,20 +609,34 @@ class TBSystem:
             weights=k_weights,
             temperature=temperature,
             smearing_method=smearing_method,
-            q_tol=q_tol
+            q_tol=q_tol,
+            eigenvalue_valid_mask=eigenvalue_valid_mask,
         )    
         
 
     def get_bands(self, kpath_config: Optional[dict] = None, reuse: Optional[bool]=True, **kwargs):
         # 计算能带，返回 bands
         # bands 应该是一个类，也有属性。bands.kpoints, bands.eigenvalues, bands.klabels, bands.kticks, 也有函数 bands.plot()
-        if self.has_bands and reuse:
+        solver_kwargs = self._pop_solver_kwargs(kwargs, "TBSystem.get_bands")
+        cache_key = self._band_cache_key(solver_kwargs, kpath_config)
+        if kwargs:
+            log.warning(f"Ignoring unsupported get_bands options: {sorted(kwargs)}")
+
+        if (
+            self.has_bands
+            and reuse
+            and self._cache_matches(getattr(self, "_last_band_cache_key", None), cache_key)
+        ):
             return self._bands
         else:
-            assert kpath_config is not None, "kpath_config must be provided if bands not calculated."
-            self._bands = BandAccessor(self)
-            self._bands.set_kpath(**kpath_config)
-            self._bands.compute()
+            if not (self.has_bands and reuse):
+                assert kpath_config is not None, "kpath_config must be provided if bands not calculated."
+                self._bands = BandAccessor(self)
+                self._bands.set_kpath(**kpath_config)
+            elif kpath_config is not None:
+                self._bands.set_kpath(**kpath_config)
+            self._bands.compute(**solver_kwargs)
+            self._last_band_cache_key = self._band_cache_key(solver_kwargs, kpath_config)
             self.has_bands = True
             return self._bands
 
@@ -529,14 +648,41 @@ class TBSystem:
         """
         # 计算态密度，返回 dos
         # dos 应该是一个类，也有属性。dos.kmesh, dos.eigenvalues, dos.klabels, dos.kticks, 也有函数 dos.plot()
-        if self.has_dos and reuse:
+        solver_kwargs = self._pop_solver_kwargs(kwargs, "TBSystem.get_dos")
+        cache_key = self._dos_cache_key(
+            solver_kwargs=solver_kwargs,
+            kmesh=kmesh,
+            is_gamma_center=is_gamma_center,
+            erange=erange,
+            npts=npts,
+            smearing=smearing,
+            sigma=sigma,
+            pdos=pdos,
+            extra_kwargs=kwargs,
+        )
+        if (
+            self.has_dos
+            and reuse
+            and self._cache_matches(getattr(self, "_last_dos_cache_key", None), cache_key)
+        ):
             return  self._dos
         else:
             assert kmesh is not None, "kmesh must be provided."
             self._dos = DosAccessor(self)
             self._dos.set_kpoints(kmesh=kmesh,is_gamma_center=is_gamma_center)
             self._dos.set_dos_config(erange=erange, npts=npts, smearing=smearing, sigma=sigma, pdos=pdos, **kwargs)
-            self._dos.compute()
+            self._dos.compute(**solver_kwargs)
+            self._last_dos_cache_key = self._dos_cache_key(
+                solver_kwargs=solver_kwargs,
+                kmesh=kmesh,
+                is_gamma_center=is_gamma_center,
+                erange=erange,
+                npts=npts,
+                smearing=smearing,
+                sigma=sigma,
+                pdos=pdos,
+                extra_kwargs=kwargs,
+            )
             self.has_dos = True
             return self._dos
 
@@ -661,6 +807,84 @@ class TBSystem:
             f.write(str(basis_str_dict))
             
         log.info("Successfully saved all Pardiso data.")
+
+    def to_pardiso_debug(self, output_dir: Optional[str] = "pardiso_input"):
+        """
+        Export legacy Pardiso text/HDF5 inputs for debugging and backwards compatibility.
+        """
+        self.to_pardiso(output_dir=output_dir)
+
+    def to_pardiso_json(self, output_dir: Optional[str] = "pardiso_input"):
+        """
+        Export system data for the modular Pardiso/Julia backend.
+
+        The following files will be generated in the output directory:
+        - predicted_hamiltonians.h5: Hamiltonian matrix elements.
+        - predicted_overlaps.h5: Overlap matrix elements (if applicable).
+        - structure.json: Structure and basis information.
+        """
+        import json
+        import dptb
+
+        os.makedirs(output_dir, exist_ok=True)
+        log.info(f"Exporting Pardiso JSON data to: {os.path.abspath(output_dir)}")
+
+        hr, sr = self.calculator.get_hr(self.data)
+        hr = self._symmetrize_hamiltonian(hr)
+        if sr is not None:
+            sr = self._symmetrize_hamiltonian(sr)
+
+        self._save_h5([hr], "predicted_hamiltonians.h5", output_dir)
+        if sr is not None:
+            self._save_h5([sr], "predicted_overlaps.h5", output_dir)
+
+        symbols = self.atoms.get_chemical_symbols()
+        structure = {
+            "cell": self.atoms.get_cell().array.tolist(),
+            "pbc": self.atoms.get_pbc().tolist(),
+            "nsites": len(self.atoms),
+            "symbols": symbols,
+            "chemical_formula": self.atoms.get_chemical_formula(mode="reduce"),
+            "positions": self.atoms.get_positions().tolist(),
+        }
+
+        basis = self.model.idp.basis
+        l_map = {"s": 1, "p": 3, "d": 5, "f": 7, "g": 9}
+        orbital_counts = {}
+        for elem, orbs in basis.items():
+            norb = 0
+            for orb in orbs:
+                for orb_type, count in l_map.items():
+                    if orb_type in orb:
+                        norb += count
+                        break
+            orbital_counts[elem] = norb
+
+        spinful = hasattr(self.model, "soc_param")
+        spin_multiplier = 2 if spinful else 1
+        site_norbits = [orbital_counts[s] * spin_multiplier for s in symbols]
+        basis_info = {
+            "basis": basis,
+            "orbital_counts": orbital_counts,
+            "site_norbits": site_norbits,
+            "total_orbitals": int(np.sum(site_norbits)),
+            "spinful": spinful,
+        }
+
+        structure_data = {
+            "basis_info": basis_info,
+            "structure": structure,
+            "meta": {
+                "version": "1.0",
+                "generator": f"DeePTB {dptb.__version__}",
+            },
+        }
+
+        json_path = os.path.join(output_dir, "structure.json")
+        with open(json_path, "w") as f:
+            json.dump(structure_data, f, indent=2)
+
+        log.info("Successfully saved all Pardiso JSON data.")
 
     def _save_h5(self, h_dict, fname, output_dir):
         """

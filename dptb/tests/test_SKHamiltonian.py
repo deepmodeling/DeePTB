@@ -12,6 +12,8 @@ from dptb.utils.constants import anglrMId, orbitalId
 from e3nn.o3 import wigner_3j, Irrep, xyz_to_angles, Irrep
 from dptb.tests.tstools import compare_tensors_as_sets_float
 
+pytestmark = pytest.mark.regression
+
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data")
 
 class TestSKHamiltonian:
@@ -260,5 +262,4 @@ class TestSKHamiltonian:
          -3.7709136009e+00]])
         
         assert torch.allclose(data[AtomicDataDict.NODE_FEATURES_KEY], expected_strainonsite, atol=1e-6, rtol=1e-4)
-
 

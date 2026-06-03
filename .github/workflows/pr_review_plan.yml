@@ -1,0 +1,30 @@
+name: PR Review Plan
+
+on:
+  pull_request:
+
+jobs:
+  review-plan:
+    name: Generate advisory PR review plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compute changed files
+        run: |
+          git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" > changed-files.txt
+
+      - name: Generate review plan
+        run: |
+          python scripts/ci/pr_review_plan.py --stdin < changed-files.txt > pr-review-plan.md
+          cat pr-review-plan.md >> "$GITHUB_STEP_SUMMARY"

@@ -11,6 +11,36 @@ body:
   validations:
     required: true
 
+- type: dropdown
+  attributes:
+    label: Target pytest marker
+    description: Choose the intended test layer from docs/maintenance/test_strategy.md.
+    options:
+      - smoke
+      - regression
+      - slow
+      - unmarked / exploratory
+
+- type: dropdown
+  attributes:
+    label: Risk area
+    description: Choose the closest area from docs/maintenance/risk_map.md.
+    options:
+      - AtomicDataDict contract
+      - Orbital indexing
+      - Hamiltonian expansion
+      - Model assembly
+      - Config schema
+      - Training behavior
+      - Loss behavior
+      - Embedding and prediction
+      - Dataset backends
+      - CLI entrypoints
+      - Postprocess and export
+      - Plugins
+      - Documentation / examples
+      - Other
+
 - type: textarea
   attributes:
     label: Additional Context

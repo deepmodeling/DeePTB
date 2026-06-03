@@ -5,6 +5,8 @@ from collections import OrderedDict
 from dptb.data.transforms import OrbitalMapper
 from e3nn.o3._irreps import Irreps
 
+pytestmark = pytest.mark.smoke
+
 def test_orbital_mapper_init_str_spdf():
     # 创建一个OrbitalMapper实例
     basis = {"A": "2s2p3d1f", "B": "1s2f3d1f"}
@@ -493,4 +495,3 @@ def test_equality_operator():
     basis = {"C": ['2s','2p','d*'], "O": ['2s','2p','f*']}
     orbmap2 = OrbitalMapper(basis=basis, method="sktb", device=torch.device("cpu"))
     assert orbmap != orbmap2
-

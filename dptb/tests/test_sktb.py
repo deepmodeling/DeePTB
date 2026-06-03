@@ -6,6 +6,8 @@ import numpy as np
 from dptb.utils.tools import j_loader
 import json
 
+pytestmark = pytest.mark.slow
+
 @pytest.fixture(scope='session', autouse=True)
 def root_directory(request):
     return str(request.config.rootdir)

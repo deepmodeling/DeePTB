@@ -12,6 +12,7 @@ We heartily welcome contributions to the DeePTB project. This guide provides tec
 - [Adding a Unit Test](#adding-a-unit-test)
 - [Running Unit Tests](#running-unit-tests)
 - [Submitting a Pull Request](#submitting-a-pull-request)
+- [Maintainer Review Expectations](#maintainer-review-expectations)
 - [After Your Pull Request is Merged](#after-your-pull-request-is-merged)
 - [Commit Message Guidelines](#commit-message-guidelines)
 
@@ -80,6 +81,19 @@ pytest ./dptb/tests/test_file.py
 5. Push your branch to your fork on GitHub.
 6. Submit a pull request (PR) with `deepmodeling/DeePTB:main` as the base repository. It is required to document your PR following [our guidelines](#commit-message-guidelines).
 
+## Maintainer Review Expectations
+
+DeePTB is a scientific machine learning codebase where small changes to tensor semantics, orbital indexing, config defaults, or Hamiltonian construction can affect many downstream workflows. Pull requests should make their impact and remaining risk explicit.
+
+- Use the PR template to describe the scope, affected DeePTB areas, compatibility impact, tests, and merge decision.
+- If AI assistance was used, mark it in the PR template and manually check the DeePTB domain assumptions.
+- Review `../CONTEXT.md` for core DeePTB concepts before changing data, model, Hamiltonian, training, or export behavior.
+- Review `maintenance/risk_map.md` before changing high-risk modules.
+- Follow `AI_CODING_GUIDE.md` when using AI tools for implementation or review.
+- Run `python scripts/ci/check_repository_hygiene.py` when changing examples, config files, maintenance docs, or docs navigation.
+- Run the relevant pytest marker subset from `maintenance/test_strategy.md` for the area you changed.
+- Maintainers should use `maintenance/maintainer_sop.md` and `maintenance/review_workflow.md` to record remaining risks before merging.
+
 ### After Your Pull Request is Merged
 
 - Delete the remote branch on GitHub either [through the GitHub web UI](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-branches-in-your-repository/deleting-and-restoring-branches-in-a-pull-request#deleting-a-branch-used-for-a-pull-request) or your local shell as follows:
@@ -145,4 +159,3 @@ Fixes #123
   - description: A short summary of the code changes: tell others what you did in one sentence.
 - Body: optional, providing detailed, additional, or contextual information about the code changes, e.g. the motivation of this commit, referenced materials, the coding implementation, and so on.
 - Footer: optional, reference GitHub issues or PRs that this commit closes or is related to. [Use a keyword](https://docs.github.com/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword) to close an issue, e.g. "Fix #753".
-

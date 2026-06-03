@@ -7,6 +7,8 @@ from dptb.utils.tools import j_loader
 from dptb.nn.build import build_model
 from dptb.data.build import build_dataset
 
+pytestmark = pytest.mark.slow
+
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data")
 
 class TestTrainer:

@@ -1,0 +1,20 @@
+{
+  "task_options": {
+    "task": "dos",
+    "eig_solver": "numpy",
+    "kmesh": [1, 1, 1],
+    "nel_atom": {
+      "C": 4
+    },
+    "fermi_level": -9.03841,
+    "epsilon": 0.05,
+    "omegas": [-2.0, 2.0, 401]
+  },
+  "device": "cpu",
+  "out_wfc": "false",
+  "which_k": 0,
+  "max_iter": 400,
+  "num_band": 30,
+  "gamma_only": "false",
+  "isspinful": "false"
+}

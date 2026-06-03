@@ -12,6 +12,16 @@ body:
       Example: The documentation for the band structure calculations is missing. I have read the online manual, but I am still not sure how to do it. My suggestion is to add a new section to the online manual that describes this.
   validations:
       required: true
+- type: textarea
+  attributes:
+    label: Affected command, config, or example path
+    description: |
+      Include the command, config option, example file, docs path, or notebook path related to this documentation issue.
+- type: textarea
+  attributes:
+    label: Behavior mismatch
+    description: |
+      If the docs disagree with current behavior, describe what the docs say and what DeePTB actually does.
 - type: markdown
   attributes:
     value: >

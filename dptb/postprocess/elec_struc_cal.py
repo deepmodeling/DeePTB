@@ -14,19 +14,19 @@ from dptb.utils.ksampling import sample as ksampling
 from dptb.postprocess.common import load_data_for_model
 
 # This class `ElecStruCal`  is designed to calculate electronic structure properties such as
-# eigenvalues and Fermi energy based on provided input data and model. 
+# eigenvalues and Fermi energy based on provided input data and model.
 # It serve as a basic post-processing class to load data and provide Fermi energy.
 
 class ElecStruCal(object):
     def __init__ (
-            self, 
+            self,
             model: torch.nn.Module,
             device: Union[str, torch.device]=None,
             eig_method: str='eigvalsh' # 'eigh' or 'eigvalsh'
             ):
         '''It initializes ElecStruCal object with a neural network model, optional results path, GUI
         usage flag, and device information, and sets up eigenvalues  based on model properties.
-        
+
         Parameters
         ----------
         model : torch.nn.Module
@@ -40,14 +40,14 @@ class ElecStruCal(object):
         the eigenvalue problem. It can take two possible values: 'eigvalsh' or 'eigh'.  'eigvalsh' is used for
         calculating eigenvalues only, while 'eigh' is used for calculating both eigenvalues and eigenvectors.
         The default value is 'eigvalsh'.
-        
+
         '''
         if  device is None:
             device = model.device
         if isinstance(device, str):
             device = torch.device(device)
         self.device = device
-        
+
         if eig_method not in ['eigvalsh', 'eigh']:
             raise ValueError(f'Unknown eig_method: {eig_method}, should be either "eigvalsh" or "eigh".')
         self.eig_method = eig_method
@@ -88,11 +88,11 @@ class ElecStruCal(object):
                  override_overlap:Optional[str]=None):
         '''The function `get_data` takes input data in the form of a string, ase.Atoms object, or AtomicData
         object, processes it accordingly, and returns the AtomicData class.
-        
+
         Parameters
         ----------
         data : Union[AtomicData, ase.Atoms, str]
-            The `data` parameter in the `get_data` function can be one of the following types: 
+            The `data` parameter in the `get_data` function can be one of the following types:
         string, ase.Atoms object, or AtomicData object.
         AtomicData_options : dict
             The `AtomicData_options` parameter is a dictionary that contains options or configurations for
@@ -101,11 +101,11 @@ class ElecStruCal(object):
             The `device` parameter in the `get_data` function is used to specify the device on which the data
         should be processed. If no device is provided, it defaults to `self.device`.
         override_overlap : the path for overlap.h5 to use and override overlap matrix from model.
-        
+
         Returns
         -------
             the loaded AtomicData object.
-        
+
         '''
         return load_data_for_model(
             data=data,
@@ -123,9 +123,11 @@ class ElecStruCal(object):
                  pbc:Union[bool,list]=None,
                  AtomicData_options:dict=None,
                  override_overlap:Optional[str]=None,
-                 eig_solver:Optional[str]=None):
+                 eig_solver:Optional[str]=None,
+                 ill_threshold:Optional[float]=None,
+                 ill_pad_value:float=1e4):
         '''This function calculates eigenvalues for Hk at specified k-points.
-        
+
         Parameters
         ----------
         data : Union[AtomicData, ase.Atoms, str]
@@ -137,13 +139,17 @@ class ElecStruCal(object):
             The `AtomicData_options` parameter is a dictionary that contains options for configuring the
         `AtomicData` object.
         override_overlap : the path for overlap.h5 to use and override overlap matrix from model.
-        
+        ill_threshold : optional float
+            If set, project out overlap modes whose eigenvalues are below this threshold.
+        ill_pad_value : float
+            Padding value used for projected-out eigenvalues to preserve the dense band shape.
+
         Returns
         -------
             The function `get_eigs` returns the loaded data and the energy eigenvalues as a numpy array.
-        
+
         '''
-            
+
         data  = self.get_data(data=data, pbc=pbc, device=self.device,AtomicData_options=AtomicData_options, override_overlap=override_overlap)
         for key, value in list(data.items()):
             if isinstance(value, torch.Tensor) and value.is_floating_point():
@@ -164,8 +170,18 @@ class ElecStruCal(object):
         eig_solver_obj = self.eig_solver
         if override_overlap is not None and not self.overlap:
             eig_solver_obj = self._make_eig_solver(with_overlap=True)
-        data = eig_solver_obj(data, eig_solver=eig_solver)
-        
+        if isinstance(eig_solver_obj, Eigenvalues):
+            data = eig_solver_obj(
+                data,
+                eig_solver=eig_solver,
+                ill_threshold=ill_threshold,
+                ill_pad_value=ill_pad_value,
+            )
+        else:
+            if ill_threshold is not None:
+                log.warning("ill_threshold is ignored when eig_method='eigh'.")
+            data = eig_solver_obj(data, eig_solver=eig_solver)
+
         # if self.eig_method == 'eigh', the eigenvectors are calculated.
         # The eigenvectors are stored in data[AtomicDataDict.EIGENVECTOR_KEY].detach().cpu().numpy()
         return data, data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy()
@@ -182,10 +198,12 @@ class ElecStruCal(object):
                         q_tol:float=1e-6,
                         smearing_method:str='FD',
                         temp:float=300,
-                        eig_solver:Optional[str]=None):
+                        eig_solver:Optional[str]=None,
+                        ill_threshold:Optional[float]=None,
+                        ill_pad_value:float=1e4):
         '''This function calculates the Fermi level based on provided data with iteration method, electron counts per atom, and
         optional parameters like specific k-points and eigenvalues.
-        
+
         Parameters
         ----------
         data : Union[AtomicData, ase.Atoms, str]
@@ -213,7 +231,7 @@ class ElecStruCal(object):
         eigenvalues : np.ndarray
             The `eigenvalues` parameter in the `get_fermi_level` method is an optional parameter that allows
         you to provide pre-calculated eigenvalues for the system. If `eigenvalues` is provided, the method
-        will use these provided eigenvalues directly. Otherwise, the eigenvalues will be calculated from the model 
+        will use these provided eigenvalues directly. Otherwise, the eigenvalues will be calculated from the model
         on the specified k-points (from kmesh or klist).
         q_tol: float
             The `q_tol` parameter in the `get_fermi_level` function represents the tolerance level for the
@@ -225,11 +243,11 @@ class ElecStruCal(object):
         temp : float
             The `temp` parameter in the `get_fermi_level` function represents the temperature for smearing in the
         calculation of the Fermi energy.
-           
+
         Returns
         -------
             The function `get_fermi_level` returns two values: `data` and `E_fermi`.
-        
+
         '''
 
 
@@ -247,7 +265,7 @@ class ElecStruCal(object):
                 structase = data.to("cpu").to_ase()
             else:
                 raise ValueError('data should be either a string, ase.Atoms, or AtomicData')
-            
+
             klist, wk = ksampling(structase,
                                   meshgrid=meshgrid,
                                   gamma_centered=True,
@@ -261,12 +279,19 @@ class ElecStruCal(object):
 
         # eigenvalues would be used if provided, otherwise the eigenvalues would be calculated from the model on the specified k-points
         if not AtomicDataDict.ENERGY_EIGENVALUE_KEY in data:
-            data, eigs = self.get_eigs(data=data, klist=klist, pbc=pbc, AtomicData_options=AtomicData_options, eig_solver=eig_solver) 
+            data, eigs = self.get_eigs(data=data, klist=klist, pbc=pbc,
+                                       AtomicData_options=AtomicData_options,
+                                       eig_solver=eig_solver,
+                                       ill_threshold=ill_threshold,
+                                       ill_pad_value=ill_pad_value)
             log.info('Getting eigenvalues from the model.')
         else:
             log.info('The eigenvalues are already in data. will use them.')
             eigs = data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][0].detach().cpu().numpy()
-        
+        eigs_valid_mask = data.get(AtomicDataDict.EIGENVALUE_VALID_MASK_KEY)
+        if eigs_valid_mask is not None:
+            eigs_valid_mask = eigs_valid_mask[0].detach().cpu().numpy()
+
         if nel_atom is not None:
             atomtype_list = data[AtomicDataDict.ATOM_TYPE_KEY].flatten().tolist()
             atomtype_symbols = np.asarray(self.model.idp.type_names)[atomtype_list].tolist()
@@ -275,6 +300,8 @@ class ElecStruCal(object):
                 spindeg = 1 # SOC case
             else:
                 spindeg = 2 # spin-degenerate
+            if eigs_valid_mask is not None:
+                eigs = np.where(eigs_valid_mask, eigs, ill_pad_value)
             E_fermi, occ, diff_ne, eband, eband_free = self.cal_E_fermi_advanced(eigs,
                                                                                 total_nel,
                                                                                 spindeg,
@@ -287,28 +314,29 @@ class ElecStruCal(object):
         else:
             E_fermi = None
             raise RuntimeError('nel_atom should be provided to calculate Fermi energy.')
-        
-        
+
+
         if self.eig_method == 'eigh':
             return data, E_fermi, eband, occ
         return data, E_fermi
 
 
-    
+
     @classmethod
     def cal_E_fermi(cls,eigenvalues: np.ndarray, total_electrons: int, spindeg: int=2,wk: np.ndarray=None,
-                    q_tol:float=1e-10,smearing_method:str='FD',temp:float=300):
+                    q_tol:float=1e-10,smearing_method:str='FD',temp:float=300,
+                    eigenvalue_valid_mask: np.ndarray=None):
         '''This  function calculates the Fermi energy using iteration algorithm.
 
-            In this version, the function calculates the Fermi energy in the case of spin-degeneracy. 
+            In this version, the function calculates the Fermi energy in the case of spin-degeneracy.
         The smearing method here is to ensure the convergence of the Fermi energy calculation especially in metal systems.
-        The detailed description of the smearing methods can be found in dos Santos, F. J. and N. Marzari (2023). "Fermi energy 
+        The detailed description of the smearing methods can be found in dos Santos, F. J. and N. Marzari (2023). "Fermi energy
         determination for advanced smearing techniques." Physical Review B 107(19): 195122.
-	       
+
         Parameters
         ----------
         eigenvalues : np.ndarray
-            The `eigenvalues` parameter is expected to be a NumPy array containing the eigenvalues of the system. 
+            The `eigenvalues` parameter is expected to be a NumPy array containing the eigenvalues of the system.
         total_electrons : int
             The `total_electrons` parameter represents the total number of electrons in the system. It is used
         in the calculation of the Fermi energy.
@@ -333,16 +361,31 @@ class ElecStruCal(object):
         Returns
         -------
             The Fermi energy `Ef`
-        
-        '''        
-        
+
+        '''
+
         nextafter = np.nextafter
         total_electrons = total_electrons / spindeg # This version is for the case of spin-degeneracy
         log.info('Calculating Fermi energy in the case of spin-degeneracy.')
-            
-        
+
+
+        if eigenvalue_valid_mask is not None:
+            eigenvalue_valid_mask = np.asarray(eigenvalue_valid_mask, dtype=bool)
+            if eigenvalue_valid_mask.shape != eigenvalues.shape:
+                raise ValueError(
+                    "eigenvalue_valid_mask should have the same shape as eigenvalues, "
+                    f"got {eigenvalue_valid_mask.shape} and {eigenvalues.shape}."
+                )
+            valid_eigenvalues = eigenvalues[eigenvalue_valid_mask]
+            if valid_eigenvalues.size == 0:
+                raise ValueError("No valid eigenvalues are available to calculate Fermi energy.")
+            occupation_mask = eigenvalue_valid_mask.astype(eigenvalues.dtype)
+        else:
+            valid_eigenvalues = eigenvalues
+            occupation_mask = 1.0
+
         # calculate boundaries
-        min_Ef, max_Ef = eigenvalues.min(), eigenvalues.max()
+        min_Ef, max_Ef = valid_eigenvalues.min(), valid_eigenvalues.max()
         kT = kB_eV_per_K * temp
         drange = kT*np.sqrt(-np.log(q_tol*1e-2))
         min_Ef = min_Ef - drange
@@ -361,9 +404,9 @@ class ElecStruCal(object):
             # Calculate guessed charge
             wk = wk.reshape(-1,1)
             if smearing_method == "Fermi-Dirac" or smearing_method == "FD":
-                q_cal = (wk * cls.fermi_dirac_smearing(eigenvalues,kT=kT, mu=Ef)).sum()
+                q_cal = (wk * cls.fermi_dirac_smearing(eigenvalues,kT=kT, mu=Ef) * occupation_mask).sum()
             elif smearing_method == "Gaussian" or smearing_method == "G":
-                q_cal = (wk * cls.Gaussian_smearing(eigenvalues,sigma = kT, mu=Ef)).sum()
+                q_cal = (wk * cls.Gaussian_smearing(eigenvalues,sigma = kT, mu=Ef) * occupation_mask).sum()
             else:
                 raise ValueError(f'Unknown smearing method: {smearing_method}')
 
@@ -381,9 +424,9 @@ class ElecStruCal(object):
         log.warning(f'Fermi level bisection did not converge under tolerance {q_tol} after {icounter} iterations.')
         log.info(f'q_cal: {q_cal*spindeg}, total_electrons: {total_electrons*spindeg}, diff q: {abs(q_cal - total_electrons)*spindeg}')
         return Ef
-    
 
-    
+
+
     @classmethod
     def cal_E_fermi_advanced(cls,
                             eigenvalues: np.ndarray,
@@ -397,7 +440,7 @@ class ElecStruCal(object):
 
         This is an advanced implementation that combines scipy's Brent method with
         Newton-Raphson polishing and occ rescaling to achieve highly accurate
-        Fermi energy and occupation numbers. 
+        Fermi energy and occupation numbers.
 
         The method implements a multi-stage approach:
         1. Initial Fermi energy search using scipy.optimize.brent (via
@@ -629,7 +672,7 @@ class ElecStruCal(object):
             with_eband=True  # eband is needed by downstream consumers (e.g., dftb_scc)
         )
 
-        # Verify electron conservation 
+        # Verify electron conservation
         ne_calc = np.sum(occ * wk.reshape(1, -1, 1)) # occ already includes internal spindeg factor
         diff_ne = abs(ne_calc - ne)
         # log.info(f'Fermi energy calculation completed using {method} smearing.')
@@ -679,7 +722,7 @@ class ElecStruCal(object):
             occ = occ.squeeze(axis=0)
 
         return Ef, occ, diff_ne, eband, eband_free
-    
+
     @classmethod
     def fermi_dirac_smearing(cls, E, kT=0.025852, mu=0.0):
         """Fermi-Dirac distribution function.
@@ -703,7 +746,7 @@ class ElecStruCal(object):
         """
         x = (E - mu) / kT
         return ffd(x)
-        
+
     @classmethod
     def Gaussian_smearing(cls, E, sigma=0.025852, mu=0.0):
         """Gaussian smearing distribution function.
@@ -1026,11 +1069,11 @@ class ElecStruCal(object):
         assert len(eigvals.shape) == 2, "Eigenvalues tensor must be 2-dimensional (nk, nstates)."
         nk = eigvals.shape[0]
         assert len(wk.shape) == 1 and wk.shape[0] == nk, "Weights tensor must be 1-dimensional with length equal to number of k-points."
-        assert np.isclose(wk.sum(), 1.0), "Weights must sum to 1."  
+        assert np.isclose(wk.sum(), 1.0), "Weights must sum to 1."
 
         # Calculate total energy
         fermi_prop = cls.fermi_dirac_smearing(  E = eigvals,
                                                 kT= kB_eV_per_K * Temp,
-                                                mu= E_fermi) # (nk, nstate)  
+                                                mu= E_fermi) # (nk, nstate)
         elec_totE = spindeg * (wk.reshape(-1,1) * (fermi_prop * eigvals)).sum() # with spin degeneracy
         return elec_totE

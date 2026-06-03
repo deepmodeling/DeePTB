@@ -1,0 +1,34 @@
+name: Repository Hygiene
+
+on:
+  pull_request:
+    paths:
+      - '.github/**'
+      - 'docs/**'
+      - 'examples/**'
+      - 'CONTEXT.md'
+      - 'scripts/ci/**'
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/**'
+      - 'docs/**'
+      - 'examples/**'
+      - 'CONTEXT.md'
+      - 'scripts/ci/**'
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Check repository hygiene
+        run: python scripts/ci/check_repository_hygiene.py
+
