@@ -16,6 +16,8 @@ from dptb.entrypoints.pth2json import pth2json
 from dptb.utils.tools import flatten_dict
 
 
+pytestmark = pytest.mark.slow
+
 rootdir = os.path.join(Path(os.path.abspath(__file__)).parent, "data")
 
 

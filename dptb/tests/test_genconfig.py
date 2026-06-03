@@ -7,6 +7,8 @@ from dptb.utils.config_e3 import TrainFullConfigE3, TestFullConfigE3
 
 from dptb.entrypoints.config import config, get_full_config
 
+pytestmark = pytest.mark.smoke
+
 @pytest.fixture(scope='session', autouse=True)
 def root_directory(request):
     return str(request.config.rootdir)

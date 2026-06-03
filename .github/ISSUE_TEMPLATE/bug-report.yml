@@ -14,11 +14,39 @@ body:
   validations:
     required: true
 
+- type: dropdown
+  attributes:
+    label: Affected area
+    description: Pick the area closest to the failure. Use Additional Context if multiple areas are involved.
+    options:
+      - Config / argcheck
+      - AtomicData / dataset
+      - OrbitalMapper / basis indexing
+      - Hamiltonian / overlap
+      - Model build / checkpoint
+      - Training / loss
+      - CLI / entrypoint
+      - Postprocess / export
+      - Documentation / examples
+      - Other
+
+- type: textarea
+  attributes:
+    label: Config, data, or checkpoint involved
+    description: |
+      Link or paste the relevant config path, dataset type/path, checkpoint path, and whether the failure depends on a specific dtype/device.
+
 - type: textarea
   attributes:
     label: Expected behavior
     description: |
       A clear and concise description of what you expected to happen.
+
+- type: textarea
+  attributes:
+    label: Expected vs actual numerical behavior
+    description: |
+      For numerical issues, describe expected values, actual values, tolerances, shapes, ordering, units, or whether the difference is systematic/random.
 
 - type: textarea
   attributes:
@@ -30,6 +58,12 @@ body:
       3. [e.g. run DeePTB with ...]
 
       It is recommended to attach your calculation case here for the developers to reproduce the bug.
+
+- type: textarea
+  attributes:
+    label: Minimal reproduction
+    description: |
+      Provide the smallest command, config, structure, or snippet that reproduces the issue. If a full dataset is required, explain why.
 
 - type: textarea
   attributes:

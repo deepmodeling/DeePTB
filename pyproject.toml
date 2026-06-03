@@ -86,3 +86,10 @@ dev = [
     "jupyter",
     "notebook",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "smoke: quick checks for imports, config generation, model build, and core mapping entrypoints",
+    "regression: behavior-preserving tests for numerical semantics, tensor shape/order, and compatibility",
+    "slow: training, complex postprocess, external/optional dependency, or otherwise long-running tests",
+]

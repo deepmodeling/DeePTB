@@ -12,6 +12,8 @@ from dptb.data import AtomicDataDict
 from ase.io import read
 
 
+pytestmark = pytest.mark.regression
+
 @pytest.fixture(scope='session', autouse=True)
 def root_directory(request):
     """Get the root directory of the project."""

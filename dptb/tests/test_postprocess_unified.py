@@ -10,6 +10,8 @@ from dptb.postprocess.unified.properties.dos import DosData
 from dptb.postprocess.unified.utils import calculate_fermi_level
 from dptb.data import AtomicDataDict
 
+pytestmark = pytest.mark.regression
+
 # Paths to example data
 # Using relative paths from the project root (where tests are usually run from)
 # or absolute paths if needed.
