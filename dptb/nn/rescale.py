@@ -220,6 +220,7 @@ class E3PerEdgeSpeciesScaleShift(torch.nn.Module):
         shifts_trainable: bool = False,
         dtype: Union[str, torch.dtype] = torch.float32,
         device: Union[str, torch.device] = torch.device("cpu"),
+        scale_type: str = 'scale_w_back_grad',
         **kwargs,
     ):
         """Sum edges into nodes."""
@@ -233,6 +234,8 @@ class E3PerEdgeSpeciesScaleShift(torch.nn.Module):
         self.dtype = dtype
         self.shift_index = []
         self.scale_index = []
+        self.scale_type = scale_type
+        self.scales_trainable = scales_trainable
 
         start = 0
         start_scalar = 0
@@ -293,7 +296,6 @@ class E3PerEdgeSpeciesScaleShift(torch.nn.Module):
                 self.register_buffer("shifts", shifts)
 
 
-
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
 
         if not (self.has_scales or self.has_shifts):
@@ -305,21 +307,30 @@ class E3PerEdgeSpeciesScaleShift(torch.nn.Module):
         in_field = data[self.field][mask]
         species_idx = data[AtomicDataDict.EDGE_TYPE_KEY].flatten()[mask]
 
-        
-
         assert len(in_field) == len(
             edge_center[mask]
         ), "in_field doesnt seem to have correct per-edge shape"
 
         if self.has_scales:
-            in_field = self.scales[species_idx][:,self.scale_index].view(-1, self.irreps_in.dim) * in_field
+            scales = self.scales[species_idx][:, self.scale_index].view(-1, self.irreps_in.dim)
+            if self.scale_type == 'scale_w_back_grad':
+                in_field = scales * in_field
+            elif self.scale_type == 'scale_wo_back_grad':
+                if self.scales_trainable:
+                    in_field = in_field + in_field.detach() * (scales - 1.0)
+                else:
+                    in_field = in_field + (in_field * (scales - 1.0)).detach()
+            else:
+                raise NotImplementedError
+
         if self.has_shifts:
             shifts = self.shifts[species_idx][:,self.shift_index[self.shift_index>=0]].view(-1, self.num_scalar)
             in_field[:, self.shift_index>=0] = shifts + in_field[:, self.shift_index>=0]
-        
+
         data[self.out_field][mask] = in_field
 
         return data
+
 
 class E3PerSpeciesScaleShift(torch.nn.Module):
     """Scale and/or shift a predicted per-atom property based on (learnable) per-species/type parameters.
@@ -358,6 +369,7 @@ class E3PerSpeciesScaleShift(torch.nn.Module):
         shifts_trainable: bool = False,
         dtype: Union[str, torch.dtype] = torch.float32,
         device: Union[str, torch.device] = torch.device("cpu"),
+        scale_type: str = 'scale_w_back_grad',
         **kwargs,
     ):
         super().__init__()
@@ -370,6 +382,8 @@ class E3PerSpeciesScaleShift(torch.nn.Module):
         self.scale_index = []
         self.dtype = dtype
         self.device = device
+        self.scale_type = scale_type
+        self.scales_trainable = scales_trainable
 
         start = 0
         start_scalar = 0
@@ -442,7 +456,16 @@ class E3PerSpeciesScaleShift(torch.nn.Module):
             species_idx
         ), "in_field doesnt seem to have correct per-atom shape"
         if self.has_scales:
-            in_field = self.scales[species_idx][:,self.scale_index].view(-1, self.irreps_in.dim) * in_field
+            scales = self.scales[species_idx][:, self.scale_index].view(-1, self.irreps_in.dim)
+            if self.scale_type == 'scale_w_back_grad':
+                in_field = scales * in_field
+            elif self.scale_type == 'scale_wo_back_grad':
+                if self.scales_trainable:
+                    in_field = in_field + in_field.detach() * (scales - 1.0)
+                else:
+                    in_field = in_field + (in_field * (scales - 1.0)).detach()
+            else:
+                raise NotImplementedError
         if self.has_shifts:
             shifts = self.shifts[species_idx][:,self.shift_index[self.shift_index>=0]].view(-1, self.num_scalar)
             in_field[:, self.shift_index>=0] = shifts + in_field[:, self.shift_index>=0]
