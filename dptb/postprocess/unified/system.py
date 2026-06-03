@@ -544,6 +544,84 @@ class TBSystem:
             
         log.info("Successfully saved all Pardiso data.")
 
+    def to_pardiso_debug(self, output_dir: Optional[str] = "pardiso_input"):
+        """
+        Export legacy Pardiso text/HDF5 inputs for debugging and backwards compatibility.
+        """
+        self.to_pardiso(output_dir=output_dir)
+
+    def to_pardiso_json(self, output_dir: Optional[str] = "pardiso_input"):
+        """
+        Export system data for the modular Pardiso/Julia backend.
+
+        The following files will be generated in the output directory:
+        - predicted_hamiltonians.h5: Hamiltonian matrix elements.
+        - predicted_overlaps.h5: Overlap matrix elements (if applicable).
+        - structure.json: Structure and basis information.
+        """
+        import json
+        import dptb
+
+        os.makedirs(output_dir, exist_ok=True)
+        log.info(f"Exporting Pardiso JSON data to: {os.path.abspath(output_dir)}")
+
+        hr, sr = self.calculator.get_hr(self.data)
+        hr = self._symmetrize_hamiltonian(hr)
+        if sr is not None:
+            sr = self._symmetrize_hamiltonian(sr)
+
+        self._save_h5([hr], "predicted_hamiltonians.h5", output_dir)
+        if sr is not None:
+            self._save_h5([sr], "predicted_overlaps.h5", output_dir)
+
+        symbols = self.atoms.get_chemical_symbols()
+        structure = {
+            "cell": self.atoms.get_cell().array.tolist(),
+            "pbc": self.atoms.get_pbc().tolist(),
+            "nsites": len(self.atoms),
+            "symbols": symbols,
+            "chemical_formula": self.atoms.get_chemical_formula(mode="reduce"),
+            "positions": self.atoms.get_positions().tolist(),
+        }
+
+        basis = self.model.idp.basis
+        l_map = {"s": 1, "p": 3, "d": 5, "f": 7, "g": 9}
+        orbital_counts = {}
+        for elem, orbs in basis.items():
+            norb = 0
+            for orb in orbs:
+                for orb_type, count in l_map.items():
+                    if orb_type in orb:
+                        norb += count
+                        break
+            orbital_counts[elem] = norb
+
+        spinful = hasattr(self.model, "soc_param")
+        spin_multiplier = 2 if spinful else 1
+        site_norbits = [orbital_counts[s] * spin_multiplier for s in symbols]
+        basis_info = {
+            "basis": basis,
+            "orbital_counts": orbital_counts,
+            "site_norbits": site_norbits,
+            "total_orbitals": int(np.sum(site_norbits)),
+            "spinful": spinful,
+        }
+
+        structure_data = {
+            "basis_info": basis_info,
+            "structure": structure,
+            "meta": {
+                "version": "1.0",
+                "generator": f"DeePTB {dptb.__version__}",
+            },
+        }
+
+        json_path = os.path.join(output_dir, "structure.json")
+        with open(json_path, "w") as f:
+            json.dump(structure_data, f, indent=2)
+
+        log.info("Successfully saved all Pardiso JSON data.")
+
     def _save_h5(self, h_dict, fname, output_dir):
         """
         Save dictionary of matrices to HDF5 file.
