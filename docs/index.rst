@@ -76,5 +76,11 @@ For more details, see our papers:
    :caption: Community
 
    community/contribution_guide
+   community/faq
    CONTRIBUTING
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Maintenance
+
+   maintenance/index
