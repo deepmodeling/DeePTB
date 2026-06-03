@@ -3,108 +3,84 @@ https://github.com/pytorch/pytorch_sphinx_theme
 under MIT license
 */
 
+:root {
+  --dm-header-height: 4.25rem;
+  --dm-header-height-wide: 4.75rem;
+  --dm-header-bg: rgba(255, 255, 255, 0.88);
+  --dm-header-border: rgba(15, 23, 42, 0.08);
+  --dm-header-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --dm-text: #0f172a;
+  --dm-muted: #475569;
+  --dm-surface: #ffffff;
+  --dm-surface-raised: #f8fafc;
+  --dm-primary: #2563eb;
+  --dm-primary-soft: rgba(37, 99, 235, 0.12);
+  --dm-primary-strong: #1d4ed8;
+  --dm-radius-pill: 999px;
+  --dm-radius-menu: 1rem;
+}
+
 .header-container {
   max-width: none;
-  margin-top: 4px;
-}
-
-@media screen and (min-width: 1101px) {
-  .header-container {
-    margin-top: 0;
-  }
-}
-
-@media screen and (min-width: 1600px) {
-  .header-container {
-    margin-top: 0;
-  }
+  margin-top: 0;
 }
 
 .container-fluid.header-holder {
   padding-right: 0;
   padding-left: 0;
-  /* pydata theme has z-index 1030; we should be the largest */
-  /* RTD banner use 1750; we should be smaller than RTD */
   z-index: 1749;
 }
 
 .header-holder .container {
-  max-width: none;
-  padding-right: 1.875rem;
-  padding-left: 1.875rem;
-}
-
-@media screen and (min-width: 1101px) {
-  .header-holder .container {
-    padding-right: 1.875rem;
-    padding-left: 1.875rem;
-  }
+  max-width: 1180px;
+  padding-right: 1.25rem;
+  padding-left: 1.25rem;
 }
 
 .header-holder .main-menu {
-  -webkit-box-pack: unset;
-  -ms-flex-pack: unset;
-  justify-content: unset;
+  justify-content: flex-end;
   position: relative;
 }
 
-@media screen and (min-width: 1101px) {
-  .header-holder .main-menu ul {
-    padding-left: 0;
-    margin-left: 26%;
-  }
-}
-
-@media screen and (min-width: 1600px) {
-  .header-holder .main-menu ul {
-    padding-left: 38px;
-    margin-left: 310px;
-  }
-}
-
 .header-holder {
-  height: 68px;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
+  height: var(--dm-header-height);
   align-items: center;
-  display: -webkit-box;
-  display: -ms-flexbox;
   display: flex;
   left: 0;
   margin-left: auto;
   margin-right: auto;
-  position: fixed;
+  position: relative;
   right: 0;
   top: 0;
   width: 100%;
   z-index: 9999;
-  background-color: #ffffff;
-  border-bottom: 1px solid #e2e2e2;
+  background-color: var(--dm-header-bg);
+  border-bottom: 1px solid var(--dm-header-border);
+  box-shadow: var(--dm-header-shadow);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  backdrop-filter: saturate(180%) blur(18px);
 }
 
 .wy-nav-side,
 .shift {
-  margin-top: 68px;
+  margin-top: var(--dm-header-height);
 }
 
 @media screen and (min-width: 1100px) {
   .wy-nav-side {
-    margin-top: 90px;
+    margin-top: var(--dm-header-height-wide);
   }
 
   .header-holder {
-    height: 90px;
+    height: var(--dm-header-height-wide);
   }
 }
 
 .header-container {
   position: relative;
-  display: -webkit-box;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
+  min-height: var(--dm-header-height);
 }
 
 .header-container:before,
@@ -117,50 +93,38 @@ under MIT license
   clear: both;
 }
 
-.header-container {
-  *zoom: 1;
-}
-
-@media screen and (min-width: 1100px) {
-  .header-container {
-    display: block;
-  }
-}
-
 .header-logo {
-  height: 50px;
+  height: 2.75rem;
+  min-width: 12rem;
   background-image: url("https://unpkg.com/@njzjz/icons@0.0.5/logos/deepmodeling.svg");
   background-repeat: no-repeat;
-  background-size: 50px 50px;
+  background-size: 2.75rem 2.75rem;
+  background-position: left center;
   display: block;
-  float: left;
   z-index: 10;
   text-decoration: none;
 }
 
 .header-logo::after {
   content: "DeepModeling";
-  font-size: 1.375rem;
-  margin-left: 60px;
-  padding-top: 10px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-left: 3.35rem;
+  padding-top: 0.5rem;
   display: block;
-  color: #262626;
-}
-
-.main-menu ul li a {
-  color: #262626;
+  color: var(--dm-text);
 }
 
 @media screen and (min-width: 1100px) {
-  /* only fix for read the docs theme */
   .wy-body-for-nav .header-logo {
-    background-size: 50px 50px;
-    position: fixed;
-    height: 50px;
-    width: 50px;
-    top: -8px;
+    background-size: 2.75rem 2.75rem;
+    position: static;
+    height: 2.75rem;
+    width: auto;
+    top: auto;
     float: none;
-    margin-top: 25px;
+    margin-top: 0;
   }
 }
 
@@ -175,75 +139,68 @@ under MIT license
 }
 
 @media screen and (min-width: 1100px) {
+  .header-container {
+    justify-content: space-between;
+    min-height: var(--dm-header-height-wide);
+  }
+
   .header-holder .main-menu {
-    display: -webkit-box;
-    display: -ms-flexbox;
     display: flex;
-    -webkit-box-align: center;
-    -ms-flex-align: center;
     align-items: center;
-    -webkit-box-pack: end;
-    -ms-flex-pack: end;
   }
 }
 
 .header-holder .main-menu ul {
-  display: -webkit-box;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
 }
 
 .header-holder .main-menu ul li {
   display: inline-block;
-  margin-right: 40px;
   position: relative;
 }
 
-.header-holder .main-menu ul li.active:after {
-  content: "•";
-  bottom: -24px;
-  color: #1e90ff;
-  font-size: 1.375rem;
-  left: 0;
+.header-holder .main-menu ul li.active:after,
+.header-holder .main-menu ul li.docs-active:after {
+  content: "";
   position: absolute;
-  right: 0;
-  text-align: center;
+  left: 50%;
+  right: auto;
+  bottom: -0.9rem;
+  width: 1.5rem;
+  height: 0.2rem;
+  border-radius: var(--dm-radius-pill);
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, #60a5fa, var(--dm-primary));
 }
 
 .header-holder .main-menu ul li.active a {
-  color: #1e90ff;
-}
-
-.header-holder .main-menu ul li.docs-active:after {
-  content: "•";
-  bottom: -24px;
-  color: #1e90ff;
-  font-size: 1.375rem;
-  left: -24px;
-  position: absolute;
-  right: 0;
-  text-align: center;
-}
-
-.header-holder .main-menu ul li:last-of-type {
-  margin-right: 0;
+  color: var(--dm-primary);
 }
 
 .header-holder .main-menu ul li a {
-  color: #000000;
-  font-size: 1.3rem;
+  color: var(--dm-muted);
+  font-size: 0.95rem;
+  font-weight: 600;
   letter-spacing: 0;
-  line-height: 2.125rem;
+  line-height: 1.5rem;
   text-align: center;
   text-decoration: none;
+  border-radius: var(--dm-radius-pill);
+  padding: 0.55rem 0.8rem;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 @media screen and (min-width: 1100px) {
   .header-holder .main-menu ul li a:hover {
-    color: #1e90ff;
+    color: var(--dm-primary-strong);
+    background-color: var(--dm-primary-soft);
   }
 }
 
@@ -252,7 +209,13 @@ under MIT license
 }
 
 .mobile-main-menu.open {
-  background-color: #262626;
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(37, 99, 235, 0.28),
+      transparent 24rem
+    ),
+    #0f172a;
   display: block;
   height: 100%;
   left: 0;
@@ -267,13 +230,9 @@ under MIT license
 }
 
 .mobile-main-menu .container-fluid {
-  -webkit-box-align: center;
-  -ms-flex-align: center;
   align-items: center;
-  display: -webkit-box;
-  display: -ms-flexbox;
   display: flex;
-  height: 68px;
+  height: var(--dm-header-height);
   position: relative;
 }
 
@@ -287,10 +246,6 @@ under MIT license
   clear: both;
 }
 
-.mobile-main-menu .container-fluid {
-  *zoom: 1;
-}
-
 .mobile-main-menu.open ul {
   list-style-type: none;
   padding: 0;
@@ -298,49 +253,53 @@ under MIT license
 
 .mobile-main-menu.open ul li a,
 .mobile-main-menu.open .resources-mobile-menu-title {
-  font-size: 2rem;
+  display: inline-flex;
   color: #ffffff;
-  letter-spacing: 0;
-  line-height: 4rem;
+  font-size: clamp(1.35rem, 7vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.3;
   text-decoration: none;
+  padding: 0.45rem 0;
 }
 
 .mobile-main-menu.open ul li.active a {
-  color: #1e90ff;
+  color: #93c5fd;
+}
+
+.mobile-main-menu.open .header-logo::after {
+  color: #ffffff;
 }
 
 .main-menu-close-button {
   background-image: url("https://unpkg.com/@njzjz/icons@0.0.5/deepmodeling/icon-close-opt.svg");
   background-position: center center;
   background-repeat: no-repeat;
-  background-size: 24px 24px;
-  height: 24px;
+  background-size: 1.5rem 1.5rem;
+  height: 2.75rem;
   position: absolute;
   right: 0;
-  width: 24px;
-  top: -4px;
+  width: 2.75rem;
+  top: 0;
+  border-radius: var(--dm-radius-pill);
+  background-color: rgba(255, 255, 255, 0.08);
 }
 
 .mobile-main-menu-header-container {
   position: relative;
+  width: 100%;
 }
 
 .mobile-main-menu-links-container {
-  display: -webkit-box;
-  display: -ms-flexbox;
   display: flex;
-  -webkit-box-align: center;
-  -ms-flex-align: center;
-  align-items: center;
-  padding-left: 2.8125rem;
-  height: 90vh;
-  margin-top: -25px;
-  padding-top: 50%;
-  overflow-y: scroll;
+  align-items: flex-start;
+  padding: 14vh 2rem 2rem;
+  min-height: calc(100vh - var(--dm-header-height));
+  overflow-y: auto;
 }
 
 .mobile-main-menu-links-container .main-menu {
-  height: 100vh;
+  height: auto;
 }
 
 .mobile-main-menu-links-container ul.resources-mobile-menu-items li {
@@ -366,7 +325,7 @@ under MIT license
 }
 
 .main-menu ul li .dropdown-menu .dropdown-item:hover {
-  background-color: #1e90ff;
+  background-color: var(--dm-primary);
 }
 
 .main-menu ul li .dropdown-menu .dropdown-item p {
@@ -383,32 +342,34 @@ under MIT license
 }
 
 .resources-dropdown-menu {
-  left: -75px;
-  width: 226px;
+  left: 50%;
+  top: calc(100% + 0.65rem);
+  width: 15rem;
+  transform: translateX(-50%);
   display: none;
   position: absolute;
   z-index: 1000;
-  display: none;
-  float: left;
   min-width: 10rem;
-  padding: 0.5rem 0;
+  padding: 0.45rem;
   font-size: 1rem;
-  color: #212529;
+  color: var(--dm-text);
   text-align: left;
   list-style: none;
-  background-color: #ffffff;
+  background-color: var(--dm-surface);
   background-clip: padding-box;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  border-radius: 0.25rem;
+  border: 1px solid var(--dm-header-border);
+  border-radius: var(--dm-radius-menu);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.16);
 }
 
-.resources-dropdown:hover .resources-dropdown-menu {
+.resources-dropdown:hover .resources-dropdown-menu,
+.resources-dropdown:focus-within .resources-dropdown-menu {
   display: block;
 }
 
 .main-menu ul li .resources-dropdown-menu {
-  border-radius: 0;
-  padding: 0;
+  border-radius: var(--dm-radius-menu);
+  padding: 0.45rem;
 }
 
 .main-menu ul li.active:hover .resources-dropdown-menu {
@@ -421,20 +382,31 @@ under MIT license
 }
 
 .resources-dropdown .with-down-orange-arrow {
-  padding-right: 2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding-right: 0.8rem;
   position: relative;
-  background: url("https://unpkg.com/@njzjz/icons@0.0.5/deepmodeling/chevron-down-black-opt.svg");
-  background-size: 14px 18px;
-  background-position: top 7px right 10px;
+  background-image: none;
+}
+
+.resources-dropdown .with-down-orange-arrow::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.75rem;
+  height: 0.75rem;
+  background-image: url("https://unpkg.com/@njzjz/icons@0.0.5/deepmodeling/chevron-down-black-opt.svg");
+  background-position: center;
   background-repeat: no-repeat;
+  background-size: contain;
 }
 
 .with-down-arrow {
   padding-right: 2rem;
   position: relative;
   background-image: url("https://unpkg.com/@njzjz/icons@0.0.5/deepmodeling/chevron-down-black-opt.svg");
-  background-size: 14px 18px;
-  background-position: top 7px right 10px;
+  background-size: 0.75rem 0.75rem;
+  background-position: right 0.7rem center;
   background-repeat: no-repeat;
 }
 
@@ -444,21 +416,22 @@ under MIT license
 }
 
 .header-holder .main-menu ul li .resources-dropdown .doc-dropdown-option {
-  padding-top: 1rem;
+  padding-top: 0;
 }
 
 .header-holder .main-menu ul li a.nav-dropdown-item {
-  display: block;
-  font-size: 1rem;
-  line-height: 1.3125rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  padding: 0.25rem 1.5rem;
+  min-height: 2.75rem;
   clear: both;
-  font-weight: 400;
-  color: #979797;
+  color: var(--dm-muted);
   text-align: center;
   background-color: transparent;
-  border-bottom: 1px solid #e2e2e2;
+  border-bottom: 0;
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.75rem;
 }
 
 .header-holder .main-menu ul li a.nav-dropdown-item:last-of-type {
@@ -466,32 +439,36 @@ under MIT license
 }
 
 .header-holder .main-menu ul li a.nav-dropdown-item:hover {
-  background-color: #1e90ff;
-  color: white;
+  background-color: var(--dm-primary-soft);
+  color: var(--dm-primary-strong);
 }
 
 .header-holder .main-menu ul li a.nav-dropdown-item .dropdown-title {
-  font-size: 1.125rem;
-  color: #6c6c6d;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: inherit;
   letter-spacing: 0;
-  line-height: 34px;
+  line-height: 1.4;
 }
 
 .header-holder .main-menu ul li a.nav-dropdown-item:hover .dropdown-title {
-  background-color: #1e90ff;
-  color: white;
+  background-color: transparent;
+  color: inherit;
 }
 
 .main-menu-open-button {
   background-image: url("https://unpkg.com/@njzjz/icons@0.0.5/deepmodeling/icon-menu-dots-dark-opt.svg");
   background-position: center center;
-  background-size: 25px 7px;
+  background-size: 1.55rem 0.45rem;
   background-repeat: no-repeat;
-  width: 25px;
-  height: 17px;
+  width: 2.75rem;
+  height: 2.75rem;
   position: absolute;
   right: 0;
-  top: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: var(--dm-radius-pill);
+  background-color: var(--dm-surface-raised);
 }
 
 @media screen and (min-width: 1100px) {
@@ -532,7 +509,7 @@ under MIT license
 
 @media (min-width: 1200px) {
   .container {
-    max-width: 1140px;
+    max-width: 1180px;
   }
 }
 
@@ -545,71 +522,138 @@ under MIT license
 }
 
 .header-holder {
-  position: relative;
   z-index: 201;
 }
 
 .wy-side-scroll {
-  height: calc(100% - 68px) !important;
+  height: calc(100% - var(--dm-header-height)) !important;
 }
 
 @media screen and (min-width: 1100px) {
   .wy-side-scroll {
-    height: calc(100% - 90px) !important;
+    height: calc(100% - var(--dm-header-height-wide)) !important;
   }
+}
+
+/* Make common sphinx-book-theme surfaces feel closer to the modern banner. */
+.bd-main .bd-content .bd-article-container {
+  max-width: 54rem;
+}
+
+.bd-sidebar-primary,
+.bd-sidebar-secondary {
+  font-size: 0.95rem;
+}
+
+.bd-sidebar-primary .sidebar-primary-items__end,
+.bd-sidebar-primary .sidebar-primary-items__start {
+  border-color: var(--dm-header-border);
+}
+
+.bd-links .current > a,
+.bd-links .active > a,
+.bd-toc .active > a {
+  color: var(--dm-primary);
+  font-weight: 700;
+}
+
+.bd-links a:hover,
+.bd-toc a:hover,
+.bd-content a:hover {
+  color: var(--dm-primary-strong);
+}
+
+.bd-content .sd-card,
+.bd-content .card,
+.bd-content div.admonition,
+.bd-content .admonition {
+  border-radius: 1rem;
+  border-color: var(--dm-header-border);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.bd-content div.admonition > .admonition-title,
+.bd-content .admonition > .admonition-title {
+  border-radius: 1rem 1rem 0 0;
+}
+
+html[data-theme="dark"] {
+  --dm-header-bg: rgba(15, 23, 42, 0.86);
+  --dm-header-border: rgba(148, 163, 184, 0.2);
+  --dm-header-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --dm-text: #f8fafc;
+  --dm-muted: #cbd5e1;
+  --dm-surface: #111827;
+  --dm-surface-raised: rgba(148, 163, 184, 0.12);
+  --dm-primary: #60a5fa;
+  --dm-primary-soft: rgba(96, 165, 250, 0.16);
+  --dm-primary-strong: #93c5fd;
+}
+
+html[data-theme="dark"] .header-logo::after,
+html[data-theme="dark"] .header-holder .main-menu ul li a,
+html[data-theme="dark"] .header-holder .main-menu ul li a.nav-dropdown-item,
+html[data-theme="dark"]
+  .header-holder
+  .main-menu
+  ul
+  li
+  a.nav-dropdown-item
+  .dropdown-title {
+  color: var(--dm-muted);
+}
+
+html[data-theme="dark"] .header-holder .main-menu ul li.active a,
+html[data-theme="dark"] .header-holder .main-menu ul li a:hover,
+html[data-theme="dark"]
+  .header-holder
+  .main-menu
+  ul
+  li
+  a.nav-dropdown-item:hover {
+  color: var(--dm-primary-strong);
+}
+
+html[data-theme="dark"] .header-logo::after {
+  color: var(--dm-text);
+}
+
+html[data-theme="dark"] .resources-dropdown-menu {
+  color: var(--dm-text);
+  background-color: var(--dm-surface);
+}
+
+html[data-theme="dark"] .resources-dropdown .with-down-orange-arrow::after,
+html[data-theme="dark"] .with-down-arrow,
+html[data-theme="dark"] .with-down-arrow:hover {
+  filter: invert(1);
+}
+
+html[data-theme="dark"] .mobile-main-menu.open .header-logo::after {
+  color: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   /* skip sphinx-book-theme */
   html:not([data-theme]) {
-    /* Dark mode */
-    .header-holder {
-      background-color: #1e1e1e;
-    }
-    .header-logo::after {
-      color: #ffffff;
-    }
-    .header-holder .main-menu ul li a {
-      color: #ffffff;
-    }
-    .resources-dropdown-menu {
-      color: #ffffff;
-      background-color: #1e1e1e;
-    }
-    .header-holder .main-menu ul li a.nav-dropdown-item {
-      color: #ffffff;
-    }
-    .header-holder .main-menu ul li a.nav-dropdown-item .dropdown-title {
-      color: #ffffff;
-    }
-    .wy-body-for-nav {
-      background-color: #1e1e1e;
-    }
+    --dm-header-bg: rgba(30, 30, 30, 0.9);
+    --dm-header-border: rgba(255, 255, 255, 0.14);
+    --dm-text: #ffffff;
+    --dm-muted: #e5e7eb;
+    --dm-surface: #1e1e1e;
+    --dm-surface-raised: rgba(255, 255, 255, 0.08);
+    --dm-primary: #60a5fa;
+    --dm-primary-soft: rgba(96, 165, 250, 0.16);
+    --dm-primary-strong: #93c5fd;
   }
-}
 
-html[data-theme="dark"] {
-  /* sphinx-book-theme Dark mode */
-  .header-holder {
+  html:not([data-theme]) .wy-body-for-nav {
     background-color: #1e1e1e;
   }
-  .header-logo::after {
-    color: #ffffff;
-  }
-  .header-holder .main-menu ul li a {
-    color: #ffffff;
-  }
-  .resources-dropdown-menu {
-    color: #ffffff;
-    background-color: #1e1e1e;
-  }
-  .header-holder .main-menu ul li a.nav-dropdown-item {
-    color: #ffffff;
-  }
-  .header-holder .main-menu ul li a.nav-dropdown-item .dropdown-title {
-    color: #ffffff;
-  }
-  .wy-body-for-nav {
-    background-color: #1e1e1e;
+
+  html:not([data-theme]) .resources-dropdown .with-down-orange-arrow::after,
+  html:not([data-theme]) .with-down-arrow,
+  html:not([data-theme]) .with-down-arrow:hover {
+    filter: invert(1);
   }
 }
