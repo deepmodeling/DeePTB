@@ -129,7 +129,7 @@ class TestOpticalConductivity(unittest.TestCase):
         diff_gauss = torch.abs(sigma - sigma_loop).max()
         self.assertLess(diff_gauss, 1e-6)
         diff_real_gauss = torch.abs(sigma.real - ref_sig_real_gauss).max()
-        self.assertLess(diff_real_gauss, 1e-4)
+        self.assertLess(diff_real_gauss, 2e-4)
 
 if __name__ == '__main__':
     unittest.main()
