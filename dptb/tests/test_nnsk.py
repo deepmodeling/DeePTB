@@ -56,6 +56,21 @@ class TestNNSK:
     batch = next(iter(train_loader))
     batch = AtomicData.to_AtomicDataDict(batch)
 
+    def test_nnsk_scc_metadata_save_load(self, tmp_path):
+        model = NNSK(**self.model_options['nnsk'], **{**self.common_options, "overlap": True}, transform=False)
+        model.scc_metadata = {
+            "hubbard_u": {"B": {"2s": 11.0, "2p": 8.0}, "N": {"2s": 12.0, "2p": 9.0}},
+            "occupation": {"B": {"2s": 2, "2p": 1}, "N": {"2s": 2, "2p": 3}},
+            "mass": {"B": 10.81, "N": 14.007},
+            "r_max": {"B": 2.6, "N": 2.6},
+        }
+        checkpoint = tmp_path / "nnsk_scc.pth"
+        model.save(checkpoint)
+
+        loaded = NNSK.from_reference(checkpoint=str(checkpoint))
+
+        assert loaded.scc_metadata == model.scc_metadata
+
     def test_nnsk_none_powerlaw(self):
         model_options = self.model_options
         model_options["nnsk"]["onsite"]["method"] = "none"

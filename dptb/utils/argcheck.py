@@ -698,7 +698,7 @@ def dftbsk():
 
     return Argument("dftbsk", dict, sub_fields=[
                 Argument("skdata", str, optional=False, doc="The path to the skfile or sk database."),
-                Argument("r_max", float, optional=False, doc="the cutoff values to use sk files."),
+                Argument("r_max", [float, int, dict], optional=False, doc="the cutoff values to use sk files."),
                 ], sub_variants=[], optional=True, doc=doc_dftbsk)
 
 def nnsk():

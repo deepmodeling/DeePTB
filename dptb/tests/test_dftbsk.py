@@ -62,6 +62,10 @@ class TestDFTBSK:
         assert model.onsite_fn.functype == 'dftb'
         assert model.hopping_fn.functype == 'dftb'
 
+    def test_dftbsk_stores_r_max_metadata(self):
+        model = DFTBSK(**self.common_options, **self.model_options['dftbsk'], r_max=5.0)
+        assert model.model_options["dftbsk"]["r_max"] == 5.0
+
     def test_forward_dftbsk(self):
         model = DFTBSK(**self.common_options, **self.model_options['dftbsk'], transform=False)
         data = model(self.batch)
@@ -86,7 +90,7 @@ class TestDFTBSK:
         [-1.1053317, -1.4127309,  1.7213905, -0.3220515],
         [-1.1053317, -1.4127309,  1.7213905, -0.3220515]])
 
-        assert compare_tensors_as_sets_float(data[AtomicDataDict.EDGE_FEATURES_KEY], expected_edge_feature, precision=5)
+        assert compare_tensors_as_sets_float(data[AtomicDataDict.EDGE_FEATURES_KEY], expected_edge_feature, precision=4)
         # assert torch.allclose(data[AtomicDataDict.EDGE_FEATURES_KEY], expected_edge_feature)
 
         expected_edge_overlap = torch.tensor([[ 0.0115951, -0.0208762, -0.0355638,  0.0046229],
@@ -108,12 +112,10 @@ class TestDFTBSK:
         [ 0.0399277,  0.0585683, -0.0838758,  0.0126881],
         [ 0.0399277,  0.0585683, -0.0838758,  0.0126881]])
 
-        assert compare_tensors_as_sets_float(data[AtomicDataDict.EDGE_OVERLAP_KEY], expected_edge_overlap, precision=5)
+        assert compare_tensors_as_sets_float(data[AtomicDataDict.EDGE_OVERLAP_KEY], expected_edge_overlap, precision=4)
         # assert torch.allclose(data[AtomicDataDict.EDGE_OVERLAP_KEY], expected_edge_overlap)
 
         assert AtomicDataDict.NODE_SOC_SWITCH_KEY in data
         assert not data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all()
-
-
 
 

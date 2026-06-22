@@ -20,11 +20,19 @@ class TestSKParam:
         assert "Hopping" in skdict
         assert "Overlap" in skdict
         assert "OnsiteE" in skdict
+        assert "HubdU" in skdict
+        assert "Occu" in skdict
+        assert "Mass" in skdict
+        assert "Highest_Occu_U" in skdict
 
         assert isinstance(skdict["Distance"],torch.Tensor)
         assert isinstance(skdict['Hopping'], torch.Tensor)
         assert isinstance(skdict['Overlap'], torch.Tensor)
         assert isinstance(skdict['OnsiteE'], torch.Tensor)
+        assert isinstance(skdict['HubdU'], torch.Tensor)
+        assert isinstance(skdict['Occu'], torch.Tensor)
+        assert isinstance(skdict['Mass'], torch.Tensor)
+        assert isinstance(skdict['Highest_Occu_U'], torch.Tensor)
 
         assert len(skdict["Distance"].shape) == 1
 
@@ -37,6 +45,9 @@ class TestSKParam:
         assert skdict['OnsiteE'].shape[0] == skparams.idp_sk.num_types
         assert skdict['OnsiteE'].shape[1] == skparams.idp_sk.n_onsite_Es
         assert skdict['OnsiteE'].shape[2] == 1
+        assert skdict['HubdU'].shape == skdict['Occu'].shape == skdict['OnsiteE'].shape
+        assert skdict['Mass'].shape == torch.Size([skparams.idp_sk.num_types, 1])
+        assert skdict['Highest_Occu_U'].shape == torch.Size([skparams.idp_sk.num_types, 1, 1])
 
     def test_init_path(self):
         # with pytest.raises(IndexError):
@@ -154,3 +165,8 @@ class TestSKParam:
 
         format_skparams = SKParam(basis={"C": ["2s", "2p"], "H": ["1s"]}, skdata=output)
         self.check_skdict(format_skparams)
+
+    def test_formatted_to_skdict_requires_idp_sk(self):
+        skparams = SKParam(basis={"C": ["2s", "2p"], "H": ["1s"]}, skdata=self.skdatapath)
+        with pytest.raises(ValueError, match="idp_sk must be provided"):
+            SKParam.formatted_to_skdict(skparams.skdict)

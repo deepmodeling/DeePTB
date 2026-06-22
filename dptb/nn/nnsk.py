@@ -631,6 +631,8 @@ class NNSK(torch.nn.Module):
             nnsk['hopping']['rs'] = rs_out
                 
             model = cls(**common_options, **nnsk, transform=transform)
+            if f.get("scc_metadata") is not None:
+                model.scc_metadata = f["scc_metadata"]
 
             if f["config"]["common_options"]["basis"] == common_options["basis"] and \
                 f["config"]["model_options"]["nnsk"]["onsite"] == model.model_options["nnsk"]["onsite"] and \
@@ -957,6 +959,8 @@ class NNSK(torch.nn.Module):
         }
         obj.update({"config": {"model_options": model_options, "common_options": common_options}})
         obj.update({"model_state_dict": self.state_dict()})
+        if hasattr(self, "scc_metadata"):
+            obj.update({"scc_metadata": self.scc_metadata})
         torch.save(obj, f=filepath)
         
     def to_json(self, version=2, basisref=None):

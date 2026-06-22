@@ -551,11 +551,17 @@ class MIX(nn.Module):
             if ckpt["config"]["model_options"].get("embedding") is not None and ckpt["config"]["model_options"].get("prediction") is not None:    
                 num_xgrid = ckpt["model_state_dict"]["dftbsk.distance_param"].shape[0]
                 model = cls(**model_options, **common_options,transform=transform,num_xgrid=num_xgrid)
-                model.load_state_dict(ckpt["model_state_dict"])
+                state_dict = ckpt["model_state_dict"]
+                if "dftbsk.mass" not in state_dict:
+                    state_dict["dftbsk.mass"] = model.dftbsk.mass
+                model.load_state_dict(state_dict)
             else:
                 num_xgrid = ckpt["model_state_dict"]["distance_param"].shape[0]
                 model = cls(**model_options, **common_options,transform=transform,num_xgrid=num_xgrid)
-                model.dftbsk.load_state_dict(ckpt["model_state_dict"])
+                state_dict = ckpt["model_state_dict"]
+                if "mass" not in state_dict:
+                    state_dict["mass"] = model.dftbsk.mass
+                model.dftbsk.load_state_dict(state_dict)
 
         del ckpt
         

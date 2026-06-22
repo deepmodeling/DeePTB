@@ -4,8 +4,7 @@ from .write_block import write_block
 
 
 __all__ = [
-    Band,
-    TBPLaS,
-    write_block,
-
+    "Band",
+    "TBPLaS",
+    "write_block",
 ]

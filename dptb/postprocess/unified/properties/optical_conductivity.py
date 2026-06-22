@@ -3,6 +3,7 @@ import numpy as np
 import logging
 from typing import Optional, Union, List
 from dptb.postprocess.unified.utils import calculate_fermi_level
+from dptb.utils.constants import kB_eV_per_K
 
 from dptb.data import AtomicDataDict
 
@@ -138,7 +139,7 @@ class ACAccessor:
             # 5. Kubo Sum
             # Fermi
             efermi = self._system.efermi
-            beta_T = 1.0 / (8.617e-5 * temperature)
+            beta_T = 1.0 / (kB_eV_per_K * temperature)
             f = 1.0 / (1.0 + torch.exp(beta_T * (eigs - efermi)))
             
             f_n = f.unsqueeze(2) # [Nk, N, 1]

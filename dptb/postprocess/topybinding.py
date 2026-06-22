@@ -15,8 +15,8 @@ Ang2nm = 0.1
 
 try:
     import pybinding as pb
-except ImportError:
-    log.error("Pybinding is not installed. Please install it via `pip install pybinding`")
+except ModuleNotFoundError:
+    pb = None
 
 class ToPybinding(object):
     def __init__ (
@@ -40,6 +40,11 @@ class ToPybinding(object):
 
 
     def get_lattice(self, data: Union[AtomicData, ase.Atoms, str], AtomicData_options: dict={}, e_fermi: float=0.0):
+        if pb is None:
+            raise ModuleNotFoundError(
+                "Pybinding is not installed. Please install it via `pip install pybinding`."
+            )
+
         # get the AtomicData structure and the ase structure
         if isinstance(data, str):
             structase = read(data)

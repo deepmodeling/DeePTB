@@ -22,6 +22,7 @@ dtype_dict = {"float32": torch.float32, "float64": torch.float64}
 # k = Boltzmann # k is the Boltzmann constant in old NEGF module
 Coulomb = 6.24150974e18 # in the unit of eV*Angstrom
 eV2J = 1.6021766208e-19 # in the unit of J
+kB_eV_per_K = Boltzmann / eV2J # Boltzmann constant in eV/K
 
 
 # bond integral index in DFTB sk files. specific.
@@ -37,6 +38,15 @@ atomic_num_dict = ase.atom.atomic_numbers
 atomic_num_dict_r = dict(zip(atomic_num_dict.values(), atomic_num_dict.keys()))
 MaxShells  = 3
 NumHvals   = 10
+
+# DFTB+ interpolation constants for modern equal-grid SK interpolation.
+DFTBPLUS_N_INTER = 8
+DFTBPLUS_N_RIGHT_INTER = 4
+DFTBPLUS_DIST_FUDGE = 1.0
+DFTBPLUS_DELTA_R = 1e-5
+
+# Euler-Mascheroni constant for Ewald summation.
+euler = 0.5772156649
 
 Orbital_Order_Wan_Default = { 's': ['s'],
                               'p': ['pz','px','py'],
@@ -121,5 +131,4 @@ PYSCF2DeePTB = {
             4: np.eye(9),
             5: np.eye(11)
         }
-
 

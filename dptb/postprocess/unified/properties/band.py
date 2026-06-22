@@ -238,7 +238,7 @@ class BandAccessor:
         data = self._system._atomic_data
         
         # Calculate
-        data, eigs = self._system.calculator.get_eigenvalues(
+        data, eigs = self._system.get_eigenvalues(
             data,
             nk=nk,
             solver=solver,

@@ -17,9 +17,17 @@ from dptb.data import AtomicData, AtomicDataDict
 log = logging.getLogger(__name__)
 
 try:
-    import tbplas as tb
+    import tbplas
 except ImportError:
-    log.error('TBPLaS is not installed. Thus the TBPLaS is not available, Please install it first.')
+    tbplas = None
+
+
+def _require_tbplas():
+    if tbplas is None:
+        raise ImportError(
+            "TBPLaS requires the optional dependency 'tbplas'. "
+            "Please install tbplas before using dptb.postprocess.TBPLaS."
+        )
 
 class TBPLaS(object):
     def __init__ (
@@ -30,7 +38,8 @@ class TBPLaS(object):
             overlap=False,
             device: Union[str, torch.device]=torch.device('cpu')
             ):
-        
+        _require_tbplas()
+
         if isinstance(device, str):
             device = torch.device(device)
         self.device = device
@@ -64,7 +73,7 @@ class TBPLaS(object):
 
         cell = data[AtomicDataDict.CELL_KEY]
         cell_inv = cell.inverse()
-        tbplas_cell = tb.PrimitiveCell(lat_vec=cell.cpu(), unit=tb.ANG)
+        tbplas_cell = tbplas.PrimitiveCell(lat_vec=cell.cpu(), unit=tbplas.ANG)
 
         orbs = {}
         norbs = {}
@@ -188,6 +197,7 @@ class TBPLaS(object):
 
 class _TBPLaS(object):
     def __init__(self, apiHrk, run_opt, jdata):
+        _require_tbplas()
         self.apiH = apiHrk
 
         if isinstance(run_opt['structure'],str):
@@ -217,7 +227,7 @@ class _TBPLaS(object):
             factor = 13.605662285137
 
         lat = self.structase.cell
-        tbplas_cell = tb.PrimitiveCell(lat_vec=lat, unit=tb.ANG)
+        tbplas_cell = tbplas.PrimitiveCell(lat_vec=lat, unit=tbplas.ANG)
         
         if os.path.exists(os.path.join(self.results_path, "HR.pth")):
             f = torch.load(os.path.join(self.results_path, "HR.pth"), weights_only=False)
@@ -295,16 +305,16 @@ class _TBPLaS(object):
             
             nele = self.jdata["nele"]
 
-            super_cell = tb.SuperCell(tbplas_cell, dim=self.jdata["supercell"], pbc=self.jdata["pbc"])
-            sample = tb.Sample(super_cell)
+            super_cell = tbplas.SuperCell(tbplas_cell, dim=self.jdata["supercell"], pbc=self.jdata["pbc"])
+            sample = tbplas.Sample(super_cell)
             sample.rescale_ham()
 
-            config = tb.Config()
+            config = tbplas.Config()
             config.generic['nr_random_samples'] = self.jdata["nsample"]
             config.generic['nr_time_steps'] = self.jdata["ntimes"]
 
-            solver = tb.Solver(sample, config)
-            analyzer = tb.Analyzer(sample, config)
+            solver = tbplas.Solver(sample, config)
+            analyzer = tbplas.Analyzer(sample, config)
 
             corr_dos = solver.calc_corr_dos()
             energies, dos = analyzer.calc_dos(corr_dos)
