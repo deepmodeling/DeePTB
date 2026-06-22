@@ -14,7 +14,7 @@ jobs:
       issues: write
     steps:
       - name: Checkout trusted base code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Keep the workflow and helper script versions in sync while avoiding fork code.
           ref: ${{ github.event.pull_request.base.ref }}
