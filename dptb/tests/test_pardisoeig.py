@@ -8,6 +8,8 @@ import torch
 import pytest
 from dptb.utils.pardiso_wrapper import _MKL_RT_HANDLE
 
+pytest.importorskip("vbcsr")
+
 
 
 @pytest.fixture(scope='session', autouse=True)

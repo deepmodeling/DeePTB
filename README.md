@@ -22,9 +22,9 @@
 DeePTB is an innovative Python package that uses deep learning to accelerate *ab initio* electronic structure simulations. It offers versatile, accurate, and efficient simulations for a wide range of materials and phenomena. Trained on small systems, DeePTB can predict electronic structures of large systems, handle structural perturbations, and integrate with molecular dynamics for finite temperature simulations, providing comprehensive insights into atomic and electronic behavior.
 
 - **Key Features**
-DeePTB contains two main components: 
+DeePTB contains two main components:
   1. **DeePTB-SK**: deep learning based local environment dependent Slater-Koster TB.
-      - Customizable Slater-Koster parameterization with neural network corrections for . 
+      - Customizable Slater-Koster parameterization with neural network corrections for .
       - Flexible basis and exchange-correlation functional choices.
       - Handle systems with strong spin-orbit coupling (SOC) effects.
 
@@ -42,7 +42,7 @@ For more details, see our papers:
 ## 📚 Documentation
 
 - **Online documentation**
-  
+
     For a comprehensive guide and usage tutorials, visit [Documentation website](https://deeptb.readthedocs.io/en/latest/).
 
 - **Contributing**
@@ -57,19 +57,20 @@ Installing **DeePTB** is straightforward with UV, a fast Python package manager.
 
 - **Requirements**
   - Git
-  - Python 3.9 to 3.12 (UV can auto-install if needed)
-  - PyTorch 2.0.0 to 2.5.1 (auto-installed by UV)
+  - Python 3.10 to 3.13
+  - UV, the recommended installer frontend
+  - For GPU installs: an NVIDIA driver compatible with the selected CUDA runtime
 
 - **From Source** (Recommended)
-  
+
   1. **Install UV** (if not already installed):
      ```bash
      # On macOS and Linux
      curl -LsSf https://astral.sh/uv/install.sh | sh
-     
+
      # Or using pip
      pip install uv
-     
+
      # On Windows (PowerShell)
      powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
      ```
@@ -80,120 +81,111 @@ Installing **DeePTB** is straightforward with UV, a fast Python package manager.
      cd DeePTB
      ```
 
-  3. **Install DeePTB with all dependencies**:
-     
-     **CPU version (default)**:
+  3. **Install DeePTB with tested dependencies**:
+
+     **Automatic CPU/GPU selection**:
      ```bash
-     uv sync
-     # Or use the convenience script
      ./install.sh
      ```
-     
-     **GPU version** (specify CUDA version via command line, no file editing needed):
+
+     **CPU-only install**:
      ```bash
-     # Check your CUDA version first
-     nvidia-smi  # Look for CUDA Version
-     
-     # Install with your CUDA version (examples):
-     uv sync --find-links https://data.pyg.org/whl/torch-2.5.0+cu118.html  # CUDA 11.8
-     uv sync --find-links https://data.pyg.org/whl/torch-2.5.0+cu121.html  # CUDA 12.1
-     uv sync --find-links https://data.pyg.org/whl/torch-2.5.0+cu124.html  # CUDA 12.4
-     
-     # Or use the convenience script
-     ./install.sh cu121  # for CUDA 12.1
+     ./install.sh cpu
      ```
-     
+
+     **GPU install**:
+     ```bash
+     nvidia-smi  # check the driver-reported CUDA version
+     ./install.sh gpu    # auto-detect CUDA backend
+
+     # Or force a tested CUDA wheel path:
+     ./install.sh cu128  # RTX 50 / CUDA 12.8 path tested with torch 2.10.0
+     ./install.sh cu130  # requires a driver new enough for CUDA 13.0 runtime
+     ```
+
      This single command will:
      - Automatically create a virtual environment (`.venv`)
-     - Install PyTorch (>=2.0.0, <=2.5.1) with the specified variant (CPU/GPU)
-     - Install torch_scatter from PyTorch Geometric index
+     - Install a tested PyTorch / PyG / `torch-scatter` binary-wheel combination
+     - Refuse unsupported Python or CUDA/backend combinations instead of falling back to source builds
      - Install all other dependencies
-     
+
   4. **Install optional dependencies** (if needed):
      ```bash
      # For 3D Fermi surface plotting
-     uv sync --extra 3Dfermi
-     
+     ./install.sh auto --extra 3Dfermi
+
      # For TBtrans initialization
-     uv sync --extra tbtrans_init
-     
+     ./install.sh auto --extra tbtrans_init
+
      # For pybinding support
-     uv sync --extra pybinding
-     
-     # Install all optional dependencies
-     uv sync --all-extras
+     ./install.sh auto --extra pybinding
      ```
 
   5. **Run DeePTB**:
      ```bash
-     # UV automatically activates the environment when using 'uv run'
-     uv run dptb --help
-     
-     # Or activate the environment manually
      source .venv/bin/activate  # On Unix/macOS
      .venv\Scripts\activate     # On Windows
      dptb --help
      ```
 
-- **GPU Support** (Optional)
-  
-  GPU installation is now built into the main installation step above! Simply use:
+- **Developer Install**
+
+  `pyproject.toml` declares the broader source-compatible range
+  (`Python >=3.10,<3.14`, `torch >=2.5.1,<=2.12.1`). Developers who already
+  manage their own Torch/PyG environment can still use:
+
   ```bash
-  # Check CUDA version
-  nvidia-smi
-  
-  # Install with command line (recommended - no file editing!)
-  uv sync --find-links https://data.pyg.org/whl/torch-2.5.0+cu121.html
-  
-  # Or use convenience script
-  ./install.sh cu121
+  uv sync
   ```
-  
-  See step 3 above for all available CUDA versions.
+
+  For new machines, prefer `install.sh` because it selects a tested
+  `torch-scatter` binary wheel for the requested CPU/GPU backend.
 
 - **Easy Installation** (PyPI)
-  
+
   > [!WARNING]
-  > PyPI installation requires manual torch_scatter installation first, as torch_scatter is not available on PyPI.
-  
+  > PyPI installation requires a compatible PyTorch and `torch-scatter` binary
+  > wheel to be installed first. The source install path above is easier for new
+  > machines.
+
   **For CPU**:
   ```bash
-  # 1. Install torch_scatter first
-  pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.0+cpu.html
-  
+  # 1. Install torch_scatter matching the tested CPU Torch version
+  pip install torch-scatter -f https://data.pyg.org/whl/torch-2.12.1+cpu.html
+
   # 2. Install DeePTB
   pip install dptb
   ```
-  
-  **For GPU** (example with CUDA 12.1):
+
+  **For GPU** (example with CUDA 12.8 / RTX 50):
   ```bash
-  # 1. Install torch with CUDA support
-  pip install torch --index-url https://download.pytorch.org/whl/cu121
-  
-  # 2. Install torch_scatter matching your CUDA version
-  pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.0+cu121.html
-  
+  # 1. Install torch with CUDA support.
+  pip install torch==2.10.0 --index-url https://download.pytorch.org/whl/cu128
+
+  # 2. Install torch_scatter matching the Torch/CUDA pair.
+  pip install torch-scatter -f https://data.pyg.org/whl/torch-2.10.0+cu128.html
+
   # 3. Install DeePTB
   pip install dptb
   ```
-  
+
   > [!TIP]
   > For easier installation with automatic GPU/CPU detection, use the **From Source** method above instead.
 
 - **Julia Backend** (Optional - for High-Performance Pardiso Solver)
-  
+
   > [!NOTE]
   > **Platform Support**: Pardiso backend currently supports **Linux only**.
   > - **macOS**: Not supported (Intel MKL limitations)
   > - **Windows**: Use WSL2 (Windows Subsystem for Linux)
-  
+
   If you want to use the Pardiso backend for accelerated band structure calculations:
-  
+
   **Automated Installation** (Recommended):
   ```bash
   ./install_julia.sh
   ```
-  
+
   **Manual Installation**:
   1. Install Julia:
      ```bash
@@ -204,22 +196,22 @@ Installing **DeePTB** is straightforward with UV, a fast Python package manager.
      ```bash
      julia install_julia_packages.jl
      ```
-  
+
   **Verify Installation**:
   ```bash
   julia -e 'using Pardiso; println("Pardiso available: ", Pardiso.MKL_PARDISO_LOADED[])'
   ```
-  
+
   **Usage**:
   ```bash
   dptb pdso band.json -i model.pth -stu structure.vasp -o ./output
   ```
-  
+
   For more details, see:
   - [Pardiso Backend README](dptb/postprocess/pardiso/README.md)
   - [Example Tutorial](examples/To_pardiso/README.md)
 
-## Test code 
+## Test code
 
 To ensure the code is correctly installed, please run the unit tests first:
 ```bash
@@ -234,7 +226,7 @@ The following references are required to be cited when using DeePTB. Specificall
 - **For DeePTB-SK:**
 
     Q. Gu, Z. Zhouyin, S. K. Pandey, P. Zhang, L. Zhang, and W. E, Deep Learning Tight-Binding Approach for Large-Scale Electronic Simulations at Finite Temperatures with Ab Initio Accuracy, Nat Commun 15, 6772 (2024).
-  
+
 - **For DeePTB-E3:**
-  
-    Z. Zhouyin, Z. Gan, S. K. Pandey, L. Zhang, and Q. Gu, Learning Local Equivariant Representations for Quantum Operators, In The 13th International Conference on Learning Representations (ICLR) 2025. 
+
+    Z. Zhouyin, Z. Gan, S. K. Pandey, L. Zhang, and Q. Gu, Learning Local Equivariant Representations for Quantum Operators, In The 13th International Conference on Learning Representations (ICLR) 2025.

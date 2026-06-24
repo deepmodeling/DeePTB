@@ -5,7 +5,7 @@ description = "A unified deep learning package for electronic structure models i
 readme = "README.md"
 license = "LGPL-3.0-only"
 license-files = ["LICENSE"]
-requires-python = ">=3.9,<=3.12.9"
+requires-python = ">=3.10,<3.14"
 authors = [
     {name = "DeePTB Team"}
 ]
@@ -14,32 +14,30 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Physics",
 ]
 
 dependencies = [
-    "pytest>=7.2.0",
-    "pytest-order==1.2.0",
-    "numpy",
-    "scipy>=1.11,<1.13",
+    "numpy>=1.26,<3",
+    "scipy>=1.12",
     "spglib",
     "matplotlib",
-    "torch>=2.0.0,<=2.5.1",
+    "torch>=2.5.1,<=2.12.1",
     "ase",
     "pyyaml",
-    "dargs==0.4.4",
+    "dargs>=0.4.4,<0.5",
     "e3nn>=0.5.1",
-    "torch-runstats==0.2.0",
+    "torch-runstats>=0.2.0,<0.3",
     "torch_scatter==2.1.2",
-    "torch_geometric>=2.4.0",
-    "opt-einsum==3.3.0",
-    "h5py>=3.7.0,<3.12,!=3.10.0",
-    "lmdb==1.4.1",
-    "pyfiglet==1.0.2",
+    "torch_geometric>=2.8.0",
+    "opt-einsum>=3.3.0,<4",
+    "h5py>=3.11",
+    "lmdb>=1.4.1",
+    "pyfiglet>=1.0.2,<2",
     "tensorboard",
     "seekpath",
     "rich>=13.0.0"
@@ -74,17 +72,19 @@ fallback_version = "0.0.0-dev"  # Fallback for non-git installs (e.g. zip downlo
 
 # UV-specific configuration
 [tool.uv]
-# PyTorch Geometric uses find-links for torch_scatter distribution
-# DEFAULT: CPU version. For GPU, use:
-#   uv sync --find-links https://data.pyg.org/whl/torch-2.5.0+cu121.html
-#   OR use the helper script: ./install.sh cu121
-find-links = ["https://data.pyg.org/whl/torch-2.5.0+cpu.html"]
+# PyTorch Geometric uses find-links for torch_scatter distribution.
+# DEFAULT: CPU version for developer uv sync / pip-style installs.
+# For hardware-specific tested installs, prefer:
+#   ./install.sh auto
+find-links = ["https://data.pyg.org/whl/torch-2.12.1+cpu.html"]
 
 [dependency-groups]
 dev = [
     "ipykernel",
     "jupyter",
     "notebook",
+    "pytest>=7.2.0",
+    "pytest-order>=1.2.0,<2",
 ]
 
 [tool.pytest.ini_options]

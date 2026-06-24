@@ -6,8 +6,9 @@ This guide will help you install DeePTB, a Python package that utilizes deep lea
 
 Before installing DeePTB, ensure you have the following prerequisites:
   - Git
-  - Python 3.9 to 3.12.
-  - Torch 2.0.0 to 2.5.1 ([PyTorch Installation](https://pytorch.org/get-started/locally)).
+  - Python 3.10 to 3.13.
+  - UV, the recommended installer frontend.
+  - For GPU installs, an NVIDIA driver compatible with the selected CUDA runtime.
   - ifermi (optional, for 3D fermi-surface plotting).
   - TBPLaS (optional).
 
@@ -16,49 +17,58 @@ Before installing DeePTB, ensure you have the following prerequisites:
 
 
 ### From Source
-  
+
 Highly recommended to install DeePTB from source to get the latest features and bug fixes.
-1. **Setup Python environment**:
-    
-    Using conda (recommended, python >=3.9, <=3.12 ), e.g.,
+1. **Install UV**:
     ```bash
-    conda create -n dptb_venv python=3.10
-    conda activate dptb_venv
+    curl -LsSf https://astral.sh/uv/install.sh | sh
     ```
-    or using venv (make sure python >=3.9,<=3.12)
-    ```bash
-    python -m venv dptb_venv
-    source dptb_venv/bin/activate
-    ```
-2. **Clone DeePTB and  Navigate to the root directory**:
+
+2. **Clone DeePTB and navigate to the root directory**:
     ```bash
     git clone https://github.com/deepmodeling/DeePTB.git
     cd DeePTB
     ```
-3. **Install `torch`**:
-    ```bash
-    pip install "torch>=2.0.0,<=2.5.0"
-    ```
-4. **Install `torch-scatter`** (two ways):
-    - **Recommended**: Install torch and torch-scatter using the following commands:
-        ```bash
-         python docs/auto_install_torch_scatter.py
-        ```
-    - **Manual**: Install torch and torch-scatter manually:
-        ```bash
-        pip install torch-scatter -f https://data.pyg.org/whl/torch-${version}+${CUDA}.html
-        ```
-        where `${version}` is the version of torch, e.g., 2.5.0, and `${CUDA}` is the CUDA version, e.g., cpu, cu118, cu121, cu124. See [torch_scatter doc](https://github.com/rusty1s/pytorch_scatter) for more details.   
 
-5. **Install DeePTB**:   
+3. **Install DeePTB with the tested installer**:
+
+    CPU-only:
     ```bash
-    pip install .
+    ./install.sh cpu
     ```
-    
+
+    Auto-select CPU/GPU:
+    ```bash
+    ./install.sh
+    ```
+
+    Force a GPU wheel path:
+    ```bash
+    nvidia-smi
+    ./install.sh gpu
+    ./install.sh cu128
+    ./install.sh cu130
+    ```
+
+    The installer creates `.venv` and installs a tested PyTorch / PyG /
+    `torch-scatter` binary-wheel combination. It refuses unsupported Python or
+    CUDA/backend combinations instead of falling back to source builds.
+
+4. **Install optional extras**:
+    ```bash
+    ./install.sh auto --extra 3Dfermi
+    ./install.sh auto --extra tbtrans_init
+    ./install.sh auto --extra pybinding
+    ```
+
 ### From PyPi
 
-1. Install PyTorch first by following the instructions on [PyTorch: Get Started](https://pytorch.org/get-started/locally).
-2. Install DeePTB using pip:
+For new machines, source installation with `install.sh` is recommended. PyPI
+installation is suitable only when a compatible PyTorch and `torch-scatter`
+binary wheel are already installed.
+
+1. Install PyTorch and `torch-scatter` matching your CPU/GPU backend.
+2. Install DeePTB:
    ```bash
    pip install dptb
    ```
@@ -75,4 +85,3 @@ We welcome contributions to DeePTB. If you are interested in contributing, pleas
 ## License
 
 DeePTB is open-source software released under the [LGPL-3.0](https://github.com/deepmodeling/DeePTB/blob/main/LICENSE) provided in the repository.
-

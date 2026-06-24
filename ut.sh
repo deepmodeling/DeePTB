@@ -4,13 +4,10 @@
 # Used by: .github/workflows/unit_test.yml
 # For user installation, use: ./install.sh directly
 #
+set -e
 
-# Install dependencies using install.sh (CPU version)
-# This ensures consistent installation logic between user and CI
-bash install.sh cpu
+# Install dependencies using the same tested installer path used by users.
+bash install.sh cpu --extra pythtb --test
 
-# Install optional dependencies for testing
-uv sync --extra pythtb
-
-# Run tests
-uv run pytest ./dptb/tests/
+# Run tests in the environment prepared by install.sh.
+.venv/bin/python -m pytest ./dptb/tests/
