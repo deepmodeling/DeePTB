@@ -1,0 +1,70 @@
+name: GPU compatibility
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: "Installer backend to test"
+        required: true
+        default: "cu128"
+        type: choice
+        options:
+          - cu128
+          - cu130
+      pytest_mark:
+        description: "Pytest marker expression"
+        required: true
+        default: "not slow"
+      run_pytest:
+        description: "Run pytest after install and CUDA smoke"
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  gpu-compat:
+    if: github.repository_owner == 'deepmodeling'
+    runs-on: [self-hosted, linux-x64, gpu]
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Add safe directory
+        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+
+      - name: Show GPU
+        run: |
+          nvidia-smi
+
+      - name: Install DeePTB GPU stack
+        run: |
+          bash install.sh "${{ inputs.backend }}" --extra pythtb --test
+
+      - name: CUDA and torch-scatter smoke
+        run: |
+          .venv/bin/python - <<'PY'
+          import torch
+          import torch_scatter
+          from importlib import metadata
+
+          print("torch", torch.__version__, "cuda runtime", torch.version.cuda)
+          print("torch-scatter", metadata.version("torch-scatter"))
+          assert torch.cuda.is_available(), "CUDA is not available after GPU install"
+
+          x = torch.randn(16, device="cuda")
+          index = torch.tensor(
+              [0, 0, 1, 1, 2, 2, 3, 3, 0, 1, 2, 3, 0, 1, 2, 3],
+              device="cuda",
+          )
+          out = torch_scatter.scatter_add(x, index)
+          assert out.shape == (4,)
+          print("scatter_add", out.shape, out.dtype, out.device)
+          PY
+
+      - name: Run pytest
+        if: inputs.run_pytest
+        run: |
+          .venv/bin/python -m pytest dptb/tests -m "${{ inputs.pytest_mark }}" -q

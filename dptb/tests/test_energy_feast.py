@@ -1,10 +1,17 @@
 
+import os
+
 import pytest
 import numpy as np
 import scipy.sparse as sp
 from scipy.linalg import eigh
 from dptb.nn.energy import FEASTEig
 from dptb.utils.feast_wrapper import _MKL_RT
+
+pytestmark = pytest.mark.skipif(
+    os.environ.get("DPTB_TEST_MKL_FEAST") != "1",
+    reason="MKL FEAST native tests require DPTB_TEST_MKL_FEAST=1",
+)
 
 class MockMat:
     def __init__(self, mat):

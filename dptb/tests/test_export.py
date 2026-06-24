@@ -92,7 +92,8 @@ def test_pythtb_export(model_and_data):
     tb_model = exporter.get_model(struc_file, e_fermi=-7.72)
     
     assert tb_model is not None
-    assert tb_model._norb == 8
+    norb = tb_model.norb if hasattr(tb_model, "norb") else tb_model._norb
+    assert norb == 8
     # Verify coordinates are fractional (should be within roughly [0, 1] for this unit cell)
     # Silicon positions are 0.0 and 0.25. If Cartesian, they would be > 1.0 (lattice const ~5.43, 0.25*5.43 > 1.3)
     orb_coords = tb_model.get_orb()

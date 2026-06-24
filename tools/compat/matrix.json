@@ -1,0 +1,196 @@
+{
+  "default_test_command": [
+    "python",
+    "-m",
+    "pytest",
+    "dptb/tests",
+    "-m",
+    "smoke",
+    "-q"
+  ],
+  "jobs": [
+    {
+      "name": "py310-torch251-cpu",
+      "python": "3.10",
+      "torch": "2.5.1",
+      "torch_backend": "cpu",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.5.0+cpu.html",
+      "torch_geometric": ">=2.7.0",
+      "expected": "baseline"
+    },
+    {
+      "name": "py312-torch251-cpu",
+      "python": "3.12",
+      "torch": "2.5.1",
+      "torch_backend": "cpu",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.5.0+cpu.html",
+      "torch_geometric": ">=2.7.0",
+      "expected": "declared-upper-python"
+    },
+    {
+      "name": "py312-torch210-cpu",
+      "python": "3.12",
+      "torch": "2.10.0",
+      "torch_backend": "cpu",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.10.0+cpu.html",
+      "torch_geometric": ">=2.7.0",
+      "expected": "primary-exploration"
+    },
+    {
+      "name": "py313-torch210-cpu",
+      "python": "3.13",
+      "torch": "2.10.0",
+      "torch_backend": "cpu",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.10.0+cpu.html",
+      "torch_geometric": ">=2.7.0",
+      "expected": "primary-exploration"
+    },
+    {
+      "name": "py313-torch210-cpu-lmdb221",
+      "python": "3.13",
+      "torch": "2.10.0",
+      "torch_backend": "cpu",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.10.0+cpu.html",
+      "torch_geometric": ">=2.7.0",
+      "extra_overrides": [
+        "lmdb==2.2.1"
+      ],
+      "expected": "dependency-pin-exploration"
+    },
+    {
+      "name": "py313-torch210-cpu-modern-cdeps",
+      "python": "3.13",
+      "torch": "2.10.0",
+      "torch_backend": "cpu",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.10.0+cpu.html",
+      "torch_geometric": ">=2.7.0",
+      "extra_overrides": [
+        "lmdb==2.2.1",
+        "h5py==3.16.0",
+        "numpy==2.5.0",
+        "scipy==1.18.0"
+      ],
+      "expected": "dependency-pin-exploration"
+    },
+    {
+      "name": "py312-torch2120-cpu",
+      "python": "3.12",
+      "torch": "2.12.0",
+      "torch_backend": "cpu",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.12.0+cpu.html",
+      "torch_geometric": ">=2.8.0",
+      "expected": "latest-exploration"
+    },
+    {
+      "name": "py312-torch2121-cpu",
+      "python": "3.12",
+      "torch": "2.12.1",
+      "torch_backend": "cpu",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.12.1+cpu.html",
+      "torch_geometric": ">=2.8.0",
+      "expected": "latest-exploration"
+    },
+    {
+      "name": "py313-torch2120-cpu-modern-cdeps",
+      "python": "3.13",
+      "torch": "2.12.0",
+      "torch_backend": "cpu",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.12.0+cpu.html",
+      "torch_geometric": ">=2.8.0",
+      "extra_overrides": [
+        "lmdb==2.2.1",
+        "h5py==3.16.0",
+        "numpy==2.5.0",
+        "scipy==1.18.0"
+      ],
+      "expected": "latest-exploration"
+    },
+    {
+      "name": "py313-torch2121-cpu-modern-cdeps",
+      "python": "3.13",
+      "torch": "2.12.1",
+      "torch_backend": "cpu",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.12.1+cpu.html",
+      "torch_geometric": ">=2.8.0",
+      "extra_overrides": [
+        "lmdb==2.2.1",
+        "h5py==3.16.0",
+        "numpy==2.5.0",
+        "scipy==1.18.0"
+      ],
+      "expected": "latest-exploration"
+    },
+    {
+      "name": "py314-torch211-cpu",
+      "python": "3.14",
+      "torch": "2.11.0",
+      "torch_backend": "cpu",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.11.0+cpu.html",
+      "torch_geometric": ">=2.7.0",
+      "expected": "experimental"
+    },
+    {
+      "name": "py314-torch211-cpu-modern-cdeps",
+      "python": "3.14",
+      "torch": "2.11.0",
+      "torch_backend": "cpu",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.11.0+cpu.html",
+      "torch_geometric": ">=2.7.0",
+      "extra_overrides": [
+        "lmdb==2.2.1",
+        "h5py==3.16.0",
+        "numpy==2.5.0",
+        "scipy==1.18.0"
+      ],
+      "expected": "experimental"
+    },
+    {
+      "name": "gpu-py312-torch210-cu128",
+      "python": "3.12",
+      "torch": "2.10.0",
+      "torch_backend": "cu128",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.10.0+cu128.html",
+      "torch_geometric": ">=2.7.0",
+      "expected": "gpu-baseline"
+    },
+    {
+      "name": "gpu-py313-torch210-cu128-modern-cdeps",
+      "python": "3.13",
+      "torch": "2.10.0",
+      "torch_backend": "cu128",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.10.0+cu128.html",
+      "torch_geometric": ">=2.7.0",
+      "extra_overrides": [
+        "lmdb==2.2.1",
+        "h5py==3.16.0",
+        "numpy==2.5.0",
+        "scipy==1.18.0"
+      ],
+      "expected": "gpu-exploration"
+    },
+    {
+      "name": "gpu-py312-torch2121-cu130",
+      "python": "3.12",
+      "torch": "2.12.1",
+      "torch_backend": "cu130",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.12.0+cu130.html",
+      "torch_geometric": ">=2.8.0",
+      "expected": "gpu-latest"
+    },
+    {
+      "name": "gpu-py313-torch2121-cu130-modern-cdeps",
+      "python": "3.13",
+      "torch": "2.12.1",
+      "torch_backend": "cu130",
+      "pyg_find_links": "https://data.pyg.org/whl/torch-2.12.0+cu130.html",
+      "torch_geometric": ">=2.8.0",
+      "extra_overrides": [
+        "lmdb==2.2.1",
+        "h5py==3.16.0",
+        "numpy==2.5.0",
+        "scipy==1.18.0"
+      ],
+      "expected": "gpu-latest"
+    }
+  ]
+}
