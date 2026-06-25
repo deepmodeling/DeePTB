@@ -36,12 +36,6 @@ def scatter_requirement(torch_base: str, backend: str) -> str:
     return f"torch-scatter=={SCATTER_VERSION}+pt{major}{minor}{backend}"
 
 
-def pyg_index_torch_version(torch_base: str, backend: str) -> str:
-    if backend in {"cu130", "cu132"} and torch_base.startswith("2.12."):
-        return "2.12.0"
-    return torch_base
-
-
 def installed_scatter_version() -> str | None:
     try:
         return metadata.version("torch-scatter")
@@ -78,8 +72,7 @@ def main() -> None:
         ) from exc
 
     torch_base, backend = normalize_torch_version(torch.__version__)
-    pyg_torch = pyg_index_torch_version(torch_base, backend)
-    find_links = f"https://data.pyg.org/whl/torch-{pyg_torch}+{backend}.html"
+    find_links = f"https://data.pyg.org/whl/torch-{torch_base}+{backend}.html"
     requirement = scatter_requirement(torch_base, backend)
 
     current_scatter = installed_scatter_version()

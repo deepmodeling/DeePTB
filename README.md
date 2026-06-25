@@ -203,7 +203,8 @@ Installing **DeePTB** is straightforward with UV, a fast Python package manager.
   ```bash
   # CPU, torch 2.12.1
   pip install --only-binary torch-scatter \
-    torch-scatter -f https://data.pyg.org/whl/torch-2.12.1+cpu.html
+    torch-scatter==2.1.2 \
+    -f https://data.pyg.org/whl/torch-2.12.1+cpu.html
 
   # CUDA 12.8 / torch 2.10.0
   pip install --only-binary torch-scatter \

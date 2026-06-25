@@ -176,7 +176,7 @@ case "${backend}" in
     cu130)
         # Requires a driver new enough for CUDA 13.0 runtime.
         torch_version="2.12.1"
-        pyg_index_torch_version="2.12.0"
+        pyg_index_torch_version="2.12.1"
         torch_scatter_pin="2.1.2+pt212cu130"
         ;;
     cu118|cu121|cu124)
