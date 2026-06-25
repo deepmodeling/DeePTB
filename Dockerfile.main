@@ -27,7 +27,9 @@ RUN apt-get update > /dev/null && \
     find ${CONDA_DIR} -follow -type f -name '*.pyc' -delete && \
     conda clean --force-pkgs-dirs --all --yes  && \
     echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate base" >> /etc/skel/.bashrc && \
-    echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate base" >> ~/.bashrc
+    echo ". ${CONDA_DIR}/etc/profile.d/conda.sh && conda activate base" >> ~/.bashrc && \
+    conda install -y python=3.12 && \
+    conda clean --all -y
 
 RUN git clone https://github.com/deepmodeling/DeePTB.git && \
     cd DeePTB && \
