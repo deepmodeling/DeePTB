@@ -13,10 +13,10 @@ DeePTB tests are grouped by review purpose. The markers help maintainers pick a 
 ## Local Commands
 
 ```bash
-uv run pytest ./dptb/tests -m smoke
-uv run pytest ./dptb/tests -m regression
-uv run pytest ./dptb/tests -m "not slow"
-uv run pytest ./dptb/tests
+python -m pytest ./dptb/tests -m smoke
+python -m pytest ./dptb/tests -m regression
+python -m pytest ./dptb/tests -m "not slow"
+python -m pytest ./dptb/tests
 ```
 
 ## Review Guidance
@@ -27,4 +27,3 @@ uv run pytest ./dptb/tests
 - Run the full test suite before merging changes that affect model behavior, training, Hamiltonian construction, datasets, or public workflows.
 
 The first version of this strategy does not make markers a required CI gate. The existing full CI workflow remains unchanged.
-

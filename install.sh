@@ -13,7 +13,7 @@
 #   ./install.sh gpu          # auto-detect CUDA backend from nvidia-smi
 #   ./install.sh cu128        # force CUDA 12.8 wheel path
 #   ./install.sh cu130        # force CUDA 13.0 wheel path
-#   ./install.sh cpu --extra pythtb --test
+#   ./install.sh cpu --extra pythtb
 #
 # Optional:
 #   PYTHON_BIN=/path/to/python ./install.sh auto
@@ -26,7 +26,6 @@ if [[ "$#" -gt 0 && "$1" != --* ]]; then
     shift
 fi
 
-install_test_deps=0
 extras=()
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -38,17 +37,13 @@ while [[ "$#" -gt 0 ]]; do
             extras+=("$2")
             shift 2
             ;;
-        --test)
-            install_test_deps=1
-            shift
-            ;;
         -h|--help)
             sed -n '1,20p' "$0"
             exit 0
             ;;
         *)
             echo "ERROR: unknown option '$1'."
-            echo "Allowed options: --extra <name>, --test"
+            echo "Allowed options: --extra <name>"
             exit 1
             ;;
     esac
@@ -181,7 +176,7 @@ case "${backend}" in
     cu130)
         # Requires a driver new enough for CUDA 13.0 runtime.
         torch_version="2.12.1"
-        pyg_index_torch_version="2.12.0"
+        pyg_index_torch_version="2.12.1"
         torch_scatter_pin="2.1.2+pt212cu130"
         ;;
     cu118|cu121|cu124)
@@ -225,9 +220,6 @@ fi
 if [[ "${#extras[@]}" -gt 0 ]]; then
     echo "Extras:        ${extras[*]}"
 fi
-if [[ "${install_test_deps}" == "1" ]]; then
-    echo "Test deps:     pytest, pytest-order"
-fi
 echo "======================================"
 
 install_uv_if_needed
@@ -241,11 +233,6 @@ if [[ "${#extras[@]}" -gt 0 ]]; then
     unset IFS
 fi
 
-test_deps=()
-if [[ "${install_test_deps}" == "1" ]]; then
-    test_deps+=("pytest>=7.2.0" "pytest-order>=1.2.0,<2")
-fi
-
 uv pip install \
     --python .venv/bin/python \
     --overrides "${override_file}" \
@@ -256,7 +243,6 @@ uv pip install \
     --only-binary h5py \
     --only-binary numpy \
     --only-binary scipy \
-    "${test_deps[@]}" \
     -e "${project_spec}"
 
 DEEPTB_SELECTED_BACKEND="${backend}" .venv/bin/python - <<'PY'
@@ -291,5 +277,9 @@ PY
 
 echo ""
 echo "Installation complete."
-echo "Run:"
-echo "  uv run dptb --help"
+echo "This standalone environment lives in: .venv"
+echo "Activate it:"
+echo "  source .venv/bin/activate"
+echo "Then run:"
+echo "  dptb --help"
+echo "  python -m pytest ./dptb/tests/"

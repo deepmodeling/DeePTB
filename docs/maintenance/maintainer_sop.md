@@ -61,10 +61,10 @@ Choose the smallest test set that matches the PR risk, then expand when evidence
 
 ```bash
 python scripts/ci/check_repository_hygiene.py
-uv run pytest ./dptb/tests -m smoke
-uv run pytest ./dptb/tests -m regression
-uv run pytest ./dptb/tests -m "not slow"
-uv run pytest ./dptb/tests
+python -m pytest ./dptb/tests -m smoke
+python -m pytest ./dptb/tests -m regression
+python -m pytest ./dptb/tests -m "not slow"
+python -m pytest ./dptb/tests
 ```
 
 - Run repository hygiene for examples, docs navigation, maintenance docs, or workflow changes.

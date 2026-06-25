@@ -30,24 +30,33 @@ DeePTB now separates the installation surface into two layers:
 
 - `install.sh`: tested installation channel for new machines. It detects or
   accepts the backend, pins the corresponding Torch / PyG / `torch-scatter`
-  combination, and refuses source builds for critical compiled dependencies.
-- `pyproject.toml`: developer compatibility range. It allows developers to use
-  `uv sync`, `pip install -e .`, or an existing compatible Torch environment,
-  but it does not encode CUDA-driver-specific wheel choices.
+  combination, refuses source builds for critical compiled dependencies, and
+  creates a standalone `.venv` under the DeePTB repository.
+- `pyproject.toml`: standard Python package contract and developer
+  compatibility range. It supports source checkout installs such as
+  `pip install .`, `pip install -e .`, `uv sync`, and downstream projects that
+  manage their own compatible Torch environment, but it does not encode
+  CUDA-driver-specific wheel choices. Published package installs such as
+  `pip install dptb` are a separate release-validation path and were not part
+  of this compatibility pass.
 
-The tested installer is the recommended user-facing path. The project metadata
-range is intentionally broader so that intermediate Torch releases, such as
-Torch 2.7, can be used by developers when a matching `torch-scatter` binary
+The tested installer is the recommended standalone DeePTB path. Library or
+downstream installs should use standard package installation and ensure the
+current environment has a matching PyTorch / `torch-scatter` binary wheel. The
+project metadata range is intentionally broader so that intermediate Torch
+releases, such as Torch 2.7, can be used when a matching `torch-scatter` binary
 wheel is available.
 
 CI should exercise the same installer path as users. Do not run `uv sync` after
 `install.sh`, because that re-resolves the environment from `uv.lock` /
 `pyproject.toml` and can replace the Torch / PyG / `torch-scatter` combination
-selected by the installer. For tests that need optional dependencies, use:
+selected by the installer. Activate the standalone `.venv` and run normal
+commands from that environment. For tests that need optional dependencies, use:
 
 ```bash
-bash install.sh cpu --extra pythtb --test
-.venv/bin/python -m pytest ./dptb/tests/
+bash install.sh cpu --extra pythtb
+source .venv/bin/activate
+python -m pytest ./dptb/tests/
 ```
 
 The CI runner must also be new enough for the selected binary wheels. The
@@ -60,8 +69,8 @@ container.
 Runtime dependencies should avoid exact pins unless the package is tied to a
 binary wheel matrix or a known API break. `torch-scatter==2.1.2` is intentionally
 fixed because the available PyG wheels define the supported Torch/CUDA
-combinations. Test-only packages such as `pytest` and `pytest-order` belong in
-the development dependency group, not in the runtime install set.
+combinations. `pytest` and `pytest-order` are installed by default because new
+installations are expected to run the test suite before use.
 
 After relaxing runtime pins, run at least a resolver check and one install/import
 check before accepting the change:

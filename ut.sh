@@ -7,7 +7,7 @@
 set -e
 
 # Install dependencies using the same tested installer path used by users.
-bash install.sh cpu --extra pythtb --test
+bash install.sh cpu --extra pythtb
 
 # Run tests in the environment prepared by install.sh.
 .venv/bin/python -m pytest ./dptb/tests/

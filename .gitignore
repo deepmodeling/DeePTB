@@ -153,6 +153,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.compat-envs/
 env/
 venv/
 ENV/
@@ -183,6 +184,9 @@ dptb/_version.py
 # Poetry (migrated to uv)
 poetry.lock
 poetry.toml
+
+# Compatibility test outputs
+tools/compat/results*/
 
 # JetBrains
 .idea/
