@@ -198,10 +198,14 @@ trap 'rm -f "${override_file}"' EXIT
     echo "torch-scatter==${torch_scatter_pin}"
     echo "torch-geometric${torch_geometric_pin}"
     if [[ "${python_major_minor}" == "3.13" ]]; then
-        echo "lmdb>=2.2.1"
-        echo "h5py>=3.16.0"
-        echo "numpy>=2.5.0,<3"
-        echo "scipy>=1.18.0"
+        # Python 3.13 needs versions with cp313 wheels. The lower bounds below are
+        # the earliest releases that actually ship cp313 wheels (not the latest):
+        # lmdb 1.6.2, h5py 3.12, numpy 2.1, scipy 1.14.1. numpy<2.5 matches the
+        # pyproject upper bound (ASE 3.29 deprecations under numpy 2.5).
+        echo "lmdb>=1.6.2"
+        echo "h5py>=3.12"
+        echo "numpy>=2.1,<2.5"
+        echo "scipy>=1.14.1"
     fi
 } > "${override_file}"
 
