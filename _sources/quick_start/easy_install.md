@@ -7,7 +7,7 @@ This guide will help you install DeePTB, a Python package that utilizes deep lea
 Before installing DeePTB, ensure you have the following prerequisites:
   - Git
   - Python 3.10 to 3.13.
-  - UV, the recommended installer frontend.
+  - UV, used by `install.sh` as the fast installer frontend.
   - For GPU installs, an NVIDIA driver compatible with the selected CUDA runtime.
   - ifermi (optional, for 3D fermi-surface plotting).
   - TBPLaS (optional).
@@ -16,9 +16,11 @@ Before installing DeePTB, ensure you have the following prerequisites:
 
 
 
-### From Source
+### Standalone install from source
 
-Highly recommended to install DeePTB from source to get the latest features and bug fixes.
+Use this path when you want to run DeePTB directly after cloning this
+repository. The installer creates a local `.venv` under the DeePTB repository.
+
 1. **Install UV**:
     ```bash
     curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -52,26 +54,62 @@ Highly recommended to install DeePTB from source to get the latest features and 
 
     The installer creates `.venv` and installs a tested PyTorch / PyG /
     `torch-scatter` binary-wheel combination. It refuses unsupported Python or
-    CUDA/backend combinations instead of falling back to source builds.
+    CUDA/backend combinations instead of falling back to source builds, and it
+    includes the test dependencies needed for installation validation.
 
-4. **Install optional extras**:
+4. **Activate the standalone environment**:
+    ```bash
+    source .venv/bin/activate
+    dptb --help
+    ```
+
+5. **Validate the installation**:
+    DeePTB is under active development, so new installations should run the test
+    suite once before production use.
+
+    ```bash
+    python -m pytest ./dptb/tests/
+    ```
+
+    For a faster local check while iterating:
+
+    ```bash
+    python -m pytest ./dptb/tests/ -m "not slow"
+    ```
+
+6. **Install optional extras**:
     ```bash
     ./install.sh auto --extra 3Dfermi
     ./install.sh auto --extra tbtrans_init
     ./install.sh auto --extra pybinding
     ```
 
-### From PyPi
+### Library install in an existing environment
 
-For new machines, source installation with `install.sh` is recommended. PyPI
-installation is suitable only when a compatible PyTorch and `torch-scatter`
-binary wheel are already installed.
+Use this path when another project imports DeePTB as a library, or when you
+already manage the Python environment yourself.
 
-1. Install PyTorch and `torch-scatter` matching your CPU/GPU backend.
-2. Install DeePTB:
+1. Install the PyTorch build required by your project.
+2. Install a matching `torch-scatter` binary wheel for the current PyTorch
+   version and CPU/CUDA backend. If you are working from a DeePTB source
+   checkout, the helper can inspect the current environment and print the
+   matching PyG wheel command:
    ```bash
-   pip install dptb
+   python docs/auto_install_torch_scatter.py --dry-run
+   python docs/auto_install_torch_scatter.py
    ```
+3. Install DeePTB from the current source checkout:
+   ```bash
+   pip install .
+   ```
+   Use `pip install -e .` instead for an editable developer install.
+
+Published package installs, such as `pip install dptb`, were not part of this
+compatibility test pass; prefer a source checkout until that path is tested.
+
+Do not rely on a source build of `torch-scatter` unless you intentionally
+maintain the compiler and CUDA build environment. For direct DeePTB use on a
+new machine, prefer the standalone `install.sh` path above.
 
 ### Additional Tips
 
