@@ -9,8 +9,8 @@ on:
       - '.github/workflows/repository_hygiene.yml'
       - 'scripts/ci/**'
       
-jobs: 
-  build:
+jobs:
+  test:
     runs-on: ubuntu-latest
     if: github.repository_owner == 'deepmodeling'
     steps: 
