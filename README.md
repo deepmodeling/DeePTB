@@ -58,7 +58,7 @@ Installing **DeePTB** is straightforward with UV, a fast Python package manager.
 - **Requirements**
   - Git
   - Python 3.10 to 3.13
-  - UV, the recommended installer frontend
+  - UV, used by `install.sh` as the fast installer frontend
   - For GPU installs: an NVIDIA driver compatible with the selected CUDA runtime
 
 - **From Source** (Recommended)
@@ -109,21 +109,32 @@ Installing **DeePTB** is straightforward with UV, a fast Python package manager.
      - Refuse unsupported Python or CUDA/backend combinations instead of falling back to source builds
      - Install all runtime and test dependencies
 
-  4. **Validate the installation**:
+  4. **Activate the standalone environment**:
+
+     `install.sh` installs DeePTB into `.venv` under the current DeePTB
+     repository. Activate it before running `dptb`:
+
+     ```bash
+     source .venv/bin/activate  # On Unix/macOS
+     .venv\Scripts\activate     # On Windows
+     dptb --help
+     ```
+
+  5. **Validate the installation**:
      DeePTB is under active development, so new installations should run the
      test suite once before production use.
 
      ```bash
-     .venv/bin/python -m pytest ./dptb/tests/
+     python -m pytest ./dptb/tests/
      ```
 
      For a faster local check while iterating:
 
      ```bash
-     .venv/bin/python -m pytest ./dptb/tests/ -m "not slow"
+     python -m pytest ./dptb/tests/ -m "not slow"
      ```
 
-  5. **Install optional dependencies** (if needed):
+  6. **Install optional dependencies** (if needed):
      ```bash
      # For 3D Fermi surface plotting
      ./install.sh auto --extra 3Dfermi
@@ -133,13 +144,6 @@ Installing **DeePTB** is straightforward with UV, a fast Python package manager.
 
      # For pybinding support
      ./install.sh auto --extra pybinding
-     ```
-
-  6. **Run DeePTB**:
-     ```bash
-     source .venv/bin/activate  # On Unix/macOS
-     .venv\Scripts\activate     # On Windows
-     dptb --help
      ```
 
 - **Developer Install**
@@ -152,39 +156,60 @@ Installing **DeePTB** is straightforward with UV, a fast Python package manager.
   uv sync
   ```
 
-  For new machines, prefer `install.sh` because it selects a tested
-  `torch-scatter` binary wheel for the requested CPU/GPU backend.
+  This path is for developers who intentionally manage their own environment.
+  For a tested standalone DeePTB environment, prefer `install.sh`.
 
-- **Easy Installation** (PyPI)
+- **Library Installation** (Existing Environment)
 
   > [!WARNING]
-  > PyPI installation requires a compatible PyTorch and `torch-scatter` binary
-  > wheel to be installed first. The source install path above is easier for new
-  > machines.
+  > This path is for downstream projects or existing environments that import
+  > DeePTB as a library. The environment must provide a compatible PyTorch and
+  > `torch-scatter` binary wheel.
 
-  **For CPU**:
+  DeePTB keeps a broad Torch compatibility range so downstream projects can
+  choose their own CPU/GPU backend. In that case, install PyTorch first, then
+  install a `torch-scatter` binary wheel matching the current Torch version and
+  backend. If you are working from a DeePTB source checkout, the helper can
+  inspect the current environment and print the matching PyG wheel command:
+
   ```bash
-  # 1. Install torch_scatter matching the tested CPU Torch version
-  pip install torch-scatter -f https://data.pyg.org/whl/torch-2.12.1+cpu.html
+  python - <<'PY'
+  import torch
+  print("torch:", torch.__version__)
+  print("cuda runtime:", torch.version.cuda)
+  print("cuda available:", torch.cuda.is_available())
+  PY
 
-  # 2. Install DeePTB
-  pip install dptb
+  python docs/auto_install_torch_scatter.py --dry-run
+  python docs/auto_install_torch_scatter.py
   ```
 
-  **For GPU** (example with CUDA 12.8 / RTX 50):
+  Then install DeePTB from the current source checkout:
+
   ```bash
-  # 1. Install torch with CUDA support.
-  pip install torch==2.10.0 --index-url https://download.pytorch.org/whl/cu128
-
-  # 2. Install torch_scatter matching the Torch/CUDA pair.
-  pip install torch-scatter -f https://data.pyg.org/whl/torch-2.10.0+cu128.html
-
-  # 3. Install DeePTB
-  pip install dptb
+  pip install .
   ```
 
-  > [!TIP]
-  > For easier installation with automatic GPU/CPU detection, use the **From Source** method above instead.
+  Use `pip install -e .` instead if you want an editable developer install.
+  Published package installs, such as `pip install dptb`, were not part of this
+  compatibility test pass; prefer a source checkout until that path is tested.
+
+  For standalone DeePTB use on a new machine, use the **From Source** installer
+  above instead; it creates `.venv` and selects a tested Torch / PyG /
+  `torch-scatter` combination.
+
+  Example manual `torch-scatter` commands:
+
+  ```bash
+  # CPU, torch 2.12.1
+  pip install --only-binary torch-scatter \
+    torch-scatter -f https://data.pyg.org/whl/torch-2.12.1+cpu.html
+
+  # CUDA 12.8 / torch 2.10.0
+  pip install --only-binary torch-scatter \
+    torch-scatter==2.1.2+pt210cu128 \
+    -f https://data.pyg.org/whl/torch-2.10.0+cu128.html
+  ```
 
 - **Julia Backend** (Optional - for High-Performance Pardiso Solver)
 
@@ -229,7 +254,7 @@ Installing **DeePTB** is straightforward with UV, a fast Python package manager.
 
 To ensure the code is correctly installed, please run the unit tests first:
 ```bash
-.venv/bin/python -m pytest ./dptb/tests/
+python -m pytest ./dptb/tests/
 ```
 Be careful if not all tests pass!
 

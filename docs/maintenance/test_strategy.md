@@ -13,10 +13,10 @@ DeePTB tests are grouped by review purpose. The markers help maintainers pick a 
 ## Local Commands
 
 ```bash
-.venv/bin/python -m pytest ./dptb/tests -m smoke
-.venv/bin/python -m pytest ./dptb/tests -m regression
-.venv/bin/python -m pytest ./dptb/tests -m "not slow"
-.venv/bin/python -m pytest ./dptb/tests
+python -m pytest ./dptb/tests -m smoke
+python -m pytest ./dptb/tests -m regression
+python -m pytest ./dptb/tests -m "not slow"
+python -m pytest ./dptb/tests
 ```
 
 ## Review Guidance

@@ -70,10 +70,10 @@ This check does not replace full unit tests, Sphinx docs builds, notebook valida
 Use pytest markers to match test effort to PR risk:
 
 ```bash
-.venv/bin/python -m pytest ./dptb/tests -m smoke
-.venv/bin/python -m pytest ./dptb/tests -m regression
-.venv/bin/python -m pytest ./dptb/tests -m "not slow"
-.venv/bin/python -m pytest ./dptb/tests
+python -m pytest ./dptb/tests -m smoke
+python -m pytest ./dptb/tests -m regression
+python -m pytest ./dptb/tests -m "not slow"
+python -m pytest ./dptb/tests
 ```
 
 See `docs/maintenance/test_strategy.md` for marker definitions and review guidance.

@@ -277,5 +277,9 @@ PY
 
 echo ""
 echo "Installation complete."
-echo "Run:"
-echo "  .venv/bin/dptb --help"
+echo "This standalone environment lives in: .venv"
+echo "Activate it:"
+echo "  source .venv/bin/activate"
+echo "Then run:"
+echo "  dptb --help"
+echo "  python -m pytest ./dptb/tests/"
