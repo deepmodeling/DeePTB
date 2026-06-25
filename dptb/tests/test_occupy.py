@@ -161,10 +161,29 @@ class TestEntropyFunctions:
         x = np.linspace(-5, 5, 100)
         s = sfd(x)
 
-        # Entropy should be non-negative (handling log singularities)
-        # Filter out NaN values which can occur at boundaries
-        s_valid = s[np.isfinite(s)]
-        assert np.all(s_valid >= 0)
+        # Entropy should be non-negative
+        assert np.all(s >= 0)
+
+        # Maximum at Fermi level (x=0)
+        assert np.isclose(s[50], np.max(s), atol=1e-6)
+
+    def test_sfd_finite_at_large_negative_x(self):
+        """sfd must stay finite for large negative x where expm1 rounds to -1.
+
+        For x <= -39, expm1(x) rounds to -1.0 in float64, so f -> 1 and
+        1-f -> 0. The entropy has physical limit 0 there (x*log(x) -> 0),
+        so the result must be finite 0 rather than log(0) -> nan.
+        """
+        x = np.array([-100, -50, -40, -39, -20, 0, 20, 40, 50, 100])
+        s = sfd(x)
+        assert np.all(np.isfinite(s))
+        # Extreme values and negative round-to-one boundaries vanish exactly.
+        assert np.all(s[[0, 1, 2, 3, 8, 9]] == 0.0)
+        # x=40 is inside the compute range; f is tiny but nonzero, so entropy
+        # is a small positive number rather than 0
+        assert s[7] > 0 and s[7] < 1e-10
+        # interior unchanged: x=0 is the entropy maximum ln(2)
+        assert np.isclose(s[5], np.log(2.0), rtol=1e-12)
 
     def test_smp1_zero(self):
         """Test that MP1 entropy is zero (by design)."""

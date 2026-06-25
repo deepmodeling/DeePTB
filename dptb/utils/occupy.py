@@ -147,7 +147,18 @@ def sfd(x):
     x_valid = x[mask_in_limit]
     f_valid = 1.0 / (np.expm1(x_valid) + 2.0)  # stable ffd
     f1_valid = 1.0 - f_valid
-    out[mask_in_limit] = -f_valid * np.log(f_valid) - f1_valid * np.log(f1_valid)
+    # Guard the f=0/1 boundaries: for sufficiently negative x, expm1(x) rounds
+    # to -1.0 in float64, so f_valid -> 1.0 and f1_valid -> 0.0, which would
+    # produce log(0) -> nan. The physical entropy limit there is 0
+    # (x*log(x) -> 0 as x -> 0), so mask those entries to 0 instead of
+    # computing the log. The interior values are unchanged.
+    interior = (f_valid > 0.0) & (f_valid < 1.0)
+    out_valid = np.zeros_like(f_valid)
+    out_valid[interior] = (
+        -f_valid[interior] * np.log(f_valid[interior])
+        - f1_valid[interior] * np.log(f1_valid[interior])
+    )
+    out[mask_in_limit] = out_valid
     return out
 
 def fmp1(x):
