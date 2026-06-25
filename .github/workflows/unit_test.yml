@@ -9,12 +9,9 @@ on:
       - '.github/workflows/repository_hygiene.yml'
       - 'scripts/ci/**'
       
-jobs: 
-  build:
+jobs:
+  test:
     runs-on: ubuntu-latest
-    outputs:
-      output1: ${{ steps.s1.outputs.test }}
-      output2: ${{ steps.s2.outputs.test }}
     if: github.repository_owner == 'deepmodeling'
     steps: 
       - name: Checkout
@@ -36,13 +33,3 @@ jobs:
           PYTHON_BIN: python
         run: |
          bash ut.sh
-          
-          
-  job2:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - env:
-          OUTPUT2: ${{needs.build.outputs.output2}}
-          OUTPUT3: ${{needs.build.outputs.output3}}
-        run: echo "$OUTPUT1 $OUTPUT2"

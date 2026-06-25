@@ -290,8 +290,8 @@ class _TrajData(object):
             if AtomicDataDict.ENERGY_EIGENVALUE_KEY in self.data and AtomicDataDict.KPOINT_KEY in self.data:
                 assert "bandinfo" in self.info, "`bandinfo` must be provided in `info.json` for loading eigenvalues."
                 bandinfo = self.info["bandinfo"]
-                kwargs[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(self.data[AtomicDataDict.KPOINT_KEY][frame], dtype=torch.get_default_dtype())
-                kwargs[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.as_tensor(self.data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][frame], dtype=torch.get_default_dtype())
+                kwargs[AtomicDataDict.KPOINT_KEY] = torch.as_tensor(self.data[AtomicDataDict.KPOINT_KEY][frame].copy(), dtype=torch.get_default_dtype())
+                kwargs[AtomicDataDict.ENERGY_EIGENVALUE_KEY] = torch.as_tensor(self.data[AtomicDataDict.ENERGY_EIGENVALUE_KEY][frame].copy(), dtype=torch.get_default_dtype())
                 if bandinfo["emin"] is not None and bandinfo["emax"] is not None:
                     kwargs[AtomicDataDict.ENERGY_WINDOWS_KEY] = torch.as_tensor([bandinfo["emin"], bandinfo["emax"]], 
                                                                                      dtype=torch.get_default_dtype())
