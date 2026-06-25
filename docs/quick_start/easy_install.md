@@ -52,9 +52,24 @@ Highly recommended to install DeePTB from source to get the latest features and 
 
     The installer creates `.venv` and installs a tested PyTorch / PyG /
     `torch-scatter` binary-wheel combination. It refuses unsupported Python or
-    CUDA/backend combinations instead of falling back to source builds.
+    CUDA/backend combinations instead of falling back to source builds, and it
+    includes the test dependencies needed for installation validation.
 
-4. **Install optional extras**:
+4. **Validate the installation**:
+    DeePTB is under active development, so new installations should run the test
+    suite once before production use.
+
+    ```bash
+    .venv/bin/python -m pytest ./dptb/tests/
+    ```
+
+    For a faster local check while iterating:
+
+    ```bash
+    .venv/bin/python -m pytest ./dptb/tests/ -m "not slow"
+    ```
+
+5. **Install optional extras**:
     ```bash
     ./install.sh auto --extra 3Dfermi
     ./install.sh auto --extra tbtrans_init

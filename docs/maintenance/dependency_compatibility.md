@@ -46,7 +46,7 @@ CI should exercise the same installer path as users. Do not run `uv sync` after
 selected by the installer. For tests that need optional dependencies, use:
 
 ```bash
-bash install.sh cpu --extra pythtb --test
+bash install.sh cpu --extra pythtb
 .venv/bin/python -m pytest ./dptb/tests/
 ```
 
@@ -60,8 +60,8 @@ container.
 Runtime dependencies should avoid exact pins unless the package is tied to a
 binary wheel matrix or a known API break. `torch-scatter==2.1.2` is intentionally
 fixed because the available PyG wheels define the supported Torch/CUDA
-combinations. Test-only packages such as `pytest` and `pytest-order` belong in
-the development dependency group, not in the runtime install set.
+combinations. `pytest` and `pytest-order` are installed by default because new
+installations are expected to run the test suite before use.
 
 After relaxing runtime pins, run at least a resolver check and one install/import
 check before accepting the change:

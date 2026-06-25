@@ -41,7 +41,7 @@ jobs:
 
       - name: Install DeePTB GPU stack
         run: |
-          bash install.sh "${{ inputs.backend }}" --extra pythtb --test
+          bash install.sh "${{ inputs.backend }}" --extra pythtb
 
       - name: CUDA and torch-scatter smoke
         run: |

@@ -107,9 +107,23 @@ Installing **DeePTB** is straightforward with UV, a fast Python package manager.
      - Automatically create a virtual environment (`.venv`)
      - Install a tested PyTorch / PyG / `torch-scatter` binary-wheel combination
      - Refuse unsupported Python or CUDA/backend combinations instead of falling back to source builds
-     - Install all other dependencies
+     - Install all runtime and test dependencies
 
-  4. **Install optional dependencies** (if needed):
+  4. **Validate the installation**:
+     DeePTB is under active development, so new installations should run the
+     test suite once before production use.
+
+     ```bash
+     .venv/bin/python -m pytest ./dptb/tests/
+     ```
+
+     For a faster local check while iterating:
+
+     ```bash
+     .venv/bin/python -m pytest ./dptb/tests/ -m "not slow"
+     ```
+
+  5. **Install optional dependencies** (if needed):
      ```bash
      # For 3D Fermi surface plotting
      ./install.sh auto --extra 3Dfermi
@@ -121,7 +135,7 @@ Installing **DeePTB** is straightforward with UV, a fast Python package manager.
      ./install.sh auto --extra pybinding
      ```
 
-  5. **Run DeePTB**:
+  6. **Run DeePTB**:
      ```bash
      source .venv/bin/activate  # On Unix/macOS
      .venv\Scripts\activate     # On Windows
@@ -215,7 +229,7 @@ Installing **DeePTB** is straightforward with UV, a fast Python package manager.
 
 To ensure the code is correctly installed, please run the unit tests first:
 ```bash
-uv run pytest ./dptb/tests/
+.venv/bin/python -m pytest ./dptb/tests/
 ```
 Be careful if not all tests pass!
 

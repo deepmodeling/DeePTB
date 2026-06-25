@@ -235,8 +235,6 @@ def run_job(job: dict, matrix: dict, args: argparse.Namespace) -> dict:
                 job.get("torch_backend", "cpu"),
                 "--only-binary",
                 "torch-scatter",
-                "pytest>=7.2.0",
-                "pytest-order>=1.2.0,<2",
                 "-e",
                 ".",
             ]

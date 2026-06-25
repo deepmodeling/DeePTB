@@ -1,33 +1,19 @@
-# NOTE: This script is no longer needed when using UV package manager.
-# UV will automatically install torch_scatter from the configured index in pyproject.toml.
-# This script is kept for reference and for users not using UV.
+"""Deprecated torch-scatter helper.
 
-import subprocess
+Use the repository-level install.sh instead. It selects the tested PyTorch,
+PyG, and torch-scatter binary-wheel combination for the requested backend.
+"""
 
-try:
-    import torch
-    print("The torch module has been successfully imported!")
+from __future__ import annotations
 
-    torch_version = torch.__version__
-    print(f"Current torch version: {torch_version}")
 
-    if torch.cuda.is_available():
-        cuda_version = torch.version.cuda
-    else:
-        cuda_version = "cpu"
-    print(f"Versions of CUDA used by PyTorch: {cuda_version}")
+def main() -> None:
+    print("This helper is deprecated.")
+    print("Use one of the tested installer commands from the repository root:")
+    print("  bash install.sh cpu")
+    print("  bash install.sh gpu")
+    print("  bash install.sh cu128")
 
-    try:
-        import torch_scatter
-        print("You have already installed torch-scatter!")
 
-    except ImportError:
-        url = f"https://data.pyg.org/whl/torch-{torch_version}.html"
-        print(f"torch-scatter will be installed from {url}...")
-        subprocess.run(["pip", "install", "torch-scatter==2.1.2", "-f", url], check=True)
-        print("Installation complete, please re-run the program.")
-
-except ImportError:
-    print("The torch module is not found, please install PyTorch first.")
-    print("You can install PyTorch with the following command (version range: 2.0.0-2.5.1) :")
-    print("pip install \"torch>=2.0.0,<=2.5.1\"")
+if __name__ == "__main__":
+    main()
