@@ -51,7 +51,7 @@ class TestFeastWrapper:
             assert np.linalg.norm(resid) < 1e-8
 
     def test_generalized_hermitian(self):
-        """Test generalized problem Ax = \lambda Mx where M is positive definite."""
+        r"""Test generalized problem Ax = \lambda Mx where M is positive definite."""
         N = 50
         np.random.seed(123)
         
