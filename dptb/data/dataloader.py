@@ -14,17 +14,25 @@ class Collater(object):
 
     def __init__(
         self,
-        exclude_keys: List[str] = [],
+        exclude_keys: Optional[List[str]] = None,
     ):
-        self._exclude_keys = set(exclude_keys)
+        exclude_keys = exclude_keys or []
+        assert isinstance(exclude_keys, list)
+        assert all(isinstance(key, str) for key in exclude_keys)
+
+        self._exclude_keys = set(exclude_keys or [])
 
     @classmethod
     def for_dataset(
         cls,
         dataset,
-        exclude_keys: List[str] = [],
+        exclude_keys: Optional[List[str]] = None,
     ):
         """Construct a collater appropriate to ``dataset``."""
+        exclude_keys = exclude_keys or []
+        assert isinstance(exclude_keys, list)
+        assert all(isinstance(key, str) for key in exclude_keys)
+
         return cls(
             exclude_keys=exclude_keys,
         )
@@ -49,12 +57,18 @@ class DataLoader(torch.utils.data.DataLoader):
         dataset,
         batch_size: int = 1,
         shuffle: bool = False,
-        exclude_keys: List[str] = [],
+        exclude_keys: Optional[List[str]] = None,
         **kwargs,
     ):
         if "collate_fn" in kwargs:
             del kwargs["collate_fn"]
 
+        # changelog: add type check for exclude_keys
+        exclude_keys = exclude_keys or []
+        assert isinstance(exclude_keys, list)
+        assert all(isinstance(key, str) for key in exclude_keys)
+
+        # how does the raw_data passed to the Dataloader???
         super(DataLoader, self).__init__(
             dataset,
             batch_size,

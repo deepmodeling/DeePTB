@@ -30,6 +30,8 @@ ONSITENV_CELL_SHIFT_KEY: Final[str] = "onsitenv_cell_shift"
 CELL_KEY: Final[str] = "cell"
 # [n_kpoints, 3] or [n_batch, nkpoints, 3] tensor
 KPOINT_KEY = "kpoint"
+# [n_kpoints] or [n_batch, n_kpoints] tensor
+WEIGHT_KPOINT_KEY = "wk"
 
 HAMILTONIAN_KEY = "hamiltonian"
 HAMILTONIAN_DERIV_KEY = "hamiltonian_derivative" # dH(k)/dk

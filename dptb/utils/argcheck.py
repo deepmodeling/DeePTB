@@ -837,29 +837,48 @@ def loss_options():
     doc_reference = "Loss options for reference data in training."
 
     hamil = [
-        Argument("onsite_shift", bool, optional=True, default=False, doc="Whether to use onsite shift in loss function. Default: False"),
+        Argument("onsite_shift", bool, optional=True, default=False, 
+                 doc="Whether to use onsite shift in loss function. Default: False"),
     ]
 
     wt = [
-        Argument("onsite_weight", [int, float, dict], optional=True, default=1., doc="Whether to use onsite shift in loss function. Default: False"),
-        Argument("hopping_weight", [int, float, dict], optional=True, default=1., doc="Whether to use onsite shift in loss function. Default: False"),
+        Argument("onsite_weight", [int, float, dict], optional=True, default=1., 
+                 doc="Whether to use onsite shift in loss function. Default: False"),
+        Argument("hopping_weight", [int, float, dict], optional=True, default=1., 
+                 doc="Whether to use onsite shift in loss function. Default: False"),
     ]
 
     eigvals = [
-        Argument("diff_on", bool, optional=True, default=False, doc="Whether to use random differences in loss function. Default: False"),
-        Argument("eout_weight", float, optional=True, default=0.001, doc="The weight of eigenvalue out of range. Default: 0.01"),
-        Argument("diff_weight", float, optional=True, default=0.01, doc="The weight of eigenvalue difference. Default: 0.01"),
-        Argument("diff_valence", [dict,None], optional=True, default=None, doc="set the difference of the number of valence electrons in DFT and TB. eg {'A':6,'B':7}, Default: None, which means no difference"),
-        Argument("spin_deg", int, optional=True, default=2, doc="The spin degeneracy of band structure. Default: 2"),
+        Argument("diff_on", bool, optional=True, default=False, 
+                 doc="Whether to use random differences in loss function. Default: False"),
+        Argument("eout_weight", float, optional=True, default=0.001, 
+                 doc="The weight of eigenvalue out of range. Default: 0.01"),
+        Argument("diff_weight", float, optional=True, default=0.01, 
+                 doc="The weight of eigenvalue difference. Default: 0.01"),
+        Argument("diff_valence", [dict,None], optional=True, default=None, 
+                 doc="set the difference of the number of valence electrons in DFT and TB. "
+                     "eg {'A':6,'B':7}, Default: None, which means no difference"),
+        Argument("spin_deg", int, optional=True, default=2, 
+                 doc="The spin degeneracy of band structure. Default: 2"),
     ]
 
     eig_ham = [
-        Argument("coeff_ham", [int, float], optional=True, default=1., doc="The coefficient of the hamiltonian penalty. Default: 1"),
-        Argument("coeff_ovp", [int, float], optional=True, default=1., doc="The coefficient of the overlap penalty. Default: 1"),
+        Argument("coeff_ham", [int, float], optional=True, default=1., 
+                 doc="The coefficient of the hamiltonian penalty. Default: 1"),
+        Argument("coeff_ovp", [int, float], optional=True, default=1., 
+                 doc="The coefficient of the overlap penalty. Default: 1"),
     ]
 
     skints = [
         Argument("skdata", str, optional=False, doc="The path to the skfile or sk database."),
+    ]
+
+    # maybe DOS does not need such attributes...
+    dos = [
+        Argument("degauss", float, optional=True, default=0.1, 
+                 doc="The width of the gaussian function for DOS. Default: 0.1"),
+        Argument("de", float, optional=True, default=0.01, 
+                 doc="The step size for DOS. Default: 0.01"),
     ]
 
     loss_args = Variant("method", [
@@ -870,9 +889,8 @@ def loss_options():
         Argument("hamil_blas", dict, sub_fields=hamil),
         Argument("hamil_wt", dict, sub_fields=hamil+wt),
         Argument("eig_ham", dict, sub_fields=hamil+eigvals+eig_ham),
+        Argument("dos", dict, sub_fields=dos),
     ], optional=False, doc=doc_method)
-
-
 
     args = [
         Argument("train", dict, optional=False, sub_fields=[], sub_variants=[loss_args], doc=doc_train),
