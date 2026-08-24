@@ -46,6 +46,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 .vscode
+.codegraph/
 # C extensions
 *.so
 dptb/tests/data/esk_orb/sktb.json

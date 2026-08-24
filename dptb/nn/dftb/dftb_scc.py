@@ -85,7 +85,7 @@ class SKSCC(object):
         structures, as it avoids the overhead of reinitializing the expensive
         model, SK parameters, and transformers for each structure.
 
-        The following attributes are reset to None:
+        The following per-calculation state is cleared or reset:
         - atomic_numbers: Atomic numbers of the current structure
         - elec_totE, elec_H0_bandE, elec_bandE: Electronic energies
         - E_fermi: Fermi energy
@@ -96,6 +96,9 @@ class SKSCC(object):
         - inv_r: Inverse distance matrix
         - Gamma: Coulomb interaction matrix
         - total_energy, total_rep_energy: Total energies
+        - n_iterations: Number of Mulliken/SCC iterations performed
+        - charge_residual_history: Maximum charge residual from each SCC update
+        - final_charge_residual: Last maximum charge residual, if one was evaluated
 
         Also resets the Mulliken calculator state via mulliken.reset().
         '''
@@ -115,6 +118,9 @@ class SKSCC(object):
         self.total_energy = None
         self.total_rep_energy = None
         self.is_converged = False  # Track SCC convergence status
+        self.n_iterations = 0
+        self.charge_residual_history = []
+        self.final_charge_residual = None
         # Also reset the Mulliken calculator state
         self.mulliken.reset()
 
@@ -218,6 +224,12 @@ class SKSCC(object):
             - self.elec_totE: Total electronic energy (eV)
             - self.E_fermi: Fermi energy (eV)
             - self.mulliken.mul_charge: Final Mulliken charges
+            - self.is_converged: Whether the charge residual reached ``tol``
+            - self.n_iterations: Number of Mulliken/SCC iterations performed
+            - self.charge_residual_history: Maximum charge residual for each
+              update after the initial charge evaluation
+            - self.final_charge_residual: Last value in the residual history,
+              or ``None`` when no residual was evaluated
 
         '''
 
@@ -328,10 +340,13 @@ class SKSCC(object):
 
                 # Convergence criterion: ||q_diff|| = ||q_out - q_inp|| (DFTBplus convention)
                 diff = np.abs(q_diff)
-                log.debug(f' ITERATION: {int(iteration)}  Max charge difference: {diff.max().item():.15f} e')
+                max_charge_residual = float(diff.max())
+                self.charge_residual_history.append(max_charge_residual)
+                self.final_charge_residual = max_charge_residual
+                log.debug(f' ITERATION: {int(iteration)}  Max charge difference: {max_charge_residual:.15f} e')
                 iteration += 1
 
-                if diff.max() < tol: # Converged and not exiting due to max_iter
+                if max_charge_residual < tol: # Converged and not exiting due to max_iter
                     assert self.scc_shift_energy is not None, "scc_shift_energy should not be None when converged."
                     assert self.elec_H0_bandE is not None, "elec_H0_bandE should not be None when converged."
                     log.debug(f'Convergence reached after {int(iteration)} iters.')
@@ -374,6 +389,7 @@ class SKSCC(object):
             data[AtomicDataDict.EIGENVECTOR_KEY] = torch.cat(eigvecs, dim=0)
         
         self.data = data
+        self.n_iterations = iteration
         self.E_fermi = self.mulliken.estimated_E_fermi
         self.elec_bandE = self.mulliken.elec_bandE
         self.elec_totE = self.elec_H0_bandE + self.scc_shift_energy

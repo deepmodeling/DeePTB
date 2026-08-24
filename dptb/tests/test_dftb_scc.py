@@ -478,6 +478,9 @@ def test_dftbscc_reset_clears_state(rootdir=rootdir):
     assert dftbscc.expGamma_onsite is not None, "expGamma_onsite should be set after calculation"
     assert dftbscc.inv_r is not None, "inv_r should be set after calculation"
     assert dftbscc.Gamma is not None, "Gamma should be set after calculation"
+    assert dftbscc.n_iterations > 0, "n_iterations should be populated after calculation"
+    assert len(dftbscc.charge_residual_history) == dftbscc.n_iterations - 1
+    assert dftbscc.final_charge_residual == dftbscc.charge_residual_history[-1]
 
     # Call reset explicitly
     dftbscc.reset()
@@ -498,6 +501,9 @@ def test_dftbscc_reset_clears_state(rootdir=rootdir):
     assert dftbscc.Gamma is None, "Gamma should be None after reset"
     assert dftbscc.total_energy is None, "total_energy should be None after reset"
     assert dftbscc.total_rep_energy is None, "total_rep_energy should be None after reset"
+    assert dftbscc.n_iterations == 0, "n_iterations should be zero after reset"
+    assert dftbscc.charge_residual_history == [], "residual history should be empty after reset"
+    assert dftbscc.final_charge_residual is None, "final residual should be None after reset"
 
     # Verify persistent state (model, skp, etc.) is NOT cleared
     assert dftbscc.model is not None, "model should persist after reset"

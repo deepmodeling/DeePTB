@@ -6,6 +6,10 @@ Imports and obvious absolute/local SK paths were adjusted to use DeePTB modules 
 
 Recommended notebooks:
 
+- `carbon_bcc_scc_convergence/run.py`: standalone Carbon BCC self-consistent
+  total-energy convergence against k meshes/spacings. Inner SCC, mixer, and
+  smearing diagnostics are recorded separately. See the example README for
+  commands and interpretation.
 - `benchmark_eos_dftbp.ipynb`: SCC EOS comparison against DFTB+ reference data in `dptb/tests/data/dftb`.
 - `hBN_scc/test_scc_hBN.ipynb`: hBN SCC workflow and band calculation.
 - `hBN_scc/test_scc_hBN_nnsk.ipynb`: hBN nonorthogonal NNSK-SCC workflow.
