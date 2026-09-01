@@ -1,4 +1,4 @@
-from e3nn.o3 import xyz_to_angles, Irreps
+from e3nn.o3 import xyz_to_angles, Irrep, Irreps
 import math
 import torch
 import torch.nn as nn
@@ -9,6 +9,22 @@ from collections import defaultdict
 
 _Jd = torch.load(os.path.join(os.path.dirname(__file__), "Jd.pt"), weights_only=False)
 _idx_data = torch.load(os.path.join(os.path.dirname(__file__), "z_rot_indices_lmax12.pt"), weights_only=False)
+
+
+def tp_path_exists(irreps_in1, irreps_in2, ir_out):
+    """Whether a tensor-product path can produce ``ir_out``.
+
+    This helper is used by the maintained LEM-family embeddings and belongs
+    with the tensor-product implementation rather than the removed DeepH code.
+    """
+    irreps_in1 = Irreps(irreps_in1).simplify()
+    irreps_in2 = Irreps(irreps_in2).simplify()
+    ir_out = Irrep(ir_out)
+    return any(
+        ir_out in ir1 * ir2
+        for _, ir1 in irreps_in1
+        for _, ir2 in irreps_in2
+    )
 
 
 def build_z_rot_multi(angle_stack, mask, freq, reversed_inds, offsets, sizes):
@@ -214,6 +230,10 @@ class SO2_Linear(torch.nn.Module):
 
     def forward(self, x, R, latents=None, wigner=None):
         n, _ = x.shape
+
+        if n == 0:
+            # Everything below is per-row; reshape(n, -1) is ambiguous at n == 0.
+            return torch.zeros(0, self.irreps_out.dim, dtype=x.dtype, device=x.device)
 
         if self.radial_emb:
             weights = self.radial_emb(latents)

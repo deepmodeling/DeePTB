@@ -46,6 +46,11 @@ _DEFAULT_LONG_FIELDS: Set[str] = {
     AtomicDataDict.ATOMIC_NUMBERS_KEY,
     AtomicDataDict.ATOM_TYPE_KEY,
     AtomicDataDict.BATCH_KEY,
+    AtomicDataDict.ATOM_INDEX_KEY,
+    AtomicDataDict.GHOST_ATOM_INDEX_KEY,
+    AtomicDataDict.GHOST_ATOM_OWNER_KEY,
+    AtomicDataDict.GHOST_ATOM_TYPE_KEY,
+    AtomicDataDict.GHOST_ATOMIC_NUMBERS_KEY,
 }
 
 _DEFAULT_NODE_FIELDS: Set[str] = {
@@ -59,6 +64,7 @@ _DEFAULT_NODE_FIELDS: Set[str] = {
     AtomicDataDict.NODE_HAMILTONIAN_KEY,
     AtomicDataDict.NODE_OVERLAP_KEY,
     AtomicDataDict.BATCH_KEY,
+    AtomicDataDict.ATOM_INDEX_KEY,
     AtomicDataDict.NODE_SOC_KEY, # new
     AtomicDataDict.NODE_THREECENTER_KEY # new
 }
@@ -122,6 +128,594 @@ _ONSITENV_FIELDS: Set[str] = set(_DEFAULT_ONSITENV_FIELDS)
 _GRAPH_FIELDS: Set[str] = set(_DEFAULT_GRAPH_FIELDS)
 _LONG_FIELDS: Set[str] = set(_DEFAULT_LONG_FIELDS)
 _NESTED_FIELDS: Set[str] = set(_DEFAULT_NESTED_FIELDS)
+_GHOST_FIELDS: Set[str] = {
+    AtomicDataDict.GHOST_ATOM_INDEX_KEY,
+    AtomicDataDict.GHOST_ATOM_OWNER_KEY,
+    AtomicDataDict.GHOST_POSITIONS_KEY,
+    AtomicDataDict.GHOST_ATOM_TYPE_KEY,
+    AtomicDataDict.GHOST_ATOMIC_NUMBERS_KEY,
+}
+class _RIBNode:
+    """Internal finite geometry for one recursive inertial partition node."""
+
+    __slots__ = ("rank", "axis", "threshold", "left", "right", "bbox_min", "bbox_max")
+
+    def __init__(self, bbox_min, bbox_max, rank=None, axis=None, threshold=0.0,
+                 left=None, right=None):
+        self.rank = rank
+        self.axis = axis
+        self.threshold = float(threshold)
+        self.left = left
+        self.right = right
+        self.bbox_min = bbox_min
+        self.bbox_max = bbox_max
+
+    @property
+    def is_leaf(self):
+        return self.rank is not None
+
+
+def _partition_pbc(pbc) -> tuple[bool, bool, bool]:
+    """Normalize the PBC spellings accepted by ``from_points``."""
+    if pbc is None:
+        return (False, False, False)
+    if isinstance(pbc, (bool, np.bool_)):
+        value = bool(pbc)
+        return (value, value, value)
+    values = torch.as_tensor(pbc, dtype=torch.bool).flatten().tolist()
+    if len(values) != 3:
+        raise ValueError("pbc must be a bool or contain exactly three booleans")
+    return tuple(bool(value) for value in values)
+
+
+def _max_cutoff(*cutoffs) -> float:
+    """Return the largest numeric value in scalar/dict cutoff specifications."""
+    values = []
+    for cutoff in cutoffs:
+        if cutoff is None:
+            continue
+        if isinstance(cutoff, Mapping):
+            values.extend(float(v) for v in cutoff.values())
+        elif isinstance(cutoff, torch.Tensor):
+            values.append(float(cutoff.detach().max().cpu()))
+        else:
+            values.append(float(cutoff))
+    if not values:
+        raise ValueError("At least one cutoff must be provided")
+    if not all(np.isfinite(value) and value > 0.0 for value in values):
+        raise ValueError("Neighbor cutoffs must be finite and positive")
+    return max(values)
+
+
+def _construction_cell(cell, pbc):
+    """Return a full-rank internal cell while preserving periodic vectors."""
+    pbc = _partition_pbc(pbc)
+    if cell is None:
+        if any(pbc):
+            raise ValueError("Periodic graph construction requires a cell")
+        return None
+    raw = torch.as_tensor(
+        np.array(cell, dtype=np.float64, copy=True), dtype=torch.float64
+    ).view(3, 3).cpu()
+    if not bool(torch.isfinite(raw).all()):
+        raise ValueError("Cell contains non-finite values")
+    periodic = raw[torch.as_tensor(pbc, dtype=torch.bool)]
+    if len(periodic):
+        singular_values = torch.linalg.svdvals(periodic)
+        scale = max(float(singular_values.max()), 1.0)
+        rank = int((singular_values > 64.0 * torch.finfo(torch.float64).eps * scale).sum())
+        if rank != len(periodic):
+            raise ValueError("Periodic cell vectors must be nonzero and linearly independent")
+    completed = torch.as_tensor(
+        ase.geometry.complete_cell(raw.numpy()), dtype=torch.float64
+    )
+    if abs(float(torch.linalg.det(completed))) < 1e-14:
+        raise ValueError("Cell could not be completed to a nonsingular geometry cell")
+    return completed
+
+
+def _geometry_tolerance(cell, cutoff, dtype=torch.float64):
+    """Roundoff allowance used only by the temporary candidate search."""
+    scale = max(1.0, float(cutoff))
+    if cell is not None:
+        scale = max(scale, float(torch.as_tensor(cell, dtype=torch.float64).abs().max()))
+    if not torch.empty((), dtype=dtype).is_floating_point():
+        dtype = torch.float64
+    return 64.0 * torch.finfo(dtype).eps * scale
+
+
+def _partition_coordinates(pos: torch.Tensor, cell, pbc, return_wrap=False):
+    """Return a deterministic, continuous coordinate chart for periodic RIB.
+
+    The chart differs from the caller's coordinates only by per-atom lattice
+    translations and one common origin translation.  The former are returned
+    so neighbour-list shifts can always be expressed against the untouched
+    public positions.
+    """
+    pbc = _partition_pbc(pbc)
+    xyz = pos.to(torch.float64)
+    if cell is None or not any(pbc):
+        wrap = torch.zeros((len(xyz), 3), dtype=torch.long)
+        return (xyz, wrap) if return_wrap else xyz
+    cell_t = _construction_cell(cell, pbc)
+    frac = xyz @ torch.linalg.inv(cell_t)
+    wrap = torch.zeros((len(xyz), 3), dtype=torch.long)
+    seam_fractional = torch.zeros(3, dtype=torch.float64)
+    for dim, periodic in enumerate(pbc):
+        if not periodic or len(xyz) == 0:
+            continue
+        floor = torch.floor(frac[:, dim])
+        wrapped = frac[:, dim] - floor
+        # Put the periodic seam in the largest empty gap.  Equal gaps are
+        # resolved by the atom id at the right side of the gap.
+        order = sorted(range(len(xyz)), key=lambda i: (float(wrapped[i]), i))
+        values = wrapped[torch.as_tensor(order, dtype=torch.long)]
+        gaps = torch.empty_like(values)
+        if len(values) == 1:
+            gaps[0] = 1.0
+        else:
+            gaps[:-1] = values[1:] - values[:-1]
+            gaps[-1] = values[0] + 1.0 - values[-1]
+        max_gap = float(gaps.max())
+        choices = [i for i, gap in enumerate(gaps) if abs(float(gap) - max_gap) <= 1e-14]
+        gap_index = min(choices, key=lambda i: order[(i + 1) % len(order)])
+        seam = float(values[(gap_index + 1) % len(values)])
+        below = wrapped < seam
+        wrap[:, dim] = (-floor).to(torch.long) + below.to(torch.long)
+        seam_fractional[dim] = seam
+    # Written directly against the caller's coordinates so incomplete cells
+    # and atoms outside the primary image retain exact (i,j,R) semantics.
+    result = xyz + wrap.to(torch.float64) @ cell_t - seam_fractional @ cell_t
+    return (result, wrap) if return_wrap else result
+
+
+def recursive_inertial_bisection(
+    pos,
+    world_size: int,
+    cell=None,
+    pbc=(False, False, False),
+    return_tree: bool = False,
+):
+    """Return deterministic equal-atom RIB ownership and optionally its cut tree."""
+    pos = torch.as_tensor(pos, dtype=torch.get_default_dtype(), device="cpu")
+    if pos.ndim != 2 or pos.shape[1] != 3:
+        raise ValueError("RIB positions must have shape [N, 3]")
+    if world_size < 1:
+        raise ValueError("world_size must be positive")
+    if pos.shape[0] < world_size:
+        raise ValueError(
+            f"RIB needs at least one atom per rank, got {pos.shape[0]} atoms and {world_size} ranks"
+        )
+
+    owners = torch.empty(pos.shape[0], dtype=torch.long)
+    partition_pos = _partition_coordinates(pos, cell, pbc)
+
+    def split(indices: torch.Tensor, ranks: list[int]):
+        xyz = partition_pos[indices]
+        bbox_min = xyz.amin(dim=0)
+        bbox_max = xyz.amax(dim=0)
+        if len(ranks) == 1:
+            owners[indices] = ranks[0]
+            return _RIBNode(bbox_min, bbox_max, rank=ranks[0])
+        centered = xyz - xyz.mean(dim=0, keepdim=True)
+        covariance = centered.T @ centered
+        axis = torch.linalg.eigh(covariance).eigenvectors[:, -1]
+        # Eigenvectors are sign-ambiguous. Canonicalize the sign so rank
+        # assignments do not flip between LAPACK implementations.
+        pivot = int(torch.argmax(axis.abs()))
+        if axis[pivot] < 0:
+            axis = -axis
+        projection = centered @ axis
+        order = sorted(
+            range(len(indices)),
+            key=lambda i: (float(projection[i]), int(indices[i])),
+        )
+        ordered = indices[torch.as_tensor(order, dtype=torch.long)]
+        left_nranks = len(ranks) // 2
+        left_natoms = (len(indices) * left_nranks) // len(ranks)
+        left_natoms = max(
+            left_nranks,
+            min(left_natoms, len(indices) - (len(ranks) - left_nranks)),
+        )
+        absolute_projection = xyz @ axis
+        ordered_projection = absolute_projection[torch.as_tensor(order, dtype=torch.long)]
+        threshold = 0.5 * (
+            float(ordered_projection[left_natoms - 1])
+            + float(ordered_projection[left_natoms])
+        )
+        left = split(ordered[:left_natoms], ranks[:left_nranks])
+        right = split(ordered[left_natoms:], ranks[left_nranks:])
+        return _RIBNode(
+            bbox_min, bbox_max, axis=axis, threshold=threshold,
+            left=left, right=right,
+        )
+
+    tree = split(torch.arange(pos.shape[0], dtype=torch.long), list(range(world_size)))
+    return (owners, tree) if return_tree else owners
+
+
+def _mark_ranks_within_radius(tree, point: torch.Tensor, radius: float, marked: set):
+    """Mark finite RIB subtrees whose atom bounds intersect a cutoff sphere."""
+    outside = torch.maximum(tree.bbox_min - point, point - tree.bbox_max).clamp_min(0.0)
+    if float(torch.dot(outside, outside)) > float(radius) * float(radius):
+        return
+    if tree.is_leaf:
+        marked.add(int(tree.rank))
+        return
+    distance = float(torch.dot(point, tree.axis)) - tree.threshold
+    if distance <= radius:
+        _mark_ranks_within_radius(tree.left, point, radius, marked)
+    if distance >= -radius:
+        _mark_ranks_within_radius(tree.right, point, radius, marked)
+
+
+def _partition_image_shifts(cell, pbc, cutoff: float):
+    """Periodic images whose cutoff spheres can reach the primary-cell RIB tree."""
+    pbc = _partition_pbc(pbc)
+    if cell is None or not any(pbc):
+        return torch.zeros((1, 3), dtype=torch.long)
+    cell_t = _construction_cell(cell, pbc)
+    reciprocal_norm = torch.linalg.vector_norm(torch.linalg.inv(cell_t), dim=0)
+    shells = [
+        int(np.ceil(cutoff * float(reciprocal_norm[dim]))) if pbc[dim] else 0
+        for dim in range(3)
+    ]
+    return torch.tensor(
+        [
+            (i, j, k)
+            for i in range(-shells[0], shells[0] + 1)
+            for j in range(-shells[1], shells[1] + 1)
+            for k in range(-shells[2], shells[2] + 1)
+        ],
+        dtype=torch.long,
+    )
+
+
+def _exchange_halo_records_neighbor(outgoing, rank, comm):
+    """Exchange variable halo records over a sparse MPI distributed graph."""
+    from mpi4py import MPI
+
+    local_records = list(outgoing[rank])
+    remote_peers = [peer for peer, records in enumerate(outgoing)
+                    if peer != rank and records]
+    graph = comm.Create_dist_graph(
+        [rank], [len(remote_peers)], remote_peers, reorder=False
+    )
+    try:
+        sources, destinations, _weights = graph.Get_dist_neighbors()
+        send_counts = np.asarray(
+            [len(outgoing[int(peer)]) for peer in destinations], dtype=np.int32
+        )
+        recv_counts = np.empty(len(sources), dtype=np.int32)
+        graph.Neighbor_alltoall(send_counts, recv_counts)
+        send_displs = np.zeros(len(send_counts), dtype=np.int64)
+        recv_displs = np.zeros(len(recv_counts), dtype=np.int64)
+        if len(send_counts) > 1:
+            send_displs[1:] = np.cumsum(send_counts[:-1], dtype=np.int64)
+        if len(recv_counts) > 1:
+            recv_displs[1:] = np.cumsum(recv_counts[:-1], dtype=np.int64)
+        packed = [record for peer in destinations for record in outgoing[int(peer)]]
+        send_meta = np.asarray(
+            [[r[0], r[2], r[3], r[4], r[5], r[6]] for r in packed],
+            dtype=np.int64,
+        ).reshape(-1, 6)
+        send_pos = np.asarray(
+            [[r[7], r[8], r[9]] for r in packed], dtype=np.float64
+        ).reshape(-1, 3)
+        recv_total = int(recv_counts.sum())
+        recv_meta = np.empty((recv_total, 6), dtype=np.int64)
+        recv_pos = np.empty((recv_total, 3), dtype=np.float64)
+        graph.Neighbor_alltoallv(
+            [send_meta.reshape(-1), send_counts * 6, send_displs * 6, MPI.INT64_T],
+            [recv_meta.reshape(-1), recv_counts * 6, recv_displs * 6, MPI.INT64_T],
+        )
+        graph.Neighbor_alltoallv(
+            [send_pos.reshape(-1), send_counts * 3, send_displs * 3, MPI.DOUBLE],
+            [recv_pos.reshape(-1), recv_counts * 3, recv_displs * 3, MPI.DOUBLE],
+        )
+        records = local_records
+        cursor = 0
+        for source, count in zip(sources, recv_counts.tolist()):
+            for row in range(cursor, cursor + count):
+                meta = recv_meta[row]
+                xyz = recv_pos[row]
+                records.append((
+                    int(meta[0]), int(source), int(meta[1]), int(meta[2]),
+                    int(meta[3]), int(meta[4]), int(meta[5]),
+                    float(xyz[0]), float(xyz[1]), float(xyz[2]),
+                ))
+            cursor += count
+        return records
+    finally:
+        graph.Free()
+
+
+def _collect_halo_images(pos, atomic_numbers, atom_types, owners, tree, rank,
+                         world_size, cutoff, cell=None, pbc=False):
+    """Offer explicit periodic atom images to every intersected RIB region."""
+    pos = torch.as_tensor(pos, dtype=torch.float64, device="cpu")
+    numbers = torch.as_tensor(atomic_numbers, dtype=torch.long).flatten().cpu()
+    types = torch.as_tensor(atom_types, dtype=torch.long).flatten().cpu()
+    owners = torch.as_tensor(owners, dtype=torch.long, device="cpu")
+    chart_pos, chart_wrap = _partition_coordinates(pos, cell, pbc, return_wrap=True)
+    shifts = _partition_image_shifts(cell, pbc, cutoff)
+    cell_t = (
+        torch.as_tensor(cell, dtype=torch.float64).view(3, 3)
+        if cell is not None
+        else torch.zeros((3, 3), dtype=torch.float64)
+    )
+    owned = torch.nonzero(owners == rank, as_tuple=False).flatten()
+    outgoing = [[] for _ in range(world_size)]
+
+    for atom in owned.tolist():
+        for image_shift in shifts:
+            image = chart_pos[atom] + image_shift.to(torch.float64) @ cell_t
+            destinations = set()
+            _mark_ranks_within_radius(tree, image, cutoff, destinations)
+            identity = not bool(torch.any(image_shift))
+            total_shift = chart_wrap[atom] + image_shift
+            record = (
+                atom, rank, int(numbers[atom]), int(types[atom]),
+                int(total_shift[0]), int(total_shift[1]), int(total_shift[2]),
+                float(image[0]), float(image[1]), float(image[2]),
+            )
+            for destination in destinations:
+                if destination == rank and identity:
+                    continue
+                outgoing[destination].append(record)
+
+    comm = None
+    try:
+        from dptb.utils.distributed import get_mpi_comm
+        candidate = get_mpi_comm()
+        if (candidate is not None and candidate.Get_size() == world_size
+                and candidate.Get_rank() == rank):
+            comm = candidate
+    except (ImportError, AttributeError):
+        pass
+
+    if comm is not None and world_size > 1:
+        if hasattr(comm, "Create_dist_graph"):
+            records = _exchange_halo_records_neighbor(outgoing, rank, comm)
+        else:
+            # Lightweight communicator stand-ins used by unit tests.
+            incoming = comm.alltoall(outgoing)
+            records = [record for source in incoming for record in source]
+    else:
+        # Deterministic single-process construction path used by unit tests and
+        # preprocessing tools that materialize partitions one rank at a time.
+        records = []
+        for atom in range(len(pos)):
+            owner = int(owners[atom])
+            for image_shift in shifts:
+                image = chart_pos[atom] + image_shift.to(torch.float64) @ cell_t
+                destinations = set()
+                _mark_ranks_within_radius(tree, image, cutoff, destinations)
+                identity = not bool(torch.any(image_shift))
+                if rank not in destinations or (owner == rank and identity):
+                    continue
+                total_shift = chart_wrap[atom] + image_shift
+                records.append((
+                    atom, owner, int(numbers[atom]), int(types[atom]),
+                    int(total_shift[0]), int(total_shift[1]), int(total_shift[2]),
+                    float(image[0]), float(image[1]), float(image[2]),
+                ))
+    records = list({
+        (item[1], item[0], item[4], item[5], item[6]): item
+        for item in records
+    }.values())
+    records.sort(key=lambda item: (item[1], item[0], item[4], item[5], item[6]))
+    return owned, chart_pos, chart_wrap, records
+
+
+def _deduplicate_relation(index, shifts):
+    """Sort and deduplicate a directed relation by compact endpoints and R."""
+    entries = sorted(set(
+        (int(index[0, k]), int(index[1, k]),
+         int(shifts[k, 0]), int(shifts[k, 1]), int(shifts[k, 2]))
+        for k in range(index.shape[1])
+    ))
+    if not entries:
+        return torch.empty((2, 0), dtype=torch.long), torch.empty((0, 3), dtype=shifts.dtype)
+    return (
+        torch.tensor([[e[0] for e in entries], [e[1] for e in entries]], dtype=torch.long),
+        torch.tensor([e[2:] for e in entries], dtype=shifts.dtype),
+    )
+
+
+def _partitioned_neighbor_candidates(pos, cell, pbc, search_cutoff,
+                                     self_interaction, partition_options, kwargs):
+    """Build this rank's owner-row candidate relations for ``from_points``.
+
+    Partitions the structure with RIB, collects the halo images that can
+    reach the owned region, and runs one neighbour search over owned plus
+    halo coordinates.  ``kwargs`` is updated in place: ghost-column fields
+    are added and public node fields are sliced to owner rows.  Returns
+    ``(pos, cell, candidate_index, candidate_cell_shift, column_pos,
+    column_numbers)`` in the same layout as the serial neighbour search.
+    """
+    forbidden = {"rank", "world_size"}.intersection(partition_options)
+    if forbidden:
+        raise ValueError(
+            f"{', '.join(sorted(forbidden))} must not be supplied in "
+            "partition_options; process identity comes from the initialized "
+            "distributed context"
+        )
+    method = str(partition_options.get("method", "rib")).lower()
+    if method != "rib":
+        raise ValueError(f"Unsupported graph partition method {method!r}; expected 'rib'")
+    # Import lazily to avoid a module cycle: the communication helpers
+    # themselves operate on AtomicDataDict.
+    from dptb.utils.distributed import (
+        get_rank,
+        get_world_size,
+        require_distributed_initialized,
+    )
+    require_distributed_initialized()
+    rank = get_rank()
+    world_size = get_world_size()
+
+    global_natoms = pos.shape[0]
+    global_pos = pos
+    if kwargs.get(AtomicDataDict.ATOMIC_NUMBERS_KEY) is None:
+        raise ValueError(
+            "partitioned AtomicData requires atomic_numbers for compact halo metadata"
+        )
+    global_numbers = torch.as_tensor(
+        kwargs.get(AtomicDataDict.ATOMIC_NUMBERS_KEY), dtype=torch.long
+    ).flatten()
+    if global_numbers.numel() != global_natoms:
+        raise ValueError("partitioned AtomicData requires one atomic number per atom")
+    global_types_value = kwargs.get(AtomicDataDict.ATOM_TYPE_KEY)
+    global_types = (
+        torch.as_tensor(global_types_value, dtype=torch.long).flatten()
+        if global_types_value is not None
+        else torch.full((global_natoms,), -1, dtype=torch.long)
+    )
+    owners, rib_tree = recursive_inertial_bisection(
+        pos=global_pos,
+        world_size=world_size,
+        cell=cell,
+        pbc=pbc,
+        return_tree=True,
+    )
+    owned_ids, chart_pos, chart_wrap, halo_records = _collect_halo_images(
+        pos=global_pos,
+        atomic_numbers=global_numbers,
+        atom_types=global_types,
+        owners=owners,
+        tree=rib_tree,
+        rank=rank,
+        world_size=world_size,
+        cutoff=search_cutoff,
+        cell=cell,
+        pbc=pbc,
+    )
+    owned_ids = owned_ids.sort().values
+    n_owned = int(owned_ids.numel())
+
+    owned_public_pos = global_pos[owned_ids].clone()
+    owned_chart_pos = chart_pos[owned_ids].clone()
+    owned_chart_wrap = chart_wrap[owned_ids].clone()
+    halo_public_pos = {
+        int(record[0]): global_pos[int(record[0])].clone()
+        for record in halo_records
+    }
+    # From this point graph construction sees only owned coordinates
+    # plus explicitly offered images, never the replicated full chart.
+    del global_pos, chart_pos, chart_wrap
+    pos = None
+
+    construction_pos = owned_chart_pos.tolist()
+    construction_numbers = global_numbers[owned_ids].tolist()
+    construction_gid = owned_ids.tolist()
+    construction_shift = owned_chart_wrap.tolist()
+    for record in halo_records:
+        construction_gid.append(int(record[0]))
+        construction_numbers.append(int(record[2]))
+        construction_shift.append([int(record[4]), int(record[5]), int(record[6])])
+        construction_pos.append([float(record[7]), float(record[8]), float(record[9])])
+
+    construction_pos = torch.as_tensor(
+        construction_pos, dtype=owned_public_pos.dtype
+    )
+    construction_numbers = torch.as_tensor(construction_numbers, dtype=torch.long)
+    raw_index, _, cell_tensor = neighbor_list_and_relative_vec(
+        pos=construction_pos,
+        r_max=search_cutoff,
+        self_interaction=False,
+        cell=cell,
+        reduce=False,
+        atomic_numbers=construction_numbers,
+        pbc=False,
+    )
+    raw_index = raw_index[:, raw_index[0] < n_owned]
+    if self_interaction:
+        owned_self = torch.arange(n_owned, dtype=torch.long)
+        raw_index = torch.cat(
+            (raw_index, torch.stack((owned_self, owned_self), dim=0)),
+            dim=1,
+        )
+    owned_lookup = {int(gid): lid for lid, gid in enumerate(owned_ids.tolist())}
+    used_ghosts = {
+        int(construction_gid[int(dst)])
+        for dst in raw_index[1].tolist()
+        if int(construction_gid[int(dst)]) not in owned_lookup
+    }
+    ghost_ids = sorted(used_ghosts, key=lambda gid: (int(owners[gid]), gid))
+    ghost_lookup = {gid: n_owned + k for k, gid in enumerate(ghost_ids)}
+
+    compact_src, compact_dst, relation_shift = [], [], []
+    for src, dst in raw_index.T.tolist():
+        src_gid = int(construction_gid[src])
+        dst_gid = int(construction_gid[dst])
+        compact_src.append(owned_lookup[src_gid])
+        compact_dst.append(owned_lookup.get(dst_gid, ghost_lookup.get(dst_gid)))
+        relation_shift.append([
+            int(construction_shift[dst][d]) - int(owned_chart_wrap[src, d])
+            for d in range(3)
+        ])
+    candidate_index = torch.tensor(
+        [compact_src, compact_dst], dtype=torch.long
+    ) if compact_src else torch.empty((2, 0), dtype=torch.long)
+    candidate_cell_shift = torch.tensor(
+        relation_shift, dtype=owned_public_pos.dtype
+    ) if relation_shift else torch.empty((0, 3), dtype=owned_public_pos.dtype)
+    candidate_index, candidate_cell_shift = _deduplicate_relation(
+        candidate_index, candidate_cell_shift
+    )
+
+    ghost_ids_t = torch.as_tensor(ghost_ids, dtype=torch.long)
+    kwargs[AtomicDataDict.ATOM_INDEX_KEY] = owned_ids
+    kwargs[AtomicDataDict.GHOST_ATOM_INDEX_KEY] = ghost_ids_t
+    kwargs[AtomicDataDict.GHOST_ATOM_OWNER_KEY] = owners[ghost_ids_t]
+    kwargs[AtomicDataDict.GHOST_POSITIONS_KEY] = (
+        torch.stack([halo_public_pos[gid] for gid in ghost_ids], dim=0)
+        if ghost_ids
+        else owned_public_pos.new_empty((0, 3))
+    )
+    kwargs[AtomicDataDict.GHOST_ATOMIC_NUMBERS_KEY] = global_numbers[ghost_ids_t]
+    kwargs[AtomicDataDict.GHOST_ATOM_TYPE_KEY] = global_types[ghost_ids_t]
+
+    # Slice public node fields to owner rows only.
+    for key in list(kwargs):
+        value = kwargs[key]
+        if key not in _NODE_FIELDS or value is None:
+            continue
+        value_t = torch.as_tensor(value)
+        if value_t.ndim > 0 and value_t.shape[0] == global_natoms:
+            kwargs[key] = value_t[owned_ids]
+    pos = owned_public_pos
+    column_pos = torch.cat((pos, kwargs[AtomicDataDict.GHOST_POSITIONS_KEY]), dim=0)
+    column_numbers = torch.cat((
+        torch.as_tensor(kwargs[AtomicDataDict.ATOMIC_NUMBERS_KEY]).flatten(),
+        kwargs[AtomicDataDict.GHOST_ATOMIC_NUMBERS_KEY].flatten(),
+    ))
+    cell = cell_tensor
+    return pos, cell, candidate_index, candidate_cell_shift, column_pos, column_numbers
+
+
+def _relation_cutoff_mask(pos, index, shifts, cell, cutoff, atomic_numbers,
+                          tolerance=0.0):
+    """Filter one maximum-cutoff relation using DeePTB's existing cutoff rules."""
+    vectors = pos[index[1]] - pos[index[0]]
+    if cell is not None:
+        vectors = vectors + shifts.to(pos.dtype) @ cell.reshape(3, 3).to(pos.dtype)
+    lengths = torch.linalg.vector_norm(vectors, dim=1)
+    if not isinstance(cutoff, Mapping):
+        return lengths <= float(cutoff) + float(tolerance)
+
+    numbers = torch.as_tensor(atomic_numbers, dtype=torch.long).flatten()
+    first_key = next(iter(cutoff))
+    if len(first_key.split("-")) == 1:
+        r_map = get_r_map(cutoff, numbers)
+        limits = 0.5 * (r_map[numbers[index[0]] - 1] + r_map[numbers[index[1]] - 1])
+    elif len(first_key.split("-")) == 2:
+        r_map = get_r_map_bondwise(cutoff, numbers)
+        limits = r_map[numbers[index[0]] - 1, numbers[index[1]] - 1]
+    else:
+        raise ValueError("Cutoff keys must be atomic symbols or symbol pairs")
+    return lengths <= limits.to(lengths.device) + float(tolerance)
 
 
 def register_fields(
@@ -304,6 +898,12 @@ def _process_dict(kwargs, ignore_fields=[]):
                 raise ValueError(
                     f"{k} is a env field but has the wrong dimension {v.shape}"
                 )
+            elif k in _GHOST_FIELDS:
+                ghost_ids = kwargs.get(AtomicDataDict.GHOST_ATOM_INDEX_KEY)
+                if ghost_ids is None or v.shape[0] != ghost_ids.shape[0]:
+                    raise ValueError(
+                        f"{k} is a ghost-column field but has the wrong dimension {v.shape}"
+                    )
             elif k in _GRAPH_FIELDS:
                 if num_frames > 1 and v.shape[0] != num_frames:
                     raise ValueError(f"Wrong shape for graph property {k}")
@@ -407,6 +1007,7 @@ class AtomicData(Data):
         pbc: Optional[PBC] = None,
         er_max: Optional[float] = None,
         oer_max: Optional[float] = None,
+        partition_options: Optional[Dict[str, object]] = None,
         **kwargs,
     ):
         """Build neighbor graph from points, optionally with PBC.
@@ -421,8 +1022,11 @@ class AtomicData(Data):
             that edges between the same atom in different periodic images are still included. (See
             ``strict_self_interaction`` to control this behaviour.)
             strict_self_interaction (bool): Whether to include *any* self interaction edges in the graph, even if the
-            two instances of the atom are in different periodic images. Defaults to True, should be True for most
-            applications.
+                two instances of the atom are in different periodic images. Defaults to True, should be True for most
+                applications.
+            partition_options (dict, optional): Partition algorithm settings, for example
+                ``{"method": "rib"}``. The rank and world size are taken from DeePTB's
+                initialized distributed context and must not be supplied here.
             **kwargs (optional): other fields to add. Keys listed in ``AtomicDataDict.*_KEY` will be treated specially.
         """
         if pos is None or r_max is None:
@@ -441,19 +1045,46 @@ class AtomicData(Data):
         else:
             assert len(pbc) == 3
 
-        # TODO: We can only compute the edge vector one times with the largest radial distance among [r_max, er_max, oer_max]
-
         pos = torch.as_tensor(pos, dtype=torch.get_default_dtype())
-
-        edge_index, edge_cell_shift, cell = neighbor_list_and_relative_vec(
-            pos=pos,
-            r_max=r_max,
-            self_interaction=self_interaction,
-            cell=cell,
-            reduce=False,
-            atomic_numbers=kwargs.get("atomic_numbers", None),
-            pbc=pbc,
+        if not bool(torch.isfinite(pos).all()):
+            raise ValueError("Positions contain non-finite values")
+        maximum_cutoff = _max_cutoff(r_max, er_max, oer_max)
+        construction_cell = _construction_cell(cell, pbc) if cell is not None else None
+        geometry_tolerance = _geometry_tolerance(
+            construction_cell, maximum_cutoff, pos.dtype
         )
+        search_cutoff = maximum_cutoff + geometry_tolerance
+
+        if partition_options is not None:
+            (pos, cell, candidate_index, candidate_cell_shift,
+             column_pos, column_numbers) = _partitioned_neighbor_candidates(
+                pos=pos,
+                cell=cell,
+                pbc=pbc,
+                search_cutoff=search_cutoff,
+                self_interaction=self_interaction,
+                partition_options=partition_options,
+                kwargs=kwargs,
+            )
+        else:
+            candidate_index, candidate_cell_shift, cell = neighbor_list_and_relative_vec(
+                pos=pos,
+                r_max=search_cutoff,
+                self_interaction=self_interaction,
+                cell=cell,
+                reduce=False,
+                atomic_numbers=kwargs.get("atomic_numbers", None),
+                pbc=pbc,
+            )
+            column_pos = pos
+            column_numbers = kwargs.get(AtomicDataDict.ATOMIC_NUMBERS_KEY)
+
+        edge_keep = _relation_cutoff_mask(
+            column_pos, candidate_index, candidate_cell_shift, cell, r_max,
+            column_numbers,
+        )
+        edge_index = candidate_index[:, edge_keep]
+        edge_cell_shift = candidate_cell_shift[edge_keep]
 
         # Make torch tensors for data:
         if cell is not None:
@@ -466,15 +1097,12 @@ class AtomicData(Data):
 
         # add env index
         if er_max is not None:
-            env_index, env_cell_shift, _ = neighbor_list_and_relative_vec(
-                pos=pos,
-                r_max=er_max,
-                self_interaction=self_interaction,
-                cell=cell,
-                reduce=False,
-                atomic_numbers=kwargs.get("atomic_numbers", None),
-                pbc=pbc,
+            env_keep = _relation_cutoff_mask(
+                column_pos, candidate_index, candidate_cell_shift, cell, er_max,
+                column_numbers,
             )
+            env_index = candidate_index[:, env_keep]
+            env_cell_shift = candidate_cell_shift[env_keep]
 
             if cell is not None:
                 kwargs[AtomicDataDict.ENV_CELL_SHIFT_KEY] = env_cell_shift
@@ -482,15 +1110,12 @@ class AtomicData(Data):
         
         # add onsitenv index
         if oer_max is not None:
-            onsitenv_index, onsitenv_cell_shift, _ = neighbor_list_and_relative_vec(
-                pos=pos,
-                r_max=oer_max,
-                self_interaction=self_interaction,
-                cell=cell,
-                reduce=False,
-                atomic_numbers=kwargs.get("atomic_numbers", None),
-                pbc=pbc
+            onsitenv_keep = _relation_cutoff_mask(
+                column_pos, candidate_index, candidate_cell_shift, cell, oer_max,
+                column_numbers,
             )
+            onsitenv_index = candidate_index[:, onsitenv_keep]
+            onsitenv_cell_shift = candidate_cell_shift[onsitenv_keep]
 
             if cell is not None:
                 kwargs[AtomicDataDict.ONSITENV_CELL_SHIFT_KEY] = onsitenv_cell_shift
@@ -507,6 +1132,7 @@ class AtomicData(Data):
         oer_max: Optional[float] = None,
         key_mapping: Optional[Dict[str, str]] = {},
         include_keys: Optional[list] = [],
+        partition_options: Optional[Dict[str, object]] = None,
         **kwargs,
     ):
         """Build a ``AtomicData`` from an ``ase.Atoms`` object.
@@ -540,7 +1166,7 @@ class AtomicData(Data):
                 "numbers",
                 "positions",
             ]  # ase internal names for position and atomic_numbers
-            + ["pbc", "cell", "pos", "r_max", "er_max", "oer_max"]  # arguments for from_points method
+            + ["pbc", "cell", "pos", "r_max", "er_max", "oer_max", "partition_options"]  # arguments for from_points method
             + list(kwargs.keys())
         )
         # the keys that are duplicated in kwargs are removed from the include_keys
@@ -618,6 +1244,7 @@ class AtomicData(Data):
             oer_max=oer_max,
             cell=cell,
             pbc=pbc,
+            partition_options=partition_options,
             **kwargs,
             **add_fields,
         )
@@ -709,8 +1336,12 @@ class AtomicData(Data):
             if batch is not None:
                 mask = batch == batch_idx
                 mask = mask.view(-1)
-                # if both ends of the edge are in the batch, the edge is in the batch
-                edge_mask = mask[edge_index[0]] & mask[edge_index[1]]
+                if hasattr(self, AtomicDataDict.GHOST_ATOM_INDEX_KEY):
+                    # Owner-row relations belong to the graph of their source;
+                    # destination indices use a separate compact column space.
+                    edge_mask = mask[edge_index[0]]
+                else:
+                    edge_mask = mask[edge_index[0]] & mask[edge_index[1]]
             else:
                 mask = slice(None)
                 edge_mask = slice(None)
@@ -814,6 +1445,24 @@ class AtomicData(Data):
         else:
             return 0  # cat along node/edge dimension
 
+    def __inc__(self, key, value):
+        if key in (
+            AtomicDataDict.EDGE_INDEX_KEY,
+            AtomicDataDict.ENV_INDEX_KEY,
+            AtomicDataDict.ONSITENV_INDEX_KEY,
+        ):
+            n_ghost = 0
+            if hasattr(self, AtomicDataDict.GHOST_ATOM_INDEX_KEY):
+                n_ghost = int(self[AtomicDataDict.GHOST_ATOM_INDEX_KEY].numel())
+            return torch.tensor([[self.num_nodes], [self.num_nodes + n_ghost]])
+        if key in (
+            AtomicDataDict.ATOM_INDEX_KEY,
+            AtomicDataDict.GHOST_ATOM_INDEX_KEY,
+        ):
+            # These are original structure identities, not local indices.
+            return 0
+        return super().__inc__(key, value)
+
     def without_nodes(self, which_nodes):
         """Return a copy of ``self`` with ``which_nodes`` removed.
         The returned object may share references to some underlying data tensors with ``self``.
@@ -822,6 +1471,10 @@ class AtomicData(Data):
         Returns:
             A new data object.
         """
+        if hasattr(self, AtomicDataDict.GHOST_ATOM_INDEX_KEY):
+            raise NotImplementedError(
+                "without_nodes is not defined for an owner-row partition; rebuild the partition from points"
+            )
         which_nodes = torch.as_tensor(which_nodes)
         if which_nodes.dtype == torch.bool:
             mask = ~which_nodes

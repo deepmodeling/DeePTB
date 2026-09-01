@@ -12,16 +12,16 @@ from dptb.data import AtomicDataDict
 from dptb.nn.embedding.emb import Embedding
 from ..radial_basis import BesselBasis
 from ..base import ScalarMLPFunction
-from dptb.nn.embedding.from_deephe3.deephe3 import tp_path_exists
 from dptb.data import _keys
 from dptb.nn.cutoff import cosine_cutoff, polynomial_cutoff
 from dptb.nn.rescale import E3ElementLinear
-from dptb.nn.tensor_product import SO2_Linear
+from dptb.nn.tensor_product import SO2_Linear, tp_path_exists
 import math
 from dptb.data.transforms import OrbitalMapper
 from ..type_encode.one_hot import OneHotAtomEncoding
 from dptb.nn.norm import SeperableLayerNorm
 from dptb.data.AtomicDataDict import with_edge_vectors, with_batch
+from dptb.utils.distributed import node_column_values
 
 from math import ceil
 
@@ -190,18 +190,21 @@ class Lem(torch.nn.Module):
 
         data = self.onehot(data)
         node_one_hot = data[_keys.NODE_ATTRS_KEY]
+        node_one_hot_columns = node_column_values(data, node_one_hot)
         atom_type = data[_keys.ATOM_TYPE_KEY].flatten()
         bond_type = data[_keys.EDGE_TYPE_KEY].flatten()
-        latents, node_features, edge_features, cutoff_coeffs, active_edges = self.init_layer(edge_index, atom_type, bond_type, edge_sh, edge_length, node_one_hot)
+        latents, node_features, edge_features, cutoff_coeffs, active_edges = self.init_layer(edge_index, atom_type, bond_type, edge_sh, edge_length, node_one_hot_columns)
         data[_keys.EDGE_OVERLAP_KEY] = latents
 
         for layer in self.layers:
+            node_feature_columns = node_column_values(data, node_features)
             latents, node_features, edge_features = \
                 layer(
                     latents, 
                     node_features,
+                    node_feature_columns,
                     edge_features, 
-                    node_one_hot, 
+                    node_one_hot_columns,
                     edge_index, 
                     edge_vector, 
                     atom_type, 
@@ -419,6 +422,7 @@ class InitLayer(torch.nn.Module):
             edge_features,
             edge_center[active_edges],
             dim=0,
+            dim_size=atom_type.numel(),
         )
 
         if self.env_sum_normalizations.ndim < 1:
@@ -586,6 +590,7 @@ class UpdateNode(torch.nn.Module):
             self._env_weighter(message, weights),
             edge_center[active_edges],
             dim=0,
+            dim_size=node_features.shape[0],
         )
 
         if self.env_sum_normalizations.ndim < 1:
@@ -859,9 +864,9 @@ class Layer(torch.nn.Module):
             device=device,
         )
 
-    def forward(self, latents, node_features, edge_features, node_onehot, edge_index, edge_vector, atom_type, cutoff_coeffs, active_edges):
+    def forward(self, latents, node_features, node_feature_columns, edge_features, node_onehot_columns, edge_index, edge_vector, atom_type, cutoff_coeffs, active_edges):
         
-        edge_features, latents = self.edge_update(latents, node_features, node_onehot, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges)
-        node_features = self.node_update(latents, node_features, edge_features, atom_type, node_onehot, edge_index, edge_vector, active_edges)
+        edge_features, latents = self.edge_update(latents, node_feature_columns, node_onehot_columns, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges)
+        node_features = self.node_update(latents, node_features, edge_features, atom_type, node_onehot_columns, edge_index, edge_vector, active_edges)
 
         return latents, node_features, edge_features

@@ -533,7 +533,12 @@ class E3ElementLinear(torch.nn.Module):
         self.num_shifts = count_shift
 
     def forward(self, x: torch.Tensor, weights: Optional[torch.Tensor]=None):
-        
+
+        if x.shape[0] == 0:
+            # Per-row scaling/shifting of an empty batch; reshape(n, -1)
+            # below is ambiguous at n == 0.
+            return x
+
         scales = weights[:, :self.num_scales] if weights is not None else None
         if weights is not None:
             if weights.shape[1] > self.num_scales:

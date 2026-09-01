@@ -374,6 +374,13 @@ class NNSK(torch.nn.Module):
             data[AtomicDataDict.NODE_OVERLAP_KEY][:,self.idp_sk.mask_diag] = 1.
 
         atomic_numbers = self.idp_sk.untransform_atom(data[AtomicDataDict.ATOM_TYPE_KEY].flatten())
+        column_atomic_numbers = atomic_numbers
+        ghost_types = data.get(AtomicDataDict.GHOST_ATOM_TYPE_KEY)
+        if ghost_types is not None:
+            column_atomic_numbers = torch.cat((
+                atomic_numbers,
+                self.idp_sk.untransform_atom(ghost_types.flatten()),
+            ))
         if self.onsite_fn.functype == "NRL":
             data = AtomicDataDict.with_onsitenv_vectors(data, with_lengths=True)
             data[AtomicDataDict.NODE_FEATURES_KEY] = self.onsite_fn.get_skEs(
@@ -396,7 +403,9 @@ class NNSK(torch.nn.Module):
         # compute strain
         if self.onsite_fn.functype == "strain":
             data = AtomicDataDict.with_onsitenv_vectors(data, with_lengths=True)
-            onsitenv_number = self.idp_sk.untransform_atom(data[AtomicDataDict.ATOM_TYPE_KEY].flatten())[data[AtomicDataDict.ONSITENV_INDEX_KEY]].reshape(2, -1)
+            onsitenv_number = column_atomic_numbers[
+                data[AtomicDataDict.ONSITENV_INDEX_KEY]
+            ].reshape(2, -1)
             onsitenv_index = self.idp_sk.transform_bond(*onsitenv_number)
             # reflect_index = self.idp_sk.transform_bond(*onsitenv_number.flip(0))
             # onsitenv_index[onsitenv_index<0] = reflect_index[onsitenv_index<0] + len(self.idp_sk.reduced_bond_types)

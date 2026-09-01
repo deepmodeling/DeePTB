@@ -17,7 +17,6 @@ from dptb.data import (
 from tqdm import tqdm
 from ..transforms import TypeMapper
 from ._base_datasets import AtomicDataset
-from dptb.nn.hamiltonian import E3Hamiltonian
 import lmdb
 from dptb.data.interfaces.ham_to_feature import block_to_feature
 import pickle
@@ -205,6 +204,9 @@ class LMDBDataset(AtomicDataset):
         assert self.transform is not None
         idp = self.transform
 
+        # Deferred so importing dptb.data does not pull in dptb.nn
+        # (module cycle via dptb.utils.distributed otherwise).
+        from dptb.nn.hamiltonian import E3Hamiltonian
         e3h = E3Hamiltonian(basis=idp.basis, decompose=True)
         idp.get_irreps()
         sorted_irreps = idp.orbpair_irreps.sort()[0].simplify()

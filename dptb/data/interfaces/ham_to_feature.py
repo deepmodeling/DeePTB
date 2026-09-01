@@ -40,9 +40,46 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
         if not hasattr(data, _keys.ATOMIC_NUMBERS_KEY):
             setattr(data, _keys.ATOMIC_NUMBERS_KEY, idp.untransform(data[_keys.ATOM_TYPE_KEY]))
     if isinstance(data, dict):
-        if not data.get(_keys.ATOMIC_NUMBERS_KEY, None):
+        if data.get(_keys.ATOMIC_NUMBERS_KEY, None) is None:
             data[_keys.ATOMIC_NUMBERS_KEY] = idp.untransform(data[_keys.ATOM_TYPE_KEY])
     atomic_numbers = data[_keys.ATOMIC_NUMBERS_KEY]
+    atom_indices = (
+        data.get(_keys.ATOM_INDEX_KEY)
+        if isinstance(data, dict)
+        else getattr(data, _keys.ATOM_INDEX_KEY, None)
+    )
+    if atom_indices is None:
+        atom_indices = torch.arange(len(atomic_numbers), device=atomic_numbers.device)
+    atom_indices = atom_indices.flatten()
+    ghost_atom_indices = (
+        data.get(_keys.GHOST_ATOM_INDEX_KEY, None)
+        if isinstance(data, dict)
+        else getattr(data, _keys.GHOST_ATOM_INDEX_KEY, None)
+    )
+    ghost_atomic_numbers = (
+        data.get(_keys.GHOST_ATOMIC_NUMBERS_KEY, None)
+        if isinstance(data, dict)
+        else getattr(data, _keys.GHOST_ATOMIC_NUMBERS_KEY, None)
+    )
+    if ghost_atom_indices is not None:
+        ghost_atom_indices = ghost_atom_indices.flatten().to(atom_indices.device)
+        if ghost_atomic_numbers is None:
+            ghost_atom_types = (
+                data.get(_keys.GHOST_ATOM_TYPE_KEY, None)
+                if isinstance(data, dict)
+                else getattr(data, _keys.GHOST_ATOM_TYPE_KEY, None)
+            )
+            if ghost_atom_types is None:
+                raise KeyError("Distributed graph is missing ghost atom numbers/types")
+            ghost_atomic_numbers = idp.untransform(ghost_atom_types)
+        ghost_atomic_numbers = ghost_atomic_numbers.flatten().to(atomic_numbers.device)
+        column_atom_indices = torch.cat((atom_indices, ghost_atom_indices), dim=0)
+        column_atomic_numbers = torch.cat(
+            (atomic_numbers.flatten(), ghost_atomic_numbers), dim=0
+        )
+    else:
+        column_atom_indices = atom_indices
+        column_atomic_numbers = atomic_numbers.flatten()
 
     # onsite features
     if blocks or overlap_blocks:
@@ -59,7 +96,8 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
 
 
         for atom in range(len(atomic_numbers)):
-            block_index = '_'.join(map(str, map(int, [atom+start_id, atom+start_id] + list([0, 0, 0]))))
+            global_atom = int(atom_indices[atom]) + start_id
+            block_index = '_'.join(map(str, [global_atom, global_atom, 0, 0, 0]))
 
             if blocks:
                 try:
@@ -107,7 +145,7 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
     # edge features
     edge_index = data[_keys.EDGE_INDEX_KEY]
     edge_cell_shift = data[_keys.EDGE_CELL_SHIFT_KEY]
-    edge_type = idp.transform_bond(*data[_keys.ATOMIC_NUMBERS_KEY][edge_index]).flatten()
+    edge_type = idp.transform_bond(*column_atomic_numbers[edge_index]).flatten()
     if overlap_blocks:
         ovp_features = torch.zeros(len(edge_index[0]), idp.reduced_matrix_element)
     if blocks:
@@ -124,8 +162,9 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
                 continue
             b_edge_index = edge_index[:, mask]
             b_edge_cell_shift = edge_cell_shift[mask]
-            ijR = torch.cat([b_edge_index.T+start_id, b_edge_cell_shift], dim=1).int().tolist()
-            rev_ijR = torch.cat([b_edge_index[[1, 0]].T+start_id, -b_edge_cell_shift], dim=1).int().tolist()
+            global_edge_index = column_atom_indices[b_edge_index]
+            ijR = torch.cat([global_edge_index.T+start_id, b_edge_cell_shift], dim=1).int().tolist()
+            rev_ijR = torch.cat([global_edge_index[[1, 0]].T+start_id, -b_edge_cell_shift], dim=1).int().tolist()
             ijR = list(map(lambda x: '_'.join(map(str, x)), ijR))
             rev_ijR = list(map(lambda x: '_'.join(map(str, x)), rev_ijR))
 
@@ -319,6 +358,38 @@ def block_to_feature(data, idp, blocks=False, overlap_blocks=False, orthogonal=F
 #     if overlap_blocks:
 #         data[_keys.EDGE_OVERLAP_KEY] = torch.as_tensor(np.array(edge_overlap), dtype=torch.get_default_dtype())
 
+def _route_canonical_blocks(contributions, device, dtype):
+    """Route already-canonical block contributions to their row owner.
+
+    Block assembly is an inference/output operation, so object transport is
+    intentional here: orbital blocks have species-dependent shapes and do not
+    participate in autograd.  Dynamic model communication remains tensor-only.
+    """
+    from dptb.utils.distributed import get_mpi_comm, get_world_size
+
+    world_size = get_world_size()
+    if world_size == 1:
+        received = [(key, value) for key, _owner, value in contributions]
+    else:
+        comm = get_mpi_comm()
+        if comm is None:
+            raise RuntimeError("Distributed block assembly requires an MPI communicator")
+        outgoing = [[] for _ in range(world_size)]
+        for key, owner, value in contributions:
+            outgoing[int(owner)].append((key, value.detach().cpu().numpy()))
+        incoming = comm.alltoall(outgoing)
+        received = [item for source_items in incoming for item in source_items]
+
+    blocks = {}
+    for key, value in received:
+        value = torch.as_tensor(value, device=device, dtype=dtype)
+        if key in blocks:
+            blocks[key] = blocks[key] + value
+        else:
+            blocks[key] = value
+    return blocks
+
+
 def feature_to_block(data, idp, overlap: bool = False):
     """Convert feature vectors to Hamiltonian/overlap block matrices.
 
@@ -357,11 +428,44 @@ def feature_to_block(data, idp, overlap: bool = False):
         device = node_features.device
         dtype = node_features.dtype
 
-        # Pre-compute atom symbols for all atoms (vectorized lookup)
+        # Public node arrays are owner-row sized.  Edge destinations address
+        # the temporary owned-plus-ghost column metadata.
         atom_types = data[_keys.ATOM_TYPE_KEY]
+        atom_indices = (
+            data.get(_keys.ATOM_INDEX_KEY)
+            if isinstance(data, dict)
+            else getattr(data, _keys.ATOM_INDEX_KEY, None)
+        )
+        if atom_indices is None:
+            atom_indices = torch.arange(len(atom_types), device=atom_types.device)
+        atom_indices = atom_indices.flatten()
+        ghost_atom_types = data.get(_keys.GHOST_ATOM_TYPE_KEY, None)
+        ghost_atom_indices = data.get(_keys.GHOST_ATOM_INDEX_KEY, None)
+        ghost_atom_owners = data.get(_keys.GHOST_ATOM_OWNER_KEY, None)
+        if ghost_atom_indices is not None:
+            if ghost_atom_types is None or ghost_atom_owners is None:
+                raise KeyError("Distributed graph has incomplete ghost column metadata")
+            column_atom_types = torch.cat(
+                (atom_types.flatten(), ghost_atom_types.flatten().to(atom_types.device)), dim=0
+            )
+            column_atom_indices = torch.cat(
+                (atom_indices, ghost_atom_indices.flatten().to(atom_indices.device)), dim=0
+            )
+            from dptb.utils.distributed import get_rank
+            column_atom_owners = torch.cat(
+                (
+                    torch.full_like(atom_indices, get_rank()),
+                    ghost_atom_owners.flatten().to(atom_indices.device),
+                ),
+                dim=0,
+            )
+        else:
+            column_atom_types = atom_types.flatten()
+            column_atom_indices = atom_indices
+            column_atom_owners = torch.zeros_like(atom_indices)
         atom_symbols = [
-            ase.data.chemical_symbols[idp.untransform(atom_types[i].reshape(-1))]
-            for i in range(len(atom_types))
+            ase.data.chemical_symbols[int(idp.untransform(column_atom_types[i].reshape(-1)).item())]
+            for i in range(len(column_atom_types))
         ]
 
         # Cache device-transferred indices per symbol to avoid redundant transfers
@@ -401,7 +505,8 @@ def feature_to_block(data, idp, overlap: bool = False):
                 block_flat.scatter_(0, dst_idx_T[off_diag_mask], onsite[src_idx[off_diag_mask]])
 
             block = block_flat.reshape(norb, norb)
-            block_index = '_'.join(map(str, map(int, [atom, atom, 0, 0, 0])))
+            global_atom = int(atom_indices[atom])
+            block_index = '_'.join(map(str, [global_atom, global_atom, 0, 0, 0]))
             blocks[block_index] = block
 
         # Process edge blocks using scatter
@@ -423,8 +528,11 @@ def feature_to_block(data, idp, overlap: bool = False):
                         'norb_j': idx_info['norb_j']
                     }
 
+        edge_contributions = []
         for edge, hopping in enumerate(edge_features):
             atom_i, atom_j = int(edge_index[0][edge]), int(edge_index[1][edge])
+            global_i = int(column_atom_indices[atom_i])
+            global_j = int(column_atom_indices[atom_j])
             R_shift = edge_cell_shift[edge]
             symbol_i = atom_symbols[atom_i]
             symbol_j = atom_symbols[atom_j]
@@ -454,25 +562,40 @@ def feature_to_block(data, idp, overlap: bool = False):
             block_flat.scatter_(0, dst_idx, hopping[src_idx] * scale)
             block = block_flat.reshape(norb_i, norb_j)
 
-            # Handle block accumulation based on atom ordering
-            block_index = '_'.join(map(str, map(int, [atom_i, atom_j] + list(R_shift))))
-            if atom_i < atom_j:
-                if blocks.get(block_index, None) is None:
-                    blocks[block_index] = block
-                else:
-                    blocks[block_index] += block
-            elif atom_i == atom_j:
-                r_index = '_'.join(map(str, map(int, [atom_i, atom_j] + list(-R_shift))))
-                if blocks.get(r_index, None) is None:
-                    blocks[block_index] = block
-                else:
-                    blocks[r_index] += block.T
+            shift = tuple(int(x) for x in R_shift.tolist())
+            forward = (global_i, global_j, *shift)
+            reverse = (global_j, global_i, *tuple(-x for x in shift))
+            if global_i < global_j:
+                canonical = forward
+                canonical_owner = int(column_atom_owners[atom_i])
+                canonical_block = block
+            elif global_i > global_j:
+                canonical = reverse
+                canonical_owner = int(column_atom_owners[atom_j])
+                canonical_block = block.T
             else:
-                block_index = '_'.join(map(str, map(int, [atom_j, atom_i] + list(-R_shift))))
-                if blocks.get(block_index, None) is None:
-                    blocks[block_index] = block.T
+                # Periodic self-image pairs (i == i, R != 0): key the stored
+                # block by the lexicographically positive shift so the choice
+                # does not depend on edge order (serial neighbour lists and
+                # sorted partitioned lists enumerate the two images in
+                # different orders); the negative image accumulates transposed
+                # since H_ii(-R) = H_ii(R)^T.
+                if shift >= tuple(-x for x in shift):
+                    canonical = forward
+                    canonical_block = block
                 else:
-                    blocks[block_index] += block.T
+                    canonical = reverse
+                    canonical_block = block.T
+                canonical_owner = int(column_atom_owners[atom_i])
+            block_index = '_'.join(map(str, canonical))
+            edge_contributions.append((block_index, canonical_owner, canonical_block))
+
+        routed_blocks = _route_canonical_blocks(edge_contributions, device, dtype)
+        for block_index, block in routed_blocks.items():
+            if block_index in blocks:
+                blocks[block_index] = blocks[block_index] + block
+            else:
+                blocks[block_index] = block
 
     return blocks
 

@@ -143,6 +143,10 @@ class TypeMapper:
     def transform(self, atomic_numbers):
         """core function to transform an array to specie index list"""
 
+        if atomic_numbers.numel() == 0:
+            # e.g. the ghost-atom list of a partitioned rank without ghosts
+            return torch.empty_like(atomic_numbers)
+
         if atomic_numbers.min() < self._min_Z or atomic_numbers.max() > self._max_Z:
             bad_set = set(torch.unique(atomic_numbers).cpu().tolist()) - self._valid_set
             raise ValueError(
@@ -278,10 +282,15 @@ class BondMapper(TypeMapper):
         return self.transform(atomic_numbers)
     
     def transform_bond(self, iatomic_numbers, jatomic_numbers):
-        
+
         if iatomic_numbers.device != jatomic_numbers.device:
             raise ValueError("iatomic_numbers and jatomic_numbers should be on the same device!")
-        
+
+        if iatomic_numbers.numel() == 0:
+            # A partitioned rank (or an all-isolated-atoms structure) can have
+            # an empty bond list; there is nothing to validate or map.
+            return torch.empty_like(iatomic_numbers)
+
         if iatomic_numbers.min() < self._min_Z or iatomic_numbers.max() > self._max_Z:
             bad_set = set(torch.unique(iatomic_numbers).cpu().tolist()) - self._valid_set
             raise ValueError(
@@ -315,6 +324,9 @@ class BondMapper(TypeMapper):
         
         if not torch.all((iatomic_numbers -jatomic_numbers)<=0):
             raise ValueError("iatomic_numbers[i] should <= jatomic_numbers[i]")
+
+        if iatomic_numbers.numel() == 0:
+            return torch.empty_like(iatomic_numbers)
 
         if iatomic_numbers.min() < self._min_Z or iatomic_numbers.max() > self._max_Z:
             bad_set = set(torch.unique(iatomic_numbers).cpu().tolist()) - self._valid_set
@@ -361,6 +373,13 @@ class BondMapper(TypeMapper):
     def __call__(
             self, data: Union[AtomicDataDict.Type, AtomicData], types_required: bool = True
             ) -> Union[AtomicDataDict.Type, AtomicData]:
+        # Ghost atoms of a partitioned graph extend the edge-destination index
+        # space beyond the owned rows; absent for ordinary serial graphs.
+        ghost_numbers = (
+            data[AtomicDataDict.GHOST_ATOMIC_NUMBERS_KEY]
+            if AtomicDataDict.GHOST_ATOMIC_NUMBERS_KEY in data
+            else None
+        )
         if AtomicDataDict.EDGE_TYPE_KEY in data:
             if AtomicDataDict.ATOMIC_NUMBERS_KEY in data:
                 warnings.warn(
@@ -371,6 +390,16 @@ class BondMapper(TypeMapper):
                 self.bond_to_type is not None
             ), "Atomic numbers provided but there is no chemical_symbols/chemical_symbol_to_type mapping!"
             atomic_numbers = data[AtomicDataDict.ATOMIC_NUMBERS_KEY]
+            column_numbers = atomic_numbers
+            if ghost_numbers is not None:
+                # keep the shape of atomic_numbers ([n] or [n, 1]) so
+                # EDGE_TYPE_KEY keeps its historical shape
+                column_numbers = torch.cat((
+                    atomic_numbers,
+                    ghost_numbers.to(atomic_numbers.device).reshape(
+                        (-1,) + tuple(atomic_numbers.shape[1:])
+                    ),
+                ))
 
             assert (
                 AtomicDataDict.EDGE_INDEX_KEY in data
@@ -378,15 +407,18 @@ class BondMapper(TypeMapper):
 
             data[AtomicDataDict.EDGE_TYPE_KEY] = \
                 self.transform_bond(
-                    atomic_numbers[data[AtomicDataDict.EDGE_INDEX_KEY][0]],
-                    atomic_numbers[data[AtomicDataDict.EDGE_INDEX_KEY][1]]
+                    column_numbers[data[AtomicDataDict.EDGE_INDEX_KEY][0]],
+                    column_numbers[data[AtomicDataDict.EDGE_INDEX_KEY][1]]
                     )
         else:
             if types_required:
                 raise KeyError(
                     "Data doesn't contain any atom type information (EDGE_TYPE_KEY or ATOMIC_NUMBERS_KEY)"
                 )
-        return super().__call__(data=data, types_required=types_required)
+        data = super().__call__(data=data, types_required=types_required)
+        if ghost_numbers is not None:
+            data[AtomicDataDict.GHOST_ATOM_TYPE_KEY] = self.transform_atom(ghost_numbers)
+        return data
         
 
     

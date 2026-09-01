@@ -53,7 +53,6 @@ class Trainer(BaseTrainer):
             self.ema = None
         self.common_options = common_options
         self.train_options = train_options
-        
         self.train_datasets = train_datasets
         # get the task from train_datasets label
         self.task = None

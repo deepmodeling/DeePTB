@@ -90,6 +90,11 @@ def train(
     # parse the config. Since if use init, config file may not equals to current
 
     jdata = j_loader(INPUT)
+    if "distributed_options" in jdata:
+        raise ValueError(
+            "distributed_options is valid only for inference through dptb run; "
+            "training uses ordinary serial AtomicData datasets"
+        )
     jdata = normalize(jdata)
 
     # Validate and process orbital files in basis

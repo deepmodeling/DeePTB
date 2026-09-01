@@ -9,10 +9,11 @@ from dptb.utils.loggers import set_log_handles
 from dptb.utils.argcheck import normalize_run
 from dptb.utils.tools import j_loader
 from dptb.utils.tools import j_must_have
-from dptb.postprocess.write_block import write_block
+from dptb.postprocess.write_block import write_block, write_block_parallel_hdf5
 import torch
 import h5py
 from dptb.utils.auto_band_config import auto_band_config
+from dptb.utils.distributed import initialize_distributed, is_distributed
 
 log = logging.getLogger(__name__)
 
@@ -48,8 +49,6 @@ def run(
                         "log_path": str(Path(log_path).absolute())
                     })
 
-    set_log_handles(log_level, Path(log_path) if log_path else None)
-
     in_common_options = {}
     if INPUT.endswith(".json"):
         jdata = j_loader(INPUT)
@@ -74,6 +73,36 @@ def run(
     task_options.update({"use_gui": use_gui})
     results_path = run_opt.get("results_path", None)
 
+    dist_options = jdata.get("distributed_options", {})
+    distributed = bool(dist_options.get("enabled", False))
+    rank = 0
+    if distributed:
+        if task != "write_block":
+            raise ValueError("Distributed run currently supports only the write_block task")
+        requested_device = jdata.get("device")
+        if requested_device is None:
+            checkpoint_data = torch.load(init_model, map_location="cpu", weights_only=False)
+            requested_device = (
+                checkpoint_data.get("config", {})
+                .get("common_options", {})
+                .get("device", "cpu")
+            )
+            del checkpoint_data
+            jdata["device"] = requested_device
+        rank, _, local_rank = initialize_distributed(
+            device=requested_device, backend=dist_options.get("backend", "auto")
+        )
+        if str(jdata.get("device", "")).startswith("cuda"):
+            jdata["device"] = f"cuda:{local_rank}"
+        jdata["AtomicData_options"]["partition_options"] = {
+            "method": dist_options.get("partition", "rib"),
+        }
+
+    set_log_handles(
+        log_level if rank == 0 else logging.CRITICAL + 1,
+        Path(log_path) if log_path and rank == 0 else None,
+    )
+
     
     if jdata.get("device", None):
         in_common_options.update({"device": jdata["device"]})
@@ -82,7 +111,6 @@ def run(
         in_common_options.update({"dtype": jdata["dtype"]})
 
     model = build_model(checkpoint=init_model, common_options=in_common_options)
-    
     if  run_opt['structure'] is None:
         log.warning(msg="Warning! structure is not set in run option, read from input config file.")
         structure = j_must_have(jdata, "structure")
@@ -106,9 +134,13 @@ def run(
     elif task=='write_block':
         task = torch.load(init_model, map_location="cpu", weights_only=False)["task"]
         block = write_block(data=struct_file, AtomicData_options=jdata['AtomicData_options'], model=model, device=jdata["device"])
-        # write to h5 file, block is a dict, write to a h5 file
-        with h5py.File(os.path.join(results_path, task+".h5"), 'w') as fid:
-            default_group = fid.create_group("0")
-            for key_str, value in block.items():
-                default_group[key_str] = value.detach().cpu().numpy()
+        output_file = os.path.join(results_path, task+".h5")
+        if is_distributed():
+            write_block_parallel_hdf5(output_file, block)
+        else:
+            # write to h5 file, block is a dict, write to a h5 file
+            with h5py.File(output_file, 'w') as fid:
+                default_group = fid.create_group("0")
+                for key_str, value in block.items():
+                    default_group[key_str] = value.detach().cpu().numpy()
         log.info(msg='write block successfully completed.')

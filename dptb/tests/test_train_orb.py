@@ -7,6 +7,20 @@ from dptb.entrypoints.train import train
 train_module = sys.modules['dptb.entrypoints.train']
 
 class TestTrainOrbitalIntegration(unittest.TestCase):
+
+    @patch.object(train_module, 'j_loader')
+    @patch.object(train_module, 'normalize')
+    @patch.object(train_module, 'set_log_handles')
+    def test_distributed_training_is_rejected(self, mock_set_log, mock_normalize, mock_j_loader):
+        mock_j_loader.return_value = {
+            "distributed_options": {"enabled": True}
+        }
+        with self.assertRaisesRegex(ValueError, "valid only for inference"):
+            train(
+                INPUT="dummy.json", init_model=None, restart=None,
+                output=None, log_level=20, log_path=None,
+            )
+        mock_normalize.assert_not_called()
     
     @patch.object(train_module, 'j_loader')
     @patch.object(train_module, 'normalize')

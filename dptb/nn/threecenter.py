@@ -27,6 +27,7 @@ from dptb.nn.tensor_product import wigner_D
 from dptb.nn.radial_basis import BesselBasis
 from dptb.nn.base import ScalarMLPFunction
 from dptb.nn.cutoff import polynomial_cutoff
+from dptb.utils.distributed import column_atom_index, route_relation_contributions
 from e3nn.o3 import xyz_to_angles, wigner_3j
 
 # block keys are defined canonically in dptb.data._keys; re-export for importers of this module.
@@ -220,7 +221,7 @@ class ThreeCenterFactorized(nn.Module):
         n = dense.shape[0]
         feat = torch.zeros(n, self.reduced_matrix_element, dtype=self.dtype, device=self.device)
         for sl, r0, r1, c0, c1 in self._feat_slices:
-            feat[:, sl] = dense[:, r0:r1, c0:c1].reshape(n, -1)
+            feat[:, sl] = dense[:, r0:r1, c0:c1].reshape(n, (r1 - r0) * (c1 - c0))
         return feat
 
     def to_reduced(self, dense: torch.Tensor) -> torch.Tensor:
@@ -233,9 +234,11 @@ class ThreeCenterFactorized(nn.Module):
         reduced = torch.zeros(n, self.reduced_matrix_element, dtype=self.dtype, device=self.device)
         for opt, sl in self.idp.orbpairtype_maps.items():
             l1, l2 = anglrMId[opt[0]], anglrMId[opt[2]]
-            hr = block[:, sl].reshape(n, -1, 2 * l1 + 1, 2 * l2 + 1).permute(0, 2, 3, 1)  # (n,nL,nR,n_pair)
+            n_rme = (2 * l1 + 1) * (2 * l2 + 1)
+            hr = block[:, sl].reshape(n, (sl.stop - sl.start) // n_rme, 2 * l1 + 1, 2 * l2 + 1) \
+                .permute(0, 2, 3, 1)  # (n,nL,nR,n_pair)
             rme = torch.sum(self._cg[opt][None, :, :, :, None] * hr[:, :, :, None, :], dim=(1, 2))
-            reduced[:, sl] = rme.transpose(1, 2).reshape(n, -1)
+            reduced[:, sl] = rme.transpose(1, 2).flatten(1)
         return reduced
 
     # ---------------------------------------------------------------- reduced values & P blocks
@@ -316,9 +319,13 @@ class ThreeCenterFactorized(nn.Module):
         rows the center species lacks and the orbital columns the neighbour species lacks."""
         env = data[AtomicDataDict.ENV_INDEX_KEY]
         atom_type = data[AtomicDataDict.ATOM_TYPE_KEY].flatten()
-        reduced = self.reduced_values(env, data[AtomicDataDict.ENV_LENGTH_KEY], atom_type)
+        column_type = atom_type
+        ghost_type = data.get(AtomicDataDict.GHOST_ATOM_TYPE_KEY)
+        if ghost_type is not None:
+            column_type = torch.cat((atom_type, ghost_type.flatten().to(atom_type.device)))
+        reduced = self.reduced_values(env, data[AtomicDataDict.ENV_LENGTH_KEY], column_type)
         P = self.compute_P(data[AtomicDataDict.ENV_VECTORS_KEY], reduced)
-        P = P * self.proj_mask[atom_type[env[0]]].unsqueeze(-1) * self.orb_mask[atom_type[env[1]]].unsqueeze(1)
+        P = P * self.proj_mask[column_type[env[0]]].unsqueeze(-1) * self.orb_mask[column_type[env[1]]].unsqueeze(1)
         return P, env, atom_type
 
     # ---------------------------------------------------------------- assembly
@@ -333,28 +340,69 @@ class ThreeCenterFactorized(nn.Module):
         G = torch.matmul(self._D_per_edge(env[0], atom_type), P)         # D_C P_{CX}, [n_env, nproj, norb]
 
         out = torch.zeros(n_edge, self.norb, self.norb, dtype=self.dtype, device=self.device)
+        column_ids = column_atom_index(data).to(edge.device)
+        edge_shift = data.get(AtomicDataDict.EDGE_CELL_SHIFT_KEY)
+        if edge_shift is None:
+            edge_shift = torch.zeros((n_edge, 3), dtype=torch.long, device=edge.device)
+        env_shift = data.get(AtomicDataDict.ENV_CELL_SHIFT_KEY)
+        if env_shift is None:
+            env_shift = torch.zeros((env.shape[1], 3), dtype=torch.long, device=env.device)
+        edge_keys = torch.cat((
+            column_ids[edge[0]].reshape(-1, 1),
+            column_ids[edge[1]].reshape(-1, 1),
+            edge_shift.round().long(),
+        ), dim=1)
+        edge_lookup = {
+            tuple(key): idx for idx, key in enumerate(edge_keys.detach().cpu().tolist())
+        }
         e1, e2 = self._cocenter_edge_pairs(env[0])                       # triangles over ENV, no py loop
-        if e1.numel():
-            # each triangle contributes to target bond (A, B) = (env-neighbour of e1, of e2); keep it
-            # only if (A, B) is a basis bond, so H^(3) fills exactly the same blocks as <A|B>.
-            edge_code = edge[0] * n_atoms + edge[1]
-            ec_sorted, ec_perm = torch.sort(edge_code)
-            tcode = env[1][e1] * n_atoms + env[1][e2]
-            idx = torch.searchsorted(ec_sorted, tcode).clamp_(max=n_edge - 1)
-            keep = ec_sorted[idx] == tcode
-            tgt = ec_perm[idx[keep]]
-            # H^C_{AB} = P_{AC} D_C P_{CB} = P[e1]^T (D_C P[e2]), one batched GEMM over all triangles
-            contrib = torch.bmm(P[e1[keep]].transpose(-1, -2), G[e2[keep]])
-            out.index_add_(0, tgt, contrib)
+        triangle_keys = torch.cat((
+            column_ids[env[1][e1]].reshape(-1, 1),
+            column_ids[env[1][e2]].reshape(-1, 1),
+            (env_shift[e2] - env_shift[e1]).round().long(),
+        ), dim=1)
+        triangle_values = torch.bmm(P[e1].transpose(-1, -2), G[e2])
+        routed_keys, routed_values = route_relation_contributions(
+            data, triangle_keys, triangle_values
+        )
+        self._index_add_matched(out, edge_lookup, routed_keys, routed_values)
         data[_keys.EDGE_THREECENTER_KEY] = out
 
         # onsite correction H^(3)_AA = sum_{C != A} P_AC D_C P_CA: the A==B "triangle" is just each
         # env edge C->A on its own, so scatter P[e]^T D_C P[e] to its neighbour atom A (fully batched).
         node = torch.zeros(n_atoms, self.norb, self.norb, dtype=self.dtype, device=self.device)
-        if env.shape[1] > 0:
-            node.index_add_(0, env[1], torch.bmm(P.transpose(-1, -2), G))
+        onsite_keys = column_ids[env[1]].reshape(-1, 1)
+        onsite_values = torch.bmm(P.transpose(-1, -2), G)
+        routed_keys, routed_values = route_relation_contributions(
+            data, onsite_keys, onsite_values
+        )
+        node_lookup = {
+            (int(identity),): index
+            for index, identity in enumerate(column_ids[:n_atoms].detach().cpu().tolist())
+        }
+        self._index_add_matched(node, node_lookup, routed_keys, routed_values)
         data[_keys.NODE_THREECENTER_KEY] = node
         return data
+
+    @staticmethod
+    def _index_add_matched(out, lookup, routed_keys, routed_values):
+        """Accumulate routed contributions into the local rows their key names.
+
+        Unmatched keys are dropped: those are triangles whose target bond
+        (A, B, R) is not a basis bond, so H^(3) fills exactly the same blocks
+        as <A|B>."""
+        targets, selected = [], []
+        for index, key in enumerate(routed_keys.detach().cpu().tolist()):
+            target = lookup.get(tuple(key))
+            if target is not None:
+                targets.append(target)
+                selected.append(index)
+        if selected:
+            out.index_add_(
+                0,
+                torch.as_tensor(targets, dtype=torch.long, device=out.device),
+                routed_values[torch.as_tensor(selected, dtype=torch.long, device=out.device)],
+            )
 
     def reference(self, data: AtomicDataDict.Type) -> torch.Tensor:
         """Naive per-triangle assembly consuming the same masked ``P``; validation only."""

@@ -105,7 +105,7 @@ class E3Hamiltonian(torch.nn.Module):
                 l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
                 n_rme = (2*l1+1) * (2*l2+1) # number of reduced matrix element
                 rme = data[self.edge_field][:, self.idp.orbpairtype_maps[opairtype]]
-                rme = rme.reshape(n_edge, -1, n_rme)
+                rme = rme.reshape(n_edge, rme.shape[1] // n_rme, n_rme)
                 rme = rme.transpose(1,2) # shape (N, n_rme, n_pair)
                 
                 HR = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
@@ -116,7 +116,7 @@ class E3Hamiltonian(torch.nn.Module):
                 # rot_mat_L = Irrep(int(l1), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l1+1, 2l1+1)
                 # rot_mat_R = Irrep(int(l2), 1).D_from_angles(angle[0], angle[1], torch.tensor(0., dtype=self.dtype, device=self.device)) # tensor(N, 2l2+1, 2l2+1)
                 # HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R).reshape(n_edge, -1) # shape (N, n_pair * n_rme)
-                HR = HR.permute(0,3,1,2).reshape(n_edge, -1)
+                HR = HR.permute(0,3,1,2).flatten(1)
                 data[self.edge_field][:, self.idp.orbpairtype_maps[opairtype]] = HR
 
             # compute onsite blocks
@@ -128,12 +128,12 @@ class E3Hamiltonian(torch.nn.Module):
                     
                     n_rme = (2*l1+1) * (2*l2+1) # number of reduced matrix element
                     rme = data[self.node_field][:, self.idp.orbpairtype_maps[opairtype]]
-                    rme = rme.reshape(n_node, -1, n_rme)
+                    rme = rme.reshape(n_node, rme.shape[1] // n_rme, n_rme)
                     rme = rme.transpose(1,2) # shape (N, n_rme, n_pair)
                     
                     HR = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
                         rme[:,None, None, :, :], dim=-2) # shape (N, 2l1+1, 2l2+1, n_pair)
-                    HR = HR.permute(0,3,1,2).reshape(n_node, -1)
+                    HR = HR.permute(0,3,1,2).flatten(1)
 
                     # the onsite block does not have rotation
                     data[self.node_field][:, self.idp.orbpairtype_maps[opairtype]] = HR
@@ -143,7 +143,7 @@ class E3Hamiltonian(torch.nn.Module):
                 l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
                 nL, nR = 2*l1+1, 2*l2+1
                 HR = data[self.edge_field][:, self.idp.orbpairtype_maps[opairtype]]
-                HR = HR.reshape(n_edge, -1, nL, nR) # shape (N, n_pair, nL, nR)
+                HR = HR.reshape(n_edge, HR.shape[1] // (nL * nR), nL, nR) # shape (N, n_pair, nL, nR)
 
                 # rotation
                 if self.rotation:
@@ -156,7 +156,7 @@ class E3Hamiltonian(torch.nn.Module):
                     
                 rme = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
                     HR[:,:,:,None,:], dim=(1,2)) # shape (N, n_rme, n_pair)
-                rme = rme.transpose(1,2).reshape(n_edge, -1)
+                rme = rme.transpose(1,2).flatten(1)
 
                 data[self.edge_field][:, self.idp.orbpairtype_maps[opairtype]] = rme
 
@@ -167,11 +167,11 @@ class E3Hamiltonian(torch.nn.Module):
                     l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
                     nL, nR = 2*l1+1, 2*l2+1 # number of reduced matrix element
                     HR = data[self.node_field][:, self.idp.orbpairtype_maps[opairtype]]
-                    HR = HR.reshape(n_node, -1, nL, nR).permute(0,2,3,1)# shape (N, nL, nR, n_pair)
+                    HR = HR.reshape(n_node, HR.shape[1] // (nL * nR), nL, nR).permute(0,2,3,1)# shape (N, nL, nR, n_pair)
                     
                     rme = torch.sum(self.cgbasis[opairtype][None,:,:,:,None] * \
                         HR[:,:,:,None,:], dim=(1,2)) # shape (N, n_rme, n_pair)
-                    rme = rme.transpose(1,2).reshape(n_node, -1)
+                    rme = rme.transpose(1,2).flatten(1)
 
                     # the onsite block doesnot have rotation
                     data[self.node_field][:, self.idp.orbpairtype_maps[opairtype]] = rme
@@ -309,10 +309,14 @@ class SKHamiltonian_old(torch.nn.Module):
         data[self.edge_field] = torch.zeros((n_edge, self.idp.reduced_matrix_element), dtype=self.dtype, device=self.device)
 
         # for hopping blocks
-        for opairtype in self.idp_sk.orbpairtype_maps.keys():
+        # with zero edges there is nothing to transform (and the three-operand
+        # einsum below cannot handle empty operands)
+        hopping_pairtypes = self.idp_sk.orbpairtype_maps.keys() if n_edge > 0 else ()
+        for opairtype in hopping_pairtypes:
             l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
             n_skp = min(l1, l2)+1 # number of reduced matrix element
-            skparam = edge_features[:, self.idp_sk.orbpairtype_maps[opairtype]].reshape(n_edge, -1, n_skp)
+            skparam = edge_features[:, self.idp_sk.orbpairtype_maps[opairtype]]
+            skparam = skparam.reshape(n_edge, skparam.shape[1] // n_skp, n_skp)
             rme = skparam @ self.sk2irs[opairtype].T # shape (N, n_pair, n_rme)
             rme = rme.transpose(1,2) # shape (N, n_rme, n_pair)
             
@@ -330,7 +334,7 @@ class SKHamiltonian_old(torch.nn.Module):
             
             # Here The string to control einsum is important, the order of the index should be the same as the order of the tensor
             # H_z = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R) # shape (N, n_pair, 2l1+1, 2l2+1)
-            HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R).reshape(n_edge, -1) # shape (N, n_pair * 2l2+1 * 2l2+1)
+            HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R).flatten(1) # shape (N, n_pair * 2l2+1 * 2l2+1)
             
             if l1 < l2:
                 HR = HR * (-1)**(l1+l2)
@@ -347,11 +351,11 @@ class SKHamiltonian_old(torch.nn.Module):
                 # for better performance
                 l = anglrMId[re.findall(r"[a-z]", orbtype)[0]]
 
-                skparam = node_feature[:, self.idp_sk.skonsitetype_maps[orbtype]].reshape(n_node, -1, 1)
+                skparam = node_feature[:, self.idp_sk.skonsitetype_maps[orbtype]].unsqueeze(-1)
                 HR = torch.eye(2*l+1, dtype=self.dtype, device=self.device)[None, None, :, :] * skparam[:,:, None, :] # shape (N, n_pair, 2l1+1, 2l2+1)
                 # the onsite block doesnot have rotation
 
-                data[self.node_field][:, self.idp.orbpairtype_maps[orbtype+"-"+orbtype]] = HR.reshape(n_node, -1)
+                data[self.node_field][:, self.idp.orbpairtype_maps[orbtype+"-"+orbtype]] = HR.flatten(1)
 
         if self.soc:
             assert data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all(), "The SOC switch is not turned on in data by soc is set to True."
@@ -360,20 +364,21 @@ class SKHamiltonian_old(torch.nn.Module):
             for otype in self.idp_sk.sksoc_maps.keys():
                 lsymbol = re.findall(r"[a-z]", otype)[0]
                 l = anglrMId[lsymbol]
-                socparam = soc_feature[:, self.idp_sk.sksoc_maps[otype]].reshape(n_node, -1, 1)
+                socparam = soc_feature[:, self.idp_sk.sksoc_maps[otype]].unsqueeze(-1)
                 HR = self.soc_base_matrix[lsymbol][None, None, :, :] * socparam[:,:, None, :]
                 HR_upup_updn = HR[:,:,0:2*l+1,:]
-                data[AtomicDataDict.NODE_SOC_KEY][:, self.idp.orbpair_soc_maps[otype+"-"+otype]] = HR_upup_updn.reshape(n_node, -1)
+                data[AtomicDataDict.NODE_SOC_KEY][:, self.idp.orbpair_soc_maps[otype+"-"+otype]] = HR_upup_updn.flatten(1)
 
         # compute if strain effect is included
         # this is a little wired operation, since it acting on somekind of a edge(strain env) feature, and summed up to return a node feature.
-        if self.strain:
+        if self.strain and len(data[AtomicDataDict.ONSITENV_FEATURES_KEY]) > 0:
             n_onsitenv = len(data[AtomicDataDict.ONSITENV_FEATURES_KEY])
             for opairtype in self.idp.orbpairtype_maps.keys(): # save all env direction and pair direction like sp and ps, but only get sp
                 l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
                 # opairtype = opair[1]+"-"+opair[4]
                 n_skp = min(l1, l2)+1 # number of reduced matrix element
-                skparam = data[AtomicDataDict.ONSITENV_FEATURES_KEY][:, self.idp_sk.orbpairtype_maps[opairtype]].reshape(n_onsitenv, -1, n_skp)
+                skparam = data[AtomicDataDict.ONSITENV_FEATURES_KEY][:, self.idp_sk.orbpairtype_maps[opairtype]]
+                skparam = skparam.reshape(n_onsitenv, skparam.shape[1] // n_skp, n_skp)
                 rme = skparam @ self.sk2irs[opairtype].T # shape (N, n_pair, n_rme)
                 rme = rme.transpose(1,2) # shape (N, n_rme, n_pair)
 
@@ -388,7 +393,7 @@ class SKHamiltonian_old(torch.nn.Module):
 
                 HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R) # shape (N, n_pair, 2l1+1, 2l2+1)
 
-                HR = scatter(src=HR, index=data[AtomicDataDict.ONSITENV_INDEX_KEY][0], dim=0, reduce="sum") # shape (n_node, n_pair, 2l1+1, 2l2+1)
+                HR = scatter(src=HR, index=data[AtomicDataDict.ONSITENV_INDEX_KEY][0], dim=0, dim_size=n_node, reduce="sum") # shape (n_node, n_pair, 2l1+1, 2l2+1)
                 # A-B o1-o2 (A-B o2-o1)= (B-A o1-o2)
                 
                 data[self.node_field][:, self.idp.orbpairtype_maps[opairtype]] += HR.flatten(1, len(HR.shape)-1) # the index type [node/pair] should align with the index of for loop
@@ -511,10 +516,14 @@ class SKHamiltonian(torch.nn.Module):
         data[self.edge_field] = torch.zeros((n_edge, self.idp.reduced_matrix_element), dtype=self.dtype, device=self.device)
 
         # for hopping blocks
-        for opairtype in self.idp_sk.orbpairtype_maps.keys():
+        # with zero edges there is nothing to transform (and the three-operand
+        # einsum below cannot handle empty operands)
+        hopping_pairtypes = self.idp_sk.orbpairtype_maps.keys() if n_edge > 0 else ()
+        for opairtype in hopping_pairtypes:
             l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
             n_skp = min(l1, l2)+1 # number of reduced matrix element
-            skparam = edge_features[:, self.idp_sk.orbpairtype_maps[opairtype]].reshape(n_edge, -1, n_skp)
+            skparam = edge_features[:, self.idp_sk.orbpairtype_maps[opairtype]]
+            skparam = skparam.reshape(n_edge, skparam.shape[1] // n_skp, n_skp)
             skparam = skparam.transpose(1,2) # shape (N, n_skp, n_pair)
             
             H_z = torch.sum(self.skbasis[opairtype][None,:,:,:,None] * \
@@ -531,7 +540,7 @@ class SKHamiltonian(torch.nn.Module):
             
             # Here The string to control einsum is important, the order of the index should be the same as the order of the tensor
             # H_z = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R) # shape (N, n_pair, 2l1+1, 2l2+1)
-            HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R).reshape(n_edge, -1) # shape (N, n_pair * 2l2+1 * 2l2+1)
+            HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R).flatten(1) # shape (N, n_pair * 2l2+1 * 2l2+1)
             
             if l1 < l2:
                 HR = HR * (-1)**(l1+l2)
@@ -548,11 +557,11 @@ class SKHamiltonian(torch.nn.Module):
                 # for better performance
                 l = anglrMId[re.findall(r"[a-z]", orbtype)[0]]
 
-                skparam = node_feature[:, self.idp_sk.skonsitetype_maps[orbtype]].reshape(n_node, -1, 1)
+                skparam = node_feature[:, self.idp_sk.skonsitetype_maps[orbtype]].unsqueeze(-1)
                 HR = torch.eye(2*l+1, dtype=self.dtype, device=self.device)[None, None, :, :] * skparam[:,:, None, :] # shape (N, n_pair, 2l1+1, 2l2+1)
                 # the onsite block doesnot have rotation
 
-                data[self.node_field][:, self.idp.orbpairtype_maps[orbtype+"-"+orbtype]] = HR.reshape(n_node, -1)
+                data[self.node_field][:, self.idp.orbpairtype_maps[orbtype+"-"+orbtype]] = HR.flatten(1)
 
         if self.soc:
             assert data[AtomicDataDict.NODE_SOC_SWITCH_KEY].all(), "The SOC switch is not turned on in data by soc is set to True."
@@ -561,20 +570,21 @@ class SKHamiltonian(torch.nn.Module):
             for otype in self.idp_sk.sksoc_maps.keys():
                 lsymbol = re.findall(r"[a-z]", otype)[0]
                 l = anglrMId[lsymbol]
-                socparam = soc_feature[:, self.idp_sk.sksoc_maps[otype]].reshape(n_node, -1, 1)
+                socparam = soc_feature[:, self.idp_sk.sksoc_maps[otype]].unsqueeze(-1)
                 HR = self.soc_base_matrix[lsymbol][None, None, :, :] * socparam[:,:, None, :]
                 HR_upup_updn = HR[:,:,0:2*l+1,:]
-                data[AtomicDataDict.NODE_SOC_KEY][:, self.idp.orbpair_soc_maps[otype+"-"+otype]] = HR_upup_updn.reshape(n_node, -1)
+                data[AtomicDataDict.NODE_SOC_KEY][:, self.idp.orbpair_soc_maps[otype+"-"+otype]] = HR_upup_updn.flatten(1)
 
         # compute if strain effect is included
         # this is a little wired operation, since it acting on somekind of a edge(strain env) feature, and summed up to return a node feature.
-        if self.strain:
+        if self.strain and len(data[AtomicDataDict.ONSITENV_FEATURES_KEY]) > 0:
             n_onsitenv = len(data[AtomicDataDict.ONSITENV_FEATURES_KEY])
             for opairtype in self.idp.orbpairtype_maps.keys(): # save all env direction and pair direction like sp and ps, but only get sp
                 l1, l2 = anglrMId[opairtype[0]], anglrMId[opairtype[2]]
                 # opairtype = opair[1]+"-"+opair[4]
                 n_skp = min(l1, l2)+1 # number of reduced matrix element
-                skparam = data[AtomicDataDict.ONSITENV_FEATURES_KEY][:, self.idp_sk.orbpairtype_maps[opairtype]].reshape(n_onsitenv, -1, n_skp)
+                skparam = data[AtomicDataDict.ONSITENV_FEATURES_KEY][:, self.idp_sk.orbpairtype_maps[opairtype]]
+                skparam = skparam.reshape(n_onsitenv, skparam.shape[1] // n_skp, n_skp)
                 skparam = skparam.transpose(1,2) # shape (N, n_skp, n_pair)
 
                 H_z = torch.sum(self.skbasis[opairtype][None,:,:,:,None] * \
@@ -588,7 +598,7 @@ class SKHamiltonian(torch.nn.Module):
 
                 HR = torch.einsum("nlm, nmoq, nko -> nqlk", rot_mat_L, H_z, rot_mat_R) # shape (N, n_pair, 2l1+1, 2l2+1)
 
-                HR = scatter(src=HR, index=data[AtomicDataDict.ONSITENV_INDEX_KEY][0], dim=0, reduce="sum") # shape (n_node, n_pair, 2l1+1, 2l2+1)
+                HR = scatter(src=HR, index=data[AtomicDataDict.ONSITENV_INDEX_KEY][0], dim=0, dim_size=n_node, reduce="sum") # shape (n_node, n_pair, 2l1+1, 2l2+1)
                 # A-B o1-o2 (A-B o2-o1)= (B-A o1-o2)
                 
                 data[self.node_field][:, self.idp.orbpairtype_maps[opairtype]] += HR.flatten(1, len(HR.shape)-1) # the index type [node/pair] should align with the index of for loop

@@ -12,7 +12,6 @@ from .. import (
 )
 from ..transforms import TypeMapper, OrbitalMapper
 from ._base_datasets import AtomicInMemoryDataset
-from dptb.nn.hamiltonian import E3Hamiltonian
 from dptb.data.interfaces.ham_to_feature import block_to_feature
 from dptb.data.interfaces.abacus import recursive_parse
 

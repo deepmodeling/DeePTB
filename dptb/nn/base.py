@@ -486,7 +486,6 @@ class ScalarMLPFunction(CodeGenMixin, torch.nn.Module):
         mlp_nonlinearity: Optional[str] = "silu",
         mlp_initialization: str = "normal",
         mlp_dropout_p: float = 0.0,
-        mlp_batchnorm: bool = False,
     ):
         super().__init__()
         nonlinearity = {
@@ -553,11 +552,6 @@ class ScalarMLPFunction(CodeGenMixin, torch.nn.Module):
                 norm_from_last / math.sqrt(float(h_in))
             )  # include any nonlinearity normalization from previous layers
             features = torch.matmul(features, w)
-
-            if mlp_batchnorm:
-                # if we call batchnorm, do it after the nonlinearity
-                features = Proxy(graph.call_module(f"_bn_{layer}", (features.node,)))
-                setattr(base, f"_bn_{layer}", torch.nn.BatchNorm1d(h_out))
 
             # generate nonlinearity code
             if nonlinearity is not None and layer < num_layers - 1:

@@ -101,6 +101,22 @@ def common_options():
     return Argument("common_options", dict, optional=False, sub_fields=args, sub_variants=[], doc=doc_common_options)
 
 
+def distributed_options():
+    """Optional MPI graph-parallel execution settings."""
+    return Argument(
+        "distributed_options",
+        dict,
+        optional=True,
+        default={},
+        sub_fields=[
+            Argument("enabled", bool, optional=True, default=False),
+            Argument("backend", str, optional=True, default="auto"),
+            Argument("partition", str, optional=True, default="rib"),
+        ],
+        sub_variants=[],
+    )
+
+
 def train_options():
     doc_num_epoch = "Total number of training epochs. It is worth noted, if the model is reloaded with `-r` or `--restart` option, epoch which have been trained will counted from the time that the checkpoint is saved."
     doc_save_freq = "Frequency, or every how many iteration to saved the current model into checkpoints, The name of checkpoint is formulated as `latest|best_dptb|nnsk_b<bond_cutoff>_c<sk_cutoff>_w<sk_decay_w>`. Default: `10`"
@@ -500,7 +516,7 @@ def embedding():
 
     return Variant("method", [
             Argument("se2", dict, se2()),
-            Argument("deeph-e3", dict, deephe3()),
+            Argument("mpnn", dict, mpnn()),
             Argument("slem", dict, slem()),
             Argument("lem", dict, slem()),
             Argument("trinity", dict, slem()+[
@@ -551,114 +567,24 @@ def se2():
     ]
 
 
-def baseline():
-
-    doc_rs = ""
-    doc_rc = ""
-    doc_n_axis = ""
-    doc_radial_embedding = ""
-
-    doc_neurons = ""
-    doc_activation = ""
-    doc_if_batch_normalized = ""
-
-    radial_embedding = [
-        Argument("neurons", list, optional=False, doc=doc_neurons),
-        Argument("activation", str, optional=True, default="tanh", doc=doc_activation),
-        Argument("if_batch_normalized", bool, optional=True, default=False, doc=doc_if_batch_normalized),
+def mpnn():
+    network = [
+        Argument("neurons", list, optional=False),
+        Argument("activation", str, optional=True, default="silu"),
+        Argument("if_batch_normalized", bool, optional=True, default=False),
+    ]
+    return [
+        Argument("r_max", [float, int], optional=False),
+        Argument("p", int, optional=True, default=6),
+        Argument("n_basis", int, optional=False),
+        Argument("n_node", int, optional=False),
+        Argument("n_edge", int, optional=False),
+        Argument("n_layer", int, optional=True, default=1),
+        Argument("node_net", dict, sub_fields=network, optional=False),
+        Argument("edge_net", dict, sub_fields=network, optional=False),
+        Argument("if_exp", bool, optional=True, default=False),
     ]
 
-    return [
-        Argument("p", [float, int], optional=False, doc=doc_rs),
-        Argument("rc", [float, int], optional=False, doc=doc_rc),
-        Argument("n_basis", int, optional=False, doc=doc_rc),
-        Argument("n_radial", int, optional=False, doc=doc_rc),
-        Argument("n_sqrt_radial", int, optional=False, doc=doc_rc),
-        Argument("n_layer", int, optional=False, doc=doc_rc),
-        Argument("radial_net", dict, sub_fields=radial_embedding, optional=False, doc=doc_radial_embedding),
-        Argument("hidden_net", dict, sub_fields=radial_embedding, optional=False, doc=doc_radial_embedding),
-        Argument("n_axis", [int, None], optional=True, default=None, doc=doc_n_axis),
-    ]
-
-def deephe3():
-    doc_irreps_embed = ""
-    doc_irreps_mid = ""
-    doc_lmax = ""
-    doc_n_basis = ""
-    doc_rc = ""
-    doc_n_layer = ""
-
-    return [
-            Argument("irreps_embed", str, optional=True, default="64x0e", doc=doc_irreps_embed),
-            Argument("irreps_mid", str, optional=True, default="64x0e+32x1o+16x2e+8x3o+8x4e+4x5o", doc=doc_irreps_mid),
-            Argument("lmax", int, optional=True, default=3, doc=doc_lmax),
-            Argument("n_basis", int, optional=True, default=128, doc=doc_n_basis),
-            Argument("rc", float, optional=False, doc=doc_rc),
-            Argument("n_layer", int, optional=True, default=3, doc=doc_n_layer),
-        ]
-
-def e3baseline():
-    doc_irreps_hidden = ""
-    doc_lmax = ""
-    doc_avg_num_neighbors = ""
-    doc_n_radial_basis = ""
-    doc_r_max = ""
-    doc_n_layers = ""
-    doc_env_embed_multiplicity = ""
-    doc_linear_after_env_embed = ""
-    doc_latent_resnet_update_ratios_learnable = ""
-    doc_latent_kwargs = ""
-
-    return [
-            Argument("irreps_hidden", str, optional=True, default="64x0e+32x1o+16x2e+8x3o+8x4e+4x5o", doc=doc_irreps_hidden),
-            Argument("lmax", int, optional=True, default=3, doc=doc_lmax),
-            Argument("avg_num_neighbors", [int, float], optional=True, default=50, doc=doc_avg_num_neighbors),
-            Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
-            Argument("n_layers", int, optional=True, default=3, doc=doc_n_layers),
-            Argument("n_radial_basis", int, optional=True, default=3, doc=doc_n_radial_basis),
-            Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
-            Argument(
-                "latent_kwargs", dict,
-                optional={
-                "mlp_latent_dimensions": [128, 128, 256],
-                "mlp_nonlinearity": "silu",
-                "mlp_initialization": "uniform"
-            },
-            default=None,
-            doc=doc_latent_kwargs
-            ),
-            Argument("env_embed_multiplicity", int, optional=True, default=1, doc=doc_env_embed_multiplicity),
-            Argument("linear_after_env_embed", bool, optional=True, default=False, doc=doc_linear_after_env_embed),
-            Argument("latent_resnet_update_ratios_learnable", bool, optional=True, default=False, doc=doc_latent_resnet_update_ratios_learnable)
-        ]
-
-def e3baselinev5():
-    doc_irreps_hidden = ""
-    doc_lmax = ""
-    doc_avg_num_neighbors = ""
-    doc_n_radial_basis = ""
-    doc_r_max = ""
-    doc_n_layers = ""
-    doc_env_embed_multiplicity = ""
-
-    return [
-            Argument("irreps_hidden", str, optional=False, doc=doc_irreps_hidden),
-            Argument("lmax", int, optional=False, doc=doc_lmax),
-            Argument("avg_num_neighbors", [int, float], optional=False, doc=doc_avg_num_neighbors),
-            Argument("r_max", [float, int, dict], optional=False, doc=doc_r_max),
-            Argument("n_layers", int, optional=False, doc=doc_n_layers),
-            Argument("n_radial_basis", int, optional=True, default=10, doc=doc_n_radial_basis),
-            Argument("PolynomialCutoff_p", int, optional=True, default=6, doc="The order of polynomial cutoff function. Default: 6"),
-            Argument("cutoff_type", str, optional=True, default="polynomial", doc="The type of cutoff function. Default: polynomial"),
-            Argument("env_embed_multiplicity", int, optional=True, default=1, doc=doc_env_embed_multiplicity),
-            Argument("tp_radial_emb", bool, optional=True, default=False, doc="Whether to use tensor product radial embedding."),
-            Argument("tp_radial_channels", list, optional=True, default=[128, 128], doc="The number of channels in tensor product radial embedding."),
-            Argument("latent_channels", list, optional=True, default=[128, 128], doc="The number of channels in latent embedding."),
-            Argument("latent_dim", int, optional=True, default=256, doc="The dimension of latent embedding."),
-            Argument("res_update", bool, optional=True, default=True, doc="Whether to use residual update."),
-            Argument("res_update_ratios", float, optional=True, default=0.5, doc="The ratios of residual update, should in (0,1)."),
-            Argument("res_update_ratios_learnable", bool, optional=True, default=False, doc="Whether to make the ratios of residual update learnable."),
-        ]
 
 def slem():
     doc_irreps_hidden = ""
@@ -1281,7 +1207,8 @@ def run_options():
         Argument("use_gui", bool, optional=True, default=False, doc = doc_gui),
         Argument("device", [str,None], optional = True, default=None, doc = doc_device),
         Argument("dtype", [str,None], optional = True, default=None, doc = doc_dtype),
-        AtomicData_options_sub()
+        AtomicData_options_sub(),
+        distributed_options(),
     ]
 
     return Argument("run_op", dict, args)

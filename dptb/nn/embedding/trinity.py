@@ -14,17 +14,21 @@ from dptb.data import AtomicDataDict
 from dptb.nn.embedding.emb import Embedding
 from ..radial_basis import BesselBasis
 from ..base import ScalarMLPFunction
-from dptb.nn.embedding.from_deephe3.deephe3 import tp_path_exists
 from dptb.data import _keys
 from dptb.nn.cutoff import cosine_cutoff, polynomial_cutoff
 from dptb.nn.rescale import E3ElementLinear
-from dptb.nn.tensor_product import SO2_Linear
+from dptb.nn.tensor_product import SO2_Linear, tp_path_exists
 import math
 from dptb.data.transforms import OrbitalMapper
 from ..type_encode.one_hot import OneHotAtomEncoding
 from dptb.nn.norm import SeperableLayerNorm, PerLGain
 from dptb.data.AtomicDataDict import with_edge_vectors, with_batch
 from dptb.nn.threecenter import ThreeCenterFactorized, EDGE_THREECENTER_KEY, NODE_THREECENTER_KEY
+from dptb.utils.distributed import (
+    column_atom_index,
+    node_column_values,
+    reverse_edge_values,
+)
 from math import ceil
 
 @Embedding.register("trinity")
@@ -301,31 +305,34 @@ class Trinity(torch.nn.Module):
         return self.idp.orbpair_irreps
 
     def _reversed_edges(self, data: AtomicDataDict.Type) -> torch.Tensor:
-        """Index of the reversed partner (j,i,-S) for every directed edge (i,j,S); an edge without a
-        matched partner (should not happen for symmetric neighbour lists) maps to itself."""
-        ei = data[_keys.EDGE_INDEX_KEY]
-        n_atom = data[_keys.POSITIONS_KEY].shape[0]
-        shift = data.get(_keys.EDGE_CELL_SHIFT_KEY, None)
+        """Return local reverse-edge indices for diagnostics and compatibility.
+
+        A reversed edge owned by another rank has no local row index and maps
+        to itself here.  Distributed forward evaluation must use
+        :func:`reverse_edge_values`, as it does below.
+        """
+        edge = data[_keys.EDGE_INDEX_KEY]
+        shift = data.get(_keys.EDGE_CELL_SHIFT_KEY)
         if shift is None:
-            S = torch.zeros(ei.shape[1], 3, dtype=torch.long, device=ei.device)
+            shift = torch.zeros((edge.shape[1], 3), dtype=torch.long, device=edge.device)
         else:
-            S = shift.round().long()
-        B, K = 100, 201
-        assert int(S.abs().max()) < B, "edge cell shifts exceed the hermitian-pairing encoding bound"
-        def code(i, j, s):
-            c = i * n_atom + j
-            for k in range(3):
-                c = c * K + (s[:, k] + B)
-            return c
-        c_fwd = code(ei[0].long(), ei[1].long(), S)
-        c_rev = code(ei[1].long(), ei[0].long(), -S)
-        sorted_c, order = torch.sort(c_fwd)
-        pos = torch.searchsorted(sorted_c, c_rev)
-        pos = pos.clamp_max(len(sorted_c) - 1)
-        rev = order[pos]
-        matched = c_fwd[rev] == c_rev
-        rev = torch.where(matched, rev, torch.arange(len(rev), device=rev.device))
-        return rev
+            shift = shift.round().long()
+        atom_ids = column_atom_index(data).to(edge.device)
+        entries = {}
+        for index in range(edge.shape[1]):
+            key = (
+                int(atom_ids[edge[0, index]]), int(atom_ids[edge[1, index]]),
+                int(shift[index, 0]), int(shift[index, 1]), int(shift[index, 2]),
+            )
+            entries[key] = index
+        reversed_indices = []
+        for index in range(edge.shape[1]):
+            key = (
+                int(atom_ids[edge[1, index]]), int(atom_ids[edge[0, index]]),
+                -int(shift[index, 0]), -int(shift[index, 1]), -int(shift[index, 2]),
+            )
+            reversed_indices.append(entries.get(key, index))
+        return torch.tensor(reversed_indices, dtype=torch.long, device=edge.device)
 
     def forward(self, data: AtomicDataDict.Type) -> AtomicDataDict.Type:
         data = with_edge_vectors(data, with_lengths=True)
@@ -339,12 +346,13 @@ class Trinity(torch.nn.Module):
 
         data = self.onehot(data)
         node_one_hot = data[_keys.NODE_ATTRS_KEY]
+        node_one_hot_columns = node_column_values(data, node_one_hot)
         atom_type = data[_keys.ATOM_TYPE_KEY].flatten()
         bond_type = data[_keys.EDGE_TYPE_KEY].flatten()
-        latents, node_features, edge_features, cutoff_coeffs, active_edges = self.init_layer(edge_index, atom_type, bond_type, edge_sh, edge_length, node_one_hot)
+        latents, node_features, edge_features, cutoff_coeffs, active_edges = self.init_layer(edge_index, atom_type, bond_type, edge_sh, edge_length, node_one_hot_columns)
 
         # get the twobody part of the param.
-        node_twoness, edge_twoness = self.two_ness(edge_index, atom_type, cutoff_coeffs, edge_length, node_one_hot)
+        node_twoness, edge_twoness = self.two_ness(edge_index, atom_type, cutoff_coeffs, edge_length, node_one_hot_columns)
         data[_keys.EDGE_OVERLAP_KEY] = latents
         data[_keys.NODE_ATTRS_KEY] = node_twoness
         data[_keys.EDGE_ATTRS_KEY] = edge_twoness
@@ -363,12 +371,14 @@ class Trinity(torch.nn.Module):
             # cutoff and float32 cutoff-coefficient noise cannot reach the output.
             benv = boundary_envelope(edge_length[active_edges], self.init_layer.r_max)
             for layer in self.layers:
+                node_feature_columns = node_column_values(data, node_features)
                 latents, node_features, edge_features = \
                     layer(
                         latents,
                         node_features,
+                        node_feature_columns,
                         edge_features,
-                        node_one_hot,
+                        node_one_hot_columns,
                         edge_index,
                         edge_vector,
                         atom_type,
@@ -400,9 +410,9 @@ class Trinity(torch.nn.Module):
         # relation (the sym leaves them invariant), so this only constrains the env output; skipped
         # in the env-free modes where the features are hermitian by construction.
         if self.hermitian and self.use_env:
-            rev = self._reversed_edges(data)
             ef = data[_keys.EDGE_FEATURES_KEY]
-            sym = 0.5 * (ef[:, self.herm_mask] + self.herm_sign * ef[rev][:, self.herm_mask])
+            reversed_ef = reverse_edge_values(data, ef)
+            sym = 0.5 * (ef[:, self.herm_mask] + self.herm_sign * reversed_ef[:, self.herm_mask])
             ef = ef.clone()
             ef[:, self.herm_mask] = sym
             data[_keys.EDGE_FEATURES_KEY] = ef
@@ -721,6 +731,7 @@ class InitLayer(torch.nn.Module):
             edge_features,
             edge_center[active_edges],
             dim=0,
+            dim_size=atom_type.numel(),
         )
 
         if self.env_sum_normalizations.ndim < 1:
@@ -905,6 +916,7 @@ class UpdateNode(torch.nn.Module):
             weighted,
             edge_center[active_edges],
             dim=0,
+            dim_size=node_features.shape[0],
         )
 
         if self.env_sum_normalizations.ndim < 1:
@@ -1195,9 +1207,9 @@ class Layer(torch.nn.Module):
             device=device,
         )
 
-    def forward(self, latents, node_features, edge_features, node_onehot, edge_index, edge_vector, atom_type, cutoff_coeffs, active_edges, wigner=None, boundary_env=None):
+    def forward(self, latents, node_features, node_feature_columns, edge_features, node_onehot_columns, edge_index, edge_vector, atom_type, cutoff_coeffs, active_edges, wigner=None, boundary_env=None):
 
-        edge_features, latents = self.edge_update(latents, node_features, node_onehot, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges, wigner=wigner)
-        node_features = self.node_update(latents, node_features, edge_features, atom_type, node_onehot, edge_index, edge_vector, active_edges, wigner=wigner, boundary_env=boundary_env)
+        edge_features, latents = self.edge_update(latents, node_feature_columns, node_onehot_columns, edge_features, edge_index, edge_vector, cutoff_coeffs, active_edges, wigner=wigner)
+        node_features = self.node_update(latents, node_features, edge_features, atom_type, node_onehot_columns, edge_index, edge_vector, active_edges, wigner=wigner, boundary_env=boundary_env)
 
         return latents, node_features, edge_features

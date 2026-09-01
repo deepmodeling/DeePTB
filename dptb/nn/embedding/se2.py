@@ -7,6 +7,7 @@ from dptb.nn.embedding.emb import Embedding
 from ..base import ResNet
 from dptb.utils.constants import dtype_dict
 from ..type_encode.one_hot import OneHotAtomEncoding
+from dptb.utils.distributed import node_column_values
 
 def get_neuron_config(nl):
     n = len(nl)
@@ -79,6 +80,7 @@ class SE2Descriptor(torch.nn.Module):
             data[AtomicDataDict.ENV_INDEX_KEY], 
             data[AtomicDataDict.EDGE_INDEX_KEY],
             data[AtomicDataDict.EDGE_LENGTH_KEY],
+            distributed_data=data,
             )
         
         return data
@@ -112,7 +114,9 @@ class SE2Aggregation(Aggregation):
         """
         direct_vec = x[:, -4:]
         x = x[:,:-4].unsqueeze(-1) * direct_vec.unsqueeze(1) # [N_env, D, 4]
-        return self.reduce(x, index, reduce="mean", dim=0) # [N_atom, D, 4] following the orders of atom index.
+        return self.reduce(
+            x, index, reduce="mean", dim=0, dim_size=kwargs.get("dim_size")
+        ) # [N_atom, D, 4] following the orders of atom index.
 
 
 class _SE2Descriptor(MessagePassing):
@@ -162,11 +166,22 @@ class _SE2Descriptor(MessagePassing):
             self.n_axis = radial_net["neurons"][-1]
         self.n_out = self.n_axis * radial_net["neurons"][-1]
 
-    def forward(self, env_vectors, atom_attr, env_index, edge_index, edge_length):
+    def forward(self, env_vectors, atom_attr, env_index, edge_index, edge_length, distributed_data=None):
         n_env = env_index.shape[1]
-        env_attr = atom_attr[env_index].transpose(1,0).reshape(n_env,-1)
-        out_node = self.propagate(env_index, env_vectors=env_vectors, env_attr=env_attr) # [N_atom, D, 3]
-        out_edge = self.edge_updater(edge_index, node_descriptor=out_node, edge_length=edge_length) # [N_edge, D*D]
+        atom_columns = node_column_values(distributed_data, atom_attr)
+        env_attr = atom_columns[env_index].transpose(1,0).reshape(n_env,-1)
+        out_node = self.propagate(
+            env_index,
+            env_vectors=env_vectors,
+            env_attr=env_attr,
+            size=(atom_attr.shape[0], atom_columns.shape[0]),
+        )
+        node_columns = node_column_values(distributed_data, out_node)
+        out_edge = self.edge_updater(
+            edge_index,
+            node_descriptor=node_columns,
+            edge_length=edge_length,
+        ) # [N_edge, D*D]
 
         return out_node, out_edge
 

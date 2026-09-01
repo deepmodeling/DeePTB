@@ -43,7 +43,17 @@ def _irreps_compatible(ir1: Dict[str, o3.Irreps], ir2: Dict[str, o3.Irreps]):
     return all(ir1[k] == ir2[k] for k in ir1 if k in ir2)
 
 
-@torch.jit.script
+def _position_columns(data: Type) -> torch.Tensor:
+    pos = data[_keys.POSITIONS_KEY]
+    ghost_pos = data.get(_keys.GHOST_POSITIONS_KEY)
+    if ghost_pos is None:
+        return pos
+    if pos.requires_grad:
+        from dptb.utils.distributed import node_column_values
+        return node_column_values(data, pos, ghost_pos)
+    return torch.cat((pos, ghost_pos.to(device=pos.device, dtype=pos.dtype)), dim=0)
+
+
 def with_edge_vectors(data: Type, with_lengths: bool = True) -> Type:
     """Compute the edge displacement vectors for a graph.
 
@@ -53,6 +63,11 @@ def with_edge_vectors(data: Type, with_lengths: bool = True) -> Type:
     Returns:
         Tensor [n_edges, 3] edge displacement vectors
     """
+    # The @torch.jit.script version of this function received its Dict input by
+    # value, so callers got back a fresh dict object; parts of the code base
+    # (e.g. MIX.forward calling nnenv and nnsk on the same dict) rely on that.
+    # Keep the copy semantics now that the function is plain Python.
+    data = dict(data)
     if _keys.EDGE_VECTORS_KEY in data:
         if with_lengths and _keys.EDGE_LENGTH_KEY not in data:
             data[_keys.EDGE_LENGTH_KEY] = torch.linalg.norm(
@@ -66,7 +81,7 @@ def with_edge_vectors(data: Type, with_lengths: bool = True) -> Type:
         # (1) backwardable, because everything (pos, cell, shifts)
         #     is Tensors.
         # (2) works on a Batch constructed from AtomicData
-        pos = data[_keys.POSITIONS_KEY]
+        pos = _position_columns(data)
         edge_index = data[_keys.EDGE_INDEX_KEY]
         edge_vec = pos[edge_index[1]] - pos[edge_index[0]]
         if _keys.CELL_KEY in data and torch.sum(torch.abs(data[_keys.CELL_KEY])) > 1e-10:
@@ -99,7 +114,6 @@ def with_edge_vectors(data: Type, with_lengths: bool = True) -> Type:
             data[_keys.EDGE_LENGTH_KEY] = torch.linalg.norm(edge_vec, dim=-1)
         return data
 
-@torch.jit.script
 def with_env_vectors(data: Type, with_lengths: bool = True) -> Type:
     """Compute the edge displacement vectors for a graph.
 
@@ -109,6 +123,9 @@ def with_env_vectors(data: Type, with_lengths: bool = True) -> Type:
     Returns:
         Tensor [n_edges, 3] edge displacement vectors
     """
+    # Preserve the by-value dict semantics of the former @torch.jit.script
+    # version (see with_edge_vectors).
+    data = dict(data)
     if _keys.ENV_VECTORS_KEY in data:
         if with_lengths and _keys.ENV_LENGTH_KEY not in data:
             data[_keys.ENV_LENGTH_KEY] = torch.linalg.norm(
@@ -121,7 +138,7 @@ def with_env_vectors(data: Type, with_lengths: bool = True) -> Type:
         # (1) backwardable, because everything (pos, cell, shifts)
         #     is Tensors.
         # (2) works on a Batch constructed from AtomicData
-        pos = data[_keys.POSITIONS_KEY]
+        pos = _position_columns(data)
         env_index = data[_keys.ENV_INDEX_KEY]
         env_vec = pos[env_index[1]] - pos[env_index[0]]
         if _keys.CELL_KEY in data and torch.sum(torch.abs(data[_keys.CELL_KEY])) > 1e-10:
@@ -153,7 +170,6 @@ def with_env_vectors(data: Type, with_lengths: bool = True) -> Type:
             data[_keys.ENV_LENGTH_KEY] = torch.linalg.norm(env_vec, dim=-1)
         return data
     
-@torch.jit.script
 def with_onsitenv_vectors(data: Type, with_lengths: bool = True) -> Type:
     """Compute the edge displacement vectors for a graph.
 
@@ -163,6 +179,9 @@ def with_onsitenv_vectors(data: Type, with_lengths: bool = True) -> Type:
     Returns:
         Tensor [n_edges, 3] edge displacement vectors
     """
+    # Preserve the by-value dict semantics of the former @torch.jit.script
+    # version (see with_edge_vectors).
+    data = dict(data)
     if _keys.ONSITENV_VECTORS_KEY in data:
         if with_lengths and _keys.ONSITENV_LENGTH_KEY not in data:
             data[_keys.ONSITENV_LENGTH_KEY] = torch.linalg.norm(
@@ -175,7 +194,7 @@ def with_onsitenv_vectors(data: Type, with_lengths: bool = True) -> Type:
         # (1) backwardable, because everything (pos, cell, shifts)
         #     is Tensors.
         # (2) works on a Batch constructed from AtomicData
-        pos = data[_keys.POSITIONS_KEY]
+        pos = _position_columns(data)
         env_index = data[_keys.ONSITENV_INDEX_KEY]
         env_vec = pos[env_index[1]] - pos[env_index[0]]
         if _keys.CELL_KEY in data and torch.sum(torch.abs(data[_keys.CELL_KEY])) > 1e-10:

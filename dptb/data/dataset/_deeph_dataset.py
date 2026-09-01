@@ -12,7 +12,6 @@ from .. import (
 from ..AtomicDataDict import with_edge_vectors
 from ..transforms import TypeMapper, OrbitalMapper
 from ._base_datasets import AtomicDataset, AtomicInMemoryDataset
-from dptb.nn.hamiltonian import E3Hamiltonian
 from dptb.data.interfaces.ham_to_feature import openmx_to_deeptb
 from tqdm import tqdm
 
@@ -99,6 +98,9 @@ class DeePHE3Dataset(AtomicInMemoryDataset):
             return None
         
         typed_dataset = idp(self.data.clone().to_dict())
+        # Deferred so importing dptb.data does not pull in dptb.nn
+        # (module cycle via dptb.utils.distributed otherwise).
+        from dptb.nn.hamiltonian import E3Hamiltonian
         e3h = E3Hamiltonian(basis=idp.basis, decompose=True)
         with torch.no_grad():
             typed_dataset = e3h(typed_dataset)

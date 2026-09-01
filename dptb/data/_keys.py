@@ -47,6 +47,17 @@ PBC_KEY: Final[str] = "pbc"
 ATOMIC_NUMBERS_KEY: Final[str] = "atomic_numbers"
 # [n_atom, 1] long tensor
 ATOM_TYPE_KEY: Final[str] = "atom_types"
+# Original atom id for an owned-row partitioned AtomicData graph.
+# Its absence means that the graph uses the normal serial representation.
+ATOM_INDEX_KEY: Final[str] = "atom_index"
+# Private distributed graph-column metadata.  These are not node fields:
+# public node tensors remain strictly aligned with ``pos`` and contain owned
+# rows only.  Relation destinations after ``len(pos)`` address these ghosts.
+GHOST_ATOM_INDEX_KEY: Final[str] = "ghost_atom_index"
+GHOST_ATOM_OWNER_KEY: Final[str] = "ghost_atom_owner"
+GHOST_POSITIONS_KEY: Final[str] = "ghost_pos"
+GHOST_ATOM_TYPE_KEY: Final[str] = "ghost_atom_types"
+GHOST_ATOMIC_NUMBERS_KEY: Final[str] = "ghost_atomic_numbers"
 # [n_batch, n_kpoint, n_orb]
 ENERGY_EIGENVALUE_KEY: Final[str] = "eigenvalue"
 EIGENVALUE_VALID_MASK_KEY: Final[str] = "eigenvalue_valid_mask"

@@ -12,6 +12,8 @@ from ..type_encode.one_hot import OneHotAtomEncoding
 from ..cutoff import polynomial_cutoff
 from ..radial_basis import BesselBasis
 from torch_runstats.scatter import scatter
+from dptb.utils.distributed import node_column_values
+from torch_scatter import scatter as pyg_scatter
 
 def get_neuron_config(nl):
     n = len(nl)
@@ -82,8 +84,9 @@ class MPNN(torch.nn.Module):
         data = AtomicDataDict.with_edge_vectors(data, with_lengths=True)
 
         node_features = self.node_emb(data[AtomicDataDict.NODE_ATTRS_KEY])
-        env_features = self.edge_emb(torch.cat([node_features[data[AtomicDataDict.ENV_INDEX_KEY][0]], node_features[data[AtomicDataDict.ENV_INDEX_KEY][1]], self.bessel(data[AtomicDataDict.ENV_LENGTH_KEY])], dim=-1))
-        edge_features = self.edge_emb(torch.cat([node_features[data[AtomicDataDict.EDGE_INDEX_KEY][0]], node_features[data[AtomicDataDict.EDGE_INDEX_KEY][1]], self.bessel(data[AtomicDataDict.EDGE_LENGTH_KEY])], dim=-1))
+        node_columns = node_column_values(data, node_features)
+        env_features = self.edge_emb(torch.cat([node_columns[data[AtomicDataDict.ENV_INDEX_KEY][0]], node_columns[data[AtomicDataDict.ENV_INDEX_KEY][1]], self.bessel(data[AtomicDataDict.ENV_LENGTH_KEY])], dim=-1))
+        edge_features = self.edge_emb(torch.cat([node_columns[data[AtomicDataDict.EDGE_INDEX_KEY][0]], node_columns[data[AtomicDataDict.EDGE_INDEX_KEY][1]], self.bessel(data[AtomicDataDict.EDGE_LENGTH_KEY])], dim=-1))
 
         for layer in self.layers:
             node_features, env_features, edge_features = layer(
@@ -94,6 +97,7 @@ class MPNN(torch.nn.Module):
                 node_emb=node_features,
                 env_length=data[AtomicDataDict.ENV_LENGTH_KEY],
                 edge_length=data[AtomicDataDict.EDGE_LENGTH_KEY],
+                distributed_data=data,
             )
         data[AtomicDataDict.NODE_FEATURES_KEY] = node_features
 
@@ -147,13 +151,18 @@ class MPNNLayer(MessagePassing):
         self.device = device
         self.dtype = dtype
 
-    def forward(self, edge_index, env_index, node_emb, env_emb, edge_emb):
+    def forward(self, edge_index, env_index, node_emb, env_emb, edge_emb, distributed_data=None):
         
-        z_ik = torch.cat([node_emb[env_index[0]], node_emb[env_index[1]], env_emb], dim=-1)
-        node_emb = node_emb + self.propagate(env_index, z_ik=z_ik)
+        node_columns = node_column_values(distributed_data, node_emb)
+        z_ik = torch.cat([node_columns[env_index[0]], node_columns[env_index[1]], env_emb], dim=-1)
+        messages = self.mlp_node(z_ik)
+        node_emb = node_emb + pyg_scatter(
+            messages, env_index[0], dim=0, dim_size=node_emb.shape[0], reduce="mean"
+        )
 
-        env_emb = self.mlp_edge(torch.cat([node_emb[env_index[0]], env_emb, node_emb[env_index[1]]], dim=-1))
-        edge_emb = self.mlp_edge(torch.cat([node_emb[edge_index[0]], edge_emb, node_emb[edge_index[1]]], dim=-1))
+        node_columns = node_column_values(distributed_data, node_emb)
+        env_emb = self.mlp_edge(torch.cat([node_columns[env_index[0]], env_emb, node_columns[env_index[1]]], dim=-1))
+        edge_emb = self.mlp_edge(torch.cat([node_columns[edge_index[0]], edge_emb, node_columns[edge_index[1]]], dim=-1))
 
         return node_emb, env_emb, edge_emb
 
@@ -215,11 +224,16 @@ class CGConvLayer(MessagePassing):
         self.device = device
         self.dtype = dtype
 
-    def forward(self, edge_index, env_index, node_emb, env_emb, edge_emb, env_length, edge_length):
-        z_ik = torch.cat([node_emb[env_index[0]], node_emb[env_index[1]], env_emb], dim=-1)
-        node_emb = node_emb + self.propagate(env_index, z_ik=z_ik, env_length=env_length)
+    def forward(self, edge_index, env_index, node_emb, env_emb, edge_emb, env_length, edge_length, distributed_data=None):
+        node_columns = node_column_values(distributed_data, node_emb)
+        z_ik = torch.cat([node_columns[env_index[0]], node_columns[env_index[1]], env_emb], dim=-1)
+        messages = self.message(z_ik, env_length)
+        node_emb = node_emb + pyg_scatter(
+            messages, env_index[0], dim=0, dim_size=node_emb.shape[0], reduce="sum"
+        )
 
-        env_feature_in = torch.cat([node_emb[env_index[0]], env_emb, node_emb[env_index[1]]], dim=-1)
+        node_columns = node_column_values(distributed_data, node_emb)
+        env_feature_in = torch.cat([node_columns[env_index[0]], env_emb, node_columns[env_index[1]]], dim=-1)
         env_emb = self.lin_edge_f(env_feature_in).sigmoid() * \
             F.softplus(self.lin_edge_s(env_feature_in))
         if self.if_exp:
@@ -227,14 +241,13 @@ class CGConvLayer(MessagePassing):
             n = 2
             env_emb = env_emb * torch.exp(-env_length ** n / sigma ** n / 2).view(-1, 1)
         
-        edge_feature_in = torch.cat([node_emb[edge_index[0]], edge_emb, node_emb[edge_index[1]]], dim=-1)
+        edge_feature_in = torch.cat([node_columns[edge_index[0]], edge_emb, node_columns[edge_index[1]]], dim=-1)
         edge_emb = self.lin_edge_f(edge_feature_in).sigmoid() * \
             F.softplus(self.lin_edge_s(edge_feature_in))
         if self.if_exp:
             sigma = 3
             n = 2
             edge_emb = edge_emb * torch.exp(-edge_length ** n / sigma ** n / 2).view(-1, 1)
-
         return node_emb, env_emb, edge_emb
 
 

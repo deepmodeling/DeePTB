@@ -46,6 +46,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+distributed = ["mpi4py>=3.1"]
 3Dfermi = ["ifermi", "pymatgen"]
 tbtrans_init = ["sisl"]
 pybinding = ["pybinding"]

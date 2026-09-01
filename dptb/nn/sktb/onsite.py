@@ -202,7 +202,13 @@ class OnsiteFormula(BaseOnsite):
         exp_rij = th.exp(-lda**2 * r_ijs)
         f_rij = 1/(1+th.exp((r_ijs-rs+5*w)/w))
         f_rij[r_ijs>=rs] = 0.0
-        rho_i = scatter(src=exp_rij * f_rij, index=onsitenv_index[0], dim=0, reduce="sum").unsqueeze(1) # [N_atom, 1]
+        rho_i = scatter(
+            src=exp_rij * f_rij,
+            index=onsitenv_index[0],
+            dim=0,
+            dim_size=atomic_numbers.numel(),
+            reduce="sum",
+        ).unsqueeze(1) # [N_atom, 1]
         a_l, b_l, c_l, d_l = nn_onsite_paras[:,:,0], nn_onsite_paras[:,:,1], nn_onsite_paras[:,:,2], nn_onsite_paras[:,:,3]
         E_il = a_l + b_l * rho_i**(2/3) + c_l * rho_i**(4/3) + d_l * rho_i**2 # [N_atom, n_orb]
         return E_il # [N_atom, n_orb]
