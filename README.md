@@ -39,6 +39,8 @@ For more details, see our papers:
 - [DeePTB-E3: ICLR 2025 Spotlight](https://openreview.net/forum?id=kpq3IIjUD3)
 
 
+For background on the DeePTB-SK work, see [a short research note on large-scale electronic structure](https://floatingcatty.github.io/research/deeptb/) (English / 中文). For the local equivariant model used in DeePTB-E3, see the [SLEM research note](https://floatingcatty.github.io/research/slem/).
+
 ## 📚 Documentation
 
 - **Online documentation**
