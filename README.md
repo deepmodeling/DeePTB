@@ -39,7 +39,33 @@ For more details, see our papers:
 - [DeePTB-E3: ICLR 2025 Spotlight](https://openreview.net/forum?id=kpq3IIjUD3)
 
 
-For background on the DeePTB-SK work, see [a short research note on large-scale electronic structure](https://floatingcatty.github.io/research/deeptb/) (English / 中文). For the local equivariant model used in DeePTB-E3, see the [SLEM research note](https://floatingcatty.github.io/research/slem/).
+For the underlying ideas in DeePTB-SK, see the author's research note
+([English](https://floatingcatty.github.io/research/deeptb/) /
+[中文](https://floatingcatty.github.io/zh/research/deeptb/)).
+For the localized equivariant operators used in DeePTB-E3, see the SLEM note
+([English](https://floatingcatty.github.io/research/slem/) /
+[中文](https://floatingcatty.github.io/zh/research/slem/)).
+
+### Peer-reviewed applications and observable-level validation
+
+A learned Hamiltonian is an input to a physical calculation, not a guarantee
+that every downstream observable is accurate. These published studies give
+distinct examples of how electronic-structure models are connected to and
+validated against physical properties:
+
+| Application | What was computed and checked | Publication |
+| --- | --- | --- |
+| Finite-temperature electronic structure | Environment-dependent DeePTB-SK Hamiltonians and tight-binding propagation for DOS and optical properties in a **one-million-atom GaP structure**; **not** a million-atom self-consistent DFT calculation | [Nature Communications **15**, 6772 (2024)](https://doi.org/10.1038/s41467-024-51006-4) |
+| Localized equivariant quantum operators | SLEM prediction of atomic-orbital Hamiltonian, overlap and density matrices in a rotation-equivariant, strictly local representation | [ICLR 2025 Spotlight](https://proceedings.iclr.cc/paper_files/paper/2025/hash/7db2ffcbfd0bd361d47b7fa612bd2ba2-Abstract-Conference.html) |
+| Nanoelectronic quantum transport | Learned Hamiltonians coupled with NEGF for **over 10,000 break-junction configurations**, and carbon-nanotube FET calculations benchmarked against experiments; lead contacts and device assumptions remain part of the transport model | [npj Computational Materials **11**, 375 (2025)](https://doi.org/10.1038/s41524-025-01853-6) |
+| Two-dimensional material transport | DeePTB-derived Hamiltonians and NEGF transmission tests for **graphene, h-BN and MoS2**, with comparison to DFT-NEGF | [IEEE MoSICom 2025](https://doi.org/10.1109/MoSICom67153.2025.11398312) |
+| Finite-temperature optical spectra | DeePMD sampling with HSE-trained DeePTB electronic models for phonon-assisted spectra in **Si, GaAs and GaP**, including supercells up to 4,096 atoms | [npj Computational Materials **12**, 268 (2026)](https://doi.org/10.1038/s41524-026-02137-3) |
+
+These are **different model, material and validation settings**, not interchangeable
+performance claims. For device-level transport, see the separate
+[DPNEGF solver](https://github.com/deepmodeling/dpnegf); the DeePTB model
+does not by itself include electrode self-energies, gate electrostatics or
+full device transport.
 
 ## 📚 Documentation
 
