@@ -17,7 +17,8 @@ def write_block(
         data: Union[AtomicData, ase.Atoms, str], 
         model: torch.nn.Module,
         AtomicData_options: dict={},
-        device: Union[str, torch.device]=None
+        device: Union[str, torch.device]=None,
+	overlap: bool=False,
         ):
     
     model.eval()
@@ -40,7 +41,7 @@ def write_block(
 
         # set the kpoint of the AtomicData
         data = model(data)
-        block = feature_to_block(data=data, idp=model.idp)
+        block = feature_to_block(data=data, idp=model.idp, overlap=overlap)
 
     return block
 
